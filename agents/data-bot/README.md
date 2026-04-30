@@ -1,16 +1,16 @@
 # Data Bot
 
-Local source-controlled snapshot of the ChatGPT Agent Studio agent named `Data Bot`.
+Local source-controlled snapshot of the ChatGPT Agent Studio agent named `Da Ta Bot`.
 
-- Agent Studio URL: pending recreation in ChatGPT Agent Studio.
+- Agent Studio URL: `https://chatgpt.com/agents/studio/edit/agt_69f311eb8c688191ac24e5edeb038967`
 - Previous captured agent URL: `https://chatgpt.com/agents/studio/edit/agt_69f1bae700648191895541694209d4ac`
-- Latest local version: `versions/2026-04-30T073756Z`
+- Latest local version: `versions/2026-04-30T090405Z`
 - Purpose: StaffAny internal data analyst agent for BigQuery warehouse questions, Pantheon/GitHub context checks, Slack forwarded-thread context, and confirmed memory learning.
 - BigQuery MCP setup runbook: `bigquery-mcp-setup.md`
 
 ## Versioning Rule
 
-Every time Data Bot is changed in Agent Studio, create a new folder under `versions/` instead of editing older snapshots in place. Older versions are evidence, not scratch space.
+Every time the Agent Studio bot is changed, create a new folder under `versions/` instead of editing older snapshots in place. Older versions are evidence, not scratch space.
 
 ## Restore Order
 

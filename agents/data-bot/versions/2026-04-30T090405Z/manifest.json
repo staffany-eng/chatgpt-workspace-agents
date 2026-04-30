@@ -1,0 +1,72 @@
+{
+  "agent_name": "Da Ta Bot",
+  "agent_id": "agt_69f311eb8c688191ac24e5edeb038967",
+  "source_url": "https://chatgpt.com/agents/studio/edit/agt_69f311eb8c688191ac24e5edeb038967",
+  "captured_at_utc": "2026-04-30T09:04:05Z",
+  "captured_at_local": "2026-04-30T17:04:05+0800",
+  "capture_method": "Source-controlled Slack POC iteration packet based on existing Data Bot snapshot, Slack findings, and approved implementation plan",
+  "privacy": {
+    "secrets_copied": false,
+    "connector_credentials_copied": false,
+    "personal_account_identifiers": "redacted"
+  },
+  "agent_definition": {
+    "name": "Da Ta Bot",
+    "description": "StaffAny internal data analyst for BigQuery metrics, Pantheon context, and Slack-thread data questions.",
+    "starter_prompts": [
+      "Inspect fct_daily_attendance and summarize what questions it can answer.",
+      "What does \"section\" mean in Pantheon?",
+      "Show active StaffAny staff by organization for last month.",
+      "Use this Slack thread and tell me what metric they are asking for."
+    ]
+  },
+  "surfaces": {
+    "instructions": "instructions.md",
+    "apps_and_mcps": "surface-map.md",
+    "skills": [
+      "skills/staffany-bigquery-analyst/SKILL.md",
+      "skills/staffany-data-bot-memory-learning/SKILL.md"
+    ],
+      "files": [
+      "files/workspace-agent-bigquery-data-bot.md",
+      "files/staffany-data-bot-metric-registry.md"
+    ],
+    "memory": "surface-map.md",
+    "channels": "surface-map.md"
+  },
+  "intended_state": {
+    "agent_name": "Da Ta Bot",
+    "create_new_agent": false,
+    "rollout_stage": "Slack POC in #kaiyi-bot-testing only",
+    "chatgpt_channel": {
+      "access": "private",
+      "schedules": []
+    },
+    "apps_and_mcps": [
+      "GitHub",
+      "StaffAny BigQuery Auth",
+      "Slack"
+    ],
+    "skills": [
+      "staffany-bigquery-analyst",
+      "staffany-data-bot-memory-learning"
+    ],
+    "files": [
+      "workspace-agent-bigquery-data-bot.md",
+      "staffany-data-bot-metric-registry.md"
+    ],
+    "channels": [
+      "ChatGPT",
+      "Slack #kaiyi-bot-testing"
+    ],
+    "memory_scopes": [
+      "ChatGPT private memory",
+      "Slack #kaiyi-bot-testing memory"
+    ]
+  },
+  "known_gaps": [
+    "Reuse the connected StaffAny BigQuery Auth custom MCP app. Expected MCP URL is https://bq-mcp-proxy-1093387803298.asia-southeast1.run.app/mcp with Access token / API key auth, Bearer scheme. Secret value lives in Secret Manager secret bq-mcp-proxy-shared-secret in project staffany-warehouse. Do not store the token in this repo.",
+    "Built-in Slack is the v1 path for forwarded thread text and image context; add a custom Slack MCP only if preview tests show Slack context is unreliable after this POC pass.",
+    "Do not publish to PS/RevOps, org directory, schedules, or broader Slack channels until the regression tests pass."
+  ]
+}
