@@ -1,0 +1,69 @@
+{
+  "agent_name": "Data Bot",
+  "agent_id": "pending_recreation",
+  "source_url": "pending_recreation_in_chatgpt_agent_builder",
+  "captured_at_utc": "2026-04-30T07:37:56Z",
+  "captured_at_local": "2026-04-30T15:37:56+0800",
+  "capture_method": "Source-controlled recreation packet based on existing Data Bot snapshot and approved implementation plan",
+  "privacy": {
+    "secrets_copied": false,
+    "connector_credentials_copied": false,
+    "personal_account_identifiers": "redacted"
+  },
+  "agent_definition": {
+    "name": "Data Bot",
+    "description": "StaffAny internal data analyst for BigQuery metrics, Pantheon context, and Slack-thread data questions.",
+    "starter_prompts": [
+      "Inspect fct_daily_attendance and summarize what questions it can answer.",
+      "What does \"section\" mean in Pantheon?",
+      "Show active StaffAny staff by organization for last month.",
+      "Use this Slack thread and tell me what metric they are asking for."
+    ]
+  },
+  "surfaces": {
+    "instructions": "instructions.md",
+    "apps_and_mcps": "surface-map.md",
+    "skills": [
+      "skills/staffany-bigquery-analyst/SKILL.md",
+      "skills/staffany-data-bot-memory-learning/SKILL.md"
+    ],
+    "files": [
+      "files/workspace-agent-bigquery-data-bot.md"
+    ],
+    "memory": "surface-map.md",
+    "channels": "surface-map.md"
+  },
+  "intended_state": {
+    "agent_name": "Data Bot",
+    "create_new_agent": true,
+    "chatgpt_channel": {
+      "access": "private",
+      "schedules": []
+    },
+    "apps_and_mcps": [
+      "GitHub",
+      "StaffAny BigQuery Auth",
+      "Slack"
+    ],
+    "skills": [
+      "staffany-bigquery-analyst",
+      "staffany-data-bot-memory-learning"
+    ],
+    "files": [
+      "workspace-agent-bigquery-data-bot.md"
+    ],
+    "channels": [
+      "ChatGPT",
+      "Slack #kaiyi-bot-testing"
+    ],
+    "memory_scopes": [
+      "ChatGPT private memory",
+      "Slack #kaiyi-bot-testing memory"
+    ]
+  },
+  "known_gaps": [
+    "The recreated ChatGPT agent has not yet been created in Agent Studio, so the agent_id and source_url are placeholders.",
+    "Reuse the connected StaffAny BigQuery Auth custom MCP app. Expected MCP URL is https://bq-mcp-proxy-1093387803298.asia-southeast1.run.app/mcp with Access token / API key auth, Bearer scheme. Secret value lives in Secret Manager secret bq-mcp-proxy-shared-secret in project staffany-warehouse. Do not store the token in this repo.",
+    "Built-in Slack is the v1 path for forwarded thread text and image context; add a custom Slack MCP only if preview tests show Slack context is unreliable."
+  ]
+}

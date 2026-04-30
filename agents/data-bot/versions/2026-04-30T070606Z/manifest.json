@@ -1,0 +1,66 @@
+{
+  "agent_name": "Data Bot",
+  "agent_id": "agt_69f1bae700648191895541694209d4ac",
+  "source_url": "https://chatgpt.com/agents/studio/edit/agt_69f1bae700648191895541694209d4ac",
+  "captured_at_utc": "2026-04-30T07:06:06Z",
+  "captured_at_local": "2026-04-30T15:06:06+0800",
+  "capture_method": "ChatGPT Agent Studio DOM snapshots plus local Pantheon worktree file mirror",
+  "privacy": {
+    "secrets_copied": false,
+    "connector_credentials_copied": false,
+    "personal_account_identifiers": "redacted"
+  },
+  "surfaces": {
+    "instructions": "instructions.md",
+    "apps_and_mcps": "surface-map.md",
+    "skills": [
+      "skills/staffany-bigquery-analyst/SKILL.md"
+    ],
+    "files": [
+      "files/workspace-agent-bigquery-data-bot.md"
+    ],
+    "memory": "surface-map.md",
+    "channels": "surface-map.md"
+  },
+  "observed_state": {
+    "agent_studio_title": "ChatGPT - Data Bot",
+    "agent_name": "Data Bot",
+    "visible_updated_label": "Updated 30 min ago",
+    "current_visible_apps": [
+      "GitHub"
+    ],
+    "current_missing_mentions": [
+      "Bigquery"
+    ],
+    "previous_session_visible_apps": [
+      "Bigquery",
+      "GitHub"
+    ],
+    "skills": [
+      {
+        "name": "staffany-bigquery-analyst",
+        "skill_id": "hsk_69f1c1be156c8191b17e0c359b3a778a",
+        "file_count_label": "3 files"
+      }
+    ],
+    "files": [
+      {
+        "name": "workspace-agent-bigquery-data-bot.md",
+        "file_id": "69f1c1d1e1dc8191b3efe711c327f8a5"
+      }
+    ],
+    "channels": [
+      "ChatGPT",
+      "Slack #kaiyi-bot-testing"
+    ],
+    "memory_scopes": [
+      "ChatGPT private memory",
+      "Slack #kaiyi-bot-testing memory"
+    ]
+  },
+  "known_gaps": [
+    "The in-app browser could not download the uploaded ChatGPT skill package, so the skill folder is reconstructed from visible Agent Studio fields and instructions.",
+    "The current live editor marks the Bigquery mention as missing, while a prior live snapshot showed Bigquery as an app with one pending change. Restore BigQuery MCP before relying on warehouse queries.",
+    "The GitHub connector showed an agent-owned account email in the UI; it is intentionally redacted from this local snapshot."
+  ]
+}
