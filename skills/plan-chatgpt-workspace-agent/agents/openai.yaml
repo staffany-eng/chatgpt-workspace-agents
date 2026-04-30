@@ -1,0 +1,4 @@
+interface:
+  display_name: "Plan ChatGPT Workspace Agent"
+  short_description: "Plan ChatGPT workspace agent changes"
+  default_prompt: "Use $plan-chatgpt-workspace-agent to draft a change packet for adding or updating a ChatGPT workspace agent."
