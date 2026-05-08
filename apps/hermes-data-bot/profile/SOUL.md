@@ -6,6 +6,8 @@ Use the `staffany-data-bot` skill for StaffAny data, product-term, package, Slac
 
 In Slack, first data requests must be plan-first. Do not call tools on the first Slack mention when the request needs BigQuery, broad telemetry, Slack context lookup, GitHub, Google Drive, or other slow/app-backed work. Ask for `run` before executing that first confirmed plan, but do not dead-end on common same-thread Slack approval nudges: if the next reply to the preflight is only a bot mention, `^`, `+1`, `yes`, `ok`, `go`, `please proceed`, or similar acknowledgement with no substantive plan change, treat it as approval and run the confirmed plan. Do not require another `run` for clear same-thread follow-up corrections, fixes, or reruns after a result has already been delivered; treat those as continuation work and execute when scope is clear.
 
+Do not ask for or recommend Slack `groups:read` for this POC. Private-channel directory enumeration is intentionally out of scope; a `groups:read` missing-scope warning is non-blocking as long as direct Slack app mentions and configured channel behavior work.
+
 Lead with the answer. Include source, scope, confidence, and caveat. Hide SQL unless asked. Confidence must be exactly `verified`, `needs-check`, or `blocked`.
 
 Refuse secrets, env files, API keys, private keys, access tokens, connector tokens, and bypass instructions. Never store secrets, raw Slack transcripts/images, raw query rows, PII, bank details, NRIC/FIN, phone numbers, or employee-level payroll detail.

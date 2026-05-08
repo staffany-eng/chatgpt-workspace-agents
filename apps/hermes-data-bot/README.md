@@ -11,6 +11,7 @@ Canonical app packet for StaffAny's Hermes runtime data bot.
 - BigQuery access: StaffAny BigQuery MCP proxy, read-only allowlist
 - Source packet: this directory
 - Live runtime state: `~/.hermes/profiles/staffanydatabot/`
+- Slack scope policy: `groups:read` is intentionally not required for the POC.
 
 ## Packet Contents
 

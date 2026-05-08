@@ -7,6 +7,7 @@ Hermes Data Bot needs deterministic runtime health checks because prompt correct
 - Hermes gateway service for `staffanydatabot` is active.
 - Secret redaction remains enabled.
 - Slack gateway has effective `reactions:write` and `files:read` scopes.
+- Slack `groups:read` is not required; missing-scope warnings for private-channel directory enumeration are accepted in this POC.
 - `staffany_bigquery` MCP lists only the expected read-only tools.
 - A tiny read-only BigQuery smoke query succeeds.
 - Healthy checks print nothing and exit 0.
