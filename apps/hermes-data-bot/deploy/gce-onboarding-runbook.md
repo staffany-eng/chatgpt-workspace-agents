@@ -33,16 +33,14 @@ Current secret access also includes:
 - `hermes-data-bot-slack-app-token`
 - `hermes-data-bot-slack-bot-token`
 - `hermes-data-bot-slack-allowed-users`
-- `hermes-data-bot-openai-api-key`
 
 Current model profile:
 
-- Provider: `custom`
-- Base URL: `https://api.openai.com/v1`
-- Model: `gpt-5.5`
-- Env var: `OPENAI_API_KEY`
-- Verification: VM Responses API probe returned HTTP 200 for `gpt-5.5`; Hermes one-shot returned `hermes-openai-ok`.
-- Rate-limit backup: enabled with `all@staffany.com` ChatGPT/Codex OAuth as `openai-codex:gpt-5.3-codex` fallback. Hermes docs distinguish same-provider credential pools from cross-provider fallback; for OpenAI API rate limits, prefer another OpenAI API key in the pool when available.
+- Provider: `openai-codex`
+- Model: `gpt-5.3-codex`
+- Auth: `all@staffany.com` ChatGPT/Codex OAuth
+- API-key route: disabled; do not set `OPENAI_API_KEY` in this profile unless explicitly reverting to API billing.
+- Fallback: none. If Codex OAuth is invalidated, the bot should block with an auth error instead of falling back to OpenAI API TPM.
 
 Current gateway service:
 
@@ -61,7 +59,6 @@ Store these in Secret Manager, not in repo files:
 - `hermes-data-bot-slack-app-token`
 - `hermes-data-bot-slack-allowed-users`
 - `bq-mcp-proxy-shared-secret`
-- `hermes-data-bot-openai-api-key`
 
 The profile `.env` must contain:
 
@@ -70,7 +67,6 @@ SLACK_BOT_TOKEN=<xoxb token>
 SLACK_APP_TOKEN=<xapp token>
 SLACK_ALLOWED_USERS=<comma-separated Slack member IDs>
 MCP_STAFFANY_BIGQUERY_API_KEY=<bq-mcp-proxy-shared-secret value>
-OPENAI_API_KEY=<OpenAI service-account key>
 ```
 
 ## VM Bootstrap
@@ -116,77 +112,52 @@ Copy the skill folder to:
 ~/.hermes/profiles/staffanydatabot/skills/staffany-data-bot/
 ```
 
-Set the main model to route directly to OpenAI. Do not leave `provider: auto` for `gpt-5.5`; Hermes may route that model through OpenRouter, which requires `OPENROUTER_API_KEY`.
+Authenticate `all@staffany.com` for the Codex OAuth provider, then set the main model to use that ChatGPT subscription route. Do not configure a `custom` OpenAI API fallback for this POC unless explicitly reverting to API billing.
+
+```bash
+hermes -p staffanydatabot auth add openai-codex --type oauth --no-browser --label all-staffany-primary
+```
+
+Complete the browser/device login as `all@staffany.com`. If the command hangs without printing the login URL in a headless SSH session, run it with a TTY or from an interactive VM shell.
 
 ```yaml
 model:
-  default: gpt-5.5
-  provider: custom
-  base_url: https://api.openai.com/v1
+  default: gpt-5.3-codex
+  provider: openai-codex
+agent:
+  api_max_retries: 0
 ```
 
 ## Model Resilience
 
-Hermes has two relevant recovery paths:
+The current POC intentionally has no model fallback:
 
-- Credential pool: rotate to another API key for the same provider. This is the right first choice for OpenAI API rate limits.
-- Fallback provider: switch to another provider/model when the primary fails after retries. This is useful for `all@staffany` ChatGPT/Codex OAuth, but it is not the same as adding another OpenAI API key.
+- The primary provider is `openai-codex:gpt-5.3-codex` using `all@staffany.com` ChatGPT/Codex OAuth.
+- `OPENAI_API_KEY` is absent from the profile `.env` so the gateway cannot burn OpenAI API TPM.
+- `fallback_providers` and `fallback_model` are absent. If Codex OAuth fails, re-authenticate it instead of falling back to API.
 
 Current VM evidence:
 
 ```bash
-hermes -p staffanydatabot auth status openai-codex
-# openai-codex: logged in
-
 hermes -p staffanydatabot fallback list
-# Primary: gpt-5.5 (via custom)
-# Fallback chain:
-# 1. gpt-5.3-codex (via openai-codex)
+# Primary: gpt-5.3-codex (via openai-codex)
+# No fallback providers configured.
 ```
 
-The VM profile has this persisted at the top level of `config.yaml`:
-
-```yaml
-fallback_providers:
-  - provider: openai-codex
-    model: gpt-5.3-codex
-```
-
-If the VM is rebuilt, authenticate `all@staffany.com` first:
+If Codex OAuth is invalidated, re-authenticate `all@staffany.com`:
 
 ```bash
-hermes -p staffanydatabot auth add openai-codex --type oauth --no-browser --label all-staffany-backup
+hermes -p staffanydatabot auth add openai-codex --type oauth --no-browser --label all-staffany-primary
 ```
 
-Complete the browser/device login as `all@staffany.com`. If the command hangs without printing the login URL in a headless SSH session, run it from an interactive VM shell or first log in with Codex CLI on a trusted machine and copy only the intended `all@staffany.com` Codex auth into the VM.
-
-After auth is present, add the fallback:
-
-```bash
-hermes -p staffanydatabot fallback add
-```
-
-Choose:
-
-```yaml
-provider: openai-codex
-model: gpt-5.3-codex
-```
-
-Expected persisted config:
-
-```yaml
-fallback_providers:
-  - provider: openai-codex
-    model: gpt-5.3-codex
-```
+Do not copy a personal Codex auth file into the VM; verify the token belongs to `all@staffany.com`.
 
 Restart and verify:
 
 ```bash
 systemctl --user restart hermes-gateway-staffanydatabot.service
-hermes -p staffanydatabot auth status openai-codex
 hermes -p staffanydatabot fallback list
+grep -q '^OPENAI_API_KEY=' ~/.hermes/profiles/staffanydatabot/.env && echo "unexpected api key"
 ```
 
 For Slack, queue follow-up messages while the bot is busy. This avoids cancelling active BigQuery runs when someone adds context, tags a teammate, or says thanks in the same thread.

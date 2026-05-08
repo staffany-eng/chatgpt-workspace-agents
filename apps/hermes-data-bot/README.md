@@ -7,7 +7,7 @@ Canonical app packet for StaffAny's Hermes runtime data bot.
 - Runtime: Hermes Agent
 - Profile: `staffanydatabot`
 - First surface: Slack POC in `#kaiyi-bot-testing`
-- Model: OpenAI-compatible custom provider configured in the live profile
+- Model: ChatGPT/Codex OAuth provider configured in the live profile
 - BigQuery access: StaffAny BigQuery MCP proxy, read-only allowlist
 - Source packet: this directory
 - Live runtime state: `~/.hermes/profiles/staffanydatabot/`
