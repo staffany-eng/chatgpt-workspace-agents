@@ -5,6 +5,8 @@ description: Plan additions or updates to ChatGPT workspace agents by producing 
 
 # Plan ChatGPT Workspace Agent
 
+> Deprecated for the default repo workflow. Use this only when explicitly working on legacy ChatGPT workspace-agent planning.
+
 ## Overview
 
 Use this skill to turn a user request into a ChatGPT workspace-agent change packet. By default, prepare exact manual changes the user can apply in the ChatGPT agent builder. If the user explicitly asks for browser-assisted application, help apply the packet through ChatGPT's UI with Browser Use and stop for confirmation before saving, publishing, deleting, scheduling, or changing broad access.

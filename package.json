@@ -5,6 +5,8 @@
   "scripts": {
     "inventory": "bun research/tools/build-source-inventories.ts",
     "audit": "bun research/tools/audit-agent-ingest.ts",
-    "verify": "bash -lc 'set -euo pipefail; bun research/tools/build-source-inventories.ts; for f in research/wiki/sources/*.md; do bun research/tools/audit-agent-ingest.ts --wiki \"$f\" --fail-under 10; done; node --test apps/bq-mcp-proxy/test/*.test.js'"
+    "hermes-data-bot:verify": "node scripts/verify-hermes-data-bot.mjs",
+    "research:audit": "bash -lc 'set -euo pipefail; for f in research/wiki/sources/*.md; do bun research/tools/audit-agent-ingest.ts --wiki \"$f\" --fail-under 10; done'",
+    "verify": "bash -lc 'set -euo pipefail; node scripts/verify-hermes-data-bot.mjs; bun research/tools/build-source-inventories.ts; for f in research/wiki/sources/*.md; do bun research/tools/audit-agent-ingest.ts --wiki \"$f\" --fail-under 10; done; node --test apps/bq-mcp-proxy/test/*.test.js'"
   }
 }

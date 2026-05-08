@@ -1,10 +1,22 @@
 # StaffAny Hermes Data Bot POC
 
-## Summary
+## Source Metadata
 
-The `staffanydatabot` Hermes profile is a working StaffAny Slack data-bot deployment pattern. It combines a platform-specific Slack gateway, a local StaffAny skill/registry layer, read-only BigQuery MCP access, persistent memory, and deterministic cron health checks.
+- Type: deployed runtime current-state note
+- Source class: StaffAny Hermes deployment evidence
+- Source path: `research/raw/hermes-staffany-data-bot/current-hardening-state.md`
+- Date ingested: 2026-05-08
+- Context: working StaffAny Slack data-bot deployment pattern
+- Default weight: 4 for the current StaffAny Hermes deployment; 3 for general workspace-agent design claims
+- Privacy: private internal operational note; no `.env`, token, raw Slack transcript, raw query row, or employee-level data copied
 
-This note is current-state evidence, not a universal product decision. It should guide future ChatGPT workspace-agent design where the same requirements apply: team-facing data answers, strict source order, Slack UX, connector safety, and production reliability.
+## Context Caveat
+
+This note describes the deployed `staffanydatabot` Hermes profile, not a universal product rule. Use it as high-confidence current-state evidence for StaffAny Hermes Data Bot and as weaker implementation guidance for future agent apps.
+
+## Evidence Used
+
+- Raw record: [Hermes StaffAny Data Bot Current Hardening State](../../raw/hermes-staffany-data-bot/current-hardening-state.md)
 
 ## What They Said
 
@@ -17,41 +29,41 @@ This note is current-state evidence, not a universal product decision. It should
 - A silent `no_agent` cron health check is preferred for operational checks because healthy runs produce no Slack message and consume no model tokens.
 - The eval pack treats StaffAny-specific behaviours as regression-testable product behaviours: Slack plan-first, source order, confidence labels, sensitive-data refusal, organization names over IDs, and known metric caveats.
 
-## Why It Matters
-
-A team data bot fails in ways that normal chatbots do not: stale connector scopes, missing warehouse auth, ambiguous metric definitions, unsafe detail exposure, or accidental overconfidence. This POC shows that the operating model needs four layers:
-
-1. **Instruction layer**: role, source order, confidence labels, safety boundaries.
-2. **Skill/reference layer**: metric registry, product lookup registry, runbooks, eval pack.
-3. **Connector/tool layer**: read-only MCP, bounded BigQuery usage, Slack gateway scopes.
-4. **Operational layer**: secret redaction, health checks, cron, gateway restart verification.
-
-## Current Reusable Pattern
-
-For a StaffAny-like data bot:
-
-- Use a dedicated runtime profile.
-- Keep product/package lookups in local references and query the warehouse only for metrics.
-- Require plan-first behaviour on first Slack mentions that need tools or app-backed work.
-- Prefer one focused clarification over broad warehouse discovery when an organization or metric scope is ambiguous.
-- Use exact confidence labels: `verified`, `needs-check`, `blocked`.
-- Hide SQL and raw IDs by default; prefer organization names.
-- Refuse secrets, private tokens, raw PII, and employee-level payroll/bank/NRIC details.
-- Add a no-agent health check that verifies gateway active state, secret redaction config, read-only MCP connectivity, and Slack effective scopes.
-- Keep a regression/eval pack for behaviours that should not drift after runtime or prompt changes.
-
-## Open Follow-Ups
-
-- Decide where the canonical StaffAny data-bot skill and eval pack should live long term: Hermes profile, internal repo, or generated deployment package.
-- Convert the most common StaffAny metrics into owner-confirmed registry entries so more answers can move from `needs-check` to `verified`.
-- Reduce private-channel `groups:read` log noise if least-privilege Slack setup intentionally avoids private-channel enumeration.
-- Add an automated eval runner if we want behavioural checks beyond deterministic setup checks.
-
 ## Evidence Trace
 
-- Dedicated profile and gateway: `research/raw/hermes-staffany-data-bot/current-hardening-state.md` observed `staffanydatabot` and `hermes-gateway-staffanydatabot.service`.
-- Skill behaviours: local `staffany-data-bot/SKILL.md` and eval pack paths listed in the raw current-state note.
-- Runtime health necessity: raw current-state note records gateway scopes, MCP test, secret-redaction config, and health-check script results.
-- Slack scope requirements: gateway logs in the raw note show effective `reactions:write` and `files:read` scopes as runtime evidence.
-- MCP read-only surface: raw current-state note records the four selected `staffany_bigquery` MCP tools.
-- Silent cron pattern: raw current-state note records the no-agent weekday health-check cron and silent script result.
+- Claim: The bot uses a dedicated Hermes profile. Evidence: source inventory lists the profile root plus config, logs, skill, eval pack, and script paths. Source: `research/raw/hermes-staffany-data-bot/current-hardening-state.md:20`.
+- Claim: The StaffAny data-bot skill owns source order, Slack gating, BigQuery safety, and caveats. Evidence: source inventory lists the skill and eval pack paths. Source: `research/raw/hermes-staffany-data-bot/current-hardening-state.md:23`.
+- Claim: Runtime health checks are necessary. Evidence: design observations say connector scopes, gateway restarts, and MCP availability can drift independently of prompt state. Source: `research/raw/hermes-staffany-data-bot/current-hardening-state.md:43`.
+- Claim: Slack status reactions need `reactions:write`. Evidence: evidence extracts record recent gateway logs with `reactions:write`. Source: `research/raw/hermes-staffany-data-bot/current-hardening-state.md:32`.
+- Claim: Slack file hydration needs `files:read`. Evidence: evidence extracts record recent gateway logs with `files:read`. Source: `research/raw/hermes-staffany-data-bot/current-hardening-state.md:32`.
+- Claim: BigQuery MCP should expose only four read-only tools. Evidence: evidence extracts list `staffany_bigquery` and the four selected tools. Source: `research/raw/hermes-staffany-data-bot/current-hardening-state.md:33`.
+- Claim: Silent `no_agent` cron is preferred for health checks. Evidence: evidence extracts record a silent healthy script and weekday `no_agent` cron. Source: `research/raw/hermes-staffany-data-bot/current-hardening-state.md:36`.
+- Claim: The eval pack makes StaffAny behaviours regression-testable. Evidence: evidence extracts list covered behaviours such as plan-first, source order, confidence labels, refusal, and org-name preference. Source: `research/raw/hermes-staffany-data-bot/current-hardening-state.md:39`.
+
+## Learning Summary
+
+- StaffAny Hermes Data Bot should be organized as an app packet plus a live runtime profile, with runtime drift promoted only after review.
+- Operational health checks belong beside prompts and skills because Slack scopes, MCP auth, gateway state, and secret redaction can fail independently.
+- Slack UX behaviours such as plan-first gating, approval nudges, and bounded follow-up corrections are product behaviours and need regression coverage.
+- The BigQuery MCP contract should stay narrow, read-only, and explicitly allowlisted.
+
+## Synthesis Gate
+
+- Mode: autonomous_current_focus_synthesis
+- Status: completed
+- Focus source: `docs/product-compass.md`, `research/wiki/weights.md`, `research/wiki/syntheses/workspace-agent-abstraction-boundaries.md`
+- Evidence weight check: weight 4 for StaffAny Hermes current state; weight 3 when generalized outside this deployment.
+- Decision: use as primary current-state evidence for the app-first Hermes Data Bot packet and as supporting evidence for future agent-app operating patterns.
+
+## Possible Agent Builder Relevance
+
+- Agent-synthesized: Create `apps/hermes-data-bot/` as the canonical durable source packet for `staffanydatabot`.
+- Agent-synthesized: Add app-level verification for manifest paths, secret-pattern checks, and MCP allowlist expectations.
+- Agent-synthesized: Treat health checks and regression cases as first-class app artifacts, not deployment afterthoughts.
+- Do-not-promote: Do not assume every future agent app needs Slack scopes, BigQuery, or GCE; these are StaffAny Hermes Data Bot specifics.
+
+## Follow-Up Questions
+
+- Which live `staffanydatabot` runtime learnings should be promoted into `apps/hermes-data-bot/` next?
+- Should Customer 360 become a read-only customer-wiki source for Hermes Data Bot?
+- Should the no-agent health check script be copied into the repo packet or kept only as a runtime artifact for now?

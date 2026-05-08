@@ -1,0 +1,38 @@
+# Non-secret Hermes profile template for StaffAny Hermes Data Bot.
+# Copy relevant values into ~/.hermes/profiles/staffanydatabot/config.yaml and verify
+# exact key support with the installed Hermes version before restarting the gateway.
+
+terminal:
+  cwd: "~/agent-builder/apps/hermes-data-bot"
+
+security:
+  redact_secrets: true
+
+display:
+  busy_input_mode: "queue"
+
+model:
+  provider: "custom"
+  model: "gpt-5.5"
+  base_url: "https://api.openai.com/v1"
+  api_key_env: "OPENAI_API_KEY"
+
+mcp_servers:
+  staffany_bigquery:
+    url: "https://bq-mcp-proxy-1093387803298.asia-southeast1.run.app/mcp"
+    auth:
+      type: "bearer_env"
+      env: "MCP_STAFFANY_BIGQUERY_API_KEY"
+    tool_allowlist:
+      - "list_dataset_ids"
+      - "list_table_ids"
+      - "get_table_info"
+      - "execute_sql_readonly"
+
+gateway:
+  slack:
+    enabled: true
+    app_token_env: "SLACK_APP_TOKEN"
+    bot_token_env: "SLACK_BOT_TOKEN"
+    allowed_users_env: "SLACK_ALLOWED_USERS"
+    channel: "#kaiyi-bot-testing"

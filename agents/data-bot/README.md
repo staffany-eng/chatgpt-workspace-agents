@@ -1,5 +1,7 @@
 # Data Bot
 
+> Deprecated: this is a historical ChatGPT Agent Studio packet. The canonical StaffAny data-bot app is now `apps/hermes-data-bot/`.
+
 Local source-controlled snapshot of the ChatGPT Agent Studio agent named `Da Ta Bot`.
 
 - Agent Studio URL: `https://chatgpt.com/agents/studio/edit/agt_69f311eb8c688191ac24e5edeb038967`

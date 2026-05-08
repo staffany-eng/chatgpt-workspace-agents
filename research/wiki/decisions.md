@@ -33,6 +33,14 @@ This page stores accepted research-backed learnings before promotion into future
 - Planning implication: The proxy owns BigQuery identity, read-only guardrails, logging, and production auth. ChatGPT should not connect directly to `https://bigquery.googleapis.com/mcp` for the service-account path.
 - Caveat: Production use requires OAuth or equivalent strong auth in front of the proxy.
 
+### Make StaffAny Hermes Data Bot The First App Proper
+
+- Status: accepted for this repo.
+- Evidence: [StaffAny Hermes Data Bot POC](./sources/staffany-hermes-data-bot-poc.md), [Hermes Agent Docs And Patterns](./sources/hermes-agent-docs.md)
+- Learning: StaffAny Hermes Data Bot is now the primary runtime app, while earlier ChatGPT workspace-agent packets are deprecated evidence.
+- Planning implication: Durable Hermes Data Bot behavior belongs under `apps/hermes-data-bot/`. Live `staffanydatabot` profile changes should be treated as runtime drift until reviewed and promoted.
+- Caveat: Historical `agents/` snapshots stay available during the staged transition.
+
 ## Rejected Or Deferred Learnings
 
 - Do not copy OpenClaw workspace file structure directly into ChatGPT workspace agents. ChatGPT has its own product surfaces for apps, skills, files, memory, schedules, and channels.

@@ -1,5 +1,7 @@
 # Hermes Data Bot
 
+> Deprecated legacy packet: the canonical StaffAny Hermes Data Bot app now lives in `apps/hermes-data-bot/`. Keep this directory as capture evidence and migration source.
+
 Local source-controlled setup packet for a Hermes runtime version of StaffAny Da Ta Bot.
 
 - Target runtime: Hermes Agent.

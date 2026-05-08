@@ -1,5 +1,7 @@
 # Local Workspace Agent Registry
 
+> Deprecated: `agents/` is now historical workspace-agent evidence. Put new StaffAny Hermes Data Bot work under `apps/hermes-data-bot/`.
+
 This directory stores source-controlled snapshots of ChatGPT workspace agents.
 
 Use one folder per agent:

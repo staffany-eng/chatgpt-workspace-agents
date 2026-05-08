@@ -1,42 +1,44 @@
 # Hermes StaffAny Data Bot Current Hardening State
 
-Retrieval date: 2026-05-08
-Source type: local deployed Hermes profile artifact
-Evidence weight: 4 for the current StaffAny Hermes deployment; 3 for general workspace-agent design claims.
+## Source Metadata
 
-## Local source paths inspected
+- Type: local deployed Hermes profile artifact
+- Source class: StaffAny Hermes deployment evidence
+- Source path: `/home/leekaiyi/.hermes/profiles/staffanydatabot/`
+- Date checked: 2026-05-08
+- Evidence weight: 4 for the current StaffAny Hermes deployment; 3 for general workspace-agent design claims
+- Privacy: private internal operational note
 
-- Hermes profile: `/home/leekaiyi/.hermes/profiles/staffanydatabot/`
-- Profile config: `/home/leekaiyi/.hermes/profiles/staffanydatabot/config.yaml`
-- Gateway log: `/home/leekaiyi/.hermes/profiles/staffanydatabot/logs/gateway.log`
-- StaffAny data bot skill: `/home/leekaiyi/.hermes/profiles/staffanydatabot/skills/staffany-data-bot/SKILL.md`
-- Eval pack: `/home/leekaiyi/.hermes/profiles/staffanydatabot/skills/staffany-data-bot/references/staffany-data-bot-eval-pack.md`
-- Health check script: `/home/leekaiyi/.hermes/profiles/staffanydatabot/scripts/staffany_data_bot_health_check.py`
+## Raw Content Policy
 
-No `.env`, token, credential, raw query row, raw Slack transcript, or employee-level data was copied.
+This raw note records selected non-secret operational facts from the deployed `staffanydatabot` profile. No `.env`, token, credential, raw query row, raw Slack transcript, employee-level data, memory dump, or session transcript was copied.
 
-## Observed setup
+## Source Inventory
+
+| Path | Purpose | Copied |
+| --- | --- | --- |
+| `/home/leekaiyi/.hermes/profiles/staffanydatabot/` | Hermes profile root | no |
+| `/home/leekaiyi/.hermes/profiles/staffanydatabot/config.yaml` | Profile config check | no |
+| `/home/leekaiyi/.hermes/profiles/staffanydatabot/logs/gateway.log` | Gateway scope/status evidence | no |
+| `/home/leekaiyi/.hermes/profiles/staffanydatabot/skills/staffany-data-bot/SKILL.md` | StaffAny data-bot skill evidence | no |
+| `/home/leekaiyi/.hermes/profiles/staffanydatabot/skills/staffany-data-bot/references/staffany-data-bot-eval-pack.md` | Eval pack evidence | no |
+| `/home/leekaiyi/.hermes/profiles/staffanydatabot/scripts/staffany_data_bot_health_check.py` | Runtime health-check evidence | no |
+
+## Evidence Extracts
 
 - Active Hermes profile: `staffanydatabot`.
 - Gateway service: `hermes-gateway-staffanydatabot.service`.
 - Secret redaction config: `security.redact_secrets = true`.
 - Slack effective scopes observed in recent gateway logs include `reactions:write` and `files:read`.
 - StaffAny BigQuery MCP server `staffany_bigquery` connects and exposes four selected tools:
-  - `list_dataset_ids`
-  - `list_table_ids`
-  - `get_table_info`
-  - `execute_sql_readonly`
+  `list_dataset_ids`, `list_table_ids`, `get_table_info`, and `execute_sql_readonly`.
 - Read-only smoke query `SELECT 1 AS ok` succeeded with 0 bytes processed/billed.
 - Silent health check script exits 0 and prints nothing when healthy.
 - Weekday health check cron exists with `no_agent: true` on `0 1 * * 1-5` UTC, equivalent to weekdays 9am SGT.
+- Operational artifacts include `staffany_data_bot_health_check.py`, `restart_staffany_gateway_silent.sh`, and `staffany-data-bot-eval-pack.md`.
+- The eval pack covers Slack plan-first behaviour, source order, confidence labels, sensitive-data refusal, org-name preference, and StaffAny metric caveats.
 
-## Operational artifacts created in the profile
-
-- `staffany_data_bot_health_check.py`: deterministic no-agent health check; prints only on failure.
-- `restart_staffany_gateway_silent.sh`: one-shot silent gateway restart helper.
-- `staffany-data-bot-eval-pack.md`: regression cases for Slack plan-first behaviour, source order, confidence labels, sensitive-data refusal, org-name preference, and known StaffAny metric caveats.
-
-## Design observations
+## Design Observations
 
 - A data bot needs runtime health checks in addition to prompt/skill instructions because connector scopes, gateway restarts, and MCP availability can drift independently of the model prompt.
 - For Slack data requests, plan-first gating should be treated as a product behaviour and regression-tested, not merely documented.
