@@ -22,6 +22,7 @@ This directory is the maintained research wiki for designing ChatGPT workspace a
 - [Hermes Agent Docs And Patterns](./sources/hermes-agent-docs.md)
 - [ChatGPT Workspace Agent Official Docs](./sources/chatgpt-workspace-agent-docs.md)
 - [BigQuery MCP Proxy](./sources/bigquery-mcp-proxy.md)
+- [StaffAny Hermes Data Bot POC](./sources/staffany-hermes-data-bot-poc.md)
 
 ## Syntheses
 

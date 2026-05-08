@@ -41,3 +41,7 @@ Alias entry for the maintained source note title.
 ## [2026-04-30] ingest | BigQuery MCP Proxy
 
 Ingested the ChatGPT-to-BigQuery service-account proxy architecture using official Google BigQuery MCP, Cloud Run MCP hosting, and OpenAI remote MCP guidance. Added a local Cloud Run proxy scaffold under `apps/bq-mcp-proxy/`.
+
+## [2026-05-08] ingest | StaffAny Hermes Data Bot POC
+
+Captured the current `staffanydatabot` Hermes profile hardening state: Slack effective scopes, secret-redaction config, read-only BigQuery MCP surface, silent no-agent health check, and StaffAny data-bot eval pack. No secrets, raw Slack transcripts, raw query rows, or employee-level data were copied.
