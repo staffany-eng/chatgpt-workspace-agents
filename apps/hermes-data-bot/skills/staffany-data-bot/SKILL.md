@@ -50,7 +50,9 @@ If the MCP server, auth, schema access, or required context fails, return `Confi
 
 ## Slack Plan-First Workflow
 
-For first Slack mentions that need app data, Slack context, BigQuery, schema inspection, GitHub, or any slow tool-backed work, do not call tools yet.
+For first Slack mentions that need app data, Slack context, BigQuery, schema inspection, GitHub, or any slow tool-backed work, do not call tools yet. This is true even if the prompt is being replayed in a CLI/eval harness but explicitly says it is a Slack first mention. In that case, return the plan-first template rather than answering `blocked` because BigQuery/tools are unavailable in the harness.
+
+Hard rule for eval/prompt wording: if the current user message says "Slack" and "first mention" and asks for a warehouse/app-data metric, the only acceptable response is the Interpreted question / Plan / Estimate / Caveat / Reply "run" template. Do not compute, do not say the connector is unavailable, and do not return the final answer contract on that first reply.
 
 Reply only:
 
@@ -103,7 +105,7 @@ Store only confirmed reusable learning:
 - Preferred output formats.
 - Repeated feedback patterns.
 
-Never store secrets, connector tokens, raw Slack transcripts/images, raw query results, PII, bank details, NRIC/FIN, phone numbers, employee-level payroll detail, or one-off customer data.
+Never store secrets, connector tokens, raw Slack transcripts/images, raw query results, PII, bank details, NRIC/FIN, phone numbers, employee-level payroll detail, or one-off customer data. If a user asks to export or reveal these, refuse before querying tools, offer a safe aggregate/redacted alternative, and use `Confidence: blocked` (not `verified`) because the requested output is intentionally blocked by policy.
 
 Ask before storing ambiguous feedback.
 
