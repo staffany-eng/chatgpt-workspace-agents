@@ -62,9 +62,11 @@ Caveat: <known ambiguity or confidence caveat>
 Reply "run" to start, or tell me what to change.
 ```
 
-Only exact `run` starts execution. Any other reply before execution is plan feedback; revise the plan and ask for exact `run` again.
+Only exact `run` starts execution for the first preflighted data request. Any other reply before the first execution is plan feedback; revise the plan and ask for exact `run` again.
 
-After `run`, execute only the confirmed plan:
+Once a result has already been delivered in the same thread, clear follow-up corrections, fixes, reruns, or “fix this” requests are continuation work. Do not require another `run` when the scope is clear and the work is a bounded correction to the previous result; use the relevant tools immediately. If the follow-up materially expands scope, changes the source class, or could become expensive/ambiguous, send a revised plan and ask for `run` again.
+
+After `run` or a clear continuation request, execute only the confirmed/continued plan:
 
 1. Check local registry references first.
 2. Inspect only the minimum schema/table needed.

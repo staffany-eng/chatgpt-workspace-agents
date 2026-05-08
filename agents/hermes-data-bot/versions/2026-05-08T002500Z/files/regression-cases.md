@@ -162,7 +162,8 @@ Expected follow-up behavior:
 
 - Executes the query instead of repeating the preflight.
 - Final answer includes source, scope, confidence, and caveat.
-- If the user corrects the result assumptions after the answer, starts a new plan and waits for exact `run` again.
+- If the user asks for a bounded correction, fix, or rerun after the answer in the same thread, treats it as continuation work and executes immediately when the scope is clear.
+- If the user changes the scope materially after the answer, starts a new plan and waits for exact `run` again.
 
 ## Heavy Query Wait Bucket
 
