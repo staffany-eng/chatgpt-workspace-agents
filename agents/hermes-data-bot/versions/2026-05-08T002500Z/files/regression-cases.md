@@ -155,6 +155,18 @@ Expected follow-up behavior:
 Follow-up prompt in the same Slack thread:
 
 ```text
+<@bot> ^
+```
+
+Expected follow-up behavior:
+
+- Treats a bot mention plus `^` as a Slack approval nudge for the pending preflight.
+- Executes the confirmed plan instead of repeating the gate or asking for `run` again.
+- Final answer includes source, scope, confidence, and caveat.
+
+Alternative follow-up prompt in the same Slack thread:
+
+```text
 run
 ```
 

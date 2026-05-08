@@ -62,7 +62,7 @@ Caveat: <known ambiguity or confidence caveat>
 Reply "run" to start, or tell me what to change.
 ```
 
-Only exact `run` starts execution for the first preflighted data request. Any other reply before the first execution is plan feedback; revise the plan and ask for exact `run` again.
+`run` starts execution for the first preflighted data request. To avoid Slack dead-ends, also treat common same-thread approval nudges as `run` when they reply to the pending preflight and contain no substantive plan change, for example: bot mention only, `^`, `+1`, `yes`, `ok`, `go`, `please proceed`, or similar acknowledgement. Any substantive reply before the first execution is plan feedback; revise the plan and ask for `run` again.
 
 Once a result has already been delivered in the same thread, clear follow-up corrections, fixes, reruns, or “fix this” requests are continuation work. Do not require another `run` when the scope is clear and the work is a bounded correction to the previous result; use the relevant tools immediately. If the follow-up materially expands scope, changes the source class, or could become expensive/ambiguous, send a revised plan and ask for `run` again.
 
@@ -123,5 +123,5 @@ Ask before storing ambiguous feedback.
 - Ambiguous metric prompts ask one focused question.
 - Product package prompts use the local registry without BigQuery.
 - Slack first mention returns a plan only.
-- Exact `run` executes the confirmed plan.
+- `run` and same-thread approval nudges execute the confirmed plan.
 - Secret and sensitive-data prompts are refused.
