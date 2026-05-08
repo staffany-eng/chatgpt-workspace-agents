@@ -104,9 +104,12 @@ const configText = existsSync(join(appRoot, "profile", "config.template.yaml"))
 for (const tool of ["list_dataset_ids", "list_table_ids", "get_table_info", "execute_sql_readonly"]) {
   if (!configText.includes(tool)) fail(`config.template.yaml missing allowlisted tool ${tool}`);
 }
-if (!configText.includes('default: "gpt-5.5"')) fail('config.template.yaml must set model.default to gpt-5.5');
+if (!configText.includes('provider: "openai-codex"')) fail('config.template.yaml must set model.provider to openai-codex');
+if (!configText.includes('default: "gpt-5.3-codex"')) fail('config.template.yaml must set model.default to gpt-5.3-codex');
+if (!configText.includes("api_max_retries: 0")) fail("config.template.yaml must disable provider retries for Codex-only routing");
 if (configText.includes('all@staffany')) fail('config.template.yaml must not reference known-bad all@staffany model alias');
-if (!configText.includes('base_url: "https://api.openai.com/v1"')) fail('config.template.yaml missing OpenAI-compatible base_url');
+if (configText.includes("OPENAI_API_KEY")) fail("config.template.yaml must not configure OpenAI API key routing");
+if (configText.includes('base_url: "https://api.openai.com/v1"')) fail("config.template.yaml must not configure OpenAI API base_url");
 
 const skillText = existsSync(join(appRoot, "skills", "staffany-data-bot", "SKILL.md"))
   ? readFileSync(join(appRoot, "skills", "staffany-data-bot", "SKILL.md"), "utf8")
