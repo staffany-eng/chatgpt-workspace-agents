@@ -116,6 +116,28 @@ Ask before storing ambiguous feedback.
 5. Repeating a stale Slack answer instead of re-parsing the latest reply.
 6. Revealing SQL, IDs, raw employee-level details, or secrets by default.
 
+## Skill Update and Sync Workflow
+
+Use this whenever updating StaffAny Data Bot behavior so runtime and source stay consistent.
+
+1. Edit only the canonical repo skill: `skills/staffany-data-bot/SKILL.md`.
+2. Run full validation from repo root:
+   - `npm run hermes-data-bot:verify`
+3. Sync canonical skill into the live profile skill path:
+   - `cp skills/staffany-data-bot/SKILL.md ~/.hermes/profiles/staffanydatabot/skills/staffany-data-bot/SKILL.md`
+4. Reset/restart runtime so the updated skill is loaded for new sessions.
+5. Commit and push canonical skill updates to GitHub so team-visible source stays current:
+   - `git add skills/staffany-data-bot/SKILL.md`
+   - `git commit -m "docs(skill): update staffany-data-bot workflow"`
+   - `git push origin HEAD`
+6. Treat runtime-only edits as temporary; promote durable changes back into the repo skill via PR.
+
+Sync timing policy for this bot:
+
+- Sync after every approved skill change.
+- Sync again before gateway restart/deploy/release checks.
+- For approved skill updates, push the canonical repo change to GitHub in the same workflow.
+
 ## Verification Checklist
 
 - BigQuery MCP lists only the expected read-only tools.
@@ -125,3 +147,4 @@ Ask before storing ambiguous feedback.
 - Slack first mention returns a plan only.
 - `run` and same-thread approval nudges execute the confirmed plan.
 - Secret and sensitive-data prompts are refused.
+- Skill update workflow uses repo-first edit, full verify, and profile sync.
