@@ -1,0 +1,42 @@
+{
+  "agent_name": "StaffAny Hermes Data Bot",
+  "runtime": "Hermes Agent",
+  "profile_name": "staffanydatabot",
+  "captured_at_local": "2026-05-08T00:25:00+0800",
+  "rollout_stage": "Slack POC in #kaiyi-bot-testing",
+  "infra_target": {
+    "provider": "Google Cloud",
+    "compute": "GCE e2-small",
+    "project": "staffany-warehouse",
+    "region": "asia-southeast1"
+  },
+  "surfaces": {
+    "soul": "SOUL.md",
+    "skills": [
+      "skills/staffany-data-bot/SKILL.md"
+    ],
+    "files": [
+      "files/staffany-data-bot-metric-registry.md",
+      "files/staffany-product-lookup-registry.md",
+      "files/regression-cases.md"
+    ],
+    "mcp_servers": [
+      "staffany_bigquery"
+    ],
+    "channels": [
+      "Slack #kaiyi-bot-testing"
+    ]
+  },
+  "mcp": {
+    "server_name": "staffany_bigquery",
+    "url": "https://bq-mcp-proxy-1093387803298.asia-southeast1.run.app/mcp",
+    "auth_env_var": "MCP_STAFFANY_BIGQUERY_API_KEY",
+    "expected_tools": [
+      "list_dataset_ids",
+      "list_table_ids",
+      "get_table_info",
+      "execute_sql_readonly"
+    ]
+  },
+  "secrets_copied": false
+}
