@@ -104,6 +104,21 @@ const configText = existsSync(join(appRoot, "profile", "config.template.yaml"))
 for (const tool of ["list_dataset_ids", "list_table_ids", "get_table_info", "execute_sql_readonly"]) {
   if (!configText.includes(tool)) fail(`config.template.yaml missing allowlisted tool ${tool}`);
 }
+if (!configText.includes('default: "gpt-5.5"')) fail('config.template.yaml must set model.default to gpt-5.5');
+if (configText.includes('all@staffany')) fail('config.template.yaml must not reference known-bad all@staffany model alias');
+if (!configText.includes('base_url: "https://api.openai.com/v1"')) fail('config.template.yaml missing OpenAI-compatible base_url');
+
+const skillText = existsSync(join(appRoot, "skills", "staffany-data-bot", "SKILL.md"))
+  ? readFileSync(join(appRoot, "skills", "staffany-data-bot", "SKILL.md"), "utf8")
+  : "";
+for (const requiredText of [
+  'Reply "run" to start',
+  'first Slack mentions',
+  'Confidence: blocked',
+  'employee-level payroll detail'
+]) {
+  if (!skillText.includes(requiredText)) fail(`staffany-data-bot skill missing required guardrail text: ${requiredText}`);
+}
 
 if (failures.length > 0) {
   console.error("Hermes Data Bot packet verification failed:");

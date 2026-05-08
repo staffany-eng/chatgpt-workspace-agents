@@ -28,6 +28,8 @@ This note describes the deployed `staffanydatabot` Hermes profile, not a univers
 - The StaffAny BigQuery MCP surface should remain read-only and limited to dataset listing, table listing, table info, and read-only SQL execution.
 - A silent `no_agent` cron health check is preferred for operational checks because healthy runs produce no Slack message and consume no model tokens.
 - The eval pack treats StaffAny-specific behaviours as regression-testable product behaviours: Slack plan-first, source order, confidence labels, sensitive-data refusal, organization names over IDs, and known metric caveats.
+- Model routing is an operational invariant: `all@staffany` against the OpenAI endpoint caused `model_not_found`; the cleaned-up profile uses `custom` + `gpt-5.5` + `https://api.openai.com/v1`.
+- A lightweight on-demand eval script can catch behaviour regressions without warehouse queries; it should not be run as the silent daily cron because it invokes Hermes/model calls.
 
 ## Evidence Trace
 
@@ -38,7 +40,9 @@ This note describes the deployed `staffanydatabot` Hermes profile, not a univers
 - Claim: Slack file hydration needs `files:read`. Evidence: evidence extracts record recent gateway logs with `files:read`. Source: `research/raw/hermes-staffany-data-bot/current-hardening-state.md:32`.
 - Claim: BigQuery MCP should expose only four read-only tools. Evidence: evidence extracts list `staffany_bigquery` and the four selected tools. Source: `research/raw/hermes-staffany-data-bot/current-hardening-state.md:33`.
 - Claim: Silent `no_agent` cron is preferred for health checks. Evidence: evidence extracts record a silent healthy script and weekday `no_agent` cron. Source: `research/raw/hermes-staffany-data-bot/current-hardening-state.md:36`.
-- Claim: The eval pack makes StaffAny behaviours regression-testable. Evidence: evidence extracts list covered behaviours such as plan-first, source order, confidence labels, refusal, and org-name preference. Source: `research/raw/hermes-staffany-data-bot/current-hardening-state.md:39`.
+- Claim: The eval pack makes StaffAny behaviours regression-testable. Evidence: evidence extracts list covered behaviours such as plan-first, source order, confidence labels, refusal, and org-name preference. Source: `research/raw/hermes-staffany-data-bot/current-hardening-state.md:40`.
+- Claim: Model route is an operational invariant. Evidence: evidence extracts record the cleaned-up `custom` + `gpt-5.5` + OpenAI base URL route and the prior `all@staffany` `model_not_found` failure. Source: `research/raw/hermes-staffany-data-bot/current-hardening-state.md:32`.
+- Claim: Lightweight eval checks can catch non-warehouse behaviour regressions. Evidence: evidence extracts record `staffany_data_bot_eval_check.py` passing without querying the warehouse. Source: `research/raw/hermes-staffany-data-bot/current-hardening-state.md:42`.
 
 ## Learning Summary
 
@@ -46,6 +50,8 @@ This note describes the deployed `staffanydatabot` Hermes profile, not a univers
 - Operational health checks belong beside prompts and skills because Slack scopes, MCP auth, gateway state, and secret redaction can fail independently.
 - Slack UX behaviours such as plan-first gating, approval nudges, and bounded follow-up corrections are product behaviours and need regression coverage.
 - The BigQuery MCP contract should stay narrow, read-only, and explicitly allowlisted.
+- Model routing belongs in the health/config verification surface; bad aliases can leave the bot working only because of fallback, hiding latency and reliability problems.
+- Keep silent operational health checks separate from behavioural evals: health checks should use no-agent/no-token scripts, while evals can invoke Hermes/model calls on demand.
 
 ## Synthesis Gate
 
