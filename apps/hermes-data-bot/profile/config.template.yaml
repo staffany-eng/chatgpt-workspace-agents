@@ -12,8 +12,8 @@ display:
   busy_input_mode: "queue"
 
 model:
-  provider: "openai-codex"
   default: "gpt-5.3-codex"
+  provider: "openai-codex"
 
 agent:
   api_max_retries: 0

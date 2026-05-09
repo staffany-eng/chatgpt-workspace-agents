@@ -10,6 +10,31 @@ Use this file before answering known Da Ta Bot POC metrics. This registry is a c
 - Always state source table(s), filters/time window, and caveat.
 - Hide SQL unless the user asks for it.
 
+## Metric: THR Pay Run Usage
+
+- Common questions:
+  - How many customers are using THR pay run?
+  - Which organizations have THR pay runs?
+- Product terminology:
+  - Treat THR pay run as a pay run type question.
+  - Do not infer THR pay run usage from THR pay item names or `Tunjangan Hari Raya` pay item labels.
+- Status: corrected POC definition, source-field still needs schema verification.
+- Confidence to return: `needs-check` until the pay run type field and customer exclusion logic are owner-verified.
+- Candidate source path:
+  - Start with `staffany-warehouse.analytics.stg_kraken__payruns` or a better payroll mart if schema inspection exposes one.
+  - Join organization/customer dimensions only after identifying the actual pay run type field and accepted status values.
+- Important rule:
+  - Inspect pay run schema for type-like fields and discover actual values before filtering for THR.
+  - If `periodtype` does not contain THR, do not conclude that no THR pay run type exists; inspect other pay run type columns or return `blocked` if no source field can be identified.
+  - Do not substitute pay item name matching for pay run type matching.
+- Required discovery:
+  - Inspect schema first.
+  - Discover actual pay run type values before applying the THR filter.
+  - Discover successful/completed pay run status values before counting usage.
+  - Apply explicit customer/non-customer exclusion logic and state it.
+- Default caveat:
+  - "THR pay run source field and customer exclusion logic are not owner-verified; pay item names were not used as the pay run type definition."
+
 ## Metric: Active New Joiner Form Usage
 
 - Common questions:

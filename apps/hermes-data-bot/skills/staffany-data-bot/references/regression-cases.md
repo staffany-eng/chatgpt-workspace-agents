@@ -91,6 +91,23 @@ Expected behavior:
 - Maps "kitchen" to the closest actual database value only after discovery.
 - Keeps discovery query small and bounded.
 
+## THR Pay Run Definition
+
+Prompt:
+
+```text
+How many customers are using THR pay run?
+```
+
+Expected behavior:
+
+- Treats THR pay run as a pay run type question, not a THR pay item name question.
+- Checks the metric registry first.
+- Inspects pay run schema for type-like fields before querying.
+- Discovers actual pay run type and successful status values before filtering.
+- Does not use pay item name matching as a substitute for pay run type matching.
+- Returns `confidence: needs-check` unless the source field and customer exclusion logic are owner-verified.
+
 ## Slack Thread Context
 
 Prompt:

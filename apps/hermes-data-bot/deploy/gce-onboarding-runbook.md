@@ -26,15 +26,15 @@ This runbook sets up the Hermes runtime StaffAny Data Bot on company infra.
 - Firewall allow: `hermes-data-bot-allow-iap-ssh`, priority `800`, source `35.235.240.0/20`, target tag `hermes-data-bot`, allow `tcp:22`
 - Firewall deny: `hermes-data-bot-deny-public-ssh`, priority `900`, source `0.0.0.0/0`, target tag `hermes-data-bot`, deny `tcp:22`
 
-The service account currently has Secret Manager access to `bq-mcp-proxy-shared-secret`.
+The service account needs Secret Manager access to `bq-mcp-proxy-shared-secret`.
 
-Current secret access also includes:
+Required secret access also includes:
 
 - `hermes-data-bot-slack-app-token`
 - `hermes-data-bot-slack-bot-token`
 - `hermes-data-bot-slack-allowed-users`
 
-Current model profile:
+Model profile:
 
 - Provider: `openai-codex`
 - Model: `gpt-5.3-codex`
@@ -59,6 +59,7 @@ Store these in Secret Manager, not in repo files:
 - `hermes-data-bot-slack-app-token`
 - `hermes-data-bot-slack-allowed-users`
 - `bq-mcp-proxy-shared-secret`
+- Honcho server LLM provider key, if Honcho external memory is enabled
 
 The profile `.env` must contain:
 
@@ -152,10 +153,75 @@ hermes -p staffanydatabot auth add openai-codex --type oauth --no-browser --labe
 
 Do not copy a personal Codex auth file into the VM; verify the token belongs to `all@staffany.com`.
 
-Restart and verify:
+Choose the ChatGPT/Codex account path and complete the browser/device login as the StaffAny ChatGPT subscription account. If the command hangs without printing the login URL in a headless SSH session, run it from an interactive VM shell or first log in with Codex CLI on a trusted machine and copy only the intended StaffAny account auth into the VM.
+
+Verify model auth and the persisted model route:
+
+```bash
+hermes -p staffanydatabot auth status openai-codex
+CONFIG_PATH="$(hermes -p staffanydatabot config path)"
+sed -n '1,4p' "$CONFIG_PATH"
+```
+
+Expected model config:
+
+```yaml
+model:
+  default: gpt-5.3-codex
+  provider: openai-codex
+agent:
+  api_max_retries: 0
+```
+
+If `hermes -p staffanydatabot auth status openai-codex` reports logged out while the global Hermes auth reports logged in, check for a stale profile-local credential:
+
+```bash
+hermes -p staffanydatabot auth list
+```
+
+If the profile has an `openai-codex` credential marked `token_invalidated`, remove that profile-local credential so the profile can fall back to the valid global credential:
+
+```bash
+hermes -p staffanydatabot auth remove openai-codex 1
+hermes -p staffanydatabot auth status openai-codex
+```
+
+If Hermes immediately re-seeds the invalid profile-local credential, back up the profile auth file and remove only the profile-local `openai-codex` credential-pool entry. Do not edit the global `~/.hermes/auth.json` credential:
+
+```bash
+PROFILE_AUTH=~/.hermes/profiles/staffanydatabot/auth.json
+cp "$PROFILE_AUTH" "$PROFILE_AUTH.bak.$(date -u +%Y%m%dT%H%M%SZ)"
+python3 - <<'PY'
+import json
+from pathlib import Path
+
+p = Path.home() / ".hermes/profiles/staffanydatabot/auth.json"
+d = json.loads(p.read_text())
+(d.get("credential_pool") or {}).pop("openai-codex", None)
+suppressed = d.get("suppressed_sources")
+if isinstance(suppressed, dict):
+    suppressed.pop("openai-codex", None)
+    if not suppressed:
+        d.pop("suppressed_sources", None)
+p.write_text(json.dumps(d, indent=2) + "\n")
+p.chmod(0o600)
+PY
+hermes -p staffanydatabot auth status openai-codex
+```
+
+Then restart the gateway and check for fresh auth errors:
 
 ```bash
 systemctl --user restart hermes-gateway-staffanydatabot.service
+journalctl --user -u hermes-gateway-staffanydatabot.service --since "5 minutes ago" --no-pager \
+  | grep -E 'token_invalidated|No Codex credentials|AuthenticationError|HTTP 401'
+```
+
+Restart after changing auth or model config:
+
+```bash
+systemctl --user restart hermes-gateway-staffanydatabot.service
+hermes -p staffanydatabot auth status openai-codex
 hermes -p staffanydatabot fallback list
 grep -q '^OPENAI_API_KEY=' ~/.hermes/profiles/staffanydatabot/.env && echo "unexpected api key"
 ```
@@ -214,6 +280,70 @@ hermes -p staffanydatabot mcp test staffany_bigquery
 
 Expected result: connected, 4 tools discovered.
 
+## Honcho Memory
+
+Honcho is the external memory layer for confirmed reusable learning only. It does not replace StaffAny registries, BigQuery, Slack, GitHub, or Google Drive as sources of truth.
+
+Runtime files stay outside the repo:
+
+- Honcho server checkout and ignored `.env`
+- `~/.hermes/profiles/staffanydatabot/honcho.json`
+- Honcho Postgres and Redis volumes
+
+Use profile-local Honcho config with:
+
+```json
+{
+  "baseUrl": "http://127.0.0.1:8000",
+  "hosts": {
+    "hermes.staffanydatabot": {
+      "workspace": "staffany-hermes-data-bot",
+      "peerName": "kaiyi",
+      "pinPeerName": true,
+      "aiPeer": "staffanydatabot",
+      "recallMode": "tools",
+      "saveMessages": false,
+      "sessionStrategy": "per-session"
+    }
+  }
+}
+```
+
+Enable only after the self-hosted Honcho API and embeddings provider pass smoke checks:
+
+```bash
+curl -fsS http://localhost:8000/health
+hermes -p staffanydatabot config set memory.provider honcho
+hermes -p staffanydatabot memory status
+```
+
+If Honcho memory fails, disable the external provider and keep built-in memory active:
+
+```bash
+hermes -p staffanydatabot memory off
+```
+
+Review learned memories locally before promotion:
+
+```bash
+apps/hermes-data-bot/runtime/review-honcho-memory.sh --ids-only --limit 20
+apps/hermes-data-bot/runtime/review-honcho-memory.sh --limit 20
+```
+
+Do not store the raw review output in this repo.
+
+Install the Honcho backup watchdog:
+
+```bash
+cp apps/hermes-data-bot/runtime/backup-honcho.sh ~/.hermes/profiles/staffanydatabot/scripts/staffanydatabot-honcho-backup.sh
+hermes -p staffanydatabot cron create "30 1 * * 1-5" \
+  --name "staffanydatabot Honcho backup" \
+  --script staffanydatabot-honcho-backup.sh \
+  --no-agent
+```
+
+Backups are compressed Postgres dumps in `~/.hermes/backups/honcho/`.
+
 ## Slack Setup
 
 Generate the Slack manifest:
@@ -244,12 +374,30 @@ hermes -p staffanydatabot gateway status
 - `hermes -p staffanydatabot doctor`
 - `hermes -p staffanydatabot skills list` shows `staffany-data-bot`
 - `hermes -p staffanydatabot mcp test staffany_bigquery` discovers 4 tools
+- `apps/hermes-data-bot/runtime/check-health.sh` prints nothing and exits 0 when gateway, MCP, redaction, and Honcho are healthy
 - Direct MCP `execute_sql_readonly` probe with `SELECT 1 AS ok` returns a JSON-RPC result and no error
 - `hermes -p staffanydatabot gateway status` is active after Slack and model auth are ready
 - Slack first mention returns the plan-first message only
 - Exact `run` executes the confirmed plan
 - Secret request is refused
 - Employee bank-account request is refused or requires explicit authorization and business purpose
+
+## No-Agent Health Cron
+
+Install the health script as a silent Hermes watchdog on the VM:
+
+```bash
+mkdir -p ~/.hermes/scripts
+cp apps/hermes-data-bot/runtime/check-health.sh ~/.hermes/profiles/staffanydatabot/scripts/staffanydatabot-check-health.sh
+hermes -p staffanydatabot cron create "0 1 * * 1-5" \
+  --name "staffanydatabot health check" \
+  --script staffanydatabot-check-health.sh \
+  --no-agent
+hermes -p staffanydatabot cron status
+hermes -p staffanydatabot cron list
+```
+
+Healthy runs print nothing. Failures print only the failing subsystem, for example `mcp:staffany_bigquery-test-failed` or `memory:honcho-not-available`.
 
 ## Self-Improvement And GitHub
 
@@ -283,7 +431,7 @@ What stays out of GitHub:
 
 - `.env` and API tokens
 - Slack tokens and app tokens
-- OpenAI keys
+- ChatGPT/Codex OAuth credentials
 - Raw session transcripts
 - PII or employee-level data
 - Temporary memories and one-off local state
