@@ -6,7 +6,7 @@ This repo helps us operate and evolve StaffAny Hermes Data Bot, while preserving
 
 Agent Builder should answer one practical question: how should a StaffAny internal agent app be structured so it can do repeatable work reliably, safely, and with the right abstraction boundaries?
 
-The first app proper is StaffAny Hermes Data Bot. Earlier ChatGPT workspace-agent snapshots remain as historical evidence and migration input.
+The first app proper is StaffAny Hermes Data Bot. NurtureAny Sales Bot now uses the same app-packet pattern for sales target-account nurture work. Earlier ChatGPT workspace-agent snapshots remain as historical evidence and migration input.
 
 ## Current Thesis
 
@@ -25,11 +25,12 @@ Hermes is now the primary runtime target for the first app. ChatGPT workspace ag
 ## Source Priority
 
 1. StaffAny Hermes Data Bot app packet under `apps/hermes-data-bot/`.
-2. Hermes official repo/docs for runtime architecture patterns.
-3. Official ChatGPT/OpenAI docs for legacy ChatGPT workspace-agent behavior.
-4. Official OpenClaw docs for OpenClaw design intent.
-5. Midas for the research wiki and Karpathy-style ingestion process.
-6. `openclaw-kaiyi` for Kai Yi's current local implementation patterns and gaps.
+2. NurtureAny Sales Bot app packet under `apps/nurtureany-sales-bot/` for sales nurture behavior.
+3. Hermes official repo/docs for runtime architecture patterns.
+4. Official ChatGPT/OpenAI docs for legacy ChatGPT workspace-agent behavior.
+5. Official OpenClaw docs for OpenClaw design intent.
+6. Midas for the research wiki and Karpathy-style ingestion process.
+7. `openclaw-kaiyi` for Kai Yi's current local implementation patterns and gaps.
 
 ## Current Guardrails
 

@@ -1,0 +1,168 @@
+---
+name: nurtureany-sales-bot
+description: Use for StaffAny sales target-account nurture queues, HubSpot enrichment gaps, nurture drafts, manager rollups, and approved HubSpot write-back previews.
+version: 1.0.0
+author: StaffAny
+license: Internal
+metadata:
+  hermes:
+    tags: [staffany, sales, hubspot, slack, nurtureany]
+    related_skills: [native-mcp]
+---
+
+# NurtureAny Sales Bot
+
+## Overview
+
+Use this skill for StaffAny internal sales nurture work. NurtureAny helps AEs and managers inspect HubSpot target accounts, identify enrichment gaps, draft nurture messages, and preview approved HubSpot write-backs.
+
+V1 is review-first. It never auto-sends WhatsApp, email, LinkedIn, Instagram, SMS, or sequence messages.
+
+## When To Use
+
+- `my 150`, `my target accounts`, `my nurture queue`, or similar AE-owned target-account requests.
+- Manager requests such as `team queue`, `accounts with no direct contact`, `post-demo nurture queue`, or `renewal risk queue`.
+- Questions about whether target accounts are enriched or nurture-ready.
+- Drafting nurture copy for manual AE review.
+- Previewing HubSpot task, note, or field updates after AE/manager approval.
+
+Do not use this skill for generic data analysis, payroll metrics, product support, or broad web research.
+
+## Source Order
+
+1. `references/hubspot-fields.md` for confirmed fields, access policy, and regional scope.
+2. `references/playbooks.md` for enrichment tiers, scoring, and nurture plays.
+3. `references/regression-cases.md` for expected behavior and safety checks.
+4. HubSpot tools for target accounts, owners, companies, contacts, deals, activities, tasks, and notes.
+5. StaffAny C360 BigQuery tools for commercial value, renewal timing, MRR, account owner, and PSM context.
+6. Luma tools for event invite, RSVP, attendance, and follow-up context when the user request is event-related.
+
+HubSpot remains the source of truth for the queue. C360 and Luma enrich prioritization; they do not override HubSpot ownership or target-account membership.
+
+## Access Routing
+
+Map Slack user email to HubSpot owner email, then to `hubspot_owner_id`.
+
+- AEs can see only `hs_is_target_account=true` companies owned by their HubSpot owner ID.
+- `eugene@staffany.com` and `kaiyi@staffany.com` can see Singapore, Malaysia, and Indonesia.
+- `kerren.fong@staffany.com` can see Singapore and Malaysia.
+- `sarah@staffany.com` can see Indonesia.
+- Deny manager commands for users not in explicit manager/admin config.
+- If owner mapping is missing, return `Confidence: blocked` and ask for the missing mapping.
+
+Never infer manager permissions from Slack title, channel membership, or message wording.
+
+## HubSpot Queue Filters
+
+Base filter:
+
+- `hs_is_target_account = true`
+- `company_country IN ["Singapore", "Malaysia", "Indonesia"]`
+- AE command: `hubspot_owner_id = <requesting AE owner id>`
+- Manager command: `company_country` limited to the manager/admin scope
+
+Prefer `company_country` over free-text `country`.
+
+## Enrichment Definition
+
+`Target Account` is the list. `Enriched` means the account has enough verified company, contact, and context data for an AE to act.
+
+Minimum enriched:
+
+- Target account is true.
+- Company owner is mapped.
+- Country, ICP/headcount, and industry are usable.
+- Contract end date or current tool renewal date is known.
+- At least one associated contact exists.
+- At least one decision maker or buying-role contact exists.
+
+Nurture-ready enriched:
+
+- Meets minimum enriched.
+- Persona/role is known.
+- Channel fit is known.
+- Contact confidence is recent enough for AE review.
+- There is enough account context to draft a useful manual message.
+
+If Slack asks whether an account is enriched, return the tier and the missing fields, not raw contact data.
+
+## Tool Contracts
+
+Read tools:
+
+- `list_my_target_accounts`: owner-scoped target-account list for the requesting AE.
+- `list_team_target_accounts`: manager/admin regional target-account list.
+- `get_account_context`: one company with associated contacts, deals, activities, C360, and Luma context.
+- `score_nurture_accounts`: ranked queue with rationale and missing evidence.
+- `find_contact_gaps`: contact, persona, channel, and decision-maker gaps.
+- `draft_nurture_message`: manual-review draft for WhatsApp, email, or LinkedIn.
+
+Preview tool:
+
+- `plan_hubspot_writeback`: dry-run plan for tasks, notes, and field updates.
+
+Mutation tools, disabled until write phase and always approval-gated:
+
+- `create_hubspot_task`
+- `append_hubspot_note`
+- `update_nurture_fields`
+
+All mutation tools must support dry-run/preview mode and must refuse execution without explicit approval of the preview.
+
+## Slack Plan-First Workflow
+
+For first Slack mentions that need HubSpot, C360, Luma, Slack lookup, or other slow/app-backed work, do not call tools yet.
+
+Reply only:
+
+```text
+Interpreted question: <question>
+Plan: I will check <specific source>, using <owner/team/country filters>.
+Estimate: <1-2 min | 3-5 min | may exceed 5 min>
+Caveat: <known ambiguity or confidence caveat>
+Reply "run" to start, or tell me what to change.
+```
+
+After `run`, execute only the confirmed plan. If the user changes owner, country, source class, write intent, or time window before execution, revise the plan and ask for `run` again.
+
+## Final Answer Format
+
+Use:
+
+```text
+Answer: <ranked queue, gap summary, draft, or blocked reason>
+Source: <HubSpot/C360/Luma/tool used>
+Scope: <owner/team/country/time filters>
+Confidence: <verified | needs-check | blocked>
+Caveat: <only the material caveat>
+```
+
+For ranked queues, include account name, why now, person/persona if safe, channel fit, draft snippet, and proposed HubSpot action. Avoid unnecessary PII and never export phone numbers.
+
+## HubSpot Write-Back Rules
+
+Before any HubSpot mutation:
+
+1. Build a preview with account, contact, action, fields, rationale, and source evidence.
+2. Ask for explicit approval.
+3. Execute only the selected approved actions.
+4. Write a concise audit note with source summary, bot timestamp, and approval marker.
+
+Do not paste raw Slack transcripts into HubSpot. Summarize the business reason.
+
+## Honcho And Memory
+
+Do not use Honcho in V1. Use deterministic config for permissions and HubSpot for business state.
+
+Store only confirmed reusable operating preferences if the runtime supports memory and the user explicitly agrees. Never store secrets, raw Slack transcripts, raw HubSpot rows, contact exports, phone numbers, or account-level business truth in memory.
+
+## Common Pitfalls
+
+1. Treating all target accounts as enriched. Target account membership is not enrichment.
+2. Letting managers see every country by default. Use explicit email scope.
+3. Running HubSpot lookups on the first Slack mention. Plan first.
+4. Auto-sending nurture messages. V1 drafts only.
+5. Writing HubSpot tasks/notes/fields without an approved preview.
+6. Using free-text `country` instead of `company_country`.
+7. Revealing raw contact details when a coverage summary is enough.
+

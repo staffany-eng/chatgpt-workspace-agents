@@ -1,0 +1,115 @@
+{
+  "app_name": "NurtureAny Sales Bot",
+  "app_slug": "nurtureany-sales-bot",
+  "kind": "hermes-runtime-app",
+  "canonical": true,
+  "runtime": "Hermes Agent",
+  "profile_name": "nurtureanysalesbot",
+  "rollout_stage": "V1 source packet; Slack pilot channels pending",
+  "paths": {
+    "soul": "profile/SOUL.md",
+    "config_template": "profile/config.template.yaml",
+    "skill": "skills/nurtureany-sales-bot/SKILL.md",
+    "references": [
+      "skills/nurtureany-sales-bot/references/hubspot-fields.md",
+      "skills/nurtureany-sales-bot/references/playbooks.md",
+      "skills/nurtureany-sales-bot/references/regression-cases.md"
+    ],
+    "slack_runtime": "runtime/slack.md",
+    "hubspot_runtime": "runtime/hubspot.md",
+    "hubspot_mcp": "runtime/mcp/hubspot_nurtureany_server.py",
+    "bigquery_runtime": "runtime/bigquery.md",
+    "luma_runtime": "runtime/luma.md",
+    "health_checks": "runtime/health-checks.md",
+    "regression_cases": "tests/regression-cases.md"
+  },
+  "scope": {
+    "countries": [
+      "Singapore",
+      "Malaysia",
+      "Indonesia"
+    ],
+    "overall_admins": [
+      "eugene@staffany.com",
+      "kaiyi@staffany.com"
+    ],
+    "regional_managers": [
+      {
+        "email": "kerren.fong@staffany.com",
+        "countries": [
+          "Singapore",
+          "Malaysia"
+        ]
+      },
+      {
+        "email": "sarah@staffany.com",
+        "countries": [
+          "Indonesia"
+        ]
+      }
+    ]
+  },
+  "hubspot": {
+    "source_of_truth": true,
+    "target_account_property": "hs_is_target_account",
+    "owner_property": "hubspot_owner_id",
+    "country_property": "company_country",
+    "country_values": [
+      "Singapore",
+      "Malaysia",
+      "Indonesia"
+    ],
+    "company_properties": [
+      "hs_is_target_account",
+      "hubspot_owner_id",
+      "company_country",
+      "numberofemployees",
+      "industry",
+      "contract_end_date",
+      "current_tool_renewal_date",
+      "notes_last_updated",
+      "hs_num_decision_makers",
+      "hs_num_contacts_with_buying_roles",
+      "prospecting_account"
+    ],
+    "contact_properties": [
+      "email",
+      "firstname",
+      "lastname",
+      "jobtitle",
+      "job_role",
+      "hs_buying_role",
+      "hubspot_owner_id",
+      "lastmodifieddate"
+    ]
+  },
+  "tools": {
+    "read": [
+      "list_my_target_accounts",
+      "list_team_target_accounts",
+      "get_account_context",
+      "score_nurture_accounts",
+      "find_contact_gaps",
+      "draft_nurture_message"
+    ],
+    "preview": [
+      "plan_hubspot_writeback"
+    ],
+    "mutation_requires_explicit_approval": [
+      "create_hubspot_task",
+      "append_hubspot_note",
+      "update_nurture_fields"
+    ]
+  },
+  "external_message_sending": false,
+  "honcho_enabled": false,
+  "secrets_copied": false,
+  "evidence": {
+    "target_account_counts_checked_at": "2026-05-09",
+    "target_account_counts": {
+      "Singapore": 3095,
+      "Malaysia": 1457,
+      "Indonesia": 4815
+    }
+  }
+}

@@ -1,0 +1,103 @@
+# Non-secret Hermes profile template for NurtureAny Sales Bot.
+# Copy relevant values into ~/.hermes/profiles/nurtureanysalesbot/config.yaml and verify
+# exact key support with the installed Hermes version before restarting the gateway.
+
+terminal:
+  cwd: "~/agent-builder/apps/nurtureany-sales-bot"
+
+security:
+  redact_secrets: true
+
+display:
+  busy_input_mode: "queue"
+
+model:
+  provider: "custom"
+  model: "gpt-5.5"
+  base_url: "https://api.openai.com/v1"
+  api_key_env: "OPENAI_API_KEY"
+
+nurtureany:
+  supported_countries:
+    - "Singapore"
+    - "Malaysia"
+    - "Indonesia"
+  access_policy:
+    owner_mapping_source: "hubspot_owners_api"
+    ae_scope:
+      type: "hubspot_owner_email_to_hubspot_owner_id"
+      company_owner_property: "hubspot_owner_id"
+    overall_admins:
+      - "eugene@staffany.com"
+      - "kaiyi@staffany.com"
+    regional_managers:
+      - email: "kerren.fong@staffany.com"
+        countries:
+          - "Singapore"
+          - "Malaysia"
+      - email: "sarah@staffany.com"
+        countries:
+          - "Indonesia"
+  approval_policy:
+    first_slack_request: "plan_first"
+    first_execution_approval: "run"
+    hubspot_mutations: "explicit_preview_approval"
+    external_message_sending: "disabled"
+  honcho:
+    enabled: false
+    reason: "V1 uses deterministic config and HubSpot as source of truth."
+
+mcp_servers:
+  hubspot_nurtureany:
+    description: "Custom HubSpot adapter for target-account nurture workflows."
+    command: "/Users/leekaiyi/.hermes/hermes-agent/venv/bin/python"
+    args:
+      - "/Users/leekaiyi/workspace/agent builder/apps/nurtureany-sales-bot/runtime/mcp/hubspot_nurtureany_server.py"
+    auth:
+      type: "bearer_env"
+      env: "HUBSPOT_PRIVATE_APP_TOKEN"
+    tool_allowlist:
+      - "list_my_target_accounts"
+      - "list_team_target_accounts"
+      - "get_account_context"
+      - "score_nurture_accounts"
+      - "find_contact_gaps"
+      - "draft_nurture_message"
+      - "plan_hubspot_writeback"
+    mutation_tools_disabled_until_write_phase:
+      - "create_hubspot_task"
+      - "append_hubspot_note"
+      - "update_nurture_fields"
+
+  staffany_bigquery:
+    description: "Read-only C360 enrichment source for MRR, renewal timing, account owner, and PSM context."
+    url: "https://bq-mcp-proxy-1093387803298.asia-southeast1.run.app/mcp"
+    auth:
+      type: "bearer_env"
+      env: "MCP_STAFFANY_BIGQUERY_API_KEY"
+    tool_allowlist:
+      - "list_dataset_ids"
+      - "list_table_ids"
+      - "get_table_info"
+      - "execute_sql_readonly"
+
+  luma_events:
+    description: "Optional read-only Luma event context adapter."
+    auth:
+      type: "bearer_env"
+      env: "LUMA_API_KEY"
+    tool_allowlist:
+      - "list_luma_events"
+      - "get_luma_event_context"
+
+gateway:
+  slack:
+    enabled: true
+    app_token_env: "SLACK_APP_TOKEN"
+    bot_token_env: "SLACK_BOT_TOKEN"
+    allowed_users_env: "SLACK_ALLOWED_USERS"
+    channels:
+      - "#kaiyi-bot-testing"
+      - "#team-rev-onboarding-sgmy-sales"
+      - "#team-rev-bd-sgmy-proj12"
+      - "#team-rev-bd-id-proj18"

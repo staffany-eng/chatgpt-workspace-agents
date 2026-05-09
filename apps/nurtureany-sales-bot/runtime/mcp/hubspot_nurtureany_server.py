@@ -1,0 +1,694 @@
+#!/usr/bin/env python3
+"""HubSpot MCP adapter for NurtureAny Sales Bot.
+
+This server is intentionally V1-safe: read tools and dry-run previews only.
+HubSpot write tools are not exposed until the write-back phase is approved.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+from datetime import date, datetime, timezone
+from typing import Any
+
+from mcp.server.fastmcp import FastMCP
+
+
+HUBSPOT_BASE_URL = "https://api.hubapi.com"
+SUPPORTED_COUNTRIES = ("Singapore", "Malaysia", "Indonesia")
+OVERALL_ADMINS = {"eugene@staffany.com", "kaiyi@staffany.com"}
+REGIONAL_MANAGERS = {
+    "kerren.fong@staffany.com": ("Singapore", "Malaysia"),
+    "sarah@staffany.com": ("Indonesia",),
+}
+
+COMPANY_PROPERTIES = [
+    "name",
+    "domain",
+    "hs_is_target_account",
+    "hubspot_owner_id",
+    "company_country",
+    "numberofemployees",
+    "industry",
+    "contract_end_date",
+    "current_tool_renewal_date",
+    "notes_last_updated",
+    "hs_num_decision_makers",
+    "hs_num_contacts_with_buying_roles",
+    "prospecting_account",
+    "nurtureany_status",
+    "nurtureany_priority_score",
+    "nurtureany_segment",
+    "nurtureany_next_action",
+    "nurtureany_next_trigger_at",
+    "nurtureany_last_reviewed_at",
+    "nurtureany_last_nurtured_at",
+    "nurtureany_enrichment_status",
+    "nurtureany_contact_coverage",
+]
+
+CONTACT_PROPERTIES = [
+    "email",
+    "firstname",
+    "lastname",
+    "jobtitle",
+    "job_role",
+    "hs_buying_role",
+    "hubspot_owner_id",
+    "lastmodifieddate",
+    "nurtureany_persona",
+    "nurtureany_channel_fit",
+    "nurtureany_contact_confidence",
+    "nurtureany_last_verified_at",
+]
+
+DEAL_PROPERTIES = [
+    "dealname",
+    "dealstage",
+    "pipeline",
+    "amount",
+    "closedate",
+    "hubspot_owner_id",
+    "contract_end_date",
+]
+
+
+mcp = FastMCP(
+    "hubspot_nurtureany",
+    instructions=(
+        "Read-only HubSpot target-account tools for NurtureAny. "
+        "Mutation tools are intentionally not exposed in V1."
+    ),
+)
+
+
+class HubSpotError(RuntimeError):
+    pass
+
+
+def _token() -> str:
+    token = os.environ.get("HUBSPOT_PRIVATE_APP_TOKEN", "").strip()
+    if not token:
+        raise HubSpotError("Missing HUBSPOT_PRIVATE_APP_TOKEN.")
+    return token
+
+
+def _normalize_email(email: str) -> str:
+    return (email or "").strip().lower()
+
+
+def _request_json(method: str, path: str, body: dict[str, Any] | None = None) -> dict[str, Any]:
+    url = urllib.parse.urljoin(HUBSPOT_BASE_URL, path)
+    data = json.dumps(body).encode("utf-8") if body is not None else None
+    headers = {
+        "authorization": f"Bearer {_token()}",
+        "accept": "application/json",
+    }
+    if data is not None:
+        headers["content-type"] = "application/json"
+    request = urllib.request.Request(url, data=data, headers=headers, method=method)
+
+    for attempt in range(4):
+        try:
+            with urllib.request.urlopen(request, timeout=45) as response:
+                raw = response.read().decode("utf-8")
+                return json.loads(raw) if raw else {}
+        except urllib.error.HTTPError as error:
+            if error.code == 429 and attempt < 3:
+                time.sleep(1.5 * (attempt + 1))
+                continue
+            detail = error.read().decode("utf-8", errors="replace")
+            raise HubSpotError(f"HubSpot API failed: {error.code} {detail[:300]}") from error
+        except urllib.error.URLError as error:
+            raise HubSpotError(f"HubSpot API failed: {error.reason}") from error
+
+    raise HubSpotError("HubSpot API rate-limited after retries.")
+
+
+def _get(path: str, params: dict[str, str] | None = None) -> dict[str, Any]:
+    query = urllib.parse.urlencode(params or {})
+    return _request_json("GET", f"{path}?{query}" if query else path)
+
+
+def _post(path: str, body: dict[str, Any]) -> dict[str, Any]:
+    return _request_json("POST", path, body)
+
+
+def _blocked(message: str, scope: dict[str, Any] | None = None) -> dict[str, Any]:
+    return {
+        "answer": message,
+        "source": "HubSpot",
+        "scope": scope or {},
+        "confidence": "blocked",
+        "caveat": message,
+    }
+
+
+def _owner_by_email(email: str) -> dict[str, Any] | None:
+    normalized = _normalize_email(email)
+    if not normalized:
+        return None
+    data = _get("/crm/v3/owners/", {"email": normalized, "archived": "false", "limit": "100"})
+    for owner in data.get("results", []):
+        if _normalize_email(owner.get("email", "")) == normalized:
+            return owner
+    return None
+
+
+def _caller_scope(slack_user_email: str) -> dict[str, Any]:
+    email = _normalize_email(slack_user_email)
+    if not email:
+        return {"kind": "blocked", "email": "", "countries": (), "owner_id": None}
+    if email in OVERALL_ADMINS:
+        return {"kind": "admin", "email": email, "countries": SUPPORTED_COUNTRIES, "owner_id": None}
+    if email in REGIONAL_MANAGERS:
+        return {"kind": "manager", "email": email, "countries": REGIONAL_MANAGERS[email], "owner_id": None}
+    owner = _owner_by_email(email)
+    if not owner:
+        return {"kind": "blocked", "email": email, "countries": SUPPORTED_COUNTRIES, "owner_id": None}
+    return {"kind": "ae", "email": email, "countries": SUPPORTED_COUNTRIES, "owner_id": str(owner["id"])}
+
+
+def _safe_countries(countries: list[str] | None, allowed: tuple[str, ...]) -> list[str]:
+    requested = countries or list(allowed)
+    return [country for country in requested if country in allowed]
+
+
+def _company_search(filters: list[dict[str, Any]], limit: int = 20, after: str | None = None) -> dict[str, Any]:
+    body: dict[str, Any] = {
+        "filterGroups": [{"filters": filters}],
+        "properties": COMPANY_PROPERTIES,
+        "limit": max(1, min(int(limit), 100)),
+        "sorts": [{"propertyName": "notes_last_updated", "direction": "DESCENDING"}],
+    }
+    if after:
+        body["after"] = after
+    return _post("/crm/v3/objects/companies/search", body)
+
+
+def _target_filters(countries: list[str], owner_id: str | None = None) -> list[dict[str, Any]]:
+    filters: list[dict[str, Any]] = [
+        {"propertyName": "hs_is_target_account", "operator": "EQ", "value": "true"},
+        {"propertyName": "company_country", "operator": "IN", "values": countries},
+    ]
+    if owner_id:
+        filters.append({"propertyName": "hubspot_owner_id", "operator": "EQ", "value": owner_id})
+    return filters
+
+
+def _summarize_company(company: dict[str, Any]) -> dict[str, Any]:
+    props = company.get("properties", {})
+    decision_count = _int_value(props.get("hs_num_decision_makers"))
+    buying_role_count = _int_value(props.get("hs_num_contacts_with_buying_roles"))
+    contract_date = props.get("contract_end_date") or props.get("current_tool_renewal_date") or ""
+    return {
+        "company_id": company.get("id"),
+        "name": props.get("name") or "",
+        "country": props.get("company_country") or "",
+        "owner_id": props.get("hubspot_owner_id") or "",
+        "headcount": props.get("numberofemployees") or "",
+        "industry": props.get("industry") or "",
+        "contract_or_renewal_date": contract_date,
+        "last_activity_at": props.get("notes_last_updated") or "",
+        "decision_maker_count": decision_count,
+        "buying_role_contact_count": buying_role_count,
+        "prospecting_account": props.get("prospecting_account") or "",
+        "enrichment_status": _enrichment_status(props, contact_count=None),
+        "missing_fields": _missing_company_fields(props, contact_count=None),
+    }
+
+
+def _int_value(value: Any) -> int:
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _date_value(value: str | None) -> date | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00")).date()
+    except ValueError:
+        try:
+            return date.fromisoformat(value[:10])
+        except ValueError:
+            return None
+
+
+def _missing_company_fields(props: dict[str, Any], contact_count: int | None) -> list[str]:
+    missing: list[str] = []
+    if not props.get("hubspot_owner_id"):
+        missing.append("company owner")
+    if not props.get("company_country"):
+        missing.append("country")
+    if not props.get("numberofemployees"):
+        missing.append("headcount")
+    if not props.get("industry"):
+        missing.append("industry")
+    if not (props.get("contract_end_date") or props.get("current_tool_renewal_date")):
+        missing.append("contract/renewal date")
+    if contact_count == 0:
+        missing.append("associated contact")
+    if _int_value(props.get("hs_num_decision_makers")) < 1 and _int_value(props.get("hs_num_contacts_with_buying_roles")) < 1:
+        missing.append("decision maker")
+    return missing
+
+
+def _enrichment_status(props: dict[str, Any], contact_count: int | None) -> str:
+    missing = _missing_company_fields(props, contact_count)
+    if missing:
+        return "not_enriched"
+    if props.get("nurtureany_channel_fit") or props.get("nurtureany_contact_coverage"):
+        return "nurture_ready"
+    return "minimum_enriched"
+
+
+def _association_ids(from_type: str, object_id: str, to_type: str, limit: int = 20) -> list[str]:
+    data = _get(f"/crm/v4/objects/{from_type}/{object_id}/associations/{to_type}", {"limit": str(limit)})
+    return [str(item["toObjectId"]) for item in data.get("results", []) if item.get("toObjectId")]
+
+
+def _batch_read(object_type: str, ids: list[str], properties: list[str]) -> list[dict[str, Any]]:
+    if not ids:
+        return []
+    data = _post(
+        f"/crm/v3/objects/{object_type}/batch/read",
+        {
+            "properties": properties,
+            "inputs": [{"id": object_id} for object_id in ids[:100]],
+        },
+    )
+    return data.get("results", [])
+
+
+def _get_company(company_id: str) -> dict[str, Any]:
+    props = ",".join(COMPANY_PROPERTIES)
+    return _get(f"/crm/v3/objects/companies/{company_id}", {"properties": props})
+
+
+def _has_company_access(company: dict[str, Any], scope: dict[str, Any]) -> bool:
+    props = company.get("properties", {})
+    if props.get("company_country") not in scope.get("countries", ()):
+        return False
+    if scope["kind"] in {"admin", "manager"}:
+        return True
+    return scope["kind"] == "ae" and props.get("hubspot_owner_id") == scope.get("owner_id")
+
+
+def _company_context(company_id: str, scope: dict[str, Any]) -> dict[str, Any] | None:
+    company = _get_company(company_id)
+    if not _has_company_access(company, scope):
+        return None
+    contact_ids = _association_ids("companies", company_id, "contacts", 50)
+    deal_ids = _association_ids("companies", company_id, "deals", 20)
+    contacts = _batch_read("contacts", contact_ids, CONTACT_PROPERTIES)
+    deals = _batch_read("deals", deal_ids, DEAL_PROPERTIES)
+    props = company.get("properties", {})
+    safe_contacts = [_safe_contact(contact) for contact in contacts]
+    return {
+        "company": _summarize_company_with_contacts(company, safe_contacts),
+        "contacts": safe_contacts,
+        "deals": [_safe_deal(deal) for deal in deals],
+        "coverage": _coverage(props, safe_contacts),
+    }
+
+
+def _summarize_company_with_contacts(company: dict[str, Any], contacts: list[dict[str, Any]]) -> dict[str, Any]:
+    summary = _summarize_company(company)
+    props = company.get("properties", {})
+    summary["contact_count"] = len(contacts)
+    summary["enrichment_status"] = _enrichment_status(props, len(contacts))
+    summary["missing_fields"] = _missing_company_fields(props, len(contacts))
+    return summary
+
+
+def _safe_contact(contact: dict[str, Any]) -> dict[str, Any]:
+    props = contact.get("properties", {})
+    first = props.get("firstname") or ""
+    last = props.get("lastname") or ""
+    role = props.get("job_role") or props.get("jobtitle") or ""
+    buying_role = props.get("hs_buying_role") or ""
+    return {
+        "contact_id": contact.get("id"),
+        "display_name": " ".join(part for part in [first, last[:1] + "." if last else ""] if part).strip(),
+        "persona": role,
+        "buying_role": buying_role,
+        "is_decision_maker": buying_role == "DECISION_MAKER" or _role_is_decision_maker(role),
+        "last_verified_at": props.get("nurtureany_last_verified_at") or props.get("lastmodifieddate") or "",
+        "channel_fit": props.get("nurtureany_channel_fit") or "",
+        "contact_confidence": props.get("nurtureany_contact_confidence") or "",
+    }
+
+
+def _role_is_decision_maker(role: str) -> bool:
+    text = role.lower()
+    markers = ("founder", "owner", "director", "ceo", "chief", "boss")
+    return any(marker in text for marker in markers) and "executive" not in text
+
+
+def _safe_deal(deal: dict[str, Any]) -> dict[str, Any]:
+    props = deal.get("properties", {})
+    return {
+        "deal_id": deal.get("id"),
+        "dealname": props.get("dealname") or "",
+        "stage": props.get("dealstage") or "",
+        "amount": props.get("amount") or "",
+        "close_date": props.get("closedate") or "",
+        "contract_end_date": props.get("contract_end_date") or "",
+        "owner_id": props.get("hubspot_owner_id") or "",
+    }
+
+
+def _coverage(props: dict[str, Any], contacts: list[dict[str, Any]]) -> dict[str, Any]:
+    decision_makers = [contact for contact in contacts if contact.get("is_decision_maker")]
+    channel_known = [contact for contact in contacts if contact.get("channel_fit")]
+    return {
+        "contact_count": len(contacts),
+        "decision_maker_count": max(_int_value(props.get("hs_num_decision_makers")), len(decision_makers)),
+        "buying_role_contact_count": _int_value(props.get("hs_num_contacts_with_buying_roles")),
+        "channel_fit_known_count": len(channel_known),
+        "summary": (
+            "nurture-ready"
+            if contacts and decision_makers and channel_known
+            else "minimum coverage" if contacts and decision_makers else "needs enrichment"
+        ),
+    }
+
+
+def _score_company(summary: dict[str, Any]) -> dict[str, Any]:
+    score = 0
+    reasons: list[str] = []
+    missing = summary.get("missing_fields", [])
+    renewal = _date_value(summary.get("contract_or_renewal_date"))
+    today = datetime.now(timezone.utc).date()
+
+    if renewal:
+        days = (renewal - today).days
+        if 0 <= days <= 90:
+            score += 35
+            reasons.append(f"contract/renewal in {days} days")
+        elif 91 <= days <= 180:
+            score += 20
+            reasons.append(f"contract/renewal in {days} days")
+    else:
+        score += 10
+        reasons.append("missing contract/renewal date")
+
+    decision_count = summary.get("decision_maker_count", 0) or summary.get("buying_role_contact_count", 0)
+    if decision_count:
+        score += 20
+        reasons.append("direct decision-maker coverage exists")
+    else:
+        score += 15
+        reasons.append("missing decision-maker coverage")
+
+    if summary.get("prospecting_account") == "true":
+        score += 10
+        reasons.append("marked as prospecting account")
+
+    if summary.get("last_activity_at"):
+        activity_date = _date_value(summary.get("last_activity_at"))
+        if activity_date:
+            age = (today - activity_date).days
+            if age >= 21:
+                score += 15
+                reasons.append(f"no recent sales note for {age} days")
+    else:
+        score += 8
+        reasons.append("missing recent activity date")
+
+    score -= min(len(missing) * 3, 18)
+    return {
+        "priority_score": max(score, 0),
+        "priority_reasons": reasons[:5],
+        "segment": _segment(summary, reasons),
+    }
+
+
+def _segment(summary: dict[str, Any], reasons: list[str]) -> str:
+    if any("contract/renewal" in reason for reason in reasons):
+        return "Renewal / contract-end alert"
+    if "decision maker" in " ".join(summary.get("missing_fields", [])).lower():
+        return "Missing direct contact"
+    if summary.get("prospecting_account") == "true":
+        return "Pre-demo target account"
+    return "High-value dormant account"
+
+
+def _scope_response(scope: dict[str, Any], countries: list[str]) -> dict[str, Any]:
+    return {
+        "caller_email": scope.get("email"),
+        "scope_kind": scope.get("kind"),
+        "countries": countries,
+        "owner_id": scope.get("owner_id"),
+    }
+
+
+@mcp.tool()
+def list_my_target_accounts(slack_user_email: str, limit: int = 20) -> dict[str, Any]:
+    """List target accounts owned by the requesting AE."""
+
+    try:
+        scope = _caller_scope(slack_user_email)
+        if scope["kind"] == "blocked" or not scope.get("owner_id"):
+            return _blocked("Slack email is not mapped to a HubSpot owner.", {"caller_email": slack_user_email})
+        countries = list(scope["countries"])
+        data = _company_search(_target_filters(countries, scope["owner_id"]), limit)
+        accounts = [_summarize_company(company) for company in data.get("results", [])]
+        return {
+            "answer": accounts,
+            "source": "HubSpot companies search",
+            "scope": _scope_response(scope, countries),
+            "total": data.get("total"),
+            "confidence": "verified",
+            "caveat": "Returned records are limited by the requested page size.",
+        }
+    except HubSpotError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email})
+
+
+@mcp.tool()
+def list_team_target_accounts(slack_user_email: str, countries: list[str] | None = None, limit: int = 50) -> dict[str, Any]:
+    """List target accounts for an authorized manager/admin regional scope."""
+
+    try:
+        scope = _caller_scope(slack_user_email)
+        if scope["kind"] not in {"admin", "manager"}:
+            return _blocked("Caller is not authorized for manager team scope.", {"caller_email": slack_user_email})
+        selected = _safe_countries(countries, scope["countries"])
+        if not selected:
+            return _blocked("Requested countries are outside caller scope.", _scope_response(scope, []))
+        data = _company_search(_target_filters(selected), limit)
+        accounts = [_summarize_company(company) for company in data.get("results", [])]
+        return {
+            "answer": accounts,
+            "source": "HubSpot companies search",
+            "scope": _scope_response(scope, selected),
+            "total": data.get("total"),
+            "confidence": "verified",
+            "caveat": "Manager scope is country-based and records are limited by the requested page size.",
+        }
+    except HubSpotError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email})
+
+
+@mcp.tool()
+def get_account_context(slack_user_email: str, company_id: str) -> dict[str, Any]:
+    """Get safe account context for one scoped HubSpot company."""
+
+    try:
+        scope = _caller_scope(slack_user_email)
+        if scope["kind"] == "blocked":
+            return _blocked("Caller identity is not mapped to an allowed scope.", {"caller_email": slack_user_email})
+        context = _company_context(str(company_id), scope)
+        if context is None:
+            return _blocked("Company is outside caller scope.", {"caller_email": slack_user_email, "company_id": company_id})
+        return {
+            "answer": context,
+            "source": "HubSpot company, contact, and deal associations",
+            "scope": _scope_response(scope, [context["company"]["country"]]),
+            "confidence": "verified",
+            "caveat": "Contact details are summarized; raw phone numbers and exports are omitted.",
+        }
+    except HubSpotError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email, "company_id": company_id})
+
+
+@mcp.tool()
+def score_nurture_accounts(
+    slack_user_email: str,
+    company_ids: list[str] | None = None,
+    countries: list[str] | None = None,
+    limit: int = 20,
+) -> dict[str, Any]:
+    """Score scoped target accounts for nurture priority."""
+
+    try:
+        scope = _caller_scope(slack_user_email)
+        if scope["kind"] == "blocked":
+            return _blocked("Caller identity is not mapped to an allowed scope.", {"caller_email": slack_user_email})
+
+        contexts: list[dict[str, Any]] = []
+        if company_ids:
+            for company_id in company_ids[: min(limit, 50)]:
+                context = _company_context(str(company_id), scope)
+                if context:
+                    contexts.append(context)
+        else:
+            selected = _safe_countries(countries, scope["countries"])
+            owner_id = scope.get("owner_id") if scope["kind"] == "ae" else None
+            data = _company_search(_target_filters(selected, owner_id), limit)
+            for company in data.get("results", []):
+                contexts.append({"company": _summarize_company(company), "contacts": [], "deals": [], "coverage": {}})
+
+        ranked = []
+        for context in contexts:
+            company = context["company"]
+            score = _score_company(company)
+            ranked.append({**company, **score})
+        ranked.sort(key=lambda item: item["priority_score"], reverse=True)
+        return {
+            "answer": ranked,
+            "source": "HubSpot account context scoring",
+            "scope": _scope_response(scope, _safe_countries(countries, scope["countries"])),
+            "confidence": "needs-check" if any(item.get("missing_fields") for item in ranked) else "verified",
+            "caveat": "Scoring uses HubSpot fields only unless C360/Luma context is separately supplied.",
+        }
+    except HubSpotError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email})
+
+
+@mcp.tool()
+def find_contact_gaps(slack_user_email: str, countries: list[str] | None = None, limit: int = 50) -> dict[str, Any]:
+    """Find target accounts missing contact, persona, channel, or decision-maker coverage."""
+
+    scored = score_nurture_accounts(slack_user_email, None, countries, limit)
+    if scored.get("confidence") == "blocked":
+        return scored
+    gaps = []
+    for account in scored.get("answer", []):
+        missing = account.get("missing_fields", [])
+        if any(field in missing for field in ["associated contact", "decision maker"]) or account.get("enrichment_status") != "nurture_ready":
+            gaps.append(
+                {
+                    "company_id": account.get("company_id"),
+                    "name": account.get("name"),
+                    "country": account.get("country"),
+                    "enrichment_status": account.get("enrichment_status"),
+                    "missing_fields": missing,
+                }
+            )
+    return {
+        "answer": gaps,
+        "source": scored.get("source"),
+        "scope": scored.get("scope"),
+        "confidence": scored.get("confidence"),
+        "caveat": "Raw contact details are omitted; this is a coverage summary.",
+    }
+
+
+@mcp.tool()
+def draft_nurture_message(
+    account_name: str,
+    segment: str,
+    persona: str = "",
+    channel: str = "WhatsApp",
+    trigger: str = "",
+    locale: str = "neutral",
+) -> dict[str, Any]:
+    """Draft manual-review nurture copy. This tool never sends external messages."""
+
+    safe_channel = channel if channel in {"WhatsApp", "email", "LinkedIn"} else "WhatsApp"
+    greeting = "Hi" if safe_channel != "email" else "Hi there"
+    persona_text = f" for your {persona} team" if persona else ""
+    trigger_text = f" Saw that {trigger}." if trigger else ""
+    if safe_channel == "email":
+        draft = (
+            f"Subject: Quick check-in on {account_name}\n\n"
+            f"{greeting},\n\n"
+            f"I wanted to check in on {account_name}{persona_text}.{trigger_text} "
+            "Happy to share a few practical ideas if this is useful.\n\n"
+            "Best,\n"
+            "<AE name>"
+        )
+    elif safe_channel == "LinkedIn":
+        draft = (
+            f"{greeting}, noticed {account_name} is on our target-account list."
+            f"{trigger_text} Open to a quick exchange on what your team is prioritising?"
+        )
+    else:
+        draft = (
+            f"{greeting}, checking in on {account_name}{persona_text}."
+            f"{trigger_text} Would it be useful if I shared a few quick ideas?"
+        )
+    return {
+        "answer": {
+            "account_name": account_name,
+            "segment": segment,
+            "channel": safe_channel,
+            "draft": draft,
+        },
+        "source": "NurtureAny drafting playbook",
+        "scope": {"external_message_sending": False, "locale": locale},
+        "confidence": "needs-check",
+        "caveat": "Draft only; AE must review and send manually.",
+    }
+
+
+@mcp.tool()
+def plan_hubspot_writeback(
+    slack_user_email: str,
+    selected_actions: list[dict[str, Any]],
+    approval_marker: str = "",
+) -> dict[str, Any]:
+    """Create a dry-run HubSpot write-back plan. This tool does not mutate HubSpot."""
+
+    scope = _caller_scope(slack_user_email)
+    if scope["kind"] == "blocked":
+        return _blocked("Caller identity is not mapped to an allowed scope.", {"caller_email": slack_user_email})
+    payload = json.dumps(
+        {
+            "caller": scope.get("email"),
+            "actions": selected_actions,
+            "approval_marker": approval_marker,
+            "date": datetime.now(timezone.utc).isoformat(),
+        },
+        sort_keys=True,
+    )
+    preview_id = hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
+    preview = []
+    for action in selected_actions[:50]:
+        preview.append(
+            {
+                "company_id": action.get("company_id"),
+                "contact_id": action.get("contact_id"),
+                "task": action.get("task"),
+                "note_summary": action.get("note_summary"),
+                "field_updates": action.get("field_updates", {}),
+                "selected": bool(action.get("selected", True)),
+            }
+        )
+    return {
+        "answer": {
+            "preview_id": preview_id,
+            "actions": preview,
+            "will_mutate_hubspot": False,
+        },
+        "source": "NurtureAny HubSpot write-back dry run",
+        "scope": _scope_response(scope, list(scope.get("countries", ()))),
+        "confidence": "verified",
+        "caveat": "Preview only. Mutation tools are disabled in V1 until explicit write phase approval.",
+    }
+
+
+if __name__ == "__main__":
+    mcp.run("stdio")
+

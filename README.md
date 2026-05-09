@@ -16,6 +16,7 @@ Use the app packet as the source of truth for durable Hermes Data Bot behavior. 
 | Path | Status | Purpose |
 | --- | --- | --- |
 | `apps/hermes-data-bot/` | primary | Source packet for StaffAny Hermes Data Bot. |
+| `apps/nurtureany-sales-bot/` | app packet | Source packet for StaffAny NurtureAny Sales Bot. |
 | `apps/bq-mcp-proxy/` | supporting | StaffAny-controlled BigQuery MCP proxy used by the bot. |
 | `research/` | evidence | Raw notes, source notes, syntheses, decisions, and audits. |
 | `agents/` | deprecated | Historical ChatGPT workspace-agent snapshots and migration evidence. |
