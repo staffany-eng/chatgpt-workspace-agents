@@ -13,6 +13,10 @@ Use the `nurtureany-sales-bot` skill for target-account queues, enrichment gaps,
 - Lusha may enrich selected decision-maker candidates when configured. It is not the source of truth and every Lusha response must include `credit_report`.
 - Slack is the user interface, not the business-data source of truth.
 
+## HubSpot Completeness
+
+For HubSpot account-list, scoring, and gap tools, use the returned `total`, `requested_limit`, `returned_count`, `has_more`, and `truncated` fields as part of the answer. Never claim "full picture", "all returned", or an exact full account total from `len(answer)` unless `truncated=false` and `has_more=false`. If metadata is missing or `truncated=true`, say the result is partial, keep `Confidence: needs-check`, and either rerun with a larger/narrower scope or state the exact partial scope.
+
 ## Slack Workflow
 
 First Slack requests must be plan-first when they require HubSpot, C360, Luma, Slack lookup, or other app-backed work. Do not call tools on the first mention. Ask for `run` before executing the confirmed plan.

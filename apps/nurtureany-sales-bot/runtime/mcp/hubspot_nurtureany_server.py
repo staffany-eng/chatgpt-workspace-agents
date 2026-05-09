@@ -106,6 +106,8 @@ PUBLIC_FETCH_TIMEOUT_SECONDS = 5
 PUBLIC_FETCH_MAX_BYTES = 30_000
 PUBLIC_EVIDENCE_ITEM_LIMIT = 20
 PUBLIC_TASK_ACCOUNT_LIMIT = 25
+HUBSPOT_SEARCH_PAGE_LIMIT = 100
+HUBSPOT_SEARCH_RESULT_LIMIT = 1000
 
 
 mcp = FastMCP(
@@ -118,6 +120,10 @@ mcp = FastMCP(
 
 
 class HubSpotError(RuntimeError):
+    pass
+
+
+class ScopeError(RuntimeError):
     pass
 
 
@@ -209,16 +215,51 @@ def _safe_countries(countries: list[str] | None, allowed: tuple[str, ...]) -> li
     return [country for country in requested if country in allowed]
 
 
+def _bounded_int(value: Any, default: int, minimum: int = 1, maximum: int = HUBSPOT_SEARCH_RESULT_LIMIT) -> int:
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        number = default
+    return max(minimum, min(number, maximum))
+
+
 def _company_search(filters: list[dict[str, Any]], limit: int = 20, after: str | None = None) -> dict[str, Any]:
-    body: dict[str, Any] = {
-        "filterGroups": [{"filters": filters}],
-        "properties": COMPANY_PROPERTIES,
-        "limit": max(1, min(int(limit), 100)),
-        "sorts": [{"propertyName": "notes_last_updated", "direction": "DESCENDING"}],
+    requested_limit = _bounded_int(limit, default=20)
+    results: list[dict[str, Any]] = []
+    total: int | None = None
+    next_after = after
+
+    while len(results) < requested_limit:
+        page_limit = min(HUBSPOT_SEARCH_PAGE_LIMIT, requested_limit - len(results))
+        body: dict[str, Any] = {
+            "filterGroups": [{"filters": filters}],
+            "properties": COMPANY_PROPERTIES,
+            "limit": page_limit,
+            "sorts": [{"propertyName": "notes_last_updated", "direction": "DESCENDING"}],
+        }
+        if next_after:
+            body["after"] = next_after
+
+        page = _post("/crm/v3/objects/companies/search", body)
+        if total is None and page.get("total") is not None:
+            total = _int_value(page.get("total"))
+
+        page_results = page.get("results", [])
+        results.extend(page_results)
+        next_after = page.get("paging", {}).get("next", {}).get("after")
+        if not page_results or not next_after:
+            break
+
+    returned_count = len(results)
+    has_more = bool(next_after) or (total is not None and returned_count < total)
+    return {
+        "results": results,
+        "total": total,
+        "requested_limit": requested_limit,
+        "returned_count": returned_count,
+        "has_more": has_more,
+        "truncated": has_more,
     }
-    if after:
-        body["after"] = after
-    return _post("/crm/v3/objects/companies/search", body)
 
 
 def _target_filters(countries: list[str], owner_id: str | None = None) -> list[dict[str, Any]]:
@@ -229,6 +270,23 @@ def _target_filters(countries: list[str], owner_id: str | None = None) -> list[d
     if owner_id:
         filters.append({"propertyName": "hubspot_owner_id", "operator": "EQ", "value": owner_id})
     return filters
+
+
+def _target_owner_id_for_scope(scope: dict[str, Any], owner_email: str | None = None) -> tuple[str | None, str]:
+    target_email = _normalize_email(owner_email or "")
+    if not target_email:
+        return (str(scope["owner_id"]), scope["email"]) if scope["kind"] == "ae" and scope.get("owner_id") else (None, "")
+
+    owner = _owner_by_email(target_email)
+    if not owner:
+        raise ScopeError(f"HubSpot owner not found for {target_email}.")
+
+    owner_id = str(owner["id"])
+    if scope["kind"] == "ae" and owner_id != scope.get("owner_id"):
+        raise ScopeError("Caller is not authorized to inspect another owner's target accounts.")
+    if scope["kind"] not in {"admin", "manager", "ae"}:
+        raise ScopeError("Caller identity is not mapped to an allowed scope.")
+    return owner_id, target_email
 
 
 def _summarize_company(company: dict[str, Any]) -> dict[str, Any]:
@@ -473,13 +531,43 @@ def _segment(summary: dict[str, Any], reasons: list[str]) -> str:
     return "High-value dormant account"
 
 
-def _scope_response(scope: dict[str, Any], countries: list[str]) -> dict[str, Any]:
-    return {
+def _scope_response(
+    scope: dict[str, Any],
+    countries: list[str],
+    target_owner_id: str | None = None,
+    target_owner_email: str = "",
+) -> dict[str, Any]:
+    response = {
         "caller_email": scope.get("email"),
         "scope_kind": scope.get("kind"),
         "countries": countries,
         "owner_id": scope.get("owner_id"),
     }
+    if target_owner_id:
+        response["target_owner_id"] = target_owner_id
+    if target_owner_email:
+        response["target_owner_email"] = target_owner_email
+    return response
+
+
+def _search_metadata(data: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "total": data.get("total"),
+        "requested_limit": data.get("requested_limit"),
+        "returned_count": data.get("returned_count", len(data.get("results", []))),
+        "has_more": bool(data.get("has_more")),
+        "truncated": bool(data.get("truncated")),
+    }
+
+
+def _coverage_caveat(data: dict[str, Any], base: str) -> str:
+    if data.get("truncated"):
+        total = data.get("total")
+        returned = data.get("returned_count", len(data.get("results", [])))
+        if total is not None:
+            return f"{base} Only {returned} of {total} scoped accounts were returned; do not present counts as complete."
+        return f"{base} Returned records are truncated; do not present counts as complete."
+    return f"{base} Full scoped result set was returned."
 
 
 def _safe_free_source_types(source_types: list[str] | None) -> list[str]:
@@ -779,16 +867,21 @@ def list_my_target_accounts(slack_user_email: str, limit: int = 20) -> dict[str,
             "answer": accounts,
             "source": "HubSpot companies search",
             "scope": _scope_response(scope, countries),
-            "total": data.get("total"),
-            "confidence": "verified",
-            "caveat": "Returned records are limited by the requested page size.",
+            **_search_metadata(data),
+            "confidence": "needs-check" if data.get("truncated") else "verified",
+            "caveat": _coverage_caveat(data, "HubSpot target-account list."),
         }
     except HubSpotError as error:
         return _blocked(str(error), {"caller_email": slack_user_email})
 
 
 @mcp.tool()
-def list_team_target_accounts(slack_user_email: str, countries: list[str] | None = None, limit: int = 50) -> dict[str, Any]:
+def list_team_target_accounts(
+    slack_user_email: str,
+    countries: list[str] | None = None,
+    limit: int = 50,
+    owner_email: str | None = None,
+) -> dict[str, Any]:
     """List target accounts for an authorized manager/admin regional scope."""
 
     try:
@@ -798,16 +891,19 @@ def list_team_target_accounts(slack_user_email: str, countries: list[str] | None
         selected = _safe_countries(countries, scope["countries"])
         if not selected:
             return _blocked("Requested countries are outside caller scope.", _scope_response(scope, []))
-        data = _company_search(_target_filters(selected), limit)
+        target_owner_id, target_owner_email = _target_owner_id_for_scope(scope, owner_email)
+        data = _company_search(_target_filters(selected, target_owner_id), limit)
         accounts = [_summarize_company(company) for company in data.get("results", [])]
         return {
             "answer": accounts,
             "source": "HubSpot companies search",
-            "scope": _scope_response(scope, selected),
-            "total": data.get("total"),
-            "confidence": "verified",
-            "caveat": "Manager scope is country-based and records are limited by the requested page size.",
+            "scope": _scope_response(scope, selected, target_owner_id, target_owner_email),
+            **_search_metadata(data),
+            "confidence": "needs-check" if data.get("truncated") else "verified",
+            "caveat": _coverage_caveat(data, "Manager scope is country-based."),
         }
+    except ScopeError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email, "owner_email": owner_email})
     except HubSpotError as error:
         return _blocked(str(error), {"caller_email": slack_user_email})
 
@@ -840,6 +936,7 @@ def score_nurture_accounts(
     company_ids: list[str] | None = None,
     countries: list[str] | None = None,
     limit: int = 20,
+    owner_email: str | None = None,
 ) -> dict[str, Any]:
     """Score scoped target accounts for nurture priority."""
 
@@ -849,15 +946,27 @@ def score_nurture_accounts(
             return _blocked("Caller identity is not mapped to an allowed scope.", {"caller_email": slack_user_email})
 
         contexts: list[dict[str, Any]] = []
+        metadata: dict[str, Any]
+        selected = _safe_countries(countries, scope["countries"])
+        target_owner_id = ""
+        target_owner_email = ""
         if company_ids:
-            for company_id in company_ids[: min(limit, 50)]:
+            requested_limit = _bounded_int(limit, default=20, maximum=50)
+            for company_id in company_ids[:requested_limit]:
                 context = _company_context(str(company_id), scope)
                 if context:
                     contexts.append(context)
+            metadata = {
+                "total": len(company_ids),
+                "requested_limit": requested_limit,
+                "returned_count": len(contexts),
+                "has_more": len(company_ids) > requested_limit,
+                "truncated": len(company_ids) > requested_limit,
+            }
         else:
-            selected = _safe_countries(countries, scope["countries"])
-            owner_id = scope.get("owner_id") if scope["kind"] == "ae" else None
-            data = _company_search(_target_filters(selected, owner_id), limit)
+            target_owner_id, target_owner_email = _target_owner_id_for_scope(scope, owner_email)
+            data = _company_search(_target_filters(selected, target_owner_id), limit)
+            metadata = _search_metadata(data)
             for company in data.get("results", []):
                 contexts.append({"company": _summarize_company(company), "contacts": [], "deals": [], "coverage": {}})
 
@@ -870,19 +979,30 @@ def score_nurture_accounts(
         return {
             "answer": ranked,
             "source": "HubSpot account context scoring",
-            "scope": _scope_response(scope, _safe_countries(countries, scope["countries"])),
-            "confidence": "needs-check" if any(item.get("missing_fields") for item in ranked) else "verified",
-            "caveat": "Scoring uses HubSpot fields only unless C360/Luma context is separately supplied.",
+            "scope": _scope_response(scope, selected, target_owner_id, target_owner_email),
+            **metadata,
+            "confidence": "needs-check" if metadata.get("truncated") or any(item.get("missing_fields") for item in ranked) else "verified",
+            "caveat": _coverage_caveat(
+                metadata,
+                "Scoring uses HubSpot fields only unless C360/Luma context is separately supplied.",
+            ),
         }
+    except ScopeError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email, "owner_email": owner_email})
     except HubSpotError as error:
         return _blocked(str(error), {"caller_email": slack_user_email})
 
 
 @mcp.tool()
-def find_contact_gaps(slack_user_email: str, countries: list[str] | None = None, limit: int = 50) -> dict[str, Any]:
+def find_contact_gaps(
+    slack_user_email: str,
+    countries: list[str] | None = None,
+    limit: int = 50,
+    owner_email: str | None = None,
+) -> dict[str, Any]:
     """Find target accounts missing contact, persona, channel, or decision-maker coverage."""
 
-    scored = score_nurture_accounts(slack_user_email, None, countries, limit)
+    scored = score_nurture_accounts(slack_user_email, None, countries, limit, owner_email)
     if scored.get("confidence") == "blocked":
         return scored
     gaps = []
@@ -902,8 +1022,18 @@ def find_contact_gaps(slack_user_email: str, countries: list[str] | None = None,
         "answer": gaps,
         "source": scored.get("source"),
         "scope": scored.get("scope"),
+        "gap_count": len(gaps),
+        "scored_account_count": scored.get("returned_count", len(scored.get("answer", []))),
+        "total": scored.get("total"),
+        "requested_limit": scored.get("requested_limit"),
+        "returned_count": scored.get("returned_count"),
+        "has_more": scored.get("has_more"),
+        "truncated": scored.get("truncated"),
         "confidence": scored.get("confidence"),
-        "caveat": "Raw contact details are omitted; this is a coverage summary.",
+        "caveat": _coverage_caveat(
+            scored,
+            "Raw contact details are omitted; this is a coverage summary.",
+        ),
     }
 
 
@@ -914,6 +1044,7 @@ def generate_free_search_tasks(
     countries: list[str] | None = None,
     limit: int = 20,
     source_types: list[str] | None = None,
+    owner_email: str | None = None,
 ) -> dict[str, Any]:
     """Generate free/manual public-search tasks for scoped HubSpot enrichment gaps."""
 
@@ -926,18 +1057,29 @@ def generate_free_search_tasks(
             return _blocked("No supported free public source_types requested.", _scope_response(scope, []))
 
         contexts: list[dict[str, Any]] = []
-        capped_limit = max(1, min(int(limit), PUBLIC_TASK_ACCOUNT_LIMIT))
+        capped_limit = _bounded_int(limit, default=20, maximum=PUBLIC_TASK_ACCOUNT_LIMIT)
+        metadata: dict[str, Any]
+        selected = _safe_countries(countries, scope["countries"])
+        target_owner_id = ""
+        target_owner_email = ""
         if company_ids:
             for company_id in company_ids[:capped_limit]:
                 context = _company_context(str(company_id), scope)
                 if context:
                     contexts.append(context)
+            metadata = {
+                "total": len(company_ids),
+                "requested_limit": capped_limit,
+                "returned_count": len(contexts),
+                "has_more": len(company_ids) > capped_limit,
+                "truncated": len(company_ids) > capped_limit,
+            }
         else:
-            selected = _safe_countries(countries, scope["countries"])
             if not selected:
                 return _blocked("Requested countries are outside caller scope.", _scope_response(scope, []))
-            owner_id = scope.get("owner_id") if scope["kind"] == "ae" else None
-            data = _company_search(_target_filters(selected, owner_id), capped_limit)
+            target_owner_id, target_owner_email = _target_owner_id_for_scope(scope, owner_email)
+            data = _company_search(_target_filters(selected, target_owner_id), capped_limit)
+            metadata = _search_metadata(data)
             for company in data.get("results", []):
                 company_id = str(company.get("id") or "")
                 if company_id:
@@ -972,13 +1114,16 @@ def generate_free_search_tasks(
         return {
             "answer": accounts,
             "source": "HubSpot scoped gaps plus free public search task templates",
-            "scope": _scope_response(
-                scope,
-                list(scope.get("countries", ())) if countries is None else _safe_countries(countries, scope["countries"]),
-            ),
+            "scope": _scope_response(scope, selected, target_owner_id, target_owner_email),
+            **metadata,
             "confidence": "needs-check",
-            "caveat": "Tasks are manual/free. No paid API, social scraping, PII reveal, HubSpot mutation, or external message send was performed.",
+            "caveat": _coverage_caveat(
+                metadata,
+                "Tasks are manual/free. No paid API, social scraping, PII reveal, HubSpot mutation, or external message send was performed.",
+            ),
         }
+    except ScopeError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email, "owner_email": owner_email})
     except HubSpotError as error:
         return _blocked(str(error), {"caller_email": slack_user_email})
 

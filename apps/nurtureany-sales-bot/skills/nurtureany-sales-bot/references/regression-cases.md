@@ -46,6 +46,20 @@ Expected behavior:
 - Uses contact and buying-role coverage.
 - Counts missing decision-maker coverage without dumping raw contact details.
 - Explains whether the account is not enriched, minimum enriched, or nurture-ready.
+- Includes `total`, `requested_limit`, `returned_count`, `has_more`, and `truncated` evidence from the HubSpot tool.
+- Does not claim "all returned", "full picture", or a complete count when `truncated=true` or completeness metadata is absent.
+
+Prompt:
+
+```text
+@NurtureAny what are TA gaps for Jeremy
+```
+
+Expected behavior:
+
+- Caller identity remains the Slack requester's email.
+- Uses `owner_email` for Jeremy only after caller scope allows manager/admin owner lookup.
+- If HubSpot returns more records than the requested limit, reports the result as partial with `Confidence: needs-check` instead of treating the returned row count as Jeremy's full target-account count.
 
 ## Free Public Evidence
 

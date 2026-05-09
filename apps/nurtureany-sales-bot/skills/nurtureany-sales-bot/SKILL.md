@@ -67,6 +67,12 @@ Base filter:
 
 Prefer `company_country` over free-text `country`.
 
+## HubSpot Pagination And Completeness
+
+HubSpot CRM search returns at most 100 companies per page. The MCP adapter must paginate internally up to the requested limit and return `total`, `requested_limit`, `returned_count`, `has_more`, and `truncated` for account-list, scoring, gap, and free-task tools.
+
+Never claim a complete account count, "all returned", or "full picture" from the number of returned rows alone. Only describe a result as complete when `truncated=false` and `has_more=false`. If `truncated=true` or completeness metadata is absent, keep `Confidence: needs-check`, say the result is partial, and either rerun with a larger/narrower limit or report the exact partial scope.
+
 ## Enrichment Definition
 
 `Target Account` is the list. `Enriched` means the account has enough verified company, contact, and context data for an AE to act.
@@ -95,10 +101,10 @@ If Slack asks whether an account is enriched, return the tier and the missing fi
 Read tools:
 
 - `list_my_target_accounts`: owner-scoped target-account list for the requesting AE.
-- `list_team_target_accounts`: manager/admin regional target-account list.
+- `list_team_target_accounts`: manager/admin regional target-account list. Optional `owner_email` narrows to one HubSpot owner without changing caller identity.
 - `get_account_context`: one company with associated contacts, deals, activities, C360, and Luma context.
-- `score_nurture_accounts`: ranked queue with rationale and missing evidence.
-- `find_contact_gaps`: contact, persona, channel, and decision-maker gaps.
+- `score_nurture_accounts`: ranked queue with rationale, missing evidence, and pagination completeness metadata. Optional `owner_email` narrows an authorized manager/admin request to one HubSpot owner.
+- `find_contact_gaps`: contact, persona, channel, and decision-maker gaps plus `gap_count`, `scored_account_count`, and pagination completeness metadata. Optional `owner_email` narrows an authorized manager/admin request to one HubSpot owner.
 - `generate_free_search_tasks`: scoped manual/free public-search tasks for company website, careers, public job boards, general web, LinkedIn manual search, Google Maps manual check, Instagram/TikTok manual check, Facebook manual check, and review sites.
 - `review_public_enrichment_evidence`: review public evidence snippets/URLs, fetch only safe public company/careers/job pages, normalize candidate contacts/signals, dedupe against HubSpot contacts, and return review-only output.
 - `draft_nurture_message`: manual-review draft for WhatsApp, email, or LinkedIn.
@@ -183,3 +189,5 @@ Store only confirmed reusable operating preferences if the runtime supports memo
 7. Revealing raw contact details when a coverage summary is enough.
 8. Calling Lusha reveal without `approval_marker`, omitting `revealEmails`/`revealPhones`, or hiding the `credit_report`.
 9. Scraping LinkedIn, Instagram, TikTok, Facebook, Google Maps, or other social/gated sources instead of returning manual-check tasks or reviewing user-provided snippets.
+10. Claiming full HubSpot coverage when a result hit the requested limit or `truncated=true`.
+11. Using a target AE's email as `slack_user_email`. `slack_user_email` is the caller identity only; use `owner_email` for authorized owner-scoped manager/admin lookups.

@@ -45,6 +45,9 @@ Use HubSpot CRM search with:
 - `company_country IN ["Singapore", "Malaysia", "Indonesia"]`
 - AE scope: `hubspot_owner_id EQ <owner id>`
 - Manager scope: `company_country IN <allowed countries>`
+- Authorized manager/admin owner scope: add `hubspot_owner_id EQ <target owner id>` from `owner_email`, while preserving `slack_user_email` as caller identity.
+
+HubSpot search pages are capped at 100 records. The adapter must paginate internally up to the requested limit and return `total`, `requested_limit`, `returned_count`, `has_more`, and `truncated` for every account-list, scoring, gap, and free-task response. Do not let the agent claim a full count or "all returned" unless `truncated=false` and `has_more=false`.
 
 Use pagination and respect HubSpot rate limits. On 429, back off and retry boundedly; if still rate-limited, return `Confidence: blocked` with the rate-limit caveat.
 
@@ -69,7 +72,7 @@ Avoid raw dumps. Return coverage, recency, and rationale.
 
 `list_team_target_accounts`:
 
-- Input: Slack user email, optional countries, optional owner filter.
+- Input: Slack user email, optional countries, optional owner email filter.
 - Output: manager/admin scoped summaries only.
 - Refuse if caller is not explicitly allowed.
 
@@ -81,12 +84,12 @@ Avoid raw dumps. Return coverage, recency, and rationale.
 `score_nurture_accounts`:
 
 - Input: scoped account IDs or scope query.
-- Output: ranked queue with score, segment, reason, missing data, and confidence.
+- Output: ranked queue with score, segment, reason, missing data, pagination completeness metadata, and confidence.
 
 `find_contact_gaps`:
 
 - Input: scoped account IDs or scope query.
-- Output: missing contact/persona/channel/decision-maker coverage.
+- Output: missing contact/persona/channel/decision-maker coverage, gap count, scored account count, pagination completeness metadata, and confidence.
 
 `generate_free_search_tasks`:
 

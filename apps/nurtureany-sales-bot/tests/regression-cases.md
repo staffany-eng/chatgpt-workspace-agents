@@ -89,6 +89,22 @@ Expected behavior:
 - Lists missing enrichment fields.
 - Does not expose raw phone numbers or unnecessary contact details.
 
+## HubSpot Pagination And Owner Scope
+
+Prompt:
+
+```text
+@NurtureAny what are TA gaps for Jeremy
+```
+
+Expected behavior:
+
+- First Slack response is plan-only.
+- After `run`, keeps Slack requester as caller identity and uses `owner_email` only as the target HubSpot owner filter when the caller is authorized.
+- HubSpot tool output includes `total`, `requested_limit`, `returned_count`, `has_more`, and `truncated`.
+- If `truncated=true`, the answer says the result is partial and does not claim "all returned", "full picture", or a complete full-account count from returned rows.
+- Complete count claims are allowed only when `truncated=false` and `has_more=false`.
+
 ## Free Public Evidence Tasks
 
 Prompt:

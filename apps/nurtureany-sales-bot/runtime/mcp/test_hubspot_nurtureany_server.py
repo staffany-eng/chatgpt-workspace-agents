@@ -70,6 +70,105 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
     def setUp(self):
         self.module = load_hubspot_module()
 
+    def test_company_search_paginates_past_hubspot_page_limit(self):
+        calls = []
+
+        def fake_post(path, body):
+            calls.append(body)
+            if "after" not in body:
+                return {
+                    "total": 150,
+                    "results": [{"id": str(index), "properties": {"name": f"Account {index}"}} for index in range(100)],
+                    "paging": {"next": {"after": "100"}},
+                }
+            return {
+                "total": 150,
+                "results": [{"id": str(index), "properties": {"name": f"Account {index}"}} for index in range(100, 150)],
+            }
+
+        with patch.object(self.module, "_post", side_effect=fake_post):
+            result = self.module._company_search([], limit=200)
+
+        self.assertEqual(len(result["results"]), 150)
+        self.assertEqual(result["total"], 150)
+        self.assertEqual(result["requested_limit"], 200)
+        self.assertEqual(result["returned_count"], 150)
+        self.assertFalse(result["truncated"])
+        self.assertEqual([call["limit"] for call in calls], [100, 100])
+
+    def test_company_search_marks_requested_limit_truncation(self):
+        with patch.object(
+            self.module,
+            "_post",
+            return_value={
+                "total": 150,
+                "results": [{"id": str(index), "properties": {"name": f"Account {index}"}} for index in range(100)],
+                "paging": {"next": {"after": "100"}},
+            },
+        ):
+            result = self.module._company_search([], limit=100)
+
+        self.assertEqual(result["returned_count"], 100)
+        self.assertTrue(result["has_more"])
+        self.assertTrue(result["truncated"])
+
+    def test_score_uses_target_owner_email_without_overwriting_caller_identity(self):
+        with patch.object(self.module, "_caller_scope", return_value={**SCOPE, "kind": "admin", "email": "kaiyi@staffany.com"}), patch.object(
+            self.module, "_owner_by_email", return_value={"id": "owner-jeremy"}
+        ), patch.object(
+            self.module,
+            "_company_search",
+            return_value={
+                "results": [],
+                "total": 0,
+                "requested_limit": 200,
+                "returned_count": 0,
+                "has_more": False,
+                "truncated": False,
+            },
+        ) as company_search:
+            result = self.module.score_nurture_accounts(
+                "kaiyi@staffany.com", countries=["Singapore"], limit=200, owner_email="jeremy.wong@staffany.com"
+            )
+
+        filters = company_search.call_args.args[0]
+        self.assertIn({"propertyName": "hubspot_owner_id", "operator": "EQ", "value": "owner-jeremy"}, filters)
+        self.assertEqual(result["scope"]["caller_email"], "kaiyi@staffany.com")
+        self.assertEqual(result["scope"]["target_owner_email"], "jeremy.wong@staffany.com")
+        self.assertEqual(result["scope"]["target_owner_id"], "owner-jeremy")
+
+    def test_find_contact_gaps_propagates_truncation_metadata(self):
+        with patch.object(
+            self.module,
+            "score_nurture_accounts",
+            return_value={
+                "answer": [
+                    {
+                        "company_id": "1",
+                        "name": "Capped Account",
+                        "country": "Singapore",
+                        "enrichment_status": "not_enriched",
+                        "missing_fields": ["decision maker"],
+                    }
+                ],
+                "source": "HubSpot account context scoring",
+                "scope": {"caller_email": "kaiyi@staffany.com"},
+                "confidence": "needs-check",
+                "total": 150,
+                "requested_limit": 100,
+                "returned_count": 100,
+                "has_more": True,
+                "truncated": True,
+                "caveat": "Only 100 of 150 scoped accounts were returned.",
+            },
+        ):
+            result = self.module.find_contact_gaps("kaiyi@staffany.com", limit=100)
+
+        self.assertEqual(result["gap_count"], 1)
+        self.assertEqual(result["scored_account_count"], 100)
+        self.assertTrue(result["truncated"])
+        self.assertIn("Only 100 of 150 scoped accounts were returned", result["caveat"])
+
     def test_generate_free_search_tasks_is_scoped_manual_and_free(self):
         with patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
             self.module, "_company_context", return_value=company_context()
