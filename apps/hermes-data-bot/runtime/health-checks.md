@@ -11,6 +11,7 @@ Hermes Data Bot needs deterministic runtime health checks because prompt correct
 - `staffany_bigquery` MCP lists only the expected read-only tools.
 - A tiny read-only BigQuery smoke query succeeds.
 - `hermes -p staffanydatabot auth status openai-codex` reports logged in.
+- `hermes -p staffanydatabot auth list` has no `openai-codex` credential entries marked `auth failed`, `token_invalidated`, or `re-auth`.
 - Gateway logs since the current service start contain no Codex OAuth 401/auth-invalidated errors.
 - Honcho API health returns OK when external memory is enabled.
 - `hermes -p staffanydatabot memory status` reports `Provider: honcho` and `Status: available` when Honcho is expected to be active.
@@ -28,6 +29,7 @@ Default checks:
 
 - `hermes -p staffanydatabot gateway status`
 - `hermes -p staffanydatabot auth status openai-codex`
+- `hermes -p staffanydatabot auth list` credential-pool failure markers for `openai-codex`
 - recent `hermes-gateway-staffanydatabot.service` logs for Codex OAuth 401/auth-invalidated errors
 - `hermes -p staffanydatabot mcp test staffany_bigquery` with 4 expected tools
 - `curl -fsS http://localhost:8000/health`

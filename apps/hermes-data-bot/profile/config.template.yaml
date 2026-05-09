@@ -11,7 +11,9 @@ security:
 display:
   busy_input_mode: "queue"
 
-model: "gpt-5.3-codex"
+model:
+  default: "gpt-5.3-codex"
+  provider: "openai-codex"
 
 mcp_servers:
   staffany_bigquery:

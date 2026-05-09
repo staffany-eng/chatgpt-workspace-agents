@@ -114,24 +114,25 @@ If Honcho memory conflicts with local registry references, BigQuery schema evide
 ## Common Pitfalls
 
 1. Treating `id_pph21_method = NETTO` as the full definition of PPH on us. It is only a candidate signal unless a payroll owner confirms the definition.
-2. Querying BigQuery for product/package terminology. Use the product registry first.
-3. Running tools on the first Slack mention. Slack POC requires plan-first gating.
-4. Returning candidate metrics without `needs-check`.
-5. Repeating a stale Slack answer instead of re-parsing the latest reply.
-6. Revealing SQL, IDs, raw employee-level details, or secrets by default.
+2. Defining THR pay run usage from THR pay item names. THR pay run is a pay run type question; inspect pay run type fields and values before querying.
+3. Querying BigQuery for product/package terminology. Use the product registry first.
+4. Running tools on the first Slack mention. Slack POC requires plan-first gating.
+5. Returning candidate metrics without `needs-check`.
+6. Repeating a stale Slack answer instead of re-parsing the latest reply.
+7. Revealing SQL, IDs, raw employee-level details, or secrets by default.
 
 ## Skill Update and Sync Workflow
 
 Use this whenever updating StaffAny Data Bot behavior so runtime and source stay consistent.
 
-1. Edit only the canonical repo skill: `skills/staffany-data-bot/SKILL.md`.
+1. Edit only the canonical repo skill: `apps/hermes-data-bot/skills/staffany-data-bot/SKILL.md`.
 2. Run full validation from repo root:
    - `npm run hermes-data-bot:verify`
 3. Sync canonical skill into the live profile skill path:
-   - `cp skills/staffany-data-bot/SKILL.md ~/.hermes/profiles/staffanydatabot/skills/staffany-data-bot/SKILL.md`
+   - `cp apps/hermes-data-bot/skills/staffany-data-bot/SKILL.md ~/.hermes/profiles/staffanydatabot/skills/staffany-data-bot/SKILL.md`
 4. Reset/restart runtime so the updated skill is loaded for new sessions.
 5. Commit and push canonical skill updates to GitHub so team-visible source stays current:
-   - `git add skills/staffany-data-bot/SKILL.md`
+   - `git add apps/hermes-data-bot/skills/staffany-data-bot/SKILL.md`
    - `git commit -m "docs(skill): update staffany-data-bot workflow"`
    - `git push origin HEAD`
 6. Treat runtime-only edits as temporary; promote durable changes back into the repo skill via PR.

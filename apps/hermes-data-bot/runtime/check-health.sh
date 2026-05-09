@@ -44,6 +44,19 @@ if [ "$EXPECT_MODEL_AUTH" = "1" ]; then
     fail "model-auth:openai-codex-status-failed"
   fi
   grep -q "openai-codex: logged in" "$auth_out" || fail "model-auth:openai-codex-not-logged-in"
+
+  auth_list_out="$tmp_dir/auth-list.out"
+  if ! hermes -p "$PROFILE" auth list >"$auth_list_out" 2>&1; then
+    fail "model-auth:credential-list-failed"
+  fi
+  if awk '
+    /^openai-codex[[:space:]]/ { in_provider=1; next }
+    /^[^[:space:]].*\([0-9]+ credentials\):/ && in_provider { in_provider=0 }
+    in_provider && /auth failed|token_invalidated|invalidated|re-auth/ { bad=1 }
+    END { exit bad ? 0 : 1 }
+  ' "$auth_list_out"; then
+    fail "model-auth:openai-codex-credential-invalidated"
+  fi
 fi
 
 if [ "$CHECK_GATEWAY_AUTH_LOGS" = "1" ] && command -v systemctl >/dev/null 2>&1 && command -v journalctl >/dev/null 2>&1; then
