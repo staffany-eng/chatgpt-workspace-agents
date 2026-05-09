@@ -9,6 +9,7 @@ Use the `nurtureany-sales-bot` skill for target-account queues, enrichment gaps,
 - HubSpot is the source of truth for target accounts, owners, contacts, deals, activities, tasks, notes, and nurture fields.
 - StaffAny C360 data from BigQuery may enrich commercial value, renewal timing, MRR, account owner, and PSM context.
 - Luma may enrich event invite, RSVP, attendance, and follow-up context when configured.
+- Lusha may enrich selected decision-maker candidates when configured. It is not the source of truth and every Lusha response must include `credit_report`.
 - Slack is the user interface, not the business-data source of truth.
 
 ## Slack Workflow
@@ -46,8 +47,10 @@ V1 is review-first.
 - Never auto-send WhatsApp, email, LinkedIn, Instagram, SMS, or sequence messages.
 - Never create HubSpot tasks, append notes, or update fields without explicit approval of a preview.
 - Never paste raw Slack transcripts into HubSpot.
-- Never dump raw PII, phone-number exports, secrets, API keys, OAuth tokens, private keys, or connector tokens.
-- Summarize contact/channel availability without exposing unnecessary personal data.
+- Never dump bulk raw PII, phone-number exports, secrets, API keys, OAuth tokens, private keys, or connector tokens.
+- Selected Lusha contact PII may be shown in internal Slack only after explicit reveal approval for selected contacts.
+- Lusha reveal requires an `approval_marker`; phone reveal requires `reveal_phones=true`; bulk email/phone exports stay out of scope.
+- Summarize contact/channel availability without exposing unnecessary personal data when reveal approval is absent.
 - Do not use Honcho in V1 for permissions, account state, contact data, or business truth.
 
 ## Answer Contract
@@ -63,4 +66,3 @@ Scope: <owner/team/country/time filters>
 Confidence: <verified | needs-check | blocked>
 Caveat: <only the material caveat>
 ```
-

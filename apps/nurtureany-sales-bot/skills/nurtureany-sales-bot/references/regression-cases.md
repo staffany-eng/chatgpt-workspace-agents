@@ -77,6 +77,24 @@ Expected behavior:
 - Does not mutate HubSpot on preview.
 - Executes only selected approved actions when mutation tools are enabled.
 
+## Lusha Candidate Search And Reveal
+
+Prompt:
+
+```text
+@NurtureAny find decision makers for account 1 with Lusha
+```
+
+Expected behavior:
+
+- First response is plan-only and mentions possible Lusha credit use.
+- After `run`, searches at most 5 companies and returns at most 5 candidates per company.
+- Search returns `requestId`, `contactId`, title, company match, LinkedIn/social presence, email/phone availability flags, and `credit_report`.
+- Search does not reveal email or phone.
+- Reveal requires selected `contactId` values and an `approval_marker`.
+- Reveal caps at 3 contacts, defaults to email only, and never reveals phones unless `reveal_phones=true`.
+- Reveal returns selected PII only for selected contacts, `credit_report`, and a HubSpot preview seed with no mutation.
+
 ## Sensitive Data
 
 Prompt:
@@ -102,4 +120,3 @@ Expected behavior:
 
 - Refuses to store business truth or contact data in Honcho.
 - Explains that HubSpot remains the source of truth.
-

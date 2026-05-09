@@ -12,10 +12,8 @@ display:
   busy_input_mode: "queue"
 
 model:
-  provider: "custom"
-  model: "gpt-5.5"
-  base_url: "https://api.openai.com/v1"
-  api_key_env: "OPENAI_API_KEY"
+  default: "claude-sonnet-4-6"
+  provider: "anthropic"
 
 nurtureany:
   supported_countries:
@@ -68,6 +66,29 @@ mcp_servers:
       - "create_hubspot_task"
       - "append_hubspot_note"
       - "update_nurture_fields"
+
+  lusha_nurtureany:
+    description: "Cost-controlled Lusha adapter for selected decision-maker lookup, reveal approval, and credit reporting."
+    command: "/Users/leekaiyi/.hermes/hermes-agent/venv/bin/python"
+    args:
+      - "/Users/leekaiyi/workspace/agent builder/apps/nurtureany-sales-bot/runtime/mcp/lusha_nurtureany_server.py"
+    auth:
+      type: "api_key_env"
+      env: "LUSHA_API_KEY"
+    cost_policy:
+      max_search_companies: 5
+      max_candidates_per_company: 5
+      max_reveal_contacts: 3
+      require_credit_report: true
+      recommend_low_monthly_dashboard_limit: true
+    pii_policy:
+      selected_pii_in_internal_slack: true
+      bulk_contact_exports: false
+      phone_reveal_requires_flag: true
+    tool_allowlist:
+      - "search_lusha_decision_maker_candidates"
+      - "reveal_lusha_contact_details"
+      - "get_lusha_credit_usage"
 
   staffany_bigquery:
     description: "Read-only C360 enrichment source for MRR, renewal timing, account owner, and PSM context."

@@ -6,6 +6,7 @@
   "runtime": "Hermes Agent",
   "profile_name": "nurtureanysalesbot",
   "rollout_stage": "V1 source packet; Slack pilot channels pending",
+  "model": "claude-sonnet-4-6",
   "paths": {
     "soul": "profile/SOUL.md",
     "config_template": "profile/config.template.yaml",
@@ -20,6 +21,8 @@
     "hubspot_mcp": "runtime/mcp/hubspot_nurtureany_server.py",
     "bigquery_runtime": "runtime/bigquery.md",
     "luma_runtime": "runtime/luma.md",
+    "lusha_runtime": "runtime/lusha.md",
+    "lusha_mcp": "runtime/mcp/lusha_nurtureany_server.py",
     "health_checks": "runtime/health-checks.md",
     "regression_cases": "tests/regression-cases.md"
   },
@@ -90,16 +93,30 @@
       "get_account_context",
       "score_nurture_accounts",
       "find_contact_gaps",
-      "draft_nurture_message"
+      "draft_nurture_message",
+      "search_lusha_decision_maker_candidates",
+      "get_lusha_credit_usage"
     ],
     "preview": [
       "plan_hubspot_writeback"
+    ],
+    "approval_gated_enrichment": [
+      "reveal_lusha_contact_details"
     ],
     "mutation_requires_explicit_approval": [
       "create_hubspot_task",
       "append_hubspot_note",
       "update_nurture_fields"
     ]
+  },
+  "lusha": {
+    "auth_env_var": "LUSHA_API_KEY",
+    "max_search_companies": 5,
+    "max_candidates_per_company": 5,
+    "max_reveal_contacts": 3,
+    "selected_pii_in_slack": true,
+    "bulk_contact_exports": false,
+    "hubspot_writeback": "preview_only"
   },
   "external_message_sending": false,
   "honcho_enabled": false,

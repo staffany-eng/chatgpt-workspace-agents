@@ -1,6 +1,6 @@
 ---
 name: nurtureany-sales-bot
-description: Use for StaffAny sales target-account nurture queues, HubSpot enrichment gaps, nurture drafts, manager rollups, and approved HubSpot write-back previews.
+description: Use for StaffAny sales target-account nurture queues, HubSpot enrichment gaps, Lusha decision-maker lookup, nurture drafts, manager rollups, and approved HubSpot write-back previews.
 version: 1.0.0
 author: StaffAny
 license: Internal
@@ -14,7 +14,7 @@ metadata:
 
 ## Overview
 
-Use this skill for StaffAny internal sales nurture work. NurtureAny helps AEs and managers inspect HubSpot target accounts, identify enrichment gaps, draft nurture messages, and preview approved HubSpot write-backs.
+Use this skill for StaffAny internal sales nurture work. NurtureAny helps AEs and managers inspect HubSpot target accounts, identify enrichment gaps, search selected Lusha decision-maker candidates, draft nurture messages, and preview approved HubSpot write-backs.
 
 V1 is review-first. It never auto-sends WhatsApp, email, LinkedIn, Instagram, SMS, or sequence messages.
 
@@ -23,6 +23,7 @@ V1 is review-first. It never auto-sends WhatsApp, email, LinkedIn, Instagram, SM
 - `my 150`, `my target accounts`, `my nurture queue`, or similar AE-owned target-account requests.
 - Manager requests such as `team queue`, `accounts with no direct contact`, `post-demo nurture queue`, or `renewal risk queue`.
 - Questions about whether target accounts are enriched or nurture-ready.
+- Approved requests to search Lusha for decision-maker candidates or reveal selected contact details.
 - Drafting nurture copy for manual AE review.
 - Previewing HubSpot task, note, or field updates after AE/manager approval.
 
@@ -34,10 +35,11 @@ Do not use this skill for generic data analysis, payroll metrics, product suppor
 2. `references/playbooks.md` for enrichment tiers, scoring, and nurture plays.
 3. `references/regression-cases.md` for expected behavior and safety checks.
 4. HubSpot tools for target accounts, owners, companies, contacts, deals, activities, tasks, and notes.
-5. StaffAny C360 BigQuery tools for commercial value, renewal timing, MRR, account owner, and PSM context.
-6. Luma tools for event invite, RSVP, attendance, and follow-up context when the user request is event-related.
+5. Lusha tools for selected decision-maker candidate lookup when HubSpot contact coverage is missing.
+6. StaffAny C360 BigQuery tools for commercial value, renewal timing, MRR, account owner, and PSM context.
+7. Luma tools for event invite, RSVP, attendance, and follow-up context when the user request is event-related.
 
-HubSpot remains the source of truth for the queue. C360 and Luma enrich prioritization; they do not override HubSpot ownership or target-account membership.
+HubSpot remains the source of truth for the queue. Lusha, C360, and Luma enrich prioritization; they do not override HubSpot ownership or target-account membership.
 
 ## Access Routing
 
@@ -96,6 +98,12 @@ Read tools:
 - `score_nurture_accounts`: ranked queue with rationale and missing evidence.
 - `find_contact_gaps`: contact, persona, channel, and decision-maker gaps.
 - `draft_nurture_message`: manual-review draft for WhatsApp, email, or LinkedIn.
+- `search_lusha_decision_maker_candidates`: search Lusha for selected company decision-maker candidates without revealing email or phone.
+- `get_lusha_credit_usage`: summarize Lusha credit usage and return a `credit_report`.
+
+Approval-gated enrichment tool:
+
+- `reveal_lusha_contact_details`: reveal selected Lusha email and/or phone details only with `approval_marker`. It caps at 3 contacts, always sets `revealEmails` and `revealPhones`, defaults to email-only, and returns `credit_report`.
 
 Preview tool:
 
@@ -139,6 +147,8 @@ Caveat: <only the material caveat>
 
 For ranked queues, include account name, why now, person/persona if safe, channel fit, draft snippet, and proposed HubSpot action. Avoid unnecessary PII and never export phone numbers.
 
+For Lusha flows, include the returned `credit_report`. Search responses show availability flags only. Reveal responses may show selected PII in internal Slack only for explicitly selected contacts after approval; phone details require `reveal_phones=true`.
+
 ## HubSpot Write-Back Rules
 
 Before any HubSpot mutation:
@@ -149,6 +159,8 @@ Before any HubSpot mutation:
 4. Write a concise audit note with source summary, bot timestamp, and approval marker.
 
 Do not paste raw Slack transcripts into HubSpot. Summarize the business reason.
+
+After selected Lusha reveals, use `plan_hubspot_writeback` only to prepare a preview. Include exact proposed fields, selected contacts, and the source note `Lusha candidate, revealed by approval on <date>.` No HubSpot mutation is allowed in V1.
 
 ## Honcho And Memory
 
@@ -165,4 +177,4 @@ Store only confirmed reusable operating preferences if the runtime supports memo
 5. Writing HubSpot tasks/notes/fields without an approved preview.
 6. Using free-text `country` instead of `company_country`.
 7. Revealing raw contact details when a coverage summary is enough.
-
+8. Calling Lusha reveal without `approval_marker`, omitting `revealEmails`/`revealPhones`, or hiding the `credit_report`.

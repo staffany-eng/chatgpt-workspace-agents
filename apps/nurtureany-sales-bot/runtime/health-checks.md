@@ -6,6 +6,7 @@ NurtureAny needs deterministic runtime checks because prompt correctness does no
 
 - Hermes gateway service for `nurtureanysalesbot` is active.
 - Secret redaction remains enabled.
+- Model route is pinned to native Anthropic Sonnet: `model.provider=anthropic`, `model.default=claude-sonnet-4-6`.
 - Slack gateway can receive mentions and identify caller email.
 - HubSpot owner lookup works for configured admins/managers.
 - HubSpot company property metadata includes `hs_is_target_account`, `hubspot_owner_id`, and `company_country`.
@@ -14,11 +15,12 @@ NurtureAny needs deterministic runtime checks because prompt correctness does no
 - StaffAny BigQuery MCP lists only expected read-only tools.
 - A tiny read-only C360 smoke query succeeds when C360 is enabled.
 - Luma read-only smoke check succeeds when Luma is enabled.
+- Lusha MCP lists only `search_lusha_decision_maker_candidates`, `reveal_lusha_contact_details`, and `get_lusha_credit_usage` when Lusha is enabled.
+- Lusha usage smoke check returns `credit_report` and does not block the gateway when `/account/usage` is rate-limited.
 - Honcho is disabled.
 
 Healthy checks print nothing and exit 0.
 
 ## Failure Behavior
 
-On failure, print only the failing subsystem and next check. Do not print secrets, env values, raw logs, raw Slack messages, raw HubSpot rows, phone numbers, or contact exports.
-
+On failure, print only the failing subsystem and next check. Do not print secrets, env values, raw logs, raw Slack messages, raw HubSpot rows, bulk PII, phone numbers, or contact exports.
