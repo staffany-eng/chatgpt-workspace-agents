@@ -12,10 +12,11 @@ display:
   busy_input_mode: "queue"
 
 model:
-  provider: "custom"
-  model: "gpt-5.5"
-  base_url: "https://api.openai.com/v1"
-  api_key_env: "OPENAI_API_KEY"
+  provider: "openai-codex"
+  default: "gpt-5.3-codex"
+
+agent:
+  api_max_retries: 0
 
 mcp_servers:
   staffany_bigquery:
