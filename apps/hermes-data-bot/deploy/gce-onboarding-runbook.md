@@ -142,6 +142,50 @@ Expected model config:
 model: gpt-5.3-codex
 ```
 
+If `hermes -p staffanydatabot auth status openai-codex` reports logged out while the global Hermes auth reports logged in, check for a stale profile-local credential:
+
+```bash
+hermes -p staffanydatabot auth list
+```
+
+If the profile has an `openai-codex` credential marked `token_invalidated`, remove that profile-local credential so the profile can fall back to the valid global credential:
+
+```bash
+hermes -p staffanydatabot auth remove openai-codex 1
+hermes -p staffanydatabot auth status openai-codex
+```
+
+If Hermes immediately re-seeds the invalid profile-local credential, back up the profile auth file and remove only the profile-local `openai-codex` credential-pool entry. Do not edit the global `~/.hermes/auth.json` credential:
+
+```bash
+PROFILE_AUTH=~/.hermes/profiles/staffanydatabot/auth.json
+cp "$PROFILE_AUTH" "$PROFILE_AUTH.bak.$(date -u +%Y%m%dT%H%M%SZ)"
+python3 - <<'PY'
+import json
+from pathlib import Path
+
+p = Path.home() / ".hermes/profiles/staffanydatabot/auth.json"
+d = json.loads(p.read_text())
+(d.get("credential_pool") or {}).pop("openai-codex", None)
+suppressed = d.get("suppressed_sources")
+if isinstance(suppressed, dict):
+    suppressed.pop("openai-codex", None)
+    if not suppressed:
+        d.pop("suppressed_sources", None)
+p.write_text(json.dumps(d, indent=2) + "\n")
+p.chmod(0o600)
+PY
+hermes -p staffanydatabot auth status openai-codex
+```
+
+Then restart the gateway and check for fresh auth errors:
+
+```bash
+systemctl --user restart hermes-gateway-staffanydatabot.service
+journalctl --user -u hermes-gateway-staffanydatabot.service --since "5 minutes ago" --no-pager \
+  | grep -E 'token_invalidated|No Codex credentials|AuthenticationError|HTTP 401'
+```
+
 Restart after changing auth or model config:
 
 ```bash
