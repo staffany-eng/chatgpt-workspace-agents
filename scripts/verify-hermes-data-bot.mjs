@@ -87,8 +87,12 @@ const filesToScan = [
   "skills/staffany-data-bot/references/staffany-product-lookup-registry.md",
   "skills/staffany-data-bot/references/regression-cases.md",
   "runtime/mcp/staffany-bigquery.md",
+  "runtime/memory-honcho.md",
   "runtime/slack.md",
   "runtime/health-checks.md",
+  "runtime/check-health.sh",
+  "runtime/backup-honcho.sh",
+  "runtime/review-honcho-memory.sh",
   "deploy/gce-onboarding-runbook.md",
   "tests/regression-cases.md"
 ];

@@ -96,6 +96,8 @@ If the local registry is missing and no approved live registry source is availab
 
 ## Memory Rules
 
+Use Honcho memory when available, but only as a recall layer. Do not treat Honcho as a source of truth for current counts, customer/org facts, product registry truth, or metric registry truth.
+
 Store only confirmed reusable learning:
 
 - Metric definitions.
@@ -106,6 +108,8 @@ Store only confirmed reusable learning:
 Never store secrets, connector tokens, raw Slack transcripts/images, raw query results, PII, bank details, NRIC/FIN, phone numbers, employee-level payroll detail, or one-off customer data.
 
 Ask before storing ambiguous feedback.
+
+If Honcho memory conflicts with local registry references, BigQuery schema evidence, or explicit user context in the current thread, prefer the stronger source and state the conflict briefly. If a Honcho memory becomes durable StaffAny product or metric truth, promote it into the relevant repo registry after review.
 
 ## Common Pitfalls
 

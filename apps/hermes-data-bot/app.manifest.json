@@ -6,6 +6,7 @@
   "runtime": "Hermes Agent",
   "profile_name": "staffanydatabot",
   "rollout_stage": "Slack POC in #kaiyi-bot-testing",
+  "model": "gpt-5.3-codex",
   "paths": {
     "soul": "profile/SOUL.md",
     "config_template": "profile/config.template.yaml",
@@ -16,8 +17,12 @@
       "skills/staffany-data-bot/references/regression-cases.md"
     ],
     "bigquery_mcp": "runtime/mcp/staffany-bigquery.md",
+    "memory_honcho": "runtime/memory-honcho.md",
     "slack_runtime": "runtime/slack.md",
     "health_checks": "runtime/health-checks.md",
+    "health_check_script": "runtime/check-health.sh",
+    "honcho_backup_script": "runtime/backup-honcho.sh",
+    "honcho_memory_review_script": "runtime/review-honcho-memory.sh",
     "deploy_runbook": "deploy/gce-onboarding-runbook.md",
     "regression_cases": "tests/regression-cases.md"
   },
