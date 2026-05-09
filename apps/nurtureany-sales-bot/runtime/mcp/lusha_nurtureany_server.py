@@ -23,6 +23,7 @@ from mcp.server.fastmcp import FastMCP
 
 
 LUSHA_BASE_URL = "https://api.lusha.com"
+LUSHA_USER_AGENT = "StaffAny-NurtureAny/1.0 (+https://staffany.com)"
 LUSHA_TIMEOUT_SECONDS = 15
 MAX_SEARCH_COMPANIES = 5
 MAX_CANDIDATES_PER_COMPANY = 5
@@ -78,6 +79,7 @@ def _request_json(method: str, path: str, body: dict[str, Any] | None = None) ->
     headers = {
         "api_key": _token(),
         "accept": "application/json",
+        "user-agent": LUSHA_USER_AGENT,
     }
     if data is not None:
         headers["content-type"] = "application/json"

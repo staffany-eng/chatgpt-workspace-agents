@@ -225,6 +225,7 @@ const lushaServerText = textOf("runtime/mcp/lusha_nurtureany_server.py");
 for (const text of [
   "LUSHA_API_KEY",
   "LUSHA_TIMEOUT_SECONDS = 15",
+  "LUSHA_USER_AGENT",
   "MAX_SEARCH_COMPANIES = 5",
   "MAX_CANDIDATES_PER_COMPANY = 5",
   "MAX_REVEAL_CONTACTS = 3",

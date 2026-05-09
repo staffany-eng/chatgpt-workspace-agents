@@ -20,6 +20,8 @@ It exposes only:
 
 It intentionally does not expose bulk export, broad enrichment, company enrichment, or write-back tools.
 
+The adapter sends an explicit `StaffAny-NurtureAny/1.0` User-Agent header so Lusha API traffic is not blocked as a generic Python client.
+
 ## Endpoint Use
 
 `search_lusha_decision_maker_candidates`:
