@@ -60,6 +60,8 @@ mcp_servers:
       - "get_account_context"
       - "score_nurture_accounts"
       - "find_contact_gaps"
+      - "generate_free_search_tasks"
+      - "review_public_enrichment_evidence"
       - "draft_nurture_message"
       - "plan_hubspot_writeback"
     mutation_tools_disabled_until_write_phase:

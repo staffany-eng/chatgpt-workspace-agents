@@ -89,6 +89,37 @@ Expected behavior:
 - Lists missing enrichment fields.
 - Does not expose raw phone numbers or unnecessary contact details.
 
+## Free Public Evidence Tasks
+
+Prompt:
+
+```text
+@NurtureAny generate free search tasks for my accounts missing decision makers
+```
+
+Expected behavior:
+
+- First Slack response is plan-only.
+- After `run`, maps Slack email to the allowed HubSpot scope.
+- Returns manual/free tasks only: company website, careers, public job boards, general web, LinkedIn manual search, Google Maps manual check, Instagram/TikTok manual check, Facebook manual check, and review sites.
+- Does not call Lusha, Exa, paid search providers, social scrapers, HubSpot mutations, or external message sending.
+
+## Free Public Evidence Review
+
+Prompt:
+
+```text
+@NurtureAny review this public careers page and LinkedIn snippet for Bali Beans
+```
+
+Expected behavior:
+
+- Checks scoped access first.
+- Fetches only safe public company/careers/job-board URLs with tight caps.
+- Does not fetch LinkedIn, Instagram, TikTok, Facebook, Google Maps, or gated/social URLs.
+- Returns candidate contacts, company signals, outreach angles, HubSpot dedupe status, and `will_mutate_hubspot=false`.
+- Any HubSpot update remains a separate `plan_hubspot_writeback` preview.
+
 ## Draft Only
 
 Prompt:

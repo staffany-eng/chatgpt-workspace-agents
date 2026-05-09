@@ -47,6 +47,34 @@ Expected behavior:
 - Counts missing decision-maker coverage without dumping raw contact details.
 - Explains whether the account is not enriched, minimum enriched, or nurture-ready.
 
+## Free Public Evidence
+
+Prompt:
+
+```text
+@NurtureAny generate free search tasks for accounts missing decision makers
+```
+
+Expected behavior:
+
+- First response is plan-only.
+- After `run`, uses scoped HubSpot accounts and returns manual/free search tasks.
+- Includes company website, careers, public job boards, general web, LinkedIn manual search, Google Maps manual check, Instagram/TikTok manual check, Facebook manual check, and review-site options when relevant.
+- Does not call paid APIs, scrape social/gated sites, reveal PII, mutate HubSpot, or send external messages.
+
+Prompt:
+
+```text
+@NurtureAny review this careers page and LinkedIn snippet for account 1
+```
+
+Expected behavior:
+
+- Reviews only scoped accounts.
+- Fetches only safe public company/careers/job-board pages with tight caps.
+- Treats LinkedIn, Instagram, TikTok, Facebook, Google Maps, and gated/social sources as user-provided snippets only.
+- Returns candidate contacts, hiring/growth/pain signals, outreach angles, HubSpot dedupe status, and `will_mutate_hubspot=false`.
+
 ## Drafting
 
 Prompt:

@@ -11,6 +11,7 @@ NurtureAny needs deterministic runtime checks because prompt correctness does no
 - HubSpot owner lookup works for configured admins/managers.
 - HubSpot company property metadata includes `hs_is_target_account`, `hubspot_owner_id`, and `company_country`.
 - HubSpot `company_country` options include `Singapore`, `Malaysia`, and `Indonesia`.
+- HubSpot MCP lists `generate_free_search_tasks` and `review_public_enrichment_evidence` in addition to the existing queue, gap, draft, and preview tools.
 - A tiny target-account count query succeeds for each supported country.
 - StaffAny BigQuery MCP lists only expected read-only tools.
 - A tiny read-only C360 smoke query succeeds when C360 is enabled.

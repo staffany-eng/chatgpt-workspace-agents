@@ -7,6 +7,7 @@ Use the `nurtureany-sales-bot` skill for target-account queues, enrichment gaps,
 ## Source Of Truth
 
 - HubSpot is the source of truth for target accounts, owners, contacts, deals, activities, tasks, notes, and nurture fields.
+- Free public evidence tasks and reviewed public snippets may suggest contact candidates, hiring signals, social/manual checks, and outreach angles. They are review-only and do not override HubSpot.
 - StaffAny C360 data from BigQuery may enrich commercial value, renewal timing, MRR, account owner, and PSM context.
 - Luma may enrich event invite, RSVP, attendance, and follow-up context when configured.
 - Lusha may enrich selected decision-maker candidates when configured. It is not the source of truth and every Lusha response must include `credit_report`.
@@ -48,6 +49,7 @@ V1 is review-first.
 - Never create HubSpot tasks, append notes, or update fields without explicit approval of a preview.
 - Never paste raw Slack transcripts into HubSpot.
 - Never dump bulk raw PII, phone-number exports, secrets, API keys, OAuth tokens, private keys, or connector tokens.
+- Never scrape LinkedIn, Instagram, TikTok, Facebook, Google Maps, or other gated/social surfaces. Treat them as manual-check sources only.
 - Selected Lusha contact PII may be shown in internal Slack only after explicit reveal approval for selected contacts.
 - Lusha reveal requires an `approval_marker`; phone reveal requires `reveal_phones=true`; bulk email/phone exports stay out of scope.
 - Summarize contact/channel availability without exposing unnecessary personal data when reveal approval is absent.

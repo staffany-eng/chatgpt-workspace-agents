@@ -8,8 +8,12 @@ HubSpot write tools are not exposed until the write-back phase is approved.
 from __future__ import annotations
 
 import hashlib
+import html
+import ipaddress
 import json
 import os
+import re
+import socket
 import time
 import urllib.error
 import urllib.parse
@@ -77,6 +81,31 @@ DEAL_PROPERTIES = [
     "hubspot_owner_id",
     "contract_end_date",
 ]
+
+FREE_SEARCH_SOURCE_TYPES = (
+    "company_website",
+    "company_careers",
+    "public_job_board",
+    "general_web",
+    "linkedin_manual",
+    "google_maps_manual",
+    "instagram_tiktok_manual",
+    "facebook_manual",
+    "review_site",
+)
+FETCHABLE_PUBLIC_SOURCE_TYPES = {"company_website", "company_careers", "public_job_board"}
+MANUAL_ONLY_HOST_MARKERS = (
+    "linkedin.com",
+    "instagram.com",
+    "tiktok.com",
+    "facebook.com",
+    "google.com",
+    "maps.google.",
+)
+PUBLIC_FETCH_TIMEOUT_SECONDS = 5
+PUBLIC_FETCH_MAX_BYTES = 30_000
+PUBLIC_EVIDENCE_ITEM_LIMIT = 20
+PUBLIC_TASK_ACCOUNT_LIMIT = 25
 
 
 mcp = FastMCP(
@@ -210,6 +239,7 @@ def _summarize_company(company: dict[str, Any]) -> dict[str, Any]:
     return {
         "company_id": company.get("id"),
         "name": props.get("name") or "",
+        "domain": props.get("domain") or "",
         "country": props.get("company_country") or "",
         "owner_id": props.get("hubspot_owner_id") or "",
         "headcount": props.get("numberofemployees") or "",
@@ -452,6 +482,288 @@ def _scope_response(scope: dict[str, Any], countries: list[str]) -> dict[str, An
     }
 
 
+def _safe_free_source_types(source_types: list[str] | None) -> list[str]:
+    requested = source_types or list(FREE_SEARCH_SOURCE_TYPES)
+    selected: list[str] = []
+    for source_type in requested:
+        normalized = str(source_type or "").strip().lower()
+        if normalized in FREE_SEARCH_SOURCE_TYPES and normalized not in selected:
+            selected.append(normalized)
+    return selected
+
+
+def _search_url(query: str) -> str:
+    return "https://www.google.com/search?q=" + urllib.parse.quote_plus(query)
+
+
+def _job_board_query(company: dict[str, Any]) -> str:
+    name = company.get("name", "")
+    country = company.get("country", "")
+    if country == "Singapore":
+        return f'"{name}" hiring OR jobs site:mycareersfuture.gov.sg OR site:jobstreet.com.sg'
+    if country == "Malaysia":
+        return f'"{name}" hiring OR jobs site:myfuturejobs.gov.my OR site:jobstreet.com.my'
+    if country == "Indonesia":
+        return f'"{name}" hiring OR jobs site:jobstreet.co.id OR site:kalibrr.com'
+    return f'"{name}" hiring OR jobs'
+
+
+def _free_search_tasks_for_company(company: dict[str, Any], source_types: list[str]) -> list[dict[str, Any]]:
+    name = company.get("name", "")
+    country = company.get("country", "")
+    domain = company.get("domain", "")
+    missing = ", ".join(company.get("missing_fields", [])) or "public enrichment"
+    task_templates = {
+        "company_website": {
+            "label": "Find official company website",
+            "query": f'"{name}" official website {country}'.strip(),
+            "reason": "Confirm official domain, outlet context, and public contact route.",
+        },
+        "company_careers": {
+            "label": "Check official careers or hiring page",
+            "query": f'"{name}" careers hiring jobs HR {country}'.strip(),
+            "reason": "Hiring pages often expose HR routes and current manpower pain.",
+        },
+        "public_job_board": {
+            "label": "Check public job boards",
+            "query": _job_board_query(company),
+            "reason": "Job listings can reveal active hiring, role pressure, and HR contacts.",
+        },
+        "general_web": {
+            "label": "Search for decision makers and HR context",
+            "query": f'"{name}" "HR" OR founder OR owner OR "operations director" {country}'.strip(),
+            "reason": "General search can surface public profiles, articles, and company context.",
+        },
+        "linkedin_manual": {
+            "label": "Manual LinkedIn people search",
+            "query": f'site:linkedin.com "{name}" HR founder owner director {country}'.strip(),
+            "reason": "Manual-only check for likely decision makers; do not scrape LinkedIn.",
+        },
+        "google_maps_manual": {
+            "label": "Manual Google Maps and reviews check",
+            "query": f'"{name}" {country} Google Maps owner manager reviews'.strip(),
+            "reason": "Manual-only check for outlet count, owner replies, and operating signals.",
+        },
+        "instagram_tiktok_manual": {
+            "label": "Manual Instagram/TikTok social check",
+            "query": f'"{name}" Instagram TikTok hiring opening outlet'.strip(),
+            "reason": "Manual-only check for openings, hiring posts, and outreach angles.",
+        },
+        "facebook_manual": {
+            "label": "Manual Facebook public page check",
+            "query": f'"{name}" Facebook hiring outlet opening'.strip(),
+            "reason": "Manual-only check for public posts, outlet activity, and local context.",
+        },
+        "review_site": {
+            "label": "Check public employee/customer review context",
+            "query": f'"{name}" Glassdoor reviews hiring manpower HR'.strip(),
+            "reason": "Review context can suggest pain angles but must be verified by AE.",
+        },
+    }
+    tasks = []
+    for source_type in source_types:
+        template = task_templates[source_type]
+        query = template["query"]
+        tasks.append(
+            {
+                "source_type": source_type,
+                "label": template["label"],
+                "query": query,
+                "url": _search_url(query),
+                "reason": template["reason"],
+                "gap_context": missing,
+                "domain_hint": domain,
+                "will_fetch_automatically": False,
+                "requires_manual_review": True,
+            }
+        )
+    return tasks
+
+
+def _is_public_url(url: str) -> bool:
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        return False
+    host = parsed.hostname.lower()
+    if host == "localhost" or host.endswith(".local"):
+        return False
+    try:
+        ip = ipaddress.ip_address(host.strip("[]"))
+        return not (ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved)
+    except ValueError:
+        if "." not in host:
+            return False
+    try:
+        infos = socket.getaddrinfo(host, None, type=socket.SOCK_STREAM)
+    except socket.gaierror:
+        return False
+    for info in infos:
+        try:
+            ip = ipaddress.ip_address(info[4][0])
+        except ValueError:
+            return False
+        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+            return False
+    return True
+
+
+def _is_manual_only_host(url: str) -> bool:
+    host = (urllib.parse.urlparse(url).hostname or "").lower()
+    return any(marker in host for marker in MANUAL_ONLY_HOST_MARKERS)
+
+
+def _html_to_text(raw: str) -> str:
+    text = re.sub(r"(?is)<(script|style).*?>.*?</\1>", " ", raw)
+    text = re.sub(r"(?s)<[^>]+>", " ", text)
+    text = html.unescape(text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def _fetch_public_evidence_text(source_type: str, url: str) -> tuple[str, str]:
+    if source_type not in FETCHABLE_PUBLIC_SOURCE_TYPES:
+        return "", "skipped_manual_source"
+    if not url:
+        return "", "skipped_no_url"
+    if not _is_public_url(url) or _is_manual_only_host(url):
+        return "", "skipped_unsafe_or_manual_url"
+    request = urllib.request.Request(
+        url,
+        headers={
+            "accept": "text/html,text/plain;q=0.9,*/*;q=0.1",
+            "user-agent": "StaffAny-NurtureAny/1.0 public-evidence-review",
+        },
+        method="GET",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=PUBLIC_FETCH_TIMEOUT_SECONDS) as response:
+            content_type = response.headers.get("content-type", "")
+            if "text/html" not in content_type and "text/plain" not in content_type:
+                return "", "skipped_unsupported_content_type"
+            raw = response.read(PUBLIC_FETCH_MAX_BYTES + 1)
+            status = "fetched_truncated" if len(raw) > PUBLIC_FETCH_MAX_BYTES else "fetched"
+            text = _html_to_text(raw[:PUBLIC_FETCH_MAX_BYTES].decode("utf-8", errors="replace"))
+            return text, status
+    except (urllib.error.URLError, TimeoutError, OSError) as error:
+        return "", f"fetch_failed:{str(error)[:80]}"
+
+
+def _raw_contacts_for_company(company_id: str) -> list[dict[str, Any]]:
+    contact_ids = _association_ids("companies", company_id, "contacts", 100)
+    return _batch_read("contacts", contact_ids, CONTACT_PROPERTIES)
+
+
+def _normalize_name(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", (value or "").lower()).strip()
+
+
+def _safe_email(value: str) -> str:
+    email = (value or "").strip().lower()
+    if not email or not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email):
+        return ""
+    return email
+
+
+def _candidate_from_evidence(item: dict[str, Any], source_type: str, source_url: str) -> dict[str, Any] | None:
+    candidate = item.get("contact_candidate") if isinstance(item.get("contact_candidate"), dict) else item
+    name = str(candidate.get("name") or candidate.get("contact_name") or "").strip()
+    title = str(candidate.get("title") or candidate.get("jobtitle") or candidate.get("job_title") or "").strip()
+    email = _safe_email(str(candidate.get("email") or ""))
+    if not (name or email):
+        return None
+    result = {
+        "display_name": name,
+        "persona": title,
+        "email": email,
+        "source_type": source_type,
+        "source_url": source_url,
+        "is_decision_maker": _role_is_decision_maker(title),
+        "confidence": "needs-check",
+    }
+    if candidate.get("phone") or candidate.get("phone_number"):
+        result["omitted_fields"] = ["phone"]
+    return result
+
+
+def _contact_full_name(contact: dict[str, Any]) -> str:
+    props = contact.get("properties", {})
+    return " ".join(part for part in [props.get("firstname") or "", props.get("lastname") or ""] if part).strip()
+
+
+def _dedupe_candidate(candidate: dict[str, Any], existing_contacts: list[dict[str, Any]]) -> dict[str, Any]:
+    candidate_email = _safe_email(candidate.get("email", ""))
+    candidate_name = _normalize_name(candidate.get("display_name", ""))
+    for contact in existing_contacts:
+        props = contact.get("properties", {})
+        existing_email = _safe_email(props.get("email") or "")
+        if candidate_email and existing_email and candidate_email == existing_email:
+            return {
+                "status": "likely_existing_contact",
+                "matched_contact_id": contact.get("id"),
+                "reason": "email exact match",
+            }
+    for contact in existing_contacts:
+        existing_name = _normalize_name(_contact_full_name(contact))
+        if candidate_name and existing_name and candidate_name == existing_name:
+            return {
+                "status": "possible_existing_contact",
+                "matched_contact_id": contact.get("id"),
+                "reason": "name exact match; review before write-back",
+            }
+    return {"status": "new_candidate", "matched_contact_id": "", "reason": "no HubSpot contact match found"}
+
+
+def _short_text(value: str, limit: int = 240) -> str:
+    text = re.sub(r"\s+", " ", value or "").strip()
+    return text[:limit].rstrip()
+
+
+def _extract_company_signals(item: dict[str, Any], source_type: str, source_url: str, fetched_text: str) -> list[dict[str, Any]]:
+    text = " ".join(
+        str(part or "")
+        for part in [
+            item.get("title"),
+            item.get("snippet"),
+            item.get("description"),
+            fetched_text,
+        ]
+    )
+    lowered = text.lower()
+    signal_keywords = {
+        "hiring_signal": ("hiring", "career", "careers", "job", "vacancy", "recruit", "join our team", "open role"),
+        "growth_signal": ("new outlet", "opening", "expanding", "expansion", "launch", "coming soon"),
+        "pain_signal": ("manpower", "understaffed", "turnover", "attendance", "payroll", "scheduling", "retention"),
+    }
+    signals = []
+    for signal_type, keywords in signal_keywords.items():
+        matched = [keyword for keyword in keywords if keyword in lowered]
+        if matched:
+            signals.append(
+                {
+                    "signal_type": signal_type,
+                    "keywords": matched[:5],
+                    "source_type": source_type,
+                    "source_url": source_url,
+                    "evidence": _short_text(item.get("snippet") or fetched_text or item.get("title") or ""),
+                    "confidence": "needs-check",
+                }
+            )
+    return signals
+
+
+def _outreach_angles(signals: list[dict[str, Any]], candidates: list[dict[str, Any]]) -> list[str]:
+    signal_types = {signal.get("signal_type") for signal in signals}
+    angles = []
+    if "hiring_signal" in signal_types:
+        angles.append("Use active hiring as the reason to ask about onboarding, scheduling, and HR admin load.")
+    if "growth_signal" in signal_types:
+        angles.append("Use expansion or new outlet context to ask how they are scaling workforce operations.")
+    if "pain_signal" in signal_types:
+        angles.append("Use public manpower or operations pain only as a soft discovery prompt, not as a claim.")
+    if any(candidate.get("is_decision_maker") for candidate in candidates):
+        angles.append("Review the decision-maker candidate before drafting a manual LinkedIn or WhatsApp touch.")
+    return angles[:5]
+
+
 @mcp.tool()
 def list_my_target_accounts(slack_user_email: str, limit: int = 20) -> dict[str, Any]:
     """List target accounts owned by the requesting AE."""
@@ -596,6 +908,172 @@ def find_contact_gaps(slack_user_email: str, countries: list[str] | None = None,
 
 
 @mcp.tool()
+def generate_free_search_tasks(
+    slack_user_email: str,
+    company_ids: list[str] | None = None,
+    countries: list[str] | None = None,
+    limit: int = 20,
+    source_types: list[str] | None = None,
+) -> dict[str, Any]:
+    """Generate free/manual public-search tasks for scoped HubSpot enrichment gaps."""
+
+    try:
+        scope = _caller_scope(slack_user_email)
+        if scope["kind"] == "blocked":
+            return _blocked("Caller identity is not mapped to an allowed scope.", {"caller_email": slack_user_email})
+        selected_sources = _safe_free_source_types(source_types)
+        if not selected_sources:
+            return _blocked("No supported free public source_types requested.", _scope_response(scope, []))
+
+        contexts: list[dict[str, Any]] = []
+        capped_limit = max(1, min(int(limit), PUBLIC_TASK_ACCOUNT_LIMIT))
+        if company_ids:
+            for company_id in company_ids[:capped_limit]:
+                context = _company_context(str(company_id), scope)
+                if context:
+                    contexts.append(context)
+        else:
+            selected = _safe_countries(countries, scope["countries"])
+            if not selected:
+                return _blocked("Requested countries are outside caller scope.", _scope_response(scope, []))
+            owner_id = scope.get("owner_id") if scope["kind"] == "ae" else None
+            data = _company_search(_target_filters(selected, owner_id), capped_limit)
+            for company in data.get("results", []):
+                company_id = str(company.get("id") or "")
+                if company_id:
+                    context = _company_context(company_id, scope)
+                    if context:
+                        contexts.append(context)
+
+        accounts = []
+        for context in contexts:
+            company = context["company"]
+            coverage = context.get("coverage", {})
+            missing = company.get("missing_fields", [])
+            needs_public_enrichment = (
+                bool(missing)
+                or company.get("enrichment_status") != "nurture_ready"
+                or coverage.get("channel_fit_known_count", 0) < 1
+            )
+            if not needs_public_enrichment and not company_ids:
+                continue
+            accounts.append(
+                {
+                    "company_id": company.get("company_id"),
+                    "name": company.get("name"),
+                    "country": company.get("country"),
+                    "enrichment_status": company.get("enrichment_status"),
+                    "missing_fields": missing,
+                    "coverage": coverage,
+                    "tasks": _free_search_tasks_for_company(company, selected_sources),
+                }
+            )
+
+        return {
+            "answer": accounts,
+            "source": "HubSpot scoped gaps plus free public search task templates",
+            "scope": _scope_response(
+                scope,
+                list(scope.get("countries", ())) if countries is None else _safe_countries(countries, scope["countries"]),
+            ),
+            "confidence": "needs-check",
+            "caveat": "Tasks are manual/free. No paid API, social scraping, PII reveal, HubSpot mutation, or external message send was performed.",
+        }
+    except HubSpotError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email})
+
+
+@mcp.tool()
+def review_public_enrichment_evidence(
+    slack_user_email: str,
+    company_id: str,
+    evidence_items: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Review public evidence snippets/URLs and dedupe contact candidates against HubSpot."""
+
+    try:
+        scope = _caller_scope(slack_user_email)
+        if scope["kind"] == "blocked":
+            return _blocked("Caller identity is not mapped to an allowed scope.", {"caller_email": slack_user_email})
+        context = _company_context(str(company_id), scope)
+        if context is None:
+            return _blocked("Company is outside caller scope.", {"caller_email": slack_user_email, "company_id": company_id})
+        if not evidence_items:
+            return _blocked("No public evidence items were provided for review.", _scope_response(scope, [context["company"]["country"]]))
+
+        existing_contacts = _raw_contacts_for_company(str(company_id))
+        reviewed_evidence = []
+        candidate_contacts = []
+        company_signals = []
+
+        for raw_item in evidence_items[:PUBLIC_EVIDENCE_ITEM_LIMIT]:
+            if not isinstance(raw_item, dict):
+                continue
+            item = raw_item
+            source_type = str(item.get("source_type") or "").strip().lower()
+            if source_type not in FREE_SEARCH_SOURCE_TYPES:
+                source_type = "general_web"
+            source_url = str(item.get("url") or item.get("source_url") or "").strip()
+            fetched_text, fetch_status = _fetch_public_evidence_text(source_type, source_url)
+            signals = _extract_company_signals(item, source_type, source_url, fetched_text)
+            company_signals.extend(signals)
+
+            candidate = _candidate_from_evidence(item, source_type, source_url)
+            if candidate:
+                candidate["dedupe"] = _dedupe_candidate(candidate, existing_contacts)
+                candidate_contacts.append(candidate)
+
+            reviewed_evidence.append(
+                {
+                    "source_type": source_type,
+                    "source_url": source_url,
+                    "title": _short_text(str(item.get("title") or ""), 160),
+                    "observed_at": str(item.get("observed_at") or ""),
+                    "fetch_status": fetch_status,
+                    "signals_found": [signal["signal_type"] for signal in signals],
+                }
+            )
+
+        dedupe_summary = {
+            "likely_existing_contact_count": len(
+                [
+                    candidate
+                    for candidate in candidate_contacts
+                    if candidate.get("dedupe", {}).get("status") == "likely_existing_contact"
+                ]
+            ),
+            "possible_existing_contact_count": len(
+                [
+                    candidate
+                    for candidate in candidate_contacts
+                    if candidate.get("dedupe", {}).get("status") == "possible_existing_contact"
+                ]
+            ),
+            "new_candidate_count": len(
+                [candidate for candidate in candidate_contacts if candidate.get("dedupe", {}).get("status") == "new_candidate"]
+            ),
+        }
+
+        return {
+            "answer": {
+                "company": context["company"],
+                "reviewed_evidence": reviewed_evidence,
+                "candidate_contacts": candidate_contacts,
+                "company_signals": company_signals[:20],
+                "outreach_angles": _outreach_angles(company_signals, candidate_contacts),
+                "dedupe_summary": dedupe_summary,
+                "will_mutate_hubspot": False,
+            },
+            "source": "HubSpot scoped account context plus reviewed public evidence",
+            "scope": _scope_response(scope, [context["company"]["country"]]),
+            "confidence": "needs-check",
+            "caveat": "Public evidence is review-only. Social/gated sources are not fetched, and no HubSpot mutation or external message send was performed.",
+        }
+    except HubSpotError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email, "company_id": company_id})
+
+
+@mcp.tool()
 def draft_nurture_message(
     account_name: str,
     segment: str,
@@ -666,6 +1144,8 @@ def plan_hubspot_writeback(
     preview_id = hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
     preview = []
     for action in selected_actions[:50]:
+        source = action.get("source") if isinstance(action.get("source"), dict) else {}
+        source_evidence = action.get("source_evidence") or source
         preview.append(
             {
                 "company_id": action.get("company_id"),
@@ -673,6 +1153,10 @@ def plan_hubspot_writeback(
                 "task": action.get("task"),
                 "note_summary": action.get("note_summary"),
                 "field_updates": action.get("field_updates", {}),
+                "source_evidence": source_evidence,
+                "source_type": action.get("source_type") or source.get("type"),
+                "source_url": action.get("source_url") or source.get("url"),
+                "confidence": action.get("confidence", "needs-check"),
                 "selected": bool(action.get("selected", True)),
             }
         )
@@ -691,4 +1175,3 @@ def plan_hubspot_writeback(
 
 if __name__ == "__main__":
     mcp.run("stdio")
-

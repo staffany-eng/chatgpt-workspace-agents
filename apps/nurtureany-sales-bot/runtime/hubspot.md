@@ -30,6 +30,8 @@ It exposes these tools:
 - `get_account_context`
 - `score_nurture_accounts`
 - `find_contact_gaps`
+- `generate_free_search_tasks`
+- `review_public_enrichment_evidence`
 - `draft_nurture_message`
 - `plan_hubspot_writeback`
 
@@ -86,6 +88,18 @@ Avoid raw dumps. Return coverage, recency, and rationale.
 - Input: scoped account IDs or scope query.
 - Output: missing contact/persona/channel/decision-maker coverage.
 
+`generate_free_search_tasks`:
+
+- Input: scoped account IDs or scope query, optional free source types.
+- Output: manual/free public-search tasks for company website, careers, public job boards, general web, LinkedIn, Google Maps, Instagram/TikTok, Facebook, and review sites.
+- Must not call paid APIs, scrape social/gated sites, reveal PII, send external messages, or mutate HubSpot.
+
+`review_public_enrichment_evidence`:
+
+- Input: one scoped company and public evidence items with source type, URL, title, snippet, observed date, and optional contact candidate fields.
+- Output: reviewed evidence, candidate contacts, company signals, outreach angles, and HubSpot dedupe status.
+- Fetch only safe public company, careers, or job-board pages with tight caps. Treat LinkedIn, Instagram, TikTok, Facebook, Google Maps, and gated/social sources as manual snippets only.
+
 `draft_nurture_message`:
 
 - Input: account context, segment, manual channel.
@@ -95,6 +109,7 @@ Avoid raw dumps. Return coverage, recency, and rationale.
 
 - Input: selected accounts and proposed actions.
 - Output: dry-run task/note/field update preview.
+- Preserve public/Lusha source evidence, source type, source URL, and confidence in preview actions.
 
 Mutation tools:
 

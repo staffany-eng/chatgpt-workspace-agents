@@ -93,6 +93,8 @@
       "get_account_context",
       "score_nurture_accounts",
       "find_contact_gaps",
+      "generate_free_search_tasks",
+      "review_public_enrichment_evidence",
       "draft_nurture_message",
       "search_lusha_decision_maker_candidates",
       "get_lusha_credit_usage"

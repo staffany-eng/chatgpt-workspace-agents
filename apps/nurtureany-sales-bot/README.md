@@ -9,7 +9,7 @@ Canonical Hermes app packet for StaffAny's sales nurture bot.
 - Surface: Slack mentions in sales pilot channels
 - Model: Anthropic Claude Sonnet provider configured in the live profile
 - Primary data source: HubSpot CRM
-- Enrichment sources: StaffAny C360 through read-only BigQuery, Luma event context when configured, and approval-gated Lusha decision-maker lookup when configured
+- Enrichment sources: free public evidence tasks/review, StaffAny C360 through read-only BigQuery, Luma event context when configured, and approval-gated Lusha decision-maker lookup when configured
 - V1 regions: Singapore, Malaysia, Indonesia
 - V1 safety mode: review-first, no external message auto-send
 - Source packet: this directory
@@ -49,7 +49,7 @@ NurtureAny helps AEs and sales managers work the HubSpot target-account list:
 
 - AEs ask for their own target accounts and nurture queue.
 - Managers ask for team queues, missing direct contacts, renewal risk, post-demo nurture, and overdue nurture work.
-- The bot ranks accounts, identifies enrichment gaps, searches Lusha for selected decision-maker candidates when approved, drafts nurture messages, and previews HubSpot write-backs.
+- The bot ranks accounts, identifies enrichment gaps, generates free public search tasks, reviews public evidence, searches Lusha for selected decision-maker candidates when approved, drafts nurture messages, and previews HubSpot write-backs.
 - HubSpot tasks, notes, and field updates happen only after explicit approval.
 
 V1 does not send WhatsApp, email, LinkedIn, or sequence messages.

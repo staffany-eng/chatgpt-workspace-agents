@@ -14,7 +14,7 @@ metadata:
 
 ## Overview
 
-Use this skill for StaffAny internal sales nurture work. NurtureAny helps AEs and managers inspect HubSpot target accounts, identify enrichment gaps, search selected Lusha decision-maker candidates, draft nurture messages, and preview approved HubSpot write-backs.
+Use this skill for StaffAny internal sales nurture work. NurtureAny helps AEs and managers inspect HubSpot target accounts, identify enrichment gaps, generate free public search tasks, review public evidence, search selected Lusha decision-maker candidates, draft nurture messages, and preview approved HubSpot write-backs.
 
 V1 is review-first. It never auto-sends WhatsApp, email, LinkedIn, Instagram, SMS, or sequence messages.
 
@@ -23,6 +23,7 @@ V1 is review-first. It never auto-sends WhatsApp, email, LinkedIn, Instagram, SM
 - `my 150`, `my target accounts`, `my nurture queue`, or similar AE-owned target-account requests.
 - Manager requests such as `team queue`, `accounts with no direct contact`, `post-demo nurture queue`, or `renewal risk queue`.
 - Questions about whether target accounts are enriched or nurture-ready.
+- Requests to generate free public search tasks or review public enrichment evidence.
 - Approved requests to search Lusha for decision-maker candidates or reveal selected contact details.
 - Drafting nurture copy for manual AE review.
 - Previewing HubSpot task, note, or field updates after AE/manager approval.
@@ -35,11 +36,12 @@ Do not use this skill for generic data analysis, payroll metrics, product suppor
 2. `references/playbooks.md` for enrichment tiers, scoring, and nurture plays.
 3. `references/regression-cases.md` for expected behavior and safety checks.
 4. HubSpot tools for target accounts, owners, companies, contacts, deals, activities, tasks, and notes.
-5. Lusha tools for selected decision-maker candidate lookup when HubSpot contact coverage is missing.
-6. StaffAny C360 BigQuery tools for commercial value, renewal timing, MRR, account owner, and PSM context.
-7. Luma tools for event invite, RSVP, attendance, and follow-up context when the user request is event-related.
+5. Free public search tasks and public evidence review for company websites, careers pages, public job boards, general search, and manual social checks.
+6. Lusha tools for selected decision-maker candidate lookup when HubSpot contact coverage is missing and free sources are insufficient.
+7. StaffAny C360 BigQuery tools for commercial value, renewal timing, MRR, account owner, and PSM context.
+8. Luma tools for event invite, RSVP, attendance, and follow-up context when the user request is event-related.
 
-HubSpot remains the source of truth for the queue. Lusha, C360, and Luma enrich prioritization; they do not override HubSpot ownership or target-account membership.
+HubSpot remains the source of truth for the queue. Free public evidence, Lusha, C360, and Luma enrich prioritization; they do not override HubSpot ownership or target-account membership.
 
 ## Access Routing
 
@@ -97,6 +99,8 @@ Read tools:
 - `get_account_context`: one company with associated contacts, deals, activities, C360, and Luma context.
 - `score_nurture_accounts`: ranked queue with rationale and missing evidence.
 - `find_contact_gaps`: contact, persona, channel, and decision-maker gaps.
+- `generate_free_search_tasks`: scoped manual/free public-search tasks for company website, careers, public job boards, general web, LinkedIn manual search, Google Maps manual check, Instagram/TikTok manual check, Facebook manual check, and review sites.
+- `review_public_enrichment_evidence`: review public evidence snippets/URLs, fetch only safe public company/careers/job pages, normalize candidate contacts/signals, dedupe against HubSpot contacts, and return review-only output.
 - `draft_nurture_message`: manual-review draft for WhatsApp, email, or LinkedIn.
 - `search_lusha_decision_maker_candidates`: search Lusha for selected company decision-maker candidates without revealing email or phone.
 - `get_lusha_credit_usage`: summarize Lusha credit usage and return a `credit_report`.
@@ -178,3 +182,4 @@ Store only confirmed reusable operating preferences if the runtime supports memo
 6. Using free-text `country` instead of `company_country`.
 7. Revealing raw contact details when a coverage summary is enough.
 8. Calling Lusha reveal without `approval_marker`, omitting `revealEmails`/`revealPhones`, or hiding the `credit_report`.
+9. Scraping LinkedIn, Instagram, TikTok, Facebook, Google Maps, or other social/gated sources instead of returning manual-check tasks or reviewing user-provided snippets.

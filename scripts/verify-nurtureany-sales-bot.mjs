@@ -102,6 +102,8 @@ if (!existsSync(manifestPath)) {
       "get_account_context",
       "score_nurture_accounts",
       "find_contact_gaps",
+      "generate_free_search_tasks",
+      "review_public_enrichment_evidence",
       "draft_nurture_message",
       "search_lusha_decision_maker_candidates",
       "get_lusha_credit_usage"
@@ -142,6 +144,7 @@ const filesToScan = [
   "runtime/slack.md",
   "runtime/hubspot.md",
   "runtime/mcp/hubspot_nurtureany_server.py",
+  "runtime/mcp/test_hubspot_nurtureany_server.py",
   "runtime/bigquery.md",
   "runtime/luma.md",
   "runtime/lusha.md",
@@ -171,6 +174,8 @@ for (const text of [
   "sarah@staffany.com",
   "list_my_target_accounts",
   "list_team_target_accounts",
+  "generate_free_search_tasks",
+  "review_public_enrichment_evidence",
   "plan_hubspot_writeback",
   "lusha_nurtureany",
   "LUSHA_API_KEY",
@@ -194,6 +199,8 @@ for (const text of [
   "Nurture-ready enriched",
   "Do not use Honcho",
   "Confidence: <verified | needs-check | blocked>",
+  "generate_free_search_tasks",
+  "review_public_enrichment_evidence",
   "search_lusha_decision_maker_candidates",
   "reveal_lusha_contact_details",
   "get_lusha_credit_usage",
@@ -242,6 +249,21 @@ const compileCheck = spawnSync("python3", ["-m", "py_compile", join(appRoot, "ru
 });
 if (compileCheck.status !== 0) {
   fail(`Python compile failed for Lusha MCP: ${(compileCheck.stderr || compileCheck.stdout).trim()}`);
+}
+
+const hubspotCompileCheck = spawnSync("python3", ["-m", "py_compile", join(appRoot, "runtime/mcp/hubspot_nurtureany_server.py")], {
+  encoding: "utf8"
+});
+if (hubspotCompileCheck.status !== 0) {
+  fail(`Python compile failed for HubSpot MCP: ${(hubspotCompileCheck.stderr || hubspotCompileCheck.stdout).trim()}`);
+}
+
+const hubspotUnitCheck = spawnSync("python3", ["-m", "unittest", "apps/nurtureany-sales-bot/runtime/mcp/test_hubspot_nurtureany_server.py"], {
+  cwd: repoRoot,
+  encoding: "utf8"
+});
+if (hubspotUnitCheck.status !== 0) {
+  fail(`Python unit tests failed for HubSpot MCP: ${(hubspotUnitCheck.stderr || hubspotUnitCheck.stdout).trim()}`);
 }
 
 const unitCheck = spawnSync("python3", ["-m", "unittest", "apps/nurtureany-sales-bot/runtime/mcp/test_lusha_nurtureany_server.py"], {
