@@ -173,9 +173,11 @@ Friday sales review uses the same scoped association discipline, plus HubSpot ca
 
 - Input: Slack user email and selected HubSpot company IDs, company links, or exact company names, capped at 5 accounts per run.
 - Output: Slack-first pre-demo game plans with Static Information, Research / stalking signal, Hypothesized interest, Alternatives, What to show to win, 3 name drops, Game Plan A, Game Plan B, IC-BANT prompts, Missing evidence, source, scope, confidence, and caveat.
+- Case-study source: `runtime/data/case-studies.json`, generated from the approved public StaffAny customer-story catalog. Matching uses country, industry, size, current-tool pain, and workflow tags.
 - Must resolve company names only inside the caller's scoped HubSpot target accounts. Exact one-match results can run; ambiguous names must return scoped candidate company IDs and ask the user to pick; no broad account default.
 - On post-approval `run`, pass the selected IDs, links, or raw exact names directly into this tool. Do not call `list_team_target_accounts`, `score_nurture_accounts`, or `find_contact_gaps` as a pre-resolver for game-plan requests; this tool owns scoped name resolution, including compact-name matching such as `Tung Lok` to `Tunglok`.
 - Must output `pricing needed` and `case-study match needed` when pricing or approved case studies are missing.
+- Must not use Slack-only/WIP case-study mentions as approved name drops.
 - Must not fetch social/gated sources, expose raw task bodies, reveal unnecessary PII, mutate HubSpot, or send external messages.
 
 `list_sales_followup_tasks`:

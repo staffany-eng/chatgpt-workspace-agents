@@ -187,6 +187,7 @@ Expected behavior:
 - Compact names such as `Tung Lok` can resolve to HubSpot's stored `Tunglok` spelling inside the game-plan tool.
 - Returns Static Information, Research / stalking signal, Hypothesized interest, Alternatives, What to show to win, 3 name drops, Game Plan A, Game Plan B, IC-BANT prompts, and Missing evidence.
 - Applies `sales-best-practices.md` for I-C-BANT, current tools, contract end date, lead source, why-now signal, stakeholder map, and missing-evidence handling.
+- Uses approved public StaffAny case-study matches when selected account context supports them.
 - Uses `pricing needed` and `case-study match needed` when those facts are missing.
 - Does not invent pricing, lead source, current tools, meeting reason, case studies, or name drops.
 - Treats LinkedIn, Instagram, TikTok, Facebook, Google Maps, and gated/social sources as manual-check only unless the user provides snippets.

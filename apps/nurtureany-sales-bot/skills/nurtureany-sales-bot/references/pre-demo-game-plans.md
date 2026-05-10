@@ -29,7 +29,7 @@ Each account output must include:
 - Game Plan A is the primary route to win. Tie it to the strongest likely pain, the relevant StaffAny flow, and a commercial outcome.
 - Game Plan B is the fallback route. Use a lighter package, pilot, buyback, proof-of-value, phased migration, or value-vs-price path only when the evidence supports it.
 - Include rough pricing or package only when supplied by the user or present in approved source context. Otherwise write `pricing needed`.
-- Include case studies only when supplied by approved source context. Otherwise write `case-study match needed`.
+- Include case studies only when supplied by approved source context or `case-studies.md`. Otherwise write `case-study match needed`.
 - Keep the output punchy enough for a rep to use before a call. Avoid long ChatGPT-looking paragraphs.
 
 ## Evidence Rules
@@ -40,6 +40,7 @@ Each account output must include:
 - For Calendar follow-up checks, scan the HubSpot company owner's email calendar through the `team@staffany.com` OAuth account. If that AE calendar is inaccessible, mark calendar coverage blocked/needs-check.
 - Use customer/prospect status from HubSpot `type`, `lifecyclestage`, `prospecting_account`, and C360 when explicitly used. Say `renewal call` only for verified customers; for prospects use incumbent-tool contract timing, migration/procurement timing, or current-tool confirmation.
 - Social/gated sources such as LinkedIn, Instagram, Facebook, TikTok, and Google Maps are manual-check only unless the user provides snippets.
+- Public StaffAny case-study pages in `case-studies.md` are approved for name drops; Slack-only or WIP case-study mentions are not approved until a published page or approved internal asset exists.
 - Do not scrape social/gated sources, reveal unnecessary PII, fetch raw task bodies, mutate HubSpot, or send external messages.
 - If current tools, lead source, meeting reason, stakeholders, pricing, or case studies are missing, mark `Confidence: needs-check`.
 

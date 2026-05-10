@@ -2680,7 +2680,9 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         self.assertEqual(first["static_information"]["number_of_employees"], "80")
         self.assertEqual(first["static_information"]["current_tools"], "current tool needed")
         self.assertIn("pricing needed", first["game_plan_a"]["package_or_pricing"])
-        self.assertEqual(first["relevant_name_drops"], ["case-study match needed"] * 3)
+        self.assertEqual(len(first["relevant_name_drops"]), 3)
+        self.assertNotIn("case-study match needed", first["relevant_name_drops"])
+        self.assertEqual(len(first["case_study_matches"]), 3)
         self.assertIn("lead source", first["missing_evidence"])
         self.assertIn("social/gated research stays manual-check", result["caveat"])
 
