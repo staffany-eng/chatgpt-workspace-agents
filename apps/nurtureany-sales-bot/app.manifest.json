@@ -21,6 +21,8 @@
     "hubspot_mcp": "runtime/mcp/hubspot_nurtureany_server.py",
     "bigquery_runtime": "runtime/bigquery.md",
     "luma_runtime": "runtime/luma.md",
+    "exa_runtime": "runtime/exa.md",
+    "exa_mcp": "runtime/mcp/exa_nurtureany_server.py",
     "lusha_runtime": "runtime/lusha.md",
     "lusha_mcp": "runtime/mcp/lusha_nurtureany_server.py",
     "health_checks": "runtime/health-checks.md",
@@ -96,6 +98,7 @@
       "generate_free_search_tasks",
       "review_public_enrichment_evidence",
       "draft_nurture_message",
+      "search_exa_people_candidates",
       "search_lusha_decision_maker_candidates",
       "get_lusha_credit_usage"
     ],
@@ -119,6 +122,16 @@
     "selected_pii_in_slack": true,
     "bulk_contact_exports": false,
     "hubspot_writeback": "preview_only"
+  },
+  "exa": {
+    "auth_env_var": "EXA_API_KEY",
+    "max_search_companies": 5,
+    "max_candidates_per_company": 5,
+    "selected_pii_in_slack": false,
+    "bulk_contact_exports": false,
+    "hubspot_writeback": "none",
+    "allowed_endpoint": "POST /search",
+    "category": "people"
   },
   "external_message_sending": false,
   "honcho_enabled": false,

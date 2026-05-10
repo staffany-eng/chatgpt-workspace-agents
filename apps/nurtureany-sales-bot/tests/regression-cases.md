@@ -120,6 +120,23 @@ Expected behavior:
 - Returns manual/free tasks only: company website, careers, public job boards, general web, LinkedIn manual search, Google Maps manual check, Instagram/TikTok manual check, Facebook manual check, and review sites.
 - Does not call Lusha, Exa, paid search providers, social scrapers, HubSpot mutations, or external message sending.
 
+## Exa People Candidate Search
+
+Prompt:
+
+```text
+@NurtureAny use Exa to find decision makers for The Esplanade
+```
+
+Expected behavior:
+
+- First Slack response is plan-only and mentions estimated Exa dollar-cost scope before execution.
+- After `run`, searches at most 5 companies and returns at most 5 public people candidates per company.
+- Search returns Exa request ID, source URL, source domain/type, inferred name/title, decision-maker match signal, and `cost_report`.
+- Search does not fetch LinkedIn/profile contents, reveal email or phone, mutate HubSpot, or call Lusha automatically.
+- Any LinkedIn URL is labelled manual-check evidence only.
+- Selected Exa candidates can feed a later targeted Lusha reveal plan after explicit cost estimate and approval.
+
 ## Free Public Evidence Review
 
 Prompt:

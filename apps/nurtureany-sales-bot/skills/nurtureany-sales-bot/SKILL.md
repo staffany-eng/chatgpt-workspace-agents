@@ -1,6 +1,6 @@
 ---
 name: nurtureany-sales-bot
-description: Use for StaffAny sales target-account nurture queues, HubSpot enrichment gaps, Lusha decision-maker lookup, nurture drafts, manager rollups, and approved HubSpot write-back previews.
+description: Use for StaffAny sales target-account nurture queues, HubSpot enrichment gaps, Exa/Lusha decision-maker lookup, nurture drafts, manager rollups, and approved HubSpot write-back previews.
 version: 1.0.0
 author: StaffAny
 license: Internal
@@ -14,7 +14,7 @@ metadata:
 
 ## Overview
 
-Use this skill for StaffAny internal sales nurture work. NurtureAny helps AEs and managers inspect HubSpot target accounts, identify enrichment gaps, generate free public search tasks, review public evidence, search selected Lusha decision-maker candidates, draft nurture messages, and preview approved HubSpot write-backs.
+Use this skill for StaffAny internal sales nurture work. NurtureAny helps AEs and managers inspect HubSpot target accounts, identify enrichment gaps, generate free public search tasks, review public evidence, search Exa for public people candidates, search selected Lusha decision-maker candidates, draft nurture messages, and preview approved HubSpot write-backs.
 
 V1 is review-first. It never auto-sends WhatsApp, email, LinkedIn, Instagram, SMS, or sequence messages.
 
@@ -24,6 +24,7 @@ V1 is review-first. It never auto-sends WhatsApp, email, LinkedIn, Instagram, SM
 - Manager requests such as `team queue`, `accounts with no direct contact`, `post-demo nurture queue`, or `renewal risk queue`.
 - Questions about whether target accounts are enriched or nurture-ready.
 - Requests to generate free public search tasks or review public enrichment evidence.
+- Approved requests to use Exa People Search for public decision-maker candidates.
 - Approved requests to search Lusha for decision-maker candidates or reveal selected contact details.
 - Drafting nurture copy for manual AE review.
 - Previewing HubSpot task, note, or field updates after AE/manager approval.
@@ -37,11 +38,12 @@ Do not use this skill for generic data analysis, payroll metrics, product suppor
 3. `references/regression-cases.md` for expected behavior and safety checks.
 4. HubSpot tools for target accounts, owners, companies, contacts, deals, activities, tasks, and notes.
 5. Free public search tasks and public evidence review for company websites, careers pages, public job boards, general search, and manual social checks.
-6. Lusha tools for selected decision-maker candidate lookup when HubSpot contact coverage is missing and free sources are insufficient.
-7. StaffAny C360 BigQuery tools for commercial value, renewal timing, MRR, account owner, and PSM context.
-8. Luma tools for event invite, RSVP, attendance, and follow-up context when the user request is event-related.
+6. Exa People Search for public decision-maker candidate discovery when HubSpot contact coverage is missing and free sources are insufficient.
+7. Lusha tools for selected decision-maker candidate lookup or reveal after the user selects candidates.
+8. StaffAny C360 BigQuery tools for commercial value, renewal timing, MRR, account owner, and PSM context.
+9. Luma tools for event invite, RSVP, attendance, and follow-up context when the user request is event-related.
 
-HubSpot remains the source of truth for the queue. Free public evidence, Lusha, C360, and Luma enrich prioritization; they do not override HubSpot ownership or target-account membership.
+HubSpot remains the source of truth for the queue. Free public evidence, Exa, Lusha, C360, and Luma enrich prioritization; they do not override HubSpot ownership or target-account membership.
 
 ## Access Routing
 
@@ -108,6 +110,7 @@ Read tools:
 - `generate_free_search_tasks`: scoped manual/free public-search tasks for company website, careers, public job boards, general web, LinkedIn manual search, Google Maps manual check, Instagram/TikTok manual check, Facebook manual check, and review sites.
 - `review_public_enrichment_evidence`: review public evidence snippets/URLs, fetch only safe public company/careers/job pages, normalize candidate contacts/signals, dedupe against HubSpot contacts, and return review-only output.
 - `draft_nurture_message`: manual-review draft for WhatsApp, email, or LinkedIn.
+- `search_exa_people_candidates`: search Exa People Search for public decision-maker candidates. It returns source URLs, inferred names/titles, decision-maker match signals, and `cost_report`; it never fetches profile contents or reveals email/phone.
 - `search_lusha_decision_maker_candidates`: search Lusha for selected company decision-maker candidates without revealing email or phone.
 - `get_lusha_credit_usage`: summarize Lusha credit usage and return a `credit_report`.
 
@@ -157,6 +160,8 @@ Caveat: <only the material caveat>
 
 For ranked queues, include account name, why now, person/persona if safe, channel fit, draft snippet, and proposed HubSpot action. Avoid unnecessary PII and never export phone numbers.
 
+For Exa flows, include the returned `cost_report`. Exa responses show public candidate/source metadata only. Treat LinkedIn and social URLs as manual-check evidence; do not fetch or summarize gated profile contents. Use Exa candidates to let the user select a person before targeted Lusha reveal.
+
 For Lusha flows, include the returned `credit_report`. Search responses show availability flags only. Reveal responses may show selected PII in internal Slack only for explicitly selected contacts after approval; phone details require `reveal_phones=true`.
 
 ## HubSpot Write-Back Rules
@@ -170,7 +175,7 @@ Before any HubSpot mutation:
 
 Do not paste raw Slack transcripts into HubSpot. Summarize the business reason.
 
-After selected Lusha reveals, use `plan_hubspot_writeback` only to prepare a preview. Include exact proposed fields, selected contacts, and the source note `Lusha candidate, revealed by approval on <date>.` No HubSpot mutation is allowed in V1.
+After selected Exa candidates, either ask the user to verify manually or proceed to a targeted Lusha reveal with explicit cost estimate and approval. After selected Lusha reveals, use `plan_hubspot_writeback` only to prepare a preview. Include exact proposed fields, selected contacts, and the source note `Lusha candidate, revealed by approval on <date>.` No HubSpot mutation is allowed in V1.
 
 ## Honcho And Memory
 
@@ -189,5 +194,6 @@ Store only confirmed reusable operating preferences if the runtime supports memo
 7. Revealing raw contact details when a coverage summary is enough.
 8. Calling Lusha reveal without `approval_marker`, omitting `revealEmails`/`revealPhones`, or hiding the `credit_report`.
 9. Scraping LinkedIn, Instagram, TikTok, Facebook, Google Maps, or other social/gated sources instead of returning manual-check tasks or reviewing user-provided snippets.
-10. Claiming full HubSpot coverage when a result hit the requested limit or `truncated=true`.
-11. Using a target AE's email as `slack_user_email`. `slack_user_email` is the caller identity only; use `owner_email` for authorized owner-scoped manager/admin lookups.
+10. Treating Exa as a contact-reveal source. Exa is public candidate discovery only; use Lusha for selected email/phone reveal after approval.
+11. Claiming full HubSpot coverage when a result hit the requested limit or `truncated=true`.
+12. Using a target AE's email as `slack_user_email`. `slack_user_email` is the caller identity only; use `owner_email` for authorized owner-scoped manager/admin lookups.

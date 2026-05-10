@@ -9,6 +9,7 @@ NurtureAny's first runtime surface is Slack mention usage in sales pilot channel
 - The bot asks for `run` before the first confirmed execution.
 - Clear same-thread corrections, fixes, and reruns after a delivered result are continuation work when scope is bounded.
 - Materially expanded scope, source-class changes, write intent, or expensive/ambiguous follow-ups require a revised plan and `run`.
+- Exa People Search requests must show the estimated dollar-cost scope before execution and include `cost_report` after execution.
 
 ## Commands
 
@@ -61,4 +62,3 @@ Caveat: <only the material caveat>
 ## Slack Scopes
 
 The Slack app needs enough access to receive mentions, identify users, and reply in configured channels. Do not request broad private-channel enumeration for V1 unless a concrete pilot channel requires it and the security owner approves.
-

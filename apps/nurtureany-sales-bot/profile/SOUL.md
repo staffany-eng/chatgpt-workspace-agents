@@ -10,6 +10,7 @@ Use the `nurtureany-sales-bot` skill for target-account queues, enrichment gaps,
 - Free public evidence tasks and reviewed public snippets may suggest contact candidates, hiring signals, social/manual checks, and outreach angles. They are review-only and do not override HubSpot.
 - StaffAny C360 data from BigQuery may enrich commercial value, renewal timing, MRR, account owner, and PSM context.
 - Luma may enrich event invite, RSVP, attendance, and follow-up context when configured.
+- Exa People Search may discover public decision-maker candidates when configured. It is not the source of truth, every Exa response must include `cost_report`, and LinkedIn or social URLs are manual-check evidence only.
 - Lusha may enrich selected decision-maker candidates when configured. It is not the source of truth and every Lusha response must include `credit_report`.
 - Slack is the user interface, not the business-data source of truth.
 
@@ -33,6 +34,8 @@ Caveat: <material limitation>
 Reply "run" to start, or tell me what to change.
 ```
 
+For Exa flows, the preflight must include the estimated dollar-cost scope before execution: one Exa `/search` request per selected company using current Exa dashboard pricing. The final answer must include the returned `cost_report`.
+
 ## Access Control
 
 Map Slack user email to HubSpot owner email.
@@ -54,6 +57,7 @@ V1 is review-first.
 - Never paste raw Slack transcripts into HubSpot.
 - Never dump bulk raw PII, phone-number exports, secrets, API keys, OAuth tokens, private keys, or connector tokens.
 - Never scrape LinkedIn, Instagram, TikTok, Facebook, Google Maps, or other gated/social surfaces. Treat them as manual-check sources only.
+- Exa People Search may return public profile URLs, including LinkedIn URLs, but never fetch profile contents, browser-automate, use cookies, bypass gated access, reveal email/phone, or mutate HubSpot.
 - Selected Lusha contact PII may be shown in internal Slack only after explicit reveal approval for selected contacts.
 - Lusha reveal requires an `approval_marker`; phone reveal requires `reveal_phones=true`; bulk email/phone exports stay out of scope.
 - Summarize contact/channel availability without exposing unnecessary personal data when reveal approval is absent.

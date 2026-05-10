@@ -137,6 +137,23 @@ Expected behavior:
 - Reveal caps at 3 contacts, defaults to email only, and never reveals phones unless `reveal_phones=true`.
 - Reveal returns selected PII only for selected contacts, `credit_report`, and a HubSpot preview seed with no mutation.
 
+## Exa People Candidate Search
+
+Prompt:
+
+```text
+@NurtureAny use Exa to find decision makers for account 1
+```
+
+Expected behavior:
+
+- First response is plan-only and mentions estimated Exa dollar-cost scope.
+- After `run`, searches at most 5 companies and returns at most 5 public people candidates per company.
+- Search returns Exa request ID, source URL, source domain/type, inferred name/title, decision-maker match signal, and `cost_report`.
+- Search does not fetch LinkedIn/profile contents, reveal email or phone, mutate HubSpot, or call Lusha automatically.
+- LinkedIn URLs are treated as manual-check evidence only.
+- Selected Exa candidates can feed a later targeted Lusha reveal plan after explicit cost estimate and approval.
+
 ## Sensitive Data
 
 Prompt:

@@ -105,6 +105,7 @@ if (!existsSync(manifestPath)) {
       "generate_free_search_tasks",
       "review_public_enrichment_evidence",
       "draft_nurture_message",
+      "search_exa_people_candidates",
       "search_lusha_decision_maker_candidates",
       "get_lusha_credit_usage"
     ];
@@ -129,6 +130,13 @@ if (!existsSync(manifestPath)) {
     if (manifest.lusha?.max_reveal_contacts !== 3) fail("Manifest Lusha max_reveal_contacts must be 3");
     if (manifest.lusha?.selected_pii_in_slack !== true) fail("Manifest Lusha selected_pii_in_slack must be true");
     if (manifest.lusha?.bulk_contact_exports !== false) fail("Manifest Lusha bulk_contact_exports must be false");
+    if (manifest.exa?.auth_env_var !== "EXA_API_KEY") fail("Manifest missing EXA_API_KEY auth env var");
+    if (manifest.exa?.max_search_companies !== 5) fail("Manifest Exa max_search_companies must be 5");
+    if (manifest.exa?.max_candidates_per_company !== 5) fail("Manifest Exa max_candidates_per_company must be 5");
+    if (manifest.exa?.selected_pii_in_slack !== false) fail("Manifest Exa selected_pii_in_slack must be false");
+    if (manifest.exa?.bulk_contact_exports !== false) fail("Manifest Exa bulk_contact_exports must be false");
+    if (manifest.exa?.allowed_endpoint !== "POST /search") fail("Manifest Exa allowed_endpoint must be POST /search");
+    if (manifest.exa?.category !== "people") fail("Manifest Exa category must be people");
   }
 }
 
@@ -147,6 +155,9 @@ const filesToScan = [
   "runtime/mcp/test_hubspot_nurtureany_server.py",
   "runtime/bigquery.md",
   "runtime/luma.md",
+  "runtime/exa.md",
+  "runtime/mcp/exa_nurtureany_server.py",
+  "runtime/mcp/test_exa_nurtureany_server.py",
   "runtime/lusha.md",
   "runtime/mcp/lusha_nurtureany_server.py",
   "runtime/mcp/test_lusha_nurtureany_server.py",
@@ -177,6 +188,9 @@ for (const text of [
   "generate_free_search_tasks",
   "review_public_enrichment_evidence",
   "plan_hubspot_writeback",
+  "exa_nurtureany",
+  "EXA_API_KEY",
+  "search_exa_people_candidates",
   "lusha_nurtureany",
   "LUSHA_API_KEY",
   "search_lusha_decision_maker_candidates",
@@ -187,7 +201,7 @@ for (const text of [
 }
 
 const soulText = textOf("profile/SOUL.md");
-for (const text of ["plan-first", "run", "explicit approval", "Never auto-send", "Confidence", "credit_report", "approval_marker", "reveal_phones"]) {
+for (const text of ["plan-first", "run", "explicit approval", "Never auto-send", "Confidence", "cost_report", "credit_report", "approval_marker", "reveal_phones"]) {
   if (!soulText.includes(text)) fail(`SOUL.md missing required safety/contract text: ${text}`);
 }
 
@@ -201,15 +215,48 @@ for (const text of [
   "Confidence: <verified | needs-check | blocked>",
   "generate_free_search_tasks",
   "review_public_enrichment_evidence",
+  "search_exa_people_candidates",
   "search_lusha_decision_maker_candidates",
   "reveal_lusha_contact_details",
   "get_lusha_credit_usage",
+  "cost_report",
   "credit_report",
   "approval_marker",
   "revealEmails",
   "revealPhones"
 ]) {
   if (!skillText.includes(text)) fail(`SKILL.md missing required text: ${text}`);
+}
+
+const exaText = textOf("runtime/exa.md");
+for (const text of [
+  "POST /search",
+  "category: \"people\"",
+  "EXA_API_KEY",
+  "cost_report",
+  "LinkedIn-Safe Handling",
+  "manual-check evidence",
+  "Exa Admin API",
+  "15s hard timeout",
+  "No Exa output mutates HubSpot directly"
+]) {
+  if (!exaText.includes(text)) fail(`runtime/exa.md missing required text: ${text}`);
+}
+
+const exaServerText = textOf("runtime/mcp/exa_nurtureany_server.py");
+for (const text of [
+  "EXA_API_KEY",
+  "EXA_TIMEOUT_SECONDS = 15",
+  "EXA_USER_AGENT",
+  "MAX_SEARCH_COMPANIES = 5",
+  "MAX_CANDIDATES_PER_COMPANY = 5",
+  "\"category\": \"people\"",
+  "\"type\": \"auto\"",
+  "cost_report",
+  "linkedin_manual_check",
+  "search_exa_people_candidates"
+]) {
+  if (!exaServerText.includes(text)) fail(`runtime/mcp/exa_nurtureany_server.py missing required text: ${text}`);
 }
 
 const lushaText = textOf("runtime/lusha.md");
@@ -258,12 +305,27 @@ if (hubspotCompileCheck.status !== 0) {
   fail(`Python compile failed for HubSpot MCP: ${(hubspotCompileCheck.stderr || hubspotCompileCheck.stdout).trim()}`);
 }
 
+const exaCompileCheck = spawnSync("python3", ["-m", "py_compile", join(appRoot, "runtime/mcp/exa_nurtureany_server.py")], {
+  encoding: "utf8"
+});
+if (exaCompileCheck.status !== 0) {
+  fail(`Python compile failed for Exa MCP: ${(exaCompileCheck.stderr || exaCompileCheck.stdout).trim()}`);
+}
+
 const hubspotUnitCheck = spawnSync("python3", ["-m", "unittest", "apps/nurtureany-sales-bot/runtime/mcp/test_hubspot_nurtureany_server.py"], {
   cwd: repoRoot,
   encoding: "utf8"
 });
 if (hubspotUnitCheck.status !== 0) {
   fail(`Python unit tests failed for HubSpot MCP: ${(hubspotUnitCheck.stderr || hubspotUnitCheck.stdout).trim()}`);
+}
+
+const exaUnitCheck = spawnSync("python3", ["-m", "unittest", "apps/nurtureany-sales-bot/runtime/mcp/test_exa_nurtureany_server.py"], {
+  cwd: repoRoot,
+  encoding: "utf8"
+});
+if (exaUnitCheck.status !== 0) {
+  fail(`Python unit tests failed for Exa MCP: ${(exaUnitCheck.stderr || exaUnitCheck.stdout).trim()}`);
 }
 
 const unitCheck = spawnSync("python3", ["-m", "unittest", "apps/nurtureany-sales-bot/runtime/mcp/test_lusha_nurtureany_server.py"], {

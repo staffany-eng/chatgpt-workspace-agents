@@ -95,7 +95,7 @@ Avoid raw dumps. Return coverage, recency, and rationale.
 
 - Input: scoped account IDs or scope query, optional free source types.
 - Output: manual/free public-search tasks for company website, careers, public job boards, general web, LinkedIn, Google Maps, Instagram/TikTok, Facebook, and review sites.
-- Must not call paid APIs, scrape social/gated sites, reveal PII, send external messages, or mutate HubSpot.
+- Must not call paid APIs, Exa, Lusha, scrape social/gated sites, reveal PII, send external messages, or mutate HubSpot.
 
 `review_public_enrichment_evidence`:
 
@@ -112,7 +112,7 @@ Avoid raw dumps. Return coverage, recency, and rationale.
 
 - Input: selected accounts and proposed actions.
 - Output: dry-run task/note/field update preview.
-- Preserve public/Lusha source evidence, source type, source URL, and confidence in preview actions.
+- Preserve public/Exa/Lusha source evidence, source type, source URL, and confidence in preview actions.
 
 Mutation tools:
 

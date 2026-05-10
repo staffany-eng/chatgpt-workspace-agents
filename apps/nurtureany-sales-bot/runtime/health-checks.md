@@ -16,6 +16,8 @@ NurtureAny needs deterministic runtime checks because prompt correctness does no
 - StaffAny BigQuery MCP lists only expected read-only tools.
 - A tiny read-only C360 smoke query succeeds when C360 is enabled.
 - Luma read-only smoke check succeeds when Luma is enabled.
+- Exa MCP lists only `search_exa_people_candidates` when Exa is enabled.
+- Exa smoke check returns `cost_report`, uses `category: "people"`, and does not fetch profile contents or expose email/phone.
 - Lusha MCP lists only `search_lusha_decision_maker_candidates`, `reveal_lusha_contact_details`, and `get_lusha_credit_usage` when Lusha is enabled.
 - Lusha usage smoke check returns `credit_report` and does not block the gateway when `/account/usage` is rate-limited.
 - Honcho is disabled.

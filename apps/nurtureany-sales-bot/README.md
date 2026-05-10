@@ -9,7 +9,7 @@ Canonical Hermes app packet for StaffAny's sales nurture bot.
 - Surface: Slack mentions in sales pilot channels
 - Model: Anthropic Claude Sonnet provider configured in the live profile
 - Primary data source: HubSpot CRM
-- Enrichment sources: free public evidence tasks/review, StaffAny C360 through read-only BigQuery, Luma event context when configured, and approval-gated Lusha decision-maker lookup when configured
+- Enrichment sources: free public evidence tasks/review, StaffAny C360 through read-only BigQuery, Luma event context when configured, Exa People Search public candidate discovery when configured, and approval-gated Lusha decision-maker lookup when configured
 - V1 regions: Singapore, Malaysia, Indonesia
 - V1 safety mode: review-first, no external message auto-send
 - Source packet: this directory
@@ -39,6 +39,7 @@ For production, prefer a dedicated service credential for NurtureAny model auth 
 | `runtime/hubspot.md` | HubSpot API contract, fields, and write approval rules. |
 | `runtime/bigquery.md` | C360 read-only enrichment contract. |
 | `runtime/luma.md` | Luma event-context contract. |
+| `runtime/exa.md` | Exa People Search public candidate-discovery and cost-reporting contract. |
 | `runtime/lusha.md` | Cost-controlled Lusha lookup, selected-PII, and credit-reporting contract. |
 | `runtime/health-checks.md` | Operational checks and expected silence. |
 | `tests/regression-cases.md` | Manual/eval regression cases for app behavior. |
@@ -49,7 +50,7 @@ NurtureAny helps AEs and sales managers work the HubSpot target-account list:
 
 - AEs ask for their own target accounts and nurture queue.
 - Managers ask for team queues, missing direct contacts, renewal risk, post-demo nurture, and overdue nurture work.
-- The bot ranks accounts, identifies enrichment gaps, generates free public search tasks, reviews public evidence, searches Lusha for selected decision-maker candidates when approved, drafts nurture messages, and previews HubSpot write-backs.
+- The bot ranks accounts, identifies enrichment gaps, generates free public search tasks, reviews public evidence, searches Exa for public people candidates when approved, searches Lusha for selected decision-maker candidates when approved, drafts nurture messages, and previews HubSpot write-backs.
 - HubSpot tasks, notes, and field updates happen only after explicit approval.
 
 V1 does not send WhatsApp, email, LinkedIn, or sequence messages.
@@ -76,7 +77,7 @@ Permissions are explicit config, not inferred from Slack titles.
 4. Use `profile/config.template.yaml` as the non-secret config guide.
 5. Copy `skills/nurtureany-sales-bot/` into the profile skills directory.
 6. Set profile `.env` from Secret Manager values only; do not commit or inline model-provider or Lusha credentials.
-7. Configure Slack gateway, HubSpot MCP/API adapter, StaffAny BigQuery MCP, optional Luma adapter, and optional Lusha MCP with `LUSHA_API_KEY`.
+7. Configure Slack gateway, HubSpot MCP/API adapter, StaffAny BigQuery MCP, optional Luma adapter, optional Exa MCP with `EXA_API_KEY`, and optional Lusha MCP with `LUSHA_API_KEY`.
 8. Run health checks and regression cases before adding sales channels.
 
 ## Canonical Source Rule
