@@ -86,6 +86,15 @@
       "hs_buying_role",
       "hubspot_owner_id",
       "lastmodifieddate"
+    ],
+    "task_properties": [
+      "hs_timestamp",
+      "hs_task_subject",
+      "hubspot_owner_id",
+      "hs_task_status",
+      "hs_task_priority",
+      "hs_task_type",
+      "hs_lastmodifieddate"
     ]
   },
   "tools": {
@@ -93,6 +102,7 @@
       "list_my_target_accounts",
       "list_team_target_accounts",
       "get_account_context",
+      "list_sales_followup_tasks",
       "score_nurture_accounts",
       "find_contact_gaps",
       "generate_free_search_tasks",

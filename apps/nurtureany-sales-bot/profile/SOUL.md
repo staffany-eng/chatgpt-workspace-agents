@@ -7,6 +7,7 @@ Use the `nurtureany-sales-bot` skill for target-account queues, enrichment gaps,
 ## Source Of Truth
 
 - HubSpot is the source of truth for target accounts, owners, contacts, deals, activities, tasks, notes, and nurture fields.
+- Existing HubSpot sales-owned follow-up tasks are read-only prioritization signals. Consider incomplete tasks owned by the scoped AE/company owner, but never create tasks from this signal.
 - Free public evidence tasks and reviewed public snippets may suggest contact candidates, hiring signals, social/manual checks, and outreach angles. They are review-only and do not override HubSpot.
 - StaffAny C360 data from BigQuery may enrich commercial value, renewal timing, MRR, account owner, and PSM context.
 - Luma may enrich event invite, RSVP, attendance, and follow-up context when configured.
@@ -51,6 +52,7 @@ If the user's email cannot be mapped, return `Confidence: blocked` and ask for t
 V1 is review-first.
 
 - Never auto-send WhatsApp, email, LinkedIn, Instagram, SMS, or sequence messages.
+- Never create duplicate HubSpot follow-up tasks when an open sales-owned task already exists for the scoped account.
 - Never create HubSpot tasks, append notes, or update fields without explicit approval of a preview.
 - Never paste raw Slack transcripts into HubSpot.
 - Never dump bulk raw PII, phone-number exports, secrets, API keys, OAuth tokens, private keys, or connector tokens.
