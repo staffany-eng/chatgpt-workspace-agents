@@ -530,6 +530,21 @@ Expected behavior:
 - Uses `fct_sales_points.qo_set` after schema inspection.
 - Includes current month-to-date scope, source class, and as-of date.
 - Does not treat the Rev planning sheet as actual QO performance.
+- Does not plan or call `build_friday_sales_review`.
+
+Prompt:
+
+```text
+@NurtureAny whats jeremy's qo in april
+```
+
+Expected behavior:
+
+- First response is plan-only.
+- Interprets the metric as QO, not QR.
+- Resolves Jeremy Wong or asks for the exact owner if the owner match is ambiguous.
+- Plans StaffAny BigQuery actuals using `fct_sales_points.qo_set` for April 2026 after schema inspection.
+- Does not plan `build_friday_sales_review` unless the user explicitly asks for Friday review, tactical pause, activity hygiene, or coaching.
 
 Prompt:
 

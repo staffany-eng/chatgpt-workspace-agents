@@ -169,7 +169,10 @@
       "qo_pipeline_ids_env_var": "NURTUREANY_QO_PIPELINE_IDS",
       "qo_stage_ids_env_var": "NURTUREANY_QO_STAGE_IDS",
       "qo_met_stage_ids_env_var": "NURTUREANY_QO_MET_STAGE_IDS",
-      "closed_won_stage_ids_env_var": "NURTUREANY_CLOSED_WON_STAGE_IDS"
+      "closed_won_stage_ids_env_var": "NURTUREANY_CLOSED_WON_STAGE_IDS",
+      "warehouse_qo_actuals_source": "staffany-warehouse.analytics.fct_sales_points.qo_set",
+      "direct_qo_metric_route": "revenue_metric_bigquery_not_friday_review",
+      "friday_qo_actuals_mode": "optional_second_step_after_hubspot_review"
     },
     "source_of_truth_fields": {
       "target_accounts": "hs_is_target_account",

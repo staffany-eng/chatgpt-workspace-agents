@@ -149,6 +149,7 @@ Friday sales review uses the same scoped association discipline, plus HubSpot ca
 - Hygiene summary mirrors the tactical pause docs: `120_150_accounts_worked`, `40_connected_calls`, hit/miss, Friday correction needed, and main issue.
 - Funnel snapshot returns accounts worked, connected calls, QOs, QO Met %, deals closed, warm activity points, and caveats. If funnel stage config is missing, QO/QO Met/deal counts are `needs-check` but hygiene still returns.
 - Next-week actions must be concrete corrections tied to 120/150 account coverage, double tap, 30 WhatsApp daily rhythm, 40 connected calls, clean-lead fields, and warm activity proof.
+- Direct QO count/pace questions should not call this tool. They should resolve owner/team scope and use StaffAny BigQuery `fct_sales_points.qo_set`. A Friday review may add that revenue-metric result as a second source after this HubSpot review output.
 
 `get_account_context`:
 

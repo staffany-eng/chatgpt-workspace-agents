@@ -92,6 +92,9 @@ nurtureany:
       qo_stage_ids: "NURTUREANY_QO_STAGE_IDS"
       qo_met_stage_ids: "NURTUREANY_QO_MET_STAGE_IDS"
       closed_won_stage_ids: "NURTUREANY_CLOSED_WON_STAGE_IDS"
+    warehouse_qo_actuals_source: "staffany-warehouse.analytics.fct_sales_points.qo_set"
+    direct_qo_metric_route: "revenue_metric_bigquery_not_friday_review"
+    friday_qo_actuals_mode: "optional_second_step_after_hubspot_review"
     missing_stage_config_result: "Confidence: needs-check; still return hygiene/account coverage"
   photo_matching:
     drive_folder_id: "1qXlFnr5TKFtsYNWk7ZywBBctDaae3RY-"
@@ -124,8 +127,11 @@ mcp_servers:
       company_url_template_env: "NURTUREANY_C360_COMPANY_URL_TEMPLATE"
       org_url_template_env: "NURTUREANY_C360_ORG_URL_TEMPLATE"
       route_key_map_env: "NURTUREANY_C360_ROUTE_KEY_BY_COMPANY_ID"
+      sales_packet_url_template_env: "NURTUREANY_C360_SALES_PACKET_URL_TEMPLATE"
+      sales_packet_token_env: "NURTUREANY_C360_INTERNAL_API_TOKEN"
       default_company_url_template: "https://customer-360-qv4r5xkisq-as.a.run.app/companies/{customer360_route_key}"
       default_org_url_template: "https://customer-360-qv4r5xkisq-as.a.run.app/companies/{customer360_route_key}/orgs/{organisation_id}"
+      default_sales_packet_url_template: "https://customer-360-qv4r5xkisq-as.a.run.app/api/companies/{customer360_route_key}/sales-packet"
       known_route_keys:
         "1991281569": "fei-siong-group"
     timeout: 600
