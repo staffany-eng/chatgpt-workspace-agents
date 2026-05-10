@@ -10,7 +10,7 @@ EXPECT_MODEL_AUTH="${EXPECT_MODEL_AUTH:-1}"
 EXPECT_MODEL_PROVIDER="${EXPECT_MODEL_PROVIDER:-anthropic}"
 EXPECT_MODEL_DEFAULT="${EXPECT_MODEL_DEFAULT:-claude-sonnet-4-6}"
 EXPECT_STAFFANY_BIGQUERY_TOOLS="${EXPECT_STAFFANY_BIGQUERY_TOOLS:-4}"
-EXPECT_HUBSPOT_TOOLS="${EXPECT_HUBSPOT_TOOLS:-26}"
+EXPECT_HUBSPOT_TOOLS="${EXPECT_HUBSPOT_TOOLS:-29}"
 EXPECT_GOOGLE_CALENDAR_TOOLS="${EXPECT_GOOGLE_CALENDAR_TOOLS:-2}"
 EXPECT_GOOGLE_DRIVE_TOOLS="${EXPECT_GOOGLE_DRIVE_TOOLS:-3}"
 EXPECT_LUMA_TOOLS="${EXPECT_LUMA_TOOLS:-3}"
@@ -111,11 +111,14 @@ expected_servers = {
         "get_inbound_thread_context",
         "list_marketing_campaigns",
         "get_campaign_assets",
+        "get_campaign_social_effectiveness",
         "get_marketing_touch_context",
+        "get_marketing_campaign_attribution",
         "list_my_target_accounts",
         "list_team_target_accounts",
         "audit_hubspot_owner_roster",
         "audit_priority_account_coverage",
+        "build_sales_metric_actuals_query",
         "build_friday_sales_review",
         "get_account_context",
         "build_pre_demo_game_plans",

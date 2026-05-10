@@ -52,7 +52,9 @@ It exposes these tools:
 - `get_inbound_thread_context`
 - `list_marketing_campaigns`
 - `get_campaign_assets`
+- `get_campaign_social_effectiveness`
 - `get_marketing_touch_context`
+- `get_marketing_campaign_attribution`
 - `list_my_target_accounts`
 - `list_team_target_accounts`
 - `audit_hubspot_owner_roster`
@@ -113,11 +115,31 @@ Sales-owned follow-up tasks are read-only prioritization signals. A task is in s
 
 Generic account-name follow-up checks should resolve scoped HubSpot candidates with bounded target-account `query` lookup before task/calendar checks. Use the resolved HubSpot `owner_email` as the AE calendar ID for Google Calendar coverage through the `team@staffany.com` OAuth token. Do not use `score_nurture_accounts` as a direct company lookup or as a fallback after missing task/calendar results.
 
-Post-event follow-up status uses safe HubSpot timeline evidence only. Count associated WhatsApp `communications` with `hs_communication_channel_type=WHATS_APP`, associated notes, completed tasks, open/incomplete tasks, and completed HubSpot meeting logs after the supplied `since_at`. Event-level follow-up uses Luma first to resolve checked-in matched accounts; for Indonesia LL/HHH events where Luma check-in is empty or not used, `read_indonesia_event_registration_attendance` may provide manual `Attend The Event` attendance keys from the ID Rev registration Sheet. The matched scoped accounts then require event-specific Eazybe WhatsApp evidence in HubSpot or an event-specific completed task for `followed_up`; generic post-event WhatsApp and meeting logs alone become `needs_check`/hygiene evidence. Return object type, object ID, timestamp, owner ID, channel/status/outcome when safe, event-match label when applicable, and association path only. Do not expose communication body, note body, task body, meeting body, phone numbers, unmatched attendees, raw registration rows, or raw event guest exports.
+Post-event follow-up status uses safe HubSpot timeline evidence only. Count associated WhatsApp `communications` with `hs_communication_channel_type=WHATS_APP`, associated notes, completed tasks, open/incomplete tasks, and completed HubSpot meeting logs after the supplied `since_at`. Event-level follow-up uses Luma first to resolve checked-in matched accounts; for Indonesia LL/HHH events where Luma check-in is empty or not used, `read_indonesia_event_registration_attendance` may provide manual `Attend The Event` attendance keys from the ID Rev registration Sheet. Resolve those attended keys with `find_target_accounts_by_luma_match_keys`; do not call `list_team_target_accounts` or delegate this matching flow. The matched scoped accounts then require event-specific Eazybe WhatsApp evidence in HubSpot or an event-specific completed task for `followed_up`; generic post-event WhatsApp and meeting logs alone become `needs_check`/hygiene evidence. Return object type, object ID, timestamp, owner ID, channel/status/outcome when safe, event-match label when applicable, and association path only. Do not expose communication body, note body, task body, meeting body, phone numbers, unmatched attendees, raw registration rows, or raw event guest exports.
 
 Friday sales review uses the same scoped association discipline, plus HubSpot calls and meetings. Connected calls are completed calls with `hs_call_duration >= 120000` milliseconds. Warm activity points are completed meetings whose title or activity type matches configured labels: HHH, LL, coffee, lunch, dinner, cosy, ABM, event, appreciation afternoon, or sports. QO, QO Met, and closed-won counts require runtime stage config through `NURTUREANY_QO_PIPELINE_IDS`, `NURTUREANY_QO_STAGE_IDS`, `NURTUREANY_QO_MET_STAGE_IDS`, and `NURTUREANY_CLOSED_WON_STAGE_IDS`; when missing, return hygiene and account coverage with `Confidence: needs-check`.
 
 ## Tool Behavior
+
+`list_marketing_campaigns` / `get_campaign_assets`:
+
+- Input: manager/admin Slack user email plus campaign name/ID and optional date filters.
+- Output: read-only HubSpot campaign metadata and bounded asset summaries.
+- Must not imply form submissions, QO, QO Met, closed-won, pipeline, or revenue attribution from campaign asset association alone.
+
+`get_campaign_social_effectiveness`:
+
+- Input: manager/admin Slack user email plus campaign ID, campaign name, or campaign date filters.
+- Output: aggregate HubSpot social connected-account counts, `SOCIAL_BROADCAST` click metrics, top clicked post summaries capped at 10, podcast asset count, and metric window.
+- Social clicks are engagement evidence only. Do not expose raw social channel IDs, dump all campaign posts, scrape native social platforms, mutate HubSpot, or claim QO/closed-won proof.
+
+`get_marketing_campaign_attribution`:
+
+- Input: manager/admin Slack user email plus campaign ID, campaign name, or campaign UTM.
+- Output: bounded search of HubSpot contact marketing source fields, scoped contact/company summaries, and associated deal-stage counts.
+- Search source fields such as `utm_campaign`, conversion-event names, and analytics source data; never expose raw PII, raw form submissions, raw contact rows, or mutation tools.
+- QO, QO Met, and closed-won counts are valid only when `NURTUREANY_QO_PIPELINE_IDS`, `NURTUREANY_QO_STAGE_IDS`, `NURTUREANY_QO_MET_STAGE_IDS`, and `NURTUREANY_CLOSED_WON_STAGE_IDS` are configured. Without that config, return `Confidence: needs-check`.
+- Do not use generic `build_sales_metric_actuals_query` QO totals as campaign attribution. Use BigQuery only after a purpose-built, schema-inspected campaign/UTM query is available.
 
 `list_my_target_accounts`:
 
@@ -197,7 +219,7 @@ Friday sales review uses the same scoped association discipline, plus HubSpot ca
 - Input: Slack user email, Luma `event_tags`, optional event ID, location, country, event type, search window, owner email, `since_at`, `until_at`, and limit.
 - Output: selected event summary, matched target-account count, status counts, per-account status, latest safe evidence timestamp, owner, activity counts, confidence, and caveat.
 - Resolves Luma checked-in guests, matches them to scoped HubSpot target accounts, and classifies follow-up from associated event-specific Eazybe WhatsApp communications or event-specific tasks.
-- If Luma checked-in attendance is empty for an Indonesia LL/HHH event, Slack workflow may use `read_indonesia_event_registration_attendance` first, then pass the resolved scoped HubSpot companies into `check_account_followup_status` from the event end time.
+- If Luma checked-in attendance is empty for an Indonesia LL/HHH event, Slack workflow may use `read_indonesia_event_registration_attendance` first, then pass attended keys into `find_target_accounts_by_luma_match_keys`, then pass the resolved scoped HubSpot companies into `check_account_followup_status` from the event end time.
 - Generic post-event WhatsApp, candidate attendee matching, truncated reads, owner mismatch, or incomplete Eazybe association returns `needs_check`.
 - It may inspect `hs_communication_body` internally for event-keyword matching, but the body is never returned, logged, or stored.
 
