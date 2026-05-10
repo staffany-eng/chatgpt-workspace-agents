@@ -53,7 +53,9 @@ NurtureAny helps AEs and sales managers work the HubSpot target-account list:
 - AEs ask for their own target accounts and nurture queue.
 - Managers ask for team queues, missing direct contacts, renewal risk, post-demo nurture, overdue nurture work, and existing sales follow-up tasks.
 - The bot ranks accounts, identifies enrichment gaps, adds C360 and calendar/event context when relevant, generates free public search tasks, reviews public evidence, searches Exa for public people candidates when approved, searches Lusha for selected decision-maker candidates when approved, drafts nurture messages, and previews HubSpot write-backs.
-- Existing HubSpot sales follow-up tasks are read-only prioritization signals. New HubSpot tasks, notes, and field updates happen only after explicit approval.
+- Existing HubSpot sales follow-up tasks and `team@staffany.com` Calendar invites are read-only follow-up signals. New HubSpot tasks, notes, and field updates happen only after explicit approval.
+- Account-name follow-up checks use bounded target-account `query` lookup before task and Calendar checks; broad queue scoring is not used as a direct account lookup.
+- When asked who to follow up with, the bot chooses from HubSpot contacts and sales follow-up task context first, then Luma matched attendees for event-related asks. Google Calendar is scheduling context only and must not be used as the source of the person.
 
 V1 does not send WhatsApp, email, LinkedIn, or sequence messages.
 

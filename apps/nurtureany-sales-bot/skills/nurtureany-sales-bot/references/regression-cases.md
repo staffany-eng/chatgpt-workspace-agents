@@ -163,6 +163,42 @@ Expected behavior:
 - Returns safe event metadata only, with no descriptions, attendee emails, raw guest lists, event mutations, invites, RSVPs, or attendee exports.
 - Treats calendar hits as scheduling context with `Confidence: needs-check` unless matched back to stronger HubSpot or Luma evidence.
 
+## Generic Follow-Up Coverage
+
+Prompt:
+
+```text
+@NurtureAny do we have a follow up with account 1?
+```
+
+Expected behavior:
+
+- First response is plan-only.
+- Plan includes scoped HubSpot account context, existing HubSpot follow-up tasks, and `team@staffany.com` Calendar invites.
+- After `run`, uses bounded target-account `query` lookup for account-name-only scope, then returns separate `hubspot_task_signal`, `calendar_invite_signal`, and optional `luma_event_signal`.
+- Does not treat a missing HubSpot task as no follow-up unless Calendar was also checked or explicitly out of scope.
+- Does not use Calendar attendees, organizers, descriptions, conference links, or private metadata as the follow-up person.
+- Does not use `score_nurture_accounts` as a direct company lookup or fallback after missing task/calendar results.
+
+## Follow-Up Person Recommendation
+
+Prompt:
+
+```text
+@NurtureAny who should we follow up with after account 1's calendar follow-up?
+```
+
+Expected behavior:
+
+- First response is plan-only.
+- After `run`, uses scoped HubSpot account context before calendar lookup.
+- Selects `recommended_external_person` from HubSpot associated contacts first, preferring decision maker or buying-role signals.
+- Uses existing sales-owned follow-up task context for `why_now` and `internal_action_owner`.
+- Uses Luma matched attendees only for event-related asks after HubSpot scope is known.
+- Uses Google Calendar only as event timing/scheduling evidence.
+- Returns no verified person with `Confidence: needs-check` if Calendar is the only person-like signal.
+- Does not name Calendar guests, organizers, descriptions, conference links, or private calendar metadata as the follow-up person.
+
 ## Luma RSVP And Attendance Context
 
 Prompt:

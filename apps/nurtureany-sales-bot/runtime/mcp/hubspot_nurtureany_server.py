@@ -367,8 +367,9 @@ def _bounded_int(value: Any, default: int, minimum: int = 1, maximum: int = HUBS
     return max(minimum, min(number, maximum))
 
 
-def _company_search(filters: list[dict[str, Any]], limit: int = 20, after: str | None = None) -> dict[str, Any]:
+def _company_search(filters: list[dict[str, Any]], limit: int = 20, after: str | None = None, query: str | None = None) -> dict[str, Any]:
     requested_limit = _bounded_int(limit, default=20)
+    cleaned_query = str(query or "").strip()
     results: list[dict[str, Any]] = []
     total: int | None = None
     next_after = after
@@ -381,6 +382,8 @@ def _company_search(filters: list[dict[str, Any]], limit: int = 20, after: str |
             "limit": page_limit,
             "sorts": [{"propertyName": "notes_last_updated", "direction": "DESCENDING"}],
         }
+        if cleaned_query:
+            body["query"] = cleaned_query
         if next_after:
             body["after"] = next_after
 
@@ -1516,7 +1519,7 @@ def audit_hubspot_owner_roster(
 
 
 @mcp.tool()
-def list_my_target_accounts(slack_user_email: str, limit: int = 20) -> dict[str, Any]:
+def list_my_target_accounts(slack_user_email: str, limit: int = 20, query: str | None = None) -> dict[str, Any]:
     """List target accounts owned by the requesting AE."""
 
     try:
@@ -1524,7 +1527,7 @@ def list_my_target_accounts(slack_user_email: str, limit: int = 20) -> dict[str,
         if scope["kind"] == "blocked" or not scope.get("owner_id"):
             return _blocked("Slack email is not mapped to a HubSpot owner.", {"caller_email": slack_user_email})
         countries = list(scope["countries"])
-        data = _company_search(_target_filters(countries, scope["owner_id"]), limit)
+        data = _company_search(_target_filters(countries, scope["owner_id"]), limit, query=query)
         accounts = [_summarize_company(company) for company in data.get("results", [])]
         return {
             "answer": accounts,
@@ -1544,6 +1547,7 @@ def list_team_target_accounts(
     countries: list[str] | None = None,
     limit: int = 50,
     owner_email: str | None = None,
+    query: str | None = None,
 ) -> dict[str, Any]:
     """List target accounts for an authorized manager/admin regional scope."""
 
@@ -1555,7 +1559,7 @@ def list_team_target_accounts(
         if not selected:
             return _blocked("Requested countries are outside caller scope.", _scope_response(scope, []))
         target_owner_id, target_owner_email = _target_owner_id_for_scope(scope, owner_email)
-        data = _company_search(_target_filters(selected, target_owner_id), limit)
+        data = _company_search(_target_filters(selected, target_owner_id), limit, query=query)
         accounts = [_summarize_company(company) for company in data.get("results", [])]
         return {
             "answer": accounts,
