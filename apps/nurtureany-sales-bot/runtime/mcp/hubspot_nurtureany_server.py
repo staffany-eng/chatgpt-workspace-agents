@@ -97,6 +97,74 @@ TASK_PROPERTIES = [
     "hs_lastmodifieddate",
 ]
 
+MARKETING_CONTACT_PROPERTIES = [
+    "email",
+    "firstname",
+    "lastname",
+    "jobtitle",
+    "hubspot_owner_id",
+    "createdate",
+    "lastmodifieddate",
+    "lifecyclestage",
+    "hs_analytics_source",
+    "hs_analytics_source_data_1",
+    "hs_analytics_source_data_2",
+    "hs_latest_source",
+    "hs_latest_source_data_1",
+    "hs_latest_source_data_2",
+    "first_conversion_event_name",
+    "first_conversion_date",
+    "recent_conversion_event_name",
+    "recent_conversion_date",
+    "abm_campaign_tag",
+    "ad_interaction",
+    "utm_campaign",
+]
+
+MARKETING_COMPANY_PROPERTIES = sorted(
+    set(
+        COMPANY_PROPERTIES
+        + [
+            "campaign",
+            "abm_campaign_tag",
+            "ad_interaction",
+            "utm_campaign",
+            "hs_analytics_source",
+            "hs_analytics_source_data_1",
+            "hs_analytics_source_data_2",
+            "hs_latest_source",
+            "hs_latest_source_data_1",
+            "hs_latest_source_data_2",
+        ]
+    )
+)
+
+CAMPAIGN_PROPERTIES = [
+    "hs_name",
+    "hs_campaign_status",
+    "hs_start_date",
+    "hs_end_date",
+    "hs_notes",
+    "hs_audience",
+    "hs_utm",
+    "hs_owner",
+    "hs_object_id",
+    "hs_budget_items_sum_amount",
+    "hs_spend_items_sum_amount",
+]
+
+MARKETING_CAMPAIGN_ASSET_TYPES = (
+    "FORM",
+    "LANDING_PAGE",
+    "SITE_PAGE",
+    "MARKETING_EMAIL",
+    "MARKETING_SMS",
+    "SOCIAL_BROADCAST",
+    "PODCAST_EPISODE",
+)
+
+NO_METRIC_CAMPAIGN_ASSET_TYPES = {"PODCAST_EPISODE", "AD_CAMPAIGN", "MEDIA", "PLAYBOOK", "SALES_DOCUMENT", "EMAIL", "SEQUENCE"}
+
 COMMUNICATION_PROPERTIES = [
     "hs_timestamp",
     "hubspot_owner_id",
@@ -164,6 +232,11 @@ TASK_SEARCH_RESULT_LIMIT = 300
 TASK_SEARCH_AIRTIGHT_RESULT_LIMIT = 10_000
 FOLLOWUP_ASSOCIATION_LIMIT = 100
 FOLLOWUP_RETURN_LIMIT = 100
+INBOUND_THREAD_RETURN_LIMIT = 50
+INBOUND_MESSAGE_RETURN_LIMIT = 100
+MARKETING_CAMPAIGN_RETURN_LIMIT = 100
+CAMPAIGN_ASSET_RETURN_LIMIT = 100
+MESSAGE_TEXT_LIMIT = 4000
 PRIORITY_ACCOUNT_RETURN_LIMIT = 1000
 PRIORITY_ACCOUNT_LOCKED_POOL_BASELINE = 150
 PRIORITY_ACCOUNT_WEEKLY_WORKED_TARGET = 120
@@ -5382,6 +5455,709 @@ def _target_counts_for_owner(owner_id: str, countries: list[str]) -> dict[str, A
         if isinstance(count, int):
             total += count
     return {"total": total, "by_country": by_country}
+
+
+def _read_crm_object(object_type: str, object_id: str, properties: list[str]) -> dict[str, Any] | None:
+    if not object_id:
+        return None
+    try:
+        return _get(f"/crm/v3/objects/{object_type}/{object_id}", {"properties": ",".join(properties)})
+    except HubSpotError as error:
+        if "404" in str(error):
+            return None
+        raise
+
+
+def _read_marketing_contact(contact_id: str) -> dict[str, Any] | None:
+    return _read_crm_object("contacts", str(contact_id), MARKETING_CONTACT_PROPERTIES)
+
+
+def _read_marketing_company(company_id: str) -> dict[str, Any] | None:
+    return _read_crm_object("companies", str(company_id), MARKETING_COMPANY_PROPERTIES)
+
+
+def _email_domain(value: str) -> str:
+    email = _safe_email(value)
+    return email.split("@", 1)[1] if "@" in email else ""
+
+
+def _contact_display_name(contact: dict[str, Any] | None) -> str:
+    if not contact:
+        return ""
+    props = contact.get("properties", {})
+    first = str(props.get("firstname") or "").strip()
+    last = str(props.get("lastname") or "").strip()
+    full = " ".join(part for part in [first, last] if part).strip()
+    return full or str(props.get("jobtitle") or "").strip()
+
+
+def _safe_marketing_contact_summary(contact: dict[str, Any] | None) -> dict[str, Any]:
+    if not contact:
+        return {}
+    props = contact.get("properties", {})
+    return {
+        "contact_id": str(contact.get("id") or ""),
+        "display_name": _contact_display_name(contact),
+        "jobtitle": props.get("jobtitle") or "",
+        "owner_id": props.get("hubspot_owner_id") or "",
+        "email_domain": _email_domain(str(props.get("email") or "")),
+        "lifecycle_stage": props.get("lifecyclestage") or "",
+        "created_at": props.get("createdate") or "",
+        "last_modified_at": props.get("lastmodifieddate") or "",
+    }
+
+
+def _safe_marketing_company_summary(company: dict[str, Any] | None) -> dict[str, Any]:
+    if not company:
+        return {}
+    props = company.get("properties", {})
+    return {
+        "company_id": str(company.get("id") or ""),
+        "hubspot_scoped": True,
+        "scope_source": SCOPE_SOURCE,
+        "name": props.get("name") or "",
+        "domain": props.get("domain") or "",
+        "country": props.get("company_country") or "",
+        "owner_id": props.get("hubspot_owner_id") or "",
+        "target_account": str(props.get("hs_is_target_account") or "").lower() == "true",
+        "campaign": props.get("campaign") or "",
+    }
+
+
+def _has_marketing_company_access(company: dict[str, Any], scope: dict[str, Any]) -> bool:
+    props = company.get("properties", {})
+    country = props.get("company_country") or ""
+    owner_id = str(props.get("hubspot_owner_id") or "")
+    if scope["kind"] == "admin":
+        return True
+    if scope["kind"] == "manager":
+        return not country or country in scope.get("countries", ())
+    if scope["kind"] == "ae":
+        return bool(country and country in scope.get("countries", ()) and owner_id and owner_id == str(scope.get("owner_id") or ""))
+    return False
+
+
+def _marketing_companies_for_contact(contact_id: str) -> list[dict[str, Any]]:
+    company_ids = _association_ids("contacts", str(contact_id), "companies", 20)
+    return _batch_read("companies", company_ids, MARKETING_COMPANY_PROPERTIES)
+
+
+def _marketing_access_context_for_contact(contact_id: str, scope: dict[str, Any]) -> dict[str, Any]:
+    contact = _read_marketing_contact(str(contact_id))
+    companies = _marketing_companies_for_contact(str(contact_id)) if contact else []
+    accessible_companies = [company for company in companies if _has_marketing_company_access(company, scope)]
+    if scope["kind"] == "admin":
+        allowed = True
+    elif accessible_companies:
+        allowed = True
+    elif scope["kind"] == "manager" and contact and not companies:
+        allowed = True
+    else:
+        allowed = False
+    return {
+        "allowed": allowed,
+        "contact": contact,
+        "companies": accessible_companies if accessible_companies else ([] if scope["kind"] != "admin" else companies),
+        "scope_status": "company_scoped" if accessible_companies else "unresolved_company_scope",
+    }
+
+
+def _marketing_access_context_for_thread(thread: dict[str, Any], scope: dict[str, Any]) -> dict[str, Any]:
+    contact_id = str(thread.get("associatedContactId") or "")
+    context = _marketing_access_context_for_contact(contact_id, scope) if contact_id else {
+        "allowed": scope["kind"] in {"admin", "manager"},
+        "contact": None,
+        "companies": [],
+        "scope_status": "unresolved_company_scope",
+    }
+    if contact_id and not context.get("contact") and not context.get("companies") and scope["kind"] in {"admin", "manager"}:
+        context["allowed"] = True
+        context["scope_status"] = "unresolved_company_scope"
+    context["thread"] = thread
+    context["associated_contact_id"] = contact_id
+    context["associated_ticket_id"] = str(thread.get("threadAssociations", {}).get("associatedTicketId") or "")
+    return context
+
+
+def _default_latest_message_after() -> str:
+    start = datetime.now(timezone.utc) - timedelta(days=30)
+    return start.replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def _conversation_threads(params: dict[str, str], limit: int) -> dict[str, Any]:
+    requested_limit = _bounded_int(limit, default=20, maximum=INBOUND_THREAD_RETURN_LIMIT)
+    results: list[dict[str, Any]] = []
+    next_after = params.get("after", "")
+    while len(results) < requested_limit:
+        page_params = {key: value for key, value in params.items() if value != ""}
+        page_params["limit"] = str(min(100, requested_limit - len(results)))
+        if next_after:
+            page_params["after"] = str(next_after)
+        page = _get("/conversations/v3/conversations/threads", page_params)
+        page_results = page.get("results", [])
+        results.extend(page_results)
+        next_after = str(page.get("paging", {}).get("next", {}).get("after") or "")
+        if not page_results or not next_after:
+            break
+    return {
+        "results": results,
+        "requested_limit": requested_limit,
+        "returned_count": len(results),
+        "has_more": bool(next_after),
+        "truncated": bool(next_after),
+    }
+
+
+def _conversation_messages(thread_id: str, limit: int) -> dict[str, Any]:
+    requested_limit = _bounded_int(limit, default=50, maximum=INBOUND_MESSAGE_RETURN_LIMIT)
+    results: list[dict[str, Any]] = []
+    next_after = ""
+    while len(results) < requested_limit:
+        page_params = {"limit": str(min(100, requested_limit - len(results)))}
+        if next_after:
+            page_params["after"] = next_after
+        page = _get(f"/conversations/v3/conversations/threads/{thread_id}/messages", page_params)
+        page_results = page.get("results", [])
+        results.extend(page_results)
+        next_after = str(page.get("paging", {}).get("next", {}).get("after") or "")
+        if not page_results or not next_after:
+            break
+    return {
+        "results": results,
+        "requested_limit": requested_limit,
+        "returned_count": len(results),
+        "has_more": bool(next_after),
+        "truncated": bool(next_after),
+    }
+
+
+def _thread_sort_value(thread: dict[str, Any]) -> str:
+    return str(thread.get("latestMessageTimestamp") or thread.get("latestMessageReceivedTimestamp") or thread.get("createdAt") or "")
+
+
+def _safe_thread_summary(thread: dict[str, Any], access_context: dict[str, Any]) -> dict[str, Any]:
+    contact = _safe_marketing_contact_summary(access_context.get("contact"))
+    companies = [_safe_marketing_company_summary(company) for company in access_context.get("companies", [])]
+    return {
+        "thread_id": str(thread.get("id") or ""),
+        "status": thread.get("status") or "",
+        "inbox_id": thread.get("inboxId") or "",
+        "original_channel_id": thread.get("originalChannelId") or "",
+        "original_channel_account_id": thread.get("originalChannelAccountId") or "",
+        "assigned_to": thread.get("assignedTo") or "",
+        "created_at": thread.get("createdAt") or "",
+        "latest_message_at": thread.get("latestMessageTimestamp") or "",
+        "latest_received_at": thread.get("latestMessageReceivedTimestamp") or "",
+        "latest_sent_at": thread.get("latestMessageSentTimestamp") or "",
+        "associated_contact_id": access_context.get("associated_contact_id") or "",
+        "associated_ticket_id": access_context.get("associated_ticket_id") or "",
+        "contact": contact,
+        "companies": companies,
+        "scope_status": access_context.get("scope_status") or "",
+        "spam": bool(thread.get("spam")),
+        "archived": bool(thread.get("archived")),
+    }
+
+
+def _message_text(message: dict[str, Any]) -> tuple[str, bool]:
+    raw = str(message.get("text") or "")
+    if not raw and message.get("richText"):
+        raw = _html_to_text(str(message.get("richText") or ""))
+    text = re.sub(r"\s+", " ", raw).strip()
+    if len(text) > MESSAGE_TEXT_LIMIT:
+        return text[:MESSAGE_TEXT_LIMIT].rstrip(), True
+    return text, False
+
+
+def _safe_thread_message(message: dict[str, Any]) -> dict[str, Any]:
+    text, local_truncated = _message_text(message)
+    truncation_status = str(message.get("truncationStatus") or "")
+    return {
+        "message_id": str(message.get("id") or ""),
+        "type": message.get("type") or "",
+        "direction": message.get("direction") or "",
+        "status": message.get("status") or "",
+        "created_at": message.get("createdAt") or message.get("created_at") or "",
+        "sent_at": message.get("sentAt") or message.get("sent_at") or "",
+        "sender_actor_id": message.get("senderActorId") or message.get("sender_actor_id") or "",
+        "actor_id": message.get("actorId") or "",
+        "recipients": message.get("recipients") or [],
+        "text": text,
+        "text_truncated": bool(local_truncated or truncation_status in {"TRUNCATED", "TRUNCATED_TO_MOST_RECENT_REPLY"}),
+        "truncation_status": truncation_status,
+        "attachment_count": len(message.get("attachments", []) or []),
+    }
+
+
+def _marketing_signal_fields(props: dict[str, Any]) -> dict[str, str]:
+    keys = [
+        "campaign",
+        "abm_campaign_tag",
+        "ad_interaction",
+        "utm_campaign",
+        "hs_analytics_source",
+        "hs_analytics_source_data_1",
+        "hs_analytics_source_data_2",
+        "hs_latest_source",
+        "hs_latest_source_data_1",
+        "hs_latest_source_data_2",
+        "first_conversion_event_name",
+        "first_conversion_date",
+        "recent_conversion_event_name",
+        "recent_conversion_date",
+    ]
+    return {key: str(props.get(key) or "") for key in keys if str(props.get(key) or "").strip()}
+
+
+def _campaign_summary(campaign: dict[str, Any]) -> dict[str, Any]:
+    props = campaign.get("properties", {})
+    return {
+        "campaign_id": str(campaign.get("id") or campaign.get("campaignGuid") or props.get("hs_object_id") or ""),
+        "name": props.get("hs_name") or campaign.get("name") or "",
+        "status": props.get("hs_campaign_status") or "",
+        "start_date": props.get("hs_start_date") or "",
+        "end_date": props.get("hs_end_date") or "",
+        "audience": props.get("hs_audience") or "",
+        "utm": props.get("hs_utm") or "",
+        "owner_id": props.get("hs_owner") or "",
+        "created_at": campaign.get("createdAt") or "",
+        "updated_at": campaign.get("updatedAt") or "",
+    }
+
+
+def _campaign_matches_filters(campaign: dict[str, Any], status: str = "", start_date: str = "", end_date: str = "") -> bool:
+    props = campaign.get("properties", {})
+    if status and str(props.get("hs_campaign_status") or "").lower() != status.lower():
+        return False
+    campaign_start = str(props.get("hs_start_date") or "")
+    campaign_end = str(props.get("hs_end_date") or "")
+    if start_date and campaign_end and campaign_end < start_date:
+        return False
+    if end_date and campaign_start and campaign_start > end_date:
+        return False
+    return True
+
+
+def _marketing_campaign_search(name: str = "", status: str = "", start_date: str = "", end_date: str = "", limit: int = 20) -> dict[str, Any]:
+    requested_limit = _bounded_int(limit, default=20, maximum=MARKETING_CAMPAIGN_RETURN_LIMIT)
+    params = {
+        "limit": str(min(100, requested_limit)),
+        "properties": ",".join(CAMPAIGN_PROPERTIES),
+        "sort": "-updatedAt",
+    }
+    if name:
+        params["name"] = name
+    results: list[dict[str, Any]] = []
+    next_after = ""
+    while len(results) < requested_limit:
+        page_params = dict(params)
+        page_params["limit"] = str(min(100, requested_limit - len(results)))
+        if next_after:
+            page_params["after"] = next_after
+        page = _get("/marketing/v3/campaigns", page_params)
+        for campaign in page.get("results", []):
+            if _campaign_matches_filters(campaign, status, start_date, end_date):
+                results.append(campaign)
+                if len(results) >= requested_limit:
+                    break
+        next_after = str(page.get("paging", {}).get("next", {}).get("after") or "")
+        if not next_after or len(results) >= requested_limit:
+            break
+    return {
+        "results": results,
+        "requested_limit": requested_limit,
+        "returned_count": len(results),
+        "has_more": bool(next_after),
+        "truncated": bool(next_after),
+    }
+
+
+def _get_campaign(campaign_id: str) -> dict[str, Any]:
+    return _get(f"/marketing/v3/campaigns/{campaign_id}", {"properties": ",".join(CAMPAIGN_PROPERTIES)})
+
+
+def _safe_asset_summary(asset_type: str, asset: dict[str, Any]) -> dict[str, Any]:
+    props = asset.get("properties", {}) if isinstance(asset.get("properties"), dict) else {}
+    metrics = asset.get("metrics") or asset.get("performanceMetrics") or props.get("metrics") or {}
+    return {
+        "asset_type": asset_type,
+        "asset_id": str(asset.get("id") or asset.get("assetId") or props.get("hs_object_id") or ""),
+        "name": asset.get("name") or asset.get("title") or props.get("hs_name") or props.get("name") or "",
+        "url": asset.get("url") or props.get("url") or "",
+        "metrics_available": asset_type not in NO_METRIC_CAMPAIGN_ASSET_TYPES and bool(metrics),
+        "metrics": metrics if isinstance(metrics, dict) else {},
+    }
+
+
+def _campaign_assets(campaign_id: str, asset_types: list[str] | None = None, start_date: str = "", end_date: str = "", limit: int = 50) -> dict[str, Any]:
+    requested_limit = _bounded_int(limit, default=50, maximum=CAMPAIGN_ASSET_RETURN_LIMIT)
+    selected_types = []
+    for asset_type in asset_types or list(MARKETING_CAMPAIGN_ASSET_TYPES):
+        normalized = str(asset_type or "").strip().upper()
+        if normalized in MARKETING_CAMPAIGN_ASSET_TYPES and normalized not in selected_types:
+            selected_types.append(normalized)
+    assets_by_type: dict[str, Any] = {}
+    truncated = False
+    for asset_type in selected_types:
+        params = {"limit": str(requested_limit)}
+        if start_date:
+            params["startDate"] = start_date
+        if end_date:
+            params["endDate"] = end_date
+        page = _get(f"/marketing/v3/campaigns/{campaign_id}/assets/{asset_type}", params)
+        raw_assets = page.get("results", []) if isinstance(page.get("results"), list) else []
+        has_more = bool(page.get("paging", {}).get("next", {}).get("after"))
+        truncated = truncated or has_more or len(raw_assets) > requested_limit
+        assets_by_type[asset_type] = {
+            "assets": [_safe_asset_summary(asset_type, asset) for asset in raw_assets[:requested_limit]],
+            "returned_count": min(len(raw_assets), requested_limit),
+            "has_more": has_more,
+            "truncated": has_more or len(raw_assets) > requested_limit,
+            "metrics_caveat": "No metrics available for this HubSpot campaign asset type."
+            if asset_type in NO_METRIC_CAMPAIGN_ASSET_TYPES
+            else "",
+        }
+    return {
+        "asset_types": selected_types,
+        "assets_by_type": assets_by_type,
+        "requested_limit": requested_limit,
+        "has_more": truncated,
+        "truncated": truncated,
+    }
+
+
+def _require_marketing_manager_or_admin(scope: dict[str, Any], slack_user_email: str) -> dict[str, Any] | None:
+    if scope["kind"] in {"admin", "manager"}:
+        return None
+    return _blocked(
+        "HubSpot marketing and campaign lookups require manager/admin scope unless a scoped company/contact context is supplied.",
+        {"caller_email": slack_user_email},
+    )
+
+
+def _candidate_campaign_query(contact: dict[str, Any] | None, companies: list[dict[str, Any]], explicit_query: str = "") -> str:
+    if explicit_query:
+        return explicit_query
+    if contact:
+        props = contact.get("properties", {})
+        for key in ("utm_campaign", "abm_campaign_tag", "recent_conversion_event_name", "first_conversion_event_name"):
+            value = str(props.get(key) or "").strip()
+            if value:
+                return value
+    for company in companies:
+        props = company.get("properties", {})
+        for key in ("campaign", "utm_campaign", "abm_campaign_tag"):
+            value = str(props.get(key) or "").strip()
+            if value:
+                return value
+    return ""
+
+
+@mcp.tool()
+def list_inbound_threads(
+    slack_user_email: str,
+    thread_status: str = "OPEN",
+    inbox_id: str = "",
+    associated_contact_id: str = "",
+    latest_message_after: str = "",
+    limit: int = 20,
+) -> dict[str, Any]:
+    """List recent HubSpot Conversations inbox threads with summaries only."""
+
+    try:
+        scope = _caller_scope(slack_user_email)
+        if scope["kind"] == "blocked":
+            return _blocked("Caller identity is not mapped to an allowed scope.", {"caller_email": slack_user_email})
+        params = {
+            "association": "TICKET",
+            "archived": "false",
+            "sort": "latestMessageTimestamp",
+            "latestMessageTimestampAfter": latest_message_after or _default_latest_message_after(),
+            "inboxId": str(inbox_id or ""),
+            "associatedContactId": str(associated_contact_id or ""),
+        }
+        fetch_limit = min(INBOUND_THREAD_RETURN_LIMIT, max(_bounded_int(limit, default=20), 20))
+        data = _conversation_threads(params, fetch_limit)
+        requested_status = str(thread_status or "").strip().upper()
+        summaries = []
+        inaccessible_count = 0
+        unresolved_scope_count = 0
+        for thread in sorted(data.get("results", []), key=_thread_sort_value, reverse=True):
+            if requested_status and requested_status != "ANY" and str(thread.get("status") or "").upper() != requested_status:
+                continue
+            access_context = _marketing_access_context_for_thread(thread, scope)
+            if not access_context["allowed"]:
+                inaccessible_count += 1
+                continue
+            if access_context.get("scope_status") == "unresolved_company_scope":
+                unresolved_scope_count += 1
+            summaries.append(_safe_thread_summary(thread, access_context))
+            if len(summaries) >= _bounded_int(limit, default=20, maximum=INBOUND_THREAD_RETURN_LIMIT):
+                break
+        return {
+            "answer": summaries,
+            "source": "HubSpot Conversations threads API",
+            "scope": {
+                **_scope_response(scope, list(scope.get("countries", ()))),
+                "thread_status": requested_status or "ANY",
+                "inbox_id": inbox_id,
+                "associated_contact_id": associated_contact_id,
+                "latest_message_after": params["latestMessageTimestampAfter"],
+            },
+            "requested_limit": _bounded_int(limit, default=20, maximum=INBOUND_THREAD_RETURN_LIMIT),
+            "scanned_count": len(data.get("results", [])),
+            "returned_count": len(summaries),
+            "has_more": data.get("has_more"),
+            "truncated": bool(data.get("truncated") or inaccessible_count or unresolved_scope_count),
+            "confidence": "needs-check" if data.get("truncated") or unresolved_scope_count else "verified",
+            "caveat": (
+                "Summaries only. Use get_inbound_thread_context for one selected thread's full text; "
+                "bulk full-thread exports and phone/contact exports are intentionally not returned."
+            ),
+        }
+    except HubSpotError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email})
+
+
+@mcp.tool()
+def get_inbound_thread_context(slack_user_email: str, thread_id: str, message_limit: int = 100) -> dict[str, Any]:
+    """Read one selected HubSpot Conversations inbox thread, including full message text."""
+
+    try:
+        scope = _caller_scope(slack_user_email)
+        if scope["kind"] == "blocked":
+            return _blocked("Caller identity is not mapped to an allowed scope.", {"caller_email": slack_user_email})
+        thread = _get(f"/conversations/v3/conversations/threads/{thread_id}", {"association": "TICKET"})
+        access_context = _marketing_access_context_for_thread(thread, scope)
+        if not access_context["allowed"]:
+            return _blocked("Thread is outside caller scope or has no scoped company context.", {"caller_email": slack_user_email, "thread_id": thread_id})
+        message_data = _conversation_messages(str(thread_id), message_limit)
+        messages = [_safe_thread_message(message) for message in message_data.get("results", [])]
+        text_truncated = any(message.get("text_truncated") for message in messages)
+        return {
+            "answer": {
+                "thread": _safe_thread_summary(thread, access_context),
+                "messages": messages,
+                "message_count": len(messages),
+                "full_text_scope": "single_selected_thread_only",
+                "will_mutate_hubspot": False,
+            },
+            "source": "HubSpot Conversations thread and messages API",
+            "scope": {
+                **_scope_response(scope, list(scope.get("countries", ()))),
+                "thread_id": str(thread_id),
+                "message_limit": _bounded_int(message_limit, default=100, maximum=INBOUND_MESSAGE_RETURN_LIMIT),
+            },
+            "requested_limit": message_data.get("requested_limit"),
+            "returned_count": message_data.get("returned_count"),
+            "has_more": message_data.get("has_more"),
+            "truncated": bool(message_data.get("truncated") or text_truncated),
+            "confidence": "needs-check" if message_data.get("truncated") or text_truncated else "verified",
+            "caveat": "Full text is returned for this one selected thread only. Attachments are counted but not fetched, and no HubSpot mutation or external message send is performed.",
+        }
+    except HubSpotError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email, "thread_id": thread_id})
+
+
+@mcp.tool()
+def list_marketing_campaigns(
+    slack_user_email: str,
+    name: str = "",
+    status: str = "",
+    start_date: str = "",
+    end_date: str = "",
+    limit: int = 20,
+) -> dict[str, Any]:
+    """List HubSpot marketing campaigns for manager/admin campaign triage."""
+
+    try:
+        scope = _caller_scope(slack_user_email)
+        if scope["kind"] == "blocked":
+            return _blocked("Caller identity is not mapped to an allowed scope.", {"caller_email": slack_user_email})
+        blocked = _require_marketing_manager_or_admin(scope, slack_user_email)
+        if blocked:
+            return blocked
+        data = _marketing_campaign_search(name, status, start_date, end_date, limit)
+        campaigns = [_campaign_summary(campaign) for campaign in data.get("results", [])]
+        return {
+            "answer": campaigns,
+            "source": "HubSpot Marketing Campaigns API",
+            "scope": {
+                **_scope_response(scope, list(scope.get("countries", ()))),
+                "name": name,
+                "status": status,
+                "start_date": start_date,
+                "end_date": end_date,
+            },
+            **_search_metadata(data),
+            "confidence": "needs-check" if data.get("truncated") else "verified",
+            "caveat": "Read-only campaign metadata. Use get_campaign_assets for associated forms, pages, emails, SMS/social, and podcast episodes.",
+        }
+    except HubSpotError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email})
+
+
+@mcp.tool()
+def get_campaign_assets(
+    slack_user_email: str,
+    campaign_id: str,
+    asset_types: list[str] | None = None,
+    start_date: str = "",
+    end_date: str = "",
+    limit: int = 50,
+) -> dict[str, Any]:
+    """Read HubSpot campaign assets and available metrics for selected asset types."""
+
+    try:
+        scope = _caller_scope(slack_user_email)
+        if scope["kind"] == "blocked":
+            return _blocked("Caller identity is not mapped to an allowed scope.", {"caller_email": slack_user_email})
+        blocked = _require_marketing_manager_or_admin(scope, slack_user_email)
+        if blocked:
+            return blocked
+        campaign = _get_campaign(str(campaign_id))
+        asset_data = _campaign_assets(str(campaign_id), asset_types, start_date, end_date, limit)
+        includes_no_metric_assets = any(asset_type in NO_METRIC_CAMPAIGN_ASSET_TYPES for asset_type in asset_data.get("asset_types", []))
+        return {
+            "answer": {
+                "campaign": _campaign_summary(campaign),
+                **asset_data,
+                "will_mutate_hubspot": False,
+            },
+            "source": "HubSpot Marketing Campaigns assets API",
+            "scope": {
+                **_scope_response(scope, list(scope.get("countries", ()))),
+                "campaign_id": str(campaign_id),
+                "start_date": start_date,
+                "end_date": end_date,
+            },
+            "confidence": "needs-check" if asset_data.get("truncated") or includes_no_metric_assets else "verified",
+            "caveat": "Podcast episodes and several HubSpot campaign asset types have no metrics available; association evidence is not proof of contact engagement.",
+        }
+    except HubSpotError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email, "campaign_id": campaign_id})
+
+
+@mcp.tool()
+def get_marketing_touch_context(
+    slack_user_email: str,
+    thread_id: str = "",
+    contact_id: str = "",
+    company_id: str = "",
+    campaign_id: str = "",
+    campaign_name: str = "",
+    include_recent_threads: bool = True,
+) -> dict[str, Any]:
+    """Combine scoped inbound, contact/company source fields, campaign, and podcast association context."""
+
+    try:
+        scope = _caller_scope(slack_user_email)
+        if scope["kind"] == "blocked":
+            return _blocked("Caller identity is not mapped to an allowed scope.", {"caller_email": slack_user_email})
+        if not any([thread_id, contact_id, company_id, campaign_id, campaign_name]):
+            return _blocked("Provide a thread_id, contact_id, company_id, campaign_id, or campaign_name.", {"caller_email": slack_user_email})
+
+        thread_summary: dict[str, Any] = {}
+        contact: dict[str, Any] | None = None
+        companies: list[dict[str, Any]] = []
+
+        if thread_id:
+            thread = _get(f"/conversations/v3/conversations/threads/{thread_id}", {"association": "TICKET"})
+            access_context = _marketing_access_context_for_thread(thread, scope)
+            if not access_context["allowed"]:
+                return _blocked("Thread is outside caller scope or has no scoped company context.", {"caller_email": slack_user_email, "thread_id": thread_id})
+            thread_summary = _safe_thread_summary(thread, access_context)
+            contact = access_context.get("contact")
+            companies = access_context.get("companies", [])
+            contact_id = contact_id or str(access_context.get("associated_contact_id") or "")
+
+        if contact_id and contact is None:
+            contact_access = _marketing_access_context_for_contact(str(contact_id), scope)
+            if not contact_access["allowed"]:
+                return _blocked("Contact is outside caller scope or has no scoped company context.", {"caller_email": slack_user_email, "contact_id": contact_id})
+            contact = contact_access.get("contact")
+            companies = contact_access.get("companies", [])
+
+        if company_id:
+            company = _read_marketing_company(str(company_id))
+            if not company or not _has_marketing_company_access(company, scope):
+                return _blocked("Company is outside caller marketing scope.", {"caller_email": slack_user_email, "company_id": company_id})
+            if str(company.get("id") or "") not in {str(item.get("id") or "") for item in companies}:
+                companies.append(company)
+
+        recent_threads = []
+        if include_recent_threads and contact_id:
+            recent_data = _conversation_threads(
+                {
+                    "associatedContactId": str(contact_id),
+                    "association": "TICKET",
+                    "archived": "false",
+                    "sort": "latestMessageTimestamp",
+                    "latestMessageTimestampAfter": _default_latest_message_after(),
+                },
+                5,
+            )
+            for recent_thread in sorted(recent_data.get("results", []), key=_thread_sort_value, reverse=True):
+                recent_access = _marketing_access_context_for_thread(recent_thread, scope)
+                if recent_access["allowed"]:
+                    recent_threads.append(_safe_thread_summary(recent_thread, recent_access))
+
+        contact_source_fields = _marketing_signal_fields(contact.get("properties", {})) if contact else {}
+        company_source_fields = [
+            {
+                "company_id": str(company.get("id") or ""),
+                "fields": _marketing_signal_fields(company.get("properties", {})),
+            }
+            for company in companies
+        ]
+
+        campaign_query = _candidate_campaign_query(contact, companies, campaign_name)
+        campaigns = []
+        podcast_assets = []
+        selected_campaign_ids = [str(campaign_id)] if campaign_id else []
+        if campaign_query and not selected_campaign_ids:
+            campaign_data = _marketing_campaign_search(campaign_query, limit=3)
+            selected_campaign_ids = [str(campaign.get("id") or "") for campaign in campaign_data.get("results", []) if campaign.get("id")]
+            campaigns.extend([_campaign_summary(campaign) for campaign in campaign_data.get("results", [])])
+        if campaign_id:
+            campaign = _get_campaign(str(campaign_id))
+            campaigns.append(_campaign_summary(campaign))
+        for selected_campaign_id in selected_campaign_ids[:3]:
+            asset_data = _campaign_assets(selected_campaign_id, ["PODCAST_EPISODE"], limit=20)
+            podcast_assets.append(
+                {
+                    "campaign_id": selected_campaign_id,
+                    "assets": asset_data.get("assets_by_type", {}).get("PODCAST_EPISODE", {}).get("assets", []),
+                    "metrics_caveat": "HubSpot Campaigns API reports no metrics for PODCAST_EPISODE assets.",
+                }
+            )
+
+        return {
+            "answer": {
+                "thread": thread_summary,
+                "contact": _safe_marketing_contact_summary(contact),
+                "companies": [_safe_marketing_company_summary(company) for company in companies],
+                "contact_source_fields": contact_source_fields,
+                "company_source_fields": company_source_fields,
+                "recent_threads": recent_threads,
+                "campaigns": campaigns,
+                "podcast_campaign_evidence": podcast_assets,
+                "will_mutate_hubspot": False,
+            },
+            "source": "HubSpot Conversations, CRM, and Marketing Campaigns APIs",
+            "scope": {
+                **_scope_response(scope, list(scope.get("countries", ()))),
+                "thread_id": thread_id,
+                "contact_id": contact_id,
+                "company_id": company_id,
+                "campaign_id": campaign_id,
+                "campaign_name": campaign_name,
+            },
+            "confidence": "needs-check",
+            "caveat": "Marketing source fields and podcast campaign assets are attribution signals. Podcast asset association is not proof of contact engagement, and no HubSpot mutation or external message send is performed.",
+        }
+    except HubSpotError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email})
 
 
 @mcp.tool()

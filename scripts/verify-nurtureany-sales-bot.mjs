@@ -109,6 +109,11 @@ if (!existsSync(manifestPath)) {
     }
 
     const expectedReadTools = [
+      "list_inbound_threads",
+      "get_inbound_thread_context",
+      "list_marketing_campaigns",
+      "get_campaign_assets",
+      "get_marketing_touch_context",
       "list_my_target_accounts",
       "list_team_target_accounts",
       "audit_hubspot_owner_roster",
@@ -132,6 +137,7 @@ if (!existsSync(manifestPath)) {
       "list_google_calendar_events",
       "audit_google_calendar_meeting_quality",
       "list_luma_events",
+      "get_luma_event_match_keys",
       "get_luma_event_context",
       "resolve_known_area_for_near_me",
       "build_near_me_outlet_matches_query",
@@ -291,6 +297,7 @@ if (!existsSync(manifestPath)) {
       fail("Manifest Luma must map Jakarta location tag to Indonesia");
     }
     if (!manifest.luma?.allowed_tools?.includes("list_luma_events")) fail("Manifest Luma missing list_luma_events tool");
+    if (!manifest.luma?.allowed_tools?.includes("get_luma_event_match_keys")) fail("Manifest Luma missing get_luma_event_match_keys tool");
     if (!manifest.luma?.allowed_tools?.includes("get_luma_event_context")) fail("Manifest Luma missing get_luma_event_context tool");
     if (manifest.luma?.requires_scoped_hubspot_companies !== true) {
       fail("Manifest Luma requires_scoped_hubspot_companies must be true");
@@ -375,6 +382,8 @@ const filesToScan = [
   "runtime/mcp/lusha_nurtureany_server.py",
   "runtime/mcp/test_lusha_nurtureany_server.py",
   "runtime/health-checks.md",
+  "runtime/check-health.sh",
+  "runtime/audit-live-profile.sh",
   "tests/regression-cases.md"
 ];
 
@@ -386,6 +395,9 @@ for (const relPath of filesToScan) {
 const configText = textOf("profile/config.template.yaml");
 if (!configText.includes('provider: "anthropic"')) fail("config.template.yaml must set model.provider to anthropic");
 if (!configText.includes('default: "claude-sonnet-4-6"')) fail("config.template.yaml must set model.default to claude-sonnet-4-6");
+if (!configText.includes("interim_assistant_messages: false")) fail("config.template.yaml must disable interim assistant messages");
+if (!configText.includes("reactions: false")) fail("config.template.yaml must disable Slack reactions");
+if (!configText.includes("dispatch_in_gateway: false")) fail("config.template.yaml must disable kanban dispatch in gateway");
 if (configText.includes("OPENAI_API_KEY")) fail("config.template.yaml must not configure OpenAI API key routing");
 if (configText.includes('base_url: "https://api.openai.com/v1"')) fail("config.template.yaml must not configure OpenAI API base_url");
 for (const text of [
@@ -443,6 +455,7 @@ for (const text of [
   "runtime/mcp/luma_nurtureany_server.py",
   "checked_in_at_present",
   "list_luma_events",
+  "get_luma_event_match_keys",
   "get_luma_event_context",
   "near_me_nurtureany",
   "GOOGLE_PLACES_API_KEY",
@@ -572,6 +585,7 @@ for (const text of [
   "owner email as a Google Calendar `calendar_ids` entry",
   "Confidence: blocked",
   "list_luma_events",
+  "get_luma_event_match_keys",
   "get_luma_event_context",
   "checked_in_at",
   "raw guest lists",
@@ -669,7 +683,14 @@ for (const text of [
   "confirmation_request",
   "uploader_confirmation_batches",
   "luma_event_context",
-  "auto_event_tag_status"
+  "auto_event_tag_status",
+  "list_inbound_threads",
+  "get_inbound_thread_context",
+  "list_marketing_campaigns",
+  "get_campaign_assets",
+  "get_marketing_touch_context",
+  "HubSpot Conversations",
+  "PODCAST_EPISODE"
 ]) {
   if (!hubspotServerText.includes(text)) fail(`runtime/mcp/hubspot_nurtureany_server.py missing required text: ${text}`);
 }
@@ -796,6 +817,7 @@ for (const text of [
   "GET /v1/event/get",
   "GET /v1/event/get-guests",
   "list_luma_events",
+  "get_luma_event_match_keys",
   "get_luma_event_context",
   "event_tags=[\"Singapore\", \"Sports\"]",
   "event_tags=[\"Jakarta\", \"Appreciation Afternoon\"]",
@@ -832,6 +854,7 @@ for (const text of [
   "country_filter",
   "/v1/calendar/event-tags/list",
   "list_luma_events",
+  "get_luma_event_match_keys",
   "get_luma_event_context",
   "requires scoped HubSpot company inputs",
   "checked_in_at",
@@ -890,6 +913,50 @@ for (const text of [
   "Do not run through staffany_bigquery.execute_sql_readonly"
 ]) {
   if (!nearMeSqlText.includes(text)) fail(`runtime/sql/near-me-outlet-matches.sql missing required text: ${text}`);
+}
+
+const healthText = textOf("runtime/health-checks.md");
+for (const text of [
+  "runtime/check-health.sh",
+  "runtime/audit-live-profile.sh",
+  "nurtureanysalesbot health check",
+  "nurtureanysalesbot live profile audit",
+  "--no-agent"
+]) {
+  if (!healthText.includes(text)) fail(`runtime/health-checks.md missing required text: ${text}`);
+}
+
+const healthScriptText = textOf("runtime/check-health.sh");
+for (const text of [
+  "PROFILE=\"${HERMES_PROFILE:-nurtureanysalesbot}\"",
+  "export HERMES_HOME=\"$HOME/.hermes/profiles/$PROFILE\"",
+  "EXPECT_HUBSPOT_TOOLS=\"${EXPECT_HUBSPOT_TOOLS:-25}\"",
+  "EXPECT_LUMA_TOOLS=\"${EXPECT_LUMA_TOOLS:-3}\"",
+  "EXPECT_NEAR_ME_TOOLS=\"${EXPECT_NEAR_ME_TOOLS:-5}\"",
+  "slack-display:interim-assistant-messages-not-disabled",
+  "kanban:dispatch-in-gateway-not-disabled",
+  "terminal:cwd-points-at-codex-worktree",
+  "mcp:near_me_nurtureany:missing-google-places-env",
+  "google-drive:token-permissions-not-600",
+  "mcp_test near_me_nurtureany"
+]) {
+  if (!healthScriptText.includes(text)) fail(`runtime/check-health.sh missing required text: ${text}`);
+}
+
+const auditScriptText = textOf("runtime/audit-live-profile.sh");
+for (const text of [
+  "PROFILE=\"${HERMES_PROFILE:-nurtureanysalesbot}\"",
+  "export HERMES_HOME=\"$HOME/.hermes/profiles/$PROFILE\"",
+  "NURTUREANY_APP_ROOT",
+  "/Users/leekaiyi/workspace/agent-builder-main/apps/nurtureany-sales-bot",
+  "profile-drift:soul",
+  "profile-drift:nurtureany-sales-bot-skill",
+  "profile-boundary:staffany-data-bot-skill-installed",
+  "cron:health-check-missing",
+  "cron:audit-missing",
+  "live-profile:audit-ok"
+]) {
+  if (!auditScriptText.includes(text)) fail(`runtime/audit-live-profile.sh missing required text: ${text}`);
 }
 
 const lushaText = textOf("runtime/lusha.md");

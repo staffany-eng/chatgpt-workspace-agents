@@ -60,7 +60,7 @@ class LumaNurtureAnyServerTest(unittest.TestCase):
     def test_exposes_read_only_tools_only(self):
         self.assertEqual(
             sorted(tool.__name__ for tool in self.module.mcp.tools),
-            ["get_luma_event_context", "list_luma_events"],
+            ["get_luma_event_context", "get_luma_event_match_keys", "list_luma_events"],
         )
         for forbidden in ["add", "update", "invite", "export", "create"]:
             self.assertNotIn(forbidden, " ".join(tool.__name__ for tool in self.module.mcp.tools))
@@ -625,6 +625,47 @@ class LumaNurtureAnyServerTest(unittest.TestCase):
             self.assertIn("email_domain", match)
             self.assertNotIn("email", match)
             self.assertNotIn("phone", match)
+
+    def test_luma_event_match_keys_returns_safe_company_keys_only(self):
+        def fake_request(path, params=None):
+            if path == "/v1/event/get":
+                return {
+                    "api_id": "evt-1",
+                    "name": "StaffAny Dinner",
+                    "url": "https://lu.ma/staffany-dinner",
+                    "start_at": "2026-05-10T10:00:00Z",
+                }
+            if path == "/v1/event/get-guests":
+                return {
+                    "entries": [
+                        {
+                            "name": "Owner One",
+                            "email": "owner@balibeans.com",
+                            "approval_status": "approved",
+                            "checked_in_at": "2026-05-10T10:30:00Z",
+                            "registration_answers": [{"question": "Company", "answer": "Bali Beans"}],
+                        },
+                        {
+                            "name": "Personal Mail",
+                            "email": "person@gmail.com",
+                            "registration_answers": [{"question": "Organisation", "answer": "Noci Bakehouse"}],
+                        },
+                    ],
+                    "has_more": False,
+                }
+            raise AssertionError(f"unexpected call: {path} {params}")
+
+        with patch.dict(os.environ, {"LUMA_API_KEY": "test-key"}), patch.object(
+            self.module, "_request_json", side_effect=fake_request
+        ):
+            result = self.module.get_luma_event_match_keys("ae@staffany.com", event_ids=["evt-1"])
+
+        self.assertEqual(result["confidence"], "verified")
+        keys = result["answer"][0]["match_keys"]
+        self.assertEqual(keys["email_domains"], ["balibeans.com"])
+        self.assertEqual(keys["company_name_candidates"], ["Bali Beans", "Noci Bakehouse"])
+        self.assertNotIn("owner@balibeans.com", str(result["answer"]))
+        self.assertNotIn("Owner One", str(result["answer"]))
 
     def test_guest_cap_sets_truncated_metadata(self):
         def fake_request(path, params=None):

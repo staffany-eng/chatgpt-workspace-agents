@@ -38,6 +38,8 @@
     "lusha_runtime": "runtime/lusha.md",
     "lusha_mcp": "runtime/mcp/lusha_nurtureany_server.py",
     "health_checks": "runtime/health-checks.md",
+    "health_check_script": "runtime/check-health.sh",
+    "live_profile_audit": "runtime/audit-live-profile.sh",
     "regression_cases": "tests/regression-cases.md"
   },
   "scope": {
@@ -207,6 +209,11 @@
   },
   "tools": {
     "read": [
+      "list_inbound_threads",
+      "get_inbound_thread_context",
+      "list_marketing_campaigns",
+      "get_campaign_assets",
+      "get_marketing_touch_context",
       "list_my_target_accounts",
       "list_team_target_accounts",
       "audit_hubspot_owner_roster",
@@ -230,6 +237,7 @@
       "list_google_calendar_events",
       "audit_google_calendar_meeting_quality",
       "list_luma_events",
+      "get_luma_event_match_keys",
       "get_luma_event_context",
       "resolve_known_area_for_near_me",
       "build_near_me_outlet_matches_query",
@@ -380,6 +388,7 @@
     "preferred_event_filter": "event_tags",
     "allowed_tools": [
       "list_luma_events",
+      "get_luma_event_match_keys",
       "get_luma_event_context"
     ],
     "requires_scoped_hubspot_companies": true,

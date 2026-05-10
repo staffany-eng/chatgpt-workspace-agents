@@ -10,8 +10,21 @@ security:
 
 display:
   busy_input_mode: "queue"
+  interim_assistant_messages: false
+  streaming: false
   tool_progress: "off"
   tool_preview_length: 0
+  platforms:
+    slack:
+      streaming: false
+      tool_progress: "off"
+
+slack:
+  require_mention: true
+  reactions: false
+
+kanban:
+  dispatch_in_gateway: false
 
 model:
   default: "claude-sonnet-4-6"
@@ -117,6 +130,11 @@ mcp_servers:
         "1991281569": "fei-siong-group"
     timeout: 600
     tool_allowlist:
+      - "list_inbound_threads"
+      - "get_inbound_thread_context"
+      - "list_marketing_campaigns"
+      - "get_campaign_assets"
+      - "get_marketing_touch_context"
       - "list_my_target_accounts"
       - "list_team_target_accounts"
       - "audit_hubspot_owner_roster"
@@ -360,6 +378,7 @@ mcp_servers:
       hubspot_writeback: "none"
     tool_allowlist:
       - "list_luma_events"
+      - "get_luma_event_match_keys"
       - "get_luma_event_context"
 
 gateway:

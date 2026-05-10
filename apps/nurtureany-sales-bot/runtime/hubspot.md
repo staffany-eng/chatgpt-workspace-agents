@@ -48,6 +48,11 @@ The V1 stdio MCP adapter lives at `runtime/mcp/hubspot_nurtureany_server.py`.
 
 It exposes these tools:
 
+- `list_inbound_threads`
+- `get_inbound_thread_context`
+- `list_marketing_campaigns`
+- `get_campaign_assets`
+- `get_marketing_touch_context`
 - `list_my_target_accounts`
 - `list_team_target_accounts`
 - `audit_hubspot_owner_roster`

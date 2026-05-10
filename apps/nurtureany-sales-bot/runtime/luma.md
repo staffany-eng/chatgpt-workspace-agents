@@ -16,6 +16,7 @@ Luma is an optional read-only event-context source for NurtureAny. HubSpot remai
 - Optional guest detail endpoint: `GET /v1/event/get-guest`
 - Useful tools:
   - `list_luma_events`
+  - `get_luma_event_match_keys`
   - `get_luma_event_context`
 
 The local stdio MCP adapter lives at `runtime/mcp/luma_nurtureany_server.py`.
@@ -38,6 +39,13 @@ The local stdio MCP adapter lives at `runtime/mcp/luma_nurtureany_server.py`.
 - Filters event search by Luma country/type tags before guest lookup when those filters are supplied.
 - Matches guests to scoped accounts by exact HubSpot contact email, exact company email domain, then company-name candidate match from Luma fields or registration answers.
 - Returns attendee names only for matched scoped accounts, plus email domain/hash, RSVP status, checked-in timestamp, match reason, matched account IDs, RSVP counts, checked-in count, `has_more`, and `truncated`.
+
+`get_luma_event_match_keys`:
+
+- Input: Slack user email and either selected event IDs or bounded event search filters.
+- Output: safe company email domains and company-name candidates for HubSpot target-account lookup.
+- Does not return raw attendee names, full emails, phone numbers, registration answers, or raw guest lists.
+- Use it for broad event-first matching before calling `get_luma_event_context` with scoped HubSpot candidate companies.
 
 Attendance means `checked_in_at` is present. Approved, invited, pending, waitlist, declined, and other RSVP states are not attendance.
 

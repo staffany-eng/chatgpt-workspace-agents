@@ -14,7 +14,7 @@ NurtureAny needs deterministic runtime checks because prompt correctness does no
 - HubSpot company property metadata includes `hs_is_target_account`, `hubspot_owner_id`, and `company_country`.
 - HubSpot company property metadata includes durable NurtureAny fields `contract_end_date` and `current_tools`; `current_tool_renewal_date` is present only as secondary context.
 - HubSpot `company_country` options include `Singapore`, `Malaysia`, and `Indonesia`.
-- HubSpot MCP lists `audit_priority_account_coverage`, `build_friday_sales_review`, `build_pre_demo_game_plans`, `list_sales_followup_tasks`, `check_account_followup_status`, `check_event_followup_status`, `generate_free_search_tasks`, and `review_public_enrichment_evidence` in addition to the existing queue, gap, draft, and preview tools.
+- HubSpot MCP lists inbound Conversations, Marketing Campaigns, `audit_priority_account_coverage`, `build_friday_sales_review`, `build_pre_demo_game_plans`, `list_sales_followup_tasks`, `check_account_followup_status`, `check_event_followup_status`, `generate_free_search_tasks`, and `review_public_enrichment_evidence` in addition to the existing queue, gap, draft, and preview tools.
 - HubSpot Friday review smoke check returns Hygiene Summary, Funnel Snapshot, Top Coaching Observations, Actions for Next Week, and Support Needed; blocks AE callers; enforces Kerren SG/MY and Sarah ID scope; and still returns hygiene/account coverage with `Confidence: needs-check` when QO/QO Met/deal stage config is missing.
 - HubSpot Friday review activity check counts only completed calls of at least 120 seconds as connected calls, counts warm activity from completed meetings with configured labels, and does not expose call bodies, meeting bodies, recordings, phone numbers, task/note/communication bodies, or attachments.
 - HubSpot clean-lead check treats associated contact and verified decision maker as separate required fields; `hs_num_contacts_with_buying_roles` alone is reported as hygiene, not decision-maker coverage.
@@ -50,6 +50,46 @@ NurtureAny needs deterministic runtime checks because prompt correctness does no
 - Honcho is disabled.
 
 Healthy checks print nothing and exit 0.
+
+## Commands
+
+Run the source-packet verifier from the repo root:
+
+```bash
+/Applications/Codex.app/Contents/Resources/node scripts/verify-nurtureany-sales-bot.mjs
+```
+
+Run the live health check after config, MCP, token, or gateway changes:
+
+```bash
+apps/nurtureany-sales-bot/runtime/check-health.sh
+```
+
+Run the live profile drift audit after syncing repo packet files into the Hermes profile:
+
+```bash
+apps/nurtureany-sales-bot/runtime/audit-live-profile.sh
+```
+
+## Cron Pattern
+
+Prefer Hermes `no_agent` cron for operational checks. Healthy runs should consume no model tokens and create no Slack noise.
+
+Install profile-local scripts under `~/.hermes/profiles/nurtureanysalesbot/scripts`:
+
+```bash
+mkdir -p ~/.hermes/profiles/nurtureanysalesbot/scripts
+cp apps/nurtureany-sales-bot/runtime/check-health.sh ~/.hermes/profiles/nurtureanysalesbot/scripts/nurtureanysalesbot-check-health.sh
+cp apps/nurtureany-sales-bot/runtime/audit-live-profile.sh ~/.hermes/profiles/nurtureanysalesbot/scripts/nurtureanysalesbot-audit-live-profile.sh
+hermes -p nurtureanysalesbot cron create "0 1 * * 1-5" \
+  --name "nurtureanysalesbot health check" \
+  --script nurtureanysalesbot-check-health.sh \
+  --no-agent
+hermes -p nurtureanysalesbot cron create "15 1 * * 1-5" \
+  --name "nurtureanysalesbot live profile audit" \
+  --script nurtureanysalesbot-audit-live-profile.sh \
+  --no-agent
+```
 
 ## Failure Behavior
 

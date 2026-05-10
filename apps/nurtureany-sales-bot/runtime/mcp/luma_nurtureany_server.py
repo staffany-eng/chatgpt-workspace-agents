@@ -33,6 +33,7 @@ LUMA_PAGE_LIMIT = 50
 MAX_GUESTS_PER_EVENT = 250
 DEFAULT_LOOKAHEAD_DAYS = 90
 RATE_LIMIT_BACKOFF_SECONDS = 0.25
+MATCH_KEY_LIMIT = 250
 SCOPE_SOURCE = "hubspot_nurtureany"
 
 GUEST_APPROVAL_STATUSES = (
@@ -61,6 +62,31 @@ EVENT_TYPE_ALIASES = {
 }
 COUNTRY_TAGS = ("Singapore", "Malaysia", "Indonesia")
 LOCATION_TAGS = ("Singapore", "Jakarta", "Bali", "Kuala Lumpur")
+PERSONAL_EMAIL_DOMAINS = {
+    "gmail.com",
+    "googlemail.com",
+    "yahoo.com",
+    "yahoo.com.sg",
+    "hotmail.com",
+    "outlook.com",
+    "icloud.com",
+    "me.com",
+    "live.com",
+    "aol.com",
+    "proton.me",
+    "protonmail.com",
+}
+COMPANY_QUESTION_MARKERS = (
+    "company",
+    "organisation",
+    "organization",
+    "business",
+    "brand",
+    "outlet",
+    "restaurant",
+    "employer",
+    "workplace",
+)
 LOCATION_ALIASES = {
     "singapore": "Singapore",
     "sg": "Singapore",
@@ -737,6 +763,75 @@ def _guest_text(guest: dict[str, Any]) -> str:
     return " ".join(field for field in fields if field).lower()
 
 
+def _clean_company_candidate(value: Any) -> str:
+    text = re.sub(r"\s+", " ", str(value or "").strip())
+    if not text or len(text) < 3 or len(text) > 80:
+        return ""
+    lowered = text.lower()
+    if lowered in {"none", "nil", "na", "n/a", "-", "not applicable"}:
+        return ""
+    if "@" in text or "http://" in lowered or "https://" in lowered:
+        return ""
+    return text
+
+
+def _company_answer_candidates(value: Any) -> list[str]:
+    candidates: list[str] = []
+    if isinstance(value, dict):
+        question = str(
+            value.get("question")
+            or value.get("label")
+            or value.get("title")
+            or value.get("name")
+            or value.get("field")
+            or ""
+        ).lower()
+        answer = value.get("answer") or value.get("value") or value.get("response")
+        if question and any(marker in question for marker in COMPANY_QUESTION_MARKERS):
+            cleaned = _clean_company_candidate(answer)
+            if cleaned:
+                candidates.append(cleaned)
+        for nested in value.values():
+            if isinstance(nested, (dict, list)):
+                candidates.extend(_company_answer_candidates(nested))
+    elif isinstance(value, list):
+        for item in value:
+            candidates.extend(_company_answer_candidates(item))
+    return candidates
+
+
+def _company_candidate_names_from_guest(guest: dict[str, Any]) -> list[str]:
+    raw = [
+        guest.get("company"),
+        guest.get("company_name"),
+        guest.get("companyName"),
+        guest.get("organization"),
+        guest.get("organisation"),
+    ]
+    candidates = [_clean_company_candidate(value) for value in raw]
+    candidates.extend(_company_answer_candidates(guest.get("registration_answers")))
+    candidates.extend(_company_answer_candidates(guest.get("registrationAnswers")))
+    return _unique_text([candidate for candidate in candidates if candidate])
+
+
+def _is_personal_email_domain(domain: str) -> bool:
+    return _clean_domain(domain) in PERSONAL_EMAIL_DOMAINS
+
+
+def _guest_match_keys(guests: list[dict[str, Any]]) -> dict[str, list[str]]:
+    domains: list[str] = []
+    company_names: list[str] = []
+    for guest in guests:
+        domain = _email_domain(_guest_email(guest))
+        if domain and not _is_personal_email_domain(domain):
+            domains.append(domain)
+        company_names.extend(_company_candidate_names_from_guest(guest))
+    return {
+        "email_domains": _unique_text(domains)[:MATCH_KEY_LIMIT],
+        "company_name_candidates": _unique_text(company_names)[:MATCH_KEY_LIMIT],
+    }
+
+
 def _name_match(company_name: str, guest_text: str) -> bool:
     normalized_company = re.sub(r"[^a-z0-9]+", " ", company_name.lower()).strip()
     normalized_guest = re.sub(r"[^a-z0-9]+", " ", guest_text.lower()).strip()
@@ -904,6 +999,102 @@ def list_luma_events(
         "caveat": (
             "Luma events are event context only. Use HubSpot scoped accounts before account actions. "
             "When Luma omits tags from list results, tag filters may fall back to event metadata."
+        ),
+    }
+
+
+@mcp.tool()
+def get_luma_event_match_keys(
+    slack_user_email: str,
+    event_ids: list[str] | None = None,
+    query: str = "",
+    start: str = "",
+    end: str = "",
+    max_guests_per_event: int = MAX_GUESTS_PER_EVENT,
+    country: str = "",
+    event_type: str = "",
+    location: str = "",
+    event_tags: list[str] | None = None,
+) -> dict[str, Any]:
+    """Return safe attendee-derived keys for HubSpot target-account lookup.
+
+    This is the event-first path for broad questions such as "which target
+    accounts are attending this event". It returns company domains and company
+    name candidates only, not attendee names, emails, phone numbers, raw
+    registration answers, or raw guest lists.
+    """
+
+    filters = _resolved_event_filters(country, event_type, location)
+    scope = _scope(
+        slack_user_email,
+        {
+            "event_ids": [str(event_id).strip() for event_id in (event_ids or []) if str(event_id).strip()],
+            "query": query,
+            "event_tag_filters": _event_tag_filters(event_tags, country, event_type, location),
+            "location_filter": filters["location"] or location,
+            "country_filter": filters["country"] or country,
+            "event_type_filter": filters["event_type"],
+            "max_guests_per_event": max(1, min(int(max_guests_per_event or MAX_GUESTS_PER_EVENT), MAX_GUESTS_PER_EVENT)),
+            "safety": "Safe match keys only; do not paste key lists in Slack or expose raw attendees.",
+        },
+    )
+
+    try:
+        selected_event_ids = scope["event_ids"]
+        if selected_event_ids:
+            events = [_single_event(event_id) for event_id in selected_event_ids[:MAX_EVENTS_FOR_CONTEXT]]
+            events_has_more = len(selected_event_ids) > MAX_EVENTS_FOR_CONTEXT
+            events_truncated = events_has_more
+        else:
+            events, events_has_more, events_truncated = _list_events_raw(
+                query,
+                start,
+                end,
+                MAX_EVENTS_FOR_CONTEXT,
+                country,
+                event_type,
+                location,
+                event_tags,
+            )
+
+        answer: list[dict[str, Any]] = []
+        any_truncated = events_truncated
+        tag_inference = _tag_filtered_with_inference(events, country, event_type, location, event_tags)
+        for event in events:
+            event_id = event.get("event_id", "")
+            if not event_id:
+                continue
+            guests, guests_has_more, guests_truncated = _list_guests(event_id, scope["max_guests_per_event"])
+            counts = _guest_counts(guests)
+            keys = _guest_match_keys(guests)
+            any_truncated = any_truncated or guests_truncated
+            answer.append(
+                {
+                    "event": event,
+                    "match_keys": keys,
+                    "total_guest_count": counts["total_guest_count"],
+                    "rsvp_counts": counts["rsvp_counts"],
+                    "checked_in_count": counts["checked_in_count"],
+                    "email_domain_key_count": len(keys["email_domains"]),
+                    "company_name_candidate_count": len(keys["company_name_candidates"]),
+                    "has_more": guests_has_more,
+                    "truncated": guests_truncated,
+                }
+            )
+    except LumaError as error:
+        return _blocked(str(error), scope)
+
+    return {
+        "answer": answer,
+        "source": "Luma",
+        "scope": scope,
+        "confidence": "needs-check" if any_truncated or tag_inference else "verified",
+        "has_more": events_has_more,
+        "truncated": any_truncated,
+        "caveat": (
+            "Use these safe match keys to search HubSpot target accounts, then call "
+            "get_luma_event_context with the scoped candidate companies. Do not expose "
+            "raw Luma attendees or paste key lists in Slack."
         ),
     }
 

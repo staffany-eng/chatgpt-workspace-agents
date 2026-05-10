@@ -2577,6 +2577,170 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         self.assertEqual(result["answer"]["not_found"][0]["input"], "No Such Account")
         self.assertIn("no scoped HubSpot target-account match", result["answer"]["not_found"][0]["reason"])
 
+    def test_list_inbound_threads_returns_summaries_only(self):
+        thread = {
+            "id": "thread-1",
+            "status": "OPEN",
+            "associatedContactId": "contact-1",
+            "latestMessageTimestamp": "2026-05-10T01:00:00Z",
+            "threadAssociations": {"associatedTicketId": "ticket-1"},
+        }
+        access_context = {
+            "allowed": True,
+            "contact": {"id": "contact-1", "properties": {"email": "buyer@noci.example", "firstname": "Buyer", "jobtitle": "Owner"}},
+            "companies": [
+                {
+                    "id": "company-1",
+                    "properties": {
+                        "name": "Noci Bakehouse",
+                        "domain": "noci.example",
+                        "company_country": "Singapore",
+                        "hubspot_owner_id": "owner-1",
+                        "hs_is_target_account": "true",
+                    },
+                }
+            ],
+            "scope_status": "company_scoped",
+            "associated_contact_id": "contact-1",
+            "associated_ticket_id": "ticket-1",
+        }
+
+        with patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
+            self.module,
+            "_conversation_threads",
+            return_value={"results": [thread], "requested_limit": 20, "returned_count": 1, "has_more": False, "truncated": False},
+        ), patch.object(self.module, "_marketing_access_context_for_thread", return_value=access_context):
+            result = self.module.list_inbound_threads("kerren.fong@staffany.com")
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["returned_count"], 1)
+        self.assertEqual(result["answer"][0]["thread_id"], "thread-1")
+        self.assertEqual(result["answer"][0]["contact"]["email_domain"], "noci.example")
+        self.assertNotIn("messages", result["answer"][0])
+        self.assertIn("Summaries only", result["caveat"])
+
+    def test_get_inbound_thread_context_returns_single_thread_text(self):
+        thread = {
+            "id": "thread-1",
+            "status": "OPEN",
+            "associatedContactId": "contact-1",
+            "latestMessageTimestamp": "2026-05-10T01:00:00Z",
+            "threadAssociations": {"associatedTicketId": "ticket-1"},
+        }
+        access_context = {
+            "allowed": True,
+            "contact": {"id": "contact-1", "properties": {"email": "buyer@noci.example"}},
+            "companies": [],
+            "scope_status": "unresolved_company_scope",
+            "associated_contact_id": "contact-1",
+            "associated_ticket_id": "ticket-1",
+        }
+
+        with patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
+            self.module, "_get", return_value=thread
+        ), patch.object(self.module, "_marketing_access_context_for_thread", return_value=access_context), patch.object(
+            self.module,
+            "_conversation_messages",
+            return_value={
+                "results": [{"id": "message-1", "direction": "INCOMING", "text": "Can I book a RaD demo?", "attachments": [{}]}],
+                "requested_limit": 100,
+                "returned_count": 1,
+                "has_more": False,
+                "truncated": False,
+            },
+        ):
+            result = self.module.get_inbound_thread_context("kerren.fong@staffany.com", "thread-1")
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["answer"]["full_text_scope"], "single_selected_thread_only")
+        self.assertFalse(result["answer"]["will_mutate_hubspot"])
+        self.assertEqual(result["answer"]["messages"][0]["text"], "Can I book a RaD demo?")
+        self.assertEqual(result["answer"]["messages"][0]["attachment_count"], 1)
+
+    def test_list_marketing_campaigns_blocks_ae_scope(self):
+        ae_scope = {"kind": "ae", "email": "rep@staffany.com", "countries": ("Singapore",), "owner_id": "owner-1"}
+        with patch.object(self.module, "_caller_scope", return_value=ae_scope), patch.object(
+            self.module, "_marketing_campaign_search", side_effect=AssertionError("AE must not list campaigns")
+        ):
+            result = self.module.list_marketing_campaigns("rep@staffany.com")
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("manager/admin", result["answer"])
+
+    def test_get_campaign_assets_marks_podcast_metrics_needs_check(self):
+        campaign = {"id": "campaign-1", "properties": {"hs_name": "Podcast push", "hs_campaign_status": "ACTIVE"}}
+        asset_data = {
+            "asset_types": ["PODCAST_EPISODE"],
+            "assets_by_type": {
+                "PODCAST_EPISODE": {
+                    "assets": [{"asset_type": "PODCAST_EPISODE", "asset_id": "episode-1", "name": "Founder interview"}],
+                    "returned_count": 1,
+                    "has_more": False,
+                    "truncated": False,
+                    "metrics_caveat": "No metrics available for this HubSpot campaign asset type.",
+                }
+            },
+            "requested_limit": 50,
+            "has_more": False,
+            "truncated": False,
+        }
+
+        with patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
+            self.module, "_get_campaign", return_value=campaign
+        ), patch.object(self.module, "_campaign_assets", return_value=asset_data):
+            result = self.module.get_campaign_assets("kerren.fong@staffany.com", "campaign-1", ["PODCAST_EPISODE"])
+
+        self.assertEqual(result["confidence"], "needs-check")
+        self.assertFalse(result["answer"]["will_mutate_hubspot"])
+        self.assertIn("Podcast episodes", result["caveat"])
+        self.assertEqual(result["answer"]["assets_by_type"]["PODCAST_EPISODE"]["assets"][0]["asset_id"], "episode-1")
+
+    def test_get_marketing_touch_context_combines_scoped_sources_without_mutation(self):
+        contact = {
+            "id": "contact-1",
+            "properties": {
+                "email": "buyer@noci.example",
+                "recent_conversion_event_name": "NurtureAny Podcast",
+            },
+        }
+        company = {
+            "id": "company-1",
+            "properties": {
+                "name": "Noci Bakehouse",
+                "domain": "noci.example",
+                "company_country": "Singapore",
+                "hubspot_owner_id": "owner-1",
+                "hs_is_target_account": "true",
+                "campaign": "NurtureAny Podcast",
+            },
+        }
+        campaign = {"id": "campaign-1", "properties": {"hs_name": "NurtureAny Podcast"}}
+
+        with patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
+            self.module,
+            "_marketing_access_context_for_contact",
+            return_value={"allowed": True, "contact": contact, "companies": [company], "scope_status": "company_scoped"},
+        ), patch.object(
+            self.module,
+            "_conversation_threads",
+            return_value={"results": [], "requested_limit": 5, "returned_count": 0, "has_more": False, "truncated": False},
+        ), patch.object(self.module, "_marketing_campaign_search", return_value={"results": [campaign], "truncated": False}), patch.object(
+            self.module,
+            "_campaign_assets",
+            return_value={
+                "assets_by_type": {"PODCAST_EPISODE": {"assets": [{"asset_id": "episode-1", "name": "Founder interview"}]}},
+                "asset_types": ["PODCAST_EPISODE"],
+                "truncated": False,
+            },
+        ):
+            result = self.module.get_marketing_touch_context("kerren.fong@staffany.com", contact_id="contact-1")
+
+        self.assertEqual(result["confidence"], "needs-check")
+        self.assertFalse(result["answer"]["will_mutate_hubspot"])
+        self.assertEqual(result["answer"]["contact"]["email_domain"], "noci.example")
+        self.assertEqual(result["answer"]["campaigns"][0]["campaign_id"], "campaign-1")
+        self.assertEqual(result["answer"]["podcast_campaign_evidence"][0]["assets"][0]["asset_id"], "episode-1")
+
     def test_manager_cannot_create_writeback_preview(self):
         with patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
             self.module, "_assert_company_access", side_effect=AssertionError("manager preview should stop before company lookup")
