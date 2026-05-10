@@ -52,7 +52,9 @@ It exposes these tools:
 - `get_inbound_thread_context`
 - `list_marketing_campaigns`
 - `get_campaign_assets`
+- `get_campaign_social_effectiveness`
 - `get_marketing_touch_context`
+- `get_marketing_campaign_attribution`
 - `list_my_target_accounts`
 - `list_team_target_accounts`
 - `audit_hubspot_owner_roster`
@@ -118,6 +120,26 @@ Post-event follow-up status uses safe HubSpot timeline evidence only. Count asso
 Friday sales review uses the same scoped association discipline, plus HubSpot calls and meetings. Connected calls are completed calls with `hs_call_duration >= 120000` milliseconds. Warm activity points are completed meetings whose title or activity type matches configured labels: HHH, LL, coffee, lunch, dinner, cosy, ABM, event, appreciation afternoon, or sports. QO, QO Met, and closed-won counts require runtime stage config through `NURTUREANY_QO_PIPELINE_IDS`, `NURTUREANY_QO_STAGE_IDS`, `NURTUREANY_QO_MET_STAGE_IDS`, and `NURTUREANY_CLOSED_WON_STAGE_IDS`; when missing, return hygiene and account coverage with `Confidence: needs-check`.
 
 ## Tool Behavior
+
+`list_marketing_campaigns` / `get_campaign_assets`:
+
+- Input: manager/admin Slack user email plus campaign name/ID and optional date filters.
+- Output: read-only HubSpot campaign metadata and bounded asset summaries.
+- Must not imply form submissions, QO, QO Met, closed-won, pipeline, or revenue attribution from campaign asset association alone.
+
+`get_campaign_social_effectiveness`:
+
+- Input: manager/admin Slack user email plus campaign ID, campaign name, or campaign date filters.
+- Output: aggregate HubSpot social connected-account counts, `SOCIAL_BROADCAST` click metrics, top clicked post summaries capped at 10, podcast asset count, and metric window.
+- Social clicks are engagement evidence only. Do not expose raw social channel IDs, dump all campaign posts, scrape native social platforms, mutate HubSpot, or claim QO/closed-won proof.
+
+`get_marketing_campaign_attribution`:
+
+- Input: manager/admin Slack user email plus campaign ID, campaign name, or campaign UTM.
+- Output: bounded search of HubSpot contact marketing source fields, scoped contact/company summaries, and associated deal-stage counts.
+- Search source fields such as `utm_campaign`, conversion-event names, and analytics source data; never expose raw PII, raw form submissions, raw contact rows, or mutation tools.
+- QO, QO Met, and closed-won counts are valid only when `NURTUREANY_QO_PIPELINE_IDS`, `NURTUREANY_QO_STAGE_IDS`, `NURTUREANY_QO_MET_STAGE_IDS`, and `NURTUREANY_CLOSED_WON_STAGE_IDS` are configured. Without that config, return `Confidence: needs-check`.
+- Do not use generic `build_sales_metric_actuals_query` QO totals as campaign attribution. Use BigQuery only after a purpose-built, schema-inspected campaign/UTM query is available.
 
 `list_my_target_accounts`:
 

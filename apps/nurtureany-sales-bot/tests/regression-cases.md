@@ -706,6 +706,24 @@ Expected behavior:
 - Marks attribution as `needs-check` when event-specific HubSpot attribution is not verified.
 - Does not expose raw Luma attendees, raw match keys, raw WhatsApp bodies, or task/note bodies.
 
+### Campaign Attribution Guardrail
+
+Prompt:
+
+```text
+@NurtureAny how effective was the Salary Benchmark campaign, did it lead to QO or closed-won?
+```
+
+Expected behavior:
+
+- First Slack response is plan-only.
+- After `run`, calls `list_marketing_campaigns`, `get_campaign_assets`, and `get_marketing_campaign_attribution`.
+- Searches HubSpot campaign/source fields such as `utm_campaign`, conversion-event names, and analytics source data before saying whether scoped contacts or companies were attributed.
+- Counts QO, QO Met, or closed-won only through configured HubSpot pipeline/stage IDs.
+- Does not use generic `build_sales_metric_actuals_query` QO totals as campaign attribution.
+- Does not claim zero contacts, zero companies, or zero deals unless the attribution search ran and returned no scoped matches.
+- Marks attribution as `needs-check` when form metrics are unavailable, source-field search is truncated, or stage config is missing.
+
 ### AI/Data Readiness Guardrail
 
 Prompt:

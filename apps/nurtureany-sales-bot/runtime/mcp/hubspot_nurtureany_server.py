@@ -190,6 +190,23 @@ MARKETING_CAMPAIGN_ASSET_TYPES = (
 
 NO_METRIC_CAMPAIGN_ASSET_TYPES = {"PODCAST_EPISODE", "AD_CAMPAIGN", "MEDIA", "PLAYBOOK", "SALES_DOCUMENT", "EMAIL", "SEQUENCE"}
 
+SOCIAL_CLICK_METRIC_KEYS = {
+    "facebook": "FACEBOOK_CLICKS",
+    "linkedin": "LINKEDIN_CLICKS",
+    "twitter": "TWITTER_CLICKS",
+}
+
+MARKETING_ATTRIBUTION_SEARCH_PROPERTIES = (
+    "utm_campaign",
+    "abm_campaign_tag",
+    "first_conversion_event_name",
+    "recent_conversion_event_name",
+    "hs_analytics_source_data_1",
+    "hs_analytics_source_data_2",
+    "hs_latest_source_data_1",
+    "hs_latest_source_data_2",
+)
+
 COMMUNICATION_PROPERTIES = [
     "hs_timestamp",
     "hubspot_owner_id",
@@ -266,6 +283,10 @@ INBOUND_THREAD_RETURN_LIMIT = 50
 INBOUND_MESSAGE_RETURN_LIMIT = 100
 MARKETING_CAMPAIGN_RETURN_LIMIT = 100
 CAMPAIGN_ASSET_RETURN_LIMIT = 100
+CAMPAIGN_SOCIAL_ASSET_RETURN_LIMIT = 1000
+SOCIAL_TOP_POST_RETURN_LIMIT = 10
+MARKETING_ATTRIBUTION_RETURN_LIMIT = 100
+MARKETING_ATTRIBUTION_TERM_LIMIT = 10
 MESSAGE_TEXT_LIMIT = 4000
 PRIORITY_ACCOUNT_RETURN_LIMIT = 1000
 PRIORITY_ACCOUNT_LOCKED_POOL_BASELINE = 150
@@ -1974,6 +1995,18 @@ def _int_value(value: Any) -> int:
         return int(value or 0)
     except (TypeError, ValueError):
         return 0
+
+
+def _number_value(value: Any) -> float:
+    if isinstance(value, dict):
+        for key in ("value", "total", "count"):
+            if key in value:
+                return _number_value(value.get(key))
+        return 0.0
+    try:
+        return float(value or 0)
+    except (TypeError, ValueError):
+        return 0.0
 
 
 def _date_value(value: str | None) -> date | None:
@@ -6219,6 +6252,156 @@ def _campaign_assets(campaign_id: str, asset_types: list[str] | None = None, sta
     }
 
 
+def _safe_social_channel(channel: dict[str, Any]) -> dict[str, str]:
+    channel_key = str(channel.get("channelKey") or channel.get("channel") or "")
+    network = channel_key.split(":", 1)[0] if channel_key else str(channel.get("network") or "")
+    return {
+        "name": str(channel.get("name") or ""),
+        "network": network,
+    }
+
+
+def _hubspot_social_channels() -> dict[str, Any]:
+    data = _get("/broadcast/v1/channels/setting/publish/current")
+    channels = data if isinstance(data, list) else data.get("results", []) if isinstance(data, dict) else []
+    safe_channels = [_safe_social_channel(channel) for channel in channels if isinstance(channel, dict)]
+    counts_by_network: dict[str, int] = {}
+    for channel in safe_channels:
+        network = channel.get("network") or "unknown"
+        counts_by_network[network] = counts_by_network.get(network, 0) + 1
+    return {
+        "connected_count": len(safe_channels),
+        "accounts": safe_channels,
+        "counts_by_network": counts_by_network,
+        "privacy": "Raw social channel IDs are intentionally not returned.",
+    }
+
+
+def _campaign_asset_metric_window(
+    campaign: dict[str, Any],
+    start_date: str = "",
+    end_date: str = "",
+    fallback_days: int = 730,
+) -> dict[str, Any]:
+    summary = _campaign_summary(campaign)
+    today = datetime.now(timezone.utc).date()
+    explicit_start = bool(str(start_date or "").strip())
+    explicit_end = bool(str(end_date or "").strip())
+    parsed_start = _date_value(start_date) if explicit_start else None
+    parsed_end = _date_value(end_date) if explicit_end else None
+    caveats: list[str] = []
+
+    if explicit_start and not parsed_start:
+        caveats.append("Provided start_date could not be parsed; campaign/default metric window was used.")
+    if explicit_end and not parsed_end:
+        caveats.append("Provided end_date could not be parsed; campaign/default metric window was used.")
+
+    end = parsed_end or _date_value(summary.get("end_date")) or today
+    start = parsed_start or _date_value(summary.get("start_date")) or _date_value(summary.get("created_at"))
+    source = "explicit" if parsed_start or parsed_end else "campaign_dates"
+    if not start:
+        start = end - timedelta(days=fallback_days)
+        source = "fallback_last_730_days"
+        caveats.append("Campaign start/created date was missing; social metric window used the last 730 days.")
+    if start > end:
+        start = end
+        caveats.append("Metric window start was after end; start was clamped to the end date.")
+    return {
+        "start_date": start.isoformat(),
+        "end_date": end.isoformat(),
+        "source": source,
+        "confidence": "needs-check" if caveats else "verified",
+        "caveat": " ".join(caveats),
+    }
+
+
+def _social_click_metrics(metrics: dict[str, Any]) -> dict[str, Any]:
+    clicks_by_network = {
+        network: int(_number_value(metrics.get(metric_key)))
+        for network, metric_key in SOCIAL_CLICK_METRIC_KEYS.items()
+    }
+    return {
+        "clicks_by_network": clicks_by_network,
+        "total_clicks": sum(clicks_by_network.values()),
+    }
+
+
+def _safe_social_asset_summary(asset: dict[str, Any]) -> dict[str, Any]:
+    props = asset.get("properties", {}) if isinstance(asset.get("properties"), dict) else {}
+    metrics = asset.get("metrics") or asset.get("performanceMetrics") or props.get("metrics") or {}
+    if not isinstance(metrics, dict):
+        metrics = {}
+    name = str(asset.get("name") or asset.get("title") or asset.get("messageText") or props.get("hs_name") or props.get("name") or "")
+    name = re.sub(r"\s+", " ", name).strip()
+    metric_summary = _social_click_metrics(metrics)
+    return {
+        "asset_id": str(asset.get("id") or asset.get("assetId") or props.get("hs_object_id") or ""),
+        "name": name[:180],
+        **metric_summary,
+        "metrics_available": bool(metrics),
+        "metrics_source": "HubSpot Campaigns assets API SOCIAL_BROADCAST metrics",
+    }
+
+
+def _campaign_social_assets(campaign_id: str, start_date: str, end_date: str, limit: int = CAMPAIGN_SOCIAL_ASSET_RETURN_LIMIT) -> dict[str, Any]:
+    requested_limit = _bounded_int(
+        limit,
+        default=CAMPAIGN_SOCIAL_ASSET_RETURN_LIMIT,
+        maximum=CAMPAIGN_SOCIAL_ASSET_RETURN_LIMIT,
+    )
+    assets: list[dict[str, Any]] = []
+    next_after = ""
+    while len(assets) < requested_limit:
+        params = {
+            "limit": str(min(100, requested_limit - len(assets))),
+            "startDate": start_date,
+            "endDate": end_date,
+        }
+        if next_after:
+            params["after"] = next_after
+        page = _get(f"/marketing/v3/campaigns/{campaign_id}/assets/SOCIAL_BROADCAST", params)
+        raw_assets = page.get("results", []) if isinstance(page.get("results"), list) else []
+        assets.extend(_safe_social_asset_summary(asset) for asset in raw_assets if isinstance(asset, dict))
+        next_after = str(page.get("paging", {}).get("next", {}).get("after") or "")
+        if not raw_assets or not next_after:
+            break
+    return {
+        "assets": assets[:requested_limit],
+        "requested_limit": requested_limit,
+        "returned_count": min(len(assets), requested_limit),
+        "has_more": bool(next_after),
+        "truncated": bool(next_after),
+    }
+
+
+def _campaign_social_effectiveness_summary(asset_data: dict[str, Any]) -> dict[str, Any]:
+    clicks_by_network = {network: 0 for network in SOCIAL_CLICK_METRIC_KEYS}
+    posts_with_clicks = 0
+    for asset in asset_data.get("assets", []):
+        total_clicks = _int_value(asset.get("total_clicks"))
+        if total_clicks > 0:
+            posts_with_clicks += 1
+        for network in clicks_by_network:
+            clicks_by_network[network] += _int_value(asset.get("clicks_by_network", {}).get(network))
+    top_posts = sorted(
+        [asset for asset in asset_data.get("assets", []) if _int_value(asset.get("total_clicks")) > 0],
+        key=lambda asset: _int_value(asset.get("total_clicks")),
+        reverse=True,
+    )[:SOCIAL_TOP_POST_RETURN_LIMIT]
+    return {
+        "asset_count": asset_data.get("returned_count", 0),
+        "posts_with_clicks": posts_with_clicks,
+        "clicks_by_network": clicks_by_network,
+        "total_clicks": sum(clicks_by_network.values()),
+        "top_posts": top_posts,
+        "top_post_limit": SOCIAL_TOP_POST_RETURN_LIMIT,
+        "metrics_source": "HubSpot Campaigns assets API SOCIAL_BROADCAST metrics",
+        "has_more": bool(asset_data.get("has_more")),
+        "truncated": bool(asset_data.get("truncated")),
+        "privacy": "Aggregate social metrics only. Raw channel IDs and bulk post exports are intentionally not returned.",
+    }
+
+
 def _require_marketing_manager_or_admin(scope: dict[str, Any], slack_user_email: str) -> dict[str, Any] | None:
     if scope["kind"] in {"admin", "manager"}:
         return None
@@ -6244,6 +6427,174 @@ def _candidate_campaign_query(contact: dict[str, Any] | None, companies: list[di
             if value:
                 return value
     return ""
+
+
+def _campaign_readable_text(value: str) -> str:
+    text = re.sub(r"[_-]+", " ", str(value or ""))
+    text = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def _add_marketing_attribution_term(terms: list[str], seen: set[str], value: Any) -> None:
+    text = re.sub(r"\s+", " ", str(value or "").strip())
+    if not text:
+        return
+    key = _normalize_name(text)
+    if not key or key in seen:
+        return
+    terms.append(text)
+    seen.add(key)
+
+
+def _campaign_attribution_terms(
+    campaign: dict[str, Any],
+    explicit_utm: str = "",
+    explicit_name: str = "",
+    asset_data: dict[str, Any] | None = None,
+) -> list[str]:
+    terms: list[str] = []
+    seen: set[str] = set()
+    seed_values = [
+        explicit_utm,
+        explicit_name,
+        campaign.get("utm"),
+        campaign.get("name"),
+    ]
+    for value in seed_values:
+        text = str(value or "").strip()
+        if not text:
+            continue
+        _add_marketing_attribution_term(terms, seen, text)
+        stripped = re.sub(r"^\d+[-_]+", "", text)
+        _add_marketing_attribution_term(terms, seen, stripped)
+        _add_marketing_attribution_term(terms, seen, _campaign_readable_text(stripped))
+        _add_marketing_attribution_term(terms, seen, _normalize_name(stripped))
+
+    assets_by_type = (asset_data or {}).get("assets_by_type", {})
+    for asset_type_data in assets_by_type.values():
+        for asset in asset_type_data.get("assets", []) if isinstance(asset_type_data, dict) else []:
+            _add_marketing_attribution_term(terms, seen, asset.get("name"))
+            if len(terms) >= MARKETING_ATTRIBUTION_TERM_LIMIT:
+                return terms[:MARKETING_ATTRIBUTION_TERM_LIMIT]
+
+    for value in seed_values:
+        for word in _normalize_name(str(value or "")).split():
+            if len(word) >= 5 and not word.isdigit():
+                _add_marketing_attribution_term(terms, seen, word)
+            if len(terms) >= MARKETING_ATTRIBUTION_TERM_LIMIT:
+                return terms[:MARKETING_ATTRIBUTION_TERM_LIMIT]
+    return terms[:MARKETING_ATTRIBUTION_TERM_LIMIT]
+
+
+def _marketing_contact_campaign_search(terms: list[str], limit: int = 50) -> dict[str, Any]:
+    requested_limit = _bounded_int(limit, default=50, maximum=MARKETING_ATTRIBUTION_RETURN_LIMIT)
+    contacts_by_id: dict[str, dict[str, Any]] = {}
+    search_runs: list[dict[str, Any]] = []
+    errors: list[dict[str, str]] = []
+    truncated = False
+
+    for property_name in MARKETING_ATTRIBUTION_SEARCH_PROPERTIES:
+        for term in terms:
+            if len(contacts_by_id) >= requested_limit:
+                truncated = True
+                break
+            remaining = requested_limit - len(contacts_by_id)
+            body = {
+                "filterGroups": [
+                    {
+                        "filters": [
+                            {
+                                "propertyName": property_name,
+                                "operator": "CONTAINS_TOKEN",
+                                "value": term,
+                            }
+                        ]
+                    }
+                ],
+                "properties": MARKETING_CONTACT_PROPERTIES,
+                "limit": min(HUBSPOT_SEARCH_PAGE_LIMIT, remaining),
+            }
+            try:
+                data = _post("/crm/v3/objects/contacts/search", body)
+            except HubSpotError as error:
+                errors.append({"property": property_name, "term": term, "error": str(error)[:160]})
+                continue
+
+            results = data.get("results", [])
+            has_more = bool(data.get("paging", {}).get("next", {}).get("after"))
+            truncated = truncated or has_more
+            search_runs.append(
+                {
+                    "property": property_name,
+                    "term": term,
+                    "returned_count": len(results),
+                    "has_more": has_more,
+                }
+            )
+            for contact in results:
+                contact_id = str(contact.get("id") or "")
+                if contact_id and contact_id not in contacts_by_id:
+                    contacts_by_id[contact_id] = contact
+                if len(contacts_by_id) >= requested_limit:
+                    truncated = True
+                    break
+        if len(contacts_by_id) >= requested_limit:
+            break
+
+    return {
+        "results": list(contacts_by_id.values())[:requested_limit],
+        "searched_properties": list(MARKETING_ATTRIBUTION_SEARCH_PROPERTIES),
+        "search_runs": search_runs,
+        "search_run_count": len(search_runs),
+        "errors": errors,
+        "requested_limit": requested_limit,
+        "returned_count": len(contacts_by_id),
+        "has_more": truncated,
+        "truncated": truncated,
+    }
+
+
+def _marketing_attribution_deal_counts(deals: list[dict[str, Any]], stage_config: dict[str, Any]) -> dict[str, Any]:
+    counts = {
+        "qos": 0,
+        "qo_met": 0,
+        "closed_won": 0,
+        "classified_deal_count": 0,
+        "stage_configured": bool(stage_config.get("configured")),
+        "safe_deals": [],
+    }
+    if not stage_config.get("configured"):
+        return counts
+
+    pipeline_ids = set(stage_config.get("pipeline_ids", set()))
+    qo_stage_ids = set(stage_config.get("qo_stage_ids", set()))
+    qo_met_stage_ids = set(stage_config.get("qo_met_stage_ids", set()))
+    closed_won_stage_ids = set(stage_config.get("closed_won_stage_ids", set()))
+
+    for deal in deals:
+        props = deal.get("properties", {})
+        pipeline_id = str(props.get("pipeline") or "")
+        stage_id = str(props.get("dealstage") or "")
+        if pipeline_ids and pipeline_id not in pipeline_ids:
+            continue
+        classifications: list[str] = []
+        if stage_id in qo_stage_ids:
+            counts["qos"] += 1
+            classifications.append("qo")
+        if stage_id in qo_met_stage_ids:
+            counts["qo_met"] += 1
+            classifications.append("qo_met")
+        if stage_id in closed_won_stage_ids:
+            counts["closed_won"] += 1
+            classifications.append("closed_won")
+        if classifications:
+            counts["classified_deal_count"] += 1
+            safe_deal = _safe_deal(deal)
+            safe_deal["pipeline"] = pipeline_id
+            safe_deal["classifications"] = classifications
+            if len(counts["safe_deals"]) < 20:
+                counts["safe_deals"].append(safe_deal)
+    return counts
 
 
 @mcp.tool()
@@ -6409,11 +6760,18 @@ def get_campaign_assets(
         if blocked:
             return blocked
         campaign = _get_campaign(str(campaign_id))
-        asset_data = _campaign_assets(str(campaign_id), asset_types, start_date, end_date, limit)
+        metric_window = _campaign_asset_metric_window(campaign, start_date, end_date)
+        asset_data = _campaign_assets(str(campaign_id), asset_types, metric_window["start_date"], metric_window["end_date"], limit)
         includes_no_metric_assets = any(asset_type in NO_METRIC_CAMPAIGN_ASSET_TYPES for asset_type in asset_data.get("asset_types", []))
+        caveats = []
+        if includes_no_metric_assets:
+            caveats.append("Podcast episodes and several HubSpot campaign asset types have no metrics available; association evidence is not proof of contact engagement.")
+        if metric_window.get("caveat"):
+            caveats.append(str(metric_window["caveat"]))
         return {
             "answer": {
                 "campaign": _campaign_summary(campaign),
+                "metric_window": metric_window,
                 **asset_data,
                 "will_mutate_hubspot": False,
             },
@@ -6421,14 +6779,117 @@ def get_campaign_assets(
             "scope": {
                 **_scope_response(scope, list(scope.get("countries", ()))),
                 "campaign_id": str(campaign_id),
-                "start_date": start_date,
-                "end_date": end_date,
+                "start_date": metric_window["start_date"],
+                "end_date": metric_window["end_date"],
             },
-            "confidence": "needs-check" if asset_data.get("truncated") or includes_no_metric_assets else "verified",
-            "caveat": "Podcast episodes and several HubSpot campaign asset types have no metrics available; association evidence is not proof of contact engagement.",
+            "confidence": "needs-check" if asset_data.get("truncated") or includes_no_metric_assets or metric_window.get("confidence") == "needs-check" else "verified",
+            "caveat": " ".join(caveats) or "Read-only campaign assets with date-windowed metrics where HubSpot exposes them.",
         }
     except HubSpotError as error:
         return _blocked(str(error), {"caller_email": slack_user_email, "campaign_id": campaign_id})
+
+
+@mcp.tool()
+def get_campaign_social_effectiveness(
+    slack_user_email: str,
+    campaign_id: str = "",
+    campaign_name: str = "",
+    start_date: str = "",
+    end_date: str = "",
+    asset_limit: int = CAMPAIGN_SOCIAL_ASSET_RETURN_LIMIT,
+) -> dict[str, Any]:
+    """Read HubSpot-connected social campaign performance for one marketing campaign."""
+
+    try:
+        scope = _caller_scope(slack_user_email)
+        if scope["kind"] == "blocked":
+            return _blocked("Caller identity is not mapped to an allowed scope.", {"caller_email": slack_user_email})
+        blocked = _require_marketing_manager_or_admin(scope, slack_user_email)
+        if blocked:
+            return blocked
+        if not campaign_id and not campaign_name:
+            return _blocked("Provide campaign_id or campaign_name for social campaign effectiveness.", _scope_response(scope, list(scope.get("countries", ()))))
+
+        selected_campaign_id = str(campaign_id or "").strip()
+        matched_campaigns: list[dict[str, Any]] = []
+        campaign_match_caveat = ""
+        if not selected_campaign_id:
+            campaign_data = _marketing_campaign_search(campaign_name, limit=3)
+            matched_campaigns = [_campaign_summary(campaign) for campaign in campaign_data.get("results", [])]
+            if not matched_campaigns:
+                return _blocked(
+                    "No HubSpot marketing campaign matched the requested campaign_name.",
+                    {**_scope_response(scope, list(scope.get("countries", ()))), "campaign_name": campaign_name},
+                )
+            selected_campaign_id = str(matched_campaigns[0].get("campaign_id") or "")
+            if len(matched_campaigns) > 1:
+                campaign_match_caveat = "Multiple campaigns matched the name; selected the first HubSpot result. Use campaign_id for exact rerun."
+
+        requested_asset_limit = _bounded_int(
+            asset_limit,
+            default=CAMPAIGN_SOCIAL_ASSET_RETURN_LIMIT,
+            maximum=CAMPAIGN_SOCIAL_ASSET_RETURN_LIMIT,
+        )
+        campaign = _get_campaign(selected_campaign_id)
+        metric_window = _campaign_asset_metric_window(campaign, start_date, end_date)
+        social_channels = _hubspot_social_channels()
+        social_asset_data = _campaign_social_assets(
+            selected_campaign_id,
+            metric_window["start_date"],
+            metric_window["end_date"],
+            requested_asset_limit,
+        )
+        social_summary = _campaign_social_effectiveness_summary(social_asset_data)
+        podcast_assets = _campaign_assets(
+            selected_campaign_id,
+            ["PODCAST_EPISODE"],
+            metric_window["start_date"],
+            metric_window["end_date"],
+            CAMPAIGN_ASSET_RETURN_LIMIT,
+        )
+        podcast_bucket = podcast_assets.get("assets_by_type", {}).get("PODCAST_EPISODE", {})
+        caveats = [
+            "Social clicks are engagement evidence only, not QO or closed-won proof.",
+            "Podcast episode assets expose association context only; they do not prove listens or engagement.",
+        ]
+        if campaign_match_caveat:
+            caveats.append(campaign_match_caveat)
+        if metric_window.get("caveat"):
+            caveats.append(str(metric_window["caveat"]))
+        if social_summary.get("truncated") or podcast_assets.get("truncated"):
+            caveats.append("One or more social/podcast asset reads hit the configured limit; counts are partial.")
+        confidence = "needs-check" if metric_window.get("confidence") == "needs-check" or social_summary.get("truncated") or podcast_assets.get("truncated") else "verified"
+
+        return {
+            "answer": {
+                "campaign": _campaign_summary(campaign),
+                "matched_campaigns": matched_campaigns,
+                "metric_window": metric_window,
+                "social_accounts": social_channels,
+                "social": social_summary,
+                "podcast_asset_count": len(podcast_bucket.get("assets", [])) if isinstance(podcast_bucket, dict) else 0,
+                "podcast_asset_has_more": bool(podcast_bucket.get("has_more")) if isinstance(podcast_bucket, dict) else False,
+                "privacy": "Aggregate social campaign metrics only. No raw channel IDs, bulk post export, native-platform scraping, or HubSpot mutation.",
+                "will_mutate_hubspot": False,
+            },
+            "source": "HubSpot Social connected accounts and HubSpot Campaigns SOCIAL_BROADCAST assets API",
+            "scope": {
+                **_scope_response(scope, list(scope.get("countries", ()))),
+                "campaign_id": selected_campaign_id,
+                "campaign_name": campaign_name,
+                "start_date": metric_window["start_date"],
+                "end_date": metric_window["end_date"],
+                "asset_limit": requested_asset_limit,
+            },
+            "requested_limit": requested_asset_limit,
+            "returned_count": social_summary.get("asset_count", 0),
+            "has_more": bool(social_summary.get("has_more") or podcast_assets.get("has_more")),
+            "truncated": bool(social_summary.get("truncated") or podcast_assets.get("truncated")),
+            "confidence": confidence,
+            "caveat": " ".join(caveats),
+        }
+    except HubSpotError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email, "campaign_id": campaign_id, "campaign_name": campaign_name})
 
 
 @mcp.tool()
@@ -6551,6 +7012,181 @@ def get_marketing_touch_context(
         }
     except HubSpotError as error:
         return _blocked(str(error), {"caller_email": slack_user_email})
+
+
+@mcp.tool()
+def get_marketing_campaign_attribution(
+    slack_user_email: str,
+    campaign_id: str = "",
+    campaign_name: str = "",
+    campaign_utm: str = "",
+    start_date: str = "",
+    end_date: str = "",
+    limit: int = 50,
+) -> dict[str, Any]:
+    """Search HubSpot source fields for campaign-touched contacts and scoped deal outcomes."""
+
+    try:
+        scope = _caller_scope(slack_user_email)
+        if scope["kind"] == "blocked":
+            return _blocked("Caller identity is not mapped to an allowed scope.", {"caller_email": slack_user_email})
+        blocked = _require_marketing_manager_or_admin(scope, slack_user_email)
+        if blocked:
+            return blocked
+        if not any([campaign_id, campaign_name, campaign_utm]):
+            return _blocked("Provide campaign_id, campaign_name, or campaign_utm.", {"caller_email": slack_user_email})
+
+        campaign: dict[str, Any] | None = None
+        candidate_campaigns: list[dict[str, Any]] = []
+        campaign_search_truncated = False
+        if campaign_id:
+            campaign = _get_campaign(str(campaign_id))
+        else:
+            campaign_query = str(campaign_name or campaign_utm or "").strip()
+            campaign_data = _marketing_campaign_search(campaign_query, start_date=start_date, end_date=end_date, limit=5)
+            candidate_campaigns = [_campaign_summary(item) for item in campaign_data.get("results", [])]
+            campaign_search_truncated = bool(campaign_data.get("truncated"))
+            for item in campaign_data.get("results", []):
+                summary = _campaign_summary(item)
+                if campaign_utm and summary.get("utm") == campaign_utm:
+                    campaign = item
+                    break
+                if campaign_name and _normalize_name(summary.get("name", "")) == _normalize_name(campaign_name):
+                    campaign = item
+                    break
+            if campaign is None and len(campaign_data.get("results", [])) == 1:
+                campaign = campaign_data["results"][0]
+
+        selected_campaign = _campaign_summary(campaign) if campaign else {
+            "campaign_id": str(campaign_id or ""),
+            "name": str(campaign_name or ""),
+            "status": "",
+            "start_date": "",
+            "end_date": "",
+            "audience": "",
+            "utm": str(campaign_utm or ""),
+            "owner_id": "",
+            "created_at": "",
+            "updated_at": "",
+        }
+
+        selected_campaign_id = str(campaign_id or selected_campaign.get("campaign_id") or "")
+        asset_data = {
+            "asset_types": [],
+            "assets_by_type": {},
+            "requested_limit": _bounded_int(limit, default=50, maximum=CAMPAIGN_ASSET_RETURN_LIMIT),
+            "has_more": False,
+            "truncated": False,
+        }
+        if selected_campaign_id:
+            asset_data = _campaign_assets(selected_campaign_id, limit=min(_bounded_int(limit, default=50), CAMPAIGN_ASSET_RETURN_LIMIT))
+
+        terms = _campaign_attribution_terms(selected_campaign, campaign_utm, campaign_name, asset_data)
+        if not terms:
+            return _blocked(
+                "No usable campaign name or UTM terms were available for attribution search.",
+                {"caller_email": slack_user_email, "campaign_id": selected_campaign_id, "campaign_name": campaign_name, "campaign_utm": campaign_utm},
+            )
+
+        contact_data = _marketing_contact_campaign_search(terms, limit)
+        matched_contacts: list[dict[str, Any]] = []
+        scoped_companies: dict[str, dict[str, Any]] = {}
+        inaccessible_contact_count = 0
+        unresolved_contact_count = 0
+
+        for contact in contact_data.get("results", []):
+            contact_id_value = str(contact.get("id") or "")
+            access_context = _marketing_access_context_for_contact(contact_id_value, scope)
+            if not access_context.get("allowed"):
+                inaccessible_contact_count += 1
+                continue
+            scoped_contact = access_context.get("contact") or contact
+            companies = access_context.get("companies", [])
+            if not companies:
+                unresolved_contact_count += 1
+            for company in companies:
+                company_id_value = str(company.get("id") or "")
+                if company_id_value and company_id_value not in scoped_companies:
+                    scoped_companies[company_id_value] = company
+            matched_contacts.append(
+                {
+                    **_safe_marketing_contact_summary(scoped_contact),
+                    "source_fields": _marketing_signal_fields(scoped_contact.get("properties", {})),
+                    "scoped_company_ids": [str(company.get("id") or "") for company in companies if company.get("id")],
+                }
+            )
+
+        deal_ids: list[str] = []
+        deal_association_truncated = False
+        for company_id_value in scoped_companies:
+            association_data = _association_ids_with_metadata("companies", company_id_value, "deals", TASK_ASSOCIATION_LIMIT)
+            deal_association_truncated = deal_association_truncated or bool(association_data.get("truncated"))
+            for deal_id in association_data.get("ids", []):
+                if deal_id not in deal_ids:
+                    deal_ids.append(deal_id)
+
+        deals = _batch_read("deals", deal_ids, DEAL_PROPERTIES)
+        stage_config = _friday_review_stage_config()
+        deal_counts = _marketing_attribution_deal_counts(deals, stage_config)
+
+        needs_check = bool(
+            campaign_search_truncated
+            or asset_data.get("truncated")
+            or contact_data.get("truncated")
+            or contact_data.get("errors")
+            or inaccessible_contact_count
+            or unresolved_contact_count
+            or deal_association_truncated
+            or not stage_config.get("configured")
+        )
+        caveats = [
+            "Bounded HubSpot source-field search only; this is not full multi-touch attribution or form-submission analytics.",
+        ]
+        if not stage_config.get("configured"):
+            caveats.append("QO/QO Met/closed-won counts require configured HubSpot pipeline and stage IDs.")
+        if not matched_contacts:
+            caveats.append("No scoped contacts matched the searched campaign terms; do not turn this into proof that nobody submitted the form if HubSpot form metrics are unavailable.")
+
+        return {
+            "answer": {
+                "campaign": selected_campaign,
+                "candidate_campaigns": candidate_campaigns,
+                "attribution_search": {
+                    "terms": terms,
+                    "searched_properties": contact_data.get("searched_properties", []),
+                    "search_run_count": contact_data.get("search_run_count", 0),
+                    "errors": contact_data.get("errors", []),
+                    "truncated": bool(contact_data.get("truncated")),
+                    "matched_contact_count": len(matched_contacts),
+                    "scoped_company_count": len(scoped_companies),
+                    "inaccessible_contact_count": inaccessible_contact_count,
+                    "unresolved_contact_count": unresolved_contact_count,
+                },
+                "matched_contacts": matched_contacts,
+                "scoped_companies": [_safe_marketing_company_summary(company) for company in scoped_companies.values()],
+                "deal_stage_counts": deal_counts,
+                "deal_association_truncated": deal_association_truncated,
+                "will_mutate_hubspot": False,
+            },
+            "source": "HubSpot Marketing Campaigns, CRM contacts, scoped companies, and deals APIs",
+            "scope": {
+                **_scope_response(scope, list(scope.get("countries", ()))),
+                "campaign_id": selected_campaign_id,
+                "campaign_name": campaign_name,
+                "campaign_utm": campaign_utm,
+                "start_date": start_date,
+                "end_date": end_date,
+                "requested_limit": _bounded_int(limit, default=50, maximum=MARKETING_ATTRIBUTION_RETURN_LIMIT),
+            },
+            "requested_limit": contact_data.get("requested_limit"),
+            "returned_count": len(matched_contacts),
+            "has_more": bool(needs_check and (contact_data.get("truncated") or asset_data.get("truncated") or deal_association_truncated)),
+            "truncated": bool(contact_data.get("truncated") or asset_data.get("truncated") or deal_association_truncated),
+            "confidence": "needs-check" if needs_check else "verified",
+            "caveat": " ".join(caveats),
+        }
+    except HubSpotError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email, "campaign_id": campaign_id, "campaign_name": campaign_name, "campaign_utm": campaign_utm})
 
 
 @mcp.tool()

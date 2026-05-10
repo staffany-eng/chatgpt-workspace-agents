@@ -3017,6 +3017,173 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         self.assertEqual(result["answer"]["campaigns"][0]["campaign_id"], "campaign-1")
         self.assertEqual(result["answer"]["podcast_campaign_evidence"][0]["assets"][0]["asset_id"], "episode-1")
 
+    def test_get_marketing_campaign_attribution_counts_scoped_deal_stages(self):
+        campaign = {
+            "id": "campaign-1",
+            "properties": {
+                "hs_name": "20251015_2025SalaryBenchmark",
+                "hs_utm": "155425489-20251015_2025SalaryBenchmark",
+                "hs_start_date": "2025-10-15",
+            },
+        }
+        asset_data = {
+            "asset_types": ["FORM"],
+            "assets_by_type": {
+                "FORM": {
+                    "assets": [{"asset_type": "FORM", "asset_id": "form-1", "name": "[MKT] [SG] [25Q3] LeadMagnet_2025 Salary Benchmark Report"}],
+                    "returned_count": 1,
+                    "has_more": False,
+                    "truncated": False,
+                }
+            },
+            "requested_limit": 50,
+            "has_more": False,
+            "truncated": False,
+        }
+        contact = {
+            "id": "contact-1",
+            "properties": {
+                "email": "buyer@noci.example",
+                "utm_campaign": "155425489-20251015_2025SalaryBenchmark",
+            },
+        }
+        company = {
+            "id": "company-1",
+            "properties": {
+                "name": "Noci Bakehouse",
+                "domain": "noci.example",
+                "company_country": "Singapore",
+                "hubspot_owner_id": "owner-1",
+                "hs_is_target_account": "true",
+            },
+        }
+        deals = [
+            {"id": "deal-1", "properties": {"dealname": "Noci QO", "pipeline": "pipe-1", "dealstage": "qo", "amount": "1000"}},
+            {"id": "deal-2", "properties": {"dealname": "Noci won", "pipeline": "pipe-1", "dealstage": "won", "amount": "2000"}},
+        ]
+        stage_config = {
+            "pipeline_ids": {"pipe-1"},
+            "qo_stage_ids": {"qo"},
+            "qo_met_stage_ids": {"qomet"},
+            "closed_won_stage_ids": {"won"},
+            "configured": True,
+            "required_env": [],
+        }
+
+        with patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
+            self.module, "_get_campaign", return_value=campaign
+        ), patch.object(self.module, "_campaign_assets", return_value=asset_data), patch.object(
+            self.module,
+            "_marketing_contact_campaign_search",
+            return_value={
+                "results": [contact],
+                "searched_properties": list(self.module.MARKETING_ATTRIBUTION_SEARCH_PROPERTIES),
+                "search_runs": [{"property": "utm_campaign", "term": "155425489-20251015_2025SalaryBenchmark", "returned_count": 1}],
+                "search_run_count": 1,
+                "errors": [],
+                "requested_limit": 50,
+                "returned_count": 1,
+                "has_more": False,
+                "truncated": False,
+            },
+        ), patch.object(
+            self.module,
+            "_marketing_access_context_for_contact",
+            return_value={"allowed": True, "contact": contact, "companies": [company], "scope_status": "company_scoped"},
+        ), patch.object(
+            self.module,
+            "_association_ids_with_metadata",
+            return_value={"ids": ["deal-1", "deal-2"], "has_more": False, "truncated": False, "requested_limit": 100},
+        ), patch.object(self.module, "_batch_read", return_value=deals), patch.object(
+            self.module, "_friday_review_stage_config", return_value=stage_config
+        ):
+            result = self.module.get_marketing_campaign_attribution(
+                "kerren.fong@staffany.com",
+                campaign_id="campaign-1",
+                campaign_utm="155425489-20251015_2025SalaryBenchmark",
+            )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertFalse(result["answer"]["will_mutate_hubspot"])
+        self.assertEqual(result["answer"]["attribution_search"]["matched_contact_count"], 1)
+        self.assertEqual(result["answer"]["attribution_search"]["scoped_company_count"], 1)
+        self.assertIn("utm_campaign", result["answer"]["attribution_search"]["searched_properties"])
+        self.assertEqual(result["answer"]["deal_stage_counts"]["qos"], 1)
+        self.assertEqual(result["answer"]["deal_stage_counts"]["closed_won"], 1)
+
+    def test_get_marketing_campaign_attribution_needs_check_without_stage_config(self):
+        campaign = {
+            "id": "campaign-1",
+            "properties": {
+                "hs_name": "20251015_2025SalaryBenchmark",
+                "hs_utm": "155425489-20251015_2025SalaryBenchmark",
+            },
+        }
+        contact = {
+            "id": "contact-1",
+            "properties": {
+                "email": "buyer@noci.example",
+                "recent_conversion_event_name": "2025 Salary Benchmark Report",
+            },
+        }
+        company = {
+            "id": "company-1",
+            "properties": {
+                "name": "Noci Bakehouse",
+                "domain": "noci.example",
+                "company_country": "Singapore",
+                "hubspot_owner_id": "owner-1",
+                "hs_is_target_account": "true",
+            },
+        }
+        stage_config = {
+            "pipeline_ids": set(),
+            "qo_stage_ids": set(),
+            "qo_met_stage_ids": set(),
+            "closed_won_stage_ids": set(),
+            "configured": False,
+            "required_env": [self.module.QO_PIPELINE_IDS_ENV_VAR],
+        }
+
+        with patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
+            self.module, "_get_campaign", return_value=campaign
+        ), patch.object(
+            self.module,
+            "_campaign_assets",
+            return_value={"asset_types": [], "assets_by_type": {}, "requested_limit": 50, "has_more": False, "truncated": False},
+        ), patch.object(
+            self.module,
+            "_marketing_contact_campaign_search",
+            return_value={
+                "results": [contact],
+                "searched_properties": list(self.module.MARKETING_ATTRIBUTION_SEARCH_PROPERTIES),
+                "search_runs": [],
+                "search_run_count": 0,
+                "errors": [],
+                "requested_limit": 50,
+                "returned_count": 1,
+                "has_more": False,
+                "truncated": False,
+            },
+        ), patch.object(
+            self.module,
+            "_marketing_access_context_for_contact",
+            return_value={"allowed": True, "contact": contact, "companies": [company], "scope_status": "company_scoped"},
+        ), patch.object(
+            self.module,
+            "_association_ids_with_metadata",
+            return_value={"ids": ["deal-1"], "has_more": False, "truncated": False, "requested_limit": 100},
+        ), patch.object(
+            self.module,
+            "_batch_read",
+            return_value=[{"id": "deal-1", "properties": {"dealname": "Noci QO", "pipeline": "pipe-1", "dealstage": "qo"}}],
+        ), patch.object(self.module, "_friday_review_stage_config", return_value=stage_config):
+            result = self.module.get_marketing_campaign_attribution("kerren.fong@staffany.com", campaign_id="campaign-1")
+
+        self.assertEqual(result["confidence"], "needs-check")
+        self.assertFalse(result["answer"]["deal_stage_counts"]["stage_configured"])
+        self.assertIn("configured HubSpot pipeline and stage IDs", result["caveat"])
+
     def test_manager_cannot_create_writeback_preview(self):
         with patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
             self.module, "_assert_company_access", side_effect=AssertionError("manager preview should stop before company lookup")

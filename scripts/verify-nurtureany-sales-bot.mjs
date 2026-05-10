@@ -118,6 +118,7 @@ if (!existsSync(manifestPath)) {
       "skills/nurtureany-sales-bot/references/sop-tool-coverage.md",
       "skills/nurtureany-sales-bot/references/playbooks.md",
       "skills/nurtureany-sales-bot/references/pre-demo-game-plans.md",
+      "skills/nurtureany-sales-bot/references/case-studies.md",
       "skills/nurtureany-sales-bot/references/regression-cases.md"
     ];
     let lastReferenceIndex = -1;
@@ -136,7 +137,9 @@ if (!existsSync(manifestPath)) {
       "get_inbound_thread_context",
       "list_marketing_campaigns",
       "get_campaign_assets",
+      "get_campaign_social_effectiveness",
       "get_marketing_touch_context",
+      "get_marketing_campaign_attribution",
       "list_my_target_accounts",
       "list_team_target_accounts",
       "audit_hubspot_owner_roster",
@@ -507,6 +510,8 @@ for (const text of [
   "list_sales_followup_tasks",
   "check_account_followup_status",
   "check_event_followup_status",
+  "get_campaign_social_effectiveness",
+  "get_marketing_campaign_attribution",
   "generate_free_search_tasks",
   "review_public_enrichment_evidence",
   "scan_drive_event_photos",
@@ -629,7 +634,11 @@ for (const text of [
   "Google Places",
   "fct_deal_org_company",
   "pricing needed",
-  "case-study match needed"
+  "case-study match needed",
+  "get_campaign_social_effectiveness",
+  "get_marketing_campaign_attribution",
+  "SOCIAL_BROADCAST",
+  "raw social channel IDs"
 ]) {
   if (!soulText.includes(text)) fail(`SOUL.md missing required safety/contract text: ${text}`);
 }
@@ -661,6 +670,9 @@ for (const text of [
   "ambiguous matches",
   "pricing needed",
   "case-study match needed",
+  "get_campaign_social_effectiveness",
+  "get_marketing_campaign_attribution",
+  "SOCIAL_BROADCAST",
   "list_sales_followup_tasks",
   "sales-owned HubSpot follow-up tasks",
   "check_account_followup_status",
@@ -820,6 +832,9 @@ for (const text of [
   "ambiguous_matches",
   "pricing needed",
   "case-study match needed",
+  "get_campaign_social_effectiveness",
+  "get_marketing_campaign_attribution",
+  "Raw social channel IDs",
   "list_sales_followup_tasks",
   "check_account_followup_status",
   "check_event_followup_status",
@@ -848,7 +863,13 @@ for (const text of [
   "get_inbound_thread_context",
   "list_marketing_campaigns",
   "get_campaign_assets",
+  "get_campaign_social_effectiveness",
   "get_marketing_touch_context",
+  "get_marketing_campaign_attribution",
+  "SOCIAL_BROADCAST",
+  "MARKETING_ATTRIBUTION_SEARCH_PROPERTIES",
+  "CASE_STUDY_CATALOG_PATH",
+  "case_study_matches",
   "HubSpot Conversations",
   "PODCAST_EPISODE",
   "find_target_accounts_by_luma_match_keys",
@@ -1028,6 +1049,8 @@ const healthText = textOf("runtime/health-checks.md");
 for (const text of [
   "Luma event-link smoke check",
   "Event-first Luma smoke check",
+  "campaign social-effectiveness smoke check",
+  "marketing attribution smoke check",
   "Indonesia event-registration fallback smoke check",
   "read_indonesia_event_registration_attendance",
   "Attend The Event",
@@ -1146,7 +1169,7 @@ const healthScriptText = textOf("runtime/check-health.sh");
 for (const text of [
   "PROFILE=\"${HERMES_PROFILE:-nurtureanysalesbot}\"",
   "export HERMES_HOME=\"$HOME/.hermes/profiles/$PROFILE\"",
-  "EXPECT_HUBSPOT_TOOLS=\"${EXPECT_HUBSPOT_TOOLS:-27}\"",
+  "EXPECT_HUBSPOT_TOOLS=\"${EXPECT_HUBSPOT_TOOLS:-29}\"",
   "EXPECT_GOOGLE_DRIVE_TOOLS=\"${EXPECT_GOOGLE_DRIVE_TOOLS:-3}\"",
   "EXPECT_LUMA_TOOLS=\"${EXPECT_LUMA_TOOLS:-3}\"",
   "EXPECT_NEAR_ME_TOOLS=\"${EXPECT_NEAR_ME_TOOLS:-6}\"",
