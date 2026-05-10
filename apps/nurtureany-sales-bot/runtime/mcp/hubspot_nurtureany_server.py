@@ -255,7 +255,7 @@ TASK_ASSOCIATION_LIMIT = 100
 TASK_RETURN_LIMIT = 100
 LUMA_MATCH_DOMAIN_LIMIT = 100
 LUMA_MATCH_NAME_LIMIT = 100
-LUMA_MATCH_RETURN_LIMIT = 100
+LUMA_MATCH_RETURN_LIMIT = 75
 TASK_SEARCH_RESULT_LIMIT = 300
 TASK_SEARCH_AIRTIGHT_RESULT_LIMIT = 10_000
 FOLLOWUP_ASSOCIATION_LIMIT = 100
@@ -1351,18 +1351,34 @@ def _add_luma_candidate(
     company_id = str(company.get("id") or "")
     if not company_id:
         return
-    summary = candidates.setdefault(company_id, _summarize_company(company))
+    summary = candidates.setdefault(company_id, _summarize_luma_candidate_company(company))
     reasons = summary.setdefault("luma_match_reasons", [])
     if match_reason not in reasons:
         reasons.append(match_reason)
-    keys = summary.setdefault("luma_match_keys", [])
-    key_entry = {"kind": match_reason, "value": match_key}
-    if key_entry not in keys:
-        keys.append(key_entry)
+    key_kinds = summary.setdefault("luma_match_key_kinds", [])
+    if match_reason not in key_kinds:
+        key_kinds.append(match_reason)
+    summary["luma_match_key_count"] = int(summary.get("luma_match_key_count") or 0) + 1
     if confidence == "needs-check":
         summary["luma_match_confidence"] = "needs-check"
     else:
         summary.setdefault("luma_match_confidence", "verified")
+
+
+def _summarize_luma_candidate_company(company: dict[str, Any]) -> dict[str, Any]:
+    props = company.get("properties", {})
+    owner_id = props.get("hubspot_owner_id") or ""
+    return {
+        "company_id": company.get("id"),
+        "hubspot_scoped": True,
+        "scope_source": SCOPE_SOURCE,
+        "name": props.get("name") or "",
+        "domain": props.get("domain") or "",
+        "country": props.get("company_country") or "",
+        "owner_id": owner_id,
+        "owner_email": _owner_email_by_id(owner_id),
+        "owner_name": _owner_name_by_id(owner_id),
+    }
 
 
 def _target_owner_id_for_scope(scope: dict[str, Any], owner_email: str | None = None) -> tuple[str | None, str]:
@@ -6622,7 +6638,7 @@ def find_target_accounts_by_luma_match_keys(
             "caveat": (
                 "This is event-first HubSpot scoping from safe Luma match keys. "
                 "Domain matches are stronger; company-name candidates need review. "
-                "No raw Luma attendees, emails, phone numbers, or registration answers are returned."
+                "No raw Luma attendees, match-key values, emails, phone numbers, or registration answers are returned."
             ),
         }
     except ScopeError as error:

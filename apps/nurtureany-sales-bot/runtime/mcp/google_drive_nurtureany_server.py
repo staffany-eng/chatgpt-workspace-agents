@@ -52,6 +52,7 @@ MAX_DRIVE_FILES = 100
 MAX_VISION_FILES = 5
 MAX_IMAGE_BYTES = 7_500_000
 MAX_REGISTRATION_ROWS = 250
+MAX_REGISTRATION_ROW_SAMPLE = 10
 ANTHROPIC_API_KEY_ENV = "ANTHROPIC_API_KEY"
 DEFAULT_VISION_MODEL = "claude-sonnet-4-6"
 SUPPORTED_VISION_MEDIA_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
@@ -834,19 +835,22 @@ def read_indonesia_event_registration_attendance(
     sheet_name: str = "",
     spreadsheet_id: str = ID_REV_EVENTS_SPREADSHEET_ID,
     limit: int = MAX_REGISTRATION_ROWS,
+    row_sample_limit: int = MAX_REGISTRATION_ROW_SAMPLE,
     account_email: str = DEFAULT_ACCOUNT_EMAIL,
 ) -> dict[str, Any]:
-    """Read safe attendance rows from the Indonesia Rev LL/HHH registration Sheet.
+    """Read compact attendance keys from the Indonesia Rev LL/HHH registration Sheet.
 
     Use only as a manual fallback when Luma checked_in_at attendance is empty or
-    not used. The output omits phone numbers and full emails and should be
-    matched back to scoped HubSpot target accounts before Slack account answers.
+    not used. The output omits phone numbers and full emails, returns only a
+    small safe row sample, and should be matched back to scoped HubSpot target
+    accounts before Slack account answers.
     """
 
     configured_account = _account_email()
     requested_account = (account_email or DEFAULT_ACCOUNT_EMAIL).strip().lower()
     selected_spreadsheet_id = (spreadsheet_id or ID_REV_EVENTS_SPREADSHEET_ID).strip()
     capped_limit = max(1, min(int(limit or MAX_REGISTRATION_ROWS), MAX_REGISTRATION_ROWS))
+    capped_sample_limit = max(0, min(int(row_sample_limit or 0), MAX_REGISTRATION_ROW_SAMPLE))
     scope = _scope(
         slack_user_email,
         {
@@ -858,7 +862,7 @@ def read_indonesia_event_registration_attendance(
             "event_date": event_date,
             "event_tags": event_tags or [],
             "manual_fallback_for": "Luma checked_in_at empty or not used for Indonesia events",
-            "safety": "Safe rows only. No phone numbers, full emails, raw exports, or Drive mutations.",
+            "safety": "Compact match keys plus a small safe row sample only. No phone numbers, full emails, raw exports, or Drive mutations.",
         },
     )
 
@@ -915,6 +919,7 @@ def read_indonesia_event_registration_attendance(
     has_more = len(parsed_rows) > capped_limit
     rows = parsed_rows[:capped_limit]
     attended_rows = [row for row in rows if row.get("attended") is True]
+    row_sample = attended_rows[:capped_sample_limit]
     email_domains = _unique_limited([str(row.get("email_domain") or "") for row in rows])
     company_candidates = _unique_limited([str(row.get("company_name") or "") for row in rows])
     attended_email_domains = _unique_limited([str(row.get("email_domain") or "") for row in attended_rows])
@@ -927,18 +932,24 @@ def read_indonesia_event_registration_attendance(
             "spreadsheet_url": spreadsheet_url,
             "sheet_name": selected_sheet_name,
             "attendance_definition": "Attend The Event is TRUE/Yes in the Indonesia registration Sheet",
-            "registration_rows": rows,
+            "registration_rows_sample": row_sample,
+            "registration_rows_returned": len(row_sample),
+            "row_details_truncated": len(rows) > len(row_sample),
             "counts": {
-                "returned_rows": len(rows),
+                "read_rows": len(rows),
                 "attended_rows": len(attended_rows),
                 "approved_rows": sum(1 for row in rows if str(row.get("approval_status") or "").lower() == "approved"),
                 "wa_confirm_yes_rows": sum(1 for row in rows if str(row.get("wa_confirm") or "").strip().lower() == "yes"),
             },
             "match_keys": {
-                "email_domains": email_domains,
-                "company_name_candidates": company_candidates,
+                "email_domains": attended_email_domains,
+                "company_name_candidates": attended_company_candidates,
                 "attended_email_domains": attended_email_domains,
                 "attended_company_name_candidates": attended_company_candidates,
+            },
+            "all_rsvp_match_key_counts": {
+                "email_domains": len(email_domains),
+                "company_name_candidates": len(company_candidates),
             },
             "next_step": "Use attended match keys to resolve scoped HubSpot target accounts before account-level Slack output.",
         },
@@ -946,11 +957,11 @@ def read_indonesia_event_registration_attendance(
         "scope": {**scope, "sheet_name": selected_sheet_name, "sheet_id": sheet_props.get("sheetId"), "requested_limit": capped_limit},
         "total": len(parsed_rows),
         "requested_limit": capped_limit,
-        "returned_count": len(rows),
+        "returned_count": len(row_sample),
         "has_more": has_more,
-        "truncated": has_more,
+        "truncated": has_more or len(rows) > len(row_sample),
         "confidence": "needs-check",
-        "caveat": "Manual registration Sheet fallback only. HubSpot remains required for target-account scope and follow-up status. Full emails and phone numbers are not returned.",
+        "caveat": "Manual registration Sheet fallback only. HubSpot remains required for target-account scope and follow-up status. Output is compact; full emails, phone numbers, and raw registration exports are not returned.",
     }
 
 
