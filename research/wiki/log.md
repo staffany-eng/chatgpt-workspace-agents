@@ -49,3 +49,23 @@ Captured the current `staffanydatabot` Hermes profile hardening state: Slack eff
 ## [2026-05-10] ingest | Hermes Agent live docs refresh
 
 Refreshed the Hermes source note from `https://hermes-agent.nousresearch.com/docs/`, `llms.txt`, and `llms-full.txt`. Captured retrieval metadata, hashes, 98 curated index links, 147 source pages, and short extracts only; updated related syntheses and the Hermes app-packet decision without copying the full docs body.
+
+## [2026-05-10] decision | NurtureAny durable HubSpot fields
+
+Promoted the NurtureAny field decision after checking HubSpot company property metadata and Slack workflow evidence: use `contract_end_date` for renewal timing/T-90 windows and `current_tools` for current-tools context. Kept `current_tool_renewal_date` as secondary context only. No raw Slack transcripts or HubSpot rows were copied.
+
+## [2026-05-10] ingest | NurtureAny Leadership Tactical Pause
+
+Ingested the Leadership Tactical Pause Drive folder as private NurtureAny operating evidence. Recorded 9 files, preserved a raw inventory, and extracted sales-rhythm guidance for 150-account ownership, 120/150 coverage, double tap, 30 WhatsApp rhythm, 40 connected calls, QO/QO Met quality, warm activity, event discipline, and Friday correction.
+
+## [2026-05-10] ingest | NurtureAny Sales Training Materials
+
+Ingested the Sales Training Drive folder as private NurtureAny training evidence. Recorded 41 files plus one empty folder, extracted current instructor/rubric guidance for CCC, CBANT, I-C-BANT, pre-demo nurturing, value-driven demos, post-demo follow-up, onboarding, and market-specific training context. The inventoried Google Form remains blocked by Drive 403 unless an export is found.
+
+## [2026-05-10] synthesis | NurtureAny Sales Best Practices
+
+Synthesized Tactical Pause and Sales Training sources into a NurtureAny sales best-practices operating reference. The promoted app reference keeps HubSpot as live source of truth and treats old, copy, archived, outdated, or trainee materials as lower-authority conflict context.
+
+## [2026-05-10] ingest | NurtureAny Sales Onboarding Master Template
+
+Ingested the sales onboarding master template and its linked Drive files. Parsed 13 sheet tabs, 47 first-level Drive files, 25 folder-child links, and 18 second-order Drive links. Copied only safe training/rubric excerpts; secret forms, response sheets, raw pricing rows, and account-list style sheets were inventoried but not copied as raw operating guidance.

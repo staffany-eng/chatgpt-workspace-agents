@@ -23,6 +23,9 @@ This directory is the maintained research wiki for designing ChatGPT workspace a
 - [ChatGPT Workspace Agent Official Docs](./sources/chatgpt-workspace-agent-docs.md)
 - [BigQuery MCP Proxy](./sources/bigquery-mcp-proxy.md)
 - [StaffAny Hermes Data Bot POC](./sources/staffany-hermes-data-bot-poc.md)
+- [NurtureAny Leadership Tactical Pause](./sources/nurtureany-leadership-tactical-pause.md)
+- [NurtureAny Sales Training Materials](./sources/nurtureany-sales-training-materials.md)
+- [NurtureAny Sales Onboarding Master Template](./sources/nurtureany-sales-onboarding-master-template.md)
 
 ## Syntheses
 
@@ -33,6 +36,7 @@ This directory is the maintained research wiki for designing ChatGPT workspace a
 - [Automation, Heartbeat, Cron, And Schedules](./syntheses/automation-heartbeat-cron-schedules.md)
 - [OpenClaw Kaiyi Current State Audit](./syntheses/openclaw-kaiyi-current-state-audit.md)
 - [ChatGPT Workspace Agent Build Rubric](./syntheses/chatgpt-workspace-agent-build-rubric.md)
+- [NurtureAny Sales Best Practices](./syntheses/nurtureany-sales-best-practices.md)
 
 ## Maintenance
 

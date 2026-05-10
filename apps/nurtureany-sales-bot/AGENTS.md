@@ -28,6 +28,8 @@ Before changing NurtureAny sales behavior, drafting behavior, Friday review beha
 - Business data source of truth: HubSpot for target accounts, owners, contacts, tasks, notes, and nurture fields.
 - Production secrets: Secret Manager or the live profile `.env`; never this repo.
 
+Before changing NurtureAny sales behavior, drafting behavior, Friday review behavior, pre-demo plans, event follow-ups, coaching summaries, QO/QO Met logic, or operating-rhythm guidance, read `skills/nurtureany-sales-bot/references/sales-best-practices.md`.
+
 ## Profile Boundary
 
 NurtureAny runs as the separate Hermes profile `nurtureanysalesbot`. Da Ta Hermz runs as `staffanydatabot`.

@@ -49,6 +49,22 @@ This page stores accepted research-backed learnings before promotion into future
 - Planning implication: New StaffAny Hermes Data Bot features should first decide which source packet surface changes; runtime-only changes remain drift until a specific reviewed artifact is promoted back into `apps/hermes-data-bot/`.
 - Caveat: Do not copy raw memory, Slack transcripts, query rows, logs with sensitive content, or credentials from the live profile into the repo.
 
+### Use HubSpot Contract End Date And Current Tools For NurtureAny
+
+- Status: accepted for the NurtureAny Sales Bot source packet.
+- Evidence: HubSpot company property metadata checked on 2026-05-10; Slack workflow evidence from Eugene, Kerren, and Sarah teaching reps to fill contract end date/current tools in HubSpot notes and deal/company properties.
+- Learning: NurtureAny renewal timing should use HubSpot company `contract_end_date` as the durable source of truth. NurtureAny current-tools context should use HubSpot company `current_tools` as the durable source of truth.
+- Planning implication: `current_tool_renewal_date` can be returned as secondary context, but must not drive T-90 renewal inclusion or remove an account from missing-`contract_end_date` classification.
+- Caveat: Do not store raw Slack transcripts or raw HubSpot rows in this research wiki.
+
+### Promote NurtureAny Sales Best Practices As A Skill Reference
+
+- Status: accepted for the NurtureAny Sales Bot source packet.
+- Evidence: [NurtureAny Leadership Tactical Pause](./sources/nurtureany-leadership-tactical-pause.md), [NurtureAny Sales Training Materials](./sources/nurtureany-sales-training-materials.md), and [NurtureAny Sales Best Practices](./syntheses/nurtureany-sales-best-practices.md).
+- Learning: NurtureAny sales workflow answers should consult a dedicated sales best-practices reference before drafting, Friday reviews, pre-demo plans, event follow-ups, coaching summaries, QO/QO Met quality advice, or operating-rhythm advice.
+- Planning implication: The durable app reference belongs under `apps/nurtureany-sales-bot/skills/nurtureany-sales-bot/references/`; it should not be implemented as a new MCP server.
+- Caveat: HubSpot still overrides training or tactical sources for live account, owner, country, contract end date, current tools, follow-up, calls, meetings, and deal facts.
+
 ## Rejected Or Deferred Learnings
 
 - Do not copy OpenClaw workspace file structure directly into ChatGPT workspace agents. ChatGPT has its own product surfaces for apps, skills, files, memory, schedules, and channels.

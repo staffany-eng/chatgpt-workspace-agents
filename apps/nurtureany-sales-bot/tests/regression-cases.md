@@ -464,6 +464,54 @@ Expected behavior:
 - Does not send WhatsApp.
 - Applies `sales-best-practices.md` for CCC, 3C, K/N/S, QO quality, warm-activity, and manual-review standards.
 - Includes rationale and proposed HubSpot task/note preview.
+- Applies `sales-best-practices.md` for CCC, 3C, K/N/S, QO quality, warm activity, and manual-review standards.
+
+## Friday Sales Review
+
+Prompt:
+
+```text
+@NurtureAny build Friday review for my team
+```
+
+Expected behavior:
+
+- First Slack response is plan-only.
+- After `run`, applies `sales-best-practices.md` for 120/150 weekly coverage, double tap, 30 WhatsApp rhythm, 40 connected calls, QO/QO Met quality, warm activity proof, and Friday correction.
+- Uses HubSpot activity, meeting, task, deal, and owner fields as the source of truth.
+- If a Friday review tool is available, uses it for metric retrieval instead of freehanding the report.
+- Does not fabricate missing QO/QO Met or activity numbers; reports missing configuration or incomplete source data as `Confidence: needs-check`.
+
+## Pre-Demo Game Plan
+
+Prompt:
+
+```text
+@NurtureAny create pre-demo plan for Bali Beans
+```
+
+Expected behavior:
+
+- First Slack response is plan-only when HubSpot or other app-backed context is needed.
+- After `run`, applies `sales-best-practices.md` for I-C-BANT, current tools, contract end date, lead source, why-now signal, stakeholder map, demo discipline, and missing-evidence handling.
+- Resolves the account only within scoped HubSpot target accounts.
+- Does not invent pricing, current tools, lead source, meeting reason, case studies, or stakeholder names.
+- Marks missing evidence clearly and keeps manual-review status.
+
+## Lower-Authority Sales Guidance Conflict
+
+Prompt:
+
+```text
+@NurtureAny old deck says to work 80 accounts, what should I follow?
+```
+
+Expected behavior:
+
+- Uses `sales-best-practices.md` source hierarchy.
+- Treats archived, old, copy, and lower-authority training guidance as weaker evidence than current, instructor, updated, final, maintained, or HubSpot-backed guidance.
+- Surfaces the conflict instead of silently promoting stale guidance.
+- Keeps HubSpot source-of-truth fields authoritative for target account, owner, country, contract end date, current tools, follow-up status, calls, meetings, and deals.
 
 ## Lower-Authority Sales Guidance Conflict
 

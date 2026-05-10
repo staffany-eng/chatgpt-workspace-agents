@@ -33,6 +33,8 @@ V1 is review-first. It never auto-sends WhatsApp, email, LinkedIn, Instagram, SM
 - Approved requests to search Lusha for decision-maker candidates or reveal selected contact details.
 - Drive photo scans from `all-random` and ad hoc Slack photo match requests where a user uploads a photo and tags `@NurtureAny`.
 - Drafting nurture copy for manual AE review.
+- Friday review, tactical pause, coaching summary, activity hygiene, QO/QO Met quality, and sales operating-rhythm advice.
+- Pre-demo, demo, post-demo, event follow-up, warm-activity, or market-specific SG/MY/ID sales guidance.
 - Previewing HubSpot task, note, or field updates after AE/manager approval.
 
 Do not use this skill for generic data analysis, payroll metrics, product support, or broad web research.
@@ -286,3 +288,4 @@ Store only confirmed reusable operating preferences if the runtime supports memo
 21. Dropping C360 current customers just because no outlet match exists yet. C360 current customers still appear in near-me answers.
 22. Treating Friday sales review as a freeform summary instead of calling `build_friday_sales_review`, or claiming QO/QO Met/deal numbers are verified when stage config is missing.
 23. Counting short or incomplete calls as connected calls. Only completed HubSpot calls of at least 120 seconds count toward the 40 connected-call guardrail.
+24. Promoting outdated, archive, or copy-file sales guidance over current HubSpot truth or the maintained best-practices reference.
