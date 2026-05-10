@@ -378,6 +378,101 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         self.assertIn("Customer 360 link", result["source"])
         self.assertEqual(result["answer"]["company"]["c360_url"], context["company"]["c360_url"])
 
+    def test_payroll_customer_account_packet_suppresses_stale_hubspot_sections(self):
+        context = {
+            "company": {
+                "name": "Fei Siong Group",
+                "owner_name": "Kerren Fong",
+                "owner_email": "kerren.fong@staffany.com",
+                "current_tools": "Infotech",
+                "contract_end_date": "2025-10-01",
+                "c360_url": "https://customer-360-qv4r5xkisq-as.a.run.app/companies/fei-siong-group",
+            }
+        }
+        c360_packet = {
+            "status": "ok",
+            "packet": {
+                "segment": "customer_on_staffany_payroll",
+                "c360Url": "https://customer-360-qv4r5xkisq-as.a.run.app/companies/fei-siong-group",
+                "account": {"companyName": "Fei Siong Group", "accountOwner": "Kerren Fong", "psmOwner": "Josica"},
+                "staffany": {
+                    "ownedProducts": ["StaffAny", "Payroll", "EngageAny"],
+                    "missingProducts": ["Claims", "AI"],
+                    "activeUsage": {"summary": "1 mapped StaffAny org; 1,486 active headcount"},
+                },
+                "verifiedPics": [{"name": "Samantha Lin", "title": "HR Manager", "verificationBasis": ["HubSpot payroll_pic = Yes"]}],
+                "crossSellSignals": ["Consider missing StaffAny modules: Claims, AI"],
+                "minimalGaps": [],
+            },
+        }
+
+        packet = self.module._build_account_packet(context, c360_packet)
+        rendered = packet["slack_markdown"]
+
+        self.assertEqual(packet["segment"], "customer_on_staffany_payroll")
+        self.assertIn("<https://customer-360-qv4r5xkisq-as.a.run.app/companies/fei-siong-group|Fei Siong Group>", rendered)
+        self.assertIn("current customer on StaffAny Payroll", rendered)
+        self.assertIn("Missing modules to consider: Claims, AI", rendered)
+        self.assertIn("Samantha Lin", rendered)
+        self.assertNotIn("Infotech", rendered)
+        self.assertNotIn("2025-10-01", rendered)
+        self.assertIn("deals", packet["suppressed_by_default"])
+        self.assertIn("hubspot_current_tools_contract_line_for_staffany_payroll_customers", packet["suppressed_by_default"])
+
+    def test_non_payroll_customer_account_packet_focuses_payroll_conversion(self):
+        context = {
+            "company": {
+                "name": "Rock Productions",
+                "owner_name": "AE",
+                "current_tools": "Infotech",
+                "c360_url": "https://customer-360-qv4r5xkisq-as.a.run.app/companies/rock-productions",
+            }
+        }
+        c360_packet = {
+            "status": "ok",
+            "packet": {
+                "segment": "customer_not_on_staffany_payroll",
+                "c360Url": "https://customer-360-qv4r5xkisq-as.a.run.app/companies/rock-productions",
+                "account": {"companyName": "Rock Productions", "accountOwner": "AE", "psmOwner": "PSM"},
+                "staffany": {"ownedProducts": ["StaffAny"], "missingProducts": ["Payroll"]},
+                "verifiedPics": [],
+                "crossSellSignals": ["Payroll conversion opportunity: no StaffAny Payroll evidence in C360"],
+                "minimalGaps": ["External HRIS/payroll is not sourced in C360."],
+            },
+        }
+
+        packet = self.module._build_account_packet(context, c360_packet)
+        rendered = packet["slack_markdown"]
+
+        self.assertEqual(packet["segment"], "customer_not_on_staffany_payroll")
+        self.assertIn("Payroll conversion hook", rendered)
+        self.assertIn("Infotech (Source: HubSpot current_tools)", rendered)
+        self.assertIn("Missing / needs-check: External HRIS/payroll is not sourced in C360.", rendered)
+        self.assertNotIn("Deals", rendered)
+
+    def test_prospect_account_packet_uses_qualification_brief_with_one_gap_line(self):
+        context = {
+            "company": {
+                "name": "Prospect Co",
+                "industry": "F&B",
+                "headcount": "80",
+                "country": "Singapore",
+                "current_tools": "Excel",
+                "contract_end_date": "2026-11-30",
+                "missing_fields": ["current tools", "contract end date", "decision maker", "associated contact"],
+            }
+        }
+
+        packet = self.module._build_account_packet(context, {"status": "skipped"})
+        rendered = packet["slack_markdown"]
+
+        self.assertEqual(packet["segment"], "prospect")
+        self.assertIn("Segment: prospect", rendered)
+        self.assertIn("Current HRIS/payroll: Excel (Source: HubSpot current_tools)", rendered)
+        self.assertIn("Next discovery ask", rendered)
+        self.assertEqual(len(packet["minimal_gaps"]), 1)
+        self.assertNotIn("Other Contacts", rendered)
+
     def test_find_contact_gaps_propagates_truncation_metadata(self):
         company = {
             "id": "1",

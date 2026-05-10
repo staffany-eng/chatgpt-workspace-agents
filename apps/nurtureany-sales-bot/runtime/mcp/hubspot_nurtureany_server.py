@@ -269,9 +269,15 @@ RENEWAL_DATE_PROPERTIES = (RENEWAL_SOURCE_OF_TRUTH_PROPERTY,)
 C360_COMPANY_URL_TEMPLATE_ENV = "NURTUREANY_C360_COMPANY_URL_TEMPLATE"
 C360_ORG_URL_TEMPLATE_ENV = "NURTUREANY_C360_ORG_URL_TEMPLATE"
 C360_ROUTE_KEY_BY_COMPANY_ID_ENV = "NURTUREANY_C360_ROUTE_KEY_BY_COMPANY_ID"
+C360_SALES_PACKET_URL_TEMPLATE_ENV = "NURTUREANY_C360_SALES_PACKET_URL_TEMPLATE"
+C360_INTERNAL_API_TOKEN_ENV = "NURTUREANY_C360_INTERNAL_API_TOKEN"
+C360_SALES_PACKET_TIMEOUT_SECONDS = 10
 DEFAULT_C360_COMPANY_URL_TEMPLATE = "https://customer-360-qv4r5xkisq-as.a.run.app/companies/{customer360_route_key}"
 DEFAULT_C360_ORG_URL_TEMPLATE = (
     "https://customer-360-qv4r5xkisq-as.a.run.app/companies/{customer360_route_key}/orgs/{organisation_id}"
+)
+DEFAULT_C360_SALES_PACKET_URL_TEMPLATE = (
+    "https://customer-360-qv4r5xkisq-as.a.run.app/api/companies/{customer360_route_key}/sales-packet"
 )
 DEFAULT_C360_ROUTE_KEY_BY_COMPANY_ID = {
     # Customer 360's canonical Fei Siong route is slug-keyed. The numeric
@@ -1323,6 +1329,10 @@ def _c360_org_url_template() -> str:
     return os.environ.get(C360_ORG_URL_TEMPLATE_ENV, "").strip() or DEFAULT_C360_ORG_URL_TEMPLATE
 
 
+def _c360_sales_packet_url_template() -> str:
+    return os.environ.get(C360_SALES_PACKET_URL_TEMPLATE_ENV, "").strip() or DEFAULT_C360_SALES_PACKET_URL_TEMPLATE
+
+
 def _c360_route_key_map() -> dict[str, str]:
     mappings = dict(DEFAULT_C360_ROUTE_KEY_BY_COMPANY_ID)
     raw = os.environ.get(C360_ROUTE_KEY_BY_COMPANY_ID_ENV, "").strip()
@@ -1389,6 +1399,96 @@ def _render_c360_url(
     }
     template = _c360_org_url_template() if org_id else _c360_company_url_template()
     return template.format(**values)
+
+
+def _render_c360_sales_packet_url(company_summary: dict[str, Any]) -> str:
+    route_key = str(company_summary.get("customer360_route_key") or "").strip()
+    company_id = str(company_summary.get("company_id") or "").strip()
+    company_name = str(company_summary.get("name") or "").strip()
+    route_key = _customer360_route_key(company_id, company_name, route_key)
+    if not route_key:
+        return ""
+    return _c360_sales_packet_url_template().format(
+        customer360_route_key=_encode_url_value(route_key),
+        hubspot_company_id=_encode_url_value(route_key),
+        hubspot_numeric_company_id=_encode_url_value(company_id),
+    )
+
+
+def _fetch_c360_sales_packet(company_summary: dict[str, Any]) -> dict[str, Any]:
+    if company_summary.get("account_status") != "customer":
+        return {"status": "skipped", "reason": "not_current_customer"}
+
+    packet_url = _render_c360_sales_packet_url(company_summary)
+    if not packet_url:
+        return {
+            "status": "unavailable",
+            "reason": "missing_route_key",
+            "caveat": "C360 sales packet could not be fetched because the Customer 360 route key is missing.",
+        }
+
+    token = os.environ.get(C360_INTERNAL_API_TOKEN_ENV, "").strip()
+    if not token:
+        return {
+            "status": "unavailable",
+            "reason": "missing_token",
+            "url": packet_url,
+            "caveat": f"C360 sales packet could not be fetched because {C360_INTERNAL_API_TOKEN_ENV} is not configured.",
+        }
+
+    request = urllib.request.Request(
+        packet_url,
+        headers={
+            "authorization": f"Bearer {token}",
+            "accept": "application/json",
+            "user-agent": "StaffAny-NurtureAny/1.0",
+        },
+        method="GET",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=C360_SALES_PACKET_TIMEOUT_SECONDS) as response:
+            raw = response.read().decode("utf-8")
+    except urllib.error.HTTPError as error:
+        detail = error.read().decode("utf-8", errors="replace")
+        return {
+            "status": "unavailable",
+            "reason": f"http_{error.code}",
+            "url": packet_url,
+            "caveat": f"C360 sales packet request failed with HTTP {error.code}: {_short_text(detail, 180)}",
+        }
+    except (urllib.error.URLError, socket.timeout, TimeoutError) as error:
+        reason = getattr(error, "reason", error)
+        return {
+            "status": "unavailable",
+            "reason": "request_failed",
+            "url": packet_url,
+            "caveat": f"C360 sales packet request failed: {_short_text(str(reason), 180)}",
+        }
+
+    try:
+        payload = json.loads(raw) if raw else {}
+    except json.JSONDecodeError:
+        return {
+            "status": "unavailable",
+            "reason": "invalid_json",
+            "url": packet_url,
+            "caveat": "C360 sales packet returned invalid JSON.",
+        }
+
+    packet = payload.get("data") if isinstance(payload, dict) else None
+    if not isinstance(packet, dict):
+        return {
+            "status": "unavailable",
+            "reason": "invalid_payload",
+            "url": packet_url,
+            "caveat": "C360 sales packet did not return a usable data object.",
+        }
+
+    return {
+        "status": "ok",
+        "url": packet_url,
+        "packet": packet,
+    }
 
 
 def _decision_maker_count_source(props: dict[str, Any]) -> dict[str, str]:
@@ -3921,13 +4021,17 @@ def _company_context(company_id: str, scope: dict[str, Any], task_limit: int = 2
     company_summary = _summarize_company_with_contacts(company, safe_contacts)
     company_summary.update(task_context["signals"])
     company_summary["calendar_audit_seed"] = _calendar_audit_seed(company_summary, contacts)
-    return {
+    context = {
         "company": company_summary,
         "contacts": safe_contacts,
         "deals": [_safe_deal(deal) for deal in deals],
         "sales_followup_tasks": task_context["tasks"],
         "coverage": _coverage(props, safe_contacts),
     }
+    c360_sales_packet = _fetch_c360_sales_packet(company_summary)
+    context["c360_sales_packet"] = c360_sales_packet
+    context["account_packet"] = _build_account_packet(context, c360_sales_packet)
+    return context
 
 
 def _assert_company_access(company_id: str, scope: dict[str, Any]) -> dict[str, Any]:
@@ -4002,6 +4106,282 @@ def _safe_deal(deal: dict[str, Any]) -> dict[str, Any]:
         "contract_end_date": props.get("contract_end_date") or "",
         "owner_id": props.get("hubspot_owner_id") or "",
     }
+
+
+def _build_account_packet(context: dict[str, Any], c360_packet_result: dict[str, Any] | None = None) -> dict[str, Any]:
+    company = context.get("company", {})
+    c360_packet_result = c360_packet_result or {}
+    c360_packet = c360_packet_result.get("packet") if c360_packet_result.get("status") == "ok" else None
+    if isinstance(c360_packet, dict):
+        segment = str(c360_packet.get("segment") or "")
+        if segment == "customer_on_staffany_payroll":
+            return _build_payroll_customer_packet(company, c360_packet)
+        if segment == "customer_not_on_staffany_payroll":
+            return _build_non_payroll_customer_packet(company, c360_packet)
+        return _build_prospect_account_packet(company, c360_packet)
+
+    if company.get("account_status") == "customer":
+        caveat = str(c360_packet_result.get("caveat") or "C360 sales packet was unavailable, so StaffAny Payroll classification was not inferred.")
+        return {
+            "format": "slim_account_packet_v1",
+            "segment": "customer_c360_unavailable",
+            "company": {
+                "name": company.get("name") or "",
+                "c360_url": company.get("c360_url") or "",
+                "linked_name": _slack_link(company.get("name") or "", company.get("c360_url") or ""),
+            },
+            "lines": [
+                "Segment: current customer, but StaffAny Payroll status needs C360 check",
+                f"Owner: {_first_non_empty(company.get('owner_name'), company.get('owner_email'), 'needs-check')}",
+                "Missing / needs-check: C360 sales packet unavailable; do not use stale HubSpot current-tool or contract-end fields as Payroll truth.",
+            ],
+            "slack_markdown": "\n".join(
+                [
+                    f"*{_slack_link(company.get('name') or 'Account', company.get('c360_url') or '')}*",
+                    "• Segment: current customer, but StaffAny Payroll status needs C360 check",
+                    f"• Owner: {_first_non_empty(company.get('owner_name'), company.get('owner_email'), 'needs-check')}",
+                    "• Missing / needs-check: C360 sales packet unavailable; do not use stale HubSpot current-tool or contract-end fields as Payroll truth.",
+                ]
+            ),
+            "minimal_gaps": ["C360 sales packet unavailable."],
+            "suppressed_by_default": _default_account_packet_suppression(),
+            "source": "Scoped HubSpot account resolution; Customer 360 sales packet unavailable",
+            "confidence": "needs-check",
+            "caveat": caveat,
+        }
+
+    return _build_prospect_account_packet(company, None)
+
+
+def _build_payroll_customer_packet(company: dict[str, Any], c360_packet: dict[str, Any]) -> dict[str, Any]:
+    account = _dict_value(c360_packet.get("account"))
+    staffany = _dict_value(c360_packet.get("staffany"))
+    active_usage = _dict_value(staffany.get("activeUsage"))
+    owned_products = _string_values(staffany.get("ownedProducts"))
+    missing_products = [product for product in _string_values(staffany.get("missingProducts")) if product.lower() != "payroll"]
+    cross_sell = [
+        signal
+        for signal in _string_values(c360_packet.get("crossSellSignals"))
+        if "payroll conversion" not in signal.lower()
+    ]
+    verified_pics = _format_verified_pics(c360_packet.get("verifiedPics"))
+    gaps = _one_gap_line(c360_packet.get("minimalGaps"), fallback="No major packet gap from C360.")
+    company_name = str(account.get("companyName") or company.get("name") or "")
+    c360_url = str(c360_packet.get("c360Url") or company.get("c360_url") or "")
+    lines = [
+        "Segment: current customer on StaffAny Payroll",
+        f"Owner / PSM: {_owner_psm_line(company, account)}",
+        f"Active StaffAny usage: {_first_non_empty(active_usage.get('summary'), 'needs-check')}",
+        f"Owned products: {_join_or(owned_products, 'needs-check')}",
+        f"Missing modules to consider: {_join_or(missing_products, 'none obvious in C360')}",
+        f"Likely cross-sell angle: {_join_or(cross_sell, 'missing StaffAny modules only')}",
+        f"Verified PICs: {_join_or(verified_pics, 'none verified in C360')}",
+        f"Missing / needs-check: {gaps}",
+    ]
+    return _account_packet_response(
+        segment="customer_on_staffany_payroll",
+        company_name=company_name,
+        c360_url=c360_url,
+        lines=lines,
+        minimal_gaps=[gaps],
+        source="Customer 360 sales packet + scoped HubSpot account resolution",
+        confidence="needs-check" if "none verified" in lines[-2].lower() else "verified",
+        caveat="Uses C360 as Payroll/customer-product truth. HubSpot current_tools, contract_end_date, last activity, deals, open tasks, and full IC-BANT are suppressed by default.",
+    )
+
+
+def _build_non_payroll_customer_packet(company: dict[str, Any], c360_packet: dict[str, Any]) -> dict[str, Any]:
+    account = _dict_value(c360_packet.get("account"))
+    staffany = _dict_value(c360_packet.get("staffany"))
+    owned_products = _string_values(staffany.get("ownedProducts"))
+    external_tool = _external_tool_line(company, c360_packet, allow_hubspot=True)
+    verified_pics = _format_verified_pics(c360_packet.get("verifiedPics"))
+    gaps = _one_gap_line(c360_packet.get("minimalGaps"), fallback="Confirm external HRIS/payroll and Payroll buying process.")
+    company_name = str(account.get("companyName") or company.get("name") or "")
+    c360_url = str(c360_packet.get("c360Url") or company.get("c360_url") or "")
+    lines = [
+        "Segment: current customer not on StaffAny Payroll",
+        f"Owner / PSM: {_owner_psm_line(company, account)}",
+        f"Owned StaffAny products: {_join_or(owned_products, 'needs-check')}",
+        f"Current external HRIS/payroll: {external_tool}",
+        "Payroll conversion hook: C360 shows no StaffAny Payroll evidence; qualify payroll pain, incumbent lock-in, payroll volume, and migration window.",
+        f"Verified PICs: {_join_or(verified_pics, 'none verified in C360')}",
+        f"Missing / needs-check: {gaps}",
+    ]
+    return _account_packet_response(
+        segment="customer_not_on_staffany_payroll",
+        company_name=company_name,
+        c360_url=c360_url,
+        lines=lines,
+        minimal_gaps=[gaps],
+        source="Customer 360 sales packet + scoped HubSpot account resolution",
+        confidence="needs-check" if "none verified" in lines[-2].lower() else "verified",
+        caveat="Uses C360 as customer-product truth. External HRIS/payroll is shown only when sourced; deals, open tasks, last activity, and full IC-BANT are suppressed by default.",
+    )
+
+
+def _build_prospect_account_packet(company: dict[str, Any], c360_packet: dict[str, Any] | None) -> dict[str, Any]:
+    packet = c360_packet if isinstance(c360_packet, dict) else {}
+    company_name = str(
+        _dict_value(packet.get("account")).get("companyName")
+        or company.get("name")
+        or ""
+    )
+    c360_url = str(packet.get("c360Url") or company.get("c360_url") or "")
+    icp = _join_or(
+        [
+            value
+            for value in [
+                f"{company.get('industry')} industry" if company.get("industry") else "",
+                f"{company.get('headcount')} headcount" if company.get("headcount") else "",
+                company.get("country") or "",
+            ]
+            if value
+        ],
+        "needs qualification",
+    )
+    external_tool = _external_tool_line(company, packet, allow_hubspot=True)
+    timing = company.get("contract_end_date") or company.get("current_tool_renewal_date") or ""
+    missing = _prospect_gap_line(company)
+    lines = [
+        "Segment: prospect",
+        f"ICP fit: {icp}",
+        f"Current HRIS/payroll: {external_tool}",
+        f"Timing: {timing or 'needs-check'}",
+        "Verified contacts: none shown unless verified by C360 PIC evidence",
+        f"Missing / needs-check: {missing}",
+        "Next discovery ask: confirm current HRIS/payroll, payroll pain, decision owner, and migration timing.",
+    ]
+    return _account_packet_response(
+        segment="prospect",
+        company_name=company_name,
+        c360_url=c360_url,
+        lines=lines,
+        minimal_gaps=[missing],
+        source="Scoped HubSpot account resolution; C360 used only if available",
+        confidence="needs-check",
+        caveat="Prospect packet is a qualification brief. HubSpot contacts are not treated as verified PICs unless C360 verification exists.",
+    )
+
+
+def _account_packet_response(
+    *,
+    segment: str,
+    company_name: str,
+    c360_url: str,
+    lines: list[str],
+    minimal_gaps: list[str],
+    source: str,
+    confidence: str,
+    caveat: str,
+) -> dict[str, Any]:
+    linked_name = _slack_link(company_name or "Account", c360_url)
+    return {
+        "format": "slim_account_packet_v1",
+        "segment": segment,
+        "company": {
+            "name": company_name,
+            "c360_url": c360_url,
+            "linked_name": linked_name,
+        },
+        "lines": lines,
+        "slack_markdown": "\n".join([f"*{linked_name}*", *[f"• {line}" for line in lines]]),
+        "minimal_gaps": minimal_gaps[:1],
+        "suppressed_by_default": _default_account_packet_suppression(),
+        "source": source,
+        "confidence": confidence,
+        "caveat": caveat,
+    }
+
+
+def _default_account_packet_suppression() -> list[str]:
+    return [
+        "last_activity",
+        "deals",
+        "open_followup_tasks",
+        "full_ic_bant_block",
+        "hubspot_only_contacts",
+        "role_inferred_decision_maker_candidates",
+        "other_contacts",
+        "hubspot_current_tools_contract_line_for_staffany_payroll_customers",
+    ]
+
+
+def _dict_value(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
+def _string_values(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(item).strip() for item in value if str(item or "").strip()]
+
+
+def _join_or(values: list[str], fallback: str) -> str:
+    clean = _unique_text(values)
+    return ", ".join(clean) if clean else fallback
+
+
+def _first_non_empty(*values: Any) -> str:
+    for value in values:
+        text = str(value or "").strip()
+        if text:
+            return text
+    return ""
+
+
+def _slack_link(label: str, url: str) -> str:
+    text = str(label or "").strip() or "Account"
+    href = str(url or "").strip()
+    return f"<{href}|{text}>" if href else text
+
+
+def _owner_psm_line(company: dict[str, Any], account: dict[str, Any]) -> str:
+    owner = _first_non_empty(account.get("accountOwner"), company.get("owner_name"), company.get("owner_email"), "needs-check")
+    psm = _first_non_empty(account.get("psmOwner"), "needs-check")
+    return f"{owner} / {psm}"
+
+
+def _format_verified_pics(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    pics = []
+    for pic in value:
+        if not isinstance(pic, dict):
+            continue
+        name = str(pic.get("name") or "").strip()
+        title = str(pic.get("title") or "").strip()
+        basis = _string_values(pic.get("verificationBasis"))
+        if not name:
+            continue
+        role = f" - {title}" if title else ""
+        proof = f" ({'; '.join(basis)})" if basis else ""
+        pics.append(f"{name}{role}{proof}")
+    return pics
+
+
+def _one_gap_line(value: Any, fallback: str) -> str:
+    gaps = _string_values(value)
+    return "; ".join(gaps[:2]) if gaps else fallback
+
+
+def _external_tool_line(company: dict[str, Any], c360_packet: dict[str, Any], allow_hubspot: bool) -> str:
+    external = c360_packet.get("externalHrisOrPayroll") if isinstance(c360_packet, dict) else None
+    if isinstance(external, dict) and external.get("value"):
+        source = str(external.get("source") or "C360").strip()
+        return f"{external.get('value')} (Source: {source})"
+    if allow_hubspot and company.get("current_tools"):
+        return f"{company.get('current_tools')} (Source: HubSpot current_tools)"
+    return "needs-check"
+
+
+def _prospect_gap_line(company: dict[str, Any]) -> str:
+    missing = _string_values(company.get("missing_fields"))
+    relevant = []
+    for field in ("current tools", "contract end date", "decision maker", "associated contact"):
+        if field in missing:
+            relevant.append(field)
+    return _join_or(relevant[:3], "confirm HRIS/payroll, timeline, and buyer")
 
 
 def _coverage(props: dict[str, Any], contacts: list[dict[str, Any]]) -> dict[str, Any]:
@@ -6374,16 +6754,25 @@ def get_account_context(slack_user_email: str, company_id: str) -> dict[str, Any
         if context is None:
             return _blocked("Company is outside caller scope.", {"caller_email": slack_user_email, "company_id": company_id})
         decision_status = context.get("coverage", {}).get("decision_maker_coverage", {}).get("status")
+        account_packet = context.get("account_packet") or {}
+        c360_sales_packet_status = (context.get("c360_sales_packet") or {}).get("status")
+        source = "HubSpot company, contact, deal, and sales-owned task associations"
+        if c360_sales_packet_status == "ok":
+            source += " + Customer 360 sales packet"
+        elif context["company"].get("c360_url"):
+            source += " + Customer 360 link"
+        confidence = "verified" if decision_status == "verified" and not context["company"].get("missing_fields") else "needs-check"
+        if account_packet.get("confidence") == "needs-check":
+            confidence = "needs-check"
         return {
             "answer": context,
-            "source": (
-                "HubSpot company, contact, deal, and sales-owned task associations + Customer 360 link"
-                if context["company"].get("c360_url")
-                else "HubSpot company, contact, deal, and sales-owned task associations"
-            ),
+            "source": source,
             "scope": _scope_response(scope, [context["company"]["country"]]),
-            "confidence": "verified" if decision_status == "verified" and not context["company"].get("missing_fields") else "needs-check",
-            "caveat": "Contact details and sales-owned follow-up tasks are summarized; raw phone numbers, task bodies, and exports are omitted.",
+            "confidence": confidence,
+            "caveat": (
+                account_packet.get("caveat")
+                or "Contact details and sales-owned follow-up tasks are summarized; raw phone numbers, task bodies, and exports are omitted."
+            ),
         }
     except HubSpotError as error:
         return _blocked(str(error), {"caller_email": slack_user_email, "company_id": company_id})
