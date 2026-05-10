@@ -10,13 +10,13 @@ EXPECT_MODEL_AUTH="${EXPECT_MODEL_AUTH:-1}"
 EXPECT_MODEL_PROVIDER="${EXPECT_MODEL_PROVIDER:-anthropic}"
 EXPECT_MODEL_DEFAULT="${EXPECT_MODEL_DEFAULT:-claude-sonnet-4-6}"
 EXPECT_STAFFANY_BIGQUERY_TOOLS="${EXPECT_STAFFANY_BIGQUERY_TOOLS:-4}"
-EXPECT_HUBSPOT_TOOLS="${EXPECT_HUBSPOT_TOOLS:-25}"
+EXPECT_HUBSPOT_TOOLS="${EXPECT_HUBSPOT_TOOLS:-26}"
 EXPECT_GOOGLE_CALENDAR_TOOLS="${EXPECT_GOOGLE_CALENDAR_TOOLS:-2}"
-EXPECT_GOOGLE_DRIVE_TOOLS="${EXPECT_GOOGLE_DRIVE_TOOLS:-2}"
+EXPECT_GOOGLE_DRIVE_TOOLS="${EXPECT_GOOGLE_DRIVE_TOOLS:-3}"
 EXPECT_LUMA_TOOLS="${EXPECT_LUMA_TOOLS:-3}"
 EXPECT_LUSHA_TOOLS="${EXPECT_LUSHA_TOOLS:-3}"
 EXPECT_EXA_TOOLS="${EXPECT_EXA_TOOLS:-1}"
-EXPECT_NEAR_ME_TOOLS="${EXPECT_NEAR_ME_TOOLS:-5}"
+EXPECT_NEAR_ME_TOOLS="${EXPECT_NEAR_ME_TOOLS:-6}"
 
 HERMES_AGENT_DIR="${HERMES_AGENT_DIR:-$HOME/.hermes/hermes-agent}"
 PATH="$HOME/.local/bin:$HERMES_AGENT_DIR:$PATH"
@@ -122,6 +122,7 @@ expected_servers = {
         "list_sales_followup_tasks",
         "check_account_followup_status",
         "check_event_followup_status",
+        "find_target_accounts_by_luma_match_keys",
         "score_nurture_accounts",
         "find_contact_gaps",
         "find_t90_renewal_gaps",
@@ -134,7 +135,7 @@ expected_servers = {
         "plan_hubspot_writeback",
     ],
     "google_calendar_nurtureany": ["list_google_calendar_events", "audit_google_calendar_meeting_quality"],
-    "google_drive_nurtureany": ["list_drive_folder_images", "extract_drive_image_clues"],
+    "google_drive_nurtureany": ["list_drive_folder_images", "extract_drive_image_clues", "read_indonesia_event_registration_attendance"],
     "luma_nurtureany": ["list_luma_events", "get_luma_event_match_keys", "get_luma_event_context"],
     "lusha_nurtureany": ["search_lusha_decision_maker_candidates", "reveal_lusha_contact_details", "get_lusha_credit_usage"],
     "exa_nurtureany": ["search_exa_people_candidates"],
@@ -143,6 +144,7 @@ expected_servers = {
         "build_near_me_outlet_matches_query",
         "refresh_google_places_for_known_area",
         "build_near_me_c360_customer_query",
+        "prepare_near_me_seed_review_candidates",
         "merge_near_me_sources",
     ],
 }

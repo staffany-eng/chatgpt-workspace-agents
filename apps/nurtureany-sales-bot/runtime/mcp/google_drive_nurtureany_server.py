@@ -2,13 +2,16 @@
 """Read-only Google Drive MCP adapter for NurtureAny Sales Bot.
 
 This server lists bounded image metadata from the StaffAny team@staffany.com
-Drive account and can transiently inspect Drive images for OCR/vision clues. It
-never exports files, mutates Drive, or stores raw image bytes.
+Drive account, can transiently inspect Drive images for OCR/vision clues, and
+can read safe bounded rows from the Indonesia Rev event registration Sheet. It
+never exports files, mutates Drive/Sheets, returns phone numbers/full emails, or
+stores raw image bytes.
 """
 
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
 import os
 import re
@@ -23,18 +26,52 @@ from mcp.server.fastmcp import FastMCP
 
 
 GOOGLE_DRIVE_API_BASE_URL = "https://www.googleapis.com/drive/v3"
+GOOGLE_SHEETS_API_BASE_URL = "https://sheets.googleapis.com/v4/spreadsheets"
 GOOGLE_OAUTH_TOKEN_URL = "https://oauth2.googleapis.com/token"
 GOOGLE_DRIVE_USER_AGENT = "StaffAny-NurtureAny/1.0 (+https://staffany.com)"
 DRIVE_READONLY_SCOPE = "https://www.googleapis.com/auth/drive.readonly"
 DEFAULT_ACCOUNT_EMAIL = "team@staffany.com"
 DEFAULT_DRIVE_FOLDER_ID = "1qXlFnr5TKFtsYNWk7ZywBBctDaae3RY-"
+ID_REV_EVENTS_SPREADSHEET_ID = "1mXixAVJGk0Uy0u1LtOmDFxU3XuW8DRfedB69E1f-drc"
+ID_REV_EVENTS_SPREADSHEET_TITLE = "ID REV - LL & HHH EVENTS"
+ID_REV_EVENTS_SPREADSHEET_URL = f"https://docs.google.com/spreadsheets/d/{ID_REV_EVENTS_SPREADSHEET_ID}/edit"
 GOOGLE_DRIVE_TIMEOUT_SECONDS = 15
 MAX_DRIVE_FILES = 100
 MAX_VISION_FILES = 5
 MAX_IMAGE_BYTES = 7_500_000
+MAX_REGISTRATION_ROWS = 250
 ANTHROPIC_API_KEY_ENV = "ANTHROPIC_API_KEY"
 DEFAULT_VISION_MODEL = "claude-sonnet-4-6"
 SUPPORTED_VISION_MEDIA_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
+PERSONAL_EMAIL_DOMAINS = {
+    "gmail.com",
+    "googlemail.com",
+    "hotmail.com",
+    "outlook.com",
+    "yahoo.com",
+    "icloud.com",
+    "me.com",
+    "aol.com",
+    "proton.me",
+    "protonmail.com",
+}
+REGISTRATION_COLUMN_ALIASES = {
+    "name": ("name",),
+    "email": ("email",),
+    "approval_status": ("approvalstatus", "approval"),
+    "job_role": ("jobrole",),
+    "job_title": ("jobtitle", "title"),
+    "company_name": ("companyname", "company"),
+    "industry": ("industry",),
+    "total_employees": ("totalemployees", "employees", "headcount"),
+    "invited_by": ("whoinvitedyoutothisevent", "invitedby"),
+    "account_mapping": ("accountmapping",),
+    "rsvp_confirmation": ("rsvpsconfirmation", "rsvpconfirmation", "rsvp"),
+    "wa_confirm": ("waconfirm", "whatsappconfirm"),
+    "attend_the_event": ("attendtheevent", "attended", "attendance"),
+    "qo_set": ("qoset",),
+    "remarks": ("remarks",),
+}
 SLACK_API_BASE_URL = "https://slack.com/api"
 SLACK_BOT_TOKEN_ENV = "SLACK_BOT_TOKEN"
 SLACK_USER_ID_PATTERN = re.compile(r"^[UW][A-Z0-9]+$")
@@ -305,6 +342,33 @@ def _request_bytes(path: str, params: dict[str, Any], access_token: str, max_byt
         raise GoogleDriveError(f"Google Drive API request timed out or failed: {reason}") from error
 
 
+def _request_sheets_json(spreadsheet_id: str, path: str, params: dict[str, Any], access_token: str) -> dict[str, Any]:
+    query = urllib.parse.urlencode({key: value for key, value in params.items() if value not in (None, "")})
+    quoted_id = urllib.parse.quote(spreadsheet_id, safe="")
+    url = f"{GOOGLE_SHEETS_API_BASE_URL}/{quoted_id}{path}"
+    if query:
+        url = f"{url}?{query}"
+    request = urllib.request.Request(
+        url,
+        headers={
+            "authorization": f"Bearer {access_token}",
+            "accept": "application/json",
+            "user-agent": GOOGLE_DRIVE_USER_AGENT,
+        },
+        method="GET",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=GOOGLE_DRIVE_TIMEOUT_SECONDS) as response:
+            raw = response.read().decode("utf-8")
+            return json.loads(raw) if raw else {}
+    except urllib.error.HTTPError as error:
+        detail = error.read().decode("utf-8", errors="replace")
+        raise GoogleDriveError(f"Google Sheets API failed: {error.code} {_safe_detail(detail)}", error.code) from error
+    except (urllib.error.URLError, socket.timeout, TimeoutError) as error:
+        reason = getattr(error, "reason", error)
+        raise GoogleDriveError(f"Google Sheets API request timed out or failed: {reason}") from error
+
+
 def _drive_query(folder_id: str, include_trashed: bool) -> str:
     safe_folder_id = (folder_id or DEFAULT_DRIVE_FOLDER_ID).replace("'", "\\'")
     parts = [f"'{safe_folder_id}' in parents", "mimeType contains 'image/'"]
@@ -354,6 +418,142 @@ def _media_type_for_image(metadata: dict[str, Any], downloaded_media_type: str =
     if media_type == "image/jpg":
         return "image/jpeg"
     return media_type
+
+
+def _normalize_header(value: Any) -> str:
+    return re.sub(r"[^a-z0-9]+", "", str(value or "").lower())
+
+
+def _column_index(headers: list[Any], aliases: tuple[str, ...]) -> int | None:
+    normalized = [_normalize_header(header) for header in headers]
+    for alias in aliases:
+        try:
+            return normalized.index(alias)
+        except ValueError:
+            continue
+    return None
+
+
+def _cell(row: list[Any], index: int | None) -> str:
+    if index is None or index >= len(row):
+        return ""
+    return str(row[index] or "").strip()
+
+
+def _truthy_sheet_value(value: Any) -> bool:
+    text = str(value or "").strip().lower()
+    return text in {"true", "yes", "y", "attended", "attend", "came", "present", "1"}
+
+
+def _normalize_email(value: str) -> str:
+    return str(value or "").strip().lower()
+
+
+def _email_hash(value: str) -> str:
+    email = _normalize_email(value)
+    if not email:
+        return ""
+    return hashlib.sha256(email.encode("utf-8")).hexdigest()
+
+
+def _email_domain(value: str) -> str:
+    email = _normalize_email(value)
+    if "@" not in email:
+        return ""
+    domain = email.rsplit("@", 1)[-1].strip().lower()
+    if "." not in domain or domain in PERSONAL_EMAIL_DOMAINS:
+        return ""
+    return domain
+
+
+def _clean_company_name(value: Any) -> str:
+    text = re.sub(r"\s+", " ", str(value or "").strip())
+    return text[:160]
+
+
+def _unique_limited(values: list[str], limit: int = 250) -> list[str]:
+    seen = set()
+    unique = []
+    for value in values:
+        text = str(value or "").strip()
+        key = text.lower()
+        if not text or key in seen:
+            continue
+        seen.add(key)
+        unique.append(text)
+        if len(unique) >= limit:
+            break
+    return unique
+
+
+def _event_sheet_tokens(event_name: str, event_date: str, event_tags: list[str] | None) -> list[str]:
+    if isinstance(event_tags, str):
+        event_tags = [event_tags]
+    raw_tokens = [event_name or "", event_date or ""]
+    raw_tokens.extend(event_tags or [])
+    joined = " ".join(raw_tokens).lower()
+    tokens = []
+    if "bali" in joined:
+        tokens.append("bali")
+    if "jakarta" in joined or "jkt" in joined:
+        tokens.extend(["jakarta", "jkt"])
+    if "happy hr" in joined or "hr happy" in joined or "hhh" in joined:
+        tokens.append("hhh")
+    if "leaders lounge" in joined or re.search(r"\bll\b", joined):
+        tokens.append("ll")
+    iso_match = re.search(r"\b\d{4}-(\d{1,2})-(\d{1,2})\b", event_date or "")
+    date_match = iso_match or re.search(r"(?:^|\D)(\d{1,2})[/-](\d{1,2})(?:[/-]\d{2,4})?", event_date or "")
+    if date_match:
+        if iso_match:
+            month, day = int(date_match.group(1)), int(date_match.group(2))
+        else:
+            day, month = int(date_match.group(1)), int(date_match.group(2))
+        month_names = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"]
+        if 1 <= month <= 12:
+            tokens.extend([str(day), month_names[month - 1]])
+    for month in ("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"):
+        if month in joined:
+            tokens.append(month)
+    for number in re.findall(r"\b\d{1,2}\b", event_date or event_name or ""):
+        tokens.append(str(int(number)))
+    return _unique_limited(tokens, 20)
+
+
+def _sheet_title_score(title: str, tokens: list[str]) -> int:
+    normalized = title.lower()
+    score = 0
+    if "rsvp" in normalized:
+        score += 5
+    if "feedback" in normalized or "laundry" in normalized or "summary" in normalized:
+        score -= 4
+    for token in tokens:
+        if token and token.lower() in normalized:
+            score += 3
+    return score
+
+
+def _select_registration_sheet(sheets: list[dict[str, Any]], sheet_name: str, event_name: str, event_date: str, event_tags: list[str] | None) -> dict[str, Any] | None:
+    if sheet_name:
+        for sheet in sheets:
+            props = sheet.get("properties") if isinstance(sheet.get("properties"), dict) else {}
+            if str(props.get("title") or "").strip().lower() == sheet_name.strip().lower():
+                return sheet
+        return None
+
+    tokens = _event_sheet_tokens(event_name, event_date, event_tags)
+    candidates = []
+    for sheet in sheets:
+        props = sheet.get("properties") if isinstance(sheet.get("properties"), dict) else {}
+        title = str(props.get("title") or "")
+        if not title:
+            continue
+        score = _sheet_title_score(title, tokens)
+        if score > 0:
+            candidates.append((score, int(props.get("index") or 0), sheet))
+    if not candidates:
+        return None
+    candidates.sort(key=lambda item: (item[0], item[1]), reverse=True)
+    return candidates[0][2]
 
 
 def _download_drive_file_bytes(file_id: str, access_token: str, max_bytes: int = MAX_IMAGE_BYTES) -> tuple[bytes, str]:
@@ -668,6 +868,163 @@ def extract_drive_image_clues(
         "truncated": len(drive_files) > capped_limit,
         "confidence": "needs-check",
         "caveat": "Only extracted text/clues are returned. Raw image bytes are discarded and no Drive or HubSpot mutation is performed.",
+    }
+
+
+def _registration_column_map(headers: list[Any]) -> dict[str, int | None]:
+    return {key: _column_index(headers, aliases) for key, aliases in REGISTRATION_COLUMN_ALIASES.items()}
+
+
+def _safe_registration_row(row: list[Any], row_number: int, columns: dict[str, int | None]) -> dict[str, Any]:
+    email = _normalize_email(_cell(row, columns.get("email")))
+    company_name = _clean_company_name(_cell(row, columns.get("company_name")))
+    safe = {
+        "row_number": row_number,
+        "company_name": company_name,
+        "approval_status": _cell(row, columns.get("approval_status")),
+        "job_role": _cell(row, columns.get("job_role")),
+        "job_title": _cell(row, columns.get("job_title")),
+        "industry": _cell(row, columns.get("industry")),
+        "employee_band": _cell(row, columns.get("total_employees")),
+        "invited_by": _cell(row, columns.get("invited_by")),
+        "account_mapping": _cell(row, columns.get("account_mapping")),
+        "rsvp_confirmation": _cell(row, columns.get("rsvp_confirmation")),
+        "wa_confirm": _cell(row, columns.get("wa_confirm")),
+        "attended": _truthy_sheet_value(_cell(row, columns.get("attend_the_event"))),
+        "qo_set": _cell(row, columns.get("qo_set")),
+        "remarks": _cell(row, columns.get("remarks")),
+        "email_domain": _email_domain(email),
+        "email_hash": _email_hash(email),
+    }
+    return {key: value for key, value in safe.items() if value not in ("", None)}
+
+
+@mcp.tool()
+def read_indonesia_event_registration_attendance(
+    slack_user_email: str,
+    event_name: str = "",
+    event_date: str = "",
+    event_tags: list[str] | None = None,
+    sheet_name: str = "",
+    spreadsheet_id: str = ID_REV_EVENTS_SPREADSHEET_ID,
+    limit: int = MAX_REGISTRATION_ROWS,
+    account_email: str = DEFAULT_ACCOUNT_EMAIL,
+) -> dict[str, Any]:
+    """Read safe attendance rows from the Indonesia Rev LL/HHH registration Sheet.
+
+    Use only as a manual fallback when Luma checked_in_at attendance is empty or
+    not used. The output omits phone numbers and full emails and should be
+    matched back to scoped HubSpot target accounts before Slack account answers.
+    """
+
+    configured_account = _account_email()
+    requested_account = (account_email or DEFAULT_ACCOUNT_EMAIL).strip().lower()
+    selected_spreadsheet_id = (spreadsheet_id or ID_REV_EVENTS_SPREADSHEET_ID).strip()
+    capped_limit = max(1, min(int(limit or MAX_REGISTRATION_ROWS), MAX_REGISTRATION_ROWS))
+    scope = _scope(
+        slack_user_email,
+        {
+            "requested_account_email": requested_account,
+            "drive_access_mode": "team_oauth_drive_readonly",
+            "spreadsheet_id": selected_spreadsheet_id,
+            "spreadsheet_title": ID_REV_EVENTS_SPREADSHEET_TITLE,
+            "event_name": event_name,
+            "event_date": event_date,
+            "event_tags": event_tags or [],
+            "manual_fallback_for": "Luma checked_in_at empty or not used for Indonesia events",
+            "safety": "Safe rows only. No phone numbers, full emails, raw exports, or Drive mutations.",
+        },
+    )
+
+    if requested_account != configured_account:
+        return _blocked("Google Drive connector is restricted to team@staffany.com.", scope)
+    if selected_spreadsheet_id != ID_REV_EVENTS_SPREADSHEET_ID:
+        return _blocked("Indonesia event registration fallback is restricted to the ID REV - LL & HHH EVENTS spreadsheet.", scope)
+
+    try:
+        access_token = _access_token()
+        metadata_params = {"fields": "properties(title),sheets(properties(sheetId,title,index,hidden,gridProperties(rowCount,columnCount)))"}
+        try:
+            metadata = _request_sheets_json(selected_spreadsheet_id, "", metadata_params, access_token)
+        except GoogleDriveError as error:
+            if error.status_code != 401:
+                raise
+            access_token = _refresh_access_token(_load_json(_token_file()), _token_file())
+            metadata = _request_sheets_json(selected_spreadsheet_id, "", metadata_params, access_token)
+        sheets = metadata.get("sheets") if isinstance(metadata.get("sheets"), list) else []
+        selected_sheet = _select_registration_sheet(sheets, sheet_name, event_name, event_date, event_tags)
+        if not selected_sheet:
+            return _blocked(
+                "Could not resolve an Indonesia event registration RSVP tab. Provide sheet_name such as 'HHH Bali 7 May - Rsvp'.",
+                scope,
+            )
+        sheet_props = selected_sheet.get("properties") if isinstance(selected_sheet.get("properties"), dict) else {}
+        selected_sheet_name = str(sheet_props.get("title") or "").strip()
+        encoded_range = urllib.parse.quote(f"'{selected_sheet_name}'!A1:AE{capped_limit + 2}", safe="")
+        values_payload = _request_sheets_json(
+            selected_spreadsheet_id,
+            f"/values/{encoded_range}",
+            {"valueRenderOption": "FORMATTED_VALUE"},
+            access_token,
+        )
+    except GoogleDriveError as error:
+        return _blocked(str(error), scope)
+
+    values = values_payload.get("values") if isinstance(values_payload.get("values"), list) else []
+    if not values:
+        return _blocked("Registration sheet returned no rows.", {**scope, "sheet_name": selected_sheet_name})
+
+    headers = values[0] if isinstance(values[0], list) else []
+    columns = _registration_column_map(headers)
+    required = ["company_name", "attend_the_event"]
+    if any(columns.get(key) is None for key in required):
+        return _blocked(
+            "Registration sheet is missing required Company Name or Attend The Event columns.",
+            {**scope, "sheet_name": selected_sheet_name, "headers": [str(header) for header in headers]},
+        )
+
+    raw_rows = [row for row in values[1:] if isinstance(row, list)]
+    parsed_rows = [_safe_registration_row(row, index + 2, columns) for index, row in enumerate(raw_rows)]
+    parsed_rows = [row for row in parsed_rows if row.get("company_name") or row.get("email_domain")]
+    has_more = len(parsed_rows) > capped_limit
+    rows = parsed_rows[:capped_limit]
+    attended_rows = [row for row in rows if row.get("attended") is True]
+    email_domains = _unique_limited([str(row.get("email_domain") or "") for row in rows])
+    company_candidates = _unique_limited([str(row.get("company_name") or "") for row in rows])
+    attended_email_domains = _unique_limited([str(row.get("email_domain") or "") for row in attended_rows])
+    attended_company_candidates = _unique_limited([str(row.get("company_name") or "") for row in attended_rows])
+
+    spreadsheet_url = f"{ID_REV_EVENTS_SPREADSHEET_URL}?gid={sheet_props.get('sheetId')}#gid={sheet_props.get('sheetId')}"
+    return {
+        "answer": {
+            "spreadsheet_title": ID_REV_EVENTS_SPREADSHEET_TITLE,
+            "spreadsheet_url": spreadsheet_url,
+            "sheet_name": selected_sheet_name,
+            "attendance_definition": "Attend The Event is TRUE/Yes in the Indonesia registration Sheet",
+            "registration_rows": rows,
+            "counts": {
+                "returned_rows": len(rows),
+                "attended_rows": len(attended_rows),
+                "approved_rows": sum(1 for row in rows if str(row.get("approval_status") or "").lower() == "approved"),
+                "wa_confirm_yes_rows": sum(1 for row in rows if str(row.get("wa_confirm") or "").strip().lower() == "yes"),
+            },
+            "match_keys": {
+                "email_domains": email_domains,
+                "company_name_candidates": company_candidates,
+                "attended_email_domains": attended_email_domains,
+                "attended_company_name_candidates": attended_company_candidates,
+            },
+            "next_step": "Use attended match keys to resolve scoped HubSpot target accounts before account-level Slack output.",
+        },
+        "source": "Google Sheets ID Rev events registration attendance fallback",
+        "scope": {**scope, "sheet_name": selected_sheet_name, "sheet_id": sheet_props.get("sheetId"), "requested_limit": capped_limit},
+        "total": len(parsed_rows),
+        "requested_limit": capped_limit,
+        "returned_count": len(rows),
+        "has_more": has_more,
+        "truncated": has_more,
+        "confidence": "needs-check",
+        "caveat": "Manual registration Sheet fallback only. HubSpot remains required for target-account scope and follow-up status. Full emails and phone numbers are not returned.",
     }
 
 

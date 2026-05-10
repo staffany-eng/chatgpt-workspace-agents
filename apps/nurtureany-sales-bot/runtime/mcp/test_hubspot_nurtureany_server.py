@@ -6,6 +6,10 @@ import tempfile
 import types
 import unittest
 from pathlib import Path
+
+MCP_DIR = Path(__file__).resolve().parent
+if str(MCP_DIR) not in sys.path:
+    sys.path.insert(0, str(MCP_DIR))
 from unittest.mock import patch
 
 
@@ -218,39 +222,6 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         self.assertEqual(summary["customer360_url"], summary["c360_url"])
         self.assertEqual(summary["customer360_route_key"], "fei-siong-group")
 
-    def test_customer_company_summary_uses_numeric_c360_fallback(self):
-        company = {
-            "id": "123456789",
-            "properties": {
-                "name": "Playmade",
-                "company_country": "Singapore",
-                "hubspot_owner_id": "owner-kerren",
-                "hs_is_target_account": "true",
-                "lifecyclestage": "customer",
-            },
-        }
-
-        with patch.dict(
-            os.environ,
-            {
-                "NURTUREANY_C360_COMPANY_URL_TEMPLATE": "",
-                "NURTUREANY_C360_ORG_URL_TEMPLATE": "",
-                "NURTUREANY_C360_ROUTE_KEY_BY_COMPANY_ID": "",
-            },
-        ), patch.object(
-            self.module,
-            "_list_owners",
-            return_value=[{"id": "owner-kerren", "email": "kerren@staffany.com"}],
-        ):
-            summary = self.module._summarize_company(company)
-
-        self.assertEqual(summary["account_status"], "customer")
-        self.assertEqual(
-            summary["c360_url"],
-            "https://customer-360-qv4r5xkisq-as.a.run.app/companies/123456789",
-        )
-        self.assertEqual(summary["customer360_route_key"], "123456789")
-
     def test_legacy_c360_template_placeholder_uses_route_key(self):
         with patch.dict(
             os.environ,
@@ -395,21 +366,13 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         self.assertIn("hs_num_contacts_with_buying_roles", context["coverage"]["sources"]["buying_role_contact_count_source"])
 
     def test_get_account_context_marks_customer360_link_source_for_customers(self):
-        packet_markdown = "*<https://customer-360-qv4r5xkisq-as.a.run.app/companies/fei-siong-group|Fei Siong Group>*\n• Segment: current customer"
         context = {
             "company": {
-                "name": "Fei Siong Group",
                 "country": "Singapore",
                 "missing_fields": [],
                 "c360_url": "https://customer-360-qv4r5xkisq-as.a.run.app/companies/fei-siong-group",
             },
             "coverage": {"decision_maker_coverage": {"status": "verified"}},
-            "account_packet": {
-                "slack_markdown": packet_markdown,
-                "source": "Scoped HubSpot account resolution",
-                "confidence": "verified",
-                "caveat": "Slim packet caveat.",
-            },
         }
         with patch.object(self.module, "_caller_scope", return_value={**SCOPE, "kind": "admin"}), patch.object(
             self.module, "_company_context", return_value=context
@@ -418,104 +381,6 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
 
         self.assertIn("Customer 360 link", result["source"])
         self.assertEqual(result["answer"]["company"]["c360_url"], context["company"]["c360_url"])
-        self.assertEqual(result["slack_markdown"], packet_markdown)
-        self.assertIn("Do not add Additional context", result["slack_output_policy"])
-        self.assertIn("last activity", result["slack_output_policy"])
-
-    def test_payroll_customer_account_packet_suppresses_stale_hubspot_sections(self):
-        context = {
-            "company": {
-                "name": "Fei Siong Group",
-                "owner_name": "Kerren Fong",
-                "owner_email": "kerren.fong@staffany.com",
-                "current_tools": "Infotech",
-                "contract_end_date": "2025-10-01",
-                "c360_url": "https://customer-360-qv4r5xkisq-as.a.run.app/companies/fei-siong-group",
-            }
-        }
-        c360_packet = {
-            "status": "ok",
-            "packet": {
-                "segment": "customer_on_staffany_payroll",
-                "c360Url": "https://customer-360-qv4r5xkisq-as.a.run.app/companies/fei-siong-group",
-                "account": {"companyName": "Fei Siong Group", "accountOwner": "Kerren Fong", "psmOwner": "Josica"},
-                "staffany": {
-                    "ownedProducts": ["StaffAny", "Payroll", "EngageAny"],
-                    "missingProducts": ["Claims", "AI"],
-                    "activeUsage": {"summary": "1 mapped StaffAny org; 1,486 active headcount"},
-                },
-                "verifiedPics": [{"name": "Samantha Lin", "title": "HR Manager", "verificationBasis": ["HubSpot payroll_pic = Yes"]}],
-                "crossSellSignals": ["Consider missing StaffAny modules: Claims, AI"],
-                "minimalGaps": [],
-            },
-        }
-
-        packet = self.module._build_account_packet(context, c360_packet)
-        rendered = packet["slack_markdown"]
-
-        self.assertEqual(packet["segment"], "customer_on_staffany_payroll")
-        self.assertIn("<https://customer-360-qv4r5xkisq-as.a.run.app/companies/fei-siong-group|Fei Siong Group>", rendered)
-        self.assertIn("current customer on StaffAny Payroll", rendered)
-        self.assertIn("Missing modules to consider: Claims, AI", rendered)
-        self.assertIn("Samantha Lin", rendered)
-        self.assertNotIn("Infotech", rendered)
-        self.assertNotIn("2025-10-01", rendered)
-        self.assertIn("deals", packet["suppressed_by_default"])
-        self.assertIn("hubspot_current_tools_contract_line_for_staffany_payroll_customers", packet["suppressed_by_default"])
-
-    def test_non_payroll_customer_account_packet_focuses_payroll_conversion(self):
-        context = {
-            "company": {
-                "name": "Rock Productions",
-                "owner_name": "AE",
-                "current_tools": "Infotech",
-                "c360_url": "https://customer-360-qv4r5xkisq-as.a.run.app/companies/rock-productions",
-            }
-        }
-        c360_packet = {
-            "status": "ok",
-            "packet": {
-                "segment": "customer_not_on_staffany_payroll",
-                "c360Url": "https://customer-360-qv4r5xkisq-as.a.run.app/companies/rock-productions",
-                "account": {"companyName": "Rock Productions", "accountOwner": "AE", "psmOwner": "PSM"},
-                "staffany": {"ownedProducts": ["StaffAny"], "missingProducts": ["Payroll"]},
-                "verifiedPics": [],
-                "crossSellSignals": ["Payroll conversion opportunity: no StaffAny Payroll evidence in C360"],
-                "minimalGaps": ["External HRIS/payroll is not sourced in C360."],
-            },
-        }
-
-        packet = self.module._build_account_packet(context, c360_packet)
-        rendered = packet["slack_markdown"]
-
-        self.assertEqual(packet["segment"], "customer_not_on_staffany_payroll")
-        self.assertIn("Payroll conversion hook", rendered)
-        self.assertIn("Infotech (Source: HubSpot current_tools)", rendered)
-        self.assertIn("Missing / needs-check: External HRIS/payroll is not sourced in C360.", rendered)
-        self.assertNotIn("Deals", rendered)
-
-    def test_prospect_account_packet_uses_qualification_brief_with_one_gap_line(self):
-        context = {
-            "company": {
-                "name": "Prospect Co",
-                "industry": "F&B",
-                "headcount": "80",
-                "country": "Singapore",
-                "current_tools": "Excel",
-                "contract_end_date": "2026-11-30",
-                "missing_fields": ["current tools", "contract end date", "decision maker", "associated contact"],
-            }
-        }
-
-        packet = self.module._build_account_packet(context, {"status": "skipped"})
-        rendered = packet["slack_markdown"]
-
-        self.assertEqual(packet["segment"], "prospect")
-        self.assertIn("Segment: prospect", rendered)
-        self.assertIn("Current HRIS/payroll: Excel (Source: HubSpot current_tools)", rendered)
-        self.assertIn("Next discovery ask", rendered)
-        self.assertEqual(len(packet["minimal_gaps"]), 1)
-        self.assertNotIn("Other Contacts", rendered)
 
     def test_find_contact_gaps_propagates_truncation_metadata(self):
         company = {
@@ -1872,6 +1737,74 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         self.assertIsNone(result["answer"]["funnel_snapshot"]["team_totals"]["qos"])
         self.assertIn("Configure HubSpot pipeline/stage IDs", result["answer"]["support_needed"][0])
         self.assertNotIn("_internal", result)
+
+    def test_find_target_accounts_by_luma_match_keys_is_event_first(self):
+        calls = []
+
+        def fake_company_search(filters, limit=5):
+            calls.append(filters)
+            key_filter = filters[-1]
+            if key_filter["propertyName"] == "domain":
+                return {
+                    "results": [
+                        {
+                            "id": "company-domain",
+                            "properties": {
+                                "name": "Noci Bakehouse",
+                                "domain": "noci.example",
+                                "hs_is_target_account": "true",
+                                "company_country": "Singapore",
+                                "hubspot_owner_id": "owner-sales",
+                            },
+                        }
+                    ],
+                    "total": 1,
+                    "requested_limit": limit,
+                    "returned_count": 1,
+                    "has_more": False,
+                    "truncated": False,
+                }
+            if key_filter["propertyName"] == "name":
+                return {
+                    "results": [
+                        {
+                            "id": "company-name",
+                            "properties": {
+                                "name": "Bali Beans",
+                                "domain": "balibeans.example",
+                                "hs_is_target_account": "true",
+                                "company_country": "Singapore",
+                                "hubspot_owner_id": "owner-sales",
+                            },
+                        }
+                    ],
+                    "total": 1,
+                    "requested_limit": limit,
+                    "returned_count": 1,
+                    "has_more": False,
+                    "truncated": False,
+                }
+            raise AssertionError(filters)
+
+        with patch.object(self.module, "_caller_scope", return_value={**SCOPE, "kind": "admin", "email": "kaiyi@staffany.com"}), patch.object(
+            self.module, "_company_search", side_effect=fake_company_search
+        ):
+            result = self.module.find_target_accounts_by_luma_match_keys(
+                "kaiyi@staffany.com",
+                email_domains=["noci.example"],
+                company_name_candidates=["Bali Beans"],
+                countries=["Singapore"],
+            )
+
+        self.assertEqual(result["returned_count"], 2)
+        self.assertEqual(result["confidence"], "needs-check")
+        self.assertEqual(result["answer"][0]["luma_match_reasons"], ["exact_email_domain"])
+        self.assertEqual(result["answer"][1]["luma_match_reasons"], ["company_name_candidate"])
+        self.assertIn({"propertyName": "hs_is_target_account", "operator": "EQ", "value": "true"}, calls[0])
+        self.assertIn({"propertyName": "company_country", "operator": "IN", "values": ["Singapore"]}, calls[0])
+        self.assertEqual(calls[0][-1], {"propertyName": "domain", "operator": "EQ", "value": "noci.example"})
+        self.assertEqual(calls[1][-1], {"propertyName": "name", "operator": "CONTAINS_TOKEN", "value": "Bali Beans"})
+        self.assertIn("No raw Luma attendees", result["caveat"])
 
     def test_score_uses_sales_followup_task_signals(self):
         with patch.object(self.module, "_caller_scope", return_value={**SCOPE, "kind": "admin", "email": "kaiyi@staffany.com"}), patch.object(

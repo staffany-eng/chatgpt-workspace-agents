@@ -4,6 +4,10 @@ import sys
 import types
 import unittest
 from pathlib import Path
+
+MCP_DIR = Path(__file__).resolve().parent
+if str(MCP_DIR) not in sys.path:
+    sys.path.insert(0, str(MCP_DIR))
 from unittest.mock import patch
 
 

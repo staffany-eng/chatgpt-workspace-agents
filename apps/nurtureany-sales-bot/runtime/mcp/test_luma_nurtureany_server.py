@@ -4,6 +4,10 @@ import sys
 import types
 import unittest
 from pathlib import Path
+
+MCP_DIR = Path(__file__).resolve().parent
+if str(MCP_DIR) not in sys.path:
+    sys.path.insert(0, str(MCP_DIR))
 from unittest.mock import patch
 
 
@@ -356,6 +360,56 @@ class LumaNurtureAnyServerTest(unittest.TestCase):
         self.assertEqual([event["event_id"] for event in result["answer"]], ["evt-sports"])
         self.assertEqual(result["scope"]["event_tag_filters"], ["Singapore", "Sports"])
         self.assertEqual(result["answer"][0]["tags"], ["Singapore", "Sports"])
+
+    def test_luma_event_match_keys_are_event_first_without_raw_attendee_export(self):
+        def fake_request(path, params=None):
+            if path == "/v1/event/get":
+                return {
+                    "event_id": "evt-1",
+                    "name": "StaffAny HR Happy Hour",
+                    "url": "https://lu.ma/hhh",
+                    "start_at": "2026-05-13T08:00:00Z",
+                }
+            if path == "/v1/event/get-guests":
+                return {
+                    "entries": [
+                        {
+                            "name": "Owner One",
+                            "email": "owner@noci.example",
+                            "company": "Noci Bakehouse",
+                            "approval_status": "approved",
+                            "checked_in_at": "2026-05-13T08:20:00Z",
+                        },
+                        {
+                            "name": "Personal Email",
+                            "email": "person@gmail.com",
+                            "registration_answers": [{"question": "Company name", "answer": "Bali Beans"}],
+                            "approval_status": "pending_approval",
+                        },
+                    ],
+                    "has_more": False,
+                }
+            raise AssertionError(f"unexpected call: {path} {params}")
+
+        with patch.dict(os.environ, {"LUMA_API_KEY": "test-key"}), patch.object(
+            self.module, "_request_json", side_effect=fake_request
+        ):
+            result = self.module.get_luma_event_match_keys(
+                "ae@staffany.com",
+                event_ids=["evt-1"],
+                max_guests_per_event=250,
+            )
+
+        self.assertEqual(result["confidence"], "verified")
+        answer = result["answer"][0]
+        self.assertEqual(answer["event"]["url"], "https://lu.ma/hhh")
+        self.assertEqual(answer["match_keys"]["email_domains"], ["noci.example"])
+        self.assertEqual(answer["match_keys"]["company_name_candidates"], ["Noci Bakehouse", "Bali Beans"])
+        self.assertEqual(answer["checked_in_count"], 1)
+        serialized = str(result)
+        self.assertNotIn("Owner One", serialized)
+        self.assertNotIn("owner@noci.example", serialized)
+        self.assertNotIn("person@gmail.com", serialized)
 
     def test_luma_event_tag_filters_fall_back_to_metadata_as_needs_check(self):
         def fake_request(path, params=None):

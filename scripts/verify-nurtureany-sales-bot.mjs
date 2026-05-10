@@ -124,6 +124,7 @@ if (!existsSync(manifestPath)) {
       "list_sales_followup_tasks",
       "check_account_followup_status",
       "check_event_followup_status",
+      "find_target_accounts_by_luma_match_keys",
       "score_nurture_accounts",
       "find_contact_gaps",
       "find_t90_renewal_gaps",
@@ -133,6 +134,7 @@ if (!existsSync(manifestPath)) {
       "propose_photo_people_matches",
       "list_drive_folder_images",
       "extract_drive_image_clues",
+      "read_indonesia_event_registration_attendance",
       "draft_nurture_message",
       "list_google_calendar_events",
       "audit_google_calendar_meeting_quality",
@@ -143,6 +145,7 @@ if (!existsSync(manifestPath)) {
       "build_near_me_outlet_matches_query",
       "refresh_google_places_for_known_area",
       "build_near_me_c360_customer_query",
+      "prepare_near_me_seed_review_candidates",
       "merge_near_me_sources",
       "search_exa_people_candidates",
       "search_lusha_decision_maker_candidates",
@@ -162,8 +165,9 @@ if (!existsSync(manifestPath)) {
       fail("Manifest missing approval-gated enrichment tool: reveal_lusha_contact_details");
     }
     for (const tool of ["create_hubspot_task", "append_hubspot_note", "update_nurture_fields"]) {
-      if (!manifest.tools?.mutation_requires_explicit_approval?.includes(tool)) {
-        fail(`Manifest missing approval-gated mutation tool: ${tool}`);
+      const disabled = manifest.tools?.write_phase_planned_disabled;
+      if (disabled?.state !== "disabled_in_v1" || !disabled?.tools?.includes(tool)) {
+        fail(`Manifest missing disabled planned write tool: ${tool}`);
       }
     }
     if (manifest.lusha?.auth_env_var !== "LUSHA_API_KEY") fail("Manifest missing LUSHA_API_KEY auth env var");
@@ -930,9 +934,9 @@ const healthScriptText = textOf("runtime/check-health.sh");
 for (const text of [
   "PROFILE=\"${HERMES_PROFILE:-nurtureanysalesbot}\"",
   "export HERMES_HOME=\"$HOME/.hermes/profiles/$PROFILE\"",
-  "EXPECT_HUBSPOT_TOOLS=\"${EXPECT_HUBSPOT_TOOLS:-25}\"",
+  "EXPECT_HUBSPOT_TOOLS=\"${EXPECT_HUBSPOT_TOOLS:-26}\"",
   "EXPECT_LUMA_TOOLS=\"${EXPECT_LUMA_TOOLS:-3}\"",
-  "EXPECT_NEAR_ME_TOOLS=\"${EXPECT_NEAR_ME_TOOLS:-5}\"",
+  "EXPECT_NEAR_ME_TOOLS=\"${EXPECT_NEAR_ME_TOOLS:-6}\"",
   "slack-display:interim-assistant-messages-not-disabled",
   "kanban:dispatch-in-gateway-not-disabled",
   "terminal:cwd-points-at-codex-worktree",
