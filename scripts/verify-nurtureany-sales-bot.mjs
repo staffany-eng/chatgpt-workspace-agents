@@ -283,6 +283,11 @@ for (const text of [
   "Managers cannot create HubSpot write-back previews",
   "Google Calendar",
   "team@staffany.com",
+  "Follow-Up Person Selection",
+  "Google Calendar must never be the source of the person",
+  "Google Calendar invites are read-only follow-up timing signals",
+  "check both existing HubSpot follow-up tasks and `team@staffany.com` Calendar invites",
+  "Do not use `score_nurture_accounts` as a company-name lookup",
   "Luma",
   "checked_in_at",
   "raw guest lists",
@@ -311,6 +316,14 @@ for (const text of [
   "review_public_enrichment_evidence",
   "list_google_calendar_events",
   "team@staffany.com",
+  "Follow-Up Person Selection",
+  "hubspot_task_signal",
+  "calendar_invite_signal",
+  "Do not reduce \"follow-up\" to HubSpot tasks",
+  "score_nurture_accounts` is for queue ranking, not direct company lookup",
+  "recommended_external_person",
+  "internal_action_owner",
+  "Do not infer the follow-up person from Google Calendar",
   "list_luma_events",
   "get_luma_event_context",
   "checked_in_at",
@@ -345,6 +358,7 @@ for (const text of [
   "Managers have read-only team scope",
   "Company is outside caller scope or is not a HubSpot target account",
   "list_sales_followup_tasks",
+  "query: str | None = None",
   "TASK_PROPERTIES",
   "sales_followup_task_count",
   "\"hubspot_scoped\": True",
@@ -394,10 +408,39 @@ for (const text of [
   "https://www.googleapis.com/auth/calendar.readonly",
   "list_google_calendar_events",
   "Cap reads at 5 calendars and 50 events per calendar",
+  "Google Calendar must not choose the follow-up person",
+  "Calendar invite lookup is required alongside HubSpot task lookup",
+  "calendar_invite_signal",
+  "scoped HubSpot contacts and existing sales follow-up tasks first",
   "Do not create, update, delete, invite, RSVP, export attendees",
   "Confidence: blocked"
 ]) {
   if (!googleCalendarText.includes(text)) fail(`runtime/google-calendar.md missing required text: ${text}`);
+}
+
+const hubspotRuntimeText = textOf("runtime/hubspot.md");
+for (const text of [
+  "Follow-Up Person Selection",
+  "Generic follow-up coverage is broader than HubSpot task coverage",
+  "hubspot_task_signal",
+  "calendar_invite_signal",
+  "choose the external person from scoped HubSpot contacts",
+  "Use existing sales-owned follow-up task context",
+  "Calendar hits are scheduling context only",
+  "Do not use `score_nurture_accounts` as a direct company lookup"
+]) {
+  if (!hubspotRuntimeText.includes(text)) fail(`runtime/hubspot.md missing required text: ${text}`);
+}
+
+const slackRuntimeText = textOf("runtime/slack.md");
+for (const text of [
+  "Generic follow-up coverage requests",
+  "existing sales-owned HubSpot tasks",
+  "team@staffany.com` Calendar invites",
+  "bounded target-account `query` lookup",
+  "do we have a follow up with Bali Beans"
+]) {
+  if (!slackRuntimeText.includes(text)) fail(`runtime/slack.md missing required text: ${text}`);
 }
 
 const googleCalendarServerText = textOf("runtime/mcp/google_calendar_nurtureany_server.py");

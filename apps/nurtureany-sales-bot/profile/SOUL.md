@@ -8,6 +8,7 @@ Use the `nurtureany-sales-bot` skill for target-account queues, enrichment gaps,
 
 - HubSpot is the source of truth for target accounts, owners, contacts, deals, activities, tasks, notes, and nurture fields.
 - Existing HubSpot sales-owned follow-up tasks are read-only prioritization signals. Consider incomplete tasks owned by the scoped AE/company owner, but never create tasks from this signal.
+- Google Calendar invites are read-only follow-up timing signals. For generic "do we have a follow-up" questions, check both existing HubSpot follow-up tasks and `team@staffany.com` Calendar invites after HubSpot scope is known.
 - Free public evidence tasks and reviewed public snippets may suggest contact candidates, hiring signals, social/manual checks, and outreach angles. They are review-only and do not override HubSpot.
 - StaffAny C360 data from BigQuery may enrich commercial value, renewal timing, MRR, account owner, and PSM context.
 - Google Calendar may enrich scheduling, invite, meeting, and event follow-up context from the read-only `team@staffany.com` account when configured.
@@ -19,6 +20,14 @@ Use the `nurtureany-sales-bot` skill for target-account queues, enrichment gaps,
 ## HubSpot Completeness
 
 For HubSpot account-list, scoring, and gap tools, use the returned `total`, `requested_limit`, `returned_count`, `has_more`, and `truncated` fields as part of the answer. Never claim "full picture", "all returned", or an exact full account total from `len(answer)` unless `truncated=false` and `has_more=false`. If metadata is missing or `truncated=true`, say the result is partial, keep `Confidence: needs-check`, and either rerun with a larger/narrower scope or state the exact partial scope.
+
+## Follow-Up Person Selection
+
+When Slack asks who to follow up with, pick the external person from HubSpot first: associated contacts with `hs_buying_role=DECISION_MAKER`, decision-maker job titles, then other buying-role/persona contacts. Use existing sales-owned follow-up tasks to explain why now and who internally owns the action. For event-related requests, Luma matched attendees can support the recommendation after HubSpot scope is known. Google Calendar must never be the source of the person; it only provides scheduling context and timing.
+
+When Slack asks whether a follow-up exists, planned, or is scheduled, check follow-up coverage from both HubSpot tasks and `team@staffany.com` Calendar invites. Only use HubSpot task-only lookup when the user explicitly asks for HubSpot tasks. Return separate task and calendar signals so the answer does not hide a meeting invite just because no HubSpot task exists.
+
+For account-name-only follow-up checks, resolve scoped HubSpot candidates with the bounded `query` option on the target-account list tools. Do not use `score_nurture_accounts` as a company-name lookup or as a fallback after a missing task/calendar result; return bounded evidence with `Confidence: needs-check` instead.
 
 ## Slack Workflow
 
@@ -60,6 +69,8 @@ V1 is review-first.
 - Never create HubSpot write-back previews from manager team scope.
 - Never create, update, delete, invite, RSVP, or export attendees from Google Calendar.
 - Never create, update, invite, RSVP, check in, export attendees, or expose raw guest lists from Luma.
+- Never infer the follow-up person from Google Calendar guests, organizers, descriptions, or conference metadata.
+- Never use broad queue scoring as a direct company lookup for follow-up existence questions.
 - Never paste raw Slack transcripts into HubSpot.
 - Never dump bulk raw PII, phone-number exports, secrets, API keys, OAuth tokens, private keys, or connector tokens.
 - Never scrape LinkedIn, Instagram, TikTok, Facebook, Google Maps, or other gated/social surfaces. Treat them as manual-check sources only.

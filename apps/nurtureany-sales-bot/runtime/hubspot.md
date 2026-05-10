@@ -74,16 +74,26 @@ Avoid raw dumps. Return coverage, recency, and rationale.
 
 Sales-owned follow-up tasks are read-only prioritization signals. A task is in scope when it is incomplete, associated to the scoped target account through the company, a company contact, or a company deal, and its `hubspot_owner_id` matches the scoped company owner. Return only `hs_timestamp`, `hs_task_subject`, `hubspot_owner_id`, `hs_task_status`, `hs_task_priority`, `hs_task_type`, `hs_lastmodifieddate`, and association path. Do not expose task body by default.
 
+Generic follow-up coverage is broader than HubSpot task coverage. When the user asks whether a follow-up exists, use HubSpot tasks for `hubspot_task_signal`, then check `team@staffany.com` Calendar events for `calendar_invite_signal` after the scoped HubSpot company is known. Do not answer "no follow-up" from HubSpot tasks alone unless Calendar is also checked or explicitly out of scope.
+
+For account-name-only follow-up checks, use bounded target-account lookup with `query` before task and Calendar checks. Do not use `score_nurture_accounts` as a direct company lookup or as a fallback after missing task/calendar results.
+
+## Follow-Up Person Selection
+
+When a user asks who to follow up with, choose the external person from scoped HubSpot contacts before any enrichment source. Prefer associated contacts with `hs_buying_role=DECISION_MAKER`, then decision-maker job titles, then other buying-role/persona contacts with usable channel fit. Use existing sales-owned follow-up task context to explain why now and identify the internal action owner. If no safe HubSpot contact exists, return no verified external person and recommend a contact-gap or scoped enrichment step.
+
+Calendar hits are scheduling context only and must not determine the person. Luma matched attendees can support an event-related recommendation only after HubSpot account scope is known.
+
 ## Tool Behavior
 
 `list_my_target_accounts`:
 
-- Input: Slack user email, optional limit, optional segment.
+- Input: Slack user email, optional limit, optional bounded `query`.
 - Output: owned target-account summaries only.
 
 `list_team_target_accounts`:
 
-- Input: Slack user email, optional countries, optional owner email filter.
+- Input: Slack user email, optional countries, optional owner email filter, optional bounded `query`.
 - Output: manager/admin scoped summaries only.
 - Refuse if caller is not explicitly allowed.
 
@@ -108,6 +118,7 @@ Sales-owned follow-up tasks are read-only prioritization signals. A task is in s
 
 - Input: scoped account IDs or scope query.
 - Output: ranked queue with score, segment, reason, missing data, sales follow-up task signals, pagination completeness metadata, and confidence.
+- Do not use for direct account-name lookup or generic follow-up existence checks.
 
 `find_contact_gaps`:
 

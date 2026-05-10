@@ -153,6 +153,43 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         self.assertTrue(result["has_more"])
         self.assertTrue(result["truncated"])
 
+    def test_company_search_includes_bounded_text_query(self):
+        calls = []
+
+        def fake_post(path, body):
+            calls.append(body)
+            return {
+                "total": 1,
+                "results": [{"id": "company-1", "properties": {"name": "Bali Beans"}}],
+            }
+
+        with patch.object(self.module, "_post", side_effect=fake_post):
+            result = self.module._company_search([], limit=5, query="Bali Beans")
+
+        self.assertEqual(result["returned_count"], 1)
+        self.assertEqual(calls[0]["query"], "Bali Beans")
+        self.assertEqual(calls[0]["limit"], 5)
+
+    def test_list_team_target_accounts_supports_bounded_name_query(self):
+        admin_scope = {"kind": "admin", "email": "kaiyi@staffany.com", "countries": self.module.SUPPORTED_COUNTRIES, "owner_id": None}
+        with patch.object(self.module, "_caller_scope", return_value=admin_scope), patch.object(
+            self.module,
+            "_company_search",
+            return_value={
+                "results": [{"id": "company-1", "properties": {"name": "Bali Beans", "company_country": "Indonesia"}}],
+                "total": 1,
+                "requested_limit": 5,
+                "returned_count": 1,
+                "has_more": False,
+                "truncated": False,
+            },
+        ) as company_search:
+            result = self.module.list_team_target_accounts("kaiyi@staffany.com", countries=["Indonesia"], limit=5, query="Bali Beans")
+
+        self.assertEqual(result["answer"][0]["name"], "Bali Beans")
+        self.assertEqual(company_search.call_args.kwargs["query"], "Bali Beans")
+        self.assertEqual(company_search.call_args.args[1], 5)
+
     def test_score_uses_target_owner_email_without_overwriting_caller_identity(self):
         with patch.object(self.module, "_caller_scope", return_value={**SCOPE, "kind": "admin", "email": "kaiyi@staffany.com"}), patch.object(
             self.module, "_owner_by_email", return_value={"id": "owner-jeremy"}

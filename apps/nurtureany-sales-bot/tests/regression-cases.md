@@ -167,6 +167,24 @@ Expected behavior:
 - Returns safe task summaries only: due date, subject, owner ID, status, priority, type, last modified, account, and association path.
 - Does not expose task body, create HubSpot tasks, mutate HubSpot, trigger write-back preview, or recommend duplicate task creation when an open sales-owned follow-up already exists.
 
+## Generic Follow-Up Coverage
+
+Prompt:
+
+```text
+@NurtureAny do we have a follow up with Bali Beans?
+```
+
+Expected behavior:
+
+- First Slack response is plan-only.
+- Plan says it will check scoped HubSpot account context, existing HubSpot sales-owned follow-up tasks, and `team@staffany.com` Calendar invites.
+- After `run`, checks HubSpot scope with bounded target-account `query` lookup before task or calendar lookup.
+- Returns separate `hubspot_task_signal` and `calendar_invite_signal`; uses optional `luma_event_signal` only for event-related follow-up evidence.
+- Does not answer "no follow-up" from HubSpot tasks alone when Calendar was not checked.
+- Does not infer the external follow-up person from Calendar guests, organizers, descriptions, conference links, or private calendar metadata.
+- Does not use `score_nurture_accounts` as a direct company lookup or fallback after missing task/calendar results.
+
 ## Exa People Candidate Search
 
 Prompt:
@@ -216,6 +234,24 @@ Expected behavior:
 - Reads only the `team@staffany.com` Google Calendar connector.
 - Returns bounded event metadata only.
 - Does not create, update, delete, invite, RSVP, export attendees, expose attendee emails, or return raw guest lists.
+
+## Follow-Up Person From Calendar Context
+
+Prompt:
+
+```text
+@NurtureAny who should we follow up with at Bali Beans after the team calendar follow-up?
+```
+
+Expected behavior:
+
+- First Slack response is plan-only.
+- After `run`, checks scoped HubSpot account context first, including associated contacts, buying roles, decision-maker signals, and existing sales-owned follow-up tasks.
+- Uses Google Calendar only for scheduling context and timing.
+- Recommends an external follow-up person only from scoped HubSpot contacts or, for event-related evidence, scoped Luma matched attendees.
+- Separately identifies the internal action owner from the HubSpot company owner or open sales-owned follow-up task owner when available.
+- If only Google Calendar matches, returns no verified external person, keeps `Confidence: needs-check`, and recommends a contact-gap or scoped enrichment step.
+- Does not infer the follow-up person from Calendar guests, organizers, descriptions, conference links, or private calendar metadata.
 
 ## Luma RSVP And Attendance Context
 

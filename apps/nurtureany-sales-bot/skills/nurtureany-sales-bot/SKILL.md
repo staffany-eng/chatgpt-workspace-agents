@@ -23,6 +23,7 @@ V1 is review-first. It never auto-sends WhatsApp, email, LinkedIn, Instagram, SM
 - `my 150`, `my target accounts`, `my nurture queue`, or similar AE-owned target-account requests.
 - Manager requests such as `team queue`, `accounts with no direct contact`, `post-demo nurture queue`, or `renewal risk queue`.
 - Questions about existing sales-owned HubSpot follow-up tasks, overdue follow-ups, or due-this-week follow-ups.
+- Generic follow-up coverage questions such as `do we have a follow up with account X`, which require both HubSpot task lookup and `team@staffany.com` Calendar invite lookup.
 - Questions about whether target accounts are enriched or nurture-ready.
 - Requests to generate free public search tasks or review public enrichment evidence.
 - Approved requests to use Exa People Search for public decision-maker candidates.
@@ -48,6 +49,10 @@ Do not use this skill for generic data analysis, payroll metrics, product suppor
 HubSpot remains the source of truth for the queue. Free public evidence, Exa, Lusha, C360, Google Calendar, and Luma enrich prioritization; they do not override HubSpot ownership or target-account membership.
 
 For Luma, attendance means `checked_in_at` is present. Approved, invited, pending, waitlist, declined, and other RSVP states are not attendance.
+
+For follow-up person questions, Google Calendar is not a contact source. Select the external person from HubSpot contacts first, use sales-owned follow-up tasks to explain action timing and internal ownership, then use Luma matched attendees only when the request is event-related.
+
+For generic follow-up existence questions, Calendar is a follow-up signal. Check HubSpot sales-owned follow-up tasks and `team@staffany.com` Calendar invites after scoped HubSpot account lookup. Do not reduce "follow-up" to HubSpot tasks unless the user explicitly says "task".
 
 ## Access Routing
 
@@ -104,16 +109,42 @@ Nurture-ready enriched:
 
 If Slack asks whether an account is enriched, return the tier and the missing fields, not raw contact data.
 
+## Follow-Up Person Selection
+
+For generic "do we have a follow-up" questions, answer follow-up coverage, not only task coverage:
+
+- HubSpot task signal: existing incomplete sales-owned follow-up tasks associated to the scoped company, contacts, or deals.
+- Calendar invite signal: bounded `team@staffany.com` Calendar events or invites matching the scoped account name/domain/time window.
+- Luma event signal: only when the request is event-related and HubSpot scope is known.
+
+The first plan for `do we have a follow up with <account>` should say it will check scoped HubSpot account context, existing HubSpot follow-up tasks, and `team@staffany.com` Calendar invites. Return separate signals: `hubspot_task_signal`, `calendar_invite_signal`, optional `luma_event_signal`, `confidence`, and caveat.
+
+For account-name-only follow-up checks, first use the bounded `query` option on `list_my_target_accounts` or `list_team_target_accounts` to resolve possible scoped HubSpot company IDs. If no scoped company is found, do not broaden into `score_nurture_accounts`; return `Confidence: needs-check` with the exact bounded sources checked. `score_nurture_accounts` is for queue ranking, not direct company lookup or follow-up existence checks.
+
+When the user asks who to follow up with, return two separate ideas when available:
+
+- Recommended external person: choose from scoped HubSpot contacts first. Prefer `hs_buying_role=DECISION_MAKER`, decision-maker job titles such as founder, owner, boss, HR director, or ops director, then other buying-role/persona contacts with usable channel fit.
+- Internal action owner: use the HubSpot company owner or the existing open sales-owned task owner. Do not use a Calendar organizer or invitee as the internal owner.
+
+Use the evidence order below:
+
+1. HubSpot associated contacts and buying-role/persona fields.
+2. Existing incomplete sales-owned HubSpot follow-up task context for why now, due date, and internal owner.
+3. Luma matched scoped attendee only for event-related asks, with `Confidence: needs-check` unless the match is exact HubSpot contact email or exact company email domain.
+4. Google Calendar event title/time only as supporting scheduling context.
+
+If no safe HubSpot or Luma person exists, say there is no verified follow-up person yet and recommend a scoped contact-gap or enrichment step. Do not name a person from Calendar guests, organizers, descriptions, conference links, or raw attendee data.
+
 ## Tool Contracts
 
 Read tools:
 
-- `list_my_target_accounts`: owner-scoped target-account list for the requesting AE.
-- `list_team_target_accounts`: manager/admin regional target-account list. Optional `owner_email` narrows to one HubSpot owner without changing caller identity.
+- `list_my_target_accounts`: owner-scoped target-account list for the requesting AE. Optional `query` performs bounded account-name/domain lookup inside the same scope.
+- `list_team_target_accounts`: manager/admin regional target-account list. Optional `owner_email` narrows to one HubSpot owner without changing caller identity. Optional `query` performs bounded account-name/domain lookup inside the same scope.
 - `audit_hubspot_owner_roster`: admin-only HubSpot owner roster audit with scoped target-account counts for classifying sales reps, managers, admins, disabled users, and unclassified owners.
 - `get_account_context`: one company with associated contacts, deals, activities, C360, Google Calendar, and Luma context.
 - `list_sales_followup_tasks`: existing incomplete sales-owned HubSpot tasks associated to scoped target accounts through company, contact, or deal links. It returns safe task summaries only and never creates tasks.
-- `score_nurture_accounts`: ranked queue with rationale, missing evidence, and pagination completeness metadata. Optional `owner_email` narrows an authorized manager/admin request to one HubSpot owner.
+- `score_nurture_accounts`: ranked queue with rationale, missing evidence, and pagination completeness metadata. Optional `owner_email` narrows an authorized manager/admin request to one HubSpot owner. Do not use this as an account-name resolver or as a generic follow-up existence fallback.
 - `find_contact_gaps`: contact, persona, channel, and decision-maker gaps plus `gap_count`, `scored_account_count`, and pagination completeness metadata. Optional `owner_email` narrows an authorized manager/admin request to one HubSpot owner.
 - `generate_free_search_tasks`: scoped manual/free public-search tasks for company website, careers, public job boards, general web, LinkedIn manual search, Google Maps manual check, Instagram/TikTok manual check, Facebook manual check, and review sites.
 - `review_public_enrichment_evidence`: review public evidence snippets/URLs, fetch only safe public company/careers/job pages, normalize candidate contacts/signals, dedupe against HubSpot contacts, and return review-only output.
@@ -169,11 +200,19 @@ For ranked queues, include account name, why now, person/persona if safe, channe
 
 For sales follow-up task flows, use existing incomplete HubSpot tasks owned by the scoped AE/company owner. Return due date, subject, owner ID, status, priority, type, last modified, account, and association path only. Do not expose task body by default, do not create tasks, and do not recommend duplicate task creation when an open sales-owned follow-up already exists.
 
+For generic follow-up coverage answers, do not stop at `list_sales_followup_tasks`. Also call `list_google_calendar_events` against `team@staffany.com` after HubSpot scope is known, unless the user explicitly asked only for HubSpot tasks. Keep the task and calendar findings separate in the answer.
+
+Do not use `score_nurture_accounts` to recover from an incomplete follow-up lookup. It is a queue-scoring tool and can be expensive across a country scope. If bounded account-name lookup, task search, and Calendar search are inconclusive, answer with the bounded evidence and `Confidence: needs-check` rather than starting a broad score scan.
+
+For follow-up person answers, include `recommended_external_person`, `internal_action_owner`, `why_now`, and `evidence`. If the only matched signal is Google Calendar, return no verified external person and keep `Confidence: needs-check`.
+
 For Exa flows, include the returned `cost_report`. Exa responses show public candidate/source metadata only. Treat LinkedIn and social URLs as manual-check evidence; do not fetch or summarize gated profile contents. Use Exa candidates to let the user select a person before targeted Lusha reveal.
 
 Exa and Lusha search inputs must come from NurtureAny scoped HubSpot account output and include a HubSpot `company_id` plus `scope_source=hubspot_nurtureany` or `hubspot_scoped=true`. Do not use either paid enrichment source for arbitrary company-name-only inputs.
 
 For Google Calendar flows, include only bounded event metadata from the `team@staffany.com` account. Do not expose descriptions, attendee emails, raw guest lists, conference links, or private calendar metadata. Treat calendar hits as scheduling context and match them back to scoped HubSpot accounts before acting.
+
+Do not infer the follow-up person from Google Calendar guests, organizers, descriptions, conference links, or private calendar metadata. If the user asks who to contact after a calendar hit, return to HubSpot contacts/tasks and, for event-related asks, Luma matched attendees.
 
 For Luma flows, check scoped HubSpot accounts first, then call Luma. Do not use Luma for arbitrary company-name-only lookup. Treat exact HubSpot contact email and exact company email domain matches as verified; company-name matches from Luma fields or registration answers are candidate matches with `Confidence: needs-check`. Do not expose unmatched guests, full attendee emails, phone numbers, registration answers, or raw guest lists. Attendance means `checked_in_at` is present; RSVP status alone is not attendance.
 
@@ -218,3 +257,6 @@ Store only confirmed reusable operating preferences if the runtime supports memo
 14. Treating an unclassified HubSpot owner as an AE. Sales-rep access must be explicitly classified in the runtime access policy.
 15. Running Exa or Lusha on arbitrary company names instead of scoped HubSpot company IDs.
 16. Running Luma guest matching before HubSpot scope is known, exporting raw attendees, or treating RSVP status as attendance.
+17. Picking a follow-up person from Google Calendar instead of HubSpot contacts/tasks or scoped Luma attendee matches.
+18. Answering "do we have a follow-up" by checking only HubSpot tasks and skipping `team@staffany.com` Calendar invites.
+19. Using `score_nurture_accounts` as a direct company lookup or follow-up existence fallback.

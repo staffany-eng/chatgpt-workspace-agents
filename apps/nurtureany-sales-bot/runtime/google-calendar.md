@@ -26,7 +26,11 @@ Useful signals:
 - Recent event attendance context when the event is represented in Calendar.
 - Account-name or domain matches in calendar event summaries.
 
+For generic "do we have a follow-up" questions, Calendar invite lookup is required alongside HubSpot task lookup after the scoped HubSpot account is known. Return Calendar as `calendar_invite_signal`, not as the source of the contact person.
+
 Google Calendar does not replace Luma event evidence when Luma has RSVP or attendance data. Treat Calendar as scheduling context unless the event source explicitly records attendance.
+
+Google Calendar must not choose the follow-up person. Do not infer contacts from guests, organizers, descriptions, conference links, or private calendar metadata. If the user asks who to follow up with after a calendar hit, return to scoped HubSpot contacts and existing sales follow-up tasks first; use Luma matched attendees only when the request is event-related.
 
 ## Query Rules
 

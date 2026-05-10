@@ -9,6 +9,8 @@ NurtureAny's first runtime surface is Slack mention usage in sales pilot channel
 - The bot asks for `run` before the first confirmed execution.
 - Clear same-thread corrections, fixes, and reruns after a delivered result are continuation work when scope is bounded.
 - Materially expanded scope, source-class changes, write intent, or expensive/ambiguous follow-ups require a revised plan and `run`.
+- Generic follow-up coverage requests must plan to check scoped HubSpot account context, existing sales-owned HubSpot tasks, and `team@staffany.com` Calendar invites. Task-only plans are allowed only when the user explicitly asks for HubSpot tasks.
+- Repeated account-name follow-up requests should reuse bounded sources or run bounded target-account `query` lookup. Do not switch to broad queue scoring as a direct lookup.
 - Exa People Search requests must show the estimated dollar-cost scope before execution and include `cost_report` after execution.
 - Luma guest or attendance requests must check HubSpot scope first, then return bounded RSVP/attendance context without raw attendee exports.
 
@@ -20,6 +22,7 @@ AE commands:
 - `@NurtureAny my target accounts`
 - `@NurtureAny my nurture queue`
 - `@NurtureAny accounts missing direct contact`
+- `@NurtureAny do we have a follow up with Bali Beans`
 
 Manager commands:
 
