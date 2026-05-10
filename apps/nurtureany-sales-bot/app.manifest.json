@@ -19,8 +19,12 @@
     "slack_runtime": "runtime/slack.md",
     "hubspot_runtime": "runtime/hubspot.md",
     "hubspot_mcp": "runtime/mcp/hubspot_nurtureany_server.py",
+    "access_policy_template": "runtime/access-policy.template.json",
     "bigquery_runtime": "runtime/bigquery.md",
+    "google_calendar_runtime": "runtime/google-calendar.md",
+    "google_calendar_mcp": "runtime/mcp/google_calendar_nurtureany_server.py",
     "luma_runtime": "runtime/luma.md",
+    "luma_mcp": "runtime/mcp/luma_nurtureany_server.py",
     "exa_runtime": "runtime/exa.md",
     "exa_mcp": "runtime/mcp/exa_nurtureany_server.py",
     "lusha_runtime": "runtime/lusha.md",
@@ -53,6 +57,15 @@
         ]
       }
     ]
+  },
+  "access_policy": {
+    "runtime_env_var": "NURTUREANY_ACCESS_POLICY_PATH",
+    "template": "runtime/access-policy.template.json",
+    "owner_mapping_source": "hubspot_owners_api",
+    "unclassified_hubspot_owners": "blocked",
+    "sales_rep_scope": "own_hubspot_target_accounts_only",
+    "manager_scope": "country_scoped_team_read_only",
+    "full_roster_committed": false
   },
   "hubspot": {
     "source_of_truth": true,
@@ -101,6 +114,7 @@
     "read": [
       "list_my_target_accounts",
       "list_team_target_accounts",
+      "audit_hubspot_owner_roster",
       "get_account_context",
       "list_sales_followup_tasks",
       "score_nurture_accounts",
@@ -108,6 +122,9 @@
       "generate_free_search_tasks",
       "review_public_enrichment_evidence",
       "draft_nurture_message",
+      "list_google_calendar_events",
+      "list_luma_events",
+      "get_luma_event_context",
       "search_exa_people_candidates",
       "search_lusha_decision_maker_candidates",
       "get_lusha_credit_usage"
@@ -142,6 +159,41 @@
     "hubspot_writeback": "none",
     "allowed_endpoint": "POST /search",
     "category": "people"
+  },
+  "google_calendar": {
+    "account_email": "team@staffany.com",
+    "auth_env_vars": [
+      "GOOGLE_CALENDAR_TOKEN_FILE",
+      "GOOGLE_CALENDAR_CLIENT_SECRET_FILE",
+      "GOOGLE_CALENDAR_ACCOUNT_EMAIL"
+    ],
+    "required_scope": "https://www.googleapis.com/auth/calendar.readonly",
+    "read_only": true,
+    "max_calendars": 5,
+    "max_events_per_calendar": 50,
+    "allowed_tools": [
+      "list_google_calendar_events"
+    ],
+    "event_mutations": false,
+    "attendee_exports": false
+  },
+  "luma": {
+    "auth_env_var": "LUMA_API_KEY",
+    "base_url": "https://public-api.luma.com",
+    "read_only": true,
+    "max_events": 50,
+    "default_event_limit": 20,
+    "max_events_for_context": 20,
+    "max_guests_per_event": 250,
+    "attendance_definition": "checked_in_at_present",
+    "allowed_tools": [
+      "list_luma_events",
+      "get_luma_event_context"
+    ],
+    "requires_scoped_hubspot_companies": true,
+    "raw_attendee_exports": false,
+    "event_mutations": false,
+    "hubspot_writeback": "none"
   },
   "external_message_sending": false,
   "honcho_enabled": false,

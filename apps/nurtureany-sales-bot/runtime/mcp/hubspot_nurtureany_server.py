@@ -120,6 +120,8 @@ HUBSPOT_SEARCH_PAGE_LIMIT = 100
 HUBSPOT_SEARCH_RESULT_LIMIT = 1000
 TASK_ASSOCIATION_LIMIT = 100
 TASK_RETURN_LIMIT = 100
+ACCESS_POLICY_ENV_VAR = "NURTUREANY_ACCESS_POLICY_PATH"
+SCOPE_SOURCE = "hubspot_nurtureany"
 
 
 mcp = FastMCP(
@@ -139,6 +141,10 @@ class ScopeError(RuntimeError):
     pass
 
 
+class AccessPolicyError(RuntimeError):
+    pass
+
+
 def _token() -> str:
     token = os.environ.get("HUBSPOT_PRIVATE_APP_TOKEN", "").strip()
     if not token:
@@ -148,6 +154,102 @@ def _token() -> str:
 
 def _normalize_email(email: str) -> str:
     return (email or "").strip().lower()
+
+
+def _normalize_countries(countries: list[str] | tuple[str, ...] | None) -> tuple[str, ...]:
+    selected = []
+    for country in countries or SUPPORTED_COUNTRIES:
+        if country in SUPPORTED_COUNTRIES and country not in selected:
+            selected.append(country)
+    return tuple(selected)
+
+
+def _string_list(values: Any) -> list[str]:
+    if not isinstance(values, list):
+        return []
+    return [str(value).strip() for value in values if str(value).strip()]
+
+
+def _entry_email(entry: Any, *keys: str) -> str:
+    if isinstance(entry, str):
+        return _normalize_email(entry)
+    if isinstance(entry, dict):
+        for key in keys:
+            value = _normalize_email(str(entry.get(key) or ""))
+            if value:
+                return value
+    return ""
+
+
+def _access_policy_path() -> str:
+    return os.environ.get(ACCESS_POLICY_ENV_VAR, "").strip()
+
+
+def _load_access_policy_file() -> dict[str, Any]:
+    path = _access_policy_path()
+    if not path:
+        return {}
+    try:
+        with open(path, encoding="utf-8") as handle:
+            data = json.load(handle)
+    except FileNotFoundError as error:
+        raise AccessPolicyError(f"{ACCESS_POLICY_ENV_VAR} file not found: {path}") from error
+    except json.JSONDecodeError as error:
+        raise AccessPolicyError(f"{ACCESS_POLICY_ENV_VAR} is invalid JSON: {error}") from error
+    if not isinstance(data, dict):
+        raise AccessPolicyError(f"{ACCESS_POLICY_ENV_VAR} must point to a JSON object.")
+    return data
+
+
+def _access_policy() -> dict[str, Any]:
+    raw = _load_access_policy_file()
+    admins = set(OVERALL_ADMINS)
+    managers: dict[str, tuple[str, ...]] = {
+        email: _normalize_countries(countries) for email, countries in REGIONAL_MANAGERS.items()
+    }
+    sales_reps: dict[str, dict[str, Any]] = {}
+    disabled: set[str] = set()
+
+    for entry in raw.get("admins", []):
+        email = _entry_email(entry, "email", "slack_email")
+        if email:
+            admins.add(email)
+
+    for entry in raw.get("managers", []):
+        email = _entry_email(entry, "email", "slack_email")
+        if not email:
+            continue
+        countries = entry.get("countries") if isinstance(entry, dict) else None
+        managers[email] = _normalize_countries(_string_list(countries))
+
+    for entry in raw.get("sales_reps", []):
+        if not isinstance(entry, dict) or entry.get("active") is False:
+            continue
+        slack_email = _normalize_email(str(entry.get("slack_email") or entry.get("email") or ""))
+        owner_email = _normalize_email(str(entry.get("hubspot_owner_email") or ""))
+        if slack_email and owner_email:
+            sales_reps[slack_email] = {
+                "hubspot_owner_email": owner_email,
+                "countries": _normalize_countries(_string_list(entry.get("countries"))),
+            }
+
+    for key in ("disabled", "unclassified"):
+        for entry in raw.get(key, []):
+            email = _entry_email(entry, "email", "slack_email", "hubspot_owner_email")
+            if email:
+                disabled.add(email)
+
+    return {
+        "source": _access_policy_path() or "built-in-admin-manager-defaults",
+        "admins": admins - disabled,
+        "managers": {email: countries for email, countries in managers.items() if email not in disabled},
+        "sales_reps": {
+            email: data
+            for email, data in sales_reps.items()
+            if email not in disabled and data["hubspot_owner_email"] not in disabled
+        },
+        "disabled": disabled,
+    }
 
 
 def _request_json(method: str, path: str, body: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -208,18 +310,48 @@ def _owner_by_email(email: str) -> dict[str, Any] | None:
     return None
 
 
+def _list_owners(limit: int = 500) -> list[dict[str, Any]]:
+    owners: list[dict[str, Any]] = []
+    after = ""
+    while len(owners) < _bounded_int(limit, default=500, maximum=1000):
+        params = {"archived": "false", "limit": "100"}
+        if after:
+            params["after"] = after
+        data = _get("/crm/v3/owners/", params)
+        owners.extend(data.get("results", []))
+        after = str(data.get("paging", {}).get("next", {}).get("after") or "")
+        if not after:
+            break
+    return owners[: _bounded_int(limit, default=500, maximum=1000)]
+
+
 def _caller_scope(slack_user_email: str) -> dict[str, Any]:
     email = _normalize_email(slack_user_email)
     if not email:
         return {"kind": "blocked", "email": "", "countries": (), "owner_id": None}
-    if email in OVERALL_ADMINS:
+    try:
+        policy = _access_policy()
+    except AccessPolicyError as error:
+        return {"kind": "blocked", "email": email, "countries": (), "owner_id": None, "blocked_reason": str(error)}
+    if email in policy["disabled"]:
+        return {"kind": "blocked", "email": email, "countries": (), "owner_id": None}
+    if email in policy["admins"]:
         return {"kind": "admin", "email": email, "countries": SUPPORTED_COUNTRIES, "owner_id": None}
-    if email in REGIONAL_MANAGERS:
-        return {"kind": "manager", "email": email, "countries": REGIONAL_MANAGERS[email], "owner_id": None}
-    owner = _owner_by_email(email)
+    if email in policy["managers"]:
+        return {"kind": "manager", "email": email, "countries": policy["managers"][email], "owner_id": None}
+    rep = policy["sales_reps"].get(email)
+    if not rep:
+        return {"kind": "blocked", "email": email, "countries": (), "owner_id": None}
+    owner = _owner_by_email(rep["hubspot_owner_email"])
     if not owner:
-        return {"kind": "blocked", "email": email, "countries": SUPPORTED_COUNTRIES, "owner_id": None}
-    return {"kind": "ae", "email": email, "countries": SUPPORTED_COUNTRIES, "owner_id": str(owner["id"])}
+        return {"kind": "blocked", "email": email, "countries": (), "owner_id": None}
+    return {
+        "kind": "ae",
+        "email": email,
+        "countries": rep["countries"],
+        "owner_id": str(owner["id"]),
+        "hubspot_owner_email": rep["hubspot_owner_email"],
+    }
 
 
 def _safe_countries(countries: list[str] | None, allowed: tuple[str, ...]) -> list[str]:
@@ -308,6 +440,8 @@ def _summarize_company(company: dict[str, Any]) -> dict[str, Any]:
     contract_date = props.get("contract_end_date") or props.get("current_tool_renewal_date") or ""
     return {
         "company_id": company.get("id"),
+        "hubspot_scoped": True,
+        "scope_source": SCOPE_SOURCE,
         "name": props.get("name") or "",
         "domain": props.get("domain") or "",
         "country": props.get("company_country") or "",
@@ -532,6 +666,8 @@ def _get_company(company_id: str) -> dict[str, Any]:
 
 def _has_company_access(company: dict[str, Any], scope: dict[str, Any]) -> bool:
     props = company.get("properties", {})
+    if str(props.get("hs_is_target_account") or "").lower() != "true":
+        return False
     if props.get("company_country") not in scope.get("countries", ()):
         return False
     if scope["kind"] in {"admin", "manager"}:
@@ -559,6 +695,13 @@ def _company_context(company_id: str, scope: dict[str, Any], task_limit: int = 2
         "sales_followup_tasks": task_context["tasks"],
         "coverage": _coverage(props, safe_contacts),
     }
+
+
+def _assert_company_access(company_id: str, scope: dict[str, Any]) -> dict[str, Any]:
+    company = _get_company(company_id)
+    if not _has_company_access(company, scope):
+        raise ScopeError("Company is outside caller scope or is not a HubSpot target account.")
+    return company
 
 
 def _summarize_company_with_contacts(company: dict[str, Any], contacts: list[dict[str, Any]]) -> dict[str, Any]:
@@ -715,6 +858,8 @@ def _scope_response(
         "countries": countries,
         "owner_id": scope.get("owner_id"),
     }
+    if scope.get("hubspot_owner_email"):
+        response["hubspot_owner_email"] = scope["hubspot_owner_email"]
     if target_owner_id:
         response["target_owner_id"] = target_owner_id
     if target_owner_email:
@@ -1024,6 +1169,93 @@ def _outreach_angles(signals: list[dict[str, Any]], candidates: list[dict[str, A
     return angles[:5]
 
 
+def _policy_classification(email: str, policy: dict[str, Any]) -> str:
+    normalized = _normalize_email(email)
+    if normalized in policy["disabled"]:
+        return "disabled"
+    if normalized in policy["admins"]:
+        return "admin"
+    if normalized in policy["managers"]:
+        return "manager"
+    if normalized in policy["sales_reps"]:
+        return "sales_rep"
+    for rep in policy["sales_reps"].values():
+        if normalized == rep.get("hubspot_owner_email"):
+            return "sales_rep_owner_email"
+    return "unclassified"
+
+
+def _owner_name(owner: dict[str, Any]) -> str:
+    first = str(owner.get("firstName") or "").strip()
+    last = str(owner.get("lastName") or "").strip()
+    full = " ".join(part for part in [first, last] if part).strip()
+    return full or str(owner.get("email") or "").strip()
+
+
+def _target_counts_for_owner(owner_id: str, countries: list[str]) -> dict[str, Any]:
+    by_country: dict[str, int | None] = {}
+    total = 0
+    for country in countries:
+        data = _company_search(_target_filters([country], owner_id), limit=1)
+        count = data.get("total")
+        by_country[country] = count
+        if isinstance(count, int):
+            total += count
+    return {"total": total, "by_country": by_country}
+
+
+@mcp.tool()
+def audit_hubspot_owner_roster(
+    slack_user_email: str,
+    countries: list[str] | None = None,
+    limit: int = 500,
+) -> dict[str, Any]:
+    """List active HubSpot owners and target-account counts for admin classification."""
+
+    try:
+        scope = _caller_scope(slack_user_email)
+        if scope["kind"] != "admin":
+            return _blocked("Only admins can audit the HubSpot owner roster for NurtureAny classification.", {"caller_email": slack_user_email})
+        selected = _safe_countries(countries, scope["countries"])
+        if not selected:
+            return _blocked("Requested countries are outside caller scope.", _scope_response(scope, []))
+        policy = _access_policy()
+        owners = _list_owners(limit)
+        roster = []
+        for owner in owners:
+            email = _normalize_email(str(owner.get("email") or ""))
+            if not email:
+                continue
+            owner_id = str(owner.get("id") or "")
+            counts = _target_counts_for_owner(owner_id, selected)
+            roster.append(
+                {
+                    "owner_id": owner_id,
+                    "email": email,
+                    "name": _owner_name(owner),
+                    "classification": _policy_classification(email, policy),
+                    "target_account_counts": counts,
+                }
+            )
+        unclassified_count = len([owner for owner in roster if owner["classification"] == "unclassified"])
+        return {
+            "answer": {
+                "owners": roster,
+                "owner_count": len(roster),
+                "unclassified_count": unclassified_count,
+                "policy_source": policy["source"],
+            },
+            "source": "HubSpot owners API and target-account counts",
+            "scope": _scope_response(scope, selected),
+            "confidence": "needs-check" if unclassified_count else "verified",
+            "caveat": "Audit is admin-only and for classification; it does not grant access by itself.",
+        }
+    except AccessPolicyError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email})
+    except HubSpotError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email})
+
+
 @mcp.tool()
 def list_my_target_accounts(slack_user_email: str, limit: int = 20) -> dict[str, Any]:
     """List target accounts owned by the requesting AE."""
@@ -1131,7 +1363,7 @@ def list_sales_followup_tasks(
             for company_id in company_ids[:account_limit]:
                 context = _company_context(str(company_id), scope, task_limit=TASK_RETURN_LIMIT)
                 if context is None:
-                    raise ScopeError("One or more requested companies are outside caller scope.")
+                    raise ScopeError("One or more requested companies are outside caller scope or are not HubSpot target accounts.")
                 contexts.append(context)
             metadata = {
                 "total": len(company_ids),
@@ -1221,8 +1453,9 @@ def score_nurture_accounts(
             requested_limit = _bounded_int(limit, default=20, maximum=50)
             for company_id in company_ids[:requested_limit]:
                 context = _company_context(str(company_id), scope)
-                if context:
-                    contexts.append(context)
+                if context is None:
+                    raise ScopeError("One or more requested companies are outside caller scope or are not HubSpot target accounts.")
+                contexts.append(context)
             metadata = {
                 "total": len(company_ids),
                 "requested_limit": requested_limit,
@@ -1346,8 +1579,9 @@ def generate_free_search_tasks(
         if company_ids:
             for company_id in company_ids[:capped_limit]:
                 context = _company_context(str(company_id), scope)
-                if context:
-                    contexts.append(context)
+                if context is None:
+                    raise ScopeError("One or more requested companies are outside caller scope or are not HubSpot target accounts.")
+                contexts.append(context)
             metadata = {
                 "total": len(company_ids),
                 "requested_limit": capped_limit,
@@ -1555,48 +1789,65 @@ def plan_hubspot_writeback(
 ) -> dict[str, Any]:
     """Create a dry-run HubSpot write-back plan. This tool does not mutate HubSpot."""
 
-    scope = _caller_scope(slack_user_email)
-    if scope["kind"] == "blocked":
-        return _blocked("Caller identity is not mapped to an allowed scope.", {"caller_email": slack_user_email})
-    payload = json.dumps(
-        {
-            "caller": scope.get("email"),
-            "actions": selected_actions,
-            "approval_marker": approval_marker,
-            "date": datetime.now(timezone.utc).isoformat(),
-        },
-        sort_keys=True,
-    )
-    preview_id = hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
-    preview = []
-    for action in selected_actions[:50]:
-        source = action.get("source") if isinstance(action.get("source"), dict) else {}
-        source_evidence = action.get("source_evidence") or source
-        preview.append(
+    try:
+        scope = _caller_scope(slack_user_email)
+        if scope["kind"] == "blocked":
+            return _blocked("Caller identity is not mapped to an allowed scope.", {"caller_email": slack_user_email})
+        if scope["kind"] == "manager":
+            return _blocked("Managers have read-only team scope and cannot create HubSpot write-back previews.", _scope_response(scope, list(scope.get("countries", ()))))
+        if not selected_actions:
+            return _blocked("At least one selected action is required for a write-back preview.", _scope_response(scope, list(scope.get("countries", ()))))
+
+        scoped_actions = selected_actions[:50]
+        for action in scoped_actions:
+            company_id = str(action.get("company_id") or "").strip()
+            if not company_id:
+                raise ScopeError("Every write-back preview action requires a scoped HubSpot company_id.")
+            _assert_company_access(company_id, scope)
+
+        payload = json.dumps(
             {
-                "company_id": action.get("company_id"),
-                "contact_id": action.get("contact_id"),
-                "task": action.get("task"),
-                "note_summary": action.get("note_summary"),
-                "field_updates": action.get("field_updates", {}),
-                "source_evidence": source_evidence,
-                "source_type": action.get("source_type") or source.get("type"),
-                "source_url": action.get("source_url") or source.get("url"),
-                "confidence": action.get("confidence", "needs-check"),
-                "selected": bool(action.get("selected", True)),
-            }
+                "caller": scope.get("email"),
+                "actions": scoped_actions,
+                "approval_marker": approval_marker,
+                "date": datetime.now(timezone.utc).isoformat(),
+            },
+            sort_keys=True,
         )
-    return {
-        "answer": {
-            "preview_id": preview_id,
-            "actions": preview,
-            "will_mutate_hubspot": False,
-        },
-        "source": "NurtureAny HubSpot write-back dry run",
-        "scope": _scope_response(scope, list(scope.get("countries", ()))),
-        "confidence": "verified",
-        "caveat": "Preview only. Mutation tools are disabled in V1 until explicit write phase approval.",
-    }
+        preview_id = hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
+        preview = []
+        for action in scoped_actions:
+            source = action.get("source") if isinstance(action.get("source"), dict) else {}
+            source_evidence = action.get("source_evidence") or source
+            preview.append(
+                {
+                    "company_id": action.get("company_id"),
+                    "contact_id": action.get("contact_id"),
+                    "task": action.get("task"),
+                    "note_summary": action.get("note_summary"),
+                    "field_updates": action.get("field_updates", {}),
+                    "source_evidence": source_evidence,
+                    "source_type": action.get("source_type") or source.get("type"),
+                    "source_url": action.get("source_url") or source.get("url"),
+                    "confidence": action.get("confidence", "needs-check"),
+                    "selected": bool(action.get("selected", True)),
+                }
+            )
+        return {
+            "answer": {
+                "preview_id": preview_id,
+                "actions": preview,
+                "will_mutate_hubspot": False,
+            },
+            "source": "NurtureAny HubSpot write-back dry run",
+            "scope": _scope_response(scope, list(scope.get("countries", ()))),
+            "confidence": "verified",
+            "caveat": "Preview only. Managers are read-only, and mutation tools are disabled in V1 until explicit write phase approval.",
+        }
+    except ScopeError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email})
+    except HubSpotError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email})
 
 
 if __name__ == "__main__":

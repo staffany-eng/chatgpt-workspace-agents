@@ -27,6 +27,7 @@ The adapter sends an explicit `StaffAny-NurtureAny/1.0` User-Agent header so Lus
 `search_lusha_decision_maker_candidates`:
 
 - Calls `POST /prospecting/contact/search`.
+- Requires NurtureAny scoped HubSpot company inputs with `company_id` and `scope_source=hubspot_nurtureany` or `hubspot_scoped=true`; arbitrary company-name-only inputs are blocked before any Lusha API call.
 - Accepts up to 5 companies per call.
 - Defaults to 5 candidates per company and caps at 5.
 - Returns name, title, company match, `requestId`, `contactId`, LinkedIn/social presence, and email/phone availability flags.
@@ -35,6 +36,7 @@ The adapter sends an explicit `StaffAny-NurtureAny/1.0` User-Agent header so Lus
 `reveal_lusha_contact_details`:
 
 - Calls `POST /prospecting/contact/enrich`.
+- Requires scoped HubSpot `company_ids` from the prior NurtureAny HubSpot-scoped search before any reveal call.
 - Requires `approval_marker` from the Slack thread.
 - Accepts up to 3 selected contacts per call.
 - Always sends explicit `revealEmails` and `revealPhones` flags.

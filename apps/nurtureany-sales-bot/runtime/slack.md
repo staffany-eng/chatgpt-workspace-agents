@@ -10,6 +10,7 @@ NurtureAny's first runtime surface is Slack mention usage in sales pilot channel
 - Clear same-thread corrections, fixes, and reruns after a delivered result are continuation work when scope is bounded.
 - Materially expanded scope, source-class changes, write intent, or expensive/ambiguous follow-ups require a revised plan and `run`.
 - Exa People Search requests must show the estimated dollar-cost scope before execution and include `cost_report` after execution.
+- Luma guest or attendance requests must check HubSpot scope first, then return bounded RSVP/attendance context without raw attendee exports.
 
 ## Commands
 
@@ -26,16 +27,18 @@ Manager commands:
 - `@NurtureAny show ID team accounts with no direct contact`
 - `@NurtureAny post-demo nurture queue`
 - `@NurtureAny renewal risk queue this month`
+- `@NurtureAny which target accounts attended yesterday's Luma event`
 
 ## Scope Routing
 
 Use Slack user email as the caller identity.
 
-- AE calls map Slack email to HubSpot owner and restrict to owned companies.
-- Manager calls require explicit email allowlist.
+- AE calls require an explicit `sales_reps` policy entry that maps Slack email to HubSpot owner email, then restrict to owned HubSpot target accounts.
+- Manager calls require explicit email allowlist and are team read-only.
+- Unclassified HubSpot owners are blocked even if Slack email matches a HubSpot owner record.
 - Country filters come from the manager scope, not from channel name.
 
-If Slack cannot provide the user email, return `Confidence: blocked` and ask for the missing identity mapping.
+If Slack cannot provide the user email, return `Confidence: blocked` and ask for the missing identity mapping. If the Slack email is not classified, ask for runtime access policy classification.
 
 ## Output Contract
 
@@ -50,7 +53,7 @@ Reply "run" to start, or tell me what to change.
 Final plain Slack text:
 
 Answer: <result or blocked reason>
-Source: <HubSpot/C360/Luma/tool used>
+Source: <HubSpot/C360/Google Calendar/Luma/tool used>
 Scope: <owner/team/country/time filters>
 Confidence: <verified | needs-check | blocked>
 Caveat: <only the material caveat>

@@ -1,5 +1,8 @@
 import importlib.util
+import json
+import os
 import sys
+import tempfile
 import types
 import unittest
 from pathlib import Path
@@ -69,6 +72,44 @@ def company_context(company_id="123"):
 class HubSpotNurtureAnyServerTest(unittest.TestCase):
     def setUp(self):
         self.module = load_hubspot_module()
+
+    def test_classified_sales_rep_maps_to_configured_hubspot_owner(self):
+        policy = {
+            "sales_reps": [
+                {
+                    "slack_email": "rep.slack@staffany.com",
+                    "hubspot_owner_email": "rep.owner@staffany.com",
+                    "countries": ["Singapore"],
+                    "active": True,
+                }
+            ]
+        }
+        with tempfile.NamedTemporaryFile("w", delete=False) as handle:
+            json.dump(policy, handle)
+            policy_path = handle.name
+
+        try:
+            with patch.dict(os.environ, {self.module.ACCESS_POLICY_ENV_VAR: policy_path}), patch.object(
+                self.module, "_owner_by_email", return_value={"id": "owner-rep", "email": "rep.owner@staffany.com"}
+            ) as owner_by_email:
+                scope = self.module._caller_scope("rep.slack@staffany.com")
+        finally:
+            os.unlink(policy_path)
+
+        owner_by_email.assert_called_once_with("rep.owner@staffany.com")
+        self.assertEqual(scope["kind"], "ae")
+        self.assertEqual(scope["owner_id"], "owner-rep")
+        self.assertEqual(scope["hubspot_owner_email"], "rep.owner@staffany.com")
+        self.assertEqual(scope["countries"], ("Singapore",))
+
+    def test_unclassified_hubspot_owner_is_blocked(self):
+        with patch.dict(os.environ, {self.module.ACCESS_POLICY_ENV_VAR: ""}), patch.object(
+            self.module, "_owner_by_email", side_effect=AssertionError("unclassified users must not be looked up as AEs")
+        ):
+            scope = self.module._caller_scope("owner.but.unclassified@staffany.com")
+
+        self.assertEqual(scope["kind"], "blocked")
+        self.assertEqual(scope["email"], "owner.but.unclassified@staffany.com")
 
     def test_company_search_paginates_past_hubspot_page_limit(self):
         calls = []
@@ -168,6 +209,57 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         self.assertEqual(result["scored_account_count"], 100)
         self.assertTrue(result["truncated"])
         self.assertIn("Only 100 of 150 scoped accounts were returned", result["caveat"])
+
+    def test_explicit_company_ids_outside_scope_are_blocked(self):
+        with patch.object(self.module, "_caller_scope", return_value={**SCOPE, "kind": "ae", "owner_id": "owner-ae"}), patch.object(
+            self.module, "_company_context", return_value=None
+        ):
+            result = self.module.score_nurture_accounts("rep@staffany.com", company_ids=["999"], limit=10)
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("outside caller scope", result["answer"])
+
+    def test_admin_roster_audit_lists_owners_and_classification_counts(self):
+        owners = [
+            {"id": "owner-1", "email": "rep.owner@staffany.com", "firstName": "Rep", "lastName": "Owner"},
+            {"id": "owner-2", "email": "unknown@staffany.com", "firstName": "Unknown", "lastName": "Owner"},
+        ]
+
+        def fake_company_search(filters, limit=1):
+            owner_filter = [item for item in filters if item.get("propertyName") == "hubspot_owner_id"][0]
+            country_filter = [item for item in filters if item.get("propertyName") == "company_country"][0]
+            total = 3 if owner_filter["value"] == "owner-1" and country_filter["values"] == ["Singapore"] else 0
+            return {"results": [], "total": total, "requested_limit": 1, "returned_count": 0, "has_more": bool(total), "truncated": bool(total)}
+
+        policy = {"sales_reps": [{"slack_email": "rep.slack@staffany.com", "hubspot_owner_email": "rep.owner@staffany.com"}]}
+        with tempfile.NamedTemporaryFile("w", delete=False) as handle:
+            json.dump(policy, handle)
+            policy_path = handle.name
+
+        try:
+            with patch.dict(os.environ, {self.module.ACCESS_POLICY_ENV_VAR: policy_path}), patch.object(
+                self.module, "_caller_scope", return_value={"kind": "admin", "email": "kaiyi@staffany.com", "countries": self.module.SUPPORTED_COUNTRIES, "owner_id": None}
+            ), patch.object(self.module, "_list_owners", return_value=owners), patch.object(
+                self.module, "_company_search", side_effect=fake_company_search
+            ):
+                result = self.module.audit_hubspot_owner_roster("kaiyi@staffany.com", countries=["Singapore"])
+        finally:
+            os.unlink(policy_path)
+
+        self.assertEqual(result["confidence"], "needs-check")
+        self.assertEqual(result["answer"]["owner_count"], 2)
+        self.assertEqual(result["answer"]["unclassified_count"], 1)
+        self.assertEqual(result["answer"]["owners"][0]["classification"], "sales_rep_owner_email")
+        self.assertEqual(result["answer"]["owners"][0]["target_account_counts"]["total"], 3)
+
+    def test_roster_audit_is_admin_only(self):
+        with patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
+            self.module, "_list_owners", side_effect=AssertionError("manager should not list owners")
+        ):
+            result = self.module.audit_hubspot_owner_roster("kerren.fong@staffany.com")
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("Only admins", result["answer"])
 
     def test_generate_free_search_tasks_is_scoped_manual_and_free(self):
         with patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
@@ -431,8 +523,23 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         self.assertIn("hiring_signal", reviewed["signals_found"])
         self.assertFalse(result["answer"]["will_mutate_hubspot"])
 
+    def test_manager_cannot_create_writeback_preview(self):
+        with patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
+            self.module, "_assert_company_access", side_effect=AssertionError("manager preview should stop before company lookup")
+        ):
+            result = self.module.plan_hubspot_writeback(
+                "kerren.fong@staffany.com",
+                [{"company_id": "123", "task": "Review public hiring signal"}],
+            )
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("read-only", result["answer"])
+
     def test_plan_hubspot_writeback_preserves_public_source_metadata(self):
-        with patch.object(self.module, "_caller_scope", return_value=SCOPE):
+        admin_scope = {"kind": "admin", "email": "kaiyi@staffany.com", "countries": self.module.SUPPORTED_COUNTRIES, "owner_id": None}
+        with patch.object(self.module, "_caller_scope", return_value=admin_scope), patch.object(
+            self.module, "_assert_company_access", return_value={"id": "123", "properties": {"hs_is_target_account": "true", "company_country": "Singapore"}}
+        ):
             result = self.module.plan_hubspot_writeback(
                 "kerren.fong@staffany.com",
                 [

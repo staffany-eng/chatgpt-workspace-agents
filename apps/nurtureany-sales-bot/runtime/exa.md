@@ -25,6 +25,7 @@ The adapter sends an explicit `StaffAny-NurtureAny/1.0` User-Agent header so Exa
 `search_exa_people_candidates`:
 
 - Calls `POST /search`.
+- Requires NurtureAny scoped HubSpot company inputs with `company_id` and `scope_source=hubspot_nurtureany` or `hubspot_scoped=true`; arbitrary company-name-only inputs are blocked before any Exa API call.
 - Sends `category: "people"`, `type: "auto"`, `numResults <= 5`, and `userLocation` mapped from company country (`SG`, `MY`, or `ID`).
 - Accepts up to 5 companies per call.
 - Defaults to 5 candidates per company and caps at 5.
@@ -67,9 +68,9 @@ All Exa candidates remain `Confidence: needs-check` until an AE verifies or sele
 Recommended flow:
 
 1. Use HubSpot to identify accounts with missing decision-maker coverage.
-2. Use Exa to discover likely public people candidates for selected accounts.
+2. Pass only the scoped HubSpot company records returned by NurtureAny into Exa.
 3. Ask the user to select one or more candidates.
-4. Use Lusha targeted reveal only after explicit approval and cost estimate.
+4. Use Lusha targeted reveal only after explicit approval, scoped HubSpot company IDs, and cost estimate.
 5. Use `plan_hubspot_writeback` only to prepare a preview.
 
 No Exa output mutates HubSpot directly.

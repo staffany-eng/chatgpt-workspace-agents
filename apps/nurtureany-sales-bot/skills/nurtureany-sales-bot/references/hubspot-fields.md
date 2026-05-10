@@ -26,11 +26,12 @@ Target-account count sanity check on 2026-05-09:
 | --- | --- | --- |
 | `eugene@staffany.com` | Overall admin | Singapore, Malaysia, Indonesia |
 | `kaiyi@staffany.com` | Overall admin | Singapore, Malaysia, Indonesia |
-| `kerren.fong@staffany.com` | SG/MY manager | Singapore, Malaysia |
-| `sarah@staffany.com` | Indonesia manager | Indonesia |
-| mapped AE owner email | AE | Own HubSpot target accounts only |
+| `kerren.fong@staffany.com` | SG/MY manager | Singapore, Malaysia team view only |
+| `sarah@staffany.com` | Indonesia manager | Indonesia team view only |
+| explicit `sales_reps` policy entry | AE | Own HubSpot target accounts only |
+| unclassified HubSpot owner | blocked | No NurtureAny access |
 
-Manager access is explicit. Do not infer permissions from Slack profile title or channel membership.
+Manager and AE access are explicit. Do not infer permissions from Slack profile title, channel membership, or a bare HubSpot owner record. The full rep roster lives in a runtime-only file pointed to by `NURTUREANY_ACCESS_POLICY_PATH`; `runtime/access-policy.template.json` contains fake example reps only.
 
 ## Company Properties
 
@@ -88,4 +89,3 @@ Create or update these contact properties during the write-back phase:
 - `nurtureany_last_verified_at`
 
 All write-back must be previewed first and explicitly approved.
-

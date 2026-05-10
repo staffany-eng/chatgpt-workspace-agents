@@ -32,6 +32,8 @@ Use `needs-check` confidence when any major scoring input is missing, inferred, 
 - Pre-demo target account
 - Post-demo ongoing deal
 - Event invite / RSVP chase
+- Post-event attended follow-up
+- Event no-show follow-up
 - Lost-deal re-nurture
 - Missing direct contact
 - High-value dormant account
@@ -60,4 +62,3 @@ For each selected account, preview:
 - Note summary with source evidence and approval marker.
 
 Do not execute any write until the AE or authorized manager approves the preview.
-
