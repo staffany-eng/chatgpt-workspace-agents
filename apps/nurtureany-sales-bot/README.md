@@ -74,6 +74,7 @@ NurtureAny helps AEs and sales managers work the HubSpot target-account list:
 
 - AEs ask for their own target accounts and nurture queue.
 - Managers ask for team queues, missing direct contacts, renewal risk, post-demo nurture, overdue nurture work, existing sales follow-up tasks, and event follow-up status.
+- Direct QO count or pace prompts use `build_sales_metric_actuals_query` and StaffAny BigQuery actuals from `fct_sales_points.qo_set`; Friday review stays HubSpot hygiene first and may add warehouse QO actuals as a second source.
 - The bot ranks accounts, identifies enrichment gaps, answers known-area near-me customer/prospect walk-in prompts, adds C360 revenue/calendar/event context when relevant, scans Drive/Slack event photos into a source-pointer people layer, generates free public search tasks, reviews public evidence, searches Exa for public people candidates when approved, searches Lusha for selected decision-maker candidates when approved, drafts nurture messages, and previews HubSpot write-backs.
 - Existing HubSpot WhatsApp communications, notes, and sales follow-up tasks are read-only follow-up signals. For event questions, NurtureAny recomputes status from Luma checked-in attendance, or the Indonesia Rev LL/HHH registration Sheet `Attend The Event` fallback when Luma check-in is empty or not used, plus event-specific Eazybe WhatsApp communications in HubSpot; generic post-event WhatsApp is `needs_check`. New HubSpot tasks, notes, and field updates happen only after explicit approval.
 

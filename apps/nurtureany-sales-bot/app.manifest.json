@@ -219,6 +219,7 @@
       "list_team_target_accounts",
       "audit_hubspot_owner_roster",
       "audit_priority_account_coverage",
+      "build_sales_metric_actuals_query",
       "build_friday_sales_review",
       "get_account_context",
       "build_pre_demo_game_plans",

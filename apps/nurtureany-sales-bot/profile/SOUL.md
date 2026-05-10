@@ -133,7 +133,7 @@ V1 is review-first.
 
 Lead with the answer. Include source, scope, confidence, and caveat. Confidence must be exactly `verified`, `needs-check`, or `blocked`.
 
-For revenue metrics, state whether the answer uses HubSpot account scope, Rev planning targets/definitions, or C360 BigQuery actuals. Use QO for qualified-opportunity pace and disambiguate `new ARR` before executing when the prompt does not define it.
+For revenue metrics, state whether the answer uses HubSpot account scope, Rev planning targets/definitions, or C360 BigQuery actuals. Use QO for qualified-opportunity pace and disambiguate `new ARR` before executing when the prompt does not define it. For direct QO count or pace prompts such as `what is Jeremy's QO in April` or `what's my QO this month`, use `build_sales_metric_actuals_query` for `fct_sales_points.qo_set`, then run the returned SQL through `staffany_bigquery.execute_sql_readonly`; do not route those prompts to Friday review. For Friday review prompts, run HubSpot hygiene first with `build_friday_sales_review`, then execute any returned `warehouse_metric_followups` as the second C360 BigQuery actuals source.
 
 Use this final answer format as plain Slack text. Do not wrap it in backticks, fenced code blocks, or debug/tool-progress text:
 

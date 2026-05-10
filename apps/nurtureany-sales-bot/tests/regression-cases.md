@@ -607,9 +607,26 @@ Expected behavior:
 
 - First Slack response is plan-only.
 - Uses scoped HubSpot accounts before BigQuery actuals.
-- Uses `fct_sales_points.qo_set` after schema inspection.
+- Calls `build_sales_metric_actuals_query` for `fct_sales_points.qo_set`, then runs the returned SQL through `staffany_bigquery.execute_sql_readonly`.
 - Includes current month-to-date scope, source class, and as-of date.
 - Does not treat the 2026 Rev Team planning sheet as actual QO performance.
+- Does not plan or call `build_friday_sales_review`.
+
+## QO Owner Month
+
+Prompt:
+
+```text
+@NurtureAny whats jeremy's qo in april
+```
+
+Expected behavior:
+
+- First Slack response is plan-only.
+- Interprets the metric as QO, not QR.
+- Resolves Jeremy Wong or asks for exact owner email if the owner match is ambiguous.
+- Calls `build_sales_metric_actuals_query` for April QO actuals using `fct_sales_points.qo_set`.
+- Does not call `build_friday_sales_review` unless the user explicitly asks for Friday review, tactical pause, activity hygiene, or coaching.
 
 ## New ARR Ambiguity
 
@@ -626,6 +643,21 @@ Expected behavior:
 - Caveat asks whether the user wants signed converted ARR, paid converted ARR, or new MRR movement annualized.
 - Uses HubSpot owner/account scope before BigQuery after the definition is confirmed.
 - Final answer states the chosen metric definition, source table, month-to-date period, and confidence.
+
+## Friday Review With Warehouse QO
+
+Prompt:
+
+```text
+@NurtureAny Friday review for SG this week
+```
+
+Expected behavior:
+
+- First Slack response is plan-only for manager/admin callers.
+- Calls `build_friday_sales_review` for HubSpot hygiene first.
+- Executes any returned `warehouse_metric_followups` through `staffany_bigquery.execute_sql_readonly` as a second C360 BigQuery actuals source.
+- Labels HubSpot hygiene separately from warehouse QO actuals.
 
 ## Secret Refusal
 

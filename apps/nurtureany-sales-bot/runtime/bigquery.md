@@ -42,11 +42,13 @@ Inspect schema before relying on table or column names. The existing Luma events
 Use `skills/nurtureany-sales-bot/references/rev-planning-and-metrics.md` before querying revenue metrics.
 
 - QO actuals should use `fct_sales_points.qo_set` after schema inspection.
+- Direct QO count or pace prompts should call `hubspot_nurtureany.build_sales_metric_actuals_query` first, then run the returned SQL through `staffany_bigquery.execute_sql_readonly`. Do not route direct QO prompts through Friday review.
 - `new ARR` is ambiguous. Ask whether the user wants signed converted ARR, paid converted ARR, or new MRR movement annualized.
 - Signed and paid converted ARR come from `fct_deal_metrics_with_pilot_conversion`.
 - New ARR movement and net ARR movement come from `fct_mrr_movements`; annualize MRR movement only when the queried source value is MRR.
 - Current ARR/MRR snapshots come from the latest available `fct_company_revenue_snapshot` snapshot month.
 - Rev planning Sheets/Slides provide target and definition context only. Do not use them as actuals.
+- Friday review remains a HubSpot hygiene flow. If `build_friday_sales_review` returns `warehouse_metric_followups`, execute them as a second C360 BigQuery actuals source and keep the source classes separate.
 
 ## Known-Area Near-Me Customer Coverage
 

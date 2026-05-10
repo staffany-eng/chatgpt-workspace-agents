@@ -435,6 +435,229 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         self.assertEqual(result["answer"]["owners"][0]["classification"], "sales_rep_owner_email")
         self.assertEqual(result["answer"]["owners"][0]["target_account_counts"]["total"], 3)
 
+    def test_sales_metric_qo_for_jeremy_in_april_builds_bigquery_sql(self):
+        admin_scope = {"kind": "admin", "email": "kaiyi@staffany.com", "countries": self.module.SUPPORTED_COUNTRIES, "owner_id": None}
+        with patch.object(self.module, "_caller_scope", return_value=admin_scope), patch.object(
+            self.module,
+            "_owner_by_email",
+            return_value={"id": "owner-jeremy", "email": "jeremy.wong@staffany.com", "firstName": "Jeremy", "lastName": "Wong"},
+        ):
+            result = self.module.build_sales_metric_actuals_query(
+                "kaiyi@staffany.com",
+                metric="qo_set",
+                start_date="2026-04-01",
+                end_date="2026-04-30",
+                owner_email="jeremy.wong@staffany.com",
+            )
+
+        self.assertEqual(result["confidence"], "verified")
+        answer = result["answer"]
+        self.assertEqual(answer["execute_with"], "staffany_bigquery.execute_sql_readonly")
+        self.assertEqual(answer["source_table"], "staffany-warehouse.analytics.fct_sales_points")
+        self.assertIn("SUM(qo_set)", answer["sql"])
+        self.assertIn("DATE '2026-04-01'", answer["sql"])
+        self.assertIn("DATE '2026-04-30'", answer["sql"])
+        self.assertIn("'owner-jeremy'", answer["sql"])
+        self.assertEqual(result["scope"]["target_owner_email"], "jeremy.wong@staffany.com")
+
+    def test_sales_metric_my_qo_uses_caller_owner_scope(self):
+        ae_scope = {
+            "kind": "ae",
+            "email": "rep@staffany.com",
+            "countries": ("Singapore",),
+            "owner_id": "owner-ae",
+            "hubspot_owner_email": "rep.owner@staffany.com",
+        }
+        with patch.object(self.module, "_caller_scope", return_value=ae_scope), patch.object(
+            self.module,
+            "_list_owners",
+            return_value=[{"id": "owner-ae", "email": "rep.owner@staffany.com", "firstName": "Rep", "lastName": "Owner"}],
+        ), patch.object(
+            self.module, "build_friday_sales_review", side_effect=AssertionError("direct QO metric must not call Friday review")
+        ):
+            result = self.module.build_sales_metric_actuals_query(
+                "rep@staffany.com",
+                metric="qo",
+                start_date="2026-05-01",
+                end_date="2026-05-11",
+            )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertIn("'owner-ae'", result["answer"]["sql"])
+        self.assertEqual(result["scope"]["target_owner_id"], "owner-ae")
+
+    def test_sales_metric_ae_cannot_query_another_owner(self):
+        ae_scope = {"kind": "ae", "email": "rep@staffany.com", "countries": ("Singapore",), "owner_id": "owner-ae"}
+        with patch.object(self.module, "_caller_scope", return_value=ae_scope), patch.object(
+            self.module, "_owner_by_email", return_value={"id": "owner-other", "email": "other@staffany.com"}
+        ):
+            result = self.module.build_sales_metric_actuals_query(
+                "rep@staffany.com",
+                metric="qo_set",
+                start_date="2026-04-01",
+                end_date="2026-04-30",
+                owner_email="other@staffany.com",
+            )
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("another owner's revenue metrics", result["answer"])
+
+    def test_sales_metric_manager_qo_uses_access_policy_team_owner_ids(self):
+        policy = {
+            "sales_reps": [
+                {
+                    "slack_email": "sg.rep@staffany.com",
+                    "hubspot_owner_email": "sg.owner@staffany.com",
+                    "countries": ["Singapore"],
+                    "active": True,
+                },
+                {
+                    "slack_email": "id.rep@staffany.com",
+                    "hubspot_owner_email": "id.owner@staffany.com",
+                    "countries": ["Indonesia"],
+                    "active": True,
+                },
+            ]
+        }
+        with tempfile.NamedTemporaryFile("w", delete=False) as handle:
+            json.dump(policy, handle)
+            policy_path = handle.name
+
+        def owner_by_email(email):
+            return {
+                "sg.owner@staffany.com": {"id": "owner-sg", "email": "sg.owner@staffany.com"},
+                "id.owner@staffany.com": {"id": "owner-id", "email": "id.owner@staffany.com"},
+            }.get(email)
+
+        try:
+            with patch.dict(os.environ, {self.module.ACCESS_POLICY_ENV_VAR: policy_path}), patch.object(
+                self.module,
+                "_caller_scope",
+                return_value={"kind": "manager", "email": "kerren.fong@staffany.com", "countries": ("Singapore", "Malaysia"), "owner_id": None},
+            ), patch.object(self.module, "_owner_by_email", side_effect=owner_by_email):
+                result = self.module.build_sales_metric_actuals_query(
+                    "kerren.fong@staffany.com",
+                    metric="qo_set",
+                    start_date="2026-05-01",
+                    end_date="2026-05-11",
+                    countries=["Singapore"],
+                )
+        finally:
+            os.unlink(policy_path)
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertIn("'owner-sg'", result["answer"]["sql"])
+        self.assertNotIn("'owner-id'", result["answer"]["sql"])
+
+    def test_sales_metric_ambiguous_new_arr_returns_clarification_without_sql(self):
+        with patch.object(self.module, "_caller_scope", return_value={**SCOPE, "kind": "admin", "email": "kaiyi@staffany.com"}):
+            result = self.module.build_sales_metric_actuals_query(
+                "kaiyi@staffany.com",
+                metric="new ARR",
+                start_date="2026-05-01",
+                end_date="2026-05-11",
+            )
+
+        self.assertEqual(result["confidence"], "needs-check")
+        self.assertEqual(result["answer"]["sql"], "")
+        self.assertEqual(
+            result["answer"]["clarification_options"],
+            ["signed_converted_arr", "paid_converted_arr", "new_mrr_movement_arr"],
+        )
+
+    def test_friday_review_returns_hygiene_plus_warehouse_qo_followup_query(self):
+        companies = [
+            {
+                "id": "company-1",
+                "properties": {
+                    "name": "Account One",
+                    "hs_is_target_account": "true",
+                    "company_country": "Singapore",
+                    "hubspot_owner_id": "owner-1",
+                    "hs_num_decision_makers": "0",
+                    "hs_num_contacts_with_buying_roles": "0",
+                },
+            },
+            {
+                "id": "company-2",
+                "properties": {
+                    "name": "Account Two",
+                    "hs_is_target_account": "true",
+                    "company_country": "Singapore",
+                    "hubspot_owner_id": "owner-1",
+                    "hs_num_decision_makers": "1",
+                    "hs_num_contacts_with_buying_roles": "1",
+                },
+            },
+        ]
+        coverage = {
+            "answer": {
+                "owners": [
+                    {
+                        "owner_id": "owner-1",
+                        "owner_email": "ae@example.com",
+                        "locked_pool_count": 2,
+                        "weekly_account_target": 2,
+                        "worked_account_count": 2,
+                        "120_150_accounts_worked": "2/2 worked; target 2/150",
+                        "coverage_hit_miss": "hit",
+                        "double_tapped_account_count": 2,
+                        "single_touch_account_count": 0,
+                        "untouched_account_count": 0,
+                        "stale_account_count": 0,
+                        "dirty_account_count": 0,
+                        "missing_contact_account_count": 0,
+                        "missing_decision_maker_account_count": 0,
+                        "role_only_decision_maker_account_count": 0,
+                        "decision_maker_needs_check_account_count": 0,
+                        "connected_call_count": 40,
+                        "40_connected_calls": "40/40",
+                        "connected_call_hit_miss": "hit",
+                        "warm_activity_points": 1,
+                        "friday_correction_needed": False,
+                        "main_issue": "operating rhythm on track",
+                    }
+                ]
+            },
+            "_internal": {
+                "companies": companies,
+                "company_deal_ids": {},
+                "week": {"week_start": "2026-05-04", "week_end": "2026-05-10"},
+            },
+            "scope": {"caller_email": "kerren.fong@staffany.com", "countries": ["Singapore"]},
+            "total": 2,
+            "requested_limit": 1000,
+            "returned_count": 2,
+            "has_more": False,
+            "truncated": False,
+            "confidence": "verified",
+            "caveat": "ok",
+        }
+        deal_counts = {
+            "configured": True,
+            "by_owner": {},
+            "totals": {"qos": 0, "qo_met": 0, "qo_met_pct": None, "deals_closed": 0},
+            "confidence": "verified",
+            "caveat": "",
+        }
+        with patch.object(self.module, "_priority_account_coverage", return_value=coverage), patch.object(
+            self.module, "_deal_counts_for_friday", return_value=deal_counts
+        ):
+            result = self.module.build_friday_sales_review(
+                "kerren.fong@staffany.com",
+                countries=["Singapore"],
+                week_start="2026-05-04",
+                week_end="2026-05-10",
+            )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["answer"]["hygiene_summary"][0]["locked_pool_count"], 2)
+        followup = result["answer"]["warehouse_metric_followups"][0]
+        self.assertEqual(followup["metric"], "qo_set")
+        self.assertIn("fct_sales_points", followup["sql"])
+        self.assertIn("'owner-1'", followup["sql"])
+        self.assertEqual(followup["execute_with"], "staffany_bigquery.execute_sql_readonly")
+
     def test_roster_audit_is_admin_only(self):
         with patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
             self.module, "_list_owners", side_effect=AssertionError("manager should not list owners")

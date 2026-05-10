@@ -16,6 +16,8 @@ NurtureAny's first runtime surface is Slack mention usage in sales pilot channel
 - For past matched Calendar meetings, if the audit tool returns `hubspot_followup_check.required=true`, call `check_account_followup_status` from the event end time before answering follow-up hygiene.
 - Calendar audit answers are safe summaries only: account, owner/calendar checked, matching events, right-people status, HubSpot-linked names/roles, missing sales-standard evidence, follow-up hygiene, source, scope, confidence, and caveat. Never expose raw attendee emails, guest lists, descriptions, conference links, phone numbers, or raw HubSpot bodies.
 - Exa People Search requests must show the estimated dollar-cost scope before execution and include `cost_report` after execution.
+- Direct QO count or pace requests such as `what's my QO this month` should plan HubSpot owner/team scope plus C360 BigQuery actuals via `build_sales_metric_actuals_query`; they are not Friday review prompts unless the user asks for Friday, tactical-pause, hygiene, or coaching context.
+- Friday review requests should plan HubSpot hygiene first with `build_friday_sales_review`, then run returned `warehouse_metric_followups` through `staffany_bigquery.execute_sql_readonly` when QO actuals are needed.
 - Luma guest or attendance requests must check HubSpot scope first, then return bounded RSVP/attendance context without raw attendee exports.
 - Post-event follow-up requests must use `check_event_followup_status` when the event is named or needs Luma resolution, then use HubSpot/Eazybe event-specific WhatsApp communications, notes, and tasks for status. Generic post-event WhatsApp is `needs_check`, not clean follow-up.
 - Luma event requests should pass exact Luma event tags when the prompt implies them, for example `event_tags=["Jakarta", "Appreciation Afternoon"]` for `StaffAny Appreciation Afternoon (JKT)` or `event_tags=["Singapore", "Sports"]` for the screenshot-style Sports event. Use country as broad account scope, not as the event filter when exact tags are known.
@@ -55,6 +57,7 @@ Manager commands:
 - `@NurtureAny show ID team accounts with no direct contact`
 - `@NurtureAny post-demo nurture queue`
 - `@NurtureAny renewal risk queue this month`
+- `@NurtureAny Friday review for SG this week`
 - `@NurtureAny which target accounts attended yesterday's Luma event`
 - `@NurtureAny which target accounts attended our last Jakarta HHH and did we follow up`
 - `@NurtureAny which target accounts attended our last Bali HHH and did we follow up`

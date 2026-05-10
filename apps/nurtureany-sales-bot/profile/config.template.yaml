@@ -69,6 +69,12 @@ nurtureany:
     first_execution_approval: "run"
     hubspot_mutations: "explicit_preview_approval"
     external_message_sending: "disabled"
+  revenue_actuals:
+    query_builder_tool: "build_sales_metric_actuals_query"
+    execution_tool: "staffany_bigquery.execute_sql_readonly"
+    qo_actuals_source: "staffany-warehouse.analytics.fct_sales_points.qo_set"
+    new_arr_policy: "ask_signed_converted_arr_vs_paid_converted_arr_vs_new_mrr_movement_arr"
+    friday_review_mode: "hubspot_hygiene_first_then_optional_warehouse_qo_followup"
   friday_sales_review:
     locked_pool_source: "HubSpot target accounts: hs_is_target_account=true + hubspot_owner_id + company_country"
     weekly_account_target: 120
@@ -139,6 +145,7 @@ mcp_servers:
       - "list_team_target_accounts"
       - "audit_hubspot_owner_roster"
       - "audit_priority_account_coverage"
+      - "build_sales_metric_actuals_query"
       - "build_friday_sales_review"
       - "get_account_context"
       - "build_pre_demo_game_plans"

@@ -57,6 +57,7 @@ It exposes these tools:
 - `list_team_target_accounts`
 - `audit_hubspot_owner_roster`
 - `audit_priority_account_coverage`
+- `build_sales_metric_actuals_query`
 - `build_friday_sales_review`
 - `get_account_context`
 - `build_pre_demo_game_plans`
@@ -143,12 +144,21 @@ Friday sales review uses the same scoped association discipline, plus HubSpot ca
 - Dirty/unworkable means missing one or more clean-lead fields: industry, headcount, current tools, contract end date, at least one associated contact, and at least one verified decision maker. Role/title-only matches are returned as `needs-check` candidates, not audited clean coverage.
 - Must not expose call bodies, meeting bodies, recordings, phone numbers, raw note/task/communication bodies, attachments, or bulk exports.
 
+`build_sales_metric_actuals_query`:
+
+- Input: Slack user email, metric, date range or snapshot month, optional owner email/name, optional countries, and grain.
+- Output: metric definition, source table, source class, scoped SQL, `execute_with=staffany_bigquery.execute_sql_readonly`, confidence, and caveat.
+- Direct QO prompts use `fct_sales_points.qo_set`. Do not route direct QO questions to Friday review.
+- `new ARR` is ambiguous and must ask the user to choose signed converted ARR, paid converted ARR, or New MRR movement ARR before returning SQL.
+- Keep BigQuery auth and read-only enforcement in the StaffAny BigQuery MCP proxy. NurtureAny builds SQL only.
+
 `build_friday_sales_review`:
 
 - Input: manager/admin Slack user email, optional countries, optional owner email filter, optional week start/end, optional limit.
-- Output: `answer.hygiene_summary`, `answer.funnel_snapshot`, `answer.coaching_observations`, `answer.next_week_actions`, and `answer.support_needed`, plus source, scope, total, returned count, truncation, confidence, and caveat.
+- Output: `answer.hygiene_summary`, `answer.funnel_snapshot`, optional `answer.warehouse_metric_followups`, `answer.coaching_observations`, `answer.next_week_actions`, and `answer.support_needed`, plus source, scope, total, returned count, truncation, confidence, and caveat.
 - Hygiene summary mirrors the tactical pause docs: `120_150_accounts_worked`, `40_connected_calls`, hit/miss, Friday correction needed, and main issue.
 - Funnel snapshot returns accounts worked, connected calls, QOs, QO Met %, deals closed, warm activity points, and caveats. If funnel stage config is missing, QO/QO Met/deal counts are `needs-check` but hygiene still returns.
+- Friday review is HubSpot hygiene first. Warehouse QO actuals are a second source and require executing returned SQL through `staffany_bigquery.execute_sql_readonly`.
 - Next-week actions must be concrete corrections tied to 120/150 account coverage, double tap, 30 WhatsApp daily rhythm, 40 connected calls, clean-lead fields, and warm activity proof.
 
 `get_account_context`:

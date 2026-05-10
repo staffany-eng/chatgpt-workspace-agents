@@ -45,3 +45,10 @@ Always name the source class in the answer when comparing target vs actual, for 
 - Include the time grain and as-of date: month, quarter, current month-to-date, or latest snapshot month.
 - Aggregate before Slack output. Do not dump raw deal, contact, attendee, or lead rows.
 - Use `Confidence: needs-check` when metric definition, date grain, owner mapping, or target-vs-actual source class is unclear.
+
+## Routing Guard
+
+- Direct QO count or pace prompts with an owner/team and date range are revenue-metric prompts. Examples: `what is Jeremy's QO in April`, `what's my QO this month`, and `compare my QO pace to plan`.
+- These direct metric prompts should plan owner/team scope resolution, call `build_sales_metric_actuals_query` for `qo_set`, and execute the returned bounded aggregate query through `staffany_bigquery.execute_sql_readonly`.
+- Do not route direct QO metric prompts to `build_friday_sales_review`. Friday review is for explicit Friday/tactical-pause/hygiene/coaching context.
+- Friday review may include warehouse QO actuals as a second step after `build_friday_sales_review`. In that combined flow, execute returned `warehouse_metric_followups`, label HubSpot hygiene separately from C360 BigQuery actuals, and keep both source classes visible.
