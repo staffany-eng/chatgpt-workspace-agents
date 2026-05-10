@@ -18,7 +18,9 @@ ChatGPT workspace agents should be planned around ChatGPT-native surfaces:
 - Schedules/channels: when and where the agent runs.
 - Auth/write approvals: who acts, using whose credentials, with what confirmation rules.
 
+For Hermes runtime apps, the same boundary idea maps to a profile-centered packet:
+`SOUL.md`, non-secret config templates, skills, MCP contracts, channel/runtime docs, health checks, and runbooks belong in source control, while `.env`, sessions, memory, cron state, gateway state, and logs stay in the live profile unless a specific reviewed learning is promoted.
+
 ## Planning Rule
 
 When a future plan adds any capability, assign it to exactly one primary surface and name the supporting surfaces. If something seems to belong everywhere, it is probably too vague.
-

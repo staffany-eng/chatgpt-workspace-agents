@@ -23,7 +23,7 @@ Runtime evidence shows the bot needs effective Slack scopes beyond prompt change
 
 - `files:read` for Slack file attachment hydration.
 
-Do not add or request `groups:read` for this POC. Hermes may log a missing-scope warning when it tries to build a private-channel directory, but private-channel enumeration is intentionally out of scope. Treat that warning as non-blocking when app mentions and configured-channel behavior work.
+Do not add or request `groups:read` for this POC. Private-channel enumeration is intentionally out of scope. Hermes should fall back to public-channel/session-based directory discovery when `groups:read` is absent; on older runtimes, a missing-scope warning for private-channel directory enumeration is non-blocking when app mentions and configured-channel behavior work.
 
 If Slack private file URLs return login HTML or gateway logs show missing file access, update the Slack app scopes, reinstall/save the app, and restart the gateway.
 

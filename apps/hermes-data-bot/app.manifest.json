@@ -6,7 +6,8 @@
   "runtime": "Hermes Agent",
   "profile_name": "staffanydatabot",
   "rollout_stage": "Slack POC in #kaiyi-bot-testing",
-  "model": "gpt-5.3-codex",
+  "model_provider": "anthropic",
+  "model": "claude-sonnet-4-6",
   "paths": {
     "soul": "profile/SOUL.md",
     "config_template": "profile/config.template.yaml",
@@ -22,6 +23,7 @@
     "slack_runtime": "runtime/slack.md",
     "health_checks": "runtime/health-checks.md",
     "health_check_script": "runtime/check-health.sh",
+    "live_profile_audit_script": "runtime/audit-live-profile.sh",
     "honcho_backup_script": "runtime/backup-honcho.sh",
     "honcho_memory_review_script": "runtime/review-honcho-memory.sh",
     "deploy_runbook": "deploy/gce-onboarding-runbook.md",

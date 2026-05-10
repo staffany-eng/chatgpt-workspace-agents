@@ -11,7 +11,9 @@
 
 Memory should be scoped and deliberate.
 
-OpenClaw uses workspace Markdown files: daily notes, long-term memory, and optional dream summaries. Hermes uses bounded `MEMORY.md` and `USER.md`, frozen at session start, plus session search and optional memory providers. ChatGPT workspace agents expose memory and files through product surfaces, but official docs should be re-checked before assuming exact persistence semantics.
+OpenClaw uses workspace Markdown files: daily notes, long-term memory, and optional dream summaries.
+Hermes uses bounded `MEMORY.md` and `USER.md`, frozen at session start, plus session search and optional additive memory providers such as Honcho.
+ChatGPT workspace agents expose memory and files through product surfaces, but official docs should be re-checked before assuming exact persistence semantics.
 
 ## Planning Rules
 
@@ -20,4 +22,4 @@ OpenClaw uses workspace Markdown files: daily notes, long-term memory, and optio
 - Put reusable examples and templates in files or skills.
 - Do not store secrets in memory.
 - For shared agents, explicitly decide whether context is per-user, agent-owned, or shared.
-
+- For StaffAny Hermes Data Bot, treat Honcho or any external provider as recall only; promote confirmed metric, terminology, or output-format learning into repo registries before treating it as product truth.

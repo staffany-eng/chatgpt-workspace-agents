@@ -92,6 +92,7 @@ const filesToScan = [
   "runtime/slack.md",
   "runtime/health-checks.md",
   "runtime/check-health.sh",
+  "runtime/audit-live-profile.sh",
   "runtime/backup-honcho.sh",
   "runtime/review-honcho-memory.sh",
   "deploy/gce-onboarding-runbook.md",
@@ -109,9 +110,10 @@ const configText = existsSync(join(appRoot, "profile", "config.template.yaml"))
 for (const tool of ["list_dataset_ids", "list_table_ids", "get_table_info", "execute_sql_readonly"]) {
   if (!configText.includes(tool)) fail(`config.template.yaml missing allowlisted tool ${tool}`);
 }
-if (!configText.includes('provider: "openai-codex"')) fail('config.template.yaml must set model.provider to openai-codex');
-if (!configText.includes('default: "gpt-5.3-codex"')) fail('config.template.yaml must set model.default to gpt-5.3-codex');
-if (!configText.includes("api_max_retries: 0")) fail("config.template.yaml must disable provider retries for Codex-only routing");
+if (!configText.includes('provider: "anthropic"')) fail('config.template.yaml must set model.provider to anthropic');
+if (!configText.includes('default: "claude-sonnet-4-6"')) fail('config.template.yaml must set model.default to claude-sonnet-4-6');
+if (!configText.includes("api_max_retries: 3")) fail("config.template.yaml must keep Anthropic provider retries enabled");
+if (!configText.includes('personality: "concise"')) fail("config.template.yaml must use concise display personality");
 if (!configText.includes("interim_assistant_messages: false")) fail("config.template.yaml must disable Slack interim assistant messages");
 if (!configText.includes('tool_progress: "off"')) fail("config.template.yaml must disable Slack tool progress");
 if (!configText.includes("streaming: false")) fail("config.template.yaml must disable Slack streaming");

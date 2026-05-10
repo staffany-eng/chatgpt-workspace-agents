@@ -45,3 +45,7 @@ Ingested the ChatGPT-to-BigQuery service-account proxy architecture using offici
 ## [2026-05-08] ingest | StaffAny Hermes Data Bot POC
 
 Captured the current `staffanydatabot` Hermes profile hardening state: Slack effective scopes, secret-redaction config, read-only BigQuery MCP surface, silent no-agent health check, and StaffAny data-bot eval pack. No secrets, raw Slack transcripts, raw query rows, or employee-level data were copied.
+
+## [2026-05-10] ingest | Hermes Agent live docs refresh
+
+Refreshed the Hermes source note from `https://hermes-agent.nousresearch.com/docs/`, `llms.txt`, and `llms-full.txt`. Captured retrieval metadata, hashes, 98 curated index links, 147 source pages, and short extracts only; updated related syntheses and the Hermes app-packet decision without copying the full docs body.

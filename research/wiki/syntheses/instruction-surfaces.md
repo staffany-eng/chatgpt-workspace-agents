@@ -11,7 +11,9 @@
 
 Instruction surfaces should stay narrow.
 
-OpenClaw separates repo coding-agent instructions, runtime agent instructions, persona, user profile, tool notes, heartbeat notes, memory, and lessons. Hermes has priority-ordered context files plus global `SOUL.md`. ChatGPT workspace agents have builder instructions, skills, files, channel settings, schedules, and app/tool settings.
+OpenClaw separates repo coding-agent instructions, runtime agent instructions, persona, user profile, tool notes, heartbeat notes, memory, and lessons.
+Hermes has priority-ordered context files plus global `SOUL.md`; its prompt assembly keeps identity, frozen memory/profile snapshots, skills index, project context, platform hints, and ephemeral overlays as separate layers.
+ChatGPT workspace agents have builder instructions, skills, files, channel settings, schedules, and app/tool settings.
 
 ## Planning Rules
 
@@ -20,5 +22,5 @@ OpenClaw separates repo coding-agent instructions, runtime agent instructions, p
 - Put examples and reference documents in files.
 - Put runtime schedule prompts in schedules.
 - Put channel-specific behavior in channel settings.
+- For Hermes apps, use `SOUL.md` for identity and standing behavior, project/context files for repo rules, skills for reusable workflows, and ephemeral/channel prompts only for channel-local behavior that should not become durable source truth.
 - Avoid duplicating the same rule in multiple surfaces unless each has a different audience.
-

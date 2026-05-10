@@ -7,6 +7,8 @@ EXPECT_HONCHO="${EXPECT_HONCHO:-1}"
 EXPECT_GATEWAY="${EXPECT_GATEWAY:-1}"
 EXPECT_MCP_TOOLS="${EXPECT_MCP_TOOLS:-4}"
 EXPECT_MODEL_AUTH="${EXPECT_MODEL_AUTH:-1}"
+EXPECT_MODEL_PROVIDER="${EXPECT_MODEL_PROVIDER:-anthropic}"
+EXPECT_MODEL_DEFAULT="${EXPECT_MODEL_DEFAULT:-claude-sonnet-4-6}"
 CHECK_GATEWAY_AUTH_LOGS="${CHECK_GATEWAY_AUTH_LOGS:-1}"
 
 PATH="$HOME/.local/bin:$HOME/.hermes/hermes-agent:$PATH"
@@ -78,32 +80,59 @@ then
   fail "$(cat "$config_check_out")"
 fi
 
+model_check_out="$tmp_dir/model-check.out"
+if ! "$hermes_python" - "$config_path" "$EXPECT_MODEL_PROVIDER" "$EXPECT_MODEL_DEFAULT" >"$model_check_out" 2>&1 <<'PY'
+import sys
+import yaml
+
+config_path, expected_provider, expected_model = sys.argv[1:4]
+with open(config_path, "r", encoding="utf-8") as handle:
+    config = yaml.safe_load(handle) or {}
+
+model = config.get("model") or {}
+if model.get("provider") != expected_provider:
+    print("model:provider-unexpected")
+    raise SystemExit(1)
+if model.get("default") != expected_model:
+    print("model:default-unexpected")
+    raise SystemExit(1)
+PY
+then
+  fail "$(cat "$model_check_out")"
+fi
+
 if [ "$EXPECT_GATEWAY" = "1" ]; then
-  hermes -p "$PROFILE" gateway status >/dev/null 2>&1 || fail "gateway:status-failed"
+  gateway_out="$tmp_dir/gateway.out"
+  hermes -p "$PROFILE" gateway status >"$gateway_out" 2>&1 || fail "gateway:status-failed"
+  if grep -Eq '✗|not loaded|not running|failed' "$gateway_out"; then
+    fail "gateway:not-running"
+  fi
 fi
 
 if [ "$EXPECT_MODEL_AUTH" = "1" ]; then
   auth_out="$tmp_dir/auth.out"
-  if ! hermes -p "$PROFILE" auth status openai-codex >"$auth_out" 2>&1; then
-    fail "model-auth:openai-codex-status-failed"
+  if ! hermes -p "$PROFILE" auth status "$EXPECT_MODEL_PROVIDER" >"$auth_out" 2>&1; then
+    fail "model-auth:$EXPECT_MODEL_PROVIDER-status-failed"
   fi
-  grep -q "openai-codex: logged in" "$auth_out" || fail "model-auth:openai-codex-not-logged-in"
+  grep -q "$EXPECT_MODEL_PROVIDER: logged in" "$auth_out" || fail "model-auth:$EXPECT_MODEL_PROVIDER-not-logged-in"
 
-  auth_list_out="$tmp_dir/auth-list.out"
-  if ! hermes -p "$PROFILE" auth list >"$auth_list_out" 2>&1; then
-    fail "model-auth:credential-list-failed"
-  fi
-  if awk '
-    /^openai-codex[[:space:]]/ { in_provider=1; next }
-    /^[^[:space:]].*\([0-9]+ credentials\):/ && in_provider { in_provider=0 }
-    in_provider && /auth failed|token_invalidated|invalidated|re-auth/ { bad=1 }
-    END { exit bad ? 0 : 1 }
-  ' "$auth_list_out"; then
-    fail "model-auth:openai-codex-credential-invalidated"
+  if [ "$EXPECT_MODEL_PROVIDER" = "openai-codex" ]; then
+    auth_list_out="$tmp_dir/auth-list.out"
+    if ! hermes -p "$PROFILE" auth list >"$auth_list_out" 2>&1; then
+      fail "model-auth:credential-list-failed"
+    fi
+    if awk '
+      /^openai-codex[[:space:]]/ { in_provider=1; next }
+      /^[^[:space:]].*\([0-9]+ credentials\):/ && in_provider { in_provider=0 }
+      in_provider && /auth failed|token_invalidated|invalidated|re-auth/ { bad=1 }
+      END { exit bad ? 0 : 1 }
+    ' "$auth_list_out"; then
+      fail "model-auth:openai-codex-credential-invalidated"
+    fi
   fi
 fi
 
-if [ "$CHECK_GATEWAY_AUTH_LOGS" = "1" ] && command -v systemctl >/dev/null 2>&1 && command -v journalctl >/dev/null 2>&1; then
+if [ "$CHECK_GATEWAY_AUTH_LOGS" = "1" ] && [ "$EXPECT_MODEL_PROVIDER" = "openai-codex" ] && command -v systemctl >/dev/null 2>&1 && command -v journalctl >/dev/null 2>&1; then
   svc="hermes-gateway-$PROFILE.service"
   active_since="$(systemctl --user show "$svc" -p ActiveEnterTimestamp --value 2>/dev/null || true)"
   if [ -n "$active_since" ]; then

@@ -6,7 +6,7 @@ Hermes Data Bot needs deterministic runtime health checks because prompt correct
 
 - Hermes gateway service for `staffanydatabot` is active.
 - Secret redaction remains enabled.
-- Model route avoids known-bad aliases: `model.default=all@staffany` against `https://api.openai.com/v1` causes `model_not_found` and fallback churn; current safe route is `model.provider=custom`, `model.default=gpt-5.5`, `model.base_url=https://api.openai.com/v1`.
+- Model route is the intentional Anthropic route: `model.provider=anthropic`, `model.default=claude-sonnet-4-6`.
 - Slack gateway has effective `files:read` scope.
 - Slack `groups:read` is not required; missing-scope warnings for private-channel directory enumeration are accepted in this POC.
 - Slack tool progress resolves to `off` through Hermes' native Slack display default, so internal tool calls such as `skill_view` are not posted into Slack.
@@ -16,9 +16,8 @@ Hermes Data Bot needs deterministic runtime health checks because prompt correct
 - Kanban gateway dispatch remains disabled, so completed data-answer threads do not get `:question:` action-needed follow-up loops.
 - `staffany_bigquery` MCP lists only the expected read-only tools.
 - A tiny read-only BigQuery smoke query succeeds.
-- `hermes -p staffanydatabot auth status openai-codex` reports logged in.
-- `hermes -p staffanydatabot auth list` has no `openai-codex` credential entries marked `auth failed`, `token_invalidated`, or `re-auth`.
-- Gateway logs since the current service start contain no Codex OAuth 401/auth-invalidated errors.
+- `hermes -p staffanydatabot auth status anthropic` reports logged in.
+- For Codex fallback experiments only, `hermes -p staffanydatabot auth list` should have no `openai-codex` credential entries marked `auth failed`, `token_invalidated`, or `re-auth`.
 - Honcho API health returns OK when external memory is enabled.
 - `hermes -p staffanydatabot memory status` reports `Provider: honcho` and `Status: available` when Honcho is expected to be active.
 - Healthy checks print nothing and exit 0.
@@ -34,14 +33,15 @@ apps/hermes-data-bot/runtime/check-health.sh
 Default checks:
 
 - `hermes -p staffanydatabot gateway status`
-- `hermes -p staffanydatabot auth status openai-codex`
-- `hermes -p staffanydatabot auth list` credential-pool failure markers for `openai-codex`
+- `model.provider=anthropic`
+- `model.default=claude-sonnet-4-6`
+- `hermes -p staffanydatabot auth status anthropic`
 - Slack display config resolves `tool_progress=off`
 - Slack display config resolves `streaming=false`
 - Slack `interim_assistant_messages=false`
 - Slack `reactions=false`
 - `kanban.dispatch_in_gateway=false`
-- recent `hermes-gateway-staffanydatabot.service` logs for Codex OAuth 401/auth-invalidated errors
+- recent model-auth gateway errors when `EXPECT_MODEL_PROVIDER=openai-codex`
 - `hermes -p staffanydatabot mcp test staffany_bigquery` with 4 expected tools
 - `curl -fsS http://localhost:8000/health`
 - `hermes -p staffanydatabot memory status`
@@ -52,6 +52,7 @@ Useful overrides:
 ```bash
 HERMES_PROFILE=staffanydatabot EXPECT_HONCHO=0 apps/hermes-data-bot/runtime/check-health.sh
 EXPECT_MODEL_AUTH=0 CHECK_GATEWAY_AUTH_LOGS=0 apps/hermes-data-bot/runtime/check-health.sh
+EXPECT_MODEL_PROVIDER=openai-codex EXPECT_MODEL_DEFAULT=gpt-5.3-codex apps/hermes-data-bot/runtime/check-health.sh
 HONCHO_HEALTH_URL=http://127.0.0.1:8000/health apps/hermes-data-bot/runtime/check-health.sh
 ```
 
@@ -77,6 +78,16 @@ Current deployed pattern from research evidence:
 ```
 
 That is weekdays 9am SGT.
+
+## Live Profile Drift Audit
+
+Run the packet audit after profile edits, script sync, model-route changes, or gateway maintenance:
+
+```bash
+apps/hermes-data-bot/runtime/audit-live-profile.sh
+```
+
+It checks the live `SOUL.md`, StaffAny skill folder, health-check script sync, Anthropic model route, Slack quiet settings, secret redaction, BigQuery MCP allowlist, installed health cron, and MCP tool count.
 
 ## Lightweight Behavioural Eval Harness
 

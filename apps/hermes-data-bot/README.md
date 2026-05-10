@@ -7,7 +7,7 @@ Canonical app packet for StaffAny's Hermes runtime data bot.
 - Runtime: Hermes Agent
 - Profile: `staffanydatabot`
 - First surface: Slack POC in `#kaiyi-bot-testing`
-- Model: ChatGPT/Codex OAuth provider configured in the live profile
+- Model: Anthropic provider, `claude-sonnet-4-6`, configured in the live profile
 - BigQuery access: StaffAny BigQuery MCP proxy, read-only allowlist
 - Source packet: this directory
 - Live runtime state: `~/.hermes/profiles/staffanydatabot/`
@@ -34,8 +34,8 @@ Canonical app packet for StaffAny's Hermes runtime data bot.
 3. Copy `profile/SOUL.md` into the profile's `SOUL.md`.
 4. Use `profile/config.template.yaml` as the non-secret config guide.
 5. Copy `skills/staffany-data-bot/` into the profile skills directory.
-6. Set profile `.env` from Secret Manager values only; do not add an OpenAI API key or model provider for model auth.
-7. Ensure the runtime account auth is logged in, then configure Slack gateway and StaffAny BigQuery MCP.
+6. Set profile `.env` from Secret Manager values only; do not commit model, Slack, or MCP credentials.
+7. Ensure Anthropic model auth is logged in, then configure Slack gateway and StaffAny BigQuery MCP.
 8. Configure Honcho only after its self-hosted API, embeddings provider, and profile-local config are healthy.
 9. Run the health checks and regression cases before widening access.
 

@@ -9,6 +9,7 @@ security:
   redact_secrets: true
 
 display:
+  personality: "concise"
   busy_input_mode: "queue"
   interim_assistant_messages: false
   # Keep Slack output quiet and deterministic. Setting global tool_progress can
@@ -19,11 +20,11 @@ display:
       streaming: false
 
 model:
-  default: "gpt-5.3-codex"
-  provider: "openai-codex"
+  default: "claude-sonnet-4-6"
+  provider: "anthropic"
 
 agent:
-  api_max_retries: 0
+  api_max_retries: 3
 
 kanban:
   dispatch_in_gateway: false

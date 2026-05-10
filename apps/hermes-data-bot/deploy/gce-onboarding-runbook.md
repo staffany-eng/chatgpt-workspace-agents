@@ -36,11 +36,11 @@ Required secret access also includes:
 
 Model profile:
 
-- Provider: `openai-codex`
-- Model: `gpt-5.3-codex`
-- Auth: `all@staffany.com` ChatGPT/Codex OAuth
-- API-key route: disabled; do not set `OPENAI_API_KEY` in this profile unless explicitly reverting to API billing.
-- Fallback: none. If Codex OAuth is invalidated, the bot should block with an auth error instead of falling back to OpenAI API TPM.
+- Provider: `anthropic`
+- Model: `claude-sonnet-4-6`
+- Auth: Anthropic credential in the Hermes credential store or profile environment.
+- API-key route: allowed for Anthropic only through the profile secret path; do not commit model credentials.
+- Fallback: none. If Anthropic auth fails, the bot should block with an auth error instead of silently changing model/provider route.
 
 Current gateway service:
 
@@ -113,52 +113,42 @@ Copy the skill folder to:
 ~/.hermes/profiles/staffanydatabot/skills/staffany-data-bot/
 ```
 
-Authenticate `all@staffany.com` for the Codex OAuth provider, then set the main model to use that ChatGPT subscription route. Do not configure a `custom` OpenAI API fallback for this POC unless explicitly reverting to API billing.
+Authenticate the Anthropic provider, then set the main model to the intentional Anthropic route. Do not configure a custom OpenAI API fallback for this POC unless explicitly reverting model providers.
 
 ```bash
-hermes -p staffanydatabot auth add openai-codex --type oauth --no-browser --label all-staffany-primary
+hermes -p staffanydatabot auth add anthropic
 ```
 
-Complete the browser/device login as `all@staffany.com`. If the command hangs without printing the login URL in a headless SSH session, run it with a TTY or from an interactive VM shell.
+Complete the provider auth flow or install the Anthropic API key via the approved Secret Manager/profile-secret path. Do not paste credentials into repo files.
 
 ```yaml
 model:
-  default: gpt-5.3-codex
-  provider: openai-codex
+  default: claude-sonnet-4-6
+  provider: anthropic
 agent:
-  api_max_retries: 0
+  api_max_retries: 3
 ```
 
 ## Model Resilience
 
 The current POC intentionally has no model fallback:
 
-- The primary provider is `openai-codex:gpt-5.3-codex` using `all@staffany.com` ChatGPT/Codex OAuth.
-- `OPENAI_API_KEY` is absent from the profile `.env` so the gateway cannot burn OpenAI API TPM.
-- `fallback_providers` and `fallback_model` are absent. If Codex OAuth fails, re-authenticate it instead of falling back to API.
+- The primary provider is `anthropic:claude-sonnet-4-6`.
+- `OPENAI_API_KEY` is absent from the profile `.env` so the gateway cannot accidentally route through OpenAI API billing.
+- `fallback_providers` and `fallback_model` are absent. If Anthropic auth fails, re-authenticate it instead of falling back to another provider.
 
 Current VM evidence:
 
 ```bash
 hermes -p staffanydatabot fallback list
-# Primary: gpt-5.3-codex (via openai-codex)
+# Primary: claude-sonnet-4-6 (via anthropic)
 # No fallback providers configured.
 ```
-
-If Codex OAuth is invalidated, re-authenticate `all@staffany.com`:
-
-```bash
-hermes -p staffanydatabot auth add openai-codex --type oauth --no-browser --label all-staffany-primary
-```
-
-Do not copy a personal Codex auth file into the VM; verify the token belongs to `all@staffany.com`.
-
-Choose the ChatGPT/Codex account path and complete the browser/device login as the StaffAny ChatGPT subscription account. If the command hangs without printing the login URL in a headless SSH session, run it from an interactive VM shell or first log in with Codex CLI on a trusted machine and copy only the intended StaffAny account auth into the VM.
 
 Verify model auth and the persisted model route:
 
 ```bash
-hermes -p staffanydatabot auth status openai-codex
+hermes -p staffanydatabot auth status anthropic
 CONFIG_PATH="$(hermes -p staffanydatabot config path)"
 sed -n '1,4p' "$CONFIG_PATH"
 ```
@@ -167,46 +157,16 @@ Expected model config:
 
 ```yaml
 model:
-  default: gpt-5.3-codex
-  provider: openai-codex
+  default: claude-sonnet-4-6
+  provider: anthropic
 agent:
-  api_max_retries: 0
+  api_max_retries: 3
 ```
 
-If `hermes -p staffanydatabot auth status openai-codex` reports logged out while the global Hermes auth reports logged in, check for a stale profile-local credential:
+If `hermes -p staffanydatabot auth status anthropic` reports logged out, check the profile credential state:
 
 ```bash
 hermes -p staffanydatabot auth list
-```
-
-If the profile has an `openai-codex` credential marked `token_invalidated`, remove that profile-local credential so the profile can fall back to the valid global credential:
-
-```bash
-hermes -p staffanydatabot auth remove openai-codex 1
-hermes -p staffanydatabot auth status openai-codex
-```
-
-If Hermes immediately re-seeds the invalid profile-local credential, back up the profile auth file and remove only the profile-local `openai-codex` credential-pool entry. Do not edit the global `~/.hermes/auth.json` credential:
-
-```bash
-PROFILE_AUTH=~/.hermes/profiles/staffanydatabot/auth.json
-cp "$PROFILE_AUTH" "$PROFILE_AUTH.bak.$(date -u +%Y%m%dT%H%M%SZ)"
-python3 - <<'PY'
-import json
-from pathlib import Path
-
-p = Path.home() / ".hermes/profiles/staffanydatabot/auth.json"
-d = json.loads(p.read_text())
-(d.get("credential_pool") or {}).pop("openai-codex", None)
-suppressed = d.get("suppressed_sources")
-if isinstance(suppressed, dict):
-    suppressed.pop("openai-codex", None)
-    if not suppressed:
-        d.pop("suppressed_sources", None)
-p.write_text(json.dumps(d, indent=2) + "\n")
-p.chmod(0o600)
-PY
-hermes -p staffanydatabot auth status openai-codex
 ```
 
 Then restart the gateway and check for fresh auth errors:
@@ -214,14 +174,14 @@ Then restart the gateway and check for fresh auth errors:
 ```bash
 systemctl --user restart hermes-gateway-staffanydatabot.service
 journalctl --user -u hermes-gateway-staffanydatabot.service --since "5 minutes ago" --no-pager \
-  | grep -E 'token_invalidated|No Codex credentials|AuthenticationError|HTTP 401'
+  | grep -E 'AuthenticationError|HTTP 401|invalid.*credential|auth.*failed'
 ```
 
 Restart after changing auth or model config:
 
 ```bash
 systemctl --user restart hermes-gateway-staffanydatabot.service
-hermes -p staffanydatabot auth status openai-codex
+hermes -p staffanydatabot auth status anthropic
 hermes -p staffanydatabot fallback list
 grep -q '^OPENAI_API_KEY=' ~/.hermes/profiles/staffanydatabot/.env && echo "unexpected api key"
 ```
@@ -440,7 +400,7 @@ What stays out of GitHub:
 
 - `.env` and API tokens
 - Slack tokens and app tokens
-- ChatGPT/Codex OAuth credentials
+- Model-provider credentials
 - Raw session transcripts
 - PII or employee-level data
 - Temporary memories and one-off local state

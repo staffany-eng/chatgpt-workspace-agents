@@ -41,6 +41,14 @@ This page stores accepted research-backed learnings before promotion into future
 - Planning implication: Durable Hermes Data Bot behavior belongs under `apps/hermes-data-bot/`. Live `staffanydatabot` profile changes should be treated as runtime drift until reviewed and promoted.
 - Caveat: Historical `agents/` snapshots stay available during the staged transition.
 
+### Keep Hermes App Packets Repo-First And Profiles Stateful
+
+- Status: accepted for Hermes app planning.
+- Evidence: [Hermes Agent Docs And Patterns](./sources/hermes-agent-docs.md), [StaffAny Hermes Data Bot POC](./sources/staffany-hermes-data-bot-poc.md)
+- Learning: A Hermes app packet should define durable identity, skills, MCP contracts, channel/runtime behavior, health checks, and runbooks, while the live profile owns secrets, sessions, memory, logs, cron state, gateway state, and temporary learning.
+- Planning implication: New StaffAny Hermes Data Bot features should first decide which source packet surface changes; runtime-only changes remain drift until a specific reviewed artifact is promoted back into `apps/hermes-data-bot/`.
+- Caveat: Do not copy raw memory, Slack transcripts, query rows, logs with sensitive content, or credentials from the live profile into the repo.
+
 ## Rejected Or Deferred Learnings
 
 - Do not copy OpenClaw workspace file structure directly into ChatGPT workspace agents. ChatGPT has its own product surfaces for apps, skills, files, memory, schedules, and channels.
