@@ -32,6 +32,7 @@ When facts are missing, write `needs-check` instead of inventing them.
 
 - Each AE works from a protected 150-account pool. Account swaps should be deliberate and manager-approved.
 - Weekly coverage target is 120 of 150 priority accounts.
+- `120/150` means weekly coverage of 120 accounts out of the protected 150-account pool. It is not a different SG/MY ownership cap, and it should not be restated as "120 owned accounts."
 - Daily rhythm includes 30 WhatsApp nurturing touches, usually around the morning nurture block.
 - Use double taps where the account is active and the next step is worth pursuing.
 - Use 40 connected calls as weekly discipline where calling is an appropriate channel.
