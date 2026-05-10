@@ -186,6 +186,30 @@
     "max_events_for_context": 20,
     "max_guests_per_event": 250,
     "attendance_definition": "checked_in_at_present",
+    "country_tags": [
+      "Singapore",
+      "Malaysia",
+      "Indonesia"
+    ],
+    "location_tags": [
+      "Singapore",
+      "Jakarta",
+      "Bali",
+      "Kuala Lumpur"
+    ],
+    "location_tag_country_map": {
+      "Singapore": "Singapore",
+      "Jakarta": "Indonesia",
+      "Bali": "Indonesia",
+      "Kuala Lumpur": "Malaysia"
+    },
+    "event_type_tags": [
+      "Sports",
+      "Appreciation Afternoon",
+      "HR Happy Hour",
+      "Leaders Lounge"
+    ],
+    "preferred_event_filter": "event_tags",
     "allowed_tools": [
       "list_luma_events",
       "get_luma_event_context"

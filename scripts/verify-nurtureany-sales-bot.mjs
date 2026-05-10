@@ -178,6 +178,21 @@ if (!existsSync(manifestPath)) {
     if (manifest.luma?.attendance_definition !== "checked_in_at_present") {
       fail("Manifest Luma attendance_definition must be checked_in_at_present");
     }
+    for (const country of ["Singapore", "Malaysia", "Indonesia"]) {
+      if (!manifest.luma?.country_tags?.includes(country)) fail(`Manifest Luma missing country tag ${country}`);
+    }
+    for (const location of ["Singapore", "Jakarta", "Bali", "Kuala Lumpur"]) {
+      if (!manifest.luma?.location_tags?.includes(location)) fail(`Manifest Luma missing location tag ${location}`);
+    }
+    for (const eventType of ["Sports", "Appreciation Afternoon", "HR Happy Hour", "Leaders Lounge"]) {
+      if (!manifest.luma?.event_type_tags?.includes(eventType)) fail(`Manifest Luma missing event type tag ${eventType}`);
+    }
+    if (manifest.luma?.preferred_event_filter !== "event_tags") {
+      fail("Manifest Luma preferred_event_filter must be event_tags");
+    }
+    if (manifest.luma?.location_tag_country_map?.Jakarta !== "Indonesia") {
+      fail("Manifest Luma must map Jakarta location tag to Indonesia");
+    }
     if (!manifest.luma?.allowed_tools?.includes("list_luma_events")) fail("Manifest Luma missing list_luma_events tool");
     if (!manifest.luma?.allowed_tools?.includes("get_luma_event_context")) fail("Manifest Luma missing get_luma_event_context tool");
     if (manifest.luma?.requires_scoped_hubspot_companies !== true) {
@@ -422,9 +437,16 @@ for (const text of [
   "x-luma-api-key",
   "LUMA_API_KEY",
   "GET /v1/calendar/list-events",
+  "GET /v1/calendar/event-tags/list",
+  "GET /v1/event/get",
   "GET /v1/event/get-guests",
   "list_luma_events",
   "get_luma_event_context",
+  "event_tags=[\"Singapore\", \"Sports\"]",
+  "event_tags=[\"Jakarta\", \"Appreciation Afternoon\"]",
+  "HR Happy Hour",
+  "Appreciation Afternoon",
+  "Leaders Lounge",
   "runtime/mcp/luma_nurtureany_server.py",
   "15s hard timeout",
   "Requires scoped HubSpot company inputs",
@@ -445,6 +467,15 @@ for (const text of [
   "MAX_GUESTS_PER_EVENT = 250",
   "SCOPE_SOURCE = \"hubspot_nurtureany\"",
   "x-luma-api-key",
+  "EVENT_TYPE_TAGS",
+  "COUNTRY_TAGS",
+  "LOCATION_TAGS",
+  "event_tags",
+  "event_tag_filters",
+  "event_type",
+  "location_filter",
+  "country_filter",
+  "/v1/calendar/event-tags/list",
   "list_luma_events",
   "get_luma_event_context",
   "requires scoped HubSpot company inputs",

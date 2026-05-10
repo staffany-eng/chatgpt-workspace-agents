@@ -116,6 +116,335 @@ class LumaNurtureAnyServerTest(unittest.TestCase):
         self.assertEqual(event["name"], "Bali Beans Dinner")
         self.assertNotIn("description", event)
 
+    def test_list_luma_events_filters_with_luma_event_tags(self):
+        calls = []
+
+        def fake_request(path, params=None):
+            calls.append((path, params or {}))
+            if path == "/v1/calendar/event-tags/list":
+                return {
+                    "entries": [
+                        {"api_id": "tag-jkt", "name": "Jakarta"},
+                        {"api_id": "tag-sg", "name": "Singapore"},
+                        {"api_id": "tag-appreciation", "name": "Appreciation Afternoon"},
+                    ]
+                }
+            if path == "/v1/calendar/list-events":
+                return {
+                    "entries": [
+                        {
+                            "event": {
+                                "api_id": "evt-sg",
+                                "name": "StaffAny Appreciation Afternoon (SG)",
+                                "start_at": "2026-05-20T06:00:00Z",
+                                "timezone": "Asia/Singapore",
+                            }
+                        },
+                        {
+                            "event": {
+                                "api_id": "evt-jkt",
+                                "name": "StaffAny Appreciation Afternoon (JKT)",
+                                "start_at": "2026-06-18T08:00:00Z",
+                                "timezone": "Asia/Jakarta",
+                            }
+                        },
+                    ],
+                    "has_more": False,
+                }
+            if path == "/v1/event/get" and params.get("id") == "evt-sg":
+                return {
+                    "api_id": "evt-sg",
+                    "name": "StaffAny Appreciation Afternoon (SG)",
+                    "tags": [
+                        {"api_id": "tag-sg", "name": "Singapore"},
+                        {"api_id": "tag-appreciation", "name": "Appreciation Afternoon"},
+                    ],
+                }
+            if path == "/v1/event/get" and params.get("id") == "evt-jkt":
+                return {
+                    "api_id": "evt-jkt",
+                    "name": "StaffAny Appreciation Afternoon (JKT)",
+                    "tags": [
+                        {"api_id": "tag-jkt", "name": "Jakarta"},
+                        {"api_id": "tag-appreciation", "name": "Appreciation Afternoon"},
+                    ],
+                }
+            raise AssertionError(f"unexpected call: {path} {params}")
+
+        with patch.dict(os.environ, {"LUMA_API_KEY": "test-key"}), patch.object(
+            self.module, "_request_json", side_effect=fake_request
+        ):
+            result = self.module.list_luma_events(
+                "ae@staffany.com",
+                country="Indonesia",
+                event_type="appreciation afternoon",
+                max_events=10,
+            )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual([event["event_id"] for event in result["answer"]], ["evt-jkt"])
+        event = result["answer"][0]
+        self.assertEqual(event["tags"], ["Jakarta", "Appreciation Afternoon"])
+        self.assertEqual(event["location_tags"], ["Jakarta"])
+        self.assertEqual(event["country_tags"], ["Indonesia"])
+        self.assertEqual(event["event_type_tags"], ["Appreciation Afternoon"])
+        self.assertEqual(event["tag_match_source"], "luma_event_tags")
+        self.assertIn(("/v1/event/get", {"id": "evt-jkt"}), calls)
+
+    def test_location_tag_filter_narrows_indonesia_city_events(self):
+        def fake_request(path, params=None):
+            if path == "/v1/calendar/event-tags/list":
+                return {
+                    "entries": [
+                        {"api_id": "tag-jkt", "name": "Jakarta"},
+                        {"api_id": "tag-bali", "name": "Bali"},
+                        {"api_id": "tag-hhh", "name": "HR Happy Hour"},
+                    ]
+                }
+            if path == "/v1/calendar/list-events":
+                return {
+                    "entries": [
+                        {"event": {"api_id": "evt-jkt", "name": "StaffAny HR Happy Hour (JKT)"}},
+                        {"event": {"api_id": "evt-bali", "name": "StaffAny HR Happy Hour (Bali)"}},
+                    ],
+                    "has_more": False,
+                }
+            if path == "/v1/event/get" and params.get("id") == "evt-jkt":
+                return {
+                    "api_id": "evt-jkt",
+                    "name": "StaffAny HR Happy Hour (JKT)",
+                    "tags": [
+                        {"api_id": "tag-jkt", "name": "Jakarta"},
+                        {"api_id": "tag-hhh", "name": "HR Happy Hour"},
+                    ],
+                }
+            if path == "/v1/event/get" and params.get("id") == "evt-bali":
+                return {
+                    "api_id": "evt-bali",
+                    "name": "StaffAny HR Happy Hour (Bali)",
+                    "tags": [
+                        {"api_id": "tag-bali", "name": "Bali"},
+                        {"api_id": "tag-hhh", "name": "HR Happy Hour"},
+                    ],
+                }
+            raise AssertionError(f"unexpected call: {path} {params}")
+
+        with patch.dict(os.environ, {"LUMA_API_KEY": "test-key"}), patch.object(
+            self.module, "_request_json", side_effect=fake_request
+        ):
+            result = self.module.list_luma_events(
+                "ae@staffany.com",
+                country="Indonesia",
+                location="Jakarta",
+                event_type="hr happy hour",
+                max_events=10,
+            )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual([event["event_id"] for event in result["answer"]], ["evt-jkt"])
+        self.assertEqual(result["answer"][0]["location_tags"], ["Jakarta"])
+        self.assertEqual(result["answer"][0]["country_tags"], ["Indonesia"])
+        self.assertEqual(result["scope"]["location_filter"], "Jakarta")
+
+    def test_location_tags_are_tolerated_in_event_type_or_country_inputs(self):
+        def fake_request(path, params=None):
+            if path == "/v1/calendar/event-tags/list":
+                return {
+                    "entries": [
+                        {"api_id": "tag-jkt", "name": "Jakarta"},
+                        {"api_id": "tag-bali", "name": "Bali"},
+                        {"api_id": "tag-hhh", "name": "HR Happy Hour"},
+                    ]
+                }
+            if path == "/v1/calendar/list-events":
+                return {
+                    "entries": [
+                        {"event": {"api_id": "evt-jkt", "name": "StaffAny HR Happy Hour (JKT)"}},
+                        {"event": {"api_id": "evt-bali", "name": "StaffAny HR Happy Hour (Bali)"}},
+                    ],
+                    "has_more": False,
+                }
+            if path == "/v1/event/get" and params.get("id") == "evt-jkt":
+                return {
+                    "api_id": "evt-jkt",
+                    "name": "StaffAny HR Happy Hour (JKT)",
+                    "tags": [
+                        {"api_id": "tag-jkt", "name": "Jakarta"},
+                        {"api_id": "tag-hhh", "name": "HR Happy Hour"},
+                    ],
+                }
+            if path == "/v1/event/get" and params.get("id") == "evt-bali":
+                return {
+                    "api_id": "evt-bali",
+                    "name": "StaffAny HR Happy Hour (Bali)",
+                    "tags": [
+                        {"api_id": "tag-bali", "name": "Bali"},
+                        {"api_id": "tag-hhh", "name": "HR Happy Hour"},
+                    ],
+                }
+            raise AssertionError(f"unexpected call: {path} {params}")
+
+        with patch.dict(os.environ, {"LUMA_API_KEY": "test-key"}), patch.object(
+            self.module, "_request_json", side_effect=fake_request
+        ):
+            event_type_result = self.module.list_luma_events(
+                "ae@staffany.com",
+                event_type="Jakarta HR Happy Hour",
+                max_events=10,
+            )
+            country_result = self.module.list_luma_events(
+                "ae@staffany.com",
+                country="Jakarta",
+                event_type="hr happy hour",
+                max_events=10,
+            )
+
+        self.assertEqual([event["event_id"] for event in event_type_result["answer"]], ["evt-jkt"])
+        self.assertEqual(event_type_result["scope"]["location_filter"], "Jakarta")
+        self.assertEqual(event_type_result["scope"]["event_type_filter"], "HR Happy Hour")
+        self.assertEqual([event["event_id"] for event in country_result["answer"]], ["evt-jkt"])
+        self.assertEqual(country_result["scope"]["location_filter"], "Jakarta")
+        self.assertEqual(country_result["scope"]["country_filter"], "Indonesia")
+
+    def test_explicit_luma_event_tags_filter_exact_tags(self):
+        def fake_request(path, params=None):
+            if path == "/v1/calendar/event-tags/list":
+                return {
+                    "entries": [
+                        {"api_id": "tag-sg", "name": "Singapore"},
+                        {"api_id": "tag-sports", "name": "Sports"},
+                        {"api_id": "tag-hhh", "name": "HR Happy Hour"},
+                    ]
+                }
+            if path == "/v1/calendar/list-events":
+                return {
+                    "entries": [
+                        {"event": {"api_id": "evt-sports", "name": "F&B Play Club"}},
+                        {"event": {"api_id": "evt-hhh", "name": "StaffAny HR Happy Hour (HHH)"}},
+                    ],
+                    "has_more": False,
+                }
+            if path == "/v1/event/get" and params.get("id") == "evt-sports":
+                return {
+                    "api_id": "evt-sports",
+                    "name": "F&B Play Club",
+                    "tags": [
+                        {"api_id": "tag-sg", "name": "Singapore"},
+                        {"api_id": "tag-sports", "name": "Sports"},
+                    ],
+                }
+            if path == "/v1/event/get" and params.get("id") == "evt-hhh":
+                return {
+                    "api_id": "evt-hhh",
+                    "name": "StaffAny HR Happy Hour (HHH)",
+                    "tags": [
+                        {"api_id": "tag-sg", "name": "Singapore"},
+                        {"api_id": "tag-hhh", "name": "HR Happy Hour"},
+                    ],
+                }
+            raise AssertionError(f"unexpected call: {path} {params}")
+
+        with patch.dict(os.environ, {"LUMA_API_KEY": "test-key"}), patch.object(
+            self.module, "_request_json", side_effect=fake_request
+        ):
+            result = self.module.list_luma_events(
+                "ae@staffany.com",
+                event_tags=["Singapore", "Sports"],
+                max_events=10,
+            )
+
+        self.assertEqual([event["event_id"] for event in result["answer"]], ["evt-sports"])
+        self.assertEqual(result["scope"]["event_tag_filters"], ["Singapore", "Sports"])
+        self.assertEqual(result["answer"][0]["tags"], ["Singapore", "Sports"])
+
+    def test_luma_event_tag_filters_fall_back_to_metadata_as_needs_check(self):
+        def fake_request(path, params=None):
+            if path == "/v1/calendar/event-tags/list":
+                return {"entries": []}
+            if path == "/v1/calendar/list-events":
+                return {
+                    "entries": [
+                        {
+                            "event": {
+                                "api_id": "evt-jkt",
+                                "name": "StaffAny Appreciation Afternoon (JKT)",
+                                "start_at": "2026-06-18T08:00:00Z",
+                                "timezone": "Asia/Jakarta",
+                            }
+                        }
+                    ],
+                    "has_more": False,
+                }
+            if path == "/v1/event/get":
+                return {
+                    "api_id": "evt-jkt",
+                    "name": "StaffAny Appreciation Afternoon (JKT)",
+                    "timezone": "Asia/Jakarta",
+                }
+            raise AssertionError(f"unexpected call: {path} {params}")
+
+        with patch.dict(os.environ, {"LUMA_API_KEY": "test-key"}), patch.object(
+            self.module, "_request_json", side_effect=fake_request
+        ):
+            result = self.module.list_luma_events(
+                "ae@staffany.com",
+                country="Indonesia",
+                location="Jakarta",
+                event_type="appreciation afternoon",
+            )
+
+        self.assertEqual(result["confidence"], "needs-check")
+        self.assertEqual(result["answer"][0]["tag_match_source"], "inferred_from_event_metadata")
+        self.assertEqual(result["answer"][0]["location_tags"], ["Jakarta"])
+        self.assertEqual(result["answer"][0]["country_tags"], ["Indonesia"])
+        self.assertEqual(result["answer"][0]["event_type_tags"], ["Appreciation Afternoon"])
+
+    def test_tag_filtered_overfetch_sets_truncation_metadata(self):
+        def fake_request(path, params=None):
+            if path == "/v1/calendar/event-tags/list":
+                return {"entries": []}
+            if path == "/v1/calendar/list-events":
+                return {
+                    "entries": [
+                        {
+                            "event": {
+                                "api_id": "evt-1",
+                                "name": "StaffAny Appreciation Afternoon (JKT)",
+                                "tags": [
+                                    {"name": "Jakarta"},
+                                    {"name": "Appreciation Afternoon"},
+                                ],
+                            }
+                        },
+                        {
+                            "event": {
+                                "api_id": "evt-2",
+                                "name": "StaffAny Appreciation Afternoon (Bali)",
+                                "tags": [
+                                    {"name": "Bali"},
+                                    {"name": "Appreciation Afternoon"},
+                                ],
+                            }
+                        },
+                    ],
+                    "has_more": False,
+                }
+            raise AssertionError(f"unexpected call: {path} {params}")
+
+        with patch.dict(os.environ, {"LUMA_API_KEY": "test-key"}), patch.object(
+            self.module, "_request_json", side_effect=fake_request
+        ):
+            result = self.module.list_luma_events(
+                "ae@staffany.com",
+                country="Indonesia",
+                event_type="appreciation afternoon",
+                max_events=1,
+            )
+
+        self.assertEqual(len(result["answer"]), 1)
+        self.assertTrue(result["truncated"])
+        self.assertEqual(result["confidence"], "needs-check")
+
     def test_unscoped_company_context_is_blocked_before_key_or_api_call(self):
         with patch.dict(os.environ, {}, clear=True), patch.object(
             self.module, "_request_json", side_effect=AssertionError("should not call Luma")
@@ -128,6 +457,77 @@ class LumaNurtureAnyServerTest(unittest.TestCase):
 
         self.assertEqual(result["confidence"], "blocked")
         self.assertIn("requires scoped HubSpot company inputs", result["answer"])
+
+    def test_event_context_uses_country_and_event_type_tags_before_guest_lookup(self):
+        guest_calls = []
+
+        def fake_request(path, params=None):
+            if path == "/v1/calendar/event-tags/list":
+                return {
+                    "entries": [
+                        {"api_id": "tag-jkt", "name": "Jakarta"},
+                        {"api_id": "tag-bali", "name": "Bali"},
+                        {"api_id": "tag-sg", "name": "Singapore"},
+                        {"api_id": "tag-hhh", "name": "HR Happy Hour"},
+                    ]
+                }
+            if path == "/v1/calendar/list-events":
+                return {
+                    "entries": [
+                        {"event": {"api_id": "evt-bali", "name": "StaffAny HR Happy Hour (Bali)"}},
+                        {"event": {"api_id": "evt-jkt", "name": "StaffAny HR Happy Hour (JKT)"}},
+                    ],
+                    "has_more": False,
+                }
+            if path == "/v1/event/get" and params.get("id") == "evt-bali":
+                return {
+                    "api_id": "evt-bali",
+                    "name": "StaffAny HR Happy Hour (Bali)",
+                    "tags": [
+                        {"api_id": "tag-bali", "name": "Bali"},
+                        {"api_id": "tag-hhh", "name": "HR Happy Hour"},
+                    ],
+                }
+            if path == "/v1/event/get" and params.get("id") == "evt-jkt":
+                return {
+                    "api_id": "evt-jkt",
+                    "name": "StaffAny HR Happy Hour (JKT)",
+                    "tags": [
+                        {"api_id": "tag-jkt", "name": "Jakarta"},
+                        {"api_id": "tag-hhh", "name": "HR Happy Hour"},
+                    ],
+                }
+            if path == "/v1/event/get-guests":
+                guest_calls.append(params["event_id"])
+                return {
+                    "entries": [
+                        {
+                            "name": "Owner One",
+                            "email": "owner@balibeans.com",
+                            "approval_status": "approved",
+                            "checked_in_at": "2026-06-18T08:20:00Z",
+                        }
+                    ],
+                    "has_more": False,
+                }
+            raise AssertionError(f"unexpected call: {path} {params}")
+
+        with patch.dict(os.environ, {"LUMA_API_KEY": "test-key"}), patch.object(
+            self.module, "_request_json", side_effect=fake_request
+        ):
+            result = self.module.get_luma_event_context(
+                "ae@staffany.com",
+                [self.scoped_company()],
+                country="Indonesia",
+                location="Jakarta",
+                event_type="hr happy hour",
+            )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(guest_calls, ["evt-jkt"])
+        self.assertEqual(result["answer"][0]["event"]["location_tags"], ["Jakarta"])
+        self.assertEqual(result["answer"][0]["event"]["country_tags"], ["Indonesia"])
+        self.assertEqual(result["answer"][0]["matched_account_ids"], ["hubspot-123"])
 
     def test_event_context_paginates_matches_and_does_not_export_raw_attendees(self):
         calls = []

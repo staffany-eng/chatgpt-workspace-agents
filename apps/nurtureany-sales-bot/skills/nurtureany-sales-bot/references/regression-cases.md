@@ -175,6 +175,7 @@ Expected behavior:
 
 - First response is plan-only.
 - After `run`, uses scoped HubSpot account context before Luma lookup.
+- Uses exact Luma event tags before broad country/date scans when the prompt names a city/location or event type. For example, `StaffAny Appreciation Afternoon (JKT)` uses `event_tags=["Jakarta", "Appreciation Afternoon"]`.
 - Requires scoped HubSpot company IDs before guest matching.
 - Returns bounded RSVP and attendance context with matched account IDs, RSVP counts, checked-in counts, attendee names only for matched scoped accounts, email domain/hash, RSVP status, checked-in timestamp, match reason, `has_more`, and `truncated`.
 - Treats attendance as `checked_in_at` present. RSVP status alone is not attendance.

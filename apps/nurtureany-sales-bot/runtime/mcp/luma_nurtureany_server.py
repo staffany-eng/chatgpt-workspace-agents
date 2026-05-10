@@ -43,6 +43,34 @@ GUEST_APPROVAL_STATUSES = (
     "declined",
     "waitlist",
 )
+EVENT_TYPE_TAGS = (
+    "Sports",
+    "Appreciation Afternoon",
+    "HR Happy Hour",
+    "Leaders Lounge",
+)
+EVENT_TYPE_ALIASES = {
+    "sports": "Sports",
+    "sport": "Sports",
+    "appreciation afternoon": "Appreciation Afternoon",
+    "appreciation": "Appreciation Afternoon",
+    "hr happy hour": "HR Happy Hour",
+    "happy hour": "HR Happy Hour",
+    "leaders lounge": "Leaders Lounge",
+    "leader lounge": "Leaders Lounge",
+}
+COUNTRY_TAGS = ("Singapore", "Malaysia", "Indonesia")
+LOCATION_TAGS = ("Singapore", "Jakarta", "Bali", "Kuala Lumpur")
+LOCATION_ALIASES = {
+    "singapore": "Singapore",
+    "sg": "Singapore",
+    "jakarta": "Jakarta",
+    "jkt": "Jakarta",
+    "bali": "Bali",
+    "kuala lumpur": "Kuala Lumpur",
+    "kl": "Kuala Lumpur",
+}
+TAG_FIELD_NAMES = ("event_tags", "eventTags", "tags", "tag_ids", "tagIds")
 
 
 mcp = FastMCP(
@@ -206,8 +234,222 @@ def _event_id(event: dict[str, Any]) -> str:
     return str(event.get("event_id") or event.get("api_id") or event.get("id") or "").strip()
 
 
-def _safe_event(item: dict[str, Any]) -> dict[str, Any]:
+def _unique_text(values: list[str]) -> list[str]:
+    seen: set[str] = set()
+    output: list[str] = []
+    for value in values:
+        text = str(value or "").strip()
+        key = text.lower()
+        if text and key not in seen:
+            seen.add(key)
+            output.append(text)
+    return output
+
+
+def _normalized_words(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", str(value or "").lower()).strip()
+
+
+def _canonical_event_type(value: str) -> str:
+    words = _normalized_words(value)
+    if not words:
+        return ""
+    for alias, display in EVENT_TYPE_ALIASES.items():
+        if words == alias or alias in words:
+            return display
+    return ""
+
+
+def _canonical_location(value: str) -> str:
+    words = _normalized_words(value)
+    if not words:
+        return ""
+    for alias, display in LOCATION_ALIASES.items():
+        if words == alias or alias in words:
+            return display
+    return ""
+
+
+def _canonical_country(value: str) -> str:
+    text = str(value or "").lower()
+    words = _normalized_words(text)
+    tokens = set(words.split())
+    if not words:
+        return ""
+    if "singapore" in words or "sg" in tokens or "asia singapore" in words:
+        return "Singapore"
+    if (
+        "indonesia" in words
+        or "jakarta" in words
+        or "bali" in words
+        or "jkt" in tokens
+        or "id" in tokens
+        or "asia jakarta" in words
+    ):
+        return "Indonesia"
+    if (
+        "malaysia" in words
+        or "kuala lumpur" in words
+        or "kl" in tokens
+        or "my" in tokens
+        or "asia kuala lumpur" in words
+    ):
+        return "Malaysia"
+    return ""
+
+
+def _resolved_event_filters(country: str, event_type: str, location: str) -> dict[str, str]:
+    location_filter = _canonical_location(location)
+    event_type_filter = _canonical_event_type(event_type)
+    country_filter = _canonical_country(country)
+
+    # Be tolerant of LLM/tool callers that put location tags in country or
+    # event_type. Luma exposes a flat tag list, so Jakarta/Bali should still
+    # narrow event lookup to the exact location tag.
+    if not location_filter:
+        location_filter = _canonical_location(event_type)
+    if not location_filter:
+        location_filter = _canonical_location(country)
+    if not country_filter and location_filter:
+        country_filter = _canonical_country(location_filter)
+
+    return {
+        "country": country_filter,
+        "event_type": event_type_filter,
+        "location": location_filter,
+    }
+
+
+def _event_tag_filters(event_tags: Any, country: str, event_type: str, location: str) -> list[str]:
+    raw: list[Any] = []
+    if isinstance(event_tags, str):
+        raw.extend(part.strip() for part in re.split(r"[,;]", event_tags) if part.strip())
+    elif isinstance(event_tags, list):
+        raw.extend(event_tags)
+
+    tags: list[str] = []
+    for value in raw:
+        text = str(value or "").strip()
+        if not text:
+            continue
+        tags.append(_canonical_location(text) or _canonical_event_type(text) or _canonical_country(text) or text)
+
+    filters = _resolved_event_filters(country, event_type, location)
+    if filters["location"]:
+        tags.append(filters["location"])
+    if filters["event_type"]:
+        tags.append(filters["event_type"])
+    return _unique_text(tags)
+
+
+def _event_metadata_text(event: dict[str, Any]) -> str:
+    fields: list[str] = [
+        str(event.get("name") or event.get("title") or ""),
+        str(event.get("url") or event.get("event_url") or event.get("eventUrl") or ""),
+        str(event.get("timezone") or ""),
+        str(event.get("platform") or ""),
+    ]
+    location = event.get("geo_address_json") or event.get("address") or event.get("location")
+    if isinstance(location, (dict, list)):
+        fields.append(json.dumps(location, sort_keys=True))
+    elif location:
+        fields.append(str(location))
+    return " ".join(field for field in fields if field)
+
+
+def _event_tag_names(event: dict[str, Any], tags_by_id: dict[str, str]) -> list[str]:
+    raw_tags: list[Any] = []
+    for field in TAG_FIELD_NAMES:
+        value = event.get(field)
+        if isinstance(value, list):
+            raw_tags.extend(value)
+        elif value:
+            raw_tags.append(value)
+
+    names: list[str] = []
+    for tag in raw_tags:
+        if isinstance(tag, str):
+            names.append(tags_by_id.get(tag, tag))
+        elif isinstance(tag, dict):
+            tag_id = str(tag.get("api_id") or tag.get("id") or "").strip()
+            names.append(str(tag.get("name") or tag.get("title") or tags_by_id.get(tag_id, "")).strip())
+    return _unique_text(names)
+
+
+def _inferred_tag_names(event: dict[str, Any]) -> list[str]:
+    text = _event_metadata_text(event)
+    names: list[str] = []
+    event_type = _canonical_event_type(text)
+    if event_type:
+        names.append(event_type)
+
+    lowered = text.lower()
+    if "singapore" in lowered or "(sg)" in lowered or "asia/singapore" in lowered:
+        names.append("Singapore")
+    if "jakarta" in lowered or "(jkt)" in lowered or "asia/jakarta" in lowered:
+        names.append("Jakarta")
+    if "bali" in lowered:
+        names.append("Bali")
+    if "kuala lumpur" in lowered or "(kl)" in lowered or "malaysia" in lowered:
+        names.append("Kuala Lumpur")
+    return _unique_text(names)
+
+
+def _event_tag_summary(event: dict[str, Any], tags_by_id: dict[str, str]) -> dict[str, Any]:
+    luma_tags = _event_tag_names(event, tags_by_id)
+    inferred_tags = _inferred_tag_names(event)
+    classifiable_tags = _unique_text(luma_tags + inferred_tags)
+    location_tags = _unique_text([location for tag in classifiable_tags if (location := _canonical_location(tag))])
+    country_tags = _unique_text([country for tag in classifiable_tags if (country := _canonical_country(tag))])
+    event_type_tags = _unique_text([event_type for tag in classifiable_tags if (event_type := _canonical_event_type(tag))])
+    if luma_tags:
+        source = "luma_event_tags"
+    elif inferred_tags:
+        source = "inferred_from_event_metadata"
+    else:
+        source = "none"
+    return {
+        "tags": luma_tags or inferred_tags,
+        "location_tags": location_tags,
+        "country_tags": country_tags,
+        "event_type_tags": event_type_tags,
+        "tag_match_source": source,
+    }
+
+
+def _tag_catalog() -> dict[str, str]:
+    payload = _request_json("/v1/calendar/event-tags/list")
+    tags: dict[str, str] = {}
+    for item in _entries(payload):
+        name = str(item.get("name") or item.get("title") or "").strip()
+        if not name:
+            continue
+        for key in ("api_id", "id"):
+            tag_id = str(item.get(key) or "").strip()
+            if tag_id:
+                tags[tag_id] = name
+    return tags
+
+
+def _safe_tag_catalog() -> dict[str, str]:
+    try:
+        return _tag_catalog()
+    except LumaError:
+        return {}
+
+
+def _event_detail_payload(event_id: str) -> dict[str, Any]:
+    try:
+        return _event_payload(_request_json("/v1/event/get", {"id": event_id}))
+    except LumaError as error:
+        if error.status_code == 400:
+            return _event_payload(_request_json("/v1/event/get", {"event_id": event_id}))
+        raise
+
+
+def _safe_event(item: dict[str, Any], tags_by_id: dict[str, str] | None = None) -> dict[str, Any]:
     event = _event_payload(item)
+    tag_summary = _event_tag_summary(event, tags_by_id or {})
     return {
         "event_id": _event_id(event),
         "name": event.get("name") or event.get("title") or "",
@@ -215,6 +457,11 @@ def _safe_event(item: dict[str, Any]) -> dict[str, Any]:
         "end_at": event.get("end_at") or event.get("endAt") or "",
         "timezone": event.get("timezone") or "",
         "url": event.get("url") or event.get("event_url") or event.get("eventUrl") or "",
+        "tags": tag_summary["tags"],
+        "location_tags": tag_summary["location_tags"],
+        "country_tags": tag_summary["country_tags"],
+        "event_type_tags": tag_summary["event_type_tags"],
+        "tag_match_source": tag_summary["tag_match_source"],
     }
 
 
@@ -222,11 +469,79 @@ def _event_matches_query(event: dict[str, Any], query: str) -> bool:
     needle = query.strip().lower()
     if not needle:
         return True
-    haystack = " ".join(str(event.get(key) or "") for key in ("name", "url", "event_id")).lower()
+    haystack_values: list[str] = [str(event.get(key) or "") for key in ("name", "url", "event_id")]
+    for key in ("tags", "location_tags", "country_tags", "event_type_tags"):
+        value = event.get(key)
+        if isinstance(value, list):
+            haystack_values.extend(str(item) for item in value)
+    haystack = " ".join(haystack_values).lower()
     return needle in haystack
 
 
-def _list_events_raw(query: str, start: str, end: str, max_events: int) -> tuple[list[dict[str, Any]], bool, bool]:
+def _event_matches_filters(
+    event: dict[str, Any],
+    query: str,
+    country: str,
+    event_type: str,
+    location: str,
+    event_tags: Any = None,
+) -> bool:
+    if not _event_matches_query(event, query):
+        return False
+    requested_tags = _event_tag_filters(event_tags, country, event_type, location)
+    if requested_tags:
+        event_tag_set = {str(tag).strip().lower() for tag in event.get("tags", []) if str(tag or "").strip()}
+        if not all(tag.lower() in event_tag_set for tag in requested_tags):
+            return False
+    filters = _resolved_event_filters(country, event_type, location)
+    location_filter = filters["location"]
+    if location_filter and location_filter not in event.get("location_tags", []):
+        return False
+    country_filter = filters["country"]
+    if country_filter and country_filter not in event.get("country_tags", []):
+        return False
+    event_type_filter = filters["event_type"]
+    if event_type_filter and event_type_filter not in event.get("event_type_tags", []):
+        return False
+    return True
+
+
+def _safe_event_for_list(item: dict[str, Any], tags_by_id: dict[str, str], require_luma_tags: bool) -> dict[str, Any]:
+    event = _safe_event(item, tags_by_id)
+    if not require_luma_tags or event["tag_match_source"] == "luma_event_tags" or not event["event_id"]:
+        return event
+    try:
+        detailed_event = _safe_event(_event_detail_payload(event["event_id"]), tags_by_id)
+        if detailed_event["tag_match_source"] == "luma_event_tags":
+            return detailed_event
+    except LumaError:
+        pass
+    return event
+
+
+def _tag_filtered_with_inference(
+    events: list[dict[str, Any]],
+    country: str,
+    event_type: str,
+    location: str,
+    event_tags: Any = None,
+) -> bool:
+    filters = _resolved_event_filters(country, event_type, location)
+    if not (filters["country"] or filters["event_type"] or filters["location"] or _event_tag_filters(event_tags, "", "", "")):
+        return False
+    return any(event.get("tag_match_source") != "luma_event_tags" for event in events)
+
+
+def _list_events_raw(
+    query: str,
+    start: str,
+    end: str,
+    max_events: int,
+    country: str = "",
+    event_type: str = "",
+    location: str = "",
+    event_tags: Any = None,
+) -> tuple[list[dict[str, Any]], bool, bool]:
     now = datetime.now(timezone.utc)
     after = _rfc3339(start, now)
     before = _rfc3339(end, now + timedelta(days=DEFAULT_LOOKAHEAD_DAYS))
@@ -234,9 +549,12 @@ def _list_events_raw(query: str, start: str, end: str, max_events: int) -> tuple
     events: list[dict[str, Any]] = []
     cursor = ""
     has_more = False
+    filters = _resolved_event_filters(country, event_type, location)
+    require_luma_tags = bool(filters["country"] or filters["event_type"] or filters["location"] or _event_tag_filters(event_tags, "", "", ""))
+    tags_by_id = _safe_tag_catalog() if require_luma_tags else {}
 
     while len(events) < limit:
-        page_limit = min(LUMA_PAGE_LIMIT, limit - len(events))
+        page_limit = LUMA_PAGE_LIMIT if require_luma_tags else min(LUMA_PAGE_LIMIT, limit - len(events))
         payload = _request_json(
             "/v1/calendar/list-events",
             {
@@ -249,19 +567,21 @@ def _list_events_raw(query: str, start: str, end: str, max_events: int) -> tuple
                 "status": "approved",
             },
         )
-        page_events = [_safe_event(item) for item in _entries(payload)]
-        events.extend(event for event in page_events if _event_matches_query(event, query))
+        page_events = [_safe_event_for_list(item, tags_by_id, require_luma_tags) for item in _entries(payload)]
+        events.extend(
+            event for event in page_events if _event_matches_filters(event, query, country, event_type, location, event_tags)
+        )
         has_more = _has_more(payload)
         cursor = _next_cursor(payload)
         if not has_more or not cursor:
             break
 
-    truncated = has_more and len(events) >= limit
+    truncated = len(events) > limit or (has_more and len(events) >= limit)
     return events[:limit], has_more, truncated
 
 
 def _single_event(event_id: str) -> dict[str, Any]:
-    payload = _request_json("/v1/event/get", {"event_id": event_id})
+    payload = _event_detail_payload(event_id)
     event = _safe_event(payload)
     if not event["event_id"]:
         event["event_id"] = event_id
@@ -534,11 +854,22 @@ def list_luma_events(
     start: str = "",
     end: str = "",
     max_events: int = DEFAULT_EVENT_LIMIT,
+    country: str = "",
+    event_type: str = "",
+    location: str = "",
+    event_tags: list[str] | None = None,
 ) -> dict[str, Any]:
-    """List bounded read-only Luma events for account-context planning."""
+    """List bounded read-only Luma events for account-context planning.
+
+    Optional event_tags filters use exact Luma event tags first. Convenience
+    location, country, and event_type filters normalize into event tags where
+    possible. Supported event_type values are Sports, Appreciation Afternoon, HR
+    Happy Hour, and Leaders Lounge.
+    """
 
     limit = max(1, min(int(max_events or DEFAULT_EVENT_LIMIT), MAX_EVENTS))
     now = datetime.now(timezone.utc)
+    filters = _resolved_event_filters(country, event_type, location)
     scope = _scope(
         slack_user_email,
         {
@@ -546,23 +877,34 @@ def list_luma_events(
             "after": _rfc3339(start, now),
             "before": _rfc3339(end, now + timedelta(days=DEFAULT_LOOKAHEAD_DAYS)),
             "requested_limit": limit,
+            "event_tag_filters": _event_tag_filters(event_tags, country, event_type, location),
+            "location_filter": filters["location"] or location,
+            "country_filter": filters["country"] or country,
+            "event_type_filter": filters["event_type"],
+            "location_tags": list(LOCATION_TAGS),
+            "allowed_event_type_tags": list(EVENT_TYPE_TAGS),
+            "country_tags": list(COUNTRY_TAGS),
             "safety": "Read-only event list; no invites, RSVP changes, attendee exports, or mutations.",
         },
     )
 
     try:
-        events, has_more, truncated = _list_events_raw(query, start, end, limit)
+        events, has_more, truncated = _list_events_raw(query, start, end, limit, country, event_type, location, event_tags)
     except LumaError as error:
         return _blocked(str(error), scope)
 
+    tag_inference = _tag_filtered_with_inference(events, country, event_type, location, event_tags)
     return {
         "answer": events,
         "source": "Luma",
         "scope": scope,
-        "confidence": "needs-check" if truncated else "verified",
+        "confidence": "needs-check" if truncated or tag_inference else "verified",
         "has_more": has_more,
         "truncated": truncated,
-        "caveat": "Luma events are event context only. Use HubSpot scoped accounts before account actions.",
+        "caveat": (
+            "Luma events are event context only. Use HubSpot scoped accounts before account actions. "
+            "When Luma omits tags from list results, tag filters may fall back to event metadata."
+        ),
     }
 
 
@@ -575,17 +917,35 @@ def get_luma_event_context(
     start: str = "",
     end: str = "",
     max_guests_per_event: int = MAX_GUESTS_PER_EVENT,
+    country: str = "",
+    event_type: str = "",
+    location: str = "",
+    event_tags: list[str] | None = None,
 ) -> dict[str, Any]:
-    """Get bounded Luma RSVP and attendance context for HubSpot-scoped companies."""
+    """Get bounded Luma RSVP and attendance context for HubSpot-scoped companies.
+
+    Optional event_tags filters use exact Luma event tags first. Convenience
+    location, country, and event_type filters normalize into event tags where
+    possible. Supported event_type values are Sports, Appreciation Afternoon, HR
+    Happy Hour, and Leaders Lounge.
+    """
 
     companies = scoped_companies if isinstance(scoped_companies, list) else []
     company_error = _scoped_company_error(companies)
+    filters = _resolved_event_filters(country, event_type, location)
     scope = _scope(
         slack_user_email,
         {
             "scoped_company_count": len(companies),
             "event_ids": [str(event_id).strip() for event_id in (event_ids or []) if str(event_id).strip()],
             "query": query,
+            "event_tag_filters": _event_tag_filters(event_tags, country, event_type, location),
+            "location_filter": filters["location"] or location,
+            "country_filter": filters["country"] or country,
+            "event_type_filter": filters["event_type"],
+            "location_tags": list(LOCATION_TAGS),
+            "allowed_event_type_tags": list(EVENT_TYPE_TAGS),
+            "country_tags": list(COUNTRY_TAGS),
             "max_guests_per_event": max(1, min(int(max_guests_per_event or MAX_GUESTS_PER_EVENT), MAX_GUESTS_PER_EVENT)),
             "safety": "HubSpot scoped companies required; no raw attendee export or Luma/HubSpot mutation.",
         },
@@ -602,11 +962,21 @@ def get_luma_event_context(
             events_has_more = len(selected_event_ids) > MAX_EVENTS_FOR_CONTEXT
             events_truncated = events_has_more
         else:
-            events, events_has_more, events_truncated = _list_events_raw(query, start, end, MAX_EVENTS_FOR_CONTEXT)
+            events, events_has_more, events_truncated = _list_events_raw(
+                query,
+                start,
+                end,
+                MAX_EVENTS_FOR_CONTEXT,
+                country,
+                event_type,
+                location,
+                event_tags,
+            )
 
         event_contexts: list[dict[str, Any]] = []
         any_candidate_match = False
         any_truncated = events_truncated
+        tag_inference = _tag_filtered_with_inference(events, country, event_type, location, event_tags)
         for event in events:
             event_id = event.get("event_id", "")
             if not event_id:
@@ -643,7 +1013,7 @@ def get_luma_event_context(
         "answer": event_contexts,
         "source": "Luma",
         "scope": scope,
-        "confidence": "needs-check" if any_candidate_match or any_truncated else "verified",
+        "confidence": "needs-check" if any_candidate_match or any_truncated or tag_inference else "verified",
         "has_more": events_has_more,
         "truncated": any_truncated,
         "caveat": (

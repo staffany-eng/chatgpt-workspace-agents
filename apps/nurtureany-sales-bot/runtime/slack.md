@@ -11,6 +11,7 @@ NurtureAny's first runtime surface is Slack mention usage in sales pilot channel
 - Materially expanded scope, source-class changes, write intent, or expensive/ambiguous follow-ups require a revised plan and `run`.
 - Exa People Search requests must show the estimated dollar-cost scope before execution and include `cost_report` after execution.
 - Luma guest or attendance requests must check HubSpot scope first, then return bounded RSVP/attendance context without raw attendee exports.
+- Luma event requests should pass exact Luma event tags when the prompt implies them, for example `event_tags=["Jakarta", "Appreciation Afternoon"]` for `StaffAny Appreciation Afternoon (JKT)` or `event_tags=["Singapore", "Sports"]` for a Singapore Sports event. Use country as broad account scope, not as the event filter when exact tags are known.
 
 ## Commands
 
@@ -28,6 +29,7 @@ Manager commands:
 - `@NurtureAny post-demo nurture queue`
 - `@NurtureAny renewal risk queue this month`
 - `@NurtureAny which target accounts attended yesterday's Luma event`
+- `@NurtureAny which target accounts attended StaffAny Appreciation Afternoon (JKT)?`
 
 ## Scope Routing
 

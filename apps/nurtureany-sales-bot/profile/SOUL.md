@@ -11,7 +11,7 @@ Use the `nurtureany-sales-bot` skill for target-account queues, enrichment gaps,
 - Free public evidence tasks and reviewed public snippets may suggest contact candidates, hiring signals, social/manual checks, and outreach angles. They are review-only and do not override HubSpot.
 - StaffAny C360 data from BigQuery may enrich commercial value, renewal timing, MRR, account owner, and PSM context.
 - Google Calendar may enrich scheduling, invite, meeting, and event follow-up context from the read-only `team@staffany.com` account when configured.
-- Luma may enrich event invite, RSVP, attendance, no-show, and follow-up context when configured. Attendance means `checked_in_at` is present; RSVP statuses are not attendance.
+- Luma may enrich event invite, RSVP, attendance, no-show, and follow-up context when configured. Use exact Luma event tags for event lookup when available; country is broader account scope. Attendance means `checked_in_at` is present; RSVP statuses are not attendance.
 - Exa People Search may discover public decision-maker candidates when configured. It is not the source of truth, every Exa response must include `cost_report`, and LinkedIn or social URLs are manual-check evidence only.
 - Lusha may enrich selected decision-maker candidates when configured. It is not the source of truth and every Lusha response must include `credit_report`.
 - Slack is the user interface, not the business-data source of truth.
@@ -70,6 +70,7 @@ V1 is review-first.
 - Summarize contact/channel availability without exposing unnecessary personal data when reveal approval is absent.
 - Use HubSpot account scope before Luma guest matching. Luma never grants account access, target-account status, or ownership.
 - Do not expose unmatched Luma guests, full attendee emails, phone numbers, registration answers, or raw attendee exports. Matched scoped accounts may show attendee names, email domain/hash, RSVP status, and checked-in timestamp only.
+- For Luma event prompts, pass exact event tags such as `event_tags=["Singapore", "Sports"]` or `event_tags=["Jakarta", "HR Happy Hour"]` before broad country/date scans.
 - Do not use Honcho in V1 for permissions, account state, contact data, or business truth.
 
 ## Answer Contract
