@@ -31,8 +31,40 @@ need_command hermes
 
 config_path="$(hermes -p "$PROFILE" config path 2>/dev/null)" || fail "hermes:config-path-failed"
 [ -r "$config_path" ] || fail "hermes:config-unreadable"
+hermes_agent_dir="${HERMES_AGENT_DIR:-$HOME/.hermes/hermes-agent}"
+hermes_python="$hermes_agent_dir/venv/bin/python"
+[ -x "$hermes_python" ] || fail "hermes:python-not-found"
 
 grep -Eq 'redact_secrets:[[:space:]]*true' "$config_path" || fail "security:redact_secrets-not-enabled"
+
+config_check_out="$tmp_dir/config-check.out"
+if ! "$hermes_python" - "$config_path" "$hermes_agent_dir" >"$config_check_out" 2>&1 <<'PY'
+import sys
+
+config_path, hermes_agent_dir = sys.argv[1], sys.argv[2]
+sys.path.insert(0, hermes_agent_dir)
+
+try:
+    import yaml
+    from gateway.display_config import resolve_display_setting
+except Exception as exc:
+    print(f"dependency:hermes-config-parser-failed:{exc.__class__.__name__}")
+    raise SystemExit(1)
+
+with open(config_path, "r", encoding="utf-8") as handle:
+    config = yaml.safe_load(handle) or {}
+
+if resolve_display_setting(config, "slack", "tool_progress") != "off":
+    print("slack-display:tool-progress-not-off")
+    raise SystemExit(1)
+
+if ((config.get("kanban") or {}).get("dispatch_in_gateway")) is not False:
+    print("kanban:dispatch-in-gateway-not-disabled")
+    raise SystemExit(1)
+PY
+then
+  fail "$(cat "$config_check_out")"
+fi
 
 if [ "$EXPECT_GATEWAY" = "1" ]; then
   hermes -p "$PROFILE" gateway status >/dev/null 2>&1 || fail "gateway:status-failed"

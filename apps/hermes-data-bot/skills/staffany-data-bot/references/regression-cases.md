@@ -193,6 +193,21 @@ Expected follow-up behavior:
 - Final answer includes source, scope, confidence, and caveat.
 - If the user asks for a bounded correction, fix, or rerun after the answer in the same thread, treats it as continuation work and executes immediately when the scope is clear.
 - If the user changes the scope materially after the answer, starts a new plan and waits for exact `run` again.
+- Does not ask for yes/ok/done acceptance after the final answer.
+
+Post-answer acknowledgement in the same Slack thread:
+
+```text
+ok
+```
+
+Expected post-answer behavior:
+
+- Treats the acknowledgement as completion, not a new request.
+- Does not send "action needed", "please confirm", or reminder messages.
+- Does not add a `:question:` action-needed marker.
+- Does not create a mark-as-done task, Kanban notification, cron reminder, or acceptance tracker for a completed data answer.
+- Stays silent unless the acknowledgement includes a new request.
 
 ## Heavy Query Wait Bucket
 

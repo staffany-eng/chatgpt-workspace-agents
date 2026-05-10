@@ -10,6 +10,11 @@ Hermes Data Bot's first runtime surface is Slack POC usage in `#kaiyi-bot-testin
 - Same-thread approval nudges such as bot mention only, `^`, `+1`, `yes`, `ok`, `go`, or `please proceed` count as approval when there is a pending preflight and no substantive plan change.
 - Clear same-thread corrections, fixes, and reruns after a delivered result are continuation work when scope is bounded.
 - Materially expanded scope, source class changes, or expensive/ambiguous follow-ups require a revised plan and `run`.
+- Final answers are terminal unless the user asks a follow-up. Do not ask for yes/ok/done acceptance after a final answer.
+- Do not add `:question:` action-needed markers or send reminder loops asking the user to mark a data answer done.
+- Plain acknowledgements after a final answer, such as `ok`, `done`, `yes`, or `thanks`, close the thread silently unless they include a new request.
+- The mark-as-done pattern belongs only to explicit task workflows with an assignee and completion state. It is not part of StaffAny data Q&A.
+- Do not expose tool progress in Slack. Keep global `display.tool_progress` unset for this profile so Hermes' native Slack default resolves to `off`; otherwise internal tool calls such as `skill_view` become visible Slack messages.
 
 ## Slack Scopes
 

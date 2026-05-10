@@ -20,6 +20,7 @@ Honcho is not a source of truth for StaffAny data. It is a recall layer for reus
 - StaffAny terminology mappings that help the bot ask better questions.
 - Preferred answer formats and caveat styles.
 - Repeated feedback patterns that should influence future responses.
+- Scoped follow-up preferences. Do not store broad reminder preferences that could override the Slack data-answer rule: final data answers are terminal, and `ok` / `done` acknowledgements close silently.
 
 ## What Does Not Belong In Honcho
 

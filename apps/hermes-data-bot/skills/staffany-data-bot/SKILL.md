@@ -68,6 +68,8 @@ Reply "run" to start, or tell me what to change.
 
 Once a result has already been delivered in the same thread, clear follow-up corrections, fixes, reruns, or “fix this” requests are continuation work. Do not require another `run` when the scope is clear and the work is a bounded correction to the previous result; use the relevant tools immediately. If the follow-up materially expands scope, changes the source class, or could become expensive/ambiguous, send a revised plan and ask for `run` again.
 
+Do not run a post-answer acceptance workflow. After a final answer, do not ask the user to confirm with yes/ok/done, do not mark the thread as action needed, and do not send reminders waiting for explicit acceptance. Plain acknowledgements after a final answer, such as `ok`, `done`, `yes`, `thanks`, or similar, close the thread silently unless they include a new request. The mark-as-done / action-needed pattern is for explicit task workflows with an assignee and completion state, not for answered data questions.
+
 After `run` or a clear continuation request, execute only the confirmed/continued plan:
 
 1. Check local registry references first.

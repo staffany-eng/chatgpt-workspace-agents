@@ -9,6 +9,8 @@ Hermes Data Bot needs deterministic runtime health checks because prompt correct
 - Model route avoids known-bad aliases: `model.default=all@staffany` against `https://api.openai.com/v1` causes `model_not_found` and fallback churn; current safe route is `model.provider=custom`, `model.default=gpt-5.5`, `model.base_url=https://api.openai.com/v1`.
 - Slack gateway has effective `reactions:write` and `files:read` scopes.
 - Slack `groups:read` is not required; missing-scope warnings for private-channel directory enumeration are accepted in this POC.
+- Slack tool progress resolves to `off` through Hermes' native Slack display default, so internal tool calls such as `skill_view` are not posted into Slack.
+- Kanban gateway dispatch remains disabled, so completed data-answer threads do not get `:question:` action-needed follow-up loops.
 - `staffany_bigquery` MCP lists only the expected read-only tools.
 - A tiny read-only BigQuery smoke query succeeds.
 - `hermes -p staffanydatabot auth status openai-codex` reports logged in.
@@ -31,6 +33,8 @@ Default checks:
 - `hermes -p staffanydatabot gateway status`
 - `hermes -p staffanydatabot auth status openai-codex`
 - `hermes -p staffanydatabot auth list` credential-pool failure markers for `openai-codex`
+- Slack display config resolves `tool_progress=off`
+- `kanban.dispatch_in_gateway=false`
 - recent `hermes-gateway-staffanydatabot.service` logs for Codex OAuth 401/auth-invalidated errors
 - `hermes -p staffanydatabot mcp test staffany_bigquery` with 4 expected tools
 - `curl -fsS http://localhost:8000/health`
