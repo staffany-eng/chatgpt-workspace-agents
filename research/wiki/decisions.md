@@ -65,6 +65,14 @@ This page stores accepted research-backed learnings before promotion into future
 - Planning implication: The durable app reference belongs under `apps/nurtureany-sales-bot/skills/nurtureany-sales-bot/references/`; it should not be implemented as a new MCP server.
 - Caveat: HubSpot still overrides training or tactical sources for live account, owner, country, contract end date, current tools, follow-up, calls, meetings, and deal facts.
 
+### Separate Rev Planning Targets From Warehouse Actuals
+
+- Status: accepted for StaffAny Rev metric answers.
+- Evidence: [StaffAny Rev Team Planning And Metrics](./sources/staffany-rev-team-planning-and-metrics.md), [BigQuery MCP Proxy](./sources/bigquery-mcp-proxy.md)
+- Learning: Rev planning Sheets and onboarding Slides explain targets, definitions, and operating rules, while Manticore/BigQuery is the source for actual QO, ARR, MRR, and movement metrics.
+- Planning implication: NurtureAny should label source class in revenue answers, use QO for qualified-opportunity pace, and ask for clarification when "new ARR" could mean multiple metrics. Generic Hermes Data Bot answers should follow the same target-vs-actual split when asked for Rev metrics.
+- Caveat: Planning artifacts can be used for target comparisons, but they should not be treated as actuals.
+
 ## Rejected Or Deferred Learnings
 
 - Do not copy OpenClaw workspace file structure directly into ChatGPT workspace agents. ChatGPT has its own product surfaces for apps, skills, files, memory, schedules, and channels.

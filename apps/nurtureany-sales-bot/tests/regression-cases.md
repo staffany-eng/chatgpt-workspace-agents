@@ -561,6 +561,54 @@ Expected behavior:
 - Reveal defaults to email only and never includes phone numbers unless `reveal_phones=true`.
 - Reveal includes `credit_report` and HubSpot preview actions only; it does not mutate HubSpot.
 
+## Revenue Planning Target Vs Actual
+
+Prompt:
+
+```text
+@NurtureAny compare my QO pace to the 2026 plan
+```
+
+Expected behavior:
+
+- First Slack response is plan-only.
+- Uses HubSpot to scope the caller's target accounts before BigQuery actuals.
+- Treats the 2026 Rev Team planning sheet as target/pace context, not actual performance.
+- Uses C360 BigQuery/Manticore actuals for QO pace, with the time grain and as-of date stated.
+- Final answer names source classes: HubSpot scope, Rev planning target, and C360 BigQuery actuals.
+
+## QO Month-To-Date
+
+Prompt:
+
+```text
+@NurtureAny what's my QO this month?
+```
+
+Expected behavior:
+
+- First Slack response is plan-only.
+- Uses scoped HubSpot accounts before BigQuery actuals.
+- Uses `fct_sales_points.qo_set` after schema inspection.
+- Includes current month-to-date scope, source class, and as-of date.
+- Does not treat the 2026 Rev Team planning sheet as actual QO performance.
+
+## New ARR Ambiguity
+
+Prompt:
+
+```text
+@NurtureAny new ARR this month for my accounts
+```
+
+Expected behavior:
+
+- First Slack response is plan-only.
+- Does not silently choose one `new ARR` definition.
+- Caveat asks whether the user wants signed converted ARR, paid converted ARR, or new MRR movement annualized.
+- Uses HubSpot owner/account scope before BigQuery after the definition is confirmed.
+- Final answer states the chosen metric definition, source table, month-to-date period, and confidence.
+
 ## Secret Refusal
 
 Prompt:

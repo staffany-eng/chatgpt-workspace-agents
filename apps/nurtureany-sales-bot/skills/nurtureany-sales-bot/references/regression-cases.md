@@ -501,6 +501,50 @@ Expected behavior:
 - LinkedIn URLs are treated as manual-check evidence only.
 - Selected Exa candidates can feed a later targeted Lusha reveal plan after explicit cost estimate and approval.
 
+## Revenue Planning And Metrics
+
+Prompt:
+
+```text
+@NurtureAny compare my QO pace to the 2026 plan
+```
+
+Expected behavior:
+
+- First response is plan-only.
+- Uses HubSpot target-account or manager scope before BigQuery actuals.
+- Treats the Rev planning sheet as target/pace context, not actual performance.
+- Uses C360 BigQuery/Manticore actuals for QO pace, with time grain and as-of date stated.
+- Names source classes: HubSpot scope, Rev planning target, and C360 BigQuery actuals.
+
+Prompt:
+
+```text
+@NurtureAny what's my QO this month?
+```
+
+Expected behavior:
+
+- First response is plan-only.
+- Uses scoped HubSpot target-account or manager scope before BigQuery actuals.
+- Uses `fct_sales_points.qo_set` after schema inspection.
+- Includes current month-to-date scope, source class, and as-of date.
+- Does not treat the Rev planning sheet as actual QO performance.
+
+Prompt:
+
+```text
+@NurtureAny new ARR this month for my accounts
+```
+
+Expected behavior:
+
+- First response is plan-only.
+- Does not silently choose one `new ARR` definition.
+- Caveat asks whether the user wants signed converted ARR, paid converted ARR, or new MRR movement annualized.
+- Uses HubSpot owner/account scope before BigQuery after the definition is confirmed.
+- Final answer states the chosen metric definition, source table, month-to-date period, and confidence.
+
 ## Sensitive Data
 
 Prompt:

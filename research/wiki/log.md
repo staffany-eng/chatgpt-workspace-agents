@@ -69,3 +69,7 @@ Synthesized Tactical Pause and Sales Training sources into a NurtureAny sales be
 ## [2026-05-10] ingest | NurtureAny Sales Onboarding Master Template
 
 Ingested the sales onboarding master template and its linked Drive files. Parsed 13 sheet tabs, 47 first-level Drive files, 25 folder-child links, and 18 second-order Drive links. Copied only safe training/rubric excerpts; secret forms, response sheets, raw pricing rows, and account-list style sheets were inventoried but not copied as raw operating guidance.
+
+## [2026-05-10] ingest | StaffAny Rev Team Planning And Metrics
+
+Ingested the 2026 Rev Team planning Sheet, 2025Q3 sales onboarding Slides, and Manticore/BigQuery metric evidence. Promoted NurtureAny guidance to treat QO as `fct_sales_points.qo_set`, keep planning targets separate from warehouse actuals, and disambiguate `new ARR` before querying.
