@@ -6744,7 +6744,13 @@ def build_friday_sales_review(
 
 @mcp.tool()
 def get_account_context(slack_user_email: str, company_id: str) -> dict[str, Any]:
-    """Get safe account context for one scoped HubSpot company."""
+    """Get safe account context for one scoped HubSpot company.
+
+    For default Slack account-background or "get account context" answers,
+    render the top-level slack_markdown plus source/scope/confidence/caveat.
+    Do not append contacts, deals, last activity, open tasks, or IC-BANT unless
+    the user explicitly asks for detailed CRM context.
+    """
 
     try:
         scope = _caller_scope(slack_user_email)
@@ -6756,7 +6762,7 @@ def get_account_context(slack_user_email: str, company_id: str) -> dict[str, Any
         decision_status = context.get("coverage", {}).get("decision_maker_coverage", {}).get("status")
         account_packet = context.get("account_packet") or {}
         c360_sales_packet_status = (context.get("c360_sales_packet") or {}).get("status")
-        source = "HubSpot company, contact, deal, and sales-owned task associations"
+        source = account_packet.get("source") or "Scoped HubSpot account resolution"
         if c360_sales_packet_status == "ok":
             source += " + Customer 360 sales packet"
         elif context["company"].get("c360_url"):
@@ -6765,6 +6771,12 @@ def get_account_context(slack_user_email: str, company_id: str) -> dict[str, Any
         if account_packet.get("confidence") == "needs-check":
             confidence = "needs-check"
         return {
+            "slack_markdown": account_packet.get("slack_markdown") or "",
+            "slack_output_policy": (
+                "For default Slack account-background/get account context answers, output slack_markdown only, "
+                "then Source/Scope/Confidence/Caveat. Do not add Additional context, contacts, deals, last activity, "
+                "open follow-up tasks, full IC-BANT, role-inferred contacts, or Other Contacts unless explicitly requested."
+            ),
             "answer": context,
             "source": source,
             "scope": _scope_response(scope, [context["company"]["country"]]),

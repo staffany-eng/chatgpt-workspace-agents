@@ -12,6 +12,7 @@ NurtureAny's first runtime surface is Slack mention usage in sales pilot channel
 - Materially expanded scope, source-class changes, write intent, or expensive/ambiguous follow-ups require a revised plan and `run`.
 - T-90 renewal answers must display both the known T-90 `contract_end_date` bucket and the missing `contract_end_date` classification bucket. Do not bury missing-date accounts in the caveat.
 - Repeated account-name follow-up requests should reuse bounded sources or run bounded target-account `query` lookup. Do not switch to broad queue scoring as a direct lookup.
+- Account-background and `get account context` answers should render the slim packet returned by `get_account_context` and should not add `Additional context`, contacts, last activity, open tasks, deals, or IC-BANT unless explicitly requested.
 - Follow-up coverage answers must name the calendars checked. For a scoped HubSpot account, include the account owner's email calendar ID when calling Google Calendar; if it is inaccessible to `team@staffany.com`, say that instead of saying no follow-up.
 - Calendar meeting-quality audit requests must first resolve the scoped HubSpot account, then fetch `get_account_context`, pass `company.calendar_audit_seed` to `audit_google_calendar_meeting_quality`, and only then summarize whether the right people are on the meeting.
 - For past matched Calendar meetings, if the audit tool returns `hubspot_followup_check.required=true`, call `check_account_followup_status` from the event end time before answering follow-up hygiene.

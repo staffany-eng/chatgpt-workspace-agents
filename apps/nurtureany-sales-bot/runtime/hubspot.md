@@ -156,7 +156,7 @@ Friday sales review uses the same scoped association discipline, plus HubSpot ca
 - Input: company ID or exact company selector plus caller identity.
 - Output: scoped account context with safe contact, deal, and existing sales follow-up task summary, plus HubSpot owner name/email, customer/prospect status/source, route-keyed `c360_url` for verified current customers, contact coverage source fields, and the recommended AE calendar ID for follow-up scans.
 - Output includes `company.calendar_audit_seed` for Google Calendar meeting-quality audits: company ID/name/domain, owner email/calendar ID, missing clean-lead fields, decision-maker coverage, I-C-BANT readiness hints, and safe contact match records with email domains/hashes only. It must not expose raw contact emails in Slack-facing output.
-- For account-background answers, include `company.c360_url` in the Company section and name Customer 360 in `Source` whenever the scoped company is a verified customer.
+- For account-background answers, use top-level `slack_markdown` or `answer.account_packet.slack_markdown` as the default Slack answer, include the Customer 360 link when returned, and name Customer 360 in `Source` whenever the scoped company is a verified customer. Do not append raw contacts, deals, last activity, open tasks, or IC-BANT by default.
 
 `build_pre_demo_game_plans`:
 

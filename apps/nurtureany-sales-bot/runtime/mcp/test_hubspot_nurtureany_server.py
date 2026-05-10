@@ -395,13 +395,21 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         self.assertIn("hs_num_contacts_with_buying_roles", context["coverage"]["sources"]["buying_role_contact_count_source"])
 
     def test_get_account_context_marks_customer360_link_source_for_customers(self):
+        packet_markdown = "*<https://customer-360-qv4r5xkisq-as.a.run.app/companies/fei-siong-group|Fei Siong Group>*\n• Segment: current customer"
         context = {
             "company": {
+                "name": "Fei Siong Group",
                 "country": "Singapore",
                 "missing_fields": [],
                 "c360_url": "https://customer-360-qv4r5xkisq-as.a.run.app/companies/fei-siong-group",
             },
             "coverage": {"decision_maker_coverage": {"status": "verified"}},
+            "account_packet": {
+                "slack_markdown": packet_markdown,
+                "source": "Scoped HubSpot account resolution",
+                "confidence": "verified",
+                "caveat": "Slim packet caveat.",
+            },
         }
         with patch.object(self.module, "_caller_scope", return_value={**SCOPE, "kind": "admin"}), patch.object(
             self.module, "_company_context", return_value=context
@@ -410,6 +418,9 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
 
         self.assertIn("Customer 360 link", result["source"])
         self.assertEqual(result["answer"]["company"]["c360_url"], context["company"]["c360_url"])
+        self.assertEqual(result["slack_markdown"], packet_markdown)
+        self.assertIn("Do not add Additional context", result["slack_output_policy"])
+        self.assertIn("last activity", result["slack_output_policy"])
 
     def test_payroll_customer_account_packet_suppresses_stale_hubspot_sections(self):
         context = {
