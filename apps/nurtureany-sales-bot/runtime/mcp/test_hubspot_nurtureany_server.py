@@ -406,6 +406,72 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         self.assertNotIn("task_body", result["answer"][0])
         self.assertIn("do not create or mutate tasks", result["caveat"])
 
+    def test_list_sales_followup_tasks_uses_task_search_for_owner_due_window(self):
+        task = {
+            "id": "task-1",
+            "properties": {
+                "hs_timestamp": "2026-05-11T09:00:00Z",
+                "hs_task_subject": "Call Jeremy account",
+                "hubspot_owner_id": "owner-sales",
+                "hs_task_status": "NOT_STARTED",
+                "hs_task_priority": "HIGH",
+                "hs_task_type": "CALL",
+                "hs_lastmodifieddate": "2026-05-09T00:00:00Z",
+            },
+        }
+        company = {
+            "id": "company-1",
+            "properties": {
+                "name": "Scoped Account",
+                "hs_is_target_account": "true",
+                "company_country": "Singapore",
+                "hubspot_owner_id": "owner-sales",
+            },
+        }
+
+        with patch.object(self.module, "_caller_scope", return_value={**SCOPE, "kind": "admin", "email": "kaiyi@staffany.com"}), patch.object(
+            self.module, "_owner_by_email", return_value={"id": "owner-sales"}
+        ), patch.object(
+            self.module,
+            "_task_search",
+            return_value={
+                "results": [task],
+                "total": 1,
+                "requested_limit": 20,
+                "returned_count": 1,
+                "has_more": False,
+                "truncated": False,
+            },
+        ) as task_search, patch.object(
+            self.module,
+            "_task_company_links_for_tasks",
+            return_value={
+                "task-1": {
+                    "company_ids": ["company-1"],
+                    "company_sources": {"company-1": [{"object_type": "company", "object_id": "company-1"}]},
+                    "truncated": False,
+                },
+            },
+        ), patch.object(self.module, "_batch_read", return_value=[company]), patch.object(
+            self.module, "_company_context", side_effect=AssertionError("account-first scan should not run")
+        ):
+            result = self.module.list_sales_followup_tasks(
+                "kaiyi@staffany.com",
+                owner_email="jeremy.wong@staffany.com",
+                due_start="2026-05-11",
+                due_end="2026-05-17",
+                limit=4,
+            )
+
+        filters = task_search.call_args.args[0]
+        self.assertIn({"propertyName": "hubspot_owner_id", "operator": "EQ", "value": "owner-sales"}, filters)
+        self.assertIn({"propertyName": "hs_timestamp", "operator": "GTE", "value": "2026-05-11T00:00:00Z"}, filters)
+        self.assertIn({"propertyName": "hs_timestamp", "operator": "LTE", "value": "2026-05-17T23:59:59Z"}, filters)
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["task_count"], 1)
+        self.assertEqual(result["answer"][0]["task_id"], "task-1")
+        self.assertEqual(result["answer"][0]["company_name"], "Scoped Account")
+
     def test_score_uses_sales_followup_task_signals(self):
         with patch.object(self.module, "_caller_scope", return_value={**SCOPE, "kind": "admin", "email": "kaiyi@staffany.com"}), patch.object(
             self.module,
