@@ -60,6 +60,7 @@ mcp_servers:
       - "list_my_target_accounts"
       - "list_team_target_accounts"
       - "get_account_context"
+      - "list_sales_followup_tasks"
       - "score_nurture_accounts"
       - "find_contact_gaps"
       - "generate_free_search_tasks"

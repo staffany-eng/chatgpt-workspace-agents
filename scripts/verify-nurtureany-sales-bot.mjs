@@ -100,6 +100,7 @@ if (!existsSync(manifestPath)) {
       "list_my_target_accounts",
       "list_team_target_accounts",
       "get_account_context",
+      "list_sales_followup_tasks",
       "score_nurture_accounts",
       "find_contact_gaps",
       "generate_free_search_tasks",
@@ -185,6 +186,7 @@ for (const text of [
   "sarah@staffany.com",
   "list_my_target_accounts",
   "list_team_target_accounts",
+  "list_sales_followup_tasks",
   "generate_free_search_tasks",
   "review_public_enrichment_evidence",
   "plan_hubspot_writeback",
@@ -201,7 +203,7 @@ for (const text of [
 }
 
 const soulText = textOf("profile/SOUL.md");
-for (const text of ["plan-first", "run", "explicit approval", "Never auto-send", "Confidence", "cost_report", "credit_report", "approval_marker", "reveal_phones"]) {
+for (const text of ["plan-first", "run", "explicit approval", "Never auto-send", "Confidence", "sales-owned follow-up tasks", "cost_report", "credit_report", "approval_marker", "reveal_phones"]) {
   if (!soulText.includes(text)) fail(`SOUL.md missing required safety/contract text: ${text}`);
 }
 
@@ -213,6 +215,8 @@ for (const text of [
   "Nurture-ready enriched",
   "Do not use Honcho",
   "Confidence: <verified | needs-check | blocked>",
+  "list_sales_followup_tasks",
+  "sales-owned HubSpot follow-up tasks",
   "generate_free_search_tasks",
   "review_public_enrichment_evidence",
   "search_exa_people_candidates",

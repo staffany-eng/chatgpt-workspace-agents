@@ -82,6 +82,16 @@ DEAL_PROPERTIES = [
     "contract_end_date",
 ]
 
+TASK_PROPERTIES = [
+    "hs_timestamp",
+    "hs_task_subject",
+    "hubspot_owner_id",
+    "hs_task_status",
+    "hs_task_priority",
+    "hs_task_type",
+    "hs_lastmodifieddate",
+]
+
 FREE_SEARCH_SOURCE_TYPES = (
     "company_website",
     "company_careers",
@@ -108,6 +118,8 @@ PUBLIC_EVIDENCE_ITEM_LIMIT = 20
 PUBLIC_TASK_ACCOUNT_LIMIT = 25
 HUBSPOT_SEARCH_PAGE_LIMIT = 100
 HUBSPOT_SEARCH_RESULT_LIMIT = 1000
+TASK_ASSOCIATION_LIMIT = 100
+TASK_RETURN_LIMIT = 100
 
 
 mcp = FastMCP(
@@ -359,9 +371,20 @@ def _enrichment_status(props: dict[str, Any], contact_count: int | None) -> str:
     return "minimum_enriched"
 
 
+def _association_ids_with_metadata(from_type: str, object_id: str, to_type: str, limit: int = 20) -> dict[str, Any]:
+    requested_limit = _bounded_int(limit, default=20, maximum=TASK_ASSOCIATION_LIMIT)
+    data = _get(
+        f"/crm/v4/objects/{from_type}/{object_id}/associations/{to_type}",
+        {"limit": str(requested_limit)},
+    )
+    ids = [str(item["toObjectId"]) for item in data.get("results", []) if item.get("toObjectId")]
+    has_more = bool(data.get("paging", {}).get("next", {}).get("after"))
+    return {"ids": ids, "has_more": has_more, "truncated": has_more, "requested_limit": requested_limit}
+
+
 def _association_ids(from_type: str, object_id: str, to_type: str, limit: int = 20) -> list[str]:
-    data = _get(f"/crm/v4/objects/{from_type}/{object_id}/associations/{to_type}", {"limit": str(limit)})
-    return [str(item["toObjectId"]) for item in data.get("results", []) if item.get("toObjectId")]
+    data = _association_ids_with_metadata(from_type, object_id, to_type, limit)
+    return data["ids"]
 
 
 def _batch_read(object_type: str, ids: list[str], properties: list[str]) -> list[dict[str, Any]]:
@@ -375,6 +398,131 @@ def _batch_read(object_type: str, ids: list[str], properties: list[str]) -> list
         },
     )
     return data.get("results", [])
+
+
+def _add_task_sources(
+    task_sources: dict[str, list[dict[str, str]]],
+    task_ids: list[str],
+    source_type: str,
+    source_id: str,
+) -> None:
+    for task_id in task_ids:
+        sources = task_sources.setdefault(task_id, [])
+        source = {"object_type": source_type, "object_id": str(source_id)}
+        if source not in sources:
+            sources.append(source)
+
+
+def _collect_task_associations(company_id: str, contact_ids: list[str], deal_ids: list[str]) -> dict[str, Any]:
+    task_sources: dict[str, list[dict[str, str]]] = {}
+    truncated = False
+
+    company_tasks = _association_ids_with_metadata("companies", company_id, "tasks", TASK_ASSOCIATION_LIMIT)
+    _add_task_sources(task_sources, company_tasks["ids"], "company", company_id)
+    truncated = truncated or company_tasks["truncated"]
+
+    for contact_id in contact_ids:
+        contact_tasks = _association_ids_with_metadata("contacts", contact_id, "tasks", TASK_ASSOCIATION_LIMIT)
+        _add_task_sources(task_sources, contact_tasks["ids"], "contact", contact_id)
+        truncated = truncated or contact_tasks["truncated"]
+
+    for deal_id in deal_ids:
+        deal_tasks = _association_ids_with_metadata("deals", deal_id, "tasks", TASK_ASSOCIATION_LIMIT)
+        _add_task_sources(task_sources, deal_tasks["ids"], "deal", deal_id)
+        truncated = truncated or deal_tasks["truncated"]
+
+    return {"task_ids": list(task_sources.keys()), "task_sources": task_sources, "truncated": truncated}
+
+
+def _is_incomplete_task(task: dict[str, Any]) -> bool:
+    status = str(task.get("properties", {}).get("hs_task_status") or "").strip().upper()
+    return status != "COMPLETED"
+
+
+def _safe_task_summary(task: dict[str, Any], task_sources: dict[str, list[dict[str, str]]]) -> dict[str, Any]:
+    props = task.get("properties", {})
+    task_id = str(task.get("id") or "")
+    return {
+        "task_id": task_id,
+        "due_at": props.get("hs_timestamp") or "",
+        "subject": _short_text(str(props.get("hs_task_subject") or ""), 160),
+        "owner_id": props.get("hubspot_owner_id") or "",
+        "status": props.get("hs_task_status") or "",
+        "priority": props.get("hs_task_priority") or "",
+        "type": props.get("hs_task_type") or "",
+        "last_modified_at": props.get("hs_lastmodifieddate") or "",
+        "associated_via": task_sources.get(task_id, []),
+    }
+
+
+def _sort_tasks_by_due_at(tasks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    def key(task: dict[str, Any]) -> tuple[int, str]:
+        due_at = task.get("due_at") or ""
+        return (0 if due_at else 1, due_at)
+
+    return sorted(tasks, key=key)
+
+
+def _sales_followup_signals(tasks: list[dict[str, Any]], truncated: bool) -> dict[str, Any]:
+    today = datetime.now(timezone.utc).date()
+    dated_tasks = [(task, _date_value(task.get("due_at"))) for task in tasks]
+    overdue_count = len([task for task, due in dated_tasks if due and due < today])
+    due_dates = [task.get("due_at") for task, due in dated_tasks if due and task.get("due_at")]
+    return {
+        "sales_followup_task_count": len(tasks),
+        "overdue_sales_followup_task_count": overdue_count,
+        "next_sales_followup_due_at": min(due_dates) if due_dates else "",
+        "sales_followup_task_truncated": bool(truncated),
+        "existing_sales_followup_open": bool(tasks),
+    }
+
+
+def _sales_followup_task_context(
+    company: dict[str, Any],
+    contact_ids: list[str] | None = None,
+    deal_ids: list[str] | None = None,
+    task_limit: int = 20,
+) -> dict[str, Any]:
+    company_id = str(company.get("id") or "")
+    company_owner_id = str(company.get("properties", {}).get("hubspot_owner_id") or "")
+    if not company_id or not company_owner_id:
+        return {"tasks": [], "signals": _sales_followup_signals([], False)}
+
+    contact_ids = contact_ids if contact_ids is not None else _association_ids("companies", company_id, "contacts", 50)
+    deal_ids = deal_ids if deal_ids is not None else _association_ids("companies", company_id, "deals", 20)
+    association_data = _collect_task_associations(company_id, contact_ids, deal_ids)
+    task_ids = association_data["task_ids"]
+    task_read_ids = task_ids[:TASK_RETURN_LIMIT]
+    raw_tasks = _batch_read("tasks", task_read_ids, TASK_PROPERTIES)
+    truncated = bool(association_data["truncated"] or len(task_ids) > len(task_read_ids))
+
+    sales_owned_tasks = []
+    for task in raw_tasks:
+        props = task.get("properties", {})
+        if not _is_incomplete_task(task):
+            continue
+        if str(props.get("hubspot_owner_id") or "") != company_owner_id:
+            continue
+        sales_owned_tasks.append(_safe_task_summary(task, association_data["task_sources"]))
+
+    sorted_tasks = _sort_tasks_by_due_at(sales_owned_tasks)
+    requested_limit = _bounded_int(task_limit, default=20, maximum=TASK_RETURN_LIMIT)
+    returned_tasks = sorted_tasks[:requested_limit]
+    truncated = truncated or len(sorted_tasks) > requested_limit
+    return {"tasks": returned_tasks, "signals": _sales_followup_signals(sorted_tasks, truncated)}
+
+
+def _task_due_in_window(task: dict[str, Any], due_start: str = "", due_end: str = "") -> bool:
+    due = _date_value(task.get("due_at"))
+    start = _date_value(due_start)
+    end = _date_value(due_end)
+    if (start or end) and not due:
+        return False
+    if start and due and due < start:
+        return False
+    if end and due and due > end:
+        return False
+    return True
 
 
 def _get_company(company_id: str) -> dict[str, Any]:
@@ -391,7 +539,7 @@ def _has_company_access(company: dict[str, Any], scope: dict[str, Any]) -> bool:
     return scope["kind"] == "ae" and props.get("hubspot_owner_id") == scope.get("owner_id")
 
 
-def _company_context(company_id: str, scope: dict[str, Any]) -> dict[str, Any] | None:
+def _company_context(company_id: str, scope: dict[str, Any], task_limit: int = 20) -> dict[str, Any] | None:
     company = _get_company(company_id)
     if not _has_company_access(company, scope):
         return None
@@ -401,10 +549,14 @@ def _company_context(company_id: str, scope: dict[str, Any]) -> dict[str, Any] |
     deals = _batch_read("deals", deal_ids, DEAL_PROPERTIES)
     props = company.get("properties", {})
     safe_contacts = [_safe_contact(contact) for contact in contacts]
+    task_context = _sales_followup_task_context(company, contact_ids, deal_ids, task_limit)
+    company_summary = _summarize_company_with_contacts(company, safe_contacts)
+    company_summary.update(task_context["signals"])
     return {
-        "company": _summarize_company_with_contacts(company, safe_contacts),
+        "company": company_summary,
         "contacts": safe_contacts,
         "deals": [_safe_deal(deal) for deal in deals],
+        "sales_followup_tasks": task_context["tasks"],
         "coverage": _coverage(props, safe_contacts),
     }
 
@@ -513,6 +665,24 @@ def _score_company(summary: dict[str, Any]) -> dict[str, Any]:
         score += 8
         reasons.append("missing recent activity date")
 
+    overdue_tasks = _int_value(summary.get("overdue_sales_followup_task_count"))
+    open_tasks = _int_value(summary.get("sales_followup_task_count"))
+    next_task_due = _date_value(summary.get("next_sales_followup_due_at"))
+    if overdue_tasks:
+        score += 20
+        reasons.append(f"{overdue_tasks} overdue sales follow-up task(s)")
+    elif next_task_due:
+        days_until_due = (next_task_due - today).days
+        if 0 <= days_until_due <= 7:
+            score += 12
+            reasons.append(f"sales follow-up due in {days_until_due} days")
+        elif open_tasks:
+            score += 4
+            reasons.append("open sales follow-up already scheduled")
+    elif open_tasks:
+        score += 4
+        reasons.append("open sales follow-up already scheduled")
+
     score -= min(len(missing) * 3, 18)
     return {
         "priority_score": max(score, 0),
@@ -522,6 +692,8 @@ def _score_company(summary: dict[str, Any]) -> dict[str, Any]:
 
 
 def _segment(summary: dict[str, Any], reasons: list[str]) -> str:
+    if _int_value(summary.get("overdue_sales_followup_task_count")):
+        return "Overdue sales follow-up"
     if any("contract/renewal" in reason for reason in reasons):
         return "Renewal / contract-end alert"
     if "decision maker" in " ".join(summary.get("missing_fields", [])).lower():
@@ -921,13 +1093,108 @@ def get_account_context(slack_user_email: str, company_id: str) -> dict[str, Any
             return _blocked("Company is outside caller scope.", {"caller_email": slack_user_email, "company_id": company_id})
         return {
             "answer": context,
-            "source": "HubSpot company, contact, and deal associations",
+            "source": "HubSpot company, contact, deal, and sales-owned task associations",
             "scope": _scope_response(scope, [context["company"]["country"]]),
             "confidence": "verified",
-            "caveat": "Contact details are summarized; raw phone numbers and exports are omitted.",
+            "caveat": "Contact details and sales-owned follow-up tasks are summarized; raw phone numbers, task bodies, and exports are omitted.",
         }
     except HubSpotError as error:
         return _blocked(str(error), {"caller_email": slack_user_email, "company_id": company_id})
+
+
+@mcp.tool()
+def list_sales_followup_tasks(
+    slack_user_email: str,
+    company_ids: list[str] | None = None,
+    countries: list[str] | None = None,
+    limit: int = 50,
+    owner_email: str | None = None,
+    due_start: str = "",
+    due_end: str = "",
+) -> dict[str, Any]:
+    """List existing incomplete sales-owned follow-up tasks for scoped HubSpot target accounts."""
+
+    try:
+        scope = _caller_scope(slack_user_email)
+        if scope["kind"] == "blocked":
+            return _blocked("Caller identity is not mapped to an allowed scope.", {"caller_email": slack_user_email})
+
+        requested_limit = _bounded_int(limit, default=50, maximum=TASK_RETURN_LIMIT)
+        contexts: list[dict[str, Any]] = []
+        metadata: dict[str, Any]
+        selected = _safe_countries(countries, scope["countries"])
+        target_owner_id = ""
+        target_owner_email = ""
+
+        if company_ids:
+            account_limit = _bounded_int(requested_limit, default=50, maximum=50)
+            for company_id in company_ids[:account_limit]:
+                context = _company_context(str(company_id), scope, task_limit=TASK_RETURN_LIMIT)
+                if context is None:
+                    raise ScopeError("One or more requested companies are outside caller scope.")
+                contexts.append(context)
+            metadata = {
+                "total": len(company_ids),
+                "requested_limit": account_limit,
+                "returned_count": len(contexts),
+                "has_more": len(company_ids) > account_limit,
+                "truncated": len(company_ids) > account_limit,
+            }
+        else:
+            if not selected:
+                return _blocked("Requested countries are outside caller scope.", _scope_response(scope, []))
+            target_owner_id, target_owner_email = _target_owner_id_for_scope(scope, owner_email)
+            data = _company_search(_target_filters(selected, target_owner_id), requested_limit)
+            metadata = _search_metadata(data)
+            for company in data.get("results", []):
+                company_id = str(company.get("id") or "")
+                if company_id:
+                    context = _company_context(company_id, scope, task_limit=TASK_RETURN_LIMIT)
+                    if context:
+                        contexts.append(context)
+
+        tasks = []
+        task_truncated = bool(metadata.get("truncated"))
+        for context in contexts:
+            company = context["company"]
+            task_truncated = task_truncated or bool(company.get("sales_followup_task_truncated"))
+            for task in context.get("sales_followup_tasks", []):
+                if not _task_due_in_window(task, due_start, due_end):
+                    continue
+                tasks.append(
+                    {
+                        "company_id": company.get("company_id"),
+                        "company_name": company.get("name"),
+                        "country": company.get("country"),
+                        **task,
+                    }
+                )
+
+        sorted_tasks = _sort_tasks_by_due_at(tasks)
+        returned_tasks = sorted_tasks[:requested_limit]
+        task_truncated = task_truncated or len(sorted_tasks) > requested_limit
+        scope_response = _scope_response(scope, selected, target_owner_id, target_owner_email)
+        if due_start:
+            scope_response["due_start"] = due_start
+        if due_end:
+            scope_response["due_end"] = due_end
+        return {
+            "answer": returned_tasks,
+            "source": "HubSpot sales-owned task associations",
+            "scope": scope_response,
+            **metadata,
+            "task_count": len(sorted_tasks),
+            "returned_task_count": len(returned_tasks),
+            "task_truncated": task_truncated,
+            "confidence": "needs-check" if task_truncated else "verified",
+            "caveat": (
+                "Existing incomplete sales-owned HubSpot tasks only. Safe task summaries omit task body and do not create or mutate tasks."
+            ),
+        }
+    except ScopeError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email, "owner_email": owner_email})
+    except HubSpotError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email})
 
 
 @mcp.tool()
@@ -968,7 +1235,18 @@ def score_nurture_accounts(
             data = _company_search(_target_filters(selected, target_owner_id), limit)
             metadata = _search_metadata(data)
             for company in data.get("results", []):
-                contexts.append({"company": _summarize_company(company), "contacts": [], "deals": [], "coverage": {}})
+                summary = _summarize_company(company)
+                task_context = _sales_followup_task_context(company, task_limit=5)
+                summary.update(task_context["signals"])
+                contexts.append(
+                    {
+                        "company": summary,
+                        "contacts": [],
+                        "deals": [],
+                        "sales_followup_tasks": task_context["tasks"],
+                        "coverage": {},
+                    }
+                )
 
         ranked = []
         for context in contexts:
@@ -976,14 +1254,17 @@ def score_nurture_accounts(
             score = _score_company(company)
             ranked.append({**company, **score})
         ranked.sort(key=lambda item: item["priority_score"], reverse=True)
+        task_truncated = any(item.get("sales_followup_task_truncated") for item in ranked)
         return {
             "answer": ranked,
             "source": "HubSpot account context scoring",
             "scope": _scope_response(scope, selected, target_owner_id, target_owner_email),
             **metadata,
-            "confidence": "needs-check" if metadata.get("truncated") or any(item.get("missing_fields") for item in ranked) else "verified",
+            "confidence": "needs-check"
+            if metadata.get("truncated") or task_truncated or any(item.get("missing_fields") for item in ranked)
+            else "verified",
             "caveat": _coverage_caveat(
-                metadata,
+                {**metadata, "truncated": bool(metadata.get("truncated") or task_truncated)},
                 "Scoring uses HubSpot fields only unless C360/Luma context is separately supplied.",
             ),
         }

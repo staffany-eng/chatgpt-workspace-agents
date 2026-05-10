@@ -190,6 +190,174 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         self.assertTrue(all(task["will_fetch_automatically"] is False for task in account["tasks"]))
         self.assertIn("No paid API", result["caveat"])
 
+    def test_sales_followup_tasks_are_deduped_owner_filtered_and_safe(self):
+        company = {"id": "123", "properties": {"hubspot_owner_id": "owner-sales"}}
+
+        def fake_associations(from_type, object_id, to_type, limit=20):
+            self.assertEqual(to_type, "tasks")
+            if from_type == "companies":
+                return {"ids": ["task-1", "task-2"], "truncated": False, "has_more": False}
+            if from_type == "contacts":
+                return {"ids": ["task-1", "task-3"], "truncated": False, "has_more": False}
+            if from_type == "deals":
+                return {"ids": ["task-4"], "truncated": True, "has_more": True}
+            return {"ids": [], "truncated": False, "has_more": False}
+
+        def fake_batch_read(object_type, ids, properties):
+            self.assertEqual(object_type, "tasks")
+            self.assertEqual(ids, ["task-1", "task-2", "task-3", "task-4"])
+            self.assertNotIn("hs_task_body", properties)
+            return [
+                {
+                    "id": "task-1",
+                    "properties": {
+                        "hs_timestamp": "2026-05-10T00:00:00Z",
+                        "hs_task_subject": "Follow up after demo",
+                        "hubspot_owner_id": "owner-sales",
+                        "hs_task_status": "NOT_STARTED",
+                        "hs_task_priority": "HIGH",
+                        "hs_task_type": "CALL",
+                        "hs_lastmodifieddate": "2026-05-09T00:00:00Z",
+                        "hs_task_body": "Should never be returned",
+                    },
+                },
+                {
+                    "id": "task-2",
+                    "properties": {
+                        "hs_timestamp": "2026-05-11T00:00:00Z",
+                        "hs_task_subject": "Completed task",
+                        "hubspot_owner_id": "owner-sales",
+                        "hs_task_status": "COMPLETED",
+                    },
+                },
+                {
+                    "id": "task-3",
+                    "properties": {
+                        "hs_timestamp": "2026-05-12T00:00:00Z",
+                        "hs_task_subject": "Other owner",
+                        "hubspot_owner_id": "owner-other",
+                        "hs_task_status": "NOT_STARTED",
+                    },
+                },
+                {
+                    "id": "task-4",
+                    "properties": {
+                        "hs_timestamp": "2026-05-13T00:00:00Z",
+                        "hs_task_subject": "Follow up proposal",
+                        "hubspot_owner_id": "owner-sales",
+                        "hs_task_status": "WAITING",
+                    },
+                },
+            ]
+
+        with patch.object(self.module, "_association_ids_with_metadata", side_effect=fake_associations), patch.object(
+            self.module, "_batch_read", side_effect=fake_batch_read
+        ):
+            result = self.module._sales_followup_task_context(company, ["contact-1"], ["deal-1"], task_limit=10)
+
+        self.assertEqual([task["task_id"] for task in result["tasks"]], ["task-1", "task-4"])
+        self.assertTrue(result["signals"]["sales_followup_task_truncated"])
+        self.assertEqual(result["signals"]["sales_followup_task_count"], 2)
+        self.assertEqual(result["signals"]["next_sales_followup_due_at"], "2026-05-10T00:00:00Z")
+        self.assertNotIn("hs_task_body", result["tasks"][0])
+        self.assertIn({"object_type": "company", "object_id": "123"}, result["tasks"][0]["associated_via"])
+        self.assertIn({"object_type": "contact", "object_id": "contact-1"}, result["tasks"][0]["associated_via"])
+
+    def test_list_sales_followup_tasks_filters_due_window(self):
+        context = company_context()
+        context["company"].update(
+            {
+                "owner_id": "owner-sales",
+                "sales_followup_task_truncated": False,
+            }
+        )
+        context["sales_followup_tasks"] = [
+            {
+                "task_id": "task-1",
+                "due_at": "2026-05-10T00:00:00Z",
+                "subject": "Due this week",
+                "owner_id": "owner-sales",
+                "status": "NOT_STARTED",
+                "priority": "HIGH",
+                "type": "CALL",
+                "last_modified_at": "2026-05-09T00:00:00Z",
+                "associated_via": [{"object_type": "company", "object_id": "123"}],
+            },
+            {
+                "task_id": "task-2",
+                "due_at": "2026-05-20T00:00:00Z",
+                "subject": "Outside window",
+                "owner_id": "owner-sales",
+                "status": "NOT_STARTED",
+                "priority": "LOW",
+                "type": "TODO",
+                "last_modified_at": "2026-05-09T00:00:00Z",
+                "associated_via": [{"object_type": "company", "object_id": "123"}],
+            },
+        ]
+
+        with patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
+            self.module, "_company_context", return_value=context
+        ):
+            result = self.module.list_sales_followup_tasks(
+                "kerren.fong@staffany.com",
+                company_ids=["123"],
+                due_start="2026-05-10",
+                due_end="2026-05-16",
+            )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["task_count"], 1)
+        self.assertEqual(result["returned_task_count"], 1)
+        self.assertEqual(result["answer"][0]["task_id"], "task-1")
+        self.assertEqual(result["answer"][0]["company_name"], "Noci Bakehouse")
+        self.assertNotIn("task_body", result["answer"][0])
+        self.assertIn("do not create or mutate tasks", result["caveat"])
+
+    def test_score_uses_sales_followup_task_signals(self):
+        with patch.object(self.module, "_caller_scope", return_value={**SCOPE, "kind": "admin", "email": "kaiyi@staffany.com"}), patch.object(
+            self.module,
+            "_company_search",
+            return_value={
+                "results": [
+                    {
+                        "id": "123",
+                        "properties": {
+                            "name": "Noci Bakehouse",
+                            "hs_is_target_account": "true",
+                            "company_country": "Singapore",
+                            "hubspot_owner_id": "owner-sales",
+                            "notes_last_updated": "2026-05-09",
+                        },
+                    }
+                ],
+                "total": 1,
+                "requested_limit": 20,
+                "returned_count": 1,
+                "has_more": False,
+                "truncated": False,
+            },
+        ), patch.object(
+            self.module,
+            "_sales_followup_task_context",
+            return_value={
+                "tasks": [],
+                "signals": {
+                    "sales_followup_task_count": 1,
+                    "overdue_sales_followup_task_count": 1,
+                    "next_sales_followup_due_at": "2000-01-01T00:00:00Z",
+                    "sales_followup_task_truncated": False,
+                    "existing_sales_followup_open": True,
+                },
+            },
+        ):
+            result = self.module.score_nurture_accounts("kaiyi@staffany.com", countries=["Singapore"])
+
+        account = result["answer"][0]
+        self.assertEqual(account["segment"], "Overdue sales follow-up")
+        self.assertEqual(account["sales_followup_task_count"], 1)
+        self.assertIn("1 overdue sales follow-up task(s)", account["priority_reasons"])
+
     def test_review_public_evidence_dedupes_candidates_and_omits_phone(self):
         raw_contacts = [
             {

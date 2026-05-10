@@ -9,6 +9,7 @@ Read phase:
 - Read owners and map owner email to owner ID.
 - Search companies by target-account flag, owner, and country.
 - Read company, contact, deal, association, activity, task, and note context.
+- Read existing incomplete sales-owned follow-up tasks associated to scoped target accounts through company, contact, or deal links.
 - Read property metadata for field validation and option values.
 
 Write phase:
@@ -28,6 +29,7 @@ It exposes these tools:
 - `list_my_target_accounts`
 - `list_team_target_accounts`
 - `get_account_context`
+- `list_sales_followup_tasks`
 - `score_nurture_accounts`
 - `find_contact_gaps`
 - `generate_free_search_tasks`
@@ -58,10 +60,13 @@ For account context, fetch:
 - Company fields from `references/hubspot-fields.md`.
 - Associated contacts with persona and buying-role fields.
 - Associated deals with stage, amount, close date, contract end date, and owner.
-- Recent activities, tasks, and notes as summarized evidence.
+- Existing incomplete sales-owned follow-up tasks as safe summaries only.
+- Recent activities and notes as summarized evidence.
 - Existing NurtureAny fields when present.
 
 Avoid raw dumps. Return coverage, recency, and rationale.
+
+Sales-owned follow-up tasks are read-only prioritization signals. A task is in scope when it is incomplete, associated to the scoped target account through the company, a company contact, or a company deal, and its `hubspot_owner_id` matches the scoped company owner. Return only `hs_timestamp`, `hs_task_subject`, `hubspot_owner_id`, `hs_task_status`, `hs_task_priority`, `hs_task_type`, `hs_lastmodifieddate`, and association path. Do not expose task body by default.
 
 ## Tool Behavior
 
@@ -79,12 +84,18 @@ Avoid raw dumps. Return coverage, recency, and rationale.
 `get_account_context`:
 
 - Input: company ID or exact company selector plus caller identity.
-- Output: scoped account context with safe contact summary.
+- Output: scoped account context with safe contact, deal, and existing sales follow-up task summary.
+
+`list_sales_followup_tasks`:
+
+- Input: Slack user email, optional company IDs, optional countries, optional owner email filter, optional due window.
+- Output: existing incomplete sales-owned HubSpot follow-up tasks with safe task fields only.
+- Must not create tasks, mutate HubSpot, trigger write-back preview, or recommend duplicate task creation when an open sales-owned task already exists.
 
 `score_nurture_accounts`:
 
 - Input: scoped account IDs or scope query.
-- Output: ranked queue with score, segment, reason, missing data, pagination completeness metadata, and confidence.
+- Output: ranked queue with score, segment, reason, missing data, sales follow-up task signals, pagination completeness metadata, and confidence.
 
 `find_contact_gaps`:
 

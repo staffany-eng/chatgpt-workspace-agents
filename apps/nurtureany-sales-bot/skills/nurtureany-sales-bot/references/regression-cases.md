@@ -76,6 +76,21 @@ Expected behavior:
 - Includes company website, careers, public job boards, general web, LinkedIn manual search, Google Maps manual check, Instagram/TikTok manual check, Facebook manual check, and review-site options when relevant.
 - Does not call paid APIs, scrape social/gated sites, reveal PII, mutate HubSpot, or send external messages.
 
+## Sales Follow-Up Tasks
+
+Prompt:
+
+```text
+@NurtureAny show my sales follow-up tasks due this week
+```
+
+Expected behavior:
+
+- First response is plan-only.
+- After `run`, uses scoped HubSpot target accounts and existing incomplete sales-owned tasks only.
+- Includes safe task summaries: due date, subject, owner ID, status, priority, type, last modified, account, and association path.
+- Does not expose task body, create tasks, mutate HubSpot, trigger write-back preview, or recommend duplicate task creation when an open sales-owned follow-up already exists.
+
 Prompt:
 
 ```text

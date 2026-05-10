@@ -120,6 +120,22 @@ Expected behavior:
 - Returns manual/free tasks only: company website, careers, public job boards, general web, LinkedIn manual search, Google Maps manual check, Instagram/TikTok manual check, Facebook manual check, and review sites.
 - Does not call Lusha, Exa, paid search providers, social scrapers, HubSpot mutations, or external message sending.
 
+## Sales Follow-Up Task Read Signal
+
+Prompt:
+
+```text
+@NurtureAny show my sales follow-up tasks due this week
+```
+
+Expected behavior:
+
+- First Slack response is plan-only.
+- After `run`, maps Slack email to the allowed HubSpot owner scope.
+- Reads existing incomplete sales-owned HubSpot tasks associated through scoped target accounts, contacts, or deals.
+- Returns safe task summaries only: due date, subject, owner ID, status, priority, type, last modified, account, and association path.
+- Does not expose task body, create HubSpot tasks, mutate HubSpot, trigger write-back preview, or recommend duplicate task creation when an open sales-owned follow-up already exists.
+
 ## Exa People Candidate Search
 
 Prompt:

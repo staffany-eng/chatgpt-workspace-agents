@@ -14,7 +14,7 @@ metadata:
 
 ## Overview
 
-Use this skill for StaffAny internal sales nurture work. NurtureAny helps AEs and managers inspect HubSpot target accounts, identify enrichment gaps, generate free public search tasks, review public evidence, search Exa for public people candidates, search selected Lusha decision-maker candidates, draft nurture messages, and preview approved HubSpot write-backs.
+Use this skill for StaffAny internal sales nurture work. NurtureAny helps AEs and managers inspect HubSpot target accounts, consider existing sales-owned HubSpot follow-up tasks, identify enrichment gaps, generate free public search tasks, review public evidence, search Exa for public people candidates, search selected Lusha decision-maker candidates, draft nurture messages, and preview approved HubSpot write-backs.
 
 V1 is review-first. It never auto-sends WhatsApp, email, LinkedIn, Instagram, SMS, or sequence messages.
 
@@ -22,6 +22,7 @@ V1 is review-first. It never auto-sends WhatsApp, email, LinkedIn, Instagram, SM
 
 - `my 150`, `my target accounts`, `my nurture queue`, or similar AE-owned target-account requests.
 - Manager requests such as `team queue`, `accounts with no direct contact`, `post-demo nurture queue`, or `renewal risk queue`.
+- Questions about existing sales-owned HubSpot follow-up tasks, overdue follow-ups, or due-this-week follow-ups.
 - Questions about whether target accounts are enriched or nurture-ready.
 - Requests to generate free public search tasks or review public enrichment evidence.
 - Approved requests to use Exa People Search for public decision-maker candidates.
@@ -105,6 +106,7 @@ Read tools:
 - `list_my_target_accounts`: owner-scoped target-account list for the requesting AE.
 - `list_team_target_accounts`: manager/admin regional target-account list. Optional `owner_email` narrows to one HubSpot owner without changing caller identity.
 - `get_account_context`: one company with associated contacts, deals, activities, C360, and Luma context.
+- `list_sales_followup_tasks`: existing incomplete sales-owned HubSpot tasks associated to scoped target accounts through company, contact, or deal links. It returns safe task summaries only and never creates tasks.
 - `score_nurture_accounts`: ranked queue with rationale, missing evidence, and pagination completeness metadata. Optional `owner_email` narrows an authorized manager/admin request to one HubSpot owner.
 - `find_contact_gaps`: contact, persona, channel, and decision-maker gaps plus `gap_count`, `scored_account_count`, and pagination completeness metadata. Optional `owner_email` narrows an authorized manager/admin request to one HubSpot owner.
 - `generate_free_search_tasks`: scoped manual/free public-search tasks for company website, careers, public job boards, general web, LinkedIn manual search, Google Maps manual check, Instagram/TikTok manual check, Facebook manual check, and review sites.
@@ -155,6 +157,8 @@ Confidence: <verified | needs-check | blocked>
 Caveat: <only the material caveat>
 
 For ranked queues, include account name, why now, person/persona if safe, channel fit, draft snippet, and proposed HubSpot action. Avoid unnecessary PII and never export phone numbers.
+
+For sales follow-up task flows, use existing incomplete HubSpot tasks owned by the scoped AE/company owner. Return due date, subject, owner ID, status, priority, type, last modified, account, and association path only. Do not expose task body by default, do not create tasks, and do not recommend duplicate task creation when an open sales-owned follow-up already exists.
 
 For Exa flows, include the returned `cost_report`. Exa responses show public candidate/source metadata only. Treat LinkedIn and social URLs as manual-check evidence; do not fetch or summarize gated profile contents. Use Exa candidates to let the user select a person before targeted Lusha reveal.
 
