@@ -19,15 +19,27 @@ import socket
 import urllib.error
 import urllib.parse
 import urllib.request
-from pathlib import Path
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
+from nurtureany_common.google_oauth import (
+    access_token as _google_access_token,
+    account_email as _google_account_email,
+    client_credentials as _google_client_credentials,
+    load_json as _google_load_json,
+    profile_file as _google_profile_file,
+    refresh_access_token as _google_refresh_access_token,
+    request_json as _google_request_json,
+    token_scopes as _google_token_scopes,
+    validate_scope as _google_validate_scope,
+    write_json as _google_write_json,
+)
+from nurtureany_common.responses import blocked_response, safe_detail as _safe_detail
+
 
 GOOGLE_DRIVE_API_BASE_URL = "https://www.googleapis.com/drive/v3"
 GOOGLE_SHEETS_API_BASE_URL = "https://sheets.googleapis.com/v4/spreadsheets"
-GOOGLE_OAUTH_TOKEN_URL = "https://oauth2.googleapis.com/token"
 GOOGLE_DRIVE_USER_AGENT = "StaffAny-NurtureAny/1.0 (+https://staffany.com)"
 DRIVE_READONLY_SCOPE = "https://www.googleapis.com/auth/drive.readonly"
 DEFAULT_ACCOUNT_EMAIL = "team@staffany.com"
@@ -40,6 +52,8 @@ MAX_DRIVE_FILES = 100
 MAX_VISION_FILES = 5
 MAX_IMAGE_BYTES = 7_500_000
 MAX_REGISTRATION_ROWS = 250
+MAX_REGISTRATION_ROW_SAMPLE = 5
+DEFAULT_REGISTRATION_ROW_SAMPLE = 0
 ANTHROPIC_API_KEY_ENV = "ANTHROPIC_API_KEY"
 DEFAULT_VISION_MODEL = "claude-sonnet-4-6"
 SUPPORTED_VISION_MEDIA_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
@@ -98,38 +112,23 @@ class GoogleDriveError(RuntimeError):
 
 
 def _account_email() -> str:
-    return os.environ.get("GOOGLE_DRIVE_ACCOUNT_EMAIL", DEFAULT_ACCOUNT_EMAIL).strip().lower() or DEFAULT_ACCOUNT_EMAIL
+    return _google_account_email("GOOGLE_DRIVE_ACCOUNT_EMAIL", DEFAULT_ACCOUNT_EMAIL)
 
 
-def _token_file() -> Path:
-    raw = os.environ.get("GOOGLE_DRIVE_TOKEN_FILE", "").strip()
-    if raw and not _is_unresolved_env_placeholder(raw):
-        return Path(raw).expanduser()
-    return Path.home() / ".hermes" / "profiles" / "nurtureanysalesbot" / "google-drive-token.json"
+def _token_file():
+    return _google_profile_file("GOOGLE_DRIVE_TOKEN_FILE", "google-drive-token.json")
 
 
-def _client_secret_file() -> Path:
-    raw = os.environ.get("GOOGLE_DRIVE_CLIENT_SECRET_FILE", "").strip()
-    if raw and not _is_unresolved_env_placeholder(raw):
-        return Path(raw).expanduser()
-    return Path.home() / ".hermes" / "profiles" / "nurtureanysalesbot" / "google-drive-client-secret.json"
+def _client_secret_file():
+    return _google_profile_file("GOOGLE_DRIVE_CLIENT_SECRET_FILE", "google-drive-client-secret.json")
 
 
-def _is_unresolved_env_placeholder(value: str) -> bool:
-    return value.startswith("${") and value.endswith("}")
+def _load_json(path) -> dict[str, Any]:
+    return _google_load_json(path, "Google Drive", GoogleDriveError)
 
 
-def _load_json(path: Path) -> dict[str, Any]:
-    try:
-        return json.loads(path.read_text())
-    except FileNotFoundError as error:
-        raise GoogleDriveError(f"Missing Google Drive OAuth file: {path}") from error
-    except json.JSONDecodeError as error:
-        raise GoogleDriveError(f"Invalid Google Drive OAuth JSON file: {path}") from error
-
-
-def _write_json(path: Path, payload: dict[str, Any]) -> None:
-    path.write_text(json.dumps(payload, indent=2))
+def _write_json(path, payload: dict[str, Any]) -> None:
+    _google_write_json(path, payload)
 
 
 def _scope(slack_user_email: str, extra: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -144,101 +143,43 @@ def _scope(slack_user_email: str, extra: dict[str, Any] | None = None) -> dict[s
 
 
 def _blocked(message: str, scope: dict[str, Any] | None = None) -> dict[str, Any]:
-    return {
-        "answer": message,
-        "source": "Google Drive",
-        "scope": scope or {},
-        "confidence": "blocked",
-        "caveat": message,
-    }
+    return blocked_response(message, "Google Drive", scope)
 
 
 def _token_scopes(payload: dict[str, Any]) -> set[str]:
-    raw = payload.get("scopes") or payload.get("scope") or []
-    if isinstance(raw, str):
-        return {item.strip() for item in raw.split() if item.strip()}
-    if isinstance(raw, list):
-        return {str(item).strip() for item in raw if str(item).strip()}
-    return set()
+    return _google_token_scopes(payload)
 
 
 def _validate_scope(payload: dict[str, Any]) -> None:
-    scopes = _token_scopes(payload)
-    if scopes and DRIVE_READONLY_SCOPE not in scopes:
-        raise GoogleDriveError("Google Drive OAuth token is missing drive.readonly scope.")
+    _google_validate_scope(payload, {DRIVE_READONLY_SCOPE}, "Google Drive", GoogleDriveError)
 
 
 def _client_credentials(payload: dict[str, Any]) -> tuple[str, str]:
-    client_id = str(payload.get("client_id") or "").strip()
-    client_secret = str(payload.get("client_secret") or "").strip()
-    if client_id and client_secret:
-        return client_id, client_secret
-
-    secret = _load_json(_client_secret_file())
-    installed = secret.get("installed") or secret.get("web") or {}
-    client_id = str(installed.get("client_id") or "").strip()
-    client_secret = str(installed.get("client_secret") or "").strip()
-    if not client_id or not client_secret:
-        raise GoogleDriveError("Google Drive OAuth client secret file is missing client_id/client_secret.")
-    return client_id, client_secret
+    return _google_client_credentials(payload, _client_secret_file(), "Google Drive", GoogleDriveError)
 
 
-def _refresh_access_token(payload: dict[str, Any], token_path: Path) -> str:
-    refresh_token = str(payload.get("refresh_token") or "").strip()
-    if not refresh_token:
-        raise GoogleDriveError("Google Drive OAuth token has no refresh_token. Re-run OAuth setup.")
-
-    client_id, client_secret = _client_credentials(payload)
-    data = urllib.parse.urlencode(
-        {
-            "client_id": client_id,
-            "client_secret": client_secret,
-            "refresh_token": refresh_token,
-            "grant_type": "refresh_token",
-        }
-    ).encode("utf-8")
-    request = urllib.request.Request(
-        str(payload.get("token_uri") or GOOGLE_OAUTH_TOKEN_URL),
-        data=data,
-        headers={"content-type": "application/x-www-form-urlencoded", "user-agent": GOOGLE_DRIVE_USER_AGENT},
-        method="POST",
+def _refresh_access_token(payload: dict[str, Any], token_path) -> str:
+    return _google_refresh_access_token(
+        payload,
+        token_path,
+        _client_secret_file(),
+        GOOGLE_DRIVE_USER_AGENT,
+        GOOGLE_DRIVE_TIMEOUT_SECONDS,
+        "Google Drive",
+        GoogleDriveError,
     )
-
-    try:
-        with urllib.request.urlopen(request, timeout=GOOGLE_DRIVE_TIMEOUT_SECONDS) as response:
-            refreshed = json.loads(response.read().decode("utf-8"))
-    except urllib.error.HTTPError as error:
-        detail = error.read().decode("utf-8", errors="replace")
-        raise GoogleDriveError(f"Google OAuth refresh failed: {error.code} {_safe_detail(detail)}", error.code) from error
-    except (urllib.error.URLError, socket.timeout, TimeoutError) as error:
-        reason = getattr(error, "reason", error)
-        raise GoogleDriveError(f"Google OAuth refresh timed out or failed: {reason}") from error
-
-    access_token = str(refreshed.get("access_token") or "").strip()
-    if not access_token:
-        raise GoogleDriveError("Google OAuth refresh did not return an access token.")
-
-    merged = dict(payload)
-    merged.update(refreshed)
-    merged["refresh_token"] = refresh_token
-    if not merged.get("type"):
-        merged["type"] = "authorized_user"
-    _write_json(token_path, merged)
-    return access_token
 
 
 def _access_token() -> str:
-    token_path = _token_file()
-    payload = _load_json(token_path)
-    _validate_scope(payload)
-    token = str(payload.get("token") or payload.get("access_token") or "").strip()
-    if token:
-        return token
-    return _refresh_access_token(payload, token_path)
-
-
-def _safe_detail(detail: str) -> str:
-    return detail.replace("\n", " ")[:300]
+    return _google_access_token(
+        _token_file(),
+        _client_secret_file(),
+        {DRIVE_READONLY_SCOPE},
+        GOOGLE_DRIVE_USER_AGENT,
+        GOOGLE_DRIVE_TIMEOUT_SECONDS,
+        "Google Drive",
+        GoogleDriveError,
+    )
 
 
 def _parse_drive_photo_name(name: str) -> dict[str, str]:
@@ -285,29 +226,16 @@ def _slack_user_profile(user_id: str) -> dict[str, str]:
 
 
 def _request_json(path: str, params: dict[str, Any], access_token: str) -> dict[str, Any]:
-    query = urllib.parse.urlencode({key: value for key, value in params.items() if value not in (None, "")})
-    url = f"{GOOGLE_DRIVE_API_BASE_URL}{path}"
-    if query:
-        url = f"{url}?{query}"
-    request = urllib.request.Request(
-        url,
-        headers={
-            "authorization": f"Bearer {access_token}",
-            "accept": "application/json",
-            "user-agent": GOOGLE_DRIVE_USER_AGENT,
-        },
-        method="GET",
+    return _google_request_json(
+        GOOGLE_DRIVE_API_BASE_URL,
+        path,
+        params,
+        access_token,
+        GOOGLE_DRIVE_USER_AGENT,
+        GOOGLE_DRIVE_TIMEOUT_SECONDS,
+        "Google Drive",
+        GoogleDriveError,
     )
-    try:
-        with urllib.request.urlopen(request, timeout=GOOGLE_DRIVE_TIMEOUT_SECONDS) as response:
-            raw = response.read().decode("utf-8")
-            return json.loads(raw) if raw else {}
-    except urllib.error.HTTPError as error:
-        detail = error.read().decode("utf-8", errors="replace")
-        raise GoogleDriveError(f"Google Drive API failed: {error.code} {_safe_detail(detail)}", error.code) from error
-    except (urllib.error.URLError, socket.timeout, TimeoutError) as error:
-        reason = getattr(error, "reason", error)
-        raise GoogleDriveError(f"Google Drive API request timed out or failed: {reason}") from error
 
 
 def _request_bytes(path: str, params: dict[str, Any], access_token: str, max_bytes: int) -> tuple[bytes, str]:
@@ -908,19 +836,22 @@ def read_indonesia_event_registration_attendance(
     sheet_name: str = "",
     spreadsheet_id: str = ID_REV_EVENTS_SPREADSHEET_ID,
     limit: int = MAX_REGISTRATION_ROWS,
+    row_sample_limit: int = DEFAULT_REGISTRATION_ROW_SAMPLE,
     account_email: str = DEFAULT_ACCOUNT_EMAIL,
 ) -> dict[str, Any]:
-    """Read safe attendance rows from the Indonesia Rev LL/HHH registration Sheet.
+    """Read compact attendance keys from the Indonesia Rev LL/HHH registration Sheet.
 
     Use only as a manual fallback when Luma checked_in_at attendance is empty or
-    not used. The output omits phone numbers and full emails and should be
-    matched back to scoped HubSpot target accounts before Slack account answers.
+    not used. The output omits phone numbers and full emails, returns only a
+    small safe row sample, and should be matched back to scoped HubSpot target
+    accounts before Slack account answers.
     """
 
     configured_account = _account_email()
     requested_account = (account_email or DEFAULT_ACCOUNT_EMAIL).strip().lower()
     selected_spreadsheet_id = (spreadsheet_id or ID_REV_EVENTS_SPREADSHEET_ID).strip()
     capped_limit = max(1, min(int(limit or MAX_REGISTRATION_ROWS), MAX_REGISTRATION_ROWS))
+    capped_sample_limit = max(0, min(int(row_sample_limit or 0), MAX_REGISTRATION_ROW_SAMPLE))
     scope = _scope(
         slack_user_email,
         {
@@ -932,7 +863,7 @@ def read_indonesia_event_registration_attendance(
             "event_date": event_date,
             "event_tags": event_tags or [],
             "manual_fallback_for": "Luma checked_in_at empty or not used for Indonesia events",
-            "safety": "Safe rows only. No phone numbers, full emails, raw exports, or Drive mutations.",
+            "safety": "Compact match keys plus a small safe row sample only. No phone numbers, full emails, raw exports, or Drive mutations.",
         },
     )
 
@@ -989,6 +920,7 @@ def read_indonesia_event_registration_attendance(
     has_more = len(parsed_rows) > capped_limit
     rows = parsed_rows[:capped_limit]
     attended_rows = [row for row in rows if row.get("attended") is True]
+    row_sample = attended_rows[:capped_sample_limit]
     email_domains = _unique_limited([str(row.get("email_domain") or "") for row in rows])
     company_candidates = _unique_limited([str(row.get("company_name") or "") for row in rows])
     attended_email_domains = _unique_limited([str(row.get("email_domain") or "") for row in attended_rows])
@@ -1001,18 +933,24 @@ def read_indonesia_event_registration_attendance(
             "spreadsheet_url": spreadsheet_url,
             "sheet_name": selected_sheet_name,
             "attendance_definition": "Attend The Event is TRUE/Yes in the Indonesia registration Sheet",
-            "registration_rows": rows,
+            "registration_rows_sample": row_sample,
+            "registration_rows_returned": len(row_sample),
+            "row_details_truncated": len(rows) > len(row_sample),
             "counts": {
-                "returned_rows": len(rows),
+                "read_rows": len(rows),
                 "attended_rows": len(attended_rows),
                 "approved_rows": sum(1 for row in rows if str(row.get("approval_status") or "").lower() == "approved"),
                 "wa_confirm_yes_rows": sum(1 for row in rows if str(row.get("wa_confirm") or "").strip().lower() == "yes"),
             },
             "match_keys": {
-                "email_domains": email_domains,
-                "company_name_candidates": company_candidates,
+                "email_domains": attended_email_domains,
+                "company_name_candidates": attended_company_candidates,
                 "attended_email_domains": attended_email_domains,
                 "attended_company_name_candidates": attended_company_candidates,
+            },
+            "all_rsvp_match_key_counts": {
+                "email_domains": len(email_domains),
+                "company_name_candidates": len(company_candidates),
             },
             "next_step": "Use attended match keys to resolve scoped HubSpot target accounts before account-level Slack output.",
         },
@@ -1020,11 +958,11 @@ def read_indonesia_event_registration_attendance(
         "scope": {**scope, "sheet_name": selected_sheet_name, "sheet_id": sheet_props.get("sheetId"), "requested_limit": capped_limit},
         "total": len(parsed_rows),
         "requested_limit": capped_limit,
-        "returned_count": len(rows),
+        "returned_count": len(row_sample),
         "has_more": has_more,
-        "truncated": has_more,
+        "truncated": has_more or len(rows) > len(row_sample),
         "confidence": "needs-check",
-        "caveat": "Manual registration Sheet fallback only. HubSpot remains required for target-account scope and follow-up status. Full emails and phone numbers are not returned.",
+        "caveat": "Manual registration Sheet fallback only. HubSpot remains required for target-account scope and follow-up status. Output is compact; full emails, phone numbers, and raw registration exports are not returned.",
     }
 
 

@@ -3,7 +3,8 @@
 
 This server exposes only public people-discovery search. It does not fetch
 profile contents, reveal contact details, mutate HubSpot, or bypass gated
-social surfaces. It requires scoped HubSpot company inputs.
+social surfaces. Paid enrichment requires scoped HubSpot company inputs from
+NurtureAny before any API call.
 """
 
 from __future__ import annotations
@@ -18,6 +19,7 @@ from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
+from nurtureany_common.responses import blocked_response
 from nurtureany_common.scoped_company import scoped_company_error as _shared_scoped_company_error
 from nurtureany_common.text import clean_domain as _clean_domain
 
@@ -126,14 +128,12 @@ def _scope(slack_user_email: str, extra: dict[str, Any] | None = None) -> dict[s
 
 
 def _blocked(message: str, scope: dict[str, Any] | None = None, cost_report: dict[str, Any] | None = None) -> dict[str, Any]:
-    return {
-        "answer": message,
-        "source": "Exa People Search",
-        "scope": scope or {},
-        "confidence": "blocked",
-        "caveat": message,
-        "cost_report": cost_report or _cost_report([], "No Exa call completed.", 0),
-    }
+    return blocked_response(
+        message,
+        "Exa People Search",
+        scope,
+        cost_report=cost_report or _cost_report([], "No Exa call completed.", 0),
+    )
 
 
 def _number(value: Any) -> int | float | None:

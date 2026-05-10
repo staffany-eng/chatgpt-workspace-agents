@@ -1,7 +1,5 @@
-import importlib.util
 import os
 import sys
-import types
 import unittest
 from pathlib import Path
 
@@ -10,37 +8,12 @@ if str(MCP_DIR) not in sys.path:
     sys.path.insert(0, str(MCP_DIR))
 from unittest.mock import patch
 
-
-class FakeMCP:
-    def __init__(self, *args, **kwargs):
-        self.args = args
-        self.kwargs = kwargs
-
-    def tool(self):
-        def decorate(func):
-            return func
-
-        return decorate
-
-    def run(self, *args, **kwargs):
-        return None
+sys.path.insert(0, str(Path(__file__).parent))
+from test_helpers import load_mcp_module
 
 
 def load_near_me_module():
-    sys.modules["mcp"] = types.ModuleType("mcp")
-    sys.modules["mcp.server"] = types.ModuleType("mcp.server")
-    fastmcp = types.ModuleType("mcp.server.fastmcp")
-    fastmcp.FastMCP = FakeMCP
-    sys.modules["mcp.server.fastmcp"] = fastmcp
-
-    module_name = "near_me_nurtureany_server_under_test"
-    sys.modules.pop(module_name, None)
-    path = Path(__file__).with_name("near_me_nurtureany_server.py")
-    spec = importlib.util.spec_from_file_location(module_name, path)
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[module_name] = module
-    spec.loader.exec_module(module)
-    return module
+    return load_mcp_module("near_me_nurtureany_server.py", "near_me_nurtureany_server_under_test")
 
 
 class NearMeNurtureAnyServerTest(unittest.TestCase):

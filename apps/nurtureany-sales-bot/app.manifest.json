@@ -17,8 +17,8 @@
       "skills/nurtureany-sales-bot/references/sop-tool-coverage.md",
       "skills/nurtureany-sales-bot/references/playbooks.md",
       "skills/nurtureany-sales-bot/references/pre-demo-game-plans.md",
-      "skills/nurtureany-sales-bot/references/rev-planning-and-metrics.md",
-      "skills/nurtureany-sales-bot/references/regression-cases.md"
+      "skills/nurtureany-sales-bot/references/regression-cases.md",
+      "skills/nurtureany-sales-bot/references/rev-planning-and-metrics.md"
     ],
     "slack_runtime": "runtime/slack.md",
     "hubspot_runtime": "runtime/hubspot.md",
@@ -222,6 +222,7 @@
       "list_team_target_accounts",
       "audit_hubspot_owner_roster",
       "audit_priority_account_coverage",
+      "build_sales_metric_actuals_query",
       "build_friday_sales_review",
       "get_account_context",
       "build_pre_demo_game_plans",
@@ -244,6 +245,7 @@
       "audit_google_calendar_meeting_quality",
       "list_luma_events",
       "get_luma_event_match_keys",
+      "find_target_accounts_by_luma_match_keys",
       "get_luma_event_context",
       "resolve_known_area_for_near_me",
       "build_near_me_outlet_matches_query",
@@ -353,6 +355,9 @@
     "required_scope": "https://www.googleapis.com/auth/drive.readonly",
     "read_only": true,
     "default_folder_id": "1qXlFnr5TKFtsYNWk7ZywBBctDaae3RY-",
+    "id_rev_events_spreadsheet_id": "1mXixAVJGk0Uy0u1LtOmDFxU3XuW8DRfedB69E1f-drc",
+    "registration_attendance_fallback": "Indonesia LL/HHH Google Sheet Attend The Event when Luma checked_in_at is empty or not used",
+    "registration_attendance_column": "Attend The Event",
     "max_files": 100,
     "allowed_tools": [
       "list_drive_folder_images",

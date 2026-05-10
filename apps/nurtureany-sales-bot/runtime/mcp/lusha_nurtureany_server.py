@@ -21,6 +21,10 @@ from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
+from nurtureany_common.responses import blocked_response
+from nurtureany_common.scoped_company import scoped_company_error as _shared_scoped_company_error
+from nurtureany_common.text import clean_domain as _clean_domain
+
 
 LUSHA_BASE_URL = "https://api.lusha.com"
 LUSHA_USER_AGENT = "StaffAny-NurtureAny/1.0 (+https://staffany.com)"
@@ -119,14 +123,12 @@ def _error_message(status_code: int, detail: str) -> str:
 
 
 def _blocked(message: str, scope: dict[str, Any] | None = None, credit_report: dict[str, Any] | None = None) -> dict[str, Any]:
-    return {
-        "answer": message,
-        "source": "Lusha",
-        "scope": scope or {},
-        "confidence": "blocked",
-        "caveat": message,
-        "credit_report": credit_report or _credit_report(0, None, None, {}, "No Lusha call completed."),
-    }
+    return blocked_response(
+        message,
+        "Lusha",
+        scope,
+        credit_report=credit_report or _credit_report(0, None, None, {}, "No Lusha call completed."),
+    )
 
 
 def _scope(slack_user_email: str, extra: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -246,37 +248,12 @@ def _company_input(company: dict[str, Any]) -> dict[str, str]:
     }
 
 
-def _is_scoped_hubspot_company(company: dict[str, Any]) -> bool:
-    company_id = str(company.get("company_id") or company.get("id") or "").strip()
-    if not company_id:
-        return False
-    return company.get("hubspot_scoped") is True or str(company.get("scope_source") or "") == SCOPE_SOURCE
-
-
 def _scoped_company_error(companies: list[dict[str, Any]]) -> str:
-    unscoped = [
-        str(index + 1)
-        for index, company in enumerate(companies[:MAX_SEARCH_COMPANIES])
-        if not isinstance(company, dict) or not _is_scoped_hubspot_company(company)
-    ]
-    if not unscoped:
-        return ""
-    return (
-        "Lusha paid enrichment requires scoped HubSpot company inputs from NurtureAny "
-        f"with company_id and scope_source={SCOPE_SOURCE}; unscoped input positions: {', '.join(unscoped)}."
-    )
+    return _shared_scoped_company_error(companies, "Lusha paid enrichment", SCOPE_SOURCE, MAX_SEARCH_COMPANIES)
 
 
 def _has_scoped_company_ids(scoped_company_ids: list[str] | None) -> bool:
     return bool([str(company_id).strip() for company_id in (scoped_company_ids or []) if str(company_id).strip()])
-
-
-def _clean_domain(domain: str) -> str:
-    text = domain.strip().lower()
-    for prefix in ("https://", "http://"):
-        if text.startswith(prefix):
-            text = text[len(prefix) :]
-    return text.split("/")[0]
 
 
 def _search_payload(company: dict[str, str], limit_per_company: int) -> dict[str, Any]:

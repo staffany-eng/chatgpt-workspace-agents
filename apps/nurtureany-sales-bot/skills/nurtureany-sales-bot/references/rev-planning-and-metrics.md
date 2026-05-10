@@ -49,6 +49,6 @@ Always name the source class in the answer when comparing target vs actual, for 
 ## Routing Guard
 
 - Direct QO count or pace prompts with an owner/team and date range are revenue-metric prompts. Examples: `what is Jeremy's QO in April`, `what's my QO this month`, and `compare my QO pace to plan`.
-- These direct metric prompts should plan owner/team scope resolution, schema inspection of `fct_sales_points`, and a bounded aggregate query over `qo_set`.
-- Do not route direct QO metric prompts to `build_friday_sales_review`. Friday review is only for tactical pause, 120/150 account coverage, activity hygiene, connected-call discipline, warm activity, QO/QO Met quality coaching, or explicit Friday report prompts.
-- Friday review may include warehouse QO actuals as a second step after `build_friday_sales_review`. In that combined flow, label HubSpot hygiene separately from C360 BigQuery actuals and keep both source classes visible.
+- These direct metric prompts should plan owner/team scope resolution, call `build_sales_metric_actuals_query` for `qo_set`, and execute the returned bounded aggregate query through `staffany_bigquery.execute_sql_readonly`.
+- Do not route direct QO metric prompts to `build_friday_sales_review`. Friday review is for explicit Friday/tactical-pause/hygiene/coaching context.
+- Friday review may include warehouse QO actuals as a second step after `build_friday_sales_review`. In that combined flow, execute returned `warehouse_metric_followups`, label HubSpot hygiene separately from C360 BigQuery actuals, and keep both source classes visible.

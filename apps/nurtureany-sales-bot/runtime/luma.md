@@ -17,6 +17,7 @@ Luma is an optional read-only event-context source for NurtureAny. HubSpot remai
 - Useful tools:
   - `list_luma_events`
   - `get_luma_event_match_keys`
+  - `find_target_accounts_by_luma_match_keys`
   - `get_luma_event_context`
 
 The local stdio MCP adapter lives at `runtime/mcp/luma_nurtureany_server.py`.
@@ -42,12 +43,15 @@ The local stdio MCP adapter lives at `runtime/mcp/luma_nurtureany_server.py`.
 
 `get_luma_event_match_keys`:
 
-- Input: Slack user email and either selected event IDs or bounded event search filters.
-- Output: safe company email domains and company-name candidates for HubSpot target-account lookup.
-- Does not return raw attendee names, full emails, phone numbers, registration answers, or raw guest lists.
-- Use it for broad event-first matching before calling `get_luma_event_context` with scoped HubSpot candidate companies.
+- Use for broad event-wide questions where the Luma guest list is smaller than the HubSpot target-account universe.
+- Input: Slack user email, optional event IDs or event search window, optional `event_tags`, optional location, optional country, optional event type, and optional guest cap.
+- Output: event metadata, RSVP/checked-in counts, safe email domains, and company-name candidates only. For past events, keys come only from checked-in guests; if `checked_in_count=0`, do not match RSVP/no-show guests as attended.
+- Does not return attendee names, full emails, phone numbers, raw registration answers, or raw guest lists.
+- Follow with `find_target_accounts_by_luma_match_keys`, then `get_luma_event_context` using only those scoped candidate companies.
 
 Attendance means `checked_in_at` is present. Approved, invited, pending, waitlist, declined, and other RSVP states are not attendance.
+
+For Indonesia LL/HHH follow-up, Luma remains the first attendance source. If a selected Luma event has zero checked-in guests or the team clearly did not use Luma check-in, use `read_indonesia_event_registration_attendance` from the Google Drive MCP as a viable manual fallback instead of matching Luma RSVP/no-show keys. That fallback reads the ID Rev registration Sheet `Attend The Event` column, returns safe company/domain match keys only, and must still be resolved back to scoped HubSpot target accounts before account-level output.
 
 ## Event Tags
 
@@ -80,6 +84,7 @@ Use Luma only when an account's nurture reason is event-related:
 
 - Do not expose raw attendee exports in Slack.
 - Do not return unmatched guest names, emails, phone numbers, registration answers, or raw guest lists.
+- Do not paste raw match-key lists in Slack; use them only to search scoped HubSpot target-account candidates.
 - Do not create, update, invite, RSVP, check in, or mutate Luma records from NurtureAny V1.
 - Do not write Google Sheets from NurtureAny V1.
 - Do not mutate HubSpot from Luma output in V1.

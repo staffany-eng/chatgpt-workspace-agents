@@ -12,7 +12,7 @@ Field-level durable sources:
 - Customer/prospect status: company `type`, then `lifecyclestage`, then `prospecting_account`; C360 current-customer evidence may strengthen customer status when explicitly used.
 - Decision-maker coverage: company `hs_num_decision_makers` plus contact `hs_buying_role=DECISION_MAKER` are verified HubSpot decision-maker sources. `hs_num_contacts_with_buying_roles` is reported separately as buying-role hygiene, but it does not satisfy decision-maker coverage by itself. NurtureAny does not read Eazybe directly for these counts.
 
-`current_tool_renewal_date` is secondary context only. C360, Google Calendar, Luma, Exa, Lusha, Slack, and public evidence enrich the answer but do not override the durable HubSpot fields above.
+`current_tool_renewal_date` is secondary context only. C360, Google Calendar, Luma, the Indonesia event registration Sheet fallback, Exa, Lusha, Slack, and public evidence enrich the answer but do not override the durable HubSpot fields above.
 
 Do not call contract timing a StaffAny renewal unless customer status is verified. For prospects or unknowns, use incumbent-tool contract timing or migration/procurement timing.
 
@@ -57,6 +57,7 @@ It exposes these tools:
 - `list_team_target_accounts`
 - `audit_hubspot_owner_roster`
 - `audit_priority_account_coverage`
+- `build_sales_metric_actuals_query`
 - `build_friday_sales_review`
 - `get_account_context`
 - `build_pre_demo_game_plans`
@@ -68,6 +69,7 @@ It exposes these tools:
 - `find_t90_renewal_gaps`
 - `generate_free_search_tasks`
 - `review_public_enrichment_evidence`
+- `find_target_accounts_by_luma_match_keys`
 - `scan_drive_event_photos`
 - `propose_photo_people_matches`
 - `draft_nurture_message`
@@ -111,7 +113,7 @@ Sales-owned follow-up tasks are read-only prioritization signals. A task is in s
 
 Generic account-name follow-up checks should resolve scoped HubSpot candidates with bounded target-account `query` lookup before task/calendar checks. Use the resolved HubSpot `owner_email` as the AE calendar ID for Google Calendar coverage through the `team@staffany.com` OAuth token. Do not use `score_nurture_accounts` as a direct company lookup or as a fallback after missing task/calendar results.
 
-Post-event follow-up status uses safe HubSpot timeline evidence only. Count associated WhatsApp `communications` with `hs_communication_channel_type=WHATS_APP`, associated notes, completed tasks, open/incomplete tasks, and completed HubSpot meeting logs after the supplied `since_at`. Event-level follow-up uses Luma only to resolve checked-in matched accounts, then requires event-specific Eazybe WhatsApp evidence in HubSpot or an event-specific completed task for `followed_up`; generic post-event WhatsApp and meeting logs alone become `needs_check`/hygiene evidence. Return object type, object ID, timestamp, owner ID, channel/status/outcome when safe, event-match label when applicable, and association path only. Do not expose communication body, note body, task body, meeting body, phone numbers, unmatched attendees, or raw event guest exports.
+Post-event follow-up status uses safe HubSpot timeline evidence only. Count associated WhatsApp `communications` with `hs_communication_channel_type=WHATS_APP`, associated notes, completed tasks, open/incomplete tasks, and completed HubSpot meeting logs after the supplied `since_at`. Event-level follow-up uses Luma first to resolve checked-in matched accounts; for Indonesia LL/HHH events where Luma check-in is empty or not used, `read_indonesia_event_registration_attendance` may provide manual `Attend The Event` attendance keys from the ID Rev registration Sheet. Resolve those attended keys with `find_target_accounts_by_luma_match_keys`; do not call `list_team_target_accounts` or delegate this matching flow. The matched scoped accounts then require event-specific Eazybe WhatsApp evidence in HubSpot or an event-specific completed task for `followed_up`; generic post-event WhatsApp and meeting logs alone become `needs_check`/hygiene evidence. Return object type, object ID, timestamp, owner ID, channel/status/outcome when safe, event-match label when applicable, and association path only. Do not expose communication body, note body, task body, meeting body, phone numbers, unmatched attendees, raw registration rows, or raw event guest exports.
 
 Friday sales review uses the same scoped association discipline, plus HubSpot calls and meetings. Connected calls are completed calls with `hs_call_duration >= 120000` milliseconds. Warm activity points are completed meetings whose title or activity type matches configured labels: HHH, LL, coffee, lunch, dinner, cosy, ABM, event, appreciation afternoon, or sports. QO, QO Met, and closed-won counts require runtime stage config through `NURTUREANY_QO_PIPELINE_IDS`, `NURTUREANY_QO_STAGE_IDS`, `NURTUREANY_QO_MET_STAGE_IDS`, and `NURTUREANY_CLOSED_WON_STAGE_IDS`; when missing, return hygiene and account coverage with `Confidence: needs-check`.
 
@@ -142,12 +144,21 @@ Friday sales review uses the same scoped association discipline, plus HubSpot ca
 - Dirty/unworkable means missing one or more clean-lead fields: industry, headcount, current tools, contract end date, at least one associated contact, and at least one verified decision maker. Role/title-only matches are returned as `needs-check` candidates, not audited clean coverage.
 - Must not expose call bodies, meeting bodies, recordings, phone numbers, raw note/task/communication bodies, attachments, or bulk exports.
 
+`build_sales_metric_actuals_query`:
+
+- Input: Slack user email, metric, date range or snapshot month, optional owner email/name, optional countries, and grain.
+- Output: metric definition, source table, source class, scoped SQL, `execute_with=staffany_bigquery.execute_sql_readonly`, confidence, and caveat.
+- Direct QO prompts use `fct_sales_points.qo_set`. Do not route direct QO questions to Friday review.
+- `new ARR` is ambiguous and must ask the user to choose signed converted ARR, paid converted ARR, or New MRR movement ARR before returning SQL.
+- Keep BigQuery auth and read-only enforcement in the StaffAny BigQuery MCP proxy. NurtureAny builds SQL only.
+
 `build_friday_sales_review`:
 
 - Input: manager/admin Slack user email, optional countries, optional owner email filter, optional week start/end, optional limit.
-- Output: `answer.hygiene_summary`, `answer.funnel_snapshot`, `answer.coaching_observations`, `answer.next_week_actions`, and `answer.support_needed`, plus source, scope, total, returned count, truncation, confidence, and caveat.
+- Output: `answer.hygiene_summary`, `answer.funnel_snapshot`, optional `answer.warehouse_metric_followups`, `answer.coaching_observations`, `answer.next_week_actions`, and `answer.support_needed`, plus source, scope, total, returned count, truncation, confidence, and caveat.
 - Hygiene summary mirrors the tactical pause docs: `120_150_accounts_worked`, `40_connected_calls`, hit/miss, Friday correction needed, and main issue.
 - Funnel snapshot returns accounts worked, connected calls, QOs, QO Met %, deals closed, warm activity points, and caveats. If funnel stage config is missing, QO/QO Met/deal counts are `needs-check` but hygiene still returns.
+- Friday review is HubSpot hygiene first. Warehouse QO actuals are a second source and require executing returned SQL through `staffany_bigquery.execute_sql_readonly`.
 - Next-week actions must be concrete corrections tied to 120/150 account coverage, double tap, 30 WhatsApp daily rhythm, 40 connected calls, clean-lead fields, and warm activity proof.
 - Direct QO count/pace questions should not call this tool. They should resolve owner/team scope and use StaffAny BigQuery `fct_sales_points.qo_set`. A Friday review may add that revenue-metric result as a second source after this HubSpot review output.
 
@@ -185,6 +196,7 @@ Friday sales review uses the same scoped association discipline, plus HubSpot ca
 - Input: Slack user email, Luma `event_tags`, optional event ID, location, country, event type, search window, owner email, `since_at`, `until_at`, and limit.
 - Output: selected event summary, matched target-account count, status counts, per-account status, latest safe evidence timestamp, owner, activity counts, confidence, and caveat.
 - Resolves Luma checked-in guests, matches them to scoped HubSpot target accounts, and classifies follow-up from associated event-specific Eazybe WhatsApp communications or event-specific tasks.
+- If Luma checked-in attendance is empty for an Indonesia LL/HHH event, Slack workflow may use `read_indonesia_event_registration_attendance` first, then pass attended keys into `find_target_accounts_by_luma_match_keys`, then pass the resolved scoped HubSpot companies into `check_account_followup_status` from the event end time.
 - Generic post-event WhatsApp, candidate attendee matching, truncated reads, owner mismatch, or incomplete Eazybe association returns `needs_check`.
 - It may inspect `hs_communication_body` internally for event-keyword matching, but the body is never returned, logged, or stored.
 
@@ -245,6 +257,14 @@ Friday sales review uses the same scoped association discipline, plus HubSpot ca
 - Use explicit user hints first; otherwise use Luma event-date context, OCR, badge/signage, caption, uploader/thread context, timestamp/event cluster, and scoped HubSpot search.
 - High-confidence photo match still requires confirmation from the original uploader or an explicitly responsible human before creating `nurture_person_appearance`, linking a HubSpot contact, or preparing follow-up writes.
 - Low-confidence or ambiguous matches should ask one short missing clue, for example `company name?` or `Which contact should I use?`.
+
+`find_target_accounts_by_luma_match_keys`:
+
+- Input: Slack user email, safe Luma email domains, safe Luma company-name candidates, optional countries, optional owner email filter, and limit.
+- Output: HubSpot-scoped target-account candidates only, with `hubspot_scoped=true`, `scope_source=hubspot_nurtureany`, and Luma match reason metadata.
+- Use after `get_luma_event_match_keys` for broad event-wide questions so the bot searches from Luma attendee keys into HubSpot instead of paging every target account.
+- Domain matches are stronger; company-name candidate matches return `Confidence: needs-check`.
+- Must not accept raw attendee exports, full Luma emails, phone numbers, or registration answers.
 
 `draft_nurture_message`:
 

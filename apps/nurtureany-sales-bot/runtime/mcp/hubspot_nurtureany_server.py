@@ -7,8 +7,8 @@ HubSpot write tools are not exposed until the write-back phase is approved.
 
 from __future__ import annotations
 
-import hashlib
 import html
+import hashlib
 import ipaddress
 import json
 import os
@@ -22,6 +22,31 @@ from datetime import date, datetime, time as datetime_time, timedelta, timezone
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
+
+from nurtureany_common.c360 import (
+    c360_company_url_template as _shared_c360_company_url_template,
+    c360_org_url_template as _shared_c360_org_url_template,
+    c360_route_key_map as _shared_c360_route_key_map,
+    customer360_route_key as _shared_customer360_route_key,
+    encode_url_value as _shared_encode_url_value,
+    render_c360_url as _shared_render_c360_url,
+)
+from nurtureany_common.luma_filters import (
+    canonical_country as _shared_canonical_country,
+    canonical_event_type as _shared_canonical_event_type,
+    canonical_location as _shared_canonical_location,
+    event_tag_filters as _shared_event_tag_filters,
+    resolved_event_filters as _shared_resolved_event_filters,
+)
+from nurtureany_common.responses import blocked_response
+from nurtureany_common.text import (
+    clean_domain as _shared_clean_domain,
+    email_domain as _shared_email_domain,
+    hash_email as _shared_hash_email,
+    normalize_email as _shared_normalize_email,
+    normalized_words as _shared_normalized_words,
+    unique_text as _shared_unique_text,
+)
 
 
 HUBSPOT_BASE_URL = "https://api.hubapi.com"
@@ -230,7 +255,7 @@ TASK_ASSOCIATION_LIMIT = 100
 TASK_RETURN_LIMIT = 100
 LUMA_MATCH_DOMAIN_LIMIT = 100
 LUMA_MATCH_NAME_LIMIT = 100
-LUMA_MATCH_RETURN_LIMIT = 100
+LUMA_MATCH_RETURN_LIMIT = 75
 TASK_SEARCH_RESULT_LIMIT = 300
 TASK_SEARCH_AIRTIGHT_RESULT_LIMIT = 10_000
 FOLLOWUP_ASSOCIATION_LIMIT = 100
@@ -266,6 +291,28 @@ DEFAULT_WARM_ACTIVITY_LABELS = (
 )
 ACCESS_POLICY_ENV_VAR = "NURTUREANY_ACCESS_POLICY_PATH"
 SCOPE_SOURCE = "hubspot_nurtureany"
+BIGQUERY_EXECUTION_TOOL = "staffany_bigquery.execute_sql_readonly"
+SALES_METRIC_SOURCE_CLASS = "C360 BigQuery/Manticore actuals"
+SALES_METRIC_SQL_SOURCE = "NurtureAny sales metric BigQuery SQL builder"
+SALES_METRIC_TABLES = {
+    "qo_set": "staffany-warehouse.analytics.fct_sales_points",
+    "signed_converted_arr": "staffany-warehouse.analytics.fct_deal_metrics_with_pilot_conversion",
+    "paid_converted_arr": "staffany-warehouse.analytics.fct_deal_metrics_with_pilot_conversion",
+    "new_mrr_movement_arr": "staffany-warehouse.analytics.fct_mrr_movements",
+    "net_mrr_movement_arr": "staffany-warehouse.analytics.fct_mrr_movements",
+    "current_arr": "staffany-warehouse.analytics.fct_company_revenue_snapshot",
+    "current_mrr": "staffany-warehouse.analytics.fct_company_revenue_snapshot",
+}
+SALES_METRIC_DEFINITIONS = {
+    "qo_set": "Qualified Opportunity sales point from appointment-owner, ICP employee-size, appointment-date, and new-business deal filters.",
+    "signed_converted_arr": "ARR from signed converted deals, including pilot conversion logic.",
+    "paid_converted_arr": "ARR from paid converted deals only, including pilot conversion logic.",
+    "new_mrr_movement_arr": "New MRR movement annualized to ARR from the MRR movement ledger.",
+    "net_mrr_movement_arr": "Net MRR movement annualized to ARR across movement types.",
+    "current_arr": "Current ARR from the latest or requested company revenue snapshot month.",
+    "current_mrr": "Current MRR from the latest or requested company revenue snapshot month.",
+}
+AMBIGUOUS_NEW_ARR_OPTIONS = ["signed_converted_arr", "paid_converted_arr", "new_mrr_movement_arr"]
 RENEWAL_SOURCE_OF_TRUTH_PROPERTY = "contract_end_date"
 CURRENT_TOOLS_SOURCE_OF_TRUTH_PROPERTY = "current_tools"
 RENEWAL_DATE_PROPERTIES = (RENEWAL_SOURCE_OF_TRUTH_PROPERTY,)
@@ -387,6 +434,10 @@ class AccessPolicyError(RuntimeError):
     pass
 
 
+class MetricClarification(RuntimeError):
+    pass
+
+
 def _token() -> str:
     token = os.environ.get("HUBSPOT_PRIVATE_APP_TOKEN", "").strip()
     if not token:
@@ -402,7 +453,7 @@ def _luma_token() -> str:
 
 
 def _normalize_email(email: str) -> str:
-    return (email or "").strip().lower()
+    return _shared_normalize_email(email)
 
 
 def _normalize_countries(countries: list[str] | tuple[str, ...] | None) -> tuple[str, ...]:
@@ -567,13 +618,7 @@ def _post(path: str, body: dict[str, Any]) -> dict[str, Any]:
 
 
 def _blocked(message: str, scope: dict[str, Any] | None = None) -> dict[str, Any]:
-    return {
-        "answer": message,
-        "source": "HubSpot",
-        "scope": scope or {},
-        "confidence": "blocked",
-        "caveat": message,
-    }
+    return blocked_response(message, "HubSpot", scope)
 
 
 def _owner_by_email(email: str) -> dict[str, Any] | None:
@@ -1306,18 +1351,34 @@ def _add_luma_candidate(
     company_id = str(company.get("id") or "")
     if not company_id:
         return
-    summary = candidates.setdefault(company_id, _summarize_company(company))
+    summary = candidates.setdefault(company_id, _summarize_luma_candidate_company(company))
     reasons = summary.setdefault("luma_match_reasons", [])
     if match_reason not in reasons:
         reasons.append(match_reason)
-    keys = summary.setdefault("luma_match_keys", [])
-    key_entry = {"kind": match_reason, "value": match_key}
-    if key_entry not in keys:
-        keys.append(key_entry)
+    key_kinds = summary.setdefault("luma_match_key_kinds", [])
+    if match_reason not in key_kinds:
+        key_kinds.append(match_reason)
+    summary["luma_match_key_count"] = int(summary.get("luma_match_key_count") or 0) + 1
     if confidence == "needs-check":
         summary["luma_match_confidence"] = "needs-check"
     else:
         summary.setdefault("luma_match_confidence", "verified")
+
+
+def _summarize_luma_candidate_company(company: dict[str, Any]) -> dict[str, Any]:
+    props = company.get("properties", {})
+    owner_id = props.get("hubspot_owner_id") or ""
+    return {
+        "company_id": company.get("id"),
+        "hubspot_scoped": True,
+        "scope_source": SCOPE_SOURCE,
+        "name": props.get("name") or "",
+        "domain": props.get("domain") or "",
+        "country": props.get("company_country") or "",
+        "owner_id": owner_id,
+        "owner_email": _owner_email_by_id(owner_id),
+        "owner_name": _owner_name_by_id(owner_id),
+    }
 
 
 def _target_owner_id_for_scope(scope: dict[str, Any], owner_email: str | None = None) -> tuple[str | None, str]:
@@ -1335,6 +1396,281 @@ def _target_owner_id_for_scope(scope: dict[str, Any], owner_email: str | None = 
     if scope["kind"] not in {"admin", "manager", "ae"}:
         raise ScopeError("Caller identity is not mapped to an allowed scope.")
     return owner_id, target_email
+
+
+def _metric_needs_check(message: str, scope: dict[str, Any] | None = None, metric: str = "") -> dict[str, Any]:
+    answer: dict[str, Any] = {
+        "requires_clarification": True,
+        "sql": "",
+        "execute_with": BIGQUERY_EXECUTION_TOOL,
+    }
+    if metric:
+        answer["metric"] = metric
+    if metric in {"new_arr", "new ARR"}:
+        answer["clarification_options"] = AMBIGUOUS_NEW_ARR_OPTIONS
+    return {
+        "answer": answer,
+        "source": SALES_METRIC_SQL_SOURCE,
+        "scope": scope or {},
+        "confidence": "needs-check",
+        "caveat": message,
+    }
+
+
+def _sql_string(value: Any) -> str:
+    return "'" + str(value or "").replace("'", "''") + "'"
+
+
+def _sql_string_list(values: list[Any]) -> str:
+    return ", ".join(_sql_string(value) for value in values)
+
+
+def _iso_date(value: str, field_name: str) -> str:
+    parsed = _date_value(value)
+    if not parsed:
+        raise MetricClarification(f"{field_name} must be an ISO date, for example 2026-04-01.")
+    return parsed.isoformat()
+
+
+def _date_range(start_date: str, end_date: str) -> tuple[str, str]:
+    start_iso = _iso_date(start_date, "start_date")
+    end_iso = _iso_date(end_date, "end_date")
+    if date.fromisoformat(start_iso) > date.fromisoformat(end_iso):
+        raise MetricClarification("start_date must be on or before end_date.")
+    return start_iso, end_iso
+
+
+def _safe_metric(metric: str) -> str:
+    normalized = str(metric or "").strip().lower().replace(" ", "_").replace("-", "_")
+    aliases = {
+        "qo": "qo_set",
+        "qualified_opportunity": "qo_set",
+        "new_arr": "new_arr",
+    }
+    return aliases.get(normalized, normalized)
+
+
+def _safe_grain(grain: str) -> str:
+    normalized = str(grain or "total").strip().lower()
+    if normalized not in {"total", "daily", "weekly", "monthly"}:
+        raise MetricClarification("grain must be one of total, daily, weekly, or monthly.")
+    return normalized
+
+
+def _period_expression(date_expression: str, grain: str, start_iso: str) -> str:
+    if grain == "daily":
+        return date_expression
+    if grain == "weekly":
+        return f"DATE_TRUNC({date_expression}, WEEK(MONDAY))"
+    if grain == "monthly":
+        return f"DATE_TRUNC({date_expression}, MONTH)"
+    return f"DATE '{start_iso}'"
+
+
+def _owner_identity(owner: dict[str, Any]) -> dict[str, str]:
+    return {
+        "owner_id": str(owner.get("id") or "").strip(),
+        "owner_email": _normalize_email(str(owner.get("email") or "")),
+        "owner_name": _owner_name(owner),
+    }
+
+
+def _owner_by_name(owner_name: str) -> dict[str, Any]:
+    target = str(owner_name or "").strip().lower()
+    if not target:
+        raise MetricClarification("owner_name was empty.")
+    exact_matches = []
+    partial_matches = []
+    for owner in _list_owners():
+        owner_identity = _owner_identity(owner)
+        haystacks = {
+            owner_identity["owner_name"].lower(),
+            owner_identity["owner_email"].lower(),
+            owner_identity["owner_email"].split("@")[0].replace(".", " ").lower(),
+        }
+        if target in haystacks:
+            exact_matches.append(owner)
+        elif any(target in value for value in haystacks if value):
+            partial_matches.append(owner)
+    matches = exact_matches or partial_matches
+    if len(matches) == 1:
+        return matches[0]
+    if len(matches) > 1:
+        candidates = ", ".join(
+            _owner_identity(owner)["owner_email"] or _owner_identity(owner)["owner_name"] for owner in matches[:5]
+        )
+        raise MetricClarification(f"Owner name is ambiguous. Use owner_email. Candidate matches: {candidates}.")
+    raise MetricClarification(f"HubSpot owner not found for owner_name={owner_name}. Use owner_email if possible.")
+
+
+def _policy_owner_emails_for_countries(countries: list[str]) -> list[str]:
+    policy = _access_policy()
+    selected = set(countries)
+    emails: list[str] = []
+    for rep in policy["sales_reps"].values():
+        rep_countries = set(rep.get("countries") or ())
+        owner_email = _normalize_email(rep.get("hubspot_owner_email") or "")
+        if owner_email and rep_countries.intersection(selected) and owner_email not in emails:
+            emails.append(owner_email)
+    return emails
+
+
+def _owner_ids_for_policy_countries(countries: list[str]) -> list[str]:
+    owner_ids: list[str] = []
+    for owner_email in _policy_owner_emails_for_countries(countries):
+        owner = _owner_by_email(owner_email)
+        owner_id = str((owner or {}).get("id") or "").strip()
+        if owner_id and owner_id not in owner_ids:
+            owner_ids.append(owner_id)
+    return owner_ids
+
+
+def _manager_can_query_owner(scope: dict[str, Any], owner_email: str, countries: list[str]) -> bool:
+    if scope.get("kind") != "manager":
+        return True
+    return _normalize_email(owner_email) in _policy_owner_emails_for_countries(countries)
+
+
+def _resolve_requested_owner(
+    scope: dict[str, Any],
+    countries: list[str],
+    owner_email: str | None,
+    owner_name: str | None,
+) -> dict[str, str] | None:
+    if owner_email and owner_name:
+        raise MetricClarification("Provide only one owner selector: owner_email or owner_name.")
+    if owner_email:
+        owner = _owner_by_email(owner_email)
+        if not owner:
+            raise MetricClarification(f"HubSpot owner not found for {owner_email}.")
+    elif owner_name:
+        owner = _owner_by_name(owner_name)
+    elif scope.get("kind") == "ae" and scope.get("owner_id"):
+        owner = _owner_by_id(scope["owner_id"])
+        if not owner:
+            raise MetricClarification("Caller owner ID could not be resolved to a HubSpot owner.")
+    else:
+        return None
+
+    identity = _owner_identity(owner)
+    if scope.get("kind") == "ae" and identity["owner_id"] != str(scope.get("owner_id") or ""):
+        raise ScopeError("Caller is not authorized to inspect another owner's revenue metrics.")
+    if not _manager_can_query_owner(scope, identity["owner_email"], countries):
+        raise ScopeError("Requested owner is outside the manager's runtime access-policy country scope.")
+    return identity
+
+
+def _qo_sql(start_iso: str, end_iso: str, grain: str, owner_ids: list[str] | None = None) -> str:
+    period = _period_expression("activity_date", grain, start_iso)
+    filters = [f"activity_date BETWEEN DATE '{start_iso}' AND DATE '{end_iso}'"]
+    if owner_ids:
+        filters.append(f"CAST(hubspot_owner_id AS STRING) IN ({_sql_string_list(owner_ids)})")
+    where_sql = "\n  AND ".join(filters)
+    return f"""SELECT
+  'qo_set' AS metric,
+  {period} AS period_start,
+  SUM(qo_set) AS metric_value,
+  COUNT(DISTINCT CAST(hubspot_owner_id AS STRING)) AS owner_count
+FROM `staffany-warehouse.analytics.fct_sales_points`
+WHERE {where_sql}
+GROUP BY metric, period_start
+ORDER BY period_start"""
+
+
+def _converted_arr_sql(
+    metric: str,
+    start_iso: str,
+    end_iso: str,
+    grain: str,
+    countries: list[str],
+    owner_names: list[str] | None = None,
+) -> str:
+    date_expr = "DATE(deal_contract_signed_date)" if metric == "signed_converted_arr" else "DATE(deal_paid_date)"
+    period = _period_expression(date_expr, grain, start_iso)
+    filters = [
+        f"{date_expr} BETWEEN DATE '{start_iso}' AND DATE '{end_iso}'",
+        f"company_country IN ({_sql_string_list(countries)})",
+    ]
+    if owner_names:
+        filters.append(f"LOWER(deal_owner_name) IN ({_sql_string_list([name.lower() for name in owner_names])})")
+    where_sql = "\n  AND ".join(filters)
+    return f"""SELECT
+  {_sql_string(metric)} AS metric,
+  {period} AS period_start,
+  SUM({metric}) AS metric_value,
+  COUNT(DISTINCT deal_id) AS deal_count
+FROM `staffany-warehouse.analytics.fct_deal_metrics_with_pilot_conversion`
+WHERE {where_sql}
+GROUP BY metric, period_start
+ORDER BY period_start"""
+
+
+def _movement_arr_sql(metric: str, start_iso: str, end_iso: str, grain: str, countries: list[str]) -> str:
+    period = _period_expression("event_date", grain, start_iso)
+    filters = [
+        f"event_date BETWEEN DATE '{start_iso}' AND DATE '{end_iso}'",
+        f"company_country IN ({_sql_string_list(countries)})",
+    ]
+    if metric == "new_mrr_movement_arr":
+        filters.append("movement_type = 'New'")
+    where_sql = "\n  AND ".join(filters)
+    return f"""SELECT
+  {_sql_string(metric)} AS metric,
+  {period} AS period_start,
+  SUM(mrr_change_amount * 12) AS metric_value,
+  COUNT(DISTINCT company_id) AS company_count
+FROM `staffany-warehouse.analytics.fct_mrr_movements`
+WHERE {where_sql}
+GROUP BY metric, period_start
+ORDER BY period_start"""
+
+
+def _snapshot_sql(metric: str, snapshot_month: str, countries: list[str]) -> str:
+    metric_column = "total_arr" if metric == "current_arr" else "total_mrr"
+    country_filter = f"company_country IN ({_sql_string_list(countries)})"
+    if snapshot_month:
+        snapshot_iso = _iso_date(snapshot_month, "snapshot_month")
+        snapshot_predicate = f"snapshot_month = DATE '{snapshot_iso}'"
+    else:
+        snapshot_predicate = (
+            "snapshot_month = "
+            "(SELECT MAX(snapshot_month) FROM `staffany-warehouse.analytics.fct_company_revenue_snapshot`)"
+        )
+    return f"""SELECT
+  {_sql_string(metric)} AS metric,
+  snapshot_month AS period_start,
+  SUM({metric_column}) AS metric_value,
+  COUNT(DISTINCT company_id) AS company_count
+FROM `staffany-warehouse.analytics.fct_company_revenue_snapshot`
+WHERE {snapshot_predicate}
+  AND {country_filter}
+GROUP BY metric, period_start
+ORDER BY period_start"""
+
+
+def _metric_query_package(
+    metric: str,
+    sql: str,
+    scope_response: dict[str, Any],
+    grain: str,
+    start_date: str = "",
+    end_date: str = "",
+    snapshot_month: str = "",
+) -> dict[str, Any]:
+    return {
+        "metric": metric,
+        "metric_definition": SALES_METRIC_DEFINITIONS[metric],
+        "source_table": SALES_METRIC_TABLES[metric],
+        "source_class": SALES_METRIC_SOURCE_CLASS,
+        "execute_with": BIGQUERY_EXECUTION_TOOL,
+        "sql": sql,
+        "expected_output": "Aggregate metric rows only; no raw deal, contact, attendee, or company rows.",
+        "time_grain": grain,
+        "start_date": start_date,
+        "end_date": end_date,
+        "snapshot_month": snapshot_month,
+        "scope": scope_response,
+    }
 
 
 def _account_status_from_props(props: dict[str, Any]) -> dict[str, str]:
@@ -1368,30 +1704,15 @@ def _account_status_from_props(props: dict[str, Any]) -> dict[str, str]:
 
 
 def _c360_company_url_template() -> str:
-    return os.environ.get(C360_COMPANY_URL_TEMPLATE_ENV, "").strip() or DEFAULT_C360_COMPANY_URL_TEMPLATE
+    return _shared_c360_company_url_template()
 
 
 def _c360_org_url_template() -> str:
-    return os.environ.get(C360_ORG_URL_TEMPLATE_ENV, "").strip() or DEFAULT_C360_ORG_URL_TEMPLATE
+    return _shared_c360_org_url_template()
 
 
 def _c360_route_key_map() -> dict[str, str]:
-    mappings = dict(DEFAULT_C360_ROUTE_KEY_BY_COMPANY_ID)
-    raw = os.environ.get(C360_ROUTE_KEY_BY_COMPANY_ID_ENV, "").strip()
-    if not raw:
-        return mappings
-    try:
-        configured = json.loads(raw)
-    except json.JSONDecodeError:
-        return mappings
-    if not isinstance(configured, dict):
-        return mappings
-    for company_id, route_key in configured.items():
-        company_id_text = str(company_id or "").strip()
-        route_key_text = str(route_key or "").strip()
-        if company_id_text and route_key_text:
-            mappings[company_id_text] = route_key_text
-    return mappings
+    return _shared_c360_route_key_map()
 
 
 def _customer360_route_key(
@@ -1399,26 +1720,11 @@ def _customer360_route_key(
     company_name: Any = "",
     customer360_route_key: Any = "",
 ) -> str:
-    explicit_route_key = str(customer360_route_key or "").strip()
-    if explicit_route_key:
-        return explicit_route_key
-
-    company_id = str(hubspot_company_id or "").strip()
-    if not company_id:
-        return ""
-
-    mapped_route_key = _c360_route_key_map().get(company_id)
-    if mapped_route_key:
-        return mapped_route_key
-
-    if not company_id.isdigit():
-        return company_id
-
-    return ""
+    return _shared_customer360_route_key(hubspot_company_id, company_name, customer360_route_key)
 
 
 def _encode_url_value(value: Any) -> str:
-    return urllib.parse.quote(str(value or "").strip(), safe="")
+    return _shared_encode_url_value(value)
 
 
 def _render_c360_url(
@@ -1427,20 +1733,12 @@ def _render_c360_url(
     customer360_route_key: Any = "",
     company_name: Any = "",
 ) -> str:
-    company_id = str(hubspot_company_id or "").strip()
-    org_id = str(organisation_id or "").strip()
-    route_key = _customer360_route_key(company_id, company_name, customer360_route_key)
-    if not route_key:
-        return ""
-
-    values = {
-        "customer360_route_key": _encode_url_value(route_key),
-        "hubspot_company_id": _encode_url_value(route_key),
-        "hubspot_numeric_company_id": _encode_url_value(company_id),
-        "organisation_id": _encode_url_value(org_id),
-    }
-    template = _c360_org_url_template() if org_id else _c360_company_url_template()
-    return template.format(**values)
+    return _shared_render_c360_url(
+        hubspot_company_id,
+        organisation_id,
+        customer360_route_key_value=customer360_route_key,
+        company_name=company_name,
+    )
 
 
 def _decision_maker_count_source(props: dict[str, Any]) -> dict[str, str]:
@@ -1704,19 +2002,11 @@ def _datetime_value(value: str | None) -> datetime | None:
 
 
 def _unique_text(values: list[Any]) -> list[str]:
-    seen: set[str] = set()
-    output: list[str] = []
-    for value in values:
-        text = str(value or "").strip()
-        key = text.lower()
-        if text and key not in seen:
-            seen.add(key)
-            output.append(text)
-    return output
+    return _shared_unique_text(values)
 
 
 def _normalized_words(value: str) -> str:
-    return re.sub(r"[^a-z0-9]+", " ", str(value or "").lower()).strip()
+    return _shared_normalized_words(value)
 
 
 def _text_contains_term(text: str, term: str) -> bool:
@@ -1728,86 +2018,35 @@ def _text_contains_term(text: str, term: str) -> bool:
 
 
 def _clean_domain(domain: str) -> str:
-    text = str(domain or "").strip().lower()
-    for prefix in ("https://", "http://"):
-        if text.startswith(prefix):
-            text = text[len(prefix) :]
-    return text.split("/")[0].strip()
+    return _shared_clean_domain(domain)
 
 
 def _email_domain(email: str) -> str:
-    normalized = _normalize_email(email)
-    if "@" not in normalized:
-        return ""
-    return _clean_domain(normalized.rsplit("@", 1)[1])
+    return _shared_email_domain(email)
 
 
 def _hash_email(email: str) -> str:
-    normalized = _normalize_email(email)
-    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:16] if normalized else ""
+    return _shared_hash_email(email)
 
 
 def _canonical_event_type(value: str) -> str:
-    words = _normalized_words(value)
-    if not words:
-        return ""
-    for alias, display in EVENT_TYPE_ALIASES.items():
-        if words == alias or alias in words:
-            return display
-    return ""
+    return _shared_canonical_event_type(value)
 
 
 def _canonical_location(value: str) -> str:
-    words = _normalized_words(value)
-    if not words:
-        return ""
-    for alias, display in LOCATION_ALIASES.items():
-        if words == alias or alias in words:
-            return display
-    return ""
+    return _shared_canonical_location(value)
 
 
 def _canonical_country(value: str) -> str:
-    text = str(value or "")
-    words = _normalized_words(text)
-    tokens = set(words.split())
-    if not words:
-        return ""
-    if "singapore" in words or "sg" in tokens or "asia singapore" in words:
-        return "Singapore"
-    if "indonesia" in words or "jakarta" in words or "bali" in words or "jkt" in tokens:
-        return "Indonesia"
-    if "malaysia" in words or "kuala lumpur" in words or "kl" in tokens:
-        return "Malaysia"
-    return ""
+    return _shared_canonical_country(value)
 
 
 def _resolved_event_filters(country: str, event_type: str, location: str) -> dict[str, str]:
-    location_filter = _canonical_location(location) or _canonical_location(event_type) or _canonical_location(country)
-    event_type_filter = _canonical_event_type(event_type)
-    country_filter = _canonical_country(country)
-    if not country_filter and location_filter:
-        country_filter = LOCATION_COUNTRY_MAP.get(location_filter, "")
-    return {"country": country_filter, "event_type": event_type_filter, "location": location_filter}
+    return _shared_resolved_event_filters(country, event_type, location)
 
 
 def _event_tag_filters(event_tags: Any, country: str = "", event_type: str = "", location: str = "") -> list[str]:
-    raw: list[Any] = []
-    if isinstance(event_tags, str):
-        raw.extend(part.strip() for part in re.split(r"[,;]", event_tags) if part.strip())
-    elif isinstance(event_tags, list):
-        raw.extend(event_tags)
-    tags: list[str] = []
-    for value in raw:
-        text = str(value or "").strip()
-        if text:
-            tags.append(_canonical_location(text) or _canonical_event_type(text) or _canonical_country(text) or text)
-    filters = _resolved_event_filters(country, event_type, location)
-    if filters["location"]:
-        tags.append(filters["location"])
-    if filters["event_type"]:
-        tags.append(filters["event_type"])
-    return _unique_text(tags)
+    return _shared_event_tag_filters(event_tags, country, event_type, location)
 
 
 def _luma_entries(payload: Any) -> list[dict[str, Any]]:
@@ -5528,7 +5767,7 @@ def _read_marketing_company(company_id: str) -> dict[str, Any] | None:
     return _read_crm_object("companies", str(company_id), MARKETING_COMPANY_PROPERTIES)
 
 
-def _email_domain(value: str) -> str:
+def _marketing_email_domain(value: str) -> str:
     email = _safe_email(value)
     return email.split("@", 1)[1] if "@" in email else ""
 
@@ -5552,7 +5791,7 @@ def _safe_marketing_contact_summary(contact: dict[str, Any] | None) -> dict[str,
         "display_name": _contact_display_name(contact),
         "jobtitle": props.get("jobtitle") or "",
         "owner_id": props.get("hubspot_owner_id") or "",
-        "email_domain": _email_domain(str(props.get("email") or "")),
+        "email_domain": _marketing_email_domain(str(props.get("email") or "")),
         "lifecycle_stage": props.get("lifecyclestage") or "",
         "created_at": props.get("createdate") or "",
         "last_modified_at": props.get("lastmodifieddate") or "",
@@ -6399,7 +6638,7 @@ def find_target_accounts_by_luma_match_keys(
             "caveat": (
                 "This is event-first HubSpot scoping from safe Luma match keys. "
                 "Domain matches are stronger; company-name candidates need review. "
-                "No raw Luma attendees, emails, phone numbers, or registration answers are returned."
+                "No raw Luma attendees, match-key values, emails, phone numbers, or registration answers are returned."
             ),
         }
     except ScopeError as error:
@@ -6431,6 +6670,109 @@ def audit_priority_account_coverage(
     except ScopeError as error:
         return _blocked(str(error), {"caller_email": slack_user_email, "owner_email": owner_email})
     except HubSpotError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email})
+
+
+@mcp.tool()
+def build_sales_metric_actuals_query(
+    slack_user_email: str,
+    metric: str,
+    start_date: str = "",
+    end_date: str = "",
+    snapshot_month: str = "",
+    owner_email: str | None = None,
+    owner_name: str | None = None,
+    countries: list[str] | None = None,
+    grain: str = "total",
+) -> dict[str, Any]:
+    """Build scoped, read-only BigQuery SQL for NurtureAny revenue metric actuals."""
+
+    metric_key = _safe_metric(metric)
+    try:
+        scope = _caller_scope(slack_user_email)
+        if scope["kind"] == "blocked":
+            return _blocked("Caller identity is not mapped to an allowed scope.", {"caller_email": slack_user_email})
+        selected = _safe_countries(countries, scope["countries"])
+        if not selected:
+            return _blocked("Requested countries are outside caller scope.", _scope_response(scope, []))
+
+        if metric_key == "new_arr":
+            return _metric_needs_check(
+                "new ARR is ambiguous. Choose signed_converted_arr, paid_converted_arr, or new_mrr_movement_arr before querying.",
+                _scope_response(scope, selected),
+                metric_key,
+            )
+        if metric_key not in SALES_METRIC_DEFINITIONS:
+            return _metric_needs_check(f"Unsupported revenue metric: {metric}.", _scope_response(scope, selected), metric_key)
+
+        grain_key = _safe_grain(grain)
+        requested_owner = _resolve_requested_owner(scope, selected, owner_email, owner_name)
+        target_owner_id = requested_owner["owner_id"] if requested_owner else None
+        target_owner_email = requested_owner["owner_email"] if requested_owner else ""
+        target_owner_name = requested_owner["owner_name"] if requested_owner else ""
+        scope_response = _scope_response(scope, selected, target_owner_id, target_owner_email)
+        if target_owner_name:
+            scope_response["target_owner_name"] = target_owner_name
+        scope_response["metric"] = metric_key
+        scope_response["source_class"] = SALES_METRIC_SOURCE_CLASS
+
+        if metric_key == "qo_set":
+            start_iso, end_iso = _date_range(start_date, end_date)
+            owner_ids: list[str] = []
+            if requested_owner:
+                owner_ids = [requested_owner["owner_id"]]
+            elif scope["kind"] in {"admin", "manager"}:
+                owner_ids = _owner_ids_for_policy_countries(selected)
+                if not owner_ids:
+                    return _metric_needs_check(
+                        "Country-scoped QO needs classified owner IDs because fct_sales_points has owner ID but no country column.",
+                        scope_response,
+                        metric_key,
+                    )
+            sql = _qo_sql(start_iso, end_iso, grain_key, owner_ids)
+            package = _metric_query_package(metric_key, sql, scope_response, grain_key, start_iso, end_iso)
+
+        elif metric_key in {"signed_converted_arr", "paid_converted_arr"}:
+            start_iso, end_iso = _date_range(start_date, end_date)
+            owner_names = [requested_owner["owner_name"]] if requested_owner else []
+            sql = _converted_arr_sql(metric_key, start_iso, end_iso, grain_key, selected, owner_names)
+            package = _metric_query_package(metric_key, sql, scope_response, grain_key, start_iso, end_iso)
+            if owner_names:
+                package["owner_filter_note"] = "Converted ARR table exposes deal_owner_name, not HubSpot owner ID."
+
+        elif metric_key in {"new_mrr_movement_arr", "net_mrr_movement_arr"}:
+            if requested_owner or scope["kind"] == "ae":
+                return _metric_needs_check(
+                    "MRR movement tables expose company country, not HubSpot owner ID. Use manager/admin country scope for this v1 query.",
+                    scope_response,
+                    metric_key,
+                )
+            start_iso, end_iso = _date_range(start_date, end_date)
+            sql = _movement_arr_sql(metric_key, start_iso, end_iso, grain_key, selected)
+            package = _metric_query_package(metric_key, sql, scope_response, grain_key, start_iso, end_iso)
+
+        else:
+            if requested_owner or scope["kind"] == "ae":
+                return _metric_needs_check(
+                    "Revenue snapshot tables expose company country, not HubSpot owner ID. Use manager/admin country scope for this v1 query.",
+                    scope_response,
+                    metric_key,
+                )
+            sql = _snapshot_sql(metric_key, snapshot_month, selected)
+            package = _metric_query_package(metric_key, sql, scope_response, grain_key, snapshot_month=snapshot_month)
+
+        return {
+            "answer": package,
+            "source": SALES_METRIC_SQL_SOURCE,
+            "scope": scope_response,
+            "confidence": "verified",
+            "caveat": "Run the returned SQL only through staffany_bigquery.execute_sql_readonly. Rev planning Sheets/Slides are targets and definitions, not actuals.",
+        }
+    except MetricClarification as error:
+        return _metric_needs_check(str(error), {"caller_email": slack_user_email}, metric_key)
+    except ScopeError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email, "owner_email": owner_email, "owner_name": owner_name})
+    except (AccessPolicyError, HubSpotError) as error:
         return _blocked(str(error), {"caller_email": slack_user_email})
 
 
@@ -6468,9 +6810,32 @@ def build_friday_sales_review(
             internal.get("week", {}),
             stage_config,
         )
+        week = internal.get("week", {})
+        owner_ids = sorted(
+            {
+                str(company.get("properties", {}).get("hubspot_owner_id") or "")
+                for company in internal.get("companies", [])
+                if str(company.get("properties", {}).get("hubspot_owner_id") or "")
+            }
+        )
+        warehouse_followups = []
+        if owner_ids and week.get("week_start") and week.get("week_end"):
+            followup_scope = dict(coverage.get("scope", {}))
+            followup_scope.update({"metric": "qo_set", "source_class": SALES_METRIC_SOURCE_CLASS})
+            warehouse_followups.append(
+                _metric_query_package(
+                    "qo_set",
+                    _qo_sql(week["week_start"], week["week_end"], "total", owner_ids),
+                    followup_scope,
+                    "total",
+                    week["week_start"],
+                    week["week_end"],
+                )
+            )
         answer = {
             "hygiene_summary": _friday_hygiene_summary(owner_rows),
             "funnel_snapshot": _friday_funnel_snapshot(owner_rows, deal_counts),
+            "warehouse_metric_followups": warehouse_followups,
             "coaching_observations": _coaching_observations(owner_rows),
             "next_week_actions": _next_week_actions(owner_rows),
             "support_needed": _support_needed(coverage, deal_counts),
@@ -6480,7 +6845,7 @@ def build_friday_sales_review(
             confidence = "needs-check"
         return {
             "answer": answer,
-            "source": "HubSpot target-account coverage, safe calls/meetings/activity evidence, and configured deal funnel stages",
+            "source": "HubSpot target-account coverage, safe calls/meetings/activity evidence, configured deal funnel stages, and optional C360 BigQuery QO actuals follow-up SQL",
             "scope": coverage.get("scope", {}),
             "total": coverage.get("total"),
             "requested_limit": coverage.get("requested_limit"),
@@ -6492,7 +6857,7 @@ def build_friday_sales_review(
                 coverage.get("caveat", "")
                 + " "
                 + deal_counts.get("caveat", "")
-                + " Friday report follows tactical pause guardrails: 120/150 account coverage, double tap, 40 connected calls, warm activity proof, QO/QO Met guardrail, and next-week correction."
+                + " Friday report follows tactical pause guardrails: 120/150 account coverage, double tap, 40 connected calls, warm activity proof, QO/QO Met guardrail, and next-week correction. Warehouse QO actuals require executing returned SQL through staffany_bigquery.execute_sql_readonly."
             ).strip(),
         }
     except ScopeError as error:

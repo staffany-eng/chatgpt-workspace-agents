@@ -29,8 +29,12 @@ from typing import Any
 from mcp.server.fastmcp import FastMCP
 
 from nurtureany_common.c360 import (
-    customer360_route_key as _customer360_route_key,
-    render_c360_url as _render_c360_url,
+    c360_company_url_template as _shared_c360_company_url_template,
+    c360_org_url_template as _shared_c360_org_url_template,
+    c360_route_key_map as _shared_c360_route_key_map,
+    customer360_route_key as _shared_customer360_route_key,
+    encode_url_value as _shared_encode_url_value,
+    render_c360_url as _shared_render_c360_url,
 )
 from nurtureany_common.responses import blocked_response
 
@@ -555,6 +559,44 @@ def _analytics_table(table_name: str, dataset: str | None = None) -> str:
     if not re.fullmatch(r"[A-Za-z0-9_]+", table_name):
         raise NearMeError("Invalid analytics table name.")
     return f"`staffany-warehouse.{dataset or _c360_dataset()}.{table_name}`"
+
+
+def _c360_company_url_template() -> str:
+    return _shared_c360_company_url_template()
+
+
+def _c360_org_url_template() -> str:
+    return _shared_c360_org_url_template()
+
+
+def _c360_route_key_map() -> dict[str, str]:
+    return _shared_c360_route_key_map()
+
+
+def _customer360_route_key(
+    hubspot_company_id: Any,
+    company_name: Any = "",
+    customer360_route_key: Any = "",
+) -> str:
+    return _shared_customer360_route_key(hubspot_company_id, company_name, customer360_route_key)
+
+
+def _encode_url_value(value: Any) -> str:
+    return _shared_encode_url_value(value)
+
+
+def _render_c360_url(
+    hubspot_company_id: Any,
+    organisation_id: Any = "",
+    customer360_route_key: Any = "",
+    company_name: Any = "",
+) -> str:
+    return _shared_render_c360_url(
+        hubspot_company_id,
+        organisation_id,
+        customer360_route_key_value=customer360_route_key,
+        company_name=company_name,
+    )
 
 
 def _sql_literal(value: str) -> str:

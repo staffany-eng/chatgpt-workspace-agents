@@ -65,6 +65,8 @@ QO checklist:
 - next step is clear
 - QO Met can be verified from actual meeting evidence or configured deal stage movement
 
+Direct QO count or pace prompts should call `build_sales_metric_actuals_query` for `fct_sales_points.qo_set`; Friday review remains the tactical hygiene/coaching flow.
+
 Use greater than 75% QO-to-QO-Met as the quality guardrail. If QOs are high but QO Met is weak, call out qualification quality rather than celebrating volume.
 
 ## Warm Activity And Events

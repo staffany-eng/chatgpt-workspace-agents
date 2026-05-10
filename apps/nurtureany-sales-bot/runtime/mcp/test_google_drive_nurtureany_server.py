@@ -1,9 +1,7 @@
-import importlib.util
 import json
 import os
 import sys
 import tempfile
-import types
 import unittest
 from pathlib import Path
 
@@ -12,37 +10,12 @@ if str(MCP_DIR) not in sys.path:
     sys.path.insert(0, str(MCP_DIR))
 from unittest.mock import patch
 
-
-class FakeMCP:
-    def __init__(self, *args, **kwargs):
-        self.args = args
-        self.kwargs = kwargs
-
-    def tool(self):
-        def decorate(func):
-            return func
-
-        return decorate
-
-    def run(self, *args, **kwargs):
-        return None
+sys.path.insert(0, str(Path(__file__).parent))
+from test_helpers import load_mcp_module
 
 
 def load_drive_module():
-    sys.modules["mcp"] = types.ModuleType("mcp")
-    sys.modules["mcp.server"] = types.ModuleType("mcp.server")
-    fastmcp = types.ModuleType("mcp.server.fastmcp")
-    fastmcp.FastMCP = FakeMCP
-    sys.modules["mcp.server.fastmcp"] = fastmcp
-
-    module_name = "google_drive_nurtureany_server_under_test"
-    sys.modules.pop(module_name, None)
-    path = Path(__file__).with_name("google_drive_nurtureany_server.py")
-    spec = importlib.util.spec_from_file_location(module_name, path)
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[module_name] = module
-    spec.loader.exec_module(module)
-    return module
+    return load_mcp_module("google_drive_nurtureany_server.py", "google_drive_nurtureany_server_under_test")
 
 
 class GoogleDriveNurtureAnyServerTest(unittest.TestCase):
@@ -365,13 +338,18 @@ class GoogleDriveNurtureAnyServerTest(unittest.TestCase):
         self.assertEqual(result["confidence"], "needs-check")
         self.assertEqual(result["answer"]["sheet_name"], "HHH Bali 7 May - Rsvp")
         self.assertEqual(result["answer"]["counts"]["attended_rows"], 1)
+        self.assertEqual(result["answer"]["registration_rows_returned"], 0)
+        self.assertTrue(result["answer"]["row_details_truncated"])
+        self.assertNotIn("registration_rows", result["answer"])
+        self.assertIn("registration_rows_sample", result["answer"])
         self.assertIn("sevnlegian.com", result["answer"]["match_keys"]["attended_email_domains"])
         self.assertNotIn("gmail.com", result["answer"]["match_keys"]["email_domains"])
         self.assertIn("Sevn Legian", result["answer"]["match_keys"]["attended_company_name_candidates"])
         payload = json.dumps(result)
+        self.assertLess(len(payload), 20_000)
         self.assertNotIn("+6281338337762", payload)
         self.assertNotIn("hr@sevnlegian.com", payload)
-        self.assertIn("email_hash", payload)
+        self.assertNotIn("email_hash", payload)
         self.assertEqual(calls[0][0], self.module.ID_REV_EVENTS_SPREADSHEET_ID)
         self.assertIn("/values/", calls[1][1])
 

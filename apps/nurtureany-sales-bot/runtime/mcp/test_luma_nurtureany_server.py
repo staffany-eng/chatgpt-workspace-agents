@@ -1,7 +1,5 @@
-import importlib.util
 import os
 import sys
-import types
 import unittest
 from pathlib import Path
 
@@ -10,39 +8,12 @@ if str(MCP_DIR) not in sys.path:
     sys.path.insert(0, str(MCP_DIR))
 from unittest.mock import patch
 
-
-class FakeMCP:
-    def __init__(self, *args, **kwargs):
-        self.args = args
-        self.kwargs = kwargs
-        self.tools = []
-
-    def tool(self):
-        def decorate(func):
-            self.tools.append(func)
-            return func
-
-        return decorate
-
-    def run(self, *args, **kwargs):
-        return None
+sys.path.insert(0, str(Path(__file__).parent))
+from test_helpers import load_mcp_module
 
 
 def load_luma_module():
-    sys.modules["mcp"] = types.ModuleType("mcp")
-    sys.modules["mcp.server"] = types.ModuleType("mcp.server")
-    fastmcp = types.ModuleType("mcp.server.fastmcp")
-    fastmcp.FastMCP = FakeMCP
-    sys.modules["mcp.server.fastmcp"] = fastmcp
-
-    module_name = "luma_nurtureany_server_under_test"
-    sys.modules.pop(module_name, None)
-    path = Path(__file__).with_name("luma_nurtureany_server.py")
-    spec = importlib.util.spec_from_file_location(module_name, path)
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[module_name] = module
-    spec.loader.exec_module(module)
-    return module
+    return load_mcp_module("luma_nurtureany_server.py", "luma_nurtureany_server_under_test")
 
 
 class LumaNurtureAnyServerTest(unittest.TestCase):
@@ -405,6 +376,7 @@ class LumaNurtureAnyServerTest(unittest.TestCase):
         self.assertEqual(answer["event"]["url"], "https://lu.ma/hhh")
         self.assertEqual(answer["match_keys"]["email_domains"], ["noci.example"])
         self.assertEqual(answer["match_keys"]["company_name_candidates"], ["Noci Bakehouse", "Bali Beans"])
+        self.assertEqual(answer["match_key_mode"], "rsvp_or_registration")
         self.assertEqual(answer["checked_in_count"], 1)
         serialized = str(result)
         self.assertNotIn("Owner One", serialized)
@@ -717,9 +689,45 @@ class LumaNurtureAnyServerTest(unittest.TestCase):
         self.assertEqual(result["confidence"], "verified")
         keys = result["answer"][0]["match_keys"]
         self.assertEqual(keys["email_domains"], ["balibeans.com"])
-        self.assertEqual(keys["company_name_candidates"], ["Bali Beans", "Noci Bakehouse"])
+        self.assertEqual(keys["company_name_candidates"], ["Bali Beans"])
+        self.assertEqual(result["answer"][0]["match_key_mode"], "checked_in_attendance")
         self.assertNotIn("owner@balibeans.com", str(result["answer"]))
         self.assertNotIn("Owner One", str(result["answer"]))
+
+    def test_past_event_with_zero_checked_in_returns_no_rsvp_attendance_keys(self):
+        def fake_request(path, params=None):
+            if path == "/v1/event/get":
+                return {
+                    "api_id": "evt-1",
+                    "name": "StaffAny HR Happy Hour Bali",
+                    "url": "https://lu.ma/hhh-bali",
+                    "start_at": "2026-05-07T09:00:00Z",
+                }
+            if path == "/v1/event/get-guests":
+                return {
+                    "entries": [
+                        {
+                            "name": "Owner One",
+                            "email": "owner@balibeans.com",
+                            "approval_status": "approved",
+                            "registration_answers": [{"question": "Company", "answer": "Bali Beans"}],
+                        }
+                    ],
+                    "has_more": False,
+                }
+            raise AssertionError(f"unexpected call: {path} {params}")
+
+        with patch.dict(os.environ, {"LUMA_API_KEY": "test-key"}), patch.object(
+            self.module, "_request_json", side_effect=fake_request
+        ):
+            result = self.module.get_luma_event_match_keys("ae@staffany.com", event_ids=["evt-1"])
+
+        answer = result["answer"][0]
+        self.assertEqual(answer["checked_in_count"], 0)
+        self.assertEqual(answer["match_key_mode"], "checked_in_attendance")
+        self.assertEqual(answer["match_keys"]["email_domains"], [])
+        self.assertEqual(answer["match_keys"]["company_name_candidates"], [])
+        self.assertIn("manual attendance fallback", answer["next_step"])
 
     def test_guest_cap_sets_truncated_metadata(self):
         def fake_request(path, params=None):
