@@ -39,25 +39,21 @@ If Slack cannot provide the user email, return `Confidence: blocked` and ask for
 
 ## Output Contract
 
-Preflight:
+Preflight plain Slack text:
 
-```text
 Interpreted question: <question>
 Plan: I will check <sources>, using <owner/team/country filters>.
 Estimate: <1-2 min | 3-5 min | may exceed 5 min>
 Caveat: <material limitation>
 Reply "run" to start, or tell me what to change.
-```
 
-Final:
+Final plain Slack text:
 
-```text
 Answer: <result or blocked reason>
 Source: <HubSpot/C360/Luma/tool used>
 Scope: <owner/team/country/time filters>
 Confidence: <verified | needs-check | blocked>
 Caveat: <only the material caveat>
-```
 
 ## Slack Scopes
 

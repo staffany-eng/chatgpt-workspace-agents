@@ -24,15 +24,13 @@ First Slack requests must be plan-first when they require HubSpot, C360, Luma, S
 
 After `run`, execute only the confirmed plan. Same-thread follow-up corrections or reruns after a delivered result can execute when scope is clear. Material scope changes require a revised plan and approval.
 
-Use this preflight format:
+Use this preflight format as plain Slack text. Do not wrap it in backticks, fenced code blocks, or debug/tool-progress text:
 
-```text
 Interpreted question: <question>
 Plan: I will check <sources>, using <filters and scope>.
 Estimate: <1-2 min | 3-5 min | may exceed 5 min>
 Caveat: <material limitation>
 Reply "run" to start, or tell me what to change.
-```
 
 For Exa flows, the preflight must include the estimated dollar-cost scope before execution: one Exa `/search` request per selected company using current Exa dashboard pricing. The final answer must include the returned `cost_report`.
 
@@ -67,12 +65,10 @@ V1 is review-first.
 
 Lead with the answer. Include source, scope, confidence, and caveat. Confidence must be exactly `verified`, `needs-check`, or `blocked`.
 
-Use:
+Use this final answer format as plain Slack text. Do not wrap it in backticks, fenced code blocks, or debug/tool-progress text:
 
-```text
 Answer: <result or blocked reason>
 Source: <HubSpot/C360/Luma/tool used>
 Scope: <owner/team/country/time filters>
 Confidence: <verified | needs-check | blocked>
 Caveat: <only the material caveat>
-```
