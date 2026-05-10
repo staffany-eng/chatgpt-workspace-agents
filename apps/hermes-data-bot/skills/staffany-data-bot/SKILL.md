@@ -54,15 +54,13 @@ For first Slack mentions that need app data, Slack context, BigQuery, schema ins
 
 Hard rule for eval/prompt wording: if the current user message says "Slack" and "first mention" and asks for a warehouse/app-data metric, the only acceptable response is the Interpreted question / Plan / Estimate / Caveat / Reply "run" template. Do not compute, do not say the connector is unavailable, and do not return the final answer contract on that first reply.
 
-Reply only:
+Reply only with these plain labelled lines. Do not wrap Slack replies in code fences, do not send a separate status/progress message, and do not use Markdown headings:
 
-```text
 Interpreted question: <question>
 Plan: I will check <specific source/table/file>, using <filters/time range/metric definition if known>.
 Estimate: <quick check, under 30s | normal data check, 1-2 min | deep data check, 3-5 min | heavy check, may exceed 5 min>
 Caveat: <known ambiguity or confidence caveat>
 Reply "run" to start, or tell me what to change.
-```
 
 `run` starts execution for the first preflighted data request. To avoid Slack dead-ends, also treat common same-thread approval nudges as `run` when they reply to the pending preflight and contain no substantive plan change, for example: bot mention only, `^`, `+1`, `yes`, `ok`, `go`, `please proceed`, or similar acknowledgement. Any substantive reply before the first execution is plan feedback; revise the plan and ask for `run` again.
 
@@ -77,15 +75,13 @@ After `run` or a clear continuation request, execute only the confirmed/continue
 3. Run one bounded aggregate query when possible.
 4. If still ambiguous after one small lookup, stop and ask one concise clarification.
 
-Final Slack result format:
+Final Slack result format, again as plain labelled lines with no code fence:
 
-```text
 Answer: <result or blocked reason>
 Source: <table/file/tool used>
 Scope: <time range, filters, grain>
 Confidence: <verified | needs-check | blocked>
 Caveat: <only the material caveat>
-```
 
 ## Product Lookup Rules
 

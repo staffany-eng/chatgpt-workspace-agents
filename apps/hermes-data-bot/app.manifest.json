@@ -14,6 +14,7 @@
     "references": [
       "skills/staffany-data-bot/references/staffany-data-bot-metric-registry.md",
       "skills/staffany-data-bot/references/staffany-product-lookup-registry.md",
+      "skills/staffany-data-bot/references/rbac-access-levels.md",
       "skills/staffany-data-bot/references/regression-cases.md"
     ],
     "bigquery_mcp": "runtime/mcp/staffany-bigquery.md",

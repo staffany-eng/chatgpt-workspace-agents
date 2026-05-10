@@ -85,6 +85,7 @@ const filesToScan = [
   "skills/staffany-data-bot/SKILL.md",
   "skills/staffany-data-bot/references/staffany-data-bot-metric-registry.md",
   "skills/staffany-data-bot/references/staffany-product-lookup-registry.md",
+  "skills/staffany-data-bot/references/rbac-access-levels.md",
   "skills/staffany-data-bot/references/regression-cases.md",
   "runtime/mcp/staffany-bigquery.md",
   "runtime/memory-honcho.md",
@@ -111,6 +112,10 @@ for (const tool of ["list_dataset_ids", "list_table_ids", "get_table_info", "exe
 if (!configText.includes('provider: "openai-codex"')) fail('config.template.yaml must set model.provider to openai-codex');
 if (!configText.includes('default: "gpt-5.3-codex"')) fail('config.template.yaml must set model.default to gpt-5.3-codex');
 if (!configText.includes("api_max_retries: 0")) fail("config.template.yaml must disable provider retries for Codex-only routing");
+if (!configText.includes("interim_assistant_messages: false")) fail("config.template.yaml must disable Slack interim assistant messages");
+if (!configText.includes('tool_progress: "off"')) fail("config.template.yaml must disable Slack tool progress");
+if (!configText.includes("streaming: false")) fail("config.template.yaml must disable Slack streaming");
+if (!configText.includes("reactions: false")) fail("config.template.yaml must disable Slack reactions");
 if (configText.includes('all@staffany')) fail('config.template.yaml must not reference known-bad all@staffany model alias');
 if (configText.includes("OPENAI_API_KEY")) fail("config.template.yaml must not configure OpenAI API key routing");
 if (configText.includes('base_url: "https://api.openai.com/v1"')) fail("config.template.yaml must not configure OpenAI API base_url");

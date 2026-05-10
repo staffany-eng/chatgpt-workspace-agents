@@ -155,6 +155,9 @@ Expected behavior:
 - Includes a compact `Plan`, `Estimate`, and `Caveat`.
 - Asks the user to reply exactly `run` before starting the query, or tell the agent what to change.
 - Does not promise an exact completion time.
+- Does not wrap the preflight in a code fence.
+- Does not expose `skill_view`, tool progress, interim assistant messages, or partial streaming drafts.
+- Sends one visible first-turn response in the thread.
 
 Follow-up prompt in the same Slack thread:
 

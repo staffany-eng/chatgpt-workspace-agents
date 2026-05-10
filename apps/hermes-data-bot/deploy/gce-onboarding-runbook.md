@@ -232,6 +232,15 @@ For Slack, queue follow-up messages while the bot is busy. This avoids cancellin
 display:
   busy_input_mode: queue
   busy_ack_enabled: true
+  interim_assistant_messages: false
+  platforms:
+    slack:
+      tool_progress: "off"
+      streaming: false
+
+slack:
+  require_mention: true
+  reactions: false
 ```
 
 Install the user-systemd env drop-in after `hermes gateway install`, because Hermes may regenerate the main service file:
