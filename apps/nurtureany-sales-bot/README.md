@@ -53,6 +53,7 @@ T-90 renewal answers must show both buckets: known T-90 accounts where `contract
 | `skills/nurtureany-sales-bot/` | Hermes skill and progressive-disclosure references. |
 | `runtime/slack.md` | Slack gateway behavior, commands, and run gate. |
 | `runtime/hubspot.md` | HubSpot API contract, fields, and write approval rules. |
+| `runtime/data/case-studies.json` | Approved public StaffAny case-study catalog for pre-demo name-drop matching. |
 | `runtime/bigquery.md` | C360 read-only enrichment and revenue-metric actuals contract. |
 | `runtime/google-calendar.md` | Read-only `team@staffany.com` Google Calendar event-context and meeting-quality audit contract. |
 | `runtime/google-drive.md` | Read-only `team@staffany.com` Drive/Sheets contract for event photos and Indonesia registration attendance fallback. |

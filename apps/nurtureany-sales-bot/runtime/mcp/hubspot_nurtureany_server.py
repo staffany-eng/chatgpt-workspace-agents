@@ -248,6 +248,8 @@ PUBLIC_FETCH_MAX_BYTES = 30_000
 PUBLIC_EVIDENCE_ITEM_LIMIT = 20
 PUBLIC_TASK_ACCOUNT_LIMIT = 25
 PRE_DEMO_GAME_PLAN_ACCOUNT_LIMIT = 5
+CASE_STUDY_MATCH_LIMIT = 3
+CASE_STUDY_CATALOG_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "case-studies.json")
 HUBSPOT_SEARCH_PAGE_LIMIT = 100
 HUBSPOT_SEARCH_RESULT_LIMIT = 1000
 HUBSPOT_SEARCH_TOTAL_LIMIT = 10_000
@@ -268,6 +270,7 @@ MESSAGE_TEXT_LIMIT = 4000
 PRIORITY_ACCOUNT_RETURN_LIMIT = 1000
 PRIORITY_ACCOUNT_LOCKED_POOL_BASELINE = 150
 PRIORITY_ACCOUNT_WEEKLY_WORKED_TARGET = 120
+_CASE_STUDY_CATALOG_CACHE: list[dict[str, Any]] | None = None
 CONNECTED_CALL_WEEKLY_TARGET = 40
 CONNECTED_CALL_MIN_DURATION_MS = 120_000
 STALE_ACCOUNT_DAYS = 18
@@ -4419,6 +4422,106 @@ def _pre_demo_industry_bucket(company: dict[str, Any]) -> str:
     return "general"
 
 
+def _load_case_study_catalog() -> list[dict[str, Any]]:
+    global _CASE_STUDY_CATALOG_CACHE
+    if _CASE_STUDY_CATALOG_CACHE is not None:
+        return _CASE_STUDY_CATALOG_CACHE
+    try:
+        with open(CASE_STUDY_CATALOG_PATH, encoding="utf-8") as handle:
+            payload = json.load(handle)
+    except (FileNotFoundError, json.JSONDecodeError):
+        _CASE_STUDY_CATALOG_CACHE = []
+        return _CASE_STUDY_CATALOG_CACHE
+    cases = payload.get("cases") if isinstance(payload, dict) else []
+    _CASE_STUDY_CATALOG_CACHE = [case for case in cases if isinstance(case, dict)]
+    return _CASE_STUDY_CATALOG_CACHE
+
+
+def _case_study_terms(context: dict[str, Any]) -> set[str]:
+    company = context.get("company", {})
+    values = [
+        company.get("name"),
+        company.get("country"),
+        company.get("industry"),
+        company.get("current_tools"),
+        company.get("account_status"),
+    ]
+    terms = set(_normalized_words(" ".join(str(value or "") for value in values)).split())
+    bucket = _pre_demo_industry_bucket(company)
+    if bucket != "general":
+        terms.add(bucket)
+    if bucket == "fnb":
+        terms.update({"fnb", "food", "restaurant", "cafe", "beverage", "shift-work"})
+    if bucket == "retail":
+        terms.update({"retail", "outlet", "shift-work"})
+    headcount = _int_value(company.get("headcount"))
+    if headcount >= 50:
+        terms.add("multi-outlet")
+    if headcount >= 100:
+        terms.add("large-team")
+    return terms
+
+
+def _case_study_score(case: dict[str, Any], context: dict[str, Any]) -> tuple[int, list[str]]:
+    company = context.get("company", {})
+    country = str(company.get("country") or "")
+    bucket = _pre_demo_industry_bucket(company)
+    terms = _case_study_terms(context)
+    tags = set(str(tag or "").lower() for tag in case.get("match_tags", []))
+    score = 0
+    reasons: list[str] = []
+
+    if country and country == case.get("country"):
+        score += 8
+        reasons.append(f"same market: {country}")
+    if bucket != "general" and bucket in tags:
+        score += 8
+        reasons.append(f"same industry bucket: {bucket}")
+
+    tag_hits = sorted(tags.intersection(terms))
+    if tag_hits:
+        score += min(len(tag_hits) * 2, 12)
+        reasons.append("matched tags: " + ", ".join(tag_hits[:5]))
+
+    if not company.get("industry") and not company.get("current_tools") and not _int_value(company.get("headcount")):
+        return 0, []
+    return score, reasons[:3]
+
+
+def _pre_demo_case_study_matches(context: dict[str, Any]) -> list[dict[str, Any]]:
+    matches: list[dict[str, Any]] = []
+    for case in _load_case_study_catalog():
+        if case.get("approved_for_name_drops") is not True:
+            continue
+        score, reasons = _case_study_score(case, context)
+        if score <= 0:
+            continue
+        matches.append(
+            {
+                "customer": case.get("customer"),
+                "country": case.get("country"),
+                "industry": case.get("industry"),
+                "summary": case.get("name_drop"),
+                "source_url": case.get("primary_url"),
+                "match_score": score,
+                "match_reasons": reasons,
+            }
+        )
+    matches.sort(key=lambda match: (-_int_value(match.get("match_score")), str(match.get("customer") or "")))
+    return matches[:CASE_STUDY_MATCH_LIMIT]
+
+
+def _pre_demo_case_study_name_drops(context: dict[str, Any]) -> list[str]:
+    drops = [
+        f"{match.get('summary')} Source: {match.get('source_url')}"
+        for match in _pre_demo_case_study_matches(context)
+        if match.get("summary") and match.get("source_url")
+    ]
+    while len(drops) < CASE_STUDY_MATCH_LIMIT:
+        drops.append("case-study match needed")
+    return drops[:CASE_STUDY_MATCH_LIMIT]
+
+
 def _pre_demo_renewal_text(company: dict[str, Any]) -> str:
     contract = company.get("contract_end_date") or ""
     renewal = company.get("current_tool_renewal_date") or ""
@@ -4443,9 +4546,11 @@ def _pre_demo_missing_evidence(context: dict[str, Any]) -> list[str]:
     for label, value in field_checks:
         if not value:
             missing.append(label)
-    for label in ["lead source", "meeting reason", "pricing", "3 case-study matches"]:
+    for label in ["lead source", "meeting reason", "pricing"]:
         if label not in missing:
             missing.append(label)
+    if len(_pre_demo_case_study_matches(context)) < CASE_STUDY_MATCH_LIMIT:
+        missing.append("3 case-study matches")
     return missing
 
 
@@ -4657,11 +4762,8 @@ def _build_pre_demo_game_plan_row(context: dict[str, Any]) -> dict[str, Any]:
         "hypothesized_interest_and_why": _pre_demo_hypothesized_interest(context),
         "alternatives_they_may_consider": _pre_demo_alternatives(context),
         "what_to_show_to_win": _pre_demo_show_to_win(context),
-        "relevant_name_drops": [
-            "case-study match needed",
-            "case-study match needed",
-            "case-study match needed",
-        ],
+        "relevant_name_drops": _pre_demo_case_study_name_drops(context),
+        "case_study_matches": _pre_demo_case_study_matches(context),
         "game_plan_a": _pre_demo_game_plan(context, "A"),
         "game_plan_b": _pre_demo_game_plan(context, "B"),
         "ic_bant_prompts": _pre_demo_ic_bant_prompts(context),

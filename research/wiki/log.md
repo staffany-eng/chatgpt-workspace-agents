@@ -73,3 +73,7 @@ Ingested the sales onboarding master template and its linked Drive files. Parsed
 ## [2026-05-10] ingest | StaffAny Rev Team Planning And Metrics
 
 Ingested the 2026 Rev Team planning Sheet, 2025Q3 sales onboarding Slides, and Manticore/BigQuery metric evidence. Promoted NurtureAny guidance to treat QO as `fct_sales_points.qo_set`, keep planning targets separate from warehouse actuals, and disambiguate `new ARR` before querying.
+
+## [2026-05-11] ingest | StaffAny Public Customer Case Studies
+
+Ingested 26 approved public StaffAny customer case studies from StaffAny Singapore and Malaysia public pages. Added a structured NurtureAny case-study catalog for pre-demo name-drop matching and kept Slack-only/WIP case-study mentions out of approved source context until a published page or approved internal asset exists.

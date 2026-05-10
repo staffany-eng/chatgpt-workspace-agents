@@ -47,17 +47,18 @@ Do not use this skill for generic data analysis, payroll metrics, product suppor
 3. `references/sop-tool-coverage.md` for per-tool SOP coverage, mutation-disabled state, inbound/routing, AI/data readiness, event attribution, cost/credit, access, and PII/body safety.
 4. `references/playbooks.md` for enrichment tiers, scoring, and nurture plays.
 5. `references/pre-demo-game-plans.md` for selected-account pre-demo planning format and guardrails.
-6. `references/regression-cases.md` for expected behavior and safety checks.
-7. `references/rev-planning-and-metrics.md` for Rev planning targets, QO definitions, and new ARR metric disambiguation.
-7. HubSpot tools for target accounts, owners, companies, contacts, deals, activities, tasks, notes, Conversations inbox threads, and Marketing Campaigns.
-8. Free public search tasks and public evidence review for company websites, careers pages, public job boards, general search, and manual social checks.
-9. Exa People Search for public decision-maker candidate discovery when HubSpot contact coverage is missing and free sources are insufficient.
-10. Lusha tools for selected decision-maker candidate lookup or reveal after the user selects candidates.
-11. Slack/Drive photo source pointers, Luma event-date candidates, Indonesia Rev LL/HHH registration Sheet attendance fallback, and transient LLM vision/OCR clues for event/photo matching. Drive file listing uses `list_drive_folder_images` through `team@staffany.com` with `drive.readonly`; Drive image clue extraction uses `extract_drive_image_clues` with bounded transient downloads only; Indonesia event registration fallback uses `read_indonesia_event_registration_attendance` only when Luma check-in is empty or not used. Slack image access requires `files:read`; store source pointers in `nurture_event`, `nurture_event_photo`, and `nurture_person_appearance` plans, not raw images.
-12. StaffAny C360 BigQuery tools for commercial value, renewal timing, MRR, account owner, PSM context, QO sales points, converted ARR, MRR movements, and revenue snapshots.
-13. Near-me tools for known-area snapping, BigQuery outlet-match lookup, Google Places live restaurant refresh, C360 current-customer query building, and deterministic merge/ranking when the user asks who is nearby.
-14. Google Calendar tools for read-only `team@staffany.com` scheduling, invite, meeting, event follow-up, and meeting-quality context when the user request is calendar-related.
-15. Luma tools for event invite, RSVP, attendance, and follow-up context when the user request is event-related. Use exact Luma event tags before broad country/date-only scans. For broad event-wide questions, use event-first match keys before HubSpot candidate lookup instead of paging every target account. For Indonesia LL/HHH events where Luma checked-in attendance is empty or check-in was not used, use the ID Rev registration Sheet fallback and its `Attend The Event` column before reporting no attendance.
+6. `references/case-studies.md` for approved public customer case-study name drops.
+7. `references/regression-cases.md` for expected behavior and safety checks.
+8. `references/rev-planning-and-metrics.md` for Rev planning targets, QO definitions, and new ARR metric disambiguation.
+9. HubSpot tools for target accounts, owners, companies, contacts, deals, activities, tasks, notes, Conversations inbox threads, and Marketing Campaigns.
+10. Free public search tasks and public evidence review for company websites, careers pages, public job boards, general search, and manual social checks.
+11. Exa People Search for public decision-maker candidate discovery when HubSpot contact coverage is missing and free sources are insufficient.
+12. Lusha tools for selected decision-maker candidate lookup or reveal after the user selects candidates.
+13. Slack/Drive photo source pointers, Luma event-date candidates, Indonesia Rev LL/HHH registration Sheet attendance fallback, and transient LLM vision/OCR clues for event/photo matching. Drive file listing uses `list_drive_folder_images` through `team@staffany.com` with `drive.readonly`; Drive image clue extraction uses `extract_drive_image_clues` with bounded transient downloads only; Indonesia event registration fallback uses `read_indonesia_event_registration_attendance` only when Luma check-in is empty or not used. Slack image access requires `files:read`; store source pointers in `nurture_event`, `nurture_event_photo`, and `nurture_person_appearance` plans, not raw images.
+14. StaffAny C360 BigQuery tools for commercial value, renewal timing, MRR, account owner, PSM context, QO sales points, converted ARR, MRR movements, and revenue snapshots.
+15. Near-me tools for known-area snapping, BigQuery outlet-match lookup, Google Places live restaurant refresh, C360 current-customer query building, and deterministic merge/ranking when the user asks who is nearby.
+16. Google Calendar tools for read-only `team@staffany.com` scheduling, invite, meeting, event follow-up, and meeting-quality context when the user request is calendar-related.
+17. Luma tools for event invite, RSVP, attendance, and follow-up context when the user request is event-related. Use exact Luma event tags before broad country/date-only scans. For broad event-wide questions, use event-first match keys before HubSpot candidate lookup instead of paging every target account. For Indonesia LL/HHH events where Luma checked-in attendance is empty or check-in was not used, use the ID Rev registration Sheet fallback and its `Attend The Event` column before reporting no attendance.
 
 Before drafting, Friday sales reviews, pre-demo plans, event follow-ups, coaching summaries, QO/QO Met quality answers, inbound/routing answers, AI/data-readiness advice, or operating-rhythm advice, apply `references/sales-best-practices.md` and `references/sop-tool-coverage.md`.
 
