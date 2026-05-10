@@ -11,12 +11,15 @@ Read these first for app work:
 - `profile/SOUL.md`
 - `skills/nurtureany-sales-bot/SKILL.md`
 - `skills/nurtureany-sales-bot/references/hubspot-fields.md`
+- `skills/nurtureany-sales-bot/references/sales-best-practices.md`
 - `runtime/slack.md`
 - `runtime/hubspot.md`
 - `runtime/bigquery.md`
 - `runtime/health-checks.md`
 
 For source evidence or repo-wide claims, also read the root `AGENTS.md` files listed there.
+
+Before changing NurtureAny sales behavior, drafting behavior, Friday review behavior, pre-demo plans, event follow-ups, coaching summaries, QO/QO Met logic, or operating-rhythm guidance, read `skills/nurtureany-sales-bot/references/sales-best-practices.md`.
 
 ## Source Boundaries
 

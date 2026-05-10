@@ -13,7 +13,9 @@
     "skill": "skills/nurtureany-sales-bot/SKILL.md",
     "references": [
       "skills/nurtureany-sales-bot/references/hubspot-fields.md",
+      "skills/nurtureany-sales-bot/references/sales-best-practices.md",
       "skills/nurtureany-sales-bot/references/playbooks.md",
+      "skills/nurtureany-sales-bot/references/pre-demo-game-plans.md",
       "skills/nurtureany-sales-bot/references/regression-cases.md"
     ],
     "slack_runtime": "runtime/slack.md",
@@ -23,8 +25,13 @@
     "bigquery_runtime": "runtime/bigquery.md",
     "google_calendar_runtime": "runtime/google-calendar.md",
     "google_calendar_mcp": "runtime/mcp/google_calendar_nurtureany_server.py",
+    "google_drive_runtime": "runtime/google-drive.md",
+    "google_drive_mcp": "runtime/mcp/google_drive_nurtureany_server.py",
     "luma_runtime": "runtime/luma.md",
     "luma_mcp": "runtime/mcp/luma_nurtureany_server.py",
+    "near_me_runtime": "runtime/near-me.md",
+    "near_me_mcp": "runtime/mcp/near_me_nurtureany_server.py",
+    "near_me_outlet_matches_sql": "runtime/sql/near-me-outlet-matches.sql",
     "exa_runtime": "runtime/exa.md",
     "exa_mcp": "runtime/mcp/exa_nurtureany_server.py",
     "lusha_runtime": "runtime/lusha.md",
@@ -83,8 +90,11 @@
       "company_country",
       "numberofemployees",
       "industry",
+      "lifecyclestage",
+      "type",
       "contract_end_date",
       "current_tool_renewal_date",
+      "current_tools",
       "notes_last_updated",
       "hs_num_decision_makers",
       "hs_num_contacts_with_buying_roles",
@@ -108,29 +118,130 @@
       "hs_task_priority",
       "hs_task_type",
       "hs_lastmodifieddate"
-    ]
+    ],
+    "communication_properties": [
+      "hs_timestamp",
+      "hubspot_owner_id",
+      "hs_communication_channel_type",
+      "hs_communication_logged_from",
+      "hs_lastmodifieddate"
+    ],
+    "note_properties": [
+      "hs_timestamp",
+      "hubspot_owner_id",
+      "hs_lastmodifieddate"
+    ],
+    "call_properties": [
+      "hs_timestamp",
+      "hubspot_owner_id",
+      "hs_call_title",
+      "hs_call_status",
+      "hs_call_duration",
+      "hs_lastmodifieddate"
+    ],
+    "meeting_properties": [
+      "hs_timestamp",
+      "hubspot_owner_id",
+      "hs_meeting_title",
+      "hs_meeting_outcome",
+      "hs_activity_type",
+      "hs_lastmodifieddate"
+    ],
+    "friday_sales_review": {
+      "locked_pool_source": "hs_is_target_account=true plus hubspot_owner_id and company_country",
+      "weekly_account_target": "120 of locked 150",
+      "connected_call_definition": "HubSpot calls with hs_call_status=COMPLETED and hs_call_duration>=120000 ms",
+      "warm_activity_labels": [
+        "HHH",
+        "LL",
+        "coffee",
+        "lunch",
+        "dinner",
+        "cosy",
+        "ABM",
+        "event",
+        "appreciation afternoon",
+        "sports"
+      ],
+      "qo_pipeline_ids_env_var": "NURTUREANY_QO_PIPELINE_IDS",
+      "qo_stage_ids_env_var": "NURTUREANY_QO_STAGE_IDS",
+      "qo_met_stage_ids_env_var": "NURTUREANY_QO_MET_STAGE_IDS",
+      "closed_won_stage_ids_env_var": "NURTUREANY_CLOSED_WON_STAGE_IDS"
+    },
+    "source_of_truth_fields": {
+      "target_accounts": "hs_is_target_account",
+      "ownership": "hubspot_owner_id",
+      "country": "company_country",
+      "renewal_timing": "contract_end_date",
+      "current_tools": "current_tools",
+      "decision_maker_coverage": "hs_num_decision_makers plus contact hs_buying_role=DECISION_MAKER",
+      "follow_up_status": "HubSpot communications/notes/tasks"
+    },
+    "secondary_context_fields": {
+      "current_tool_renewal_date": "Context only; not used as T-90 renewal source of truth.",
+      "hs_num_contacts_with_buying_roles": "Buying-role hygiene only; does not satisfy decision-maker coverage by itself.",
+      "present_tools": "PS-managed current installed tools context, not the sales prospect current-tools source."
+    },
+    "t90_output_contract": {
+      "required_sections": [
+        "known_t90_contract_end_date_accounts",
+        "missing_contract_end_date_accounts",
+        "completeness"
+      ],
+      "known_t90_source": "contract_end_date inside next 90 days",
+      "missing_date_source": "hs_is_target_account=true companies with no contract_end_date",
+      "missing_date_limit": "independent of known-T90 display limit; default full HubSpot search cap"
+    }
+  },
+  "customer360": {
+    "company_url_template_env_var": "NURTUREANY_C360_COMPANY_URL_TEMPLATE",
+    "org_url_template_env_var": "NURTUREANY_C360_ORG_URL_TEMPLATE",
+    "route_key_map_env_var": "NURTUREANY_C360_ROUTE_KEY_BY_COMPANY_ID",
+    "default_company_url_template": "https://customer-360-qv4r5xkisq-as.a.run.app/companies/{customer360_route_key}",
+    "default_org_url_template": "https://customer-360-qv4r5xkisq-as.a.run.app/companies/{customer360_route_key}/orgs/{organisation_id}",
+    "known_route_keys": {
+      "1991281569": "fei-siong-group"
+    },
+    "required_for_verified_current_clients": true
   },
   "tools": {
     "read": [
       "list_my_target_accounts",
       "list_team_target_accounts",
       "audit_hubspot_owner_roster",
+      "audit_priority_account_coverage",
+      "build_friday_sales_review",
       "get_account_context",
+      "build_pre_demo_game_plans",
       "list_sales_followup_tasks",
+      "check_account_followup_status",
+      "check_event_followup_status",
       "score_nurture_accounts",
       "find_contact_gaps",
+      "find_t90_renewal_gaps",
       "generate_free_search_tasks",
       "review_public_enrichment_evidence",
+      "scan_drive_event_photos",
+      "propose_photo_people_matches",
+      "list_drive_folder_images",
+      "extract_drive_image_clues",
       "draft_nurture_message",
       "list_google_calendar_events",
+      "audit_google_calendar_meeting_quality",
       "list_luma_events",
       "get_luma_event_context",
+      "resolve_known_area_for_near_me",
+      "build_near_me_outlet_matches_query",
+      "refresh_google_places_for_known_area",
+      "build_near_me_c360_customer_query",
+      "merge_near_me_sources",
       "search_exa_people_candidates",
       "search_lusha_decision_maker_candidates",
       "get_lusha_credit_usage"
     ],
     "preview": [
-      "plan_hubspot_writeback"
+      "plan_hubspot_writeback",
+      "plan_event_photo_followup"
     ],
     "approval_gated_enrichment": [
       "reveal_lusha_contact_details"
@@ -139,6 +250,32 @@
       "create_hubspot_task",
       "append_hubspot_note",
       "update_nurture_fields"
+    ]
+  },
+  "photo_matching": {
+    "drive_folder_id": "1qXlFnr5TKFtsYNWk7ZywBBctDaae3RY-",
+    "drive_folder_label": "all-random",
+    "slack_ad_hoc_trigger": "mention_with_photo",
+    "slack_required_scope": "files:read",
+    "source_pointer_only": true,
+    "raw_image_copy_default": false,
+    "human_confirmation_required": true,
+    "drive_scan_confirmation_owner": "slack_uploader",
+    "batch_confirmation_by_uploader": true,
+    "luma_event_date_correlation": true,
+    "auto_event_tag_from_luma_date": true,
+    "person_auto_tag": false,
+    "whatsapp_auto_send": false,
+    "hubspot_custom_objects": [
+      "nurture_event",
+      "nurture_event_photo",
+      "nurture_person_appearance"
+    ],
+    "allowed_tools": [
+      "extract_drive_image_clues",
+      "scan_drive_event_photos",
+      "propose_photo_people_matches",
+      "plan_event_photo_followup"
     ]
   },
   "lusha": {
@@ -162,6 +299,10 @@
   },
   "google_calendar": {
     "account_email": "team@staffany.com",
+    "access_mode": "team_oauth_shared_calendar",
+    "service_account": false,
+    "owner_calendar_strategy": "resolve_hubspot_owner_email_then_pass_as_calendar_id",
+    "inaccessible_owner_calendar_confidence": "blocked",
     "auth_env_vars": [
       "GOOGLE_CALENDAR_TOKEN_FILE",
       "GOOGLE_CALENDAR_CLIENT_SECRET_FILE",
@@ -171,11 +312,37 @@
     "read_only": true,
     "max_calendars": 5,
     "max_events_per_calendar": 50,
+    "meeting_quality_audit": "match_internal_attendee_email_hashes_to_hubspot_contacts",
+    "attendee_visibility": "safe_summary_only_no_raw_emails",
     "allowed_tools": [
-      "list_google_calendar_events"
+      "list_google_calendar_events",
+      "audit_google_calendar_meeting_quality"
     ],
     "event_mutations": false,
     "attendee_exports": false
+  },
+  "google_drive": {
+    "account_email": "team@staffany.com",
+    "access_mode": "team_oauth_drive_readonly",
+    "service_account": false,
+    "auth_env_vars": [
+      "GOOGLE_DRIVE_TOKEN_FILE",
+      "GOOGLE_DRIVE_CLIENT_SECRET_FILE",
+      "GOOGLE_DRIVE_ACCOUNT_EMAIL",
+      "SLACK_BOT_TOKEN"
+    ],
+    "required_scope": "https://www.googleapis.com/auth/drive.readonly",
+    "read_only": true,
+    "default_folder_id": "1qXlFnr5TKFtsYNWk7ZywBBctDaae3RY-",
+    "max_files": 100,
+    "allowed_tools": [
+      "list_drive_folder_images",
+      "extract_drive_image_clues"
+    ],
+    "transient_vision_downloads": true,
+    "uploader_profile_lookup": "best_effort_slack_users_info",
+    "file_downloads": false,
+    "drive_mutations": false
   },
   "luma": {
     "auth_env_var": "LUMA_API_KEY",
@@ -210,7 +377,6 @@
       "Leaders Lounge"
     ],
     "preferred_event_filter": "event_tags",
-    "slack_event_links_required": true,
     "allowed_tools": [
       "list_luma_events",
       "get_luma_event_context"
@@ -218,6 +384,43 @@
     "requires_scoped_hubspot_companies": true,
     "raw_attendee_exports": false,
     "event_mutations": false,
+    "hubspot_writeback": "none"
+  },
+  "near_me": {
+    "known_areas_source": "curated_config_outside_hubspot",
+    "memory_layer": "bigquery_outlet_matches",
+    "outlet_matches_table_env_var": "NURTUREANY_OUTLET_MATCHES_TABLE",
+    "default_outlet_matches_table": "staffany-warehouse.analytics.nurtureany_near_me_outlet_matches",
+    "google_places_auth_env_var": "GOOGLE_PLACES_API_KEY",
+    "google_places_endpoint": "POST https://places.googleapis.com/v1/places:searchNearby",
+    "google_places_included_types": [
+      "restaurant"
+    ],
+    "google_places_field_mask": [
+      "places.id",
+      "places.displayName",
+      "places.formattedAddress",
+      "places.location",
+      "places.googleMapsUri"
+    ],
+    "c360_customer_layer": "analytics.fct_deal_org_company",
+    "mrr_enrichment_only": "analytics.fct_company_org_mrr",
+    "geofence_source": "kraken_rds.Locations",
+    "employee_gps_allowed": false,
+    "google_candidate_storage": "live_candidate_only_until_review_approval",
+    "c360_company_url_template_env_var": "NURTUREANY_C360_COMPANY_URL_TEMPLATE",
+    "c360_org_url_template_env_var": "NURTUREANY_C360_ORG_URL_TEMPLATE",
+    "c360_route_key_map_env_var": "NURTUREANY_C360_ROUTE_KEY_BY_COMPANY_ID",
+    "default_c360_company_url_template": "https://customer-360-qv4r5xkisq-as.a.run.app/companies/{customer360_route_key}",
+    "default_c360_org_url_template": "https://customer-360-qv4r5xkisq-as.a.run.app/companies/{customer360_route_key}/orgs/{organisation_id}",
+    "allowed_tools": [
+      "resolve_known_area_for_near_me",
+      "build_near_me_outlet_matches_query",
+      "refresh_google_places_for_known_area",
+      "build_near_me_c360_customer_query",
+      "merge_near_me_sources"
+    ],
+    "bigquery_writeback": "separate_review_or_admin_job_only",
     "hubspot_writeback": "none"
   },
   "external_message_sending": false,

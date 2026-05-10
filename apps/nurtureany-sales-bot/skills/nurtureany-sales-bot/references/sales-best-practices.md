@@ -1,0 +1,192 @@
+# Sales Best Practices
+
+Use this reference before answering NurtureAny sales workflow requests involving drafting, Friday reviews, pre-demo plans, event follow-ups, coaching summaries, QO/QO Met quality, account coverage, or operating-rhythm advice.
+
+## Source Order
+
+1. HubSpot and live tool outputs are the source of truth for target-account membership, owner, country, contract end date, current tools, follow-up status, calls, meetings, tasks, and deals.
+2. Current/final Leadership Tactical Pause material is the source of truth for operating rhythm, account coverage, QO quality, warm activity, event discipline, and Friday correction.
+3. Current instructor-copy training material and current sales rubrics are the source of truth for outreach, pre-demo, demo, post-demo, and coaching standards.
+4. Current onboarding plans, master templates, and assessment materials are supporting evidence for ramp, testing, certification, and coaching.
+5. Old, copy, archived, outdated, or trainee files are lower-authority context. If they conflict with current/final/instructor material, surface the conflict and use the higher-authority source.
+
+Do not build a new MCP for this guidance. In Hermes, configured MCP servers are discovered from `mcp_servers` and registered as first-class tools. This document is a Hermes skill reference, not a native MCP server.
+
+## HubSpot Override Rule
+
+Training and Tactical Pause docs never override live HubSpot fields or tool outputs for:
+
+- target account: `hs_is_target_account`
+- owner: `hubspot_owner_id` resolved through HubSpot owners API
+- country: `company_country`
+- contract end date: `contract_end_date`
+- current tools: `current_tools`
+- follow-up status: HubSpot communications, notes, tasks, and meetings
+- calls: HubSpot calls
+- meetings: HubSpot meetings
+- deals: HubSpot deals and configured QO/QO Met/closed-won stages
+
+When facts are missing, write `needs-check` instead of inventing them.
+
+## Operating Rhythm
+
+- Each AE works from a protected 150-account pool. Account swaps should be deliberate and manager-approved.
+- Weekly coverage target is 120 of 150 priority accounts.
+- Daily rhythm includes 30 WhatsApp nurturing touches, usually around the morning nurture block.
+- Use double taps where the account is active and the next step is worth pursuing.
+- Use 40 connected calls as weekly discipline where calling is an appropriate channel.
+- Friday review is a correction mechanism. It should call out missed coverage, weak QO quality, stale follow-up, dirty accounts, and next-week correction.
+- Clean data comes before AI: capture calls, meetings, notes, trackable channels, and CRM updates before automation advice.
+
+## Market Guidance
+
+- SG: prioritize pipeline quality, inbound routing, meeting efficiency, QO-to-QO-Met, and closing quality.
+- MY: apply the same CCC, CBANT, I-C-BANT, demo, and follow-up standards; use onboarding materials for ramp context.
+- ID: prioritize activity-to-QO efficiency. Bahasa Indonesia case material can support localized coaching. Do not force SG call-heavy assumptions where WhatsApp, events, or referrals are stronger local evidence.
+- Cross-market: choose playbooks from ICP, industry, headcount, current tools, contract end date, lead source, buying role, and why-now signal.
+
+## QO And QO Met Quality
+
+Clean lead checklist:
+
+- correct industry
+- headcount
+- current solution or current tools
+- contract end date
+- at least one associated contact
+- verified decision maker coverage from HubSpot buying role, with owner/founder/director/CEO/boss titles treated as review candidates until audited
+
+QO checklist:
+
+- real new opportunity, not a recycled follow-up meeting
+- buying-relevant contact is involved
+- industry, headcount, current tools, and contract timing are known or explicitly marked `needs-check`
+- next step is clear
+- QO Met can be verified from actual meeting evidence or configured deal stage movement
+
+Use greater than 75% QO-to-QO-Met as the quality guardrail. If QOs are high but QO Met is weak, call out qualification quality rather than celebrating volume.
+
+## Warm Activity And Events
+
+Warm activity proof should include:
+
+- photo or selfie proof when appropriate
+- follow-up WhatsApp
+- manually logged HubSpot meeting
+- safe association to account, contact, owner, and timestamp
+
+WhatsApp may autolog through Eazybe where configured, but HubSpot is the durable reporting source. Do not expose raw images, phone exports, attendee lists, form responses, WhatsApp bodies, note bodies, task bodies, or private comments.
+
+Events are outbound demand generation. Track registrations, attendance, follow-up, QO, QO Met, deals, and blocked follow-up. Keep event volume constrained when QO output or manager capacity is weak.
+
+## Outreach And Nurture Drafting
+
+Use CCC:
+
+- Connect: short relevant opener plus a micro question.
+- Curiosity: relevant peer, brand, or context, not generic networking.
+- Convert: clear yes/no next step with respectful urgency.
+- Fallback: turn rejection into a 15-minute catch-up anchored on pain or curiosity.
+
+Use 3C plus K/N/S for pre-demo nurturing:
+
+- 3C: Curiosity, Credibility, Context.
+- K/N/S: Knowledge, Network, Support.
+- Five-touch rhythm over about 14 to 18 days: hook, contextual follow-up, K/N/S value, re-engage, close-loop.
+
+Drafts are manual-review only. Do not send WhatsApp, email, Slack, calendar invites, or HubSpot mutations from a draft answer.
+
+## Pre-Demo Planning
+
+Before drafting a pre-demo plan, use selected scoped HubSpot accounts only and call `build_pre_demo_game_plans` after the user confirms `run`.
+
+Required sections:
+
+- Static Information
+- Research / stalking signal
+- Hypothesized interest and why
+- Alternatives they may consider
+- What to show to win
+- 3 relevant name drops
+- Game Plan A
+- Game Plan B
+- IC-BANT prompts
+- Missing evidence
+
+Required facts:
+
+- number of employees
+- industry
+- lead source
+- why-now signal
+- stakeholders
+- current tools
+- contract end date
+- timeline
+
+Use primary research for opportunities above 10k ACV when approved and available. If social, gated, or map evidence is not supplied by the user or approved tools, mark it manual-check. Do not invent pricing, lead source, current tools, meeting reason, case studies, or name drops.
+
+## Demo Standards
+
+A demo is a value conversation, not a product walkthrough.
+
+Use the seven demo dimensions:
+
+- Control and Conversational
+- Consultative
+- Contextual
+- Before/After
+- Benefits versus Features
+- Product Knowledge
+- Negotiation
+
+Show the few workflows that match the prospect's pain. Use before/after contrast and benefits before features. Use case studies only when the source context supports them. If product knowledge is uncertain, say what must be checked instead of bluffing.
+
+Negotiation should tie back to quantified value, give-and-take, and a timeline backward from onboarding, signing, and decision dates. Do not invent pricing.
+
+## Post-Demo Follow-Up
+
+Follow-up earns a decision; it is not a reminder sequence.
+
+Use the 3C follow-up standard:
+
+- Credible
+- Contextual
+- Consistent
+
+Suggested cadence:
+
+- demo day: agree next follow-up date and timeline
+- D+1: summary email and WhatsApp
+- D+3: relevant case study when approved
+- D+5: K/N/S value
+- D+10: reference or social proof when approved
+- D+14: go/no-go ask
+- D+21: breakup call for truth
+
+Capture the real blocker, who or what StaffAny lost to, and when to reconnect. Keep loss reasons safe and concise.
+
+## Rubric Scoring And Ramp
+
+- Use the 2026 rubric layer for CCC, CBANT, pre-demo nurturing, combined demo, and post-demo follow-up coaching.
+- Score coaching behavior as 0/1/2 when a rubric-style answer is requested: missed, partial, strong.
+- Any weak score needs a specific evidence note, not a vague judgment.
+- Onboarding/ramp guidance can reference the 8-week validation path, structured tests, and month-four ramp expectation.
+- Treat 450 cap-point rows as onboarding/ramp context only; do not use them to override the current Tactical Pause operating rhythm.
+
+## Objection Handling
+
+For AI, low-code, or custom-build objections:
+
+- Do not attack AI or tell the prospect they cannot build.
+- Agree that custom internal tools can be useful, then shift to ownership after launch.
+- Frame payroll and attendance as a risk-heavy core: compliance updates, access control, sensitive employee data, daily troubleshooting, and long-term maintenance.
+- Recommend building around StaffAny through APIs or custom workflows, not rebuilding payroll or attendance itself.
+
+## Tool Behavior
+
+- Friday sales review: still call `build_friday_sales_review`; use this reference to interpret 120/150 coverage, double tap, 30 WhatsApp rhythm, 40 connected calls, QO/QO Met guardrail, warm activity, and Friday correction.
+- Priority-account coverage: use HubSpot activity evidence and classify dirty accounts by missing industry, headcount, current tools, contract end date, associated contact, or verified decision maker.
+- Pre-demo game plans: still call `build_pre_demo_game_plans`; use this reference for the training framework and missing-evidence rules.
+- Nurture drafts: use CCC, 3C, K/N/S, QO quality, and warm-activity standards, but keep all output manual-review only.
+- Conflicting old/archive guidance: surface it as lower-authority context and do not silently promote it.

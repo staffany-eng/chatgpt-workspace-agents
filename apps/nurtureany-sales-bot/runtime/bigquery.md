@@ -33,6 +33,47 @@ Known C360 tables from the current enrichment flow:
 
 Inspect schema before relying on table or column names. The existing Luma events platform uses these tables for C360 customer enrichment, but NurtureAny must support Singapore, Malaysia, and Indonesia instead of Singapore-only logic.
 
+## Known-Area Near-Me Customer Coverage
+
+Near-me answers use two BigQuery reads: curated outlet matches and C360 current-customer coverage. This avoids requiring HubSpot custom-object permissions.
+
+Curated outlet matches live in:
+
+```text
+staffany-warehouse.analytics.nurtureany_near_me_outlet_matches
+```
+
+Provisioning SQL lives at `runtime/sql/near-me-outlet-matches.sql`. Do not run that DDL through the read-only BigQuery MCP.
+
+Use the SQL returned by `near_me_nurtureany.build_near_me_outlet_matches_query`, then run it through `staffany_bigquery.execute_sql_readonly`.
+
+The outlet-match query contract is:
+
+- Filter by matched `area_id`.
+- Exclude `match_status='rejected'`.
+- Return curated rows only; Google-only live restaurants are not auto-stored.
+- Keep `hubspot_company_id`, `organisation_id`, `match_status`, `account_status`, `confidence`, owner snapshot, and distance when coordinates exist.
+
+Near-me answers also require C360 current-customer coverage even when BigQuery has no outlet match yet.
+
+Use the SQL returned by `near_me_nurtureany.build_near_me_c360_customer_query`, then run it through `staffany_bigquery.execute_sql_readonly`.
+
+The query contract is:
+
+- Anchor to the matched `known_area` center/radius.
+- Source geofence coordinates from `kraken_rds.Locations`.
+- Normalize swapped latitude/longitude defensively.
+- Join `analytics.dim_sections` and exclude `isarchived` sections.
+- Join `analytics.dim_org_section` for section and organisation context.
+- Join `analytics.fct_deal_org_company` as the live/customer C360 layer.
+- Left join `analytics.fct_company_org_mrr` only for optional MRR enrichment.
+- Collapse to one row per `organisation_id`, keeping nearest section, nearest address, nearest distance, section count, HubSpot company ID, C360 company name, usage status, deal stage, and deal end date.
+- Pass `hubspot_company_id`, optional `customer360_route_key`, and `organisation_id` through to `merge_near_me_sources` so current-customer rows can render stable Customer 360 links from route keys instead of dummy numeric routes.
+
+Do not query person GPS, clock records, raw employee location rows, or employee movement data for this flow. The geofence section table is enough.
+
+`fct_company_org_mrr` is too strict as the main filter for near-me customer coverage. Use it only as MRR context after `fct_deal_org_company` has selected current/customer orgs.
+
 ## Query Rules
 
 - Run only bounded read-only SQL.
@@ -41,4 +82,3 @@ Inspect schema before relying on table or column names. The existing Luma events
 - Aggregate or summarize before returning Slack output.
 - Return `Confidence: needs-check` when HubSpot and C360 ownership or renewal evidence conflicts.
 - Return `Confidence: blocked` when schema, auth, or table access fails.
-

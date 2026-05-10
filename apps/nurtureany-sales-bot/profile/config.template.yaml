@@ -56,6 +56,43 @@ nurtureany:
     first_execution_approval: "run"
     hubspot_mutations: "explicit_preview_approval"
     external_message_sending: "disabled"
+  friday_sales_review:
+    locked_pool_source: "HubSpot target accounts: hs_is_target_account=true + hubspot_owner_id + company_country"
+    weekly_account_target: 120
+    locked_pool_baseline: 150
+    connected_call_target: 40
+    connected_call_definition: "HubSpot calls with hs_call_status=COMPLETED and hs_call_duration>=120000 ms"
+    daily_whatsapp_rhythm: 30
+    warm_activity_labels:
+      - "HHH"
+      - "LL"
+      - "coffee"
+      - "lunch"
+      - "dinner"
+      - "cosy"
+      - "ABM"
+      - "event"
+      - "appreciation afternoon"
+      - "sports"
+    hubspot_funnel_stage_env:
+      qo_pipeline_ids: "NURTUREANY_QO_PIPELINE_IDS"
+      qo_stage_ids: "NURTUREANY_QO_STAGE_IDS"
+      qo_met_stage_ids: "NURTUREANY_QO_MET_STAGE_IDS"
+      closed_won_stage_ids: "NURTUREANY_CLOSED_WON_STAGE_IDS"
+    missing_stage_config_result: "Confidence: needs-check; still return hygiene/account coverage"
+  photo_matching:
+    drive_folder_id: "1qXlFnr5TKFtsYNWk7ZywBBctDaae3RY-"
+    drive_folder_label: "all-random"
+    slack_ad_hoc_trigger: "mention_with_photo"
+    slack_required_scope: "files:read"
+    source_pointer_only: true
+    raw_image_copy_default: false
+    human_confirmation_required: true
+    whatsapp_auto_send: false
+    hubspot_custom_objects:
+      - "nurture_event"
+      - "nurture_event_photo"
+      - "nurture_person_appearance"
   honcho:
     enabled: false
     reason: "V1 uses deterministic config and HubSpot as source of truth."
@@ -69,18 +106,37 @@ mcp_servers:
     auth:
       type: "bearer_env"
       env: "HUBSPOT_PRIVATE_APP_TOKEN"
+      note: "check_event_followup_status also reads LUMA_API_KEY from the profile environment for read-only event lookup."
+    customer360_links:
+      company_url_template_env: "NURTUREANY_C360_COMPANY_URL_TEMPLATE"
+      org_url_template_env: "NURTUREANY_C360_ORG_URL_TEMPLATE"
+      route_key_map_env: "NURTUREANY_C360_ROUTE_KEY_BY_COMPANY_ID"
+      default_company_url_template: "https://customer-360-qv4r5xkisq-as.a.run.app/companies/{customer360_route_key}"
+      default_org_url_template: "https://customer-360-qv4r5xkisq-as.a.run.app/companies/{customer360_route_key}/orgs/{organisation_id}"
+      known_route_keys:
+        "1991281569": "fei-siong-group"
+    timeout: 600
     tool_allowlist:
       - "list_my_target_accounts"
       - "list_team_target_accounts"
       - "audit_hubspot_owner_roster"
+      - "audit_priority_account_coverage"
+      - "build_friday_sales_review"
       - "get_account_context"
+      - "build_pre_demo_game_plans"
       - "list_sales_followup_tasks"
+      - "check_account_followup_status"
+      - "check_event_followup_status"
       - "score_nurture_accounts"
       - "find_contact_gaps"
+      - "find_t90_renewal_gaps"
       - "generate_free_search_tasks"
       - "review_public_enrichment_evidence"
+      - "scan_drive_event_photos"
+      - "propose_photo_people_matches"
       - "draft_nurture_message"
       - "plan_hubspot_writeback"
+      - "plan_event_photo_followup"
     mutation_tools_disabled_until_write_phase:
       - "create_hubspot_task"
       - "append_hubspot_note"
@@ -142,8 +198,69 @@ mcp_servers:
       - "get_table_info"
       - "execute_sql_readonly"
 
+  near_me_nurtureany:
+    description: "Known-area near-me adapter for BigQuery outlet matches, Google Places restaurant refresh, and C360 customer SQL."
+    command: "/Users/leekaiyi/.hermes/hermes-agent/venv/bin/python"
+    args:
+      - "/Users/leekaiyi/workspace/agent builder/apps/nurtureany-sales-bot/runtime/mcp/near_me_nurtureany_server.py"
+    auth:
+      google_places:
+        type: "api_key_env"
+        env: "GOOGLE_PLACES_API_KEY"
+      known_areas:
+        type: "file_env_optional"
+        env: "NURTUREANY_KNOWN_AREAS_FILE"
+      outlet_matches_table:
+        type: "env_optional"
+        env: "NURTUREANY_OUTLET_MATCHES_TABLE"
+        default: "staffany-warehouse.analytics.nurtureany_near_me_outlet_matches"
+      c360_company_url_template:
+        type: "env_optional"
+        env: "NURTUREANY_C360_COMPANY_URL_TEMPLATE"
+        default: "https://customer-360-qv4r5xkisq-as.a.run.app/companies/{customer360_route_key}"
+      c360_org_url_template:
+        type: "env_optional"
+        env: "NURTUREANY_C360_ORG_URL_TEMPLATE"
+        default: "https://customer-360-qv4r5xkisq-as.a.run.app/companies/{customer360_route_key}/orgs/{organisation_id}"
+      c360_route_key_map:
+        type: "env_optional_json"
+        env: "NURTUREANY_C360_ROUTE_KEY_BY_COMPANY_ID"
+        default: '{"1991281569":"fei-siong-group"}'
+    access_policy:
+      mode: "read_only"
+      known_areas_source: "curated config/table outside HubSpot"
+      google_places_endpoint: "POST https://places.googleapis.com/v1/places:searchNearby"
+      google_places_included_types:
+        - "restaurant"
+      google_places_field_mask:
+        - "places.id"
+        - "places.displayName"
+        - "places.formattedAddress"
+        - "places.location"
+        - "places.googleMapsUri"
+      memory_layer: "BigQuery outlet_matches table"
+      outlet_matches_table: "staffany-warehouse.analytics.nurtureany_near_me_outlet_matches"
+      c360_customer_layer: "analytics.fct_deal_org_company"
+      mrr_enrichment_only: "analytics.fct_company_org_mrr"
+      geofence_source: "kraken_rds.Locations"
+      employee_gps_allowed: false
+      google_candidate_storage: "live_candidate_only_until_review_approval"
+      c360_company_url_template: "https://customer-360-qv4r5xkisq-as.a.run.app/companies/{customer360_route_key}"
+      c360_org_url_template: "https://customer-360-qv4r5xkisq-as.a.run.app/companies/{customer360_route_key}/orgs/{organisation_id}"
+      c360_route_key_map: '{"1991281569":"fei-siong-group"}'
+      bigquery_writeback: "separate_review_or_admin_job_only"
+      hubspot_writeback: "none"
+    depends_on:
+      staffany_bigquery_tool: "execute_sql_readonly"
+    tool_allowlist:
+      - "resolve_known_area_for_near_me"
+      - "build_near_me_outlet_matches_query"
+      - "refresh_google_places_for_known_area"
+      - "build_near_me_c360_customer_query"
+      - "merge_near_me_sources"
+
   google_calendar_nurtureany:
-    description: "Read-only Google Calendar event context from team@staffany.com for event invite, attendance, and follow-up nurture."
+    description: "Read-only Google Calendar event context from team@staffany.com OAuth and AE calendars shared to that account."
     command: "/Users/leekaiyi/.hermes/hermes-agent/venv/bin/python"
     args:
       - "/Users/leekaiyi/workspace/agent builder/apps/nurtureany-sales-bot/runtime/mcp/google_calendar_nurtureany_server.py"
@@ -154,13 +271,51 @@ mcp_servers:
       client_secret_file_env: "GOOGLE_CALENDAR_CLIENT_SECRET_FILE"
     access_policy:
       mode: "read_only"
+      access_mode: "team_oauth_shared_calendar"
+      service_account: false
       calendar_account_email: "team@staffany.com"
+      ae_calendar_source: "resolved_hubspot_owner_email"
+      inaccessible_calendar_result: "confidence_blocked"
       max_calendars: 5
       max_events_per_calendar: 50
+      meeting_quality_audit: "internal_attendee_email_hash_match_to_hubspot_contacts"
+      attendee_visibility: "safe_summary_only_no_raw_emails"
       event_mutations: false
       attendee_exports: false
     tool_allowlist:
       - "list_google_calendar_events"
+      - "audit_google_calendar_meeting_quality"
+
+  google_drive_nurtureany:
+    description: "Read-only Google Drive event-photo metadata from team@staffany.com OAuth."
+    command: "/Users/leekaiyi/.hermes/hermes-agent/venv/bin/python"
+    args:
+      - "/Users/leekaiyi/workspace/agent builder/apps/nurtureany-sales-bot/runtime/mcp/google_drive_nurtureany_server.py"
+    auth:
+      type: "oauth_token_file"
+      account: "team@staffany.com"
+      token_file_env: "GOOGLE_DRIVE_TOKEN_FILE"
+      client_secret_file_env: "GOOGLE_DRIVE_CLIENT_SECRET_FILE"
+      vision_key_env: "ANTHROPIC_API_KEY"
+      vision_model_env: "NURTUREANY_DRIVE_VISION_MODEL"
+      uploader_profile_token_env: "SLACK_BOT_TOKEN"
+    access_policy:
+      mode: "read_only"
+      access_mode: "team_oauth_drive_readonly"
+      service_account: false
+      drive_account_email: "team@staffany.com"
+      required_scope: "https://www.googleapis.com/auth/drive.readonly"
+      default_folder_id: "1qXlFnr5TKFtsYNWk7ZywBBctDaae3RY-"
+      max_files: 100
+      max_vision_files_per_call: 5
+      transient_vision_downloads: true
+      uploader_profile_lookup: "best_effort_slack_users_info"
+      file_downloads: false
+      drive_mutations: false
+      raw_image_copy_default: false
+    tool_allowlist:
+      - "list_drive_folder_images"
+      - "extract_drive_image_clues"
 
   luma_nurtureany:
     description: "Read-only Luma event context adapter for RSVP, attendance, and no-show nurture."

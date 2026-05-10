@@ -112,16 +112,32 @@ if (!existsSync(manifestPath)) {
       "list_my_target_accounts",
       "list_team_target_accounts",
       "audit_hubspot_owner_roster",
+      "audit_priority_account_coverage",
+      "build_friday_sales_review",
       "get_account_context",
+      "build_pre_demo_game_plans",
       "list_sales_followup_tasks",
+      "check_account_followup_status",
+      "check_event_followup_status",
       "score_nurture_accounts",
       "find_contact_gaps",
+      "find_t90_renewal_gaps",
       "generate_free_search_tasks",
       "review_public_enrichment_evidence",
+      "scan_drive_event_photos",
+      "propose_photo_people_matches",
+      "list_drive_folder_images",
+      "extract_drive_image_clues",
       "draft_nurture_message",
       "list_google_calendar_events",
+      "audit_google_calendar_meeting_quality",
       "list_luma_events",
       "get_luma_event_context",
+      "resolve_known_area_for_near_me",
+      "build_near_me_outlet_matches_query",
+      "refresh_google_places_for_known_area",
+      "build_near_me_c360_customer_query",
+      "merge_near_me_sources",
       "search_exa_people_candidates",
       "search_lusha_decision_maker_candidates",
       "get_lusha_credit_usage"
@@ -132,6 +148,9 @@ if (!existsSync(manifestPath)) {
     }
     if (!manifest.tools?.preview?.includes("plan_hubspot_writeback")) {
       fail("Manifest missing preview tool: plan_hubspot_writeback");
+    }
+    if (!manifest.tools?.preview?.includes("plan_event_photo_followup")) {
+      fail("Manifest missing preview tool: plan_event_photo_followup");
     }
     if (!manifest.tools?.approval_gated_enrichment?.includes("reveal_lusha_contact_details")) {
       fail("Manifest missing approval-gated enrichment tool: reveal_lusha_contact_details");
@@ -154,7 +173,49 @@ if (!existsSync(manifestPath)) {
     if (manifest.exa?.bulk_contact_exports !== false) fail("Manifest Exa bulk_contact_exports must be false");
     if (manifest.exa?.allowed_endpoint !== "POST /search") fail("Manifest Exa allowed_endpoint must be POST /search");
     if (manifest.exa?.category !== "people") fail("Manifest Exa category must be people");
+    if (manifest.photo_matching?.drive_folder_id !== "1qXlFnr5TKFtsYNWk7ZywBBctDaae3RY-") {
+      fail("Manifest photo_matching drive_folder_id must be the all-random folder");
+    }
+    if (manifest.photo_matching?.source_pointer_only !== true) fail("Manifest photo_matching must store source pointers only");
+    if (manifest.photo_matching?.raw_image_copy_default !== false) fail("Manifest photo_matching must not copy raw images by default");
+    if (manifest.photo_matching?.human_confirmation_required !== true) fail("Manifest photo_matching must require human confirmation");
+    if (manifest.photo_matching?.drive_scan_confirmation_owner !== "slack_uploader") {
+      fail("Manifest photo_matching drive_scan_confirmation_owner must be slack_uploader");
+    }
+    if (manifest.photo_matching?.batch_confirmation_by_uploader !== true) {
+      fail("Manifest photo_matching must batch confirmation prompts by uploader");
+    }
+    if (manifest.photo_matching?.luma_event_date_correlation !== true) {
+      fail("Manifest photo_matching must enable Luma event-date correlation");
+    }
+    if (manifest.photo_matching?.auto_event_tag_from_luma_date !== true) {
+      fail("Manifest photo_matching must allow event-only Luma auto-tagging");
+    }
+    if (manifest.photo_matching?.person_auto_tag !== false) {
+      fail("Manifest photo_matching must not auto-tag people from Luma date context");
+    }
+    if (manifest.photo_matching?.whatsapp_auto_send !== false) fail("Manifest photo_matching must not auto-send WhatsApp");
+    for (const objectName of ["nurture_event", "nurture_event_photo", "nurture_person_appearance"]) {
+      if (!manifest.photo_matching?.hubspot_custom_objects?.includes(objectName)) {
+        fail(`Manifest photo_matching missing custom object: ${objectName}`);
+      }
+    }
+    for (const tool of ["extract_drive_image_clues", "scan_drive_event_photos", "propose_photo_people_matches", "plan_event_photo_followup"]) {
+      if (!manifest.photo_matching?.allowed_tools?.includes(tool)) {
+        fail(`Manifest photo_matching missing allowed tool: ${tool}`);
+      }
+    }
     if (manifest.google_calendar?.account_email !== "team@staffany.com") fail("Manifest Google Calendar account_email must be team@staffany.com");
+    if (manifest.google_calendar?.access_mode !== "team_oauth_shared_calendar") {
+      fail("Manifest Google Calendar access_mode must be team_oauth_shared_calendar");
+    }
+    if (manifest.google_calendar?.service_account !== false) fail("Manifest Google Calendar must not claim service_account=true");
+    if (manifest.google_calendar?.owner_calendar_strategy !== "resolve_hubspot_owner_email_then_pass_as_calendar_id") {
+      fail("Manifest Google Calendar owner_calendar_strategy must resolve HubSpot owner email and pass it as calendar_id");
+    }
+    if (manifest.google_calendar?.inaccessible_owner_calendar_confidence !== "blocked") {
+      fail("Manifest Google Calendar inaccessible_owner_calendar_confidence must be blocked");
+    }
     if (manifest.google_calendar?.required_scope !== "https://www.googleapis.com/auth/calendar.readonly") {
       fail("Manifest Google Calendar required_scope must be calendar.readonly");
     }
@@ -166,8 +227,44 @@ if (!existsSync(manifestPath)) {
     if (!manifest.google_calendar?.allowed_tools?.includes("list_google_calendar_events")) {
       fail("Manifest Google Calendar missing list_google_calendar_events tool");
     }
+    if (!manifest.google_calendar?.allowed_tools?.includes("audit_google_calendar_meeting_quality")) {
+      fail("Manifest Google Calendar missing audit_google_calendar_meeting_quality tool");
+    }
+    if (manifest.google_calendar?.meeting_quality_audit !== "match_internal_attendee_email_hashes_to_hubspot_contacts") {
+      fail("Manifest Google Calendar meeting_quality_audit must use safe attendee hash matching");
+    }
+    if (manifest.google_calendar?.attendee_visibility !== "safe_summary_only_no_raw_emails") {
+      fail("Manifest Google Calendar attendee_visibility must be safe summary only");
+    }
     if (manifest.google_calendar?.event_mutations !== false) fail("Manifest Google Calendar event_mutations must be false");
     if (manifest.google_calendar?.attendee_exports !== false) fail("Manifest Google Calendar attendee_exports must be false");
+    if (manifest.google_drive?.account_email !== "team@staffany.com") fail("Manifest Google Drive account_email must be team@staffany.com");
+    if (manifest.google_drive?.access_mode !== "team_oauth_drive_readonly") {
+      fail("Manifest Google Drive access_mode must be team_oauth_drive_readonly");
+    }
+    if (manifest.google_drive?.service_account !== false) fail("Manifest Google Drive must not claim service_account=true");
+    if (manifest.google_drive?.required_scope !== "https://www.googleapis.com/auth/drive.readonly") {
+      fail("Manifest Google Drive required_scope must be drive.readonly");
+    }
+    if (manifest.google_drive?.read_only !== true) fail("Manifest Google Drive read_only must be true");
+    if (manifest.google_drive?.default_folder_id !== "1qXlFnr5TKFtsYNWk7ZywBBctDaae3RY-") {
+      fail("Manifest Google Drive default_folder_id must be all-random folder");
+    }
+    if (manifest.google_drive?.max_files !== 100) fail("Manifest Google Drive max_files must be 100");
+    if (!manifest.google_drive?.allowed_tools?.includes("list_drive_folder_images")) {
+      fail("Manifest Google Drive missing list_drive_folder_images tool");
+    }
+    if (!manifest.google_drive?.allowed_tools?.includes("extract_drive_image_clues")) {
+      fail("Manifest Google Drive missing extract_drive_image_clues tool");
+    }
+    if (manifest.google_drive?.transient_vision_downloads !== true) {
+      fail("Manifest Google Drive transient_vision_downloads must be true");
+    }
+    if (manifest.google_drive?.uploader_profile_lookup !== "best_effort_slack_users_info") {
+      fail("Manifest Google Drive uploader_profile_lookup must be best_effort_slack_users_info");
+    }
+    if (manifest.google_drive?.file_downloads !== false) fail("Manifest Google Drive file_downloads must be false");
+    if (manifest.google_drive?.drive_mutations !== false) fail("Manifest Google Drive drive_mutations must be false");
     if (manifest.luma?.auth_env_var !== "LUMA_API_KEY") fail("Manifest missing LUMA_API_KEY auth env var");
     if (manifest.luma?.base_url !== "https://public-api.luma.com") fail("Manifest Luma base_url must be public-api.luma.com");
     if (manifest.luma?.read_only !== true) fail("Manifest Luma read_only must be true");
@@ -190,9 +287,6 @@ if (!existsSync(manifestPath)) {
     if (manifest.luma?.preferred_event_filter !== "event_tags") {
       fail("Manifest Luma preferred_event_filter must be event_tags");
     }
-    if (manifest.luma?.slack_event_links_required !== true) {
-      fail("Manifest Luma slack_event_links_required must be true");
-    }
     if (manifest.luma?.location_tag_country_map?.Jakarta !== "Indonesia") {
       fail("Manifest Luma must map Jakarta location tag to Indonesia");
     }
@@ -204,6 +298,43 @@ if (!existsSync(manifestPath)) {
     if (manifest.luma?.raw_attendee_exports !== false) fail("Manifest Luma raw_attendee_exports must be false");
     if (manifest.luma?.event_mutations !== false) fail("Manifest Luma event_mutations must be false");
     if (manifest.luma?.hubspot_writeback !== "none") fail("Manifest Luma hubspot_writeback must be none");
+    if (manifest.near_me?.google_places_auth_env_var !== "GOOGLE_PLACES_API_KEY") {
+      fail("Manifest Near-Me missing GOOGLE_PLACES_API_KEY auth env var");
+    }
+    if (manifest.near_me?.known_areas_source !== "curated_config_outside_hubspot") {
+      fail("Manifest Near-Me known_areas_source must be curated_config_outside_hubspot");
+    }
+    if (manifest.near_me?.memory_layer !== "bigquery_outlet_matches") {
+      fail("Manifest Near-Me memory_layer must be bigquery_outlet_matches");
+    }
+    if (manifest.near_me?.outlet_matches_table_env_var !== "NURTUREANY_OUTLET_MATCHES_TABLE") {
+      fail("Manifest Near-Me outlet_matches_table_env_var must be NURTUREANY_OUTLET_MATCHES_TABLE");
+    }
+    if (manifest.near_me?.default_outlet_matches_table !== "staffany-warehouse.analytics.nurtureany_near_me_outlet_matches") {
+      fail("Manifest Near-Me default outlet matches table is incorrect");
+    }
+    if (manifest.near_me?.c360_customer_layer !== "analytics.fct_deal_org_company") {
+      fail("Manifest Near-Me C360 customer layer must be analytics.fct_deal_org_company");
+    }
+    if (manifest.near_me?.mrr_enrichment_only !== "analytics.fct_company_org_mrr") {
+      fail("Manifest Near-Me MRR enrichment must be analytics.fct_company_org_mrr");
+    }
+    if (manifest.near_me?.geofence_source !== "kraken_rds.Locations") {
+      fail("Manifest Near-Me geofence source must be kraken_rds.Locations");
+    }
+    if (manifest.near_me?.employee_gps_allowed !== false) fail("Manifest Near-Me must disallow employee GPS");
+    if (manifest.near_me?.google_candidate_storage !== "live_candidate_only_until_review_approval") {
+      fail("Manifest Near-Me candidate storage must stay review-gated");
+    }
+    for (const tool of [
+      "resolve_known_area_for_near_me",
+      "build_near_me_outlet_matches_query",
+      "refresh_google_places_for_known_area",
+      "build_near_me_c360_customer_query",
+      "merge_near_me_sources"
+    ]) {
+      if (!manifest.near_me?.allowed_tools?.includes(tool)) fail(`Manifest Near-Me missing allowed tool: ${tool}`);
+    }
   }
 }
 
@@ -215,7 +346,9 @@ const filesToScan = [
   "runtime/access-policy.template.json",
   "skills/nurtureany-sales-bot/SKILL.md",
   "skills/nurtureany-sales-bot/references/hubspot-fields.md",
+  "skills/nurtureany-sales-bot/references/sales-best-practices.md",
   "skills/nurtureany-sales-bot/references/playbooks.md",
+  "skills/nurtureany-sales-bot/references/pre-demo-game-plans.md",
   "skills/nurtureany-sales-bot/references/regression-cases.md",
   "runtime/slack.md",
   "runtime/hubspot.md",
@@ -225,9 +358,16 @@ const filesToScan = [
   "runtime/google-calendar.md",
   "runtime/mcp/google_calendar_nurtureany_server.py",
   "runtime/mcp/test_google_calendar_nurtureany_server.py",
+  "runtime/google-drive.md",
+  "runtime/mcp/google_drive_nurtureany_server.py",
+  "runtime/mcp/test_google_drive_nurtureany_server.py",
   "runtime/luma.md",
   "runtime/mcp/luma_nurtureany_server.py",
   "runtime/mcp/test_luma_nurtureany_server.py",
+  "runtime/near-me.md",
+  "runtime/sql/near-me-outlet-matches.sql",
+  "runtime/mcp/near_me_nurtureany_server.py",
+  "runtime/mcp/test_near_me_nurtureany_server.py",
   "runtime/exa.md",
   "runtime/mcp/exa_nurtureany_server.py",
   "runtime/mcp/test_exa_nurtureany_server.py",
@@ -262,20 +402,59 @@ for (const text of [
   "list_my_target_accounts",
   "list_team_target_accounts",
   "audit_hubspot_owner_roster",
+  "audit_priority_account_coverage",
+  "build_friday_sales_review",
+  "NURTUREANY_QO_PIPELINE_IDS",
+  "NURTUREANY_QO_STAGE_IDS",
+  "NURTUREANY_QO_MET_STAGE_IDS",
+  "NURTUREANY_CLOSED_WON_STAGE_IDS",
+  "connected_call_target: 40",
+  "build_pre_demo_game_plans",
   "list_sales_followup_tasks",
+  "check_account_followup_status",
+  "check_event_followup_status",
   "generate_free_search_tasks",
   "review_public_enrichment_evidence",
+  "scan_drive_event_photos",
+  "propose_photo_people_matches",
+  "plan_event_photo_followup",
+  "1qXlFnr5TKFtsYNWk7ZywBBctDaae3RY-",
+  "files:read",
+  "nurture_event_photo",
   "plan_hubspot_writeback",
   "google_calendar_nurtureany",
   "GOOGLE_CALENDAR_TOKEN_FILE",
+  "google_drive_nurtureany",
+  "GOOGLE_DRIVE_TOKEN_FILE",
+  "SLACK_BOT_TOKEN",
+  "https://www.googleapis.com/auth/drive.readonly",
+  "list_drive_folder_images",
+  "extract_drive_image_clues",
   "team@staffany.com",
+  "team_oauth_shared_calendar",
+  "resolved_hubspot_owner_email",
+  "confidence_blocked",
   "list_google_calendar_events",
+  "audit_google_calendar_meeting_quality",
+  "internal_attendee_email_hash_match_to_hubspot_contacts",
+  "safe_summary_only_no_raw_emails",
   "luma_nurtureany",
   "LUMA_API_KEY",
   "runtime/mcp/luma_nurtureany_server.py",
   "checked_in_at_present",
   "list_luma_events",
   "get_luma_event_context",
+  "near_me_nurtureany",
+  "GOOGLE_PLACES_API_KEY",
+  "NURTUREANY_KNOWN_AREAS_FILE",
+  "NURTUREANY_OUTLET_MATCHES_TABLE",
+  "resolve_known_area_for_near_me",
+  "build_near_me_outlet_matches_query",
+  "refresh_google_places_for_known_area",
+  "build_near_me_c360_customer_query",
+  "merge_near_me_sources",
+  "analytics.fct_deal_org_company",
+  "kraken_rds.Locations",
   "exa_nurtureany",
   "EXA_API_KEY",
   "search_exa_people_candidates",
@@ -296,20 +475,48 @@ for (const text of [
   "Never auto-send",
   "Confidence",
   "sales-owned follow-up tasks",
+  "build_friday_sales_review",
+  "audit_priority_account_coverage",
+  "sales-best-practices.md",
+  "120/150 account coverage",
+  "40 connected calls",
+  "QO/QO Met",
+  "pre-demo game plans",
   "NURTUREANY_ACCESS_POLICY_PATH",
   "Unclassified HubSpot owners are blocked",
   "Managers cannot create HubSpot write-back previews",
   "Google Calendar",
   "team@staffany.com",
+  "audit_google_calendar_meeting_quality",
+  "calendar_audit_seed",
+  "raw attendee emails",
+  "bounded `query` option on the target-account list tools",
+  "resolved HubSpot owner email as the AE calendar ID",
+  "Confidence: blocked",
   "Luma",
   "checked_in_at",
-  "found/selected Luma event",
-  "event.url|event.name",
   "raw guest lists",
   "cost_report",
   "credit_report",
   "approval_marker",
-  "reveal_phones"
+  "reveal_phones",
+  "exact company names",
+  "ambiguous",
+  "people layer",
+  "photo match",
+  "list_drive_folder_images",
+  "extract_drive_image_clues",
+  "uploader display names",
+  "original Slack uploader",
+  "Luma event-date context",
+  "must not auto-tag a HubSpot contact/person",
+  "nurture_event_photo",
+  "known_area",
+  "outlet_matches",
+  "Google Places",
+  "fct_deal_org_company",
+  "pricing needed",
+  "case-study match needed"
 ]) {
   if (!soulText.includes(text)) fail(`SOUL.md missing required safety/contract text: ${text}`);
 }
@@ -321,22 +528,62 @@ for (const text of [
   "hs_is_target_account",
   "company_country",
   "hubspot_owner_id",
+  "references/sales-best-practices.md",
+  "references/pre-demo-game-plans.md",
   "Nurture-ready enriched",
+  "verified decision maker",
+  "missing-decision-maker counts",
   "Do not use Honcho",
   "Confidence: <verified | needs-check | blocked>",
   "audit_hubspot_owner_roster",
+  "audit_priority_account_coverage",
+  "build_friday_sales_review",
+  "120_150_accounts_worked",
+  "40_connected_calls",
+  "NURTUREANY_QO_PIPELINE_IDS",
+  "build_pre_demo_game_plans",
+  "exact company names",
+  "ambiguous matches",
+  "pricing needed",
+  "case-study match needed",
   "list_sales_followup_tasks",
   "sales-owned HubSpot follow-up tasks",
+  "check_account_followup_status",
+  "check_event_followup_status",
+  "WhatsApp communications",
   "generate_free_search_tasks",
   "review_public_enrichment_evidence",
+  "scan_drive_event_photos",
+  "propose_photo_people_matches",
+  "list_drive_folder_images",
+  "extract_drive_image_clues",
+  "uploader display names",
+  "original Slack uploader",
+  "Luma event-date context",
+  "must not auto-tag a HubSpot contact/person",
+  "plan_event_photo_followup",
+  "files:read",
+  "nurture_person_appearance",
   "list_google_calendar_events",
+  "audit_google_calendar_meeting_quality",
+  "calendar_audit_seed",
+  "raw attendee emails",
   "team@staffany.com",
+  "owner email as a Google Calendar `calendar_ids` entry",
+  "Confidence: blocked",
   "list_luma_events",
   "get_luma_event_context",
   "checked_in_at",
-  "found/selected Luma event",
-  "event.url|event.name",
   "raw guest lists",
+  "resolve_known_area_for_near_me",
+  "build_near_me_outlet_matches_query",
+  "refresh_google_places_for_known_area",
+  "build_near_me_c360_customer_query",
+  "merge_near_me_sources",
+  "outlet_matches",
+  "Google Places",
+  "fct_deal_org_company",
+  "kraken_rds.Locations",
   "search_exa_people_candidates",
   "search_lusha_decision_maker_candidates",
   "reveal_lusha_contact_details",
@@ -348,6 +595,27 @@ for (const text of [
   "revealPhones"
 ]) {
   if (!skillText.includes(text)) fail(`SKILL.md missing required text: ${text}`);
+}
+
+const salesBestPracticesText = textOf("skills/nurtureany-sales-bot/references/sales-best-practices.md");
+for (const text of [
+  "HubSpot Override Rule",
+  "protected 150-account pool",
+  "120 of 150 priority accounts",
+  "30 WhatsApp nurturing touches",
+  "40 connected calls",
+  "double taps",
+  "QO-to-QO-Met",
+  "associated contact",
+  "verified decision maker",
+  "build_friday_sales_review",
+  "build_pre_demo_game_plans",
+  "manual-review only",
+  "Do not build a new MCP"
+]) {
+  if (!salesBestPracticesText.includes(text)) {
+    fail(`sales-best-practices.md missing required text: ${text}`);
+  }
 }
 
 const accessPolicyTemplate = readJson(join(appRoot, "runtime/access-policy.template.json"));
@@ -366,11 +634,42 @@ for (const text of [
   "unclassified",
   "Managers have read-only team scope",
   "Company is outside caller scope or is not a HubSpot target account",
+  "build_pre_demo_game_plans",
+  "audit_priority_account_coverage",
+  "build_friday_sales_review",
+  "CALL_PROPERTIES",
+  "MEETING_PROPERTIES",
+  "CONNECTED_CALL_MIN_DURATION_MS",
+  "NURTUREANY_QO_PIPELINE_IDS",
+  "PRE_DEMO_GAME_PLAN_ACCOUNT_LIMIT = 5",
+  "_resolve_scoped_company_name",
+  "ambiguous_matches",
+  "pricing needed",
+  "case-study match needed",
   "list_sales_followup_tasks",
+  "check_account_followup_status",
+  "check_event_followup_status",
+  "COMMUNICATION_PROPERTIES",
+  "calendar_audit_seed",
+  "_hash_email",
+  "contact_match_records",
+  "find_t90_renewal_gaps",
+  "_decision_maker_coverage",
+  "missing_decision_maker_account_count",
+  "role_only_decision_maker_account_count",
   "TASK_PROPERTIES",
   "sales_followup_task_count",
   "\"hubspot_scoped\": True",
-  "scope_source"
+  "scope_source",
+  "DRIVE_ALL_RANDOM_FOLDER_ID",
+  "scan_drive_event_photos",
+  "propose_photo_people_matches",
+  "plan_event_photo_followup",
+  "nurture_person_appearance",
+  "confirmation_request",
+  "uploader_confirmation_batches",
+  "luma_event_context",
+  "auto_event_tag_status"
 ]) {
   if (!hubspotServerText.includes(text)) fail(`runtime/mcp/hubspot_nurtureany_server.py missing required text: ${text}`);
 }
@@ -415,6 +714,11 @@ for (const text of [
   "GOOGLE_CALENDAR_TOKEN_FILE",
   "https://www.googleapis.com/auth/calendar.readonly",
   "list_google_calendar_events",
+  "audit_google_calendar_meeting_quality",
+  "calendar_audit_seed",
+  "Email hashes/domains",
+  "This is not a Google service account",
+  "resolved HubSpot account owner",
   "Cap reads at 5 calendars and 50 events per calendar",
   "Do not create, update, delete, invite, RSVP, export attendees",
   "Confidence: blocked"
@@ -430,11 +734,55 @@ for (const text of [
   "MAX_CALENDARS = 5",
   "MAX_EVENTS_PER_CALENDAR = 50",
   "list_google_calendar_events",
+  "audit_google_calendar_meeting_quality",
+  "contact_email_match",
+  "no-calendar-follow-up",
+  "hubspot_followup_check",
   "No event mutations, attendee exports, descriptions, or raw guest lists.",
+  "calendar_access_mode",
+  "blocked_calendar_ids",
   "mcp.run(\"stdio\")"
 ]) {
   if (!googleCalendarServerText.includes(text)) {
     fail(`runtime/mcp/google_calendar_nurtureany_server.py missing required text: ${text}`);
+  }
+}
+
+const googleDriveText = textOf("runtime/google-drive.md");
+for (const text of [
+  "team@staffany.com",
+  "GOOGLE_DRIVE_TOKEN_FILE",
+  "https://www.googleapis.com/auth/drive.readonly",
+  "list_drive_folder_images",
+  "extract_drive_image_clues",
+  "slack_uploader_name",
+  "users.info",
+  "all-random",
+  "Download image bytes only transiently",
+  "Confidence: blocked"
+]) {
+  if (!googleDriveText.includes(text)) fail(`runtime/google-drive.md missing required text: ${text}`);
+}
+
+const googleDriveServerText = textOf("runtime/mcp/google_drive_nurtureany_server.py");
+for (const text of [
+  "GOOGLE_DRIVE_TOKEN_FILE",
+  "DRIVE_READONLY_SCOPE",
+  "DEFAULT_ACCOUNT_EMAIL = \"team@staffany.com\"",
+  "DEFAULT_DRIVE_FOLDER_ID = \"1qXlFnr5TKFtsYNWk7ZywBBctDaae3RY-\"",
+  "MAX_DRIVE_FILES = 100",
+  "list_drive_folder_images",
+  "extract_drive_image_clues",
+  "slack_uploader_name",
+  "SLACK_BOT_TOKEN",
+  "Metadata only. No image bytes, Drive mutations, exports, or raw image copies.",
+  "Transient download for OCR/vision only",
+  "drive_access_mode",
+  "mimeType contains 'image/'",
+  "mcp.run(\"stdio\")"
+]) {
+  if (!googleDriveServerText.includes(text)) {
+    fail(`runtime/mcp/google_drive_nurtureany_server.py missing required text: ${text}`);
   }
 }
 
@@ -454,8 +802,6 @@ for (const text of [
   "HR Happy Hour",
   "Appreciation Afternoon",
   "Leaders Lounge",
-  "Slack Output",
-  "event.url|event.name",
   "runtime/mcp/luma_nurtureany_server.py",
   "15s hard timeout",
   "Requires scoped HubSpot company inputs",
@@ -465,32 +811,6 @@ for (const text of [
   "Confidence: blocked"
 ]) {
   if (!lumaText.includes(text)) fail(`runtime/luma.md missing required text: ${text}`);
-}
-
-const slackText = textOf("runtime/slack.md");
-for (const text of [
-  "event_tags=[\"Singapore\", \"Sports\"]",
-  "event.url|event.name",
-  "date and event ID"
-]) {
-  if (!slackText.includes(text)) fail(`runtime/slack.md missing required text: ${text}`);
-}
-
-const healthText = textOf("runtime/health-checks.md");
-for (const text of [
-  "Luma event-link smoke check",
-  "event.url|event.name"
-]) {
-  if (!healthText.includes(text)) fail(`runtime/health-checks.md missing required text: ${text}`);
-}
-
-const lumaRegressionText = `${textOf("tests/regression-cases.md")}\n${textOf("skills/nurtureany-sales-bot/references/regression-cases.md")}`;
-for (const text of [
-  "clickable Luma event link",
-  "event.url|event.name",
-  "date and event ID"
-]) {
-  if (!lumaRegressionText.includes(text)) fail(`Luma regression cases missing required text: ${text}`);
 }
 
 const lumaServerText = textOf("runtime/mcp/luma_nurtureany_server.py");
@@ -519,6 +839,57 @@ for (const text of [
   "mcp.run(\"stdio\")"
 ]) {
   if (!lumaServerText.includes(text)) fail(`runtime/mcp/luma_nurtureany_server.py missing required text: ${text}`);
+}
+
+const nearMeText = textOf("runtime/near-me.md");
+for (const text of [
+  "known_area",
+  "outlet_matches",
+  "Google Places",
+  "places:searchNearby",
+  "analytics.fct_deal_org_company",
+  "analytics.fct_company_org_mrr",
+  "kraken_rds.Locations",
+  "dim_org_section",
+  "live_candidate_only_until_review_approval",
+  "raw employee location rows"
+]) {
+  if (!nearMeText.includes(text)) fail(`runtime/near-me.md missing required text: ${text}`);
+}
+
+const nearMeServerText = textOf("runtime/mcp/near_me_nurtureany_server.py");
+for (const text of [
+  "GOOGLE_PLACES_API_KEY",
+  "GOOGLE_PLACES_FIELD_MASK",
+  "places:searchNearby",
+  "DEFAULT_OUTLET_MATCHES_TABLE = \"staffany-warehouse.analytics.nurtureany_near_me_outlet_matches\"",
+  "NURTUREANY_KNOWN_AREAS_FILE",
+  "resolve_known_area_for_near_me",
+  "build_near_me_outlet_matches_query",
+  "refresh_google_places_for_known_area",
+  "build_near_me_c360_customer_query",
+  "merge_near_me_sources",
+  "`staffany-warehouse.kraken_rds.Locations`",
+  "`staffany-warehouse.analytics.fct_deal_org_company`",
+  "LEFT JOIN `staffany-warehouse.analytics.fct_company_org_mrr`",
+  "live_candidate_only_until_review_approval",
+  "mcp.run(\"stdio\")"
+]) {
+  if (!nearMeServerText.includes(text)) fail(`runtime/mcp/near_me_nurtureany_server.py missing required text: ${text}`);
+}
+
+const nearMeSqlText = textOf("runtime/sql/near-me-outlet-matches.sql");
+for (const text of [
+  "CREATE TABLE IF NOT EXISTS `staffany-warehouse.analytics.nurtureany_near_me_outlet_matches`",
+  "outlet_match_id STRING NOT NULL",
+  "google_place_id STRING",
+  "hubspot_company_id STRING",
+  "organisation_id STRING",
+  "match_status STRING NOT NULL",
+  "CLUSTER BY area_id, google_place_id, hubspot_company_id, organisation_id",
+  "Do not run through staffany_bigquery.execute_sql_readonly"
+]) {
+  if (!nearMeSqlText.includes(text)) fail(`runtime/sql/near-me-outlet-matches.sql missing required text: ${text}`);
 }
 
 const lushaText = textOf("runtime/lusha.md");
@@ -585,11 +956,25 @@ if (googleCalendarCompileCheck.status !== 0) {
   fail(`Python compile failed for Google Calendar MCP: ${(googleCalendarCompileCheck.stderr || googleCalendarCompileCheck.stdout).trim()}`);
 }
 
+const googleDriveCompileCheck = spawnSync("python3", ["-m", "py_compile", join(appRoot, "runtime/mcp/google_drive_nurtureany_server.py")], {
+  encoding: "utf8"
+});
+if (googleDriveCompileCheck.status !== 0) {
+  fail(`Python compile failed for Google Drive MCP: ${(googleDriveCompileCheck.stderr || googleDriveCompileCheck.stdout).trim()}`);
+}
+
 const lumaCompileCheck = spawnSync("python3", ["-m", "py_compile", join(appRoot, "runtime/mcp/luma_nurtureany_server.py")], {
   encoding: "utf8"
 });
 if (lumaCompileCheck.status !== 0) {
   fail(`Python compile failed for Luma MCP: ${(lumaCompileCheck.stderr || lumaCompileCheck.stdout).trim()}`);
+}
+
+const nearMeCompileCheck = spawnSync("python3", ["-m", "py_compile", join(appRoot, "runtime/mcp/near_me_nurtureany_server.py")], {
+  encoding: "utf8"
+});
+if (nearMeCompileCheck.status !== 0) {
+  fail(`Python compile failed for Near-Me MCP: ${(nearMeCompileCheck.stderr || nearMeCompileCheck.stdout).trim()}`);
 }
 
 const hubspotUnitCheck = spawnSync("python3", ["-m", "unittest", "apps/nurtureany-sales-bot/runtime/mcp/test_hubspot_nurtureany_server.py"], {
@@ -616,12 +1001,28 @@ if (googleCalendarUnitCheck.status !== 0) {
   fail(`Python unit tests failed for Google Calendar MCP: ${(googleCalendarUnitCheck.stderr || googleCalendarUnitCheck.stdout).trim()}`);
 }
 
+const googleDriveUnitCheck = spawnSync("python3", ["-m", "unittest", "apps/nurtureany-sales-bot/runtime/mcp/test_google_drive_nurtureany_server.py"], {
+  cwd: repoRoot,
+  encoding: "utf8"
+});
+if (googleDriveUnitCheck.status !== 0) {
+  fail(`Python unit tests failed for Google Drive MCP: ${(googleDriveUnitCheck.stderr || googleDriveUnitCheck.stdout).trim()}`);
+}
+
 const lumaUnitCheck = spawnSync("python3", ["-m", "unittest", "apps/nurtureany-sales-bot/runtime/mcp/test_luma_nurtureany_server.py"], {
   cwd: repoRoot,
   encoding: "utf8"
 });
 if (lumaUnitCheck.status !== 0) {
   fail(`Python unit tests failed for Luma MCP: ${(lumaUnitCheck.stderr || lumaUnitCheck.stdout).trim()}`);
+}
+
+const nearMeUnitCheck = spawnSync("python3", ["-m", "unittest", "apps/nurtureany-sales-bot/runtime/mcp/test_near_me_nurtureany_server.py"], {
+  cwd: repoRoot,
+  encoding: "utf8"
+});
+if (nearMeUnitCheck.status !== 0) {
+  fail(`Python unit tests failed for Near-Me MCP: ${(nearMeUnitCheck.stderr || nearMeUnitCheck.stdout).trim()}`);
 }
 
 const unitCheck = spawnSync("python3", ["-m", "unittest", "apps/nurtureany-sales-bot/runtime/mcp/test_lusha_nurtureany_server.py"], {

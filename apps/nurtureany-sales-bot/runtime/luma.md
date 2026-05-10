@@ -28,7 +28,6 @@ The local stdio MCP adapter lives at `runtime/mcp/luma_nurtureany_server.py`.
 - Output: safe event id, name, date/time, timezone, URL, Luma tags, normalized location tags, normalized country tags, normalized event type tags, and tag match source only.
 - Caps events at 50, defaults to 20, and returns `has_more` plus `truncated`.
 - Uses exact Luma event tags first when `event_tags` is supplied. If Luma omits tags from `list-events`, the adapter fetches event detail; if tags are still unavailable, it falls back to event name/timezone metadata with `Confidence: needs-check`.
-- Slack answers that say a Luma event was found or selected must include the clickable event link as `<event.url|event.name>` whenever `event.url` is present, plus date and event ID. Do not report only the event date or ID.
 
 `get_luma_event_context`:
 
@@ -36,15 +35,11 @@ The local stdio MCP adapter lives at `runtime/mcp/luma_nurtureany_server.py`.
 - Requires scoped HubSpot company inputs with `company_id` plus `scope_source=hubspot_nurtureany` or `hubspot_scoped=true`.
 - Refuses arbitrary company-name-only lookup before calling Luma.
 - Caps event context at 20 events and guest reads at 250 guests per event.
-- Filters event search by exact Luma event tags before guest lookup when those filters are supplied.
+- Filters event search by Luma country/type tags before guest lookup when those filters are supplied.
 - Matches guests to scoped accounts by exact HubSpot contact email, exact company email domain, then company-name candidate match from Luma fields or registration answers.
 - Returns attendee names only for matched scoped accounts, plus email domain/hash, RSVP status, checked-in timestamp, match reason, matched account IDs, RSVP counts, checked-in count, `has_more`, and `truncated`.
 
 Attendance means `checked_in_at` is present. Approved, invited, pending, waitlist, declined, and other RSVP states are not attendance.
-
-## Slack Output
-
-When reporting a found/selected Luma event, use the event URL returned by Luma. In Slack, render it as `<event.url|event.name>` and include the date plus `event_id` beside it. If the Luma API response has no `event.url`, explicitly say the Luma URL was not returned and keep `Confidence: needs-check`.
 
 ## Event Tags
 
@@ -66,10 +61,12 @@ Use Luma only when an account's nurture reason is event-related:
 - RSVP pending or approved.
 - Attended event follow-up.
 - No-show follow-up.
+- Drive/Slack photo event-context tagging by date match.
 - Luma-only attendee matching back to HubSpot.
 - Post-event follow-up queue for HubSpot-scoped target accounts.
 - Event-account matching before HubSpot follow-up-status checks.
 - Manager rollups by event, AE scope, or country after HubSpot scope is known.
+- `check_event_followup_status` is the preferred NurtureAny workflow for event follow-up because it resolves Luma checked-in attendance and verifies event-specific Eazybe WhatsApp logs in HubSpot without using Sheets as tracking state.
 
 ## Safety
 
@@ -78,6 +75,7 @@ Use Luma only when an account's nurture reason is event-related:
 - Do not create, update, invite, RSVP, check in, or mutate Luma records from NurtureAny V1.
 - Do not write Google Sheets from NurtureAny V1.
 - Do not mutate HubSpot from Luma output in V1.
+- Luma photo date matching may auto-tag event context only. It must not auto-link a person appearance to a HubSpot contact without uploader/human confirmation.
 - Do not treat Luma attendance as HubSpot target-account membership.
 - Do not treat Luma attendance as follow-up evidence; use HubSpot WhatsApp communications, notes, and tasks for follow-up status.
 - Use HubSpot account scope first, then add Luma event context.

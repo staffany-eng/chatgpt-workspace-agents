@@ -9,7 +9,7 @@ Canonical Hermes app packet for StaffAny's sales nurture bot.
 - Surface: Slack mentions in sales pilot channels
 - Model: Anthropic Claude Sonnet provider configured in the live profile
 - Primary data source: HubSpot CRM
-- Enrichment sources: existing sales-owned HubSpot follow-up tasks, free public evidence tasks/review, StaffAny C360 through read-only BigQuery, read-only Google Calendar context from `team@staffany.com` when configured, Luma event context when configured, Exa People Search public candidate discovery when configured, and approval-gated Lusha decision-maker lookup when configured
+- Enrichment sources: HubSpot follow-up activity from WhatsApp communications, notes, tasks, and completed meeting logs, Drive/Slack event-photo source pointers with transient vision/OCR, free public evidence tasks/review, StaffAny C360 through read-only BigQuery with Customer 360 links for current clients, known-area near-me matching with BigQuery outlet matches plus Google Places live candidates when configured, read-only Google Calendar context and meeting-quality audit from `team@staffany.com` when configured, Luma event context when configured, Exa People Search public candidate discovery when configured, and approval-gated Lusha decision-maker lookup when configured
 - V1 regions: Singapore, Malaysia, Indonesia
 - V1 safety mode: review-first, no external message auto-send
 - Source packet: this directory
@@ -28,6 +28,22 @@ The two profiles may share model authentication credentials during the pilot. Th
 
 For production, prefer a dedicated service credential for NurtureAny model auth instead of copied pilot auth from Da Ta Hermz.
 
+## Durable Data Sources
+
+When NurtureAny is asked what sources it is using, it must answer with this field map:
+
+- Target accounts: HubSpot company `hs_is_target_account`.
+- Owner scope: HubSpot owners API plus HubSpot company `hubspot_owner_id`.
+- Region scope: HubSpot company `company_country`.
+- Renewal timing and T-90 windows: HubSpot company `contract_end_date`.
+- Current tools: HubSpot company `current_tools`.
+- Verified decision-maker coverage: HubSpot company `hs_num_decision_makers` or contact `hs_buying_role=DECISION_MAKER`; buying-role contact count is hygiene context only.
+- Follow-up signal: HubSpot WhatsApp `communications`, notes, completed tasks, and existing incomplete HubSpot tasks associated to scoped companies, contacts, or deals. Event follow-up uses Luma attendance only to find matched scoped accounts, then verifies event-specific Eazybe WhatsApp logs in HubSpot.
+
+`current_tool_renewal_date`, C360, Google Places, Google Calendar, Luma, Exa, Lusha, Slack, and public evidence are context/enrichment only unless a specific workflow says otherwise. For near-me answers, C360 is the current-customer coverage layer, BigQuery `nurtureany_near_me_outlet_matches` is the curated outlet/account memory layer, and Google Places is live discovery only.
+
+T-90 renewal answers must show both buckets: known T-90 accounts where `contract_end_date` is inside the window, and scoped target accounts missing `contract_end_date` for classification.
+
 ## Packet Contents
 
 | Path | Purpose |
@@ -38,9 +54,12 @@ For production, prefer a dedicated service credential for NurtureAny model auth 
 | `runtime/slack.md` | Slack gateway behavior, commands, and run gate. |
 | `runtime/hubspot.md` | HubSpot API contract, fields, and write approval rules. |
 | `runtime/bigquery.md` | C360 read-only enrichment contract. |
-| `runtime/google-calendar.md` | Read-only `team@staffany.com` Google Calendar event-context contract. |
+| `runtime/google-calendar.md` | Read-only `team@staffany.com` Google Calendar event-context and meeting-quality audit contract. |
 | `runtime/luma.md` | Luma read-only event, RSVP, and attendance-context contract. |
 | `runtime/mcp/luma_nurtureany_server.py` | Luma read-only MCP adapter for scoped event-context lookup. |
+| `runtime/near-me.md` | Known-area near-me flow with BigQuery outlet matches, C360 customers, and Google Places live refresh. |
+| `runtime/mcp/near_me_nurtureany_server.py` | Read-only known-area near-me MCP adapter and merge logic. |
+| `runtime/sql/near-me-outlet-matches.sql` | BigQuery provisioning SQL for the near-me outlet match memory table. |
 | `runtime/exa.md` | Exa People Search public candidate-discovery and cost-reporting contract. |
 | `runtime/lusha.md` | Cost-controlled Lusha lookup, selected-PII, and credit-reporting contract. |
 | `runtime/health-checks.md` | Operational checks and expected silence. |
@@ -51,9 +70,9 @@ For production, prefer a dedicated service credential for NurtureAny model auth 
 NurtureAny helps AEs and sales managers work the HubSpot target-account list:
 
 - AEs ask for their own target accounts and nurture queue.
-- Managers ask for team queues, missing direct contacts, renewal risk, post-demo nurture, overdue nurture work, and existing sales follow-up tasks.
-- The bot ranks accounts, identifies enrichment gaps, adds C360 and calendar/event context when relevant, generates free public search tasks, reviews public evidence, searches Exa for public people candidates when approved, searches Lusha for selected decision-maker candidates when approved, drafts nurture messages, and previews HubSpot write-backs.
-- Existing HubSpot sales follow-up tasks are read-only prioritization signals. New HubSpot tasks, notes, and field updates happen only after explicit approval.
+- Managers ask for team queues, missing direct contacts, renewal risk, post-demo nurture, overdue nurture work, existing sales follow-up tasks, and event follow-up status.
+- The bot ranks accounts, identifies enrichment gaps, answers known-area near-me customer/prospect walk-in prompts, adds C360 and calendar/event context when relevant, scans Drive/Slack event photos into a source-pointer people layer, generates free public search tasks, reviews public evidence, searches Exa for public people candidates when approved, searches Lusha for selected decision-maker candidates when approved, drafts nurture messages, and previews HubSpot write-backs.
+- Existing HubSpot WhatsApp communications, notes, and sales follow-up tasks are read-only follow-up signals. For event questions, NurtureAny recomputes status from Luma checked-in attendance plus event-specific Eazybe WhatsApp communications in HubSpot; generic post-event WhatsApp is `needs_check`. New HubSpot tasks, notes, and field updates happen only after explicit approval.
 
 V1 does not send WhatsApp, email, LinkedIn, or sequence messages.
 
@@ -80,7 +99,7 @@ The full rep roster is runtime-only through `NURTUREANY_ACCESS_POLICY_PATH`; `ru
 5. Copy `runtime/access-policy.template.json` outside the repo, classify real HubSpot owners there, and set `NURTUREANY_ACCESS_POLICY_PATH`.
 6. Copy `skills/nurtureany-sales-bot/` into the profile skills directory.
 7. Set profile `.env` from Secret Manager values only; do not commit or inline model-provider or Lusha credentials.
-8. Configure Slack gateway, HubSpot MCP/API adapter, StaffAny BigQuery MCP, optional Google Calendar adapter with read-only `team@staffany.com` OAuth files, optional Luma adapter, optional Exa MCP with `EXA_API_KEY`, and optional Lusha MCP with `LUSHA_API_KEY`.
+8. Configure Slack gateway, HubSpot MCP/API adapter, StaffAny BigQuery MCP, optional near-me adapter with `GOOGLE_PLACES_API_KEY`, `NURTUREANY_KNOWN_AREAS_FILE`, `NURTUREANY_OUTLET_MATCHES_TABLE`, and optional Customer 360 URL template overrides, optional Google Calendar adapter with read-only `team@staffany.com` OAuth files, optional Luma adapter, optional Exa MCP with `EXA_API_KEY`, and optional Lusha MCP with `LUSHA_API_KEY`.
 9. Run health checks and regression cases before adding sales channels.
 
 ## Canonical Source Rule
