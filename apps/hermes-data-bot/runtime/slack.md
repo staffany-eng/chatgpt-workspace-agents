@@ -14,13 +14,13 @@ Hermes Data Bot's first runtime surface is Slack POC usage in `#kaiyi-bot-testin
 - Do not add `:question:` action-needed markers or send reminder loops asking the user to mark a data answer done.
 - Plain acknowledgements after a final answer, such as `ok`, `done`, `yes`, or `thanks`, close the thread silently unless they include a new request.
 - The mark-as-done pattern belongs only to explicit task workflows with an assignee and completion state. It is not part of StaffAny data Q&A.
-- Do not expose tool progress in Slack. Keep global `display.tool_progress` unset for this profile so Hermes' native Slack default resolves to `off`; otherwise internal tool calls such as `skill_view` become visible Slack messages.
+- Do not expose streaming drafts, tool progress, or interim assistant messages in Slack. Set `display.interim_assistant_messages=false`, `display.platforms.slack.tool_progress="off"`, and `display.platforms.slack.streaming=false`; otherwise partial answers, internal tool calls, or draft text can leak into Slack threads.
+- Disable Slack status reactions for this POC with `slack.reactions=false`; the answer message itself is the status signal.
 
 ## Slack Scopes
 
 Runtime evidence shows the bot needs effective Slack scopes beyond prompt changes:
 
-- `reactions:write` for status reactions.
 - `files:read` for Slack file attachment hydration.
 
 Do not add or request `groups:read` for this POC. Hermes may log a missing-scope warning when it tries to build a private-channel directory, but private-channel enumeration is intentionally out of scope. Treat that warning as non-blocking when app mentions and configured-channel behavior work.
@@ -38,3 +38,5 @@ Scope: <time range, filters, grain>
 Confidence: <verified | needs-check | blocked>
 Caveat: <only the material caveat>
 ```
+
+For live Slack replies, emit the labelled lines as normal Slack text. Do not wrap the whole answer or preflight in a code fence.

@@ -58,6 +58,18 @@ if resolve_display_setting(config, "slack", "tool_progress") != "off":
     print("slack-display:tool-progress-not-off")
     raise SystemExit(1)
 
+if resolve_display_setting(config, "slack", "streaming") is not False:
+    print("slack-display:streaming-not-disabled")
+    raise SystemExit(1)
+
+if (config.get("display") or {}).get("interim_assistant_messages") is not False:
+    print("slack-display:interim-assistant-messages-not-disabled")
+    raise SystemExit(1)
+
+if ((config.get("slack") or {}).get("reactions")) is not False:
+    print("slack:reactions-not-disabled")
+    raise SystemExit(1)
+
 if ((config.get("kanban") or {}).get("dispatch_in_gateway")) is not False:
     print("kanban:dispatch-in-gateway-not-disabled")
     raise SystemExit(1)

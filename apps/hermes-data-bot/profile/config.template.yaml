@@ -10,9 +10,13 @@ security:
 
 display:
   busy_input_mode: "queue"
-  # Keep global tool_progress unset for this Slack profile.
-  # Hermes' native Slack default resolves tool progress to "off"; setting a
-  # global "all" leaks tool calls such as skill_view into Slack threads.
+  interim_assistant_messages: false
+  # Keep Slack output quiet and deterministic. Setting global tool_progress can
+  # leak tool calls such as skill_view into Slack threads.
+  platforms:
+    slack:
+      tool_progress: "off"
+      streaming: false
 
 model:
   default: "gpt-5.3-codex"
@@ -23,6 +27,10 @@ agent:
 
 kanban:
   dispatch_in_gateway: false
+
+slack:
+  require_mention: true
+  reactions: false
 
 mcp_servers:
   staffany_bigquery:
