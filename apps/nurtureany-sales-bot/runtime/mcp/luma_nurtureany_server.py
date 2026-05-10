@@ -670,6 +670,19 @@ def _guest_match_keys(guests: list[dict[str, Any]]) -> dict[str, list[str]]:
     }
 
 
+def _event_is_past(event: dict[str, Any]) -> bool:
+    raw_value = str(event.get("end_at") or event.get("start_at") or "").strip()
+    if not raw_value:
+        return False
+    try:
+        event_dt = datetime.fromisoformat(raw_value.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    if event_dt.tzinfo is None:
+        event_dt = event_dt.replace(tzinfo=timezone.utc)
+    return event_dt.astimezone(timezone.utc) < datetime.now(timezone.utc)
+
+
 def _name_match(company_name: str, guest_text: str) -> bool:
     normalized_company = re.sub(r"[^a-z0-9]+", " ", company_name.lower()).strip()
     normalized_guest = re.sub(r"[^a-z0-9]+", " ", guest_text.lower()).strip()
@@ -904,17 +917,28 @@ def get_luma_event_match_keys(
                 continue
             guests, guests_has_more, guests_truncated = _list_guests(event_id, scope["max_guests_per_event"])
             counts = _guest_counts(guests)
-            keys = _guest_match_keys(guests)
+            checked_in_guests = [guest for guest in guests if _checked_in_at(guest)]
+            past_event = _event_is_past(event)
+            key_source_guests = checked_in_guests if past_event else guests
+            keys = _guest_match_keys(key_source_guests)
+            key_mode = "checked_in_attendance" if past_event else "rsvp_or_registration"
+            next_step = (
+                "No checked-in attendees found for this past event. Do not match RSVP/no-show guests as attended; use a configured manual attendance fallback if available."
+                if past_event and not checked_in_guests
+                else "Search HubSpot target accounts with these safe match keys, then fetch scoped event context."
+            )
             any_truncated = any_truncated or guests_truncated
             answer.append(
                 {
                     "event": event,
                     "match_keys": keys,
+                    "match_key_mode": key_mode,
                     "total_guest_count": counts["total_guest_count"],
                     "rsvp_counts": counts["rsvp_counts"],
                     "checked_in_count": counts["checked_in_count"],
                     "email_domain_key_count": len(keys["email_domains"]),
                     "company_name_candidate_count": len(keys["company_name_candidates"]),
+                    "next_step": next_step,
                     "has_more": guests_has_more,
                     "truncated": guests_truncated,
                 }

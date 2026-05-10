@@ -151,6 +151,7 @@ if (!existsSync(manifestPath)) {
       "list_sales_followup_tasks",
       "check_account_followup_status",
       "check_event_followup_status",
+      "find_target_accounts_by_luma_match_keys",
       "score_nurture_accounts",
       "find_contact_gaps",
       "find_t90_renewal_gaps",
@@ -172,6 +173,7 @@ if (!existsSync(manifestPath)) {
       "build_near_me_outlet_matches_query",
       "refresh_google_places_for_known_area",
       "build_near_me_c360_customer_query",
+      "prepare_near_me_seed_review_candidates",
       "merge_near_me_sources",
       "search_exa_people_candidates",
       "search_lusha_decision_maker_candidates",
@@ -203,7 +205,8 @@ if (!existsSync(manifestPath)) {
       fail("Manifest must not expose callable-looking mutation_requires_explicit_approval tools in V1");
     }
     for (const tool of ["create_hubspot_task", "append_hubspot_note", "update_nurture_fields"]) {
-      if (!manifest.tools?.write_phase_planned_disabled?.tools?.includes(tool)) {
+      const disabled = manifest.tools?.write_phase_planned_disabled;
+      if (disabled?.state !== "disabled_in_v1" || !disabled?.tools?.includes(tool)) {
         fail(`Manifest missing disabled planned write tool: ${tool}`);
       }
     }
@@ -1169,7 +1172,7 @@ for (const text of [
   "EXPECT_HUBSPOT_TOOLS=\"${EXPECT_HUBSPOT_TOOLS:-29}\"",
   "EXPECT_GOOGLE_DRIVE_TOOLS=\"${EXPECT_GOOGLE_DRIVE_TOOLS:-3}\"",
   "EXPECT_LUMA_TOOLS=\"${EXPECT_LUMA_TOOLS:-3}\"",
-  "EXPECT_NEAR_ME_TOOLS=\"${EXPECT_NEAR_ME_TOOLS:-5}\"",
+  "EXPECT_NEAR_ME_TOOLS=\"${EXPECT_NEAR_ME_TOOLS:-6}\"",
   "slack-display:interim-assistant-messages-not-disabled",
   "kanban:dispatch-in-gateway-not-disabled",
   "terminal:cwd-points-at-codex-worktree",
@@ -1185,7 +1188,7 @@ for (const text of [
   "PROFILE=\"${HERMES_PROFILE:-nurtureanysalesbot}\"",
   "export HERMES_HOME=\"$HOME/.hermes/profiles/$PROFILE\"",
   "NURTUREANY_APP_ROOT",
-  "$PROFILE_DIR/source/nurtureany-sales-bot",
+  "APP_ROOT=\"$PROFILE_DIR/source/nurtureany-sales-bot\"",
   "profile-drift:soul",
   "profile-drift:nurtureany-sales-bot-skill",
   "profile-boundary:staffany-data-bot-skill-installed",

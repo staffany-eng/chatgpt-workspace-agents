@@ -33,6 +33,8 @@ NurtureAny needs deterministic runtime checks because prompt correctness does no
 - A tiny read-only C360 smoke query succeeds when C360 is enabled.
 - A tiny revenue-metric schema smoke check can inspect `fct_sales_points`, `fct_deal_metrics_with_pilot_conversion`, `fct_mrr_movements`, and `fct_company_revenue_snapshot` without mutation or export.
 - Revenue-metric prompt smoke checks use `build_sales_metric_actuals_query` and `fct_sales_points.qo_set` for direct qualified-opportunity pace, keep `new ARR` ambiguous until confirmed, and do not claim Rev planning targets are actuals.
+- Direct QO prompt smoke checks, such as `what is Jeremy's QO in April`, plan owner/team scope resolution plus `build_sales_metric_actuals_query`; they do not plan `build_friday_sales_review` unless the prompt asks for Friday review or tactical pause context.
+- Friday review smoke checks may include a second StaffAny BigQuery QO aggregate after `build_friday_sales_review`, but the answer must label HubSpot hygiene separately from C360 BigQuery actuals.
 - Near-me MCP lists only `resolve_known_area_for_near_me`, `build_near_me_outlet_matches_query`, `refresh_google_places_for_known_area`, `build_near_me_c360_customer_query`, and `merge_near_me_sources` when known-area near-me is enabled.
 - Near-me smoke check resolves `Raffles Place` to `sg_raffles_place`, builds C360 SQL using `kraken_rds.Locations`, `analytics.dim_sections`, `analytics.dim_org_section`, and `analytics.fct_deal_org_company`, and does not include person GPS, clock records, or raw employee location sources.
 - Near-me merge smoke check returns `c360_url` for every current-customer item with a resolvable Customer 360 route key; missing route keys keep the row visible with `Confidence: needs-check` and a missing-link caveat.
@@ -84,6 +86,8 @@ Install profile-local scripts under `~/.hermes/profiles/nurtureanysalesbot/scrip
 
 ```bash
 mkdir -p ~/.hermes/profiles/nurtureanysalesbot/scripts
+mkdir -p ~/.hermes/profiles/nurtureanysalesbot/source
+rsync -a --delete apps/nurtureany-sales-bot/ ~/.hermes/profiles/nurtureanysalesbot/source/nurtureany-sales-bot/
 cp apps/nurtureany-sales-bot/runtime/check-health.sh ~/.hermes/profiles/nurtureanysalesbot/scripts/nurtureanysalesbot-check-health.sh
 cp apps/nurtureany-sales-bot/runtime/audit-live-profile.sh ~/.hermes/profiles/nurtureanysalesbot/scripts/nurtureanysalesbot-audit-live-profile.sh
 hermes -p nurtureanysalesbot cron create "0 1 * * 1-5" \
