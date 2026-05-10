@@ -218,6 +218,39 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         self.assertEqual(summary["customer360_url"], summary["c360_url"])
         self.assertEqual(summary["customer360_route_key"], "fei-siong-group")
 
+    def test_customer_company_summary_uses_numeric_c360_fallback(self):
+        company = {
+            "id": "123456789",
+            "properties": {
+                "name": "Playmade",
+                "company_country": "Singapore",
+                "hubspot_owner_id": "owner-kerren",
+                "hs_is_target_account": "true",
+                "lifecyclestage": "customer",
+            },
+        }
+
+        with patch.dict(
+            os.environ,
+            {
+                "NURTUREANY_C360_COMPANY_URL_TEMPLATE": "",
+                "NURTUREANY_C360_ORG_URL_TEMPLATE": "",
+                "NURTUREANY_C360_ROUTE_KEY_BY_COMPANY_ID": "",
+            },
+        ), patch.object(
+            self.module,
+            "_list_owners",
+            return_value=[{"id": "owner-kerren", "email": "kerren@staffany.com"}],
+        ):
+            summary = self.module._summarize_company(company)
+
+        self.assertEqual(summary["account_status"], "customer")
+        self.assertEqual(
+            summary["c360_url"],
+            "https://customer-360-qv4r5xkisq-as.a.run.app/companies/123456789",
+        )
+        self.assertEqual(summary["customer360_route_key"], "123456789")
+
     def test_legacy_c360_template_placeholder_uses_route_key(self):
         with patch.dict(
             os.environ,

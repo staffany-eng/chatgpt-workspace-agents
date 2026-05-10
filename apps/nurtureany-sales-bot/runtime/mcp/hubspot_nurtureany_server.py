@@ -1369,10 +1369,10 @@ def _customer360_route_key(
     if mapped_route_key:
         return mapped_route_key
 
-    if not company_id.isdigit():
-        return company_id
-
-    return ""
+    # Numeric HubSpot company IDs are valid C360 company routes for most
+    # accounts. Explicit mappings above handle slug-only exceptions such as
+    # Fei Siong.
+    return company_id
 
 
 def _encode_url_value(value: Any) -> str:
