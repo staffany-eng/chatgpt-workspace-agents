@@ -61,7 +61,7 @@ Rank confirmed current customers first, C360 current customers without stored ou
 
 First Slack requests must be plan-first when they require HubSpot, C360, Google Calendar, Luma, Slack lookup, or other app-backed work. Do not call tools on the first mention. Ask for `run` before executing the confirmed plan.
 
-After `run`, execute only the confirmed plan. Same-thread follow-up corrections or reruns after a delivered result can execute when scope is clear. Material scope changes require a revised plan and approval.
+After `run`, execute only the confirmed plan. Same-thread follow-up corrections or reruns after a delivered result can execute when scope is clear. If the latest `run` follows a gateway interruption, shutdown warning, or has no tool result after that `run` in the current session, run the confirmed tool plan again; do not say "already ran" or reuse a stale account packet. Material scope changes require a revised plan and approval.
 
 Use this preflight format as plain Slack text. Do not wrap it in backticks, fenced code blocks, or debug/tool-progress text:
 

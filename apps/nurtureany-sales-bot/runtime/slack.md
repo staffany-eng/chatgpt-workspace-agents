@@ -8,6 +8,7 @@ NurtureAny's first runtime surface is Slack mention usage in sales pilot channel
 - First tool-backed requests are plan-first.
 - The bot asks for `run` before the first confirmed execution.
 - Clear same-thread corrections, fixes, and reruns after a delivered result are continuation work when scope is bounded.
+- A `run` after a gateway interruption, shutdown warning, or missing post-`run` tool result must execute the confirmed plan again; do not answer from a stale "already ran" assumption.
 - Materially expanded scope, source-class changes, write intent, or expensive/ambiguous follow-ups require a revised plan and `run`.
 - T-90 renewal answers must display both the known T-90 `contract_end_date` bucket and the missing `contract_end_date` classification bucket. Do not bury missing-date accounts in the caveat.
 - Repeated account-name follow-up requests should reuse bounded sources or run bounded target-account `query` lookup. Do not switch to broad queue scoring as a direct lookup.
