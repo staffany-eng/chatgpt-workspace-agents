@@ -406,6 +406,72 @@ def _company_search(filters: list[dict[str, Any]], limit: int = 20, after: str |
     }
 
 
+def _task_search(filters: list[dict[str, Any]], limit: int = 50, after: str | None = None) -> dict[str, Any]:
+    requested_limit = _bounded_int(limit, default=50, maximum=TASK_RETURN_LIMIT)
+    results: list[dict[str, Any]] = []
+    total: int | None = None
+    next_after = after
+
+    while len(results) < requested_limit:
+        page_limit = min(HUBSPOT_SEARCH_PAGE_LIMIT, requested_limit - len(results))
+        body: dict[str, Any] = {
+            "filterGroups": [{"filters": filters}],
+            "properties": TASK_PROPERTIES,
+            "limit": page_limit,
+            "sorts": [{"propertyName": "hs_timestamp", "direction": "ASCENDING"}],
+        }
+        if next_after:
+            body["after"] = next_after
+
+        page = _post("/crm/v3/objects/tasks/search", body)
+        if total is None and page.get("total") is not None:
+            total = _int_value(page.get("total"))
+
+        page_results = page.get("results", [])
+        results.extend(page_results)
+        next_after = page.get("paging", {}).get("next", {}).get("after")
+        if not page_results or not next_after:
+            break
+
+    returned_count = len(results)
+    has_more = bool(next_after) or (total is not None and returned_count < total)
+    return {
+        "results": results,
+        "total": total,
+        "requested_limit": requested_limit,
+        "returned_count": returned_count,
+        "has_more": has_more,
+        "truncated": has_more,
+    }
+
+
+def _task_datetime_filter_value(value: str, end_of_day: bool = False) -> str:
+    parsed = _date_value(value)
+    if not parsed:
+        return value
+    if "T" in value:
+        return value
+    suffix = "T23:59:59Z" if end_of_day else "T00:00:00Z"
+    return f"{parsed.isoformat()}{suffix}"
+
+
+def _task_search_filters(owner_id: str | None = None, due_start: str = "", due_end: str = "") -> list[dict[str, Any]]:
+    filters: list[dict[str, Any]] = [
+        {"propertyName": "hs_task_status", "operator": "NEQ", "value": "COMPLETED"},
+    ]
+    if owner_id:
+        filters.append({"propertyName": "hubspot_owner_id", "operator": "EQ", "value": owner_id})
+    if due_start:
+        filters.append(
+            {"propertyName": "hs_timestamp", "operator": "GTE", "value": _task_datetime_filter_value(due_start)}
+        )
+    if due_end:
+        filters.append(
+            {"propertyName": "hs_timestamp", "operator": "LTE", "value": _task_datetime_filter_value(due_end, True)}
+        )
+    return filters
+
+
 def _target_filters(countries: list[str], owner_id: str | None = None) -> list[dict[str, Any]]:
     filters: list[dict[str, Any]] = [
         {"propertyName": "hs_is_target_account", "operator": "EQ", "value": "true"},
@@ -534,6 +600,26 @@ def _batch_read(object_type: str, ids: list[str], properties: list[str]) -> list
     return data.get("results", [])
 
 
+def _batch_association_ids(from_type: str, to_type: str, ids: list[str]) -> dict[str, list[str]]:
+    if not ids:
+        return {}
+    data = _post(
+        f"/crm/v4/associations/{from_type}/{to_type}/batch/read",
+        {"inputs": [{"id": object_id} for object_id in ids[:100]]},
+    )
+    associations: dict[str, list[str]] = {str(object_id): [] for object_id in ids[:100]}
+    for result in data.get("results", []):
+        from_id = str(result.get("from", {}).get("id") or "")
+        if not from_id:
+            continue
+        associations.setdefault(from_id, [])
+        for target in result.get("to", []):
+            to_id = str(target.get("toObjectId") or "")
+            if to_id and to_id not in associations[from_id]:
+                associations[from_id].append(to_id)
+    return associations
+
+
 def _add_task_sources(
     task_sources: dict[str, list[dict[str, str]]],
     task_ids: list[str],
@@ -566,6 +652,90 @@ def _collect_task_associations(company_id: str, contact_ids: list[str], deal_ids
         truncated = truncated or deal_tasks["truncated"]
 
     return {"task_ids": list(task_sources.keys()), "task_sources": task_sources, "truncated": truncated}
+
+
+def _add_company_task_source(
+    company_sources: dict[str, list[dict[str, str]]],
+    company_id: str,
+    source_type: str,
+    source_id: str,
+) -> None:
+    sources = company_sources.setdefault(str(company_id), [])
+    source = {"object_type": source_type, "object_id": str(source_id)}
+    if source not in sources:
+        sources.append(source)
+
+
+def _task_company_links(task_id: str) -> dict[str, Any]:
+    company_sources: dict[str, list[dict[str, str]]] = {}
+    truncated = False
+
+    direct_companies = _association_ids_with_metadata("tasks", task_id, "companies", 20)
+    for company_id in direct_companies["ids"]:
+        _add_company_task_source(company_sources, company_id, "company", company_id)
+    truncated = truncated or direct_companies["truncated"]
+
+    contacts = _association_ids_with_metadata("tasks", task_id, "contacts", 20)
+    truncated = truncated or contacts["truncated"]
+    for contact_id in contacts["ids"]:
+        contact_companies = _association_ids_with_metadata("contacts", contact_id, "companies", 10)
+        truncated = truncated or contact_companies["truncated"]
+        for company_id in contact_companies["ids"]:
+            _add_company_task_source(company_sources, company_id, "contact", contact_id)
+
+    deals = _association_ids_with_metadata("tasks", task_id, "deals", 20)
+    truncated = truncated or deals["truncated"]
+    for deal_id in deals["ids"]:
+        deal_companies = _association_ids_with_metadata("deals", deal_id, "companies", 10)
+        truncated = truncated or deal_companies["truncated"]
+        for company_id in deal_companies["ids"]:
+            _add_company_task_source(company_sources, company_id, "deal", deal_id)
+
+    return {"company_ids": list(company_sources.keys()), "company_sources": company_sources, "truncated": truncated}
+
+
+def _task_company_links_for_tasks(task_ids: list[str]) -> dict[str, dict[str, Any]]:
+    normalized_task_ids = [str(task_id) for task_id in task_ids if str(task_id)]
+    links_by_task = {
+        task_id: {"company_ids": [], "company_sources": {}, "truncated": False}
+        for task_id in normalized_task_ids
+    }
+
+    direct_companies = _batch_association_ids("tasks", "companies", normalized_task_ids)
+    task_contacts = _batch_association_ids("tasks", "contacts", normalized_task_ids)
+    task_deals = _batch_association_ids("tasks", "deals", normalized_task_ids)
+
+    contact_to_tasks: dict[str, list[str]] = {}
+    deal_to_tasks: dict[str, list[str]] = {}
+
+    for task_id, company_ids in direct_companies.items():
+        for company_id in company_ids:
+            _add_company_task_source(links_by_task[task_id]["company_sources"], company_id, "company", company_id)
+
+    for task_id, contact_ids in task_contacts.items():
+        for contact_id in contact_ids:
+            contact_to_tasks.setdefault(contact_id, []).append(task_id)
+
+    for task_id, deal_ids in task_deals.items():
+        for deal_id in deal_ids:
+            deal_to_tasks.setdefault(deal_id, []).append(task_id)
+
+    contact_companies = _batch_association_ids("contacts", "companies", list(contact_to_tasks.keys()))
+    for contact_id, company_ids in contact_companies.items():
+        for task_id in contact_to_tasks.get(contact_id, []):
+            for company_id in company_ids:
+                _add_company_task_source(links_by_task[task_id]["company_sources"], company_id, "contact", contact_id)
+
+    deal_companies = _batch_association_ids("deals", "companies", list(deal_to_tasks.keys()))
+    for deal_id, company_ids in deal_companies.items():
+        for task_id in deal_to_tasks.get(deal_id, []):
+            for company_id in company_ids:
+                _add_company_task_source(links_by_task[task_id]["company_sources"], company_id, "deal", deal_id)
+
+    for link in links_by_task.values():
+        link["company_ids"] = list(link["company_sources"].keys())
+
+    return links_by_task
 
 
 def _is_incomplete_task(task: dict[str, Any]) -> bool:
@@ -657,6 +827,95 @@ def _task_due_in_window(task: dict[str, Any], due_start: str = "", due_end: str 
     if end and due and due > end:
         return False
     return True
+
+
+def _list_sales_followup_tasks_from_task_search(
+    scope: dict[str, Any],
+    selected: list[str],
+    requested_limit: int,
+    target_owner_id: str | None,
+    target_owner_email: str,
+    due_start: str = "",
+    due_end: str = "",
+) -> dict[str, Any]:
+    search_limit = min(TASK_RETURN_LIMIT, max(requested_limit * 5, 20))
+    task_data = _task_search(_task_search_filters(target_owner_id, due_start, due_end), search_limit)
+    task_ids = [str(task.get("id") or "") for task in task_data.get("results", []) if task.get("id")]
+    task_links = _task_company_links_for_tasks(task_ids)
+    candidate_company_ids: list[str] = []
+    association_truncated = False
+
+    for links in task_links.values():
+        association_truncated = association_truncated or bool(links.get("truncated"))
+        for company_id in links.get("company_ids", []):
+            if company_id not in candidate_company_ids:
+                candidate_company_ids.append(company_id)
+
+    companies = {
+        str(company.get("id")): company
+        for company in _batch_read("companies", candidate_company_ids, COMPANY_PROPERTIES)
+        if company.get("id")
+    }
+    rows: list[dict[str, Any]] = []
+    seen_task_ids: set[str] = set()
+
+    for task in task_data.get("results", []):
+        task_id = str(task.get("id") or "")
+        if not task_id or task_id in seen_task_ids or not _is_incomplete_task(task):
+            continue
+        task_owner_id = str(task.get("properties", {}).get("hubspot_owner_id") or "")
+        links = task_links.get(task_id, {})
+        for company_id in links.get("company_ids", []):
+            company = companies.get(str(company_id))
+            if not company or not _has_company_access(company, scope):
+                continue
+            props = company.get("properties", {})
+            company_owner_id = str(props.get("hubspot_owner_id") or "")
+            if props.get("company_country") not in selected:
+                continue
+            if target_owner_id and company_owner_id != str(target_owner_id):
+                continue
+            if task_owner_id and company_owner_id != task_owner_id:
+                continue
+
+            summary = _summarize_company(company)
+            task_summary = _safe_task_summary(
+                task,
+                {task_id: links.get("company_sources", {}).get(str(company_id), [])},
+            )
+            rows.append(
+                {
+                    "company_id": summary.get("company_id"),
+                    "company_name": summary.get("name"),
+                    "country": summary.get("country"),
+                    **task_summary,
+                }
+            )
+            seen_task_ids.add(task_id)
+            break
+
+    sorted_tasks = _sort_tasks_by_due_at(rows)
+    returned_tasks = sorted_tasks[:requested_limit]
+    metadata = _search_metadata(task_data)
+    task_truncated = bool(metadata.get("truncated") or association_truncated or len(sorted_tasks) > requested_limit)
+    scope_response = _scope_response(scope, selected, target_owner_id, target_owner_email)
+    if due_start:
+        scope_response["due_start"] = due_start
+    if due_end:
+        scope_response["due_end"] = due_end
+    return {
+        "answer": returned_tasks,
+        "source": "HubSpot task search plus scoped sales-owned task associations",
+        "scope": scope_response,
+        **metadata,
+        "task_count": len(sorted_tasks),
+        "returned_task_count": len(returned_tasks),
+        "task_truncated": task_truncated,
+        "confidence": "needs-check" if task_truncated else "verified",
+        "caveat": (
+            "Existing incomplete sales-owned HubSpot tasks only. Safe task summaries omit task body and do not create or mutate tasks."
+        ),
+    }
 
 
 def _get_company(company_id: str) -> dict[str, Any]:
@@ -1376,14 +1635,15 @@ def list_sales_followup_tasks(
             if not selected:
                 return _blocked("Requested countries are outside caller scope.", _scope_response(scope, []))
             target_owner_id, target_owner_email = _target_owner_id_for_scope(scope, owner_email)
-            data = _company_search(_target_filters(selected, target_owner_id), requested_limit)
-            metadata = _search_metadata(data)
-            for company in data.get("results", []):
-                company_id = str(company.get("id") or "")
-                if company_id:
-                    context = _company_context(company_id, scope, task_limit=TASK_RETURN_LIMIT)
-                    if context:
-                        contexts.append(context)
+            return _list_sales_followup_tasks_from_task_search(
+                scope,
+                selected,
+                requested_limit,
+                target_owner_id,
+                target_owner_email,
+                due_start,
+                due_end,
+            )
 
         tasks = []
         task_truncated = bool(metadata.get("truncated"))
