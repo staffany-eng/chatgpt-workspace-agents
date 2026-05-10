@@ -21,6 +21,7 @@ Hermes Data Bot needs deterministic runtime health checks because prompt correct
 - Honcho API health returns OK when external memory is enabled.
 - `hermes -p staffanydatabot memory status` reports `Provider: honcho` and `Status: available` when Honcho is expected to be active.
 - Healthy checks print nothing and exit 0.
+- Optional deployment audit can check the high-priority feature usage digest cron after it is enabled.
 
 ## Script
 
@@ -88,6 +89,12 @@ apps/hermes-data-bot/runtime/audit-live-profile.sh
 ```
 
 It checks the live `SOUL.md`, StaffAny skill folder, health-check script sync, Anthropic model route, Slack quiet settings, secret redaction, BigQuery MCP allowlist, installed health cron, and MCP tool count.
+
+After enabling the weekly high-priority feature usage digest, audit it with:
+
+```bash
+EXPECT_DIGEST_CRON=1 apps/hermes-data-bot/runtime/audit-live-profile.sh
+```
 
 ## Lightweight Behavioural Eval Harness
 

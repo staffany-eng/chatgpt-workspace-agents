@@ -129,3 +129,60 @@ Use this file before answering known Da Ta Bot POC metrics. This registry is a c
   - Explain included value mappings if the match is fuzzy.
 - Default caveat:
   - "Fitness customer segment is not owner-verified; using discovered industry/segment values as candidate logic."
+
+## Metric: Club Blue Redemption Usage
+
+- Metric key: `club_blue_redemption_usage`
+- Release-feature mapping status: track with a current proxy source.
+- Common questions:
+  - How many organizations are using Club Blue?
+  - How many Club Blue perks have been redeemed?
+  - Which organizations have Club Blue redemption activity?
+- Product terminology:
+  - Treat Club Blue / ClubAny as the Pixie employee perks catalog and redemption flow.
+  - Pantheon implementation evidence references Club Blue brands, perks, and redemptions.
+- Status: candidate current-source mapping; not owner-verified as a dedicated Club Blue source.
+- Confidence to return: `needs-check`.
+- Candidate source path:
+  - Current source: `staffany-warehouse.kraken_prod.engagement_reward_redemption`.
+  - Filter to `event_text = 'Engagement Reward Redemption'` or `event = 'engagement_reward_redemption'`.
+  - Use `_PARTITIONTIME` as the bounded scan filter and `timestamp` or `original_timestamp` as the event time.
+  - Count `COUNT(*)` as redemption events, `COUNT(DISTINCT organisation_id)` as organizations with redemption activity, and `COUNT(DISTINCT user_id)` as users with redemption activity.
+  - Preferred durable source remains a modeled analytics table for Club Blue redemptions, or a raw Kraken table equivalent to `ClubBlueRedemptions` with `organisationId`, `userId`, `perkId`, `status`, and `redeemedAt`.
+- Evidence from mapping review:
+  - Pantheon code has `ClubBlueBrands`, `ClubBluePerks`, and `ClubBlueRedemptions` models, plus `/club-blue/catalog/perks/{id}/redeem`.
+  - BigQuery table-name scan across `staffany-warehouse` found no `club_blue`, `clubblue`, `club_any`, or `clubany` table names.
+  - Bounded checks of `pixie_segment.screen`, `pixie_segment.track`, and `kraken_prod.tracks` did not expose a reviewed Club Blue usage event.
+  - Current-source sanity check on 2026-05-11: the last 180 days in `kraken_prod.engagement_reward_redemption` returned 1,629 redemption events, 11 organizations, and 354 users.
+  - Current-source weekly sanity check on 2026-05-11: 2026-05-04 to 2026-05-10 returned 25 redemption events, 3 organizations, and 13 users.
+- Required discovery before changing confidence to `verified`:
+  - Confirm with the product or data owner that `engagement_reward_redemption` is the intended v1 proxy for Club Blue / ClubAny redemption usage.
+  - Confirm whether `reward_id` needs to be filtered to a Club Blue reward subset once reward metadata is queryable.
+  - Confirm whether the adoption grain should be organizations, unique users, redemptions, or active perks.
+- Default caveat:
+  - "Using current Engagement Reward Redemption events as a Club Blue usage proxy; this is not a dedicated Club Blue source and needs owner confirmation."
+
+## Metric: Gryphon Avatar Size Standardization Usage
+
+- Metric key: `gryphon_avatar_size_standardization_usage`
+- Release-feature mapping status: blocked.
+- Common questions:
+  - How much is the standardized Gryphon avatar size feature being used?
+  - Which customers adopted standardized Gryphon avatars?
+- Product terminology:
+  - Treat this as a Gryphon design-system and UI consistency change, not a customer workflow feature.
+  - Do not treat generic page views of avatar-bearing screens as adoption of the avatar-size standardization itself.
+- Status: blocked because there is no safe usage/adoption metric.
+- Confidence to return: `blocked`.
+- Candidate source path:
+  - None for usage actuals.
+  - Code/design evidence can show where the Avatar component is used, but it does not measure customer adoption.
+- Evidence from mapping review:
+  - Pantheon Gryphon code defines Avatar sizes and guidance under `apps/gryphon/src/common/design-any/Avatar/`.
+  - Gryphon Segment events are page/action oriented; no dedicated avatar-size standardization event was found.
+  - Querying broad Gryphon Segment history for `avatar` is not a safe digest metric and can be expensive.
+- Required discovery before changing to `track`:
+  - Product or design owner must define a user-facing adoption metric, or engineering must add explicit instrumentation for avatar standardization exposure/interaction.
+  - The metric must be queryable via `staffany_bigquery` with a bounded source table.
+- Default caveat:
+  - "Avatar size standardization has no reviewed usage metric; generic page views are not a valid adoption proxy."

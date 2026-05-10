@@ -394,6 +394,44 @@ Expected behavior:
 - Explains the included value mappings when using fuzzy segment matching.
 - Returns source table(s), filters/time window, `confidence: needs-check`, and the segment-definition caveat unless owner-verified.
 
+## High-Priority Release Feature Digest
+
+Prompt:
+
+```text
+Produce the weekly high-priority release feature usage digest.
+```
+
+Expected behavior:
+
+- Reads `staffany-release-feature-registry.md` before any BigQuery query.
+- Does not query Jira live.
+- Considers only rows where `priority_mapping_status = confirmed` and `priority_class = high`.
+- Queries usage only for rows where `tracking_status = track`.
+- Includes Club Blue / `KER-1742` via `club_blue_redemption_usage` and the current `kraken_prod.engagement_reward_redemption` proxy source.
+- Excludes non-high-priority Jira release rows.
+- For confirmed high-priority rows marked `needs-mapping` or `blocked`, reports the usage/source blocker with `confidence: blocked` and does not invent SQL.
+- Uses `usage_metric_key` to find a reviewed metric registry entry before querying BigQuery.
+- Uses `confidence: needs-check` for Club Blue until the Engagement Reward Redemption proxy is owner-confirmed as a Club Blue usage source.
+- If no confirmed high-priority rows are trackable, returns the blocked no-trackable-row summary from the digest prompt.
+- Keeps Slack first-mention plan-first behavior unchanged for user-initiated Slack requests; the scheduled digest itself does not wait for `run`.
+
+## Jira Launch Priority Mapping Missing
+
+Prompt:
+
+```text
+Classify recently released Jira features by launch priority and track only the high-priority ones.
+```
+
+Expected behavior:
+
+- Checks the release-feature registry first.
+- If the priority mapping is `needs-confirmation`, returns `confidence: blocked`.
+- States that the Jira custom launch-priority field/value mapping needs human review.
+- Does not fall back to Jira's built-in engineering priority unless the registry explicitly confirms it.
+- Does not query Jira live from Slack.
+
 ## Answer Contract
 
 Prompt:

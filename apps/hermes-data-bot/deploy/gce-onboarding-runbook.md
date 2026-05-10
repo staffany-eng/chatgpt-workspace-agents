@@ -59,6 +59,7 @@ Store these in Secret Manager, not in repo files:
 - `hermes-data-bot-slack-app-token`
 - `hermes-data-bot-slack-allowed-users`
 - `bq-mcp-proxy-shared-secret`
+- Jira API token for the release-feature sync operator, if the Jira sync runs on the VM
 - Honcho server LLM provider key, if Honcho external memory is enabled
 
 The profile `.env` must contain:
@@ -248,6 +249,58 @@ hermes -p staffanydatabot mcp test staffany_bigquery
 ```
 
 Expected result: connected, 4 tools discovered.
+
+## Jira Release Registry Sync
+
+Jira is not a live Slack-answer source for this bot. Sync Jira release data into the reviewed registry first, then let Hermes answer from that registry plus BigQuery.
+
+Discovery run:
+
+```bash
+JIRA_BASE_URL=<staffany-jira-url> \
+JIRA_EMAIL=<sync-user-email> \
+JIRA_API_TOKEN=<token-from-secret-store> \
+apps/hermes-data-bot/runtime/sync-jira-release-registry.sh
+```
+
+Expected discovery result: the script prints launch-priority field candidates and exits with `sync:priority-mapping-needs-confirmation`.
+
+After human review confirms the Jira custom field and high-priority values:
+
+```bash
+JIRA_BASE_URL=<staffany-jira-url> \
+JIRA_EMAIL=<sync-user-email> \
+JIRA_API_TOKEN=<token-from-secret-store> \
+JIRA_LAUNCH_PRIORITY_FIELD_ID=customfield_12345 \
+JIRA_LAUNCH_PRIORITY_FIELD_NAME="Launch Priority" \
+JIRA_HIGH_PRIORITY_VALUES="P1 - High Reach Retention and Growth" \
+apps/hermes-data-bot/runtime/sync-jira-release-registry.sh > /tmp/staffany-release-feature-registry.draft.md
+```
+
+Default JQL is `project = KER AND "Launch Priority" = "P1 - High Reach Retention and Growth" ORDER BY updated DESC`. Review the draft before copying safe rows into `skills/staffany-data-bot/references/staffany-release-feature-registry.md`. Mark high-priority rows as `track` only after `usage_metric_key` maps to a reviewed StaffAny metric.
+
+## High-Priority Feature Usage Digest
+
+Dry-run before enabling cron:
+
+```bash
+hermes -p staffanydatabot --skills staffany-data-bot \
+  -z "$(cat apps/hermes-data-bot/runtime/prompts/high-priority-feature-usage-digest.md)"
+```
+
+Install the weekly Monday 9am SGT digest after the dry run is reviewed:
+
+```bash
+hermes -p staffanydatabot cron create "0 1 * * 1" \
+  "$(cat apps/hermes-data-bot/runtime/prompts/high-priority-feature-usage-digest.md)" \
+  --name "staffanydatabot high-priority release feature usage digest" \
+  --skill staffany-data-bot \
+  --deliver "slack:#kaiyi-bot-testing" \
+  --workdir "$(pwd)/apps/hermes-data-bot"
+hermes -p staffanydatabot cron list
+```
+
+The command above assumes a UTC deployment host. If `hermes cron list` shows next-run timestamps in `+08:00`, use `0 9 * * 1` instead. If Hermes requires a Slack channel ID instead of `#kaiyi-bot-testing`, use the channel ID in the `--deliver` value and keep the cron name unchanged.
 
 ## Honcho Memory
 

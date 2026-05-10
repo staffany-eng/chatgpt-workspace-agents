@@ -6,6 +6,8 @@ EXPECTED_MODEL_PROVIDER="${EXPECTED_MODEL_PROVIDER:-anthropic}"
 EXPECTED_MODEL_DEFAULT="${EXPECTED_MODEL_DEFAULT:-claude-sonnet-4-6}"
 EXPECTED_PERSONALITY="${EXPECTED_PERSONALITY:-concise}"
 EXPECTED_HEALTH_CRON_NAME="${EXPECTED_HEALTH_CRON_NAME:-staffanydatabot health check}"
+EXPECTED_DIGEST_CRON_NAME="${EXPECTED_DIGEST_CRON_NAME:-staffanydatabot high-priority release feature usage digest}"
+EXPECT_DIGEST_CRON="${EXPECT_DIGEST_CRON:-0}"
 EXPECTED_MCP_TOOLS="${EXPECTED_MCP_TOOLS:-4}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -114,6 +116,9 @@ fi
 
 cron_out="$(hermes -p "$PROFILE" cron list 2>&1)" || fail "cron:list-failed"
 printf '%s\n' "$cron_out" | grep -Fq "$EXPECTED_HEALTH_CRON_NAME" || fail "cron:health-check-missing"
+if [ "$EXPECT_DIGEST_CRON" = "1" ]; then
+  printf '%s\n' "$cron_out" | grep -Fq "$EXPECTED_DIGEST_CRON_NAME" || fail "cron:feature-usage-digest-missing"
+fi
 
 mcp_out="$(hermes -p "$PROFILE" mcp test staffany_bigquery 2>&1)" || fail "mcp:staffany_bigquery-test-failed"
 printf '%s\n' "$mcp_out" | grep -q "Tools discovered: $EXPECTED_MCP_TOOLS" || fail "mcp:staffany_bigquery-tool-count-unexpected"

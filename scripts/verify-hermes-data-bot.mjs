@@ -66,9 +66,14 @@ const filesToScan = [
   "skills/staffany-data-bot/SKILL.md",
   "skills/staffany-data-bot/references/staffany-data-bot-metric-registry.md",
   "skills/staffany-data-bot/references/staffany-product-lookup-registry.md",
+  "skills/staffany-data-bot/references/staffany-release-feature-registry.md",
   "skills/staffany-data-bot/references/rbac-access-levels.md",
   "skills/staffany-data-bot/references/regression-cases.md",
   "runtime/mcp/staffany-bigquery.md",
+  "runtime/jira-release-sync.md",
+  "runtime/sync-jira-release-registry.sh",
+  "runtime/high-priority-feature-digest.md",
+  "runtime/prompts/high-priority-feature-usage-digest.md",
   "runtime/memory-honcho.md",
   "runtime/slack.md",
   "runtime/health-checks.md",
@@ -110,9 +115,74 @@ for (const requiredText of [
   'Reply "run" to start',
   'first Slack mentions',
   'Confidence: blocked',
-  'employee-level payroll detail'
+  'employee-level payroll detail',
+  'staffany-release-feature-registry.md',
+  'Do not query Jira live',
+  'needs-mapping',
+  'scheduled digest'
 ]) {
   if (!skillText.includes(requiredText)) fail(`staffany-data-bot skill missing required guardrail text: ${requiredText}`);
+}
+
+const releaseRegistryText = existsSync(join(appRoot, "skills", "staffany-data-bot", "references", "staffany-release-feature-registry.md"))
+  ? readFileSync(join(appRoot, "skills", "staffany-data-bot", "references", "staffany-release-feature-registry.md"), "utf8")
+  : "";
+for (const requiredText of [
+  "jira_issue_key",
+  "release_version",
+  "release_date",
+  "canonical_feature_name",
+  "product_area",
+  "launch_priority_field",
+  "launch_priority_value",
+  "usage_metric_key",
+  "source_table_hint",
+  "sync_timestamp",
+  "priority_mapping_status = confirmed",
+  "tracking_status = track",
+  "Launch Priority",
+  "P1 - High Reach Retention and Growth",
+  "Confidence: blocked"
+]) {
+  if (!releaseRegistryText.includes(requiredText)) fail(`release feature registry missing required text: ${requiredText}`);
+}
+
+const jiraSyncText = existsSync(join(appRoot, "runtime", "sync-jira-release-registry.sh"))
+  ? readFileSync(join(appRoot, "runtime", "sync-jira-release-registry.sh"), "utf8")
+  : "";
+for (const requiredText of [
+  "sync:priority-mapping-needs-confirmation",
+  "JIRA_LAUNCH_PRIORITY_FIELD_ID",
+  "JIRA_HIGH_PRIORITY_VALUES",
+  "project = KER",
+  "P1 - High Reach Retention and Growth",
+  "needs-mapping"
+]) {
+  if (!jiraSyncText.includes(requiredText)) fail(`jira release sync script missing required text: ${requiredText}`);
+}
+
+const digestRuntimeText = existsSync(join(appRoot, "runtime", "high-priority-feature-digest.md"))
+  ? readFileSync(join(appRoot, "runtime", "high-priority-feature-digest.md"), "utf8")
+  : "";
+for (const requiredText of [
+  "0 1 * * 1",
+  "#kaiyi-bot-testing",
+  "staffanydatabot high-priority release feature usage digest",
+  "Confidence: <verified | needs-check | blocked>"
+]) {
+  if (!digestRuntimeText.includes(requiredText)) fail(`feature usage digest runtime doc missing required text: ${requiredText}`);
+}
+
+const digestPromptText = existsSync(join(appRoot, "runtime", "prompts", "high-priority-feature-usage-digest.md"))
+  ? readFileSync(join(appRoot, "runtime", "prompts", "high-priority-feature-usage-digest.md"), "utf8")
+  : "";
+for (const requiredText of [
+  "Do not query Jira live",
+  "priority_mapping_status = confirmed",
+  "tracking_status = track",
+  "Confidence: blocked"
+]) {
+  if (!digestPromptText.includes(requiredText)) fail(`feature usage digest prompt missing required text: ${requiredText}`);
 }
 
 if (failures.length > 0) {

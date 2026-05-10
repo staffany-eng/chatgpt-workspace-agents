@@ -15,10 +15,15 @@
     "references": [
       "skills/staffany-data-bot/references/staffany-data-bot-metric-registry.md",
       "skills/staffany-data-bot/references/staffany-product-lookup-registry.md",
+      "skills/staffany-data-bot/references/staffany-release-feature-registry.md",
       "skills/staffany-data-bot/references/rbac-access-levels.md",
       "skills/staffany-data-bot/references/regression-cases.md"
     ],
     "bigquery_mcp": "runtime/mcp/staffany-bigquery.md",
+    "jira_release_sync": "runtime/jira-release-sync.md",
+    "jira_release_sync_script": "runtime/sync-jira-release-registry.sh",
+    "feature_usage_digest": "runtime/high-priority-feature-digest.md",
+    "feature_usage_digest_prompt": "runtime/prompts/high-priority-feature-usage-digest.md",
     "memory_honcho": "runtime/memory-honcho.md",
     "slack_runtime": "runtime/slack.md",
     "health_checks": "runtime/health-checks.md",

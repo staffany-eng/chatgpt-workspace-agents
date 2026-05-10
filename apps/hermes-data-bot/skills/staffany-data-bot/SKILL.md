@@ -1,6 +1,6 @@
 ---
 name: staffany-data-bot
-description: Use when answering StaffAny data, warehouse, product-term, package, Slack-thread, or metric-definition questions. Applies Da Ta Bot source order, BigQuery safety, Slack plan-first gating, confidence labels, and memory rules.
+description: Use when answering StaffAny data, warehouse, product-term, package, release-feature usage tracking, Slack-thread, or metric-definition questions. Applies Da Ta Bot source order, BigQuery safety, Slack plan-first gating, confidence labels, and memory rules.
 version: 1.0.0
 author: StaffAny
 license: Internal
@@ -20,6 +20,7 @@ Use this skill for StaffAny internal data-bot work. It ports the ChatGPT Da Ta B
 
 - StaffAny BigQuery metrics, trends, aggregates, breakdowns, or org-level reporting.
 - StaffAny product terms, package ownership, feature/form/page labels, APQ corrections, and internal concept lookups.
+- Jira-synced release-feature usage tracking, launch-priority classification, and weekly high-priority feature usage digests.
 - Slack threads where the user asks what metric or app-data question is being discussed.
 - Feedback that might become a confirmed metric definition, terminology mapping, or output preference.
 
@@ -27,13 +28,26 @@ Do not use this skill for generic coding, broad web research, or non-StaffAny pe
 
 ## Source Order
 
-1. Product and package lookups: `references/staffany-product-lookup-registry.md`.
-2. Known POC metrics: `references/staffany-data-bot-metric-registry.md`.
-3. Regression and safety expectations: `references/regression-cases.md`.
-4. BigQuery schema inspection through the `staffany_bigquery` MCP server.
-5. GitHub/Pantheon evidence only when registry evidence is missing, explicitly requires code verification, or the user asks for code evidence.
+1. Release-feature usage tracking: `references/staffany-release-feature-registry.md`.
+2. Product and package lookups: `references/staffany-product-lookup-registry.md`.
+3. Known POC metrics: `references/staffany-data-bot-metric-registry.md`.
+4. Regression and safety expectations: `references/regression-cases.md`.
+5. BigQuery schema inspection through the `staffany_bigquery` MCP server.
+6. GitHub/Pantheon evidence only when registry evidence is missing, explicitly requires code verification, or the user asks for code evidence.
 
 Registry rows are guidance, not automatic truth. Product Corrections prevent known wrong answers, but they do not become metric definitions.
+
+## Release Feature Tracking Rules
+
+Use `staffany-release-feature-registry.md` for questions about what was released in Jira, launch-priority classification, and the weekly high-priority feature usage digest.
+
+- Do not query Jira live from Slack answers or scheduled digests. Jira release facts must come from the synced and reviewed registry.
+- If the registry priority mapping is `needs-confirmation`, return `Confidence: blocked` for launch-priority classification and state that the Jira custom field/value mapping needs review.
+- Track only rows where `priority_mapping_status = confirmed`, `priority_class = high`, and `tracking_status = track`.
+- For confirmed high-priority rows marked `needs-mapping`, report the missing usage mapping with `Confidence: blocked`; do not invent a BigQuery query.
+- Join `usage_metric_key` to `staffany-data-bot-metric-registry.md` before querying BigQuery. If no matching metric registry entry exists, return `Confidence: blocked`.
+- Use BigQuery only for usage actuals. Jira never verifies adoption, customer usage, or feature usage counts.
+- Scheduled digest runs are already approved cron work, so do not apply the Slack first-mention `run` gate to the digest itself. Keep the digest read-only, bounded, and source-labelled.
 
 ## BigQuery Rules
 
@@ -120,19 +134,20 @@ If Honcho memory conflicts with local registry references, BigQuery schema evide
 5. Returning candidate metrics without `needs-check`.
 6. Repeating a stale Slack answer instead of re-parsing the latest reply.
 7. Revealing SQL, IDs, raw employee-level details, or secrets by default.
+8. Treating Jira releases as usage evidence. Jira only says what shipped and how it was prioritized; BigQuery must verify usage.
 
 ## Skill Update and Sync Workflow
 
 Use this whenever updating StaffAny Data Bot behavior so runtime and source stay consistent.
 
-1. Edit only the canonical repo skill: `apps/hermes-data-bot/skills/staffany-data-bot/SKILL.md`.
+1. Edit only the canonical repo skill folder: `apps/hermes-data-bot/skills/staffany-data-bot/`.
 2. Run full validation from repo root:
    - `npm run hermes-data-bot:verify`
-3. Sync canonical skill into the live profile skill path:
-   - `cp apps/hermes-data-bot/skills/staffany-data-bot/SKILL.md ~/.hermes/profiles/staffanydatabot/skills/staffany-data-bot/SKILL.md`
+3. Sync canonical skill files into the live profile skill path:
+   - `rsync -a --delete apps/hermes-data-bot/skills/staffany-data-bot/ ~/.hermes/profiles/staffanydatabot/skills/staffany-data-bot/`
 4. Reset/restart runtime so the updated skill is loaded for new sessions.
 5. Commit and push canonical skill updates to GitHub so team-visible source stays current:
-   - `git add apps/hermes-data-bot/skills/staffany-data-bot/SKILL.md`
+   - `git add apps/hermes-data-bot/skills/staffany-data-bot/`
    - `git commit -m "docs(skill): update staffany-data-bot workflow"`
    - `git push origin HEAD`
 6. Treat runtime-only edits as temporary; promote durable changes back into the repo skill via PR.
@@ -149,6 +164,8 @@ Sync timing policy for this bot:
 - A bounded aggregate query succeeds or returns `blocked` cleanly.
 - Ambiguous metric prompts ask one focused question.
 - Product package prompts use the local registry without BigQuery.
+- High-priority release-feature digests use the release registry first and never query Jira live.
+- Confirmed high-priority rows with missing usage mappings return `blocked` instead of guessed SQL.
 - Slack first mention returns a plan only.
 - `run` and same-thread approval nudges execute the confirmed plan.
 - Secret and sensitive-data prompts are refused.
