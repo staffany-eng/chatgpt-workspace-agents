@@ -202,6 +202,8 @@ Reply "run" to start, or tell me what to change.
 
 After `run`, execute only the confirmed plan. If the latest `run` follows a gateway interruption, shutdown warning, or has no tool result after that `run` in the current session, run the confirmed tool plan again; do not say "already ran" or reuse a stale account packet. If the user changes owner, country, source class, write intent, or time window before execution, revise the plan and ask for `run` again.
 
+Account-background and `get account context for <account>` prompts are HubSpot/C360-backed work. On the first mention, do not resolve the company, call account-list tools, or call `get_account_context`; reply with the plan and wait for `run`.
+
 For `@NurtureAny scan recent photos`, interpret "recent photos" as the Drive `all-random` workflow only. Call `list_drive_folder_images` for Drive folder `1qXlFnr5TKFtsYNWk7ZywBBctDaae3RY-`, show uploader display names when returned, call `list_luma_events` for the Drive photo date window, then call `scan_drive_event_photos` with the Luma events, `extract_drive_image_clues` in bounded batches, and `propose_photo_people_matches`. Luma event-date correlation may auto-tag the event context only; it must not auto-tag a HubSpot contact/person. Ask the original Slack uploader to identify or confirm every person before any HubSpot association; group prompts by uploader when possible. If Google Drive auth/tooling or image-clue extraction is missing, return `Confidence: blocked` with that exact missing prerequisite. If Luma is unavailable, continue with Drive/OCR and mark event correlation as `needs-check`. Do not scan local machine folders such as `~/Pictures`, `~/Desktop`, or `~/Downloads`.
 
 ## Final Answer Format

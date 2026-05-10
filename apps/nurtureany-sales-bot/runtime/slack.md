@@ -7,6 +7,7 @@ NurtureAny's first runtime surface is Slack mention usage in sales pilot channel
 - Mention-only in configured channels for V1.
 - First tool-backed requests are plan-first.
 - The bot asks for `run` before the first confirmed execution.
+- Account-background and `get account context for <account>` are tool-backed requests; first mention must plan only and must not resolve the company until `run`.
 - Clear same-thread corrections, fixes, and reruns after a delivered result are continuation work when scope is bounded.
 - A `run` after a gateway interruption, shutdown warning, or missing post-`run` tool result must execute the confirmed plan again; do not answer from a stale "already ran" assumption.
 - Materially expanded scope, source-class changes, write intent, or expensive/ambiguous follow-ups require a revised plan and `run`.
