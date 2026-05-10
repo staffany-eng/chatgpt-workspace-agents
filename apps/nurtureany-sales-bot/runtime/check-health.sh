@@ -16,7 +16,7 @@ EXPECT_GOOGLE_DRIVE_TOOLS="${EXPECT_GOOGLE_DRIVE_TOOLS:-3}"
 EXPECT_LUMA_TOOLS="${EXPECT_LUMA_TOOLS:-3}"
 EXPECT_LUSHA_TOOLS="${EXPECT_LUSHA_TOOLS:-3}"
 EXPECT_EXA_TOOLS="${EXPECT_EXA_TOOLS:-1}"
-EXPECT_NEAR_ME_TOOLS="${EXPECT_NEAR_ME_TOOLS:-5}"
+EXPECT_NEAR_ME_TOOLS="${EXPECT_NEAR_ME_TOOLS:-6}"
 
 HERMES_AGENT_DIR="${HERMES_AGENT_DIR:-$HOME/.hermes/hermes-agent}"
 PATH="$HOME/.local/bin:$HERMES_AGENT_DIR:$PATH"
@@ -123,6 +123,7 @@ expected_servers = {
         "list_sales_followup_tasks",
         "check_account_followup_status",
         "check_event_followup_status",
+        "find_target_accounts_by_luma_match_keys",
         "score_nurture_accounts",
         "find_contact_gaps",
         "find_t90_renewal_gaps",
@@ -149,6 +150,7 @@ expected_servers = {
         "build_near_me_outlet_matches_query",
         "refresh_google_places_for_known_area",
         "build_near_me_c360_customer_query",
+        "prepare_near_me_seed_review_candidates",
         "merge_near_me_sources",
     ],
 }

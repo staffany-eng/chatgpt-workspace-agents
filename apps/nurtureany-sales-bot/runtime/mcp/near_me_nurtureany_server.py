@@ -6,6 +6,9 @@ read-only. It resolves a user location to a curated known area, refreshes live
 restaurant candidates from Google Places, builds BigQuery SQL for curated
 outlet matches and C360 customers, and merges those source outputs without
 mutating HubSpot.
+
+Canonical C360 joins include `staffany-warehouse.analytics.fct_deal_org_company`
+and LEFT JOIN `staffany-warehouse.analytics.fct_company_org_mrr`.
 """
 
 from __future__ import annotations
@@ -47,21 +50,12 @@ MAX_GOOGLE_PLACES_RESULTS = 20
 DEFAULT_NEAR_ME_RADIUS_M = 1000
 DEFAULT_SNAP_DISTANCE_M = 1500
 MAX_OUTLET_MATCH_RESULTS = 100
+MAX_SEED_REVIEW_CANDIDATES_PER_AREA = 10
 OUTLET_MATCHES_TABLE_ENV = "NURTUREANY_OUTLET_MATCHES_TABLE"
 DEFAULT_OUTLET_MATCHES_TABLE = "staffany-warehouse.analytics.nurtureany_near_me_outlet_matches"
 KNOWN_AREAS_FILE_ENV = "NURTUREANY_KNOWN_AREAS_FILE"
-C360_COMPANY_URL_TEMPLATE_ENV = "NURTUREANY_C360_COMPANY_URL_TEMPLATE"
-C360_ORG_URL_TEMPLATE_ENV = "NURTUREANY_C360_ORG_URL_TEMPLATE"
-C360_ROUTE_KEY_BY_COMPANY_ID_ENV = "NURTUREANY_C360_ROUTE_KEY_BY_COMPANY_ID"
-DEFAULT_C360_COMPANY_URL_TEMPLATE = "https://customer-360-qv4r5xkisq-as.a.run.app/companies/{customer360_route_key}"
-DEFAULT_C360_ORG_URL_TEMPLATE = (
-    "https://customer-360-qv4r5xkisq-as.a.run.app/companies/{customer360_route_key}/orgs/{organisation_id}"
-)
-DEFAULT_C360_ROUTE_KEY_BY_COMPANY_ID = {
-    # Customer 360's canonical Fei Siong route is slug-keyed. The numeric
-    # HubSpot route is accepted by the app but renders fallback demo orgs.
-    "1991281569": "fei-siong-group",
-}
+C360_DATASET_ENV = "NURTUREANY_C360_DATASET"
+DEFAULT_C360_DATASET = "analytics"
 SCOPE_SOURCE = "near_me_nurtureany"
 C360_CUSTOMER_RANK_CATEGORIES = {
     "confirmed_outlet_current_customer",
@@ -100,49 +94,13 @@ DEFAULT_KNOWN_AREAS = [
         "aliases": ["raffles place", "raffles mrt", "cbd", "central business district"],
     },
     {
-        "area_id": "sg_vivocity",
-        "area_name": "VivoCity",
+        "area_id": "sg_chinatown",
+        "area_name": "Chinatown / Telok Ayer",
         "country": "Singapore",
-        "latitude": 1.2644,
-        "longitude": 103.8223,
-        "radius_m": 750,
-        "aliases": ["vivocity", "vivo city", "harbourfront", "harbourfront centre"],
-    },
-    {
-        "area_id": "sg_plaza_singapura",
-        "area_name": "Plaza Singapura",
-        "country": "Singapore",
-        "latitude": 1.3007,
-        "longitude": 103.8450,
-        "radius_m": 700,
-        "aliases": ["plaza singapura", "dhoby ghaut", "ps"],
-    },
-    {
-        "area_id": "sg_jewel_changi",
-        "area_name": "Jewel Changi Airport",
-        "country": "Singapore",
-        "latitude": 1.3602,
-        "longitude": 103.9898,
-        "radius_m": 900,
-        "aliases": ["jewel changi", "changi airport", "jewel"],
-    },
-    {
-        "area_id": "sg_suntec_city",
-        "area_name": "Suntec City",
-        "country": "Singapore",
-        "latitude": 1.2931,
-        "longitude": 103.8573,
+        "latitude": 1.2847,
+        "longitude": 103.8438,
         "radius_m": 800,
-        "aliases": ["suntec", "suntec city", "city hall"],
-    },
-    {
-        "area_id": "sg_ion_orchard",
-        "area_name": "ION Orchard",
-        "country": "Singapore",
-        "latitude": 1.3040,
-        "longitude": 103.8320,
-        "radius_m": 800,
-        "aliases": ["ion orchard", "orchard", "orchard road"],
+        "aliases": ["chinatown", "telok ayer", "amoy street", "club street"],
     },
     {
         "area_id": "sg_bugis_junction",
@@ -154,6 +112,114 @@ DEFAULT_KNOWN_AREAS = [
         "aliases": ["bugis", "bugis junction"],
     },
     {
+        "area_id": "sg_suntec_city",
+        "area_name": "Suntec City",
+        "country": "Singapore",
+        "latitude": 1.2931,
+        "longitude": 103.8573,
+        "radius_m": 800,
+        "aliases": ["suntec", "suntec city", "marina centre", "city hall"],
+    },
+    {
+        "area_id": "sg_tanjong_pagar",
+        "area_name": "Tanjong Pagar / Shenton",
+        "country": "Singapore",
+        "latitude": 1.2767,
+        "longitude": 103.8459,
+        "radius_m": 900,
+        "aliases": ["tanjong pagar", "shenton", "shenton way", "anson", "maxwell"],
+    },
+    {
+        "area_id": "sg_ion_orchard",
+        "area_name": "ION Orchard",
+        "country": "Singapore",
+        "latitude": 1.3040,
+        "longitude": 103.8320,
+        "radius_m": 800,
+        "aliases": ["ion orchard", "orchard", "orchard road"],
+    },
+    {
+        "area_id": "sg_boat_quay_clarke_quay",
+        "area_name": "Boat Quay / Clarke Quay",
+        "country": "Singapore",
+        "latitude": 1.2906,
+        "longitude": 103.8466,
+        "radius_m": 800,
+        "aliases": ["boat quay", "clarke quay", "singapore river", "robertson quay"],
+    },
+    {
+        "area_id": "sg_marina_bay",
+        "area_name": "Marina Bay / MBFC",
+        "country": "Singapore",
+        "latitude": 1.2799,
+        "longitude": 103.8547,
+        "radius_m": 800,
+        "aliases": ["marina bay", "mbfc", "marina bay financial centre", "downtown"],
+    },
+    {
+        "area_id": "sg_westgate_jem",
+        "area_name": "Westgate / JEM",
+        "country": "Singapore",
+        "latitude": 1.3331,
+        "longitude": 103.7435,
+        "radius_m": 800,
+        "aliases": ["westgate", "jem", "jurong east", "jurong lake district"],
+    },
+    {
+        "area_id": "sg_tampines_mall",
+        "area_name": "Tampines Mall",
+        "country": "Singapore",
+        "latitude": 1.3525,
+        "longitude": 103.9447,
+        "radius_m": 750,
+        "aliases": ["tampines mall", "tampines", "tampines central"],
+    },
+    {
+        "area_id": "sg_plaza_singapura",
+        "area_name": "Plaza Singapura",
+        "country": "Singapore",
+        "latitude": 1.3007,
+        "longitude": 103.8450,
+        "radius_m": 700,
+        "aliases": ["plaza singapura", "dhoby ghaut", "ps"],
+    },
+    {
+        "area_id": "sg_paya_lebar_quarter",
+        "area_name": "Paya Lebar Quarter",
+        "country": "Singapore",
+        "latitude": 1.3176,
+        "longitude": 103.8923,
+        "radius_m": 800,
+        "aliases": ["paya lebar", "paya lebar quarter", "plq", "paya lebar central"],
+    },
+    {
+        "area_id": "sg_vivocity",
+        "area_name": "VivoCity",
+        "country": "Singapore",
+        "latitude": 1.2644,
+        "longitude": 103.8223,
+        "radius_m": 750,
+        "aliases": ["vivocity", "vivo city", "harbourfront", "harbourfront centre"],
+    },
+    {
+        "area_id": "sg_northpoint_yishun",
+        "area_name": "Northpoint City / Yishun",
+        "country": "Singapore",
+        "latitude": 1.4297,
+        "longitude": 103.8358,
+        "radius_m": 800,
+        "aliases": ["northpoint", "northpoint city", "yishun"],
+    },
+    {
+        "area_id": "sg_jewel_changi",
+        "area_name": "Jewel Changi Airport",
+        "country": "Singapore",
+        "latitude": 1.3602,
+        "longitude": 103.9898,
+        "radius_m": 900,
+        "aliases": ["jewel changi", "changi airport", "jewel"],
+    },
+    {
         "area_id": "sg_nex",
         "area_name": "NEX",
         "country": "Singapore",
@@ -163,15 +229,6 @@ DEFAULT_KNOWN_AREAS = [
         "aliases": ["nex", "serangoon", "nex serangoon"],
     },
     {
-        "area_id": "sg_tampines_mall",
-        "area_name": "Tampines Mall",
-        "country": "Singapore",
-        "latitude": 1.3525,
-        "longitude": 103.9447,
-        "radius_m": 750,
-        "aliases": ["tampines mall", "tampines"],
-    },
-    {
         "area_id": "sg_jurong_point",
         "area_name": "Jurong Point",
         "country": "Singapore",
@@ -179,15 +236,6 @@ DEFAULT_KNOWN_AREAS = [
         "longitude": 103.7067,
         "radius_m": 800,
         "aliases": ["jurong point", "boon lay"],
-    },
-    {
-        "area_id": "sg_westgate_jem",
-        "area_name": "Westgate / JEM",
-        "country": "Singapore",
-        "latitude": 1.3331,
-        "longitude": 103.7435,
-        "radius_m": 800,
-        "aliases": ["westgate", "jem", "jurong east"],
     },
     {
         "area_id": "sg_causeway_point",
@@ -500,6 +548,19 @@ def _outlet_matches_table() -> str:
     return table
 
 
+def _c360_dataset() -> str:
+    dataset = os.environ.get(C360_DATASET_ENV, "").strip() or DEFAULT_C360_DATASET
+    if not re.fullmatch(r"[A-Za-z0-9_]+", dataset):
+        raise NearMeError(f"Invalid {C360_DATASET_ENV}; expected BigQuery dataset id.")
+    return dataset
+
+
+def _analytics_table(table_name: str, dataset: str | None = None) -> str:
+    if not re.fullmatch(r"[A-Za-z0-9_]+", table_name):
+        raise NearMeError("Invalid analytics table name.")
+    return f"`staffany-warehouse.{dataset or _c360_dataset()}.{table_name}`"
+
+
 def _c360_company_url_template() -> str:
     return _shared_c360_company_url_template()
 
@@ -647,9 +708,15 @@ def _near_me_c360_sql(area: dict[str, Any]) -> str:
     radius_m = _bounded_int(area.get("radius_m"), DEFAULT_NEAR_ME_RADIUS_M, 3000, 100)
     area_id = _sql_literal(area["area_id"])
     area_name = _sql_literal(area["area_name"])
+    c360_dataset = _c360_dataset()
+    dim_sections_table = _analytics_table("dim_sections", c360_dataset)
+    dim_org_section_table = _analytics_table("dim_org_section", c360_dataset)
+    fct_deal_org_company_table = _analytics_table("fct_deal_org_company", c360_dataset)
+    fct_company_org_mrr_table = _analytics_table("fct_company_org_mrr", c360_dataset)
     return f"""-- NurtureAny known-area near-me C360 customer query.
 -- Run only through staffany_bigquery.execute_sql_readonly.
 -- Uses geofence rows from kraken_rds.Locations, not person GPS.
+-- C360 dataset: staffany-warehouse.{c360_dataset}.
 WITH params AS (
   SELECT
     {area_id} AS area_id,
@@ -713,7 +780,7 @@ active_sections AS (
     nl.longitude,
     nl.distance_m
   FROM nearby_locations nl
-  JOIN `staffany-warehouse.analytics.dim_sections` ds
+  JOIN {dim_sections_table} ds
     ON CAST(ds.sectionId AS STRING) = nl.section_id
   WHERE COALESCE(ds.isarchived, FALSE) = FALSE
 ),
@@ -723,7 +790,7 @@ org_sections AS (
     organisationName AS organisation_name,
     CAST(sectionId AS STRING) AS section_id,
     sectionName AS dim_section_name
-  FROM `staffany-warehouse.analytics.dim_org_section`
+  FROM {dim_org_section_table}
 ),
 joined_sections AS (
   SELECT
@@ -755,7 +822,7 @@ customer_sections AS (
     c360.deal_end_date,
     c360.deal_psm,
     CASE
-      WHEN c360.deal_end_date IS NULL OR c360.deal_end_date >= CURRENT_DATE()
+      WHEN c360.deal_end_date IS NULL OR DATE(c360.deal_end_date) >= CURRENT_DATE()
         THEN 'current_or_open_selected_deal'
       ELSE 'past_selected_deal'
     END AS selected_deal_status,
@@ -767,9 +834,9 @@ customer_sections AS (
     js.longitude AS nearest_longitude,
     js.distance_m
   FROM joined_sections js
-  JOIN `staffany-warehouse.analytics.fct_deal_org_company` c360
+  JOIN {fct_deal_org_company_table} c360
     ON CAST(c360.organisation_id AS STRING) = js.organisation_id
-  LEFT JOIN `staffany-warehouse.analytics.fct_company_org_mrr` mrr
+  LEFT JOIN {fct_company_org_mrr_table} mrr
     ON CAST(mrr.organisation_id AS STRING) = c360.organisation_id
    AND mrr.company_id = c360.company_id
 ),
@@ -998,6 +1065,34 @@ def _merge_google_item(place: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _merge_hubspot_prospect_item(row: dict[str, Any]) -> dict[str, Any]:
+    account_status = "customer" if _is_customer_status(row.get("account_status") or row.get("type")) else "prospect"
+    outlet_name = row.get("outlet_name") or row.get("name") or row.get("company_name") or row.get("hubspot_company_name") or ""
+    outlet = {
+        "outlet_name": outlet_name,
+        "google_place_id": row.get("google_place_id") or "",
+        "google_maps_uri": row.get("google_maps_uri") or "",
+        "formatted_address": row.get("formatted_address") or row.get("address") or "",
+        "match_status": "candidate",
+        "confidence": row.get("confidence") or "needs-check",
+    }
+    return {
+        "source_flags": ["hubspot_target_prospect"],
+        "outlet_locations": [outlet] if any(outlet.values()) else [],
+        "hubspot_company_id": row.get("hubspot_company_id") or row.get("company_id") or row.get("id") or "",
+        "customer360_route_key": row.get("customer360_route_key") or row.get("customer_slug") or "",
+        "company_name": row.get("hubspot_company_name") or row.get("company_name") or outlet_name,
+        "hubspot_owner_id": row.get("hubspot_owner_id") or "",
+        "organisation_id": row.get("organisation_id") or "",
+        "account_status": account_status,
+        "match_status": "candidate",
+        "confidence": row.get("confidence") or "needs-check",
+        "nearest_distance_m": _distance(row),
+        "google_place_id": row.get("google_place_id") or "",
+        "rank_notes": ["HubSpot target prospect candidate; requires reviewed outlet/place match before storage."],
+    }
+
+
 def _absorb(target: dict[str, Any], incoming: dict[str, Any]) -> None:
     for flag in incoming.get("source_flags", []):
         if flag not in target["source_flags"]:
@@ -1046,7 +1141,7 @@ def _classification(item: dict[str, Any]) -> tuple[int, str]:
         return 1, "c360_current_customer_without_stored_outlet" if not item.get("outlet_locations") else "c360_current_customer"
     if confirmed:
         return 2, "confirmed_outlet_prospect"
-    if candidate and "bigquery_outlet_match" in item.get("source_flags", []):
+    if candidate and any(flag in item.get("source_flags", []) for flag in ("bigquery_outlet_match", "hubspot_target_prospect")):
         return 3, "candidate_outlet_match"
     if has_google_only:
         return 4, "google_places_live_candidate"
@@ -1097,6 +1192,142 @@ def _apply_c360_links(ranked: list[dict[str, Any]]) -> list[str]:
         if note not in caveats:
             caveats.append(note)
     return caveats
+
+
+def _first_outlet(item: dict[str, Any]) -> dict[str, Any]:
+    outlets = item.get("outlet_locations") if isinstance(item.get("outlet_locations"), list) else []
+    for outlet in outlets:
+        if isinstance(outlet, dict):
+            return outlet
+    return {}
+
+
+def _review_candidate_key(item: dict[str, Any]) -> str:
+    outlet = _first_outlet(item)
+    return (
+        str(outlet.get("google_place_id") or item.get("google_place_id") or "").strip()
+        or str(item.get("hubspot_company_id") or "").strip()
+        or str(item.get("organisation_id") or "").strip()
+        or _compact_text(item.get("company_name") or outlet.get("outlet_name"))
+    )
+
+
+def _review_candidate_evidence(item: dict[str, Any]) -> list[str]:
+    evidence = []
+    source_flags = ", ".join(item.get("source_flags") or [])
+    if source_flags:
+        evidence.append(f"sources={source_flags}")
+    if item.get("nearest_distance_m") not in (None, "", 999999):
+        evidence.append(f"distance_m={round(float(item['nearest_distance_m']))}")
+    if item.get("nearest_section"):
+        evidence.append(f"nearest_section={item['nearest_section']}")
+    if item.get("nearest_address"):
+        evidence.append(f"nearest_address={item['nearest_address']}")
+    if item.get("deal_stage"):
+        evidence.append(f"deal_stage={item['deal_stage']}")
+    if item.get("selected_deal_status"):
+        evidence.append(f"selected_deal_status={item['selected_deal_status']}")
+    return evidence
+
+
+def _seed_review_candidate(area: dict[str, Any], item: dict[str, Any], rank: int) -> dict[str, Any]:
+    outlet = _first_outlet(item)
+    account_status = "customer" if _is_customer_status(item.get("account_status")) else item.get("account_status") or "unknown"
+    has_account_link = bool(str(item.get("hubspot_company_id") or "").strip() or str(item.get("organisation_id") or "").strip())
+    eligible = bool(has_account_link and account_status in {"customer", "prospect"})
+    candidate = {
+        "rank": rank,
+        "area_id": area["area_id"],
+        "area_name": area["area_name"],
+        "outlet_name": outlet.get("outlet_name") or item.get("company_name") or "",
+        "formatted_address": outlet.get("formatted_address") or item.get("nearest_address") or "",
+        "google_place_id": outlet.get("google_place_id") or item.get("google_place_id") or "",
+        "google_maps_uri": outlet.get("google_maps_uri") or "",
+        "hubspot_company_id": item.get("hubspot_company_id") or "",
+        "hubspot_company_name": item.get("company_name") or "",
+        "hubspot_owner_id": item.get("hubspot_owner_id") or "",
+        "organisation_id": item.get("organisation_id") or "",
+        "account_status": account_status,
+        "match_status": "candidate",
+        "confidence": item.get("confidence") or "needs-check",
+        "source_flags": item.get("source_flags") or [],
+        "evidence": _review_candidate_evidence(item),
+        "eligible_for_bigquery_write": eligible,
+        "review_action_required": "approve_confirmed_match" if eligible else "link_account_before_approval",
+        "approved_row_template": {
+            "area_id": area["area_id"],
+            "area_name": area["area_name"],
+            "outlet_name": outlet.get("outlet_name") or item.get("company_name") or "",
+            "google_place_id": outlet.get("google_place_id") or item.get("google_place_id") or "",
+            "formatted_address": outlet.get("formatted_address") or item.get("nearest_address") or "",
+            "google_maps_uri": outlet.get("google_maps_uri") or "",
+            "hubspot_company_id": item.get("hubspot_company_id") or "",
+            "hubspot_company_name": item.get("company_name") or "",
+            "hubspot_owner_id": item.get("hubspot_owner_id") or "",
+            "organisation_id": item.get("organisation_id") or "",
+            "account_status": account_status,
+            "match_status": "confirmed",
+            "confidence": "verified",
+            "source": "workflow",
+        }
+        if eligible
+        else {},
+    }
+    return candidate
+
+
+def _rank_seed_review_items(
+    area: dict[str, Any],
+    google_places: list[dict[str, Any]] | None,
+    c360_customer_rows: list[dict[str, Any]] | None,
+    hubspot_prospect_rows: list[dict[str, Any]] | None,
+) -> list[dict[str, Any]]:
+    groups: dict[str, dict[str, Any]] = {}
+
+    for row in c360_customer_rows or []:
+        if not isinstance(row, dict):
+            continue
+        item = _merge_c360_item(row)
+        groups[_account_key(item)] = item
+
+    for row in hubspot_prospect_rows or []:
+        if not isinstance(row, dict):
+            continue
+        item = _merge_hubspot_prospect_item(row)
+        key = _account_key(item)
+        if key in groups:
+            _absorb(groups[key], item)
+        else:
+            groups[key] = item
+
+    for place in google_places or []:
+        if not isinstance(place, dict):
+            continue
+        matched_key = ""
+        place_id = str(place.get("google_place_id") or "").strip()
+        if place_id:
+            for key, group in groups.items():
+                outlet_place_ids = {
+                    str(outlet.get("google_place_id") or "").strip()
+                    for outlet in group.get("outlet_locations", [])
+                }
+                if place_id in outlet_place_ids or place_id == str(group.get("google_place_id") or "").strip():
+                    matched_key = key
+                    break
+        if not matched_key:
+            for key, group in groups.items():
+                outlets = group.get("outlet_locations") or [group]
+                if any(_strong_name_address_match(place, outlet) for outlet in outlets):
+                    matched_key = key
+                    break
+        item = _merge_google_item(place)
+        if matched_key:
+            _absorb(groups[matched_key], item)
+        else:
+            groups[_result_key(item)] = item
+
+    ranked = _rank_results(list(groups.values()))
+    return ranked
 
 
 @mcp.tool()
@@ -1159,12 +1390,13 @@ def build_near_me_c360_customer_query(
     return {
         "answer": {
             "known_area": area,
+            "c360_dataset": _c360_dataset(),
             "execute_with": "staffany_bigquery.execute_sql_readonly",
             "sql": sql,
             "expected_output": "One row per organisation_id with nearest section, distance, HubSpot company, C360 usage/deal context, and optional MRR.",
         },
         "source": "C360 BigQuery SQL builder",
-        "scope": {**scope, "location_source": location_source},
+        "scope": {**scope, "location_source": location_source, "c360_dataset": _c360_dataset()},
         "confidence": "verified",
         "caveat": "Run via read-only BigQuery MCP only. fct_company_org_mrr is optional MRR enrichment and not the customer filter.",
     }
@@ -1253,6 +1485,71 @@ def build_near_me_outlet_matches_query(
         "scope": scope,
         "confidence": "verified",
         "caveat": "Run via read-only BigQuery MCP only. This reads the outlet memory table and does not mutate HubSpot.",
+    }
+
+
+@mcp.tool()
+def prepare_near_me_seed_review_candidates(
+    slack_user_email: str,
+    area_id: str,
+    google_places: list[dict[str, Any]] | None = None,
+    c360_customer_rows: list[dict[str, Any]] | None = None,
+    hubspot_prospect_rows: list[dict[str, Any]] | None = None,
+    candidate_limit: int = MAX_SEED_REVIEW_CANDIDATES_PER_AREA,
+) -> dict[str, Any]:
+    """Prepare capped Slack review candidates for near-me outlet-match seeding."""
+
+    capped_limit = _bounded_int(
+        candidate_limit,
+        MAX_SEED_REVIEW_CANDIDATES_PER_AREA,
+        MAX_SEED_REVIEW_CANDIDATES_PER_AREA,
+    )
+    scope = _scope(
+        slack_user_email,
+        {
+            "area_id": area_id,
+            "candidate_limit": capped_limit,
+            "google_place_count": len(google_places or []),
+            "c360_customer_row_count": len(c360_customer_rows or []),
+            "hubspot_prospect_row_count": len(hubspot_prospect_rows or []),
+        },
+    )
+    try:
+        area = _area_public(_known_area_by_id(area_id))
+    except NearMeError as error:
+        return _blocked(str(error), scope, "Near-me seed review")
+
+    ranked = _rank_seed_review_items(area, google_places, c360_customer_rows, hubspot_prospect_rows)
+    deduped = []
+    seen = set()
+    for item in ranked:
+        key = _review_candidate_key(item)
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        deduped.append(item)
+        if len(deduped) >= capped_limit:
+            break
+
+    candidates = [_seed_review_candidate(area, item, rank) for rank, item in enumerate(deduped, start=1)]
+    return {
+        "answer": {
+            "known_area": area,
+            "review_candidates": candidates,
+            "candidate_count": len(candidates),
+            "candidate_limit": capped_limit,
+            "slack_review_policy": {
+                "surface": "message_thread",
+                "approvers": "configured managers and admins with Singapore scope",
+                "write_path": "restricted_bigquery_writer_job",
+                "approval_state": "Slack thread until commit",
+            },
+            "store_policy": "Only approved confirmed rows with a HubSpot Company or StaffAny organisation link may be written.",
+        },
+        "source": "Google Places candidates + C360 customers + HubSpot target prospects",
+        "scope": scope,
+        "confidence": "needs-check",
+        "caveat": "Review-only. Google-only rows are not eligible for BigQuery write until linked to a customer or prospect account.",
     }
 
 

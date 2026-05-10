@@ -160,13 +160,14 @@ Friday sales review uses the same scoped association discipline, plus HubSpot ca
 - Funnel snapshot returns accounts worked, connected calls, QOs, QO Met %, deals closed, warm activity points, and caveats. If funnel stage config is missing, QO/QO Met/deal counts are `needs-check` but hygiene still returns.
 - Friday review is HubSpot hygiene first. Warehouse QO actuals are a second source and require executing returned SQL through `staffany_bigquery.execute_sql_readonly`.
 - Next-week actions must be concrete corrections tied to 120/150 account coverage, double tap, 30 WhatsApp daily rhythm, 40 connected calls, clean-lead fields, and warm activity proof.
+- Direct QO count/pace questions should not call this tool. They should resolve owner/team scope and use StaffAny BigQuery `fct_sales_points.qo_set`. A Friday review may add that revenue-metric result as a second source after this HubSpot review output.
 
 `get_account_context`:
 
 - Input: company ID or exact company selector plus caller identity.
 - Output: scoped account context with safe contact, deal, and existing sales follow-up task summary, plus HubSpot owner name/email, customer/prospect status/source, route-keyed `c360_url` for verified current customers, contact coverage source fields, and the recommended AE calendar ID for follow-up scans.
 - Output includes `company.calendar_audit_seed` for Google Calendar meeting-quality audits: company ID/name/domain, owner email/calendar ID, missing clean-lead fields, decision-maker coverage, I-C-BANT readiness hints, and safe contact match records with email domains/hashes only. It must not expose raw contact emails in Slack-facing output.
-- For account-background answers, include `company.c360_url` in the Company section and name Customer 360 in `Source` whenever the scoped company is a verified customer.
+- For account-background answers, use top-level `slack_markdown` or `answer.account_packet.slack_markdown` as the default Slack answer, include the Customer 360 link when returned, and name Customer 360 in `Source` whenever the scoped company is a verified customer. Do not append raw contacts, deals, last activity, open tasks, or IC-BANT by default.
 
 `build_pre_demo_game_plans`:
 
