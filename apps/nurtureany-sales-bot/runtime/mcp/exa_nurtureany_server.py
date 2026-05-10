@@ -25,6 +25,7 @@ EXA_TIMEOUT_SECONDS = 15
 MAX_SEARCH_COMPANIES = 5
 MAX_CANDIDATES_PER_COMPANY = 5
 MAX_TARGET_TITLES = 12
+SCOPE_SOURCE = "hubspot_nurtureany"
 
 COUNTRY_TO_USER_LOCATION = {
     "singapore": "SG",
@@ -187,6 +188,27 @@ def _company_input(company: dict[str, Any]) -> dict[str, str]:
     }
 
 
+def _is_scoped_hubspot_company(company: dict[str, Any]) -> bool:
+    company_id = str(company.get("company_id") or company.get("id") or "").strip()
+    if not company_id:
+        return False
+    return company.get("hubspot_scoped") is True or str(company.get("scope_source") or "") == SCOPE_SOURCE
+
+
+def _scoped_company_error(companies: list[dict[str, Any]]) -> str:
+    unscoped = [
+        str(index + 1)
+        for index, company in enumerate(companies[:MAX_SEARCH_COMPANIES])
+        if not isinstance(company, dict) or not _is_scoped_hubspot_company(company)
+    ]
+    if not unscoped:
+        return ""
+    return (
+        "Exa paid enrichment requires scoped HubSpot company inputs from NurtureAny "
+        f"with company_id and scope_source={SCOPE_SOURCE}; unscoped input positions: {', '.join(unscoped)}."
+    )
+
+
 def _clean_domain(domain: str) -> str:
     text = domain.strip().lower()
     for prefix in ("https://", "http://"):
@@ -317,15 +339,20 @@ def search_exa_people_candidates(
             "safety": "No profile contents, email, phone, or HubSpot mutation.",
         },
     )
+    raw_companies = [company for company in (companies or [])[:MAX_SEARCH_COMPANIES] if isinstance(company, dict)]
+    scoped_error = _scoped_company_error(raw_companies)
+    if scoped_error:
+        return _blocked(scoped_error, scope)
+
+    selected_companies = [_company_input(company) for company in raw_companies]
+    selected_companies = [company for company in selected_companies if company["name"] or company["domain"]]
+    if not selected_companies:
+        return _blocked("At least one company name or domain is required.", scope)
+
     try:
         _token()
     except ExaError as error:
         return _blocked(str(error), scope)
-
-    selected_companies = [_company_input(company) for company in (companies or [])[:MAX_SEARCH_COMPANIES]]
-    selected_companies = [company for company in selected_companies if company["name"] or company["domain"]]
-    if not selected_companies:
-        return _blocked("At least one company name or domain is required.", scope)
 
     capped_limit = max(1, min(int(limit_per_company or MAX_CANDIDATES_PER_COMPANY), MAX_CANDIDATES_PER_COMPANY))
     candidates_by_company: list[dict[str, Any]] = []

@@ -30,6 +30,7 @@ MAX_CANDIDATES_PER_COMPANY = 5
 MAX_REVEAL_CONTACTS = 3
 USAGE_CACHE_TTL_SECONDS = 12
 USAGE_MIN_INTERVAL_SECONDS = 12
+SCOPE_SOURCE = "hubspot_nurtureany"
 
 DECISION_MAKER_TITLES = [
     "owner",
@@ -245,6 +246,31 @@ def _company_input(company: dict[str, Any]) -> dict[str, str]:
     }
 
 
+def _is_scoped_hubspot_company(company: dict[str, Any]) -> bool:
+    company_id = str(company.get("company_id") or company.get("id") or "").strip()
+    if not company_id:
+        return False
+    return company.get("hubspot_scoped") is True or str(company.get("scope_source") or "") == SCOPE_SOURCE
+
+
+def _scoped_company_error(companies: list[dict[str, Any]]) -> str:
+    unscoped = [
+        str(index + 1)
+        for index, company in enumerate(companies[:MAX_SEARCH_COMPANIES])
+        if not isinstance(company, dict) or not _is_scoped_hubspot_company(company)
+    ]
+    if not unscoped:
+        return ""
+    return (
+        "Lusha paid enrichment requires scoped HubSpot company inputs from NurtureAny "
+        f"with company_id and scope_source={SCOPE_SOURCE}; unscoped input positions: {', '.join(unscoped)}."
+    )
+
+
+def _has_scoped_company_ids(scoped_company_ids: list[str] | None) -> bool:
+    return bool([str(company_id).strip() for company_id in (scoped_company_ids or []) if str(company_id).strip()])
+
+
 def _clean_domain(domain: str) -> str:
     text = domain.strip().lower()
     for prefix in ("https://", "http://"):
@@ -391,15 +417,20 @@ def search_lusha_decision_maker_candidates(
             "max_candidates_per_company": MAX_CANDIDATES_PER_COMPANY,
         },
     )
+    raw_companies = [company for company in (companies or [])[:MAX_SEARCH_COMPANIES] if isinstance(company, dict)]
+    scoped_error = _scoped_company_error(raw_companies)
+    if scoped_error:
+        return _blocked(scoped_error, scope)
+
+    selected_companies = [_company_input(company) for company in raw_companies]
+    selected_companies = [company for company in selected_companies if company["name"] or company["domain"]]
+    if not selected_companies:
+        return _blocked("At least one company name or domain is required.", scope)
+
     try:
         _token()
     except LushaError as error:
         return _blocked(str(error), scope)
-
-    selected_companies = [_company_input(company) for company in (companies or [])[:MAX_SEARCH_COMPANIES]]
-    selected_companies = [company for company in selected_companies if company["name"] or company["domain"]]
-    if not selected_companies:
-        return _blocked("At least one company name or domain is required.", scope)
 
     before, before_status = _usage_snapshot()
     candidates_by_company: list[dict[str, Any]] = []
@@ -464,6 +495,7 @@ def reveal_lusha_contact_details(
     reveal_emails: bool = True,
     reveal_phones: bool = False,
     approval_marker: str = "",
+    scoped_company_ids: list[str] | None = None,
 ) -> dict[str, Any]:
     """Reveal selected Lusha contact details after explicit approval."""
 
@@ -477,6 +509,8 @@ def reveal_lusha_contact_details(
             "reveal_phones": bool(reveal_phones),
         },
     )
+    if not _has_scoped_company_ids(scoped_company_ids):
+        return _blocked("Lusha reveal requires scoped HubSpot company_ids from the prior NurtureAny HubSpot-scoped search.", scope)
     if not approval_marker.strip():
         return _blocked("Lusha reveal requires an approval marker from the Slack thread.", scope)
     if not request_id.strip():

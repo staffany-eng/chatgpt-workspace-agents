@@ -14,9 +14,36 @@ Expected behavior:
 
 - First response is plan-only.
 - Uses HubSpot target accounts after `run`.
+- Requires an explicit `sales_reps` runtime access policy entry.
 - Filters to `hs_is_target_account=true`, supported countries, and the requesting AE's `hubspot_owner_id`.
 - Returns ranked accounts only from the AE's own scope.
 - Includes source, scope, confidence, and caveat.
+
+## Access Policy
+
+Prompt from a HubSpot owner who is not classified in `NURTUREANY_ACCESS_POLICY_PATH`:
+
+```text
+@NurtureAny my target accounts
+```
+
+Expected behavior:
+
+- Blocks access with `Confidence: blocked`.
+- Does not infer AE access from Slack title, channel membership, or HubSpot owner existence.
+- Asks for runtime access policy classification.
+
+Prompt from Eugene or Kai Yi:
+
+```text
+@NurtureAny audit HubSpot owner roster
+```
+
+Expected behavior:
+
+- Runs admin-only roster audit.
+- Returns active HubSpot owners, supported-country target-account counts, and classification status.
+- Does not expose secrets or grant access by audit output.
 
 ## Manager Scope
 
@@ -32,6 +59,7 @@ Expected behavior:
 - Sarah sees Indonesia only.
 - Eugene and Kai Yi see Singapore, Malaysia, and Indonesia.
 - Other users are denied manager view with `Confidence: blocked`.
+- Managers are read-only for team scope and cannot create HubSpot write-back previews.
 
 ## Enrichment Gaps
 
@@ -119,6 +147,40 @@ Expected behavior:
 - Does not send WhatsApp or trigger external messaging.
 - Includes rationale and evidence per account.
 
+## Google Calendar Context
+
+Prompt:
+
+```text
+@NurtureAny check whether account 1 has a calendar follow-up this month
+```
+
+Expected behavior:
+
+- First response is plan-only.
+- After `run`, uses scoped HubSpot account context before calendar lookup.
+- Uses only the read-only `team@staffany.com` Google Calendar connector.
+- Returns safe event metadata only, with no descriptions, attendee emails, raw guest lists, event mutations, invites, RSVPs, or attendee exports.
+- Treats calendar hits as scheduling context with `Confidence: needs-check` unless matched back to stronger HubSpot or Luma evidence.
+
+## Luma RSVP And Attendance Context
+
+Prompt:
+
+```text
+@NurtureAny did account 1 attend yesterday's Luma event?
+```
+
+Expected behavior:
+
+- First response is plan-only.
+- After `run`, uses scoped HubSpot account context before Luma lookup.
+- Requires scoped HubSpot company IDs before guest matching.
+- Returns bounded RSVP and attendance context with matched account IDs, RSVP counts, checked-in counts, attendee names only for matched scoped accounts, email domain/hash, RSVP status, checked-in timestamp, match reason, `has_more`, and `truncated`.
+- Treats attendance as `checked_in_at` present. RSVP status alone is not attendance.
+- Does not expose unmatched guests, full attendee emails, phone numbers, registration answers, raw guest lists, Luma mutations, HubSpot mutations, or attendee exports.
+- Uses `Confidence: needs-check` for company-name candidate matches or truncated event/guest reads.
+
 ## HubSpot Write Preview
 
 Prompt:
@@ -132,6 +194,8 @@ Expected behavior:
 - Produces a HubSpot write-back preview first.
 - Asks for explicit approval.
 - Does not mutate HubSpot on preview.
+- Refuses manager team-scope callers because managers are read-only.
+- Refuses actions without scoped HubSpot `company_id` or outside caller scope.
 - Executes only selected approved actions when mutation tools are enabled.
 
 ## Lusha Candidate Search And Reveal
@@ -146,9 +210,11 @@ Expected behavior:
 
 - First response is plan-only and mentions possible Lusha credit use.
 - After `run`, searches at most 5 companies and returns at most 5 candidates per company.
+- Requires scoped HubSpot company IDs before any paid/API call.
 - Search returns `requestId`, `contactId`, title, company match, LinkedIn/social presence, email/phone availability flags, and `credit_report`.
 - Search does not reveal email or phone.
 - Reveal requires selected `contactId` values and an `approval_marker`.
+- Reveal requires scoped HubSpot company IDs from the prior search.
 - Reveal caps at 3 contacts, defaults to email only, and never reveals phones unless `reveal_phones=true`.
 - Reveal returns selected PII only for selected contacts, `credit_report`, and a HubSpot preview seed with no mutation.
 
@@ -164,6 +230,7 @@ Expected behavior:
 
 - First response is plan-only and mentions estimated Exa dollar-cost scope.
 - After `run`, searches at most 5 companies and returns at most 5 public people candidates per company.
+- Requires scoped HubSpot company IDs before any paid/API call.
 - Search returns Exa request ID, source URL, source domain/type, inferred name/title, decision-maker match signal, and `cost_report`.
 - Search does not fetch LinkedIn/profile contents, reveal email or phone, mutate HubSpot, or call Lusha automatically.
 - LinkedIn URLs are treated as manual-check evidence only.

@@ -43,16 +43,40 @@ class ExaNurtureAnyServerTest(unittest.TestCase):
     def setUp(self):
         self.module = load_exa_module()
 
+    def scoped_company(self, **overrides):
+        company = {
+            "company_id": "hubspot-123",
+            "name": "Acme Cafe",
+            "domain": "acme.example",
+            "country": "Singapore",
+            "hubspot_scoped": True,
+            "scope_source": self.module.SCOPE_SOURCE,
+        }
+        company.update(overrides)
+        return company
+
     def test_missing_key_returns_blocked_without_calling_exa(self):
         with patch.dict(os.environ, {}, clear=True), patch.object(
             self.module, "_request_json", side_effect=AssertionError("should not call Exa")
         ):
             result = self.module.search_exa_people_candidates(
-                "ae@staffany.com", [{"name": "Acme Cafe"}]
+                "ae@staffany.com", [self.scoped_company()]
             )
 
         self.assertEqual(result["confidence"], "blocked")
         self.assertIn("EXA_API_KEY", result["answer"])
+        self.assertEqual(result["cost_report"]["actual_cost_usd"], 0)
+
+    def test_unscoped_company_input_is_blocked_before_key_or_api_call(self):
+        with patch.dict(os.environ, {"EXA_API_KEY": "test-key"}), patch.object(
+            self.module, "_request_json", side_effect=AssertionError("should not call Exa")
+        ):
+            result = self.module.search_exa_people_candidates(
+                "ae@staffany.com", [{"name": "Acme Cafe", "domain": "acme.example"}]
+            )
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("requires scoped HubSpot company inputs", result["answer"])
         self.assertEqual(result["cost_report"]["actual_cost_usd"], 0)
 
     def test_search_caps_companies_candidates_and_uses_people_payload_only(self):
@@ -73,10 +97,7 @@ class ExaNurtureAnyServerTest(unittest.TestCase):
                 "costDollars": {"total": 0.007},
             }, {}
 
-        companies = [
-            {"name": f"Company {index}", "domain": f"company{index}.com", "country": "Singapore"}
-            for index in range(6)
-        ]
+        companies = [self.scoped_company(company_id=f"hubspot-{index}", name=f"Company {index}", domain=f"company{index}.com") for index in range(6)]
 
         with patch.dict(os.environ, {"EXA_API_KEY": "test-key"}), patch.object(
             self.module, "_request_json", side_effect=fake_request
@@ -164,7 +185,7 @@ class ExaNurtureAnyServerTest(unittest.TestCase):
             self.module, "_request_json", side_effect=fake_request
         ):
             result = self.module.search_exa_people_candidates(
-                "ae@staffany.com", [{"name": "Acme Cafe"}]
+                "ae@staffany.com", [self.scoped_company()]
             )
 
         self.assertEqual(result["confidence"], "blocked")
@@ -179,7 +200,7 @@ class ExaNurtureAnyServerTest(unittest.TestCase):
             self.module, "_request_json", side_effect=fake_request
         ):
             result = self.module.search_exa_people_candidates(
-                "ae@staffany.com", [{"name": "Acme Cafe"}]
+                "ae@staffany.com", [self.scoped_company()]
             )
 
         self.assertEqual(result["confidence"], "blocked")

@@ -6,7 +6,8 @@ HubSpot is the source of truth for NurtureAny target-account queues.
 
 Read phase:
 
-- Read owners and map owner email to owner ID.
+- Read owners and map explicitly classified sales reps from Slack email to HubSpot owner email to owner ID.
+- Audit active HubSpot owners and target-account counts for admin-only classification.
 - Search companies by target-account flag, owner, and country.
 - Read company, contact, deal, association, activity, task, and note context.
 - Read existing incomplete sales-owned follow-up tasks associated to scoped target accounts through company, contact, or deal links.
@@ -20,6 +21,8 @@ Write phase:
 
 Use a private app token from Secret Manager or the live profile `.env`. Do not store tokens in this repo.
 
+Use `NURTUREANY_ACCESS_POLICY_PATH` for the runtime-only access policy. Copy `runtime/access-policy.template.json` outside the repo and classify real people there; do not commit the full sales roster.
+
 ## Local MCP Adapter
 
 The V1 stdio MCP adapter lives at `runtime/mcp/hubspot_nurtureany_server.py`.
@@ -28,6 +31,7 @@ It exposes these tools:
 
 - `list_my_target_accounts`
 - `list_team_target_accounts`
+- `audit_hubspot_owner_roster`
 - `get_account_context`
 - `list_sales_followup_tasks`
 - `score_nurture_accounts`
@@ -48,6 +52,8 @@ Use HubSpot CRM search with:
 - AE scope: `hubspot_owner_id EQ <owner id>`
 - Manager scope: `company_country IN <allowed countries>`
 - Authorized manager/admin owner scope: add `hubspot_owner_id EQ <target owner id>` from `owner_email`, while preserving `slack_user_email` as caller identity.
+
+Unclassified HubSpot owners are blocked. A HubSpot owner record alone does not grant AE access.
 
 HubSpot search pages are capped at 100 records. The adapter must paginate internally up to the requested limit and return `total`, `requested_limit`, `returned_count`, `has_more`, and `truncated` for every account-list, scoring, gap, and free-task response. Do not let the agent claim a full count or "all returned" unless `truncated=false` and `has_more=false`.
 
@@ -80,6 +86,12 @@ Sales-owned follow-up tasks are read-only prioritization signals. A task is in s
 - Input: Slack user email, optional countries, optional owner email filter.
 - Output: manager/admin scoped summaries only.
 - Refuse if caller is not explicitly allowed.
+
+`audit_hubspot_owner_roster`:
+
+- Input: admin Slack user email, optional countries, optional owner limit.
+- Output: active HubSpot owners, classification status, and target-account counts by country.
+- Refuse all non-admin callers.
 
 `get_account_context`:
 
@@ -124,6 +136,8 @@ Sales-owned follow-up tasks are read-only prioritization signals. A task is in s
 - Input: selected accounts and proposed actions.
 - Output: dry-run task/note/field update preview.
 - Preserve public/Exa/Lusha source evidence, source type, source URL, and confidence in preview actions.
+- Refuse manager callers because manager team scope is read-only.
+- Refuse actions without scoped HubSpot `company_id` or outside the caller's target-account scope.
 
 Mutation tools:
 

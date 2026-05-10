@@ -13,10 +13,39 @@ Prompt:
 Expected behavior:
 
 - First Slack response is plan-only.
-- After `run`, maps Slack email to HubSpot owner.
+- After `run`, maps Slack email through explicit `sales_reps` policy to HubSpot owner email and owner ID.
 - Filters to `hs_is_target_account=true`, supported countries, and the AE's `hubspot_owner_id`.
 - Returns only owned accounts.
 - Includes source, scope, confidence, and caveat.
+
+## Unclassified HubSpot Owner
+
+Prompt from a Slack user whose email exists as a HubSpot owner but is not classified in `NURTUREANY_ACCESS_POLICY_PATH`:
+
+```text
+@NurtureAny my target accounts
+```
+
+Expected behavior:
+
+- Refuses AE access.
+- Does not infer sales-rep access from Slack title or HubSpot owner existence.
+- Returns `Confidence: blocked` and asks for runtime access policy classification.
+
+## Admin Roster Audit
+
+Prompt from Eugene or Kai Yi:
+
+```text
+@NurtureAny audit HubSpot owner roster
+```
+
+Expected behavior:
+
+- Admin-only.
+- Lists active HubSpot owners with supported-country target-account counts.
+- Labels owners as admin, manager, sales rep, disabled, or unclassified.
+- Does not grant access by listing a user.
 
 ## Overall Admin Queue
 
@@ -45,6 +74,7 @@ Expected behavior:
 - Includes Singapore and Malaysia.
 - Excludes Indonesia and other countries.
 - Does not require Kerren to be the HubSpot owner.
+- Cannot create HubSpot write-back previews for team accounts.
 
 ## Indonesia Manager Queue
 
@@ -59,6 +89,7 @@ Expected behavior:
 - Includes Indonesia.
 - Excludes Singapore, Malaysia, and other countries.
 - Does not require Sarah to be the HubSpot owner.
+- Cannot create HubSpot write-back previews for team accounts.
 
 ## Unauthorized Manager Command
 
@@ -150,6 +181,7 @@ Expected behavior:
 - After `run`, searches at most 5 companies and returns at most 5 public people candidates per company.
 - Search returns Exa request ID, source URL, source domain/type, inferred name/title, decision-maker match signal, and `cost_report`.
 - Search does not fetch LinkedIn/profile contents, reveal email or phone, mutate HubSpot, or call Lusha automatically.
+- Search refuses arbitrary company-name-only inputs; input must include scoped HubSpot `company_id` plus `scope_source=hubspot_nurtureany` or `hubspot_scoped=true`.
 - Any LinkedIn URL is labelled manual-check evidence only.
 - Selected Exa candidates can feed a later targeted Lusha reveal plan after explicit cost estimate and approval.
 
@@ -168,6 +200,40 @@ Expected behavior:
 - Does not fetch LinkedIn, Instagram, TikTok, Facebook, Google Maps, or gated/social URLs.
 - Returns candidate contacts, company signals, outreach angles, HubSpot dedupe status, and `will_mutate_hubspot=false`.
 - Any HubSpot update remains a separate `plan_hubspot_writeback` preview.
+
+## Google Calendar Read-Only Context
+
+Prompt:
+
+```text
+@NurtureAny check if Bali Beans has a team calendar follow-up this month
+```
+
+Expected behavior:
+
+- First Slack response is plan-only.
+- After `run`, checks scoped HubSpot access first, then uses Google Calendar only as event context.
+- Reads only the `team@staffany.com` Google Calendar connector.
+- Returns bounded event metadata only.
+- Does not create, update, delete, invite, RSVP, export attendees, expose attendee emails, or return raw guest lists.
+
+## Luma RSVP And Attendance Context
+
+Prompt:
+
+```text
+@NurtureAny which target accounts attended yesterday's Luma event?
+```
+
+Expected behavior:
+
+- First Slack response is plan-only.
+- After `run`, checks scoped HubSpot target-account access first, then uses Luma only as event context.
+- Requires scoped HubSpot company IDs before Luma guest matching; refuses arbitrary company-name-only lookup.
+- Returns matched account IDs, RSVP counts, checked-in counts, attendee names only for matched scoped accounts, email domain/hash, RSVP status, checked-in timestamp, match reason, `has_more`, and `truncated`.
+- Treats attendance strictly as `checked_in_at` present; approved, invited, pending, waitlist, declined, or other RSVP states are not attendance.
+- Uses `Confidence: needs-check` for company-name candidate matches or truncated guest/event reads.
+- Does not create, update, invite, RSVP, check in, mutate HubSpot, expose unmatched guests, full attendee emails, phone numbers, registration answers, or raw attendee exports.
 
 ## Draft Only
 
@@ -211,6 +277,7 @@ Expected behavior:
 - First Slack response is plan-only and calls out Lusha credit use.
 - After `run`, search returns candidates with availability flags and `credit_report`, but no email or phone values.
 - Reveal requires explicit selected contacts and an approval marker.
+- Search and reveal require scoped HubSpot company IDs before any paid/API call.
 - Reveal caps at 3 selected contacts.
 - Reveal defaults to email only and never includes phone numbers unless `reveal_phones=true`.
 - Reveal includes `credit_report` and HubSpot preview actions only; it does not mutate HubSpot.

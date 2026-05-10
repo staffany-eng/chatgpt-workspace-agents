@@ -1,0 +1,41 @@
+{
+  "_comment": "Copy this file outside the repo, classify real users there, and point NURTUREANY_ACCESS_POLICY_PATH at that runtime-only file. Do not commit the real sales roster.",
+  "admins": [
+    {
+      "email": "kaiyi@staffany.com"
+    },
+    {
+      "email": "eugene@staffany.com"
+    }
+  ],
+  "managers": [
+    {
+      "email": "kerren.fong@staffany.com",
+      "countries": ["Singapore", "Malaysia"]
+    },
+    {
+      "email": "sarah@staffany.com",
+      "countries": ["Indonesia"]
+    }
+  ],
+  "sales_reps": [
+    {
+      "slack_email": "example.sg.rep@example.invalid",
+      "hubspot_owner_email": "example.sg.owner@example.invalid",
+      "countries": ["Singapore"],
+      "active": true
+    },
+    {
+      "slack_email": "example.my.rep@example.invalid",
+      "hubspot_owner_email": "example.my.owner@example.invalid",
+      "countries": ["Malaysia"],
+      "active": true
+    }
+  ],
+  "disabled": [
+    {
+      "email": "former.rep@example.invalid"
+    }
+  ],
+  "unclassified": []
+}

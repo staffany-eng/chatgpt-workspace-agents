@@ -43,6 +43,18 @@ class LushaNurtureAnyServerTest(unittest.TestCase):
     def setUp(self):
         self.module = load_lusha_module()
 
+    def scoped_company(self, **overrides):
+        company = {
+            "company_id": "hubspot-123",
+            "name": "Acme Cafe",
+            "domain": "acme.example",
+            "country": "Singapore",
+            "hubspot_scoped": True,
+            "scope_source": self.module.SCOPE_SOURCE,
+        }
+        company.update(overrides)
+        return company
+
     def test_search_caps_companies_candidates_and_does_not_reveal_pii(self):
         calls = []
 
@@ -64,10 +76,7 @@ class LushaNurtureAnyServerTest(unittest.TestCase):
                 "x-minute-requests-left": "42"
             }
 
-        companies = [
-            {"name": f"Company {index}", "domain": f"company{index}.com", "country": "Singapore"}
-            for index in range(6)
-        ]
+        companies = [self.scoped_company(company_id=f"hubspot-{index}", name=f"Company {index}", domain=f"company{index}.com") for index in range(6)]
 
         with patch.dict(os.environ, {"LUSHA_API_KEY": "test-key"}), patch.object(
             self.module, "_usage_snapshot", side_effect=[({"total_used": 10}, "fresh"), ({"total_used": 10}, "cached")]
@@ -109,7 +118,7 @@ class LushaNurtureAnyServerTest(unittest.TestCase):
             self.module, "_request_json", side_effect=AssertionError("should not call Lusha")
         ):
             result = self.module.reveal_lusha_contact_details(
-                "ae@staffany.com", "req-123", ["contact-1"], approval_marker=""
+                "ae@staffany.com", "req-123", ["contact-1"], approval_marker="", scoped_company_ids=["hubspot-123"]
             )
 
         self.assertEqual(result["confidence"], "blocked")
@@ -153,6 +162,7 @@ class LushaNurtureAnyServerTest(unittest.TestCase):
                 reveal_emails=True,
                 reveal_phones=False,
                 approval_marker="approved in Slack",
+                scoped_company_ids=["hubspot-123"],
             )
 
         self.assertEqual(result["confidence"], "needs-check")
@@ -184,6 +194,7 @@ class LushaNurtureAnyServerTest(unittest.TestCase):
                 reveal_emails=True,
                 reveal_phones=True,
                 approval_marker="approved in Slack",
+                scoped_company_ids=["hubspot-123"],
             )
 
         self.assertEqual(result["credit_report"]["estimated_credits"], 12)
@@ -193,11 +204,38 @@ class LushaNurtureAnyServerTest(unittest.TestCase):
             self.module, "_request_json", side_effect=AssertionError("should not call Lusha")
         ):
             result = self.module.search_lusha_decision_maker_candidates(
-                "ae@staffany.com", [{"name": "Acme Cafe"}]
+                "ae@staffany.com", [self.scoped_company()]
             )
 
         self.assertEqual(result["confidence"], "blocked")
         self.assertIn("LUSHA_API_KEY", result["answer"])
+
+    def test_unscoped_company_input_is_blocked_before_key_or_api_call(self):
+        with patch.dict(os.environ, {"LUSHA_API_KEY": "test-key"}), patch.object(
+            self.module, "_request_json", side_effect=AssertionError("should not call Lusha")
+        ):
+            result = self.module.search_lusha_decision_maker_candidates(
+                "ae@staffany.com", [{"name": "Acme Cafe", "domain": "acme.example"}]
+            )
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("requires scoped HubSpot company inputs", result["answer"])
+        self.assertEqual(result["credit_report"]["estimated_credits"], 0)
+
+    def test_reveal_requires_scoped_company_ids_before_calling_lusha(self):
+        with patch.dict(os.environ, {"LUSHA_API_KEY": "test-key"}), patch.object(
+            self.module, "_request_json", side_effect=AssertionError("should not call Lusha")
+        ):
+            result = self.module.reveal_lusha_contact_details(
+                "ae@staffany.com",
+                "req-123",
+                ["contact-1"],
+                approval_marker="approved in Slack",
+                scoped_company_ids=[],
+            )
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("scoped HubSpot company_ids", result["answer"])
 
     def test_lusha_http_errors_return_blocked_with_credit_report(self):
         def fake_request(method, path, body=None):
@@ -207,7 +245,7 @@ class LushaNurtureAnyServerTest(unittest.TestCase):
             self.module, "_usage_snapshot", side_effect=[({"total_used": 10}, "fresh"), ({"total_used": 10}, "cached")]
         ), patch.object(self.module, "_request_json", side_effect=fake_request):
             result = self.module.search_lusha_decision_maker_candidates(
-                "ae@staffany.com", [{"name": "Acme Cafe"}]
+                "ae@staffany.com", [self.scoped_company()]
             )
 
         self.assertEqual(result["confidence"], "blocked")
