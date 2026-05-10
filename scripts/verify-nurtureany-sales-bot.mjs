@@ -1,7 +1,13 @@
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
+import {
+  assertFile as sharedAssertFile,
+  readJson as sharedReadJson,
+  scanForSecretPatterns as sharedScanForSecretPatterns,
+  textOf as sharedTextOf
+} from "./lib/app-packet-verify.mjs";
 
 const repoRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const appRoot = join(repoRoot, "apps", "nurtureany-sales-bot");
@@ -14,45 +20,43 @@ function fail(message) {
 }
 
 function readJson(path) {
-  try {
-    return JSON.parse(readFileSync(path, "utf8"));
-  } catch (error) {
-    fail(`Invalid JSON: ${path}: ${error.message}`);
-    return null;
-  }
+  return sharedReadJson(path, fail);
 }
 
 function assertFile(relPath) {
-  const path = join(appRoot, relPath);
-  if (!existsSync(path)) {
-    fail(`Missing app file: ${relPath}`);
-    return;
-  }
-  if (!statSync(path).isFile()) {
-    fail(`Expected file, got non-file path: ${relPath}`);
-  }
+  sharedAssertFile(appRoot, relPath, fail);
 }
 
 function textOf(relPath) {
-  const path = join(appRoot, relPath);
-  if (!existsSync(path) || !statSync(path).isFile()) return "";
-  return readFileSync(path, "utf8");
+  return sharedTextOf(appRoot, relPath);
 }
 
 function scanForSecretPatterns(relPath) {
+  sharedScanForSecretPatterns(appRoot, relPath, fail);
+}
+
+function sortedUnique(values) {
+  return [...new Set(values)].sort();
+}
+
+function decoratedMcpTools(relPath) {
   const text = textOf(relPath);
-  if (!text) return;
-  const patterns = [
-    [/xox[baprs]-[A-Za-z0-9-]+/, "Slack token"],
-    [/xapp-[A-Za-z0-9-]+/, "Slack app token"],
-    [/sk-[A-Za-z0-9_-]{20,}/, "OpenAI-style API key"],
-    [/pat-[a-z0-9]+-[A-Za-z0-9-]{20,}/, "HubSpot private app token"],
-    [/-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/, "private key"],
-    [/AIza[0-9A-Za-z_-]{20,}/, "Google API key"]
-  ];
-  for (const [pattern, label] of patterns) {
-    if (pattern.test(text)) fail(`${label} pattern found in ${relPath}`);
+  const tools = [];
+  const pattern = /@mcp\.tool\(\)\s*(?:\n\s*#[^\n]*)*\n\s*def\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/g;
+  let match;
+  while ((match = pattern.exec(text)) !== null) {
+    tools.push(match[1]);
   }
+  return tools;
+}
+
+function compareSortedArrays(label, actual, expected) {
+  const actualList = sortedUnique(actual);
+  const expectedList = sortedUnique(expected);
+  const missing = expectedList.filter((item) => !actualList.includes(item));
+  const extra = actualList.filter((item) => !expectedList.includes(item));
+  for (const item of missing) fail(`${label} missing: ${item}`);
+  for (const item of extra) fail(`${label} unexpected: ${item}`);
 }
 
 if (!existsSync(manifestPath)) {
@@ -106,6 +110,25 @@ if (!existsSync(manifestPath)) {
       } else {
         assertFile(value);
       }
+    }
+    const references = paths.references || [];
+    const expectedReferenceOrder = [
+      "skills/nurtureany-sales-bot/references/hubspot-fields.md",
+      "skills/nurtureany-sales-bot/references/sales-best-practices.md",
+      "skills/nurtureany-sales-bot/references/sop-tool-coverage.md",
+      "skills/nurtureany-sales-bot/references/playbooks.md",
+      "skills/nurtureany-sales-bot/references/pre-demo-game-plans.md",
+      "skills/nurtureany-sales-bot/references/regression-cases.md"
+    ];
+    let lastReferenceIndex = -1;
+    for (const reference of expectedReferenceOrder) {
+      const index = references.indexOf(reference);
+      if (index === -1) {
+        fail(`Manifest references missing source-order file: ${reference}`);
+      } else if (index < lastReferenceIndex) {
+        fail(`Manifest references source order is wrong around: ${reference}`);
+      }
+      lastReferenceIndex = Math.max(lastReferenceIndex, index);
     }
 
     const expectedReadTools = [
@@ -162,10 +185,40 @@ if (!existsSync(manifestPath)) {
     if (!manifest.tools?.approval_gated_enrichment?.includes("reveal_lusha_contact_details")) {
       fail("Manifest missing approval-gated enrichment tool: reveal_lusha_contact_details");
     }
+    const plannedWriteTools = ["create_hubspot_task", "append_hubspot_note", "update_nurture_fields"];
+    if (manifest.tools?.write_phase_planned_disabled?.state !== "disabled_in_v1") {
+      fail("Manifest write_phase_planned_disabled.state must be disabled_in_v1");
+    }
+    compareSortedArrays(
+      "Manifest planned disabled write tools",
+      manifest.tools?.write_phase_planned_disabled?.tools || [],
+      plannedWriteTools
+    );
+    if (manifest.tools?.mutation_requires_explicit_approval) {
+      fail("Manifest must not expose callable-looking mutation_requires_explicit_approval tools in V1");
+    }
     for (const tool of ["create_hubspot_task", "append_hubspot_note", "update_nurture_fields"]) {
-      if (!manifest.tools?.mutation_requires_explicit_approval?.includes(tool)) {
-        fail(`Manifest missing approval-gated mutation tool: ${tool}`);
+      if (!manifest.tools?.write_phase_planned_disabled?.tools?.includes(tool)) {
+        fail(`Manifest missing disabled planned write tool: ${tool}`);
       }
+    }
+    const manifestCallableTools = [
+      ...(manifest.tools?.read || []),
+      ...(manifest.tools?.preview || []),
+      ...(manifest.tools?.approval_gated_enrichment || [])
+    ];
+    const actualMcpTools = [
+      "runtime/mcp/hubspot_nurtureany_server.py",
+      "runtime/mcp/google_calendar_nurtureany_server.py",
+      "runtime/mcp/google_drive_nurtureany_server.py",
+      "runtime/mcp/luma_nurtureany_server.py",
+      "runtime/mcp/near_me_nurtureany_server.py",
+      "runtime/mcp/exa_nurtureany_server.py",
+      "runtime/mcp/lusha_nurtureany_server.py"
+    ].flatMap((relPath) => decoratedMcpTools(relPath));
+    compareSortedArrays("Manifest callable tools vs MCP decorators", manifestCallableTools, actualMcpTools);
+    for (const tool of plannedWriteTools) {
+      if (actualMcpTools.includes(tool)) fail(`Planned write tool must not be exposed by MCP decorator in V1: ${tool}`);
     }
     if (manifest.lusha?.auth_env_var !== "LUSHA_API_KEY") fail("Manifest missing LUSHA_API_KEY auth env var");
     if (manifest.lusha?.max_search_companies !== 5) fail("Manifest Lusha max_search_companies must be 5");
@@ -355,12 +408,20 @@ const filesToScan = [
   "skills/nurtureany-sales-bot/SKILL.md",
   "skills/nurtureany-sales-bot/references/hubspot-fields.md",
   "skills/nurtureany-sales-bot/references/sales-best-practices.md",
+  "skills/nurtureany-sales-bot/references/sop-tool-coverage.md",
   "skills/nurtureany-sales-bot/references/playbooks.md",
   "skills/nurtureany-sales-bot/references/pre-demo-game-plans.md",
   "skills/nurtureany-sales-bot/references/regression-cases.md",
   "runtime/slack.md",
   "runtime/hubspot.md",
   "runtime/mcp/hubspot_nurtureany_server.py",
+  "runtime/mcp/nurtureany_common/responses.py",
+  "runtime/mcp/nurtureany_common/text.py",
+  "runtime/mcp/nurtureany_common/scoped_company.py",
+  "runtime/mcp/nurtureany_common/c360.py",
+  "runtime/mcp/nurtureany_common/luma_filters.py",
+  "runtime/mcp/nurtureany_common/google_oauth.py",
+  "runtime/mcp/test_helpers.py",
   "runtime/mcp/test_hubspot_nurtureany_server.py",
   "runtime/bigquery.md",
   "runtime/google-calendar.md",
@@ -385,6 +446,8 @@ const filesToScan = [
   "runtime/health-checks.md",
   "runtime/check-health.sh",
   "runtime/audit-live-profile.sh",
+  "runtime/jobs/near_me_outlet_match_writer.py",
+  "runtime/jobs/test_near_me_outlet_match_writer.py",
   "tests/regression-cases.md"
 ];
 
@@ -493,9 +556,13 @@ for (const text of [
   "build_friday_sales_review",
   "audit_priority_account_coverage",
   "sales-best-practices.md",
+  "sop-tool-coverage.md",
   "120/150 account coverage",
   "40 connected calls",
   "QO/QO Met",
+  "lead source",
+  "AI/data-readiness",
+  "event attribution",
   "pre-demo game plans",
   "NURTUREANY_ACCESS_POLICY_PATH",
   "Unclassified HubSpot owners are blocked",
@@ -547,6 +614,7 @@ for (const text of [
   "company_country",
   "hubspot_owner_id",
   "references/sales-best-practices.md",
+  "references/sop-tool-coverage.md",
   "references/pre-demo-game-plans.md",
   "Nurture-ready enriched",
   "verified decision maker",
@@ -613,6 +681,10 @@ for (const text of [
   "get_lusha_credit_usage",
   "cost_report",
   "credit_report",
+  "lead source",
+  "AI/data readiness",
+  "event attribution",
+  "disabled in V1",
   "approval_marker",
   "revealEmails",
   "revealPhones"
@@ -639,6 +711,51 @@ for (const text of [
   if (!salesBestPracticesText.includes(text)) {
     fail(`sales-best-practices.md missing required text: ${text}`);
   }
+}
+
+const sopToolCoverageText = textOf("skills/nurtureany-sales-bot/references/sop-tool-coverage.md");
+for (const text of [
+  "Source hierarchy",
+  "HubSpot override fields",
+  "Plan-first Slack flow",
+  "Access scope",
+  "PII/body safety",
+  "Cost/credit reporting",
+  "Mutation policy",
+  "Sales-best-practices usage",
+  "Inbound/routing",
+  "Event attribution",
+  "AI/data readiness",
+  "disabled in V1"
+]) {
+  if (!sopToolCoverageText.includes(text)) fail(`sop-tool-coverage.md missing required text: ${text}`);
+}
+for (const tool of [
+  "runtime/mcp/hubspot_nurtureany_server.py",
+  "runtime/mcp/google_calendar_nurtureany_server.py",
+  "runtime/mcp/google_drive_nurtureany_server.py",
+  "runtime/mcp/luma_nurtureany_server.py",
+  "runtime/mcp/near_me_nurtureany_server.py",
+  "runtime/mcp/exa_nurtureany_server.py",
+  "runtime/mcp/lusha_nurtureany_server.py"
+].flatMap((relPath) => decoratedMcpTools(relPath))) {
+  if (!sopToolCoverageText.includes(`\`${tool}\``)) {
+    fail(`sop-tool-coverage.md missing actual MCP tool: ${tool}`);
+  }
+}
+
+const combinedRegressionText = `${textOf("skills/nurtureany-sales-bot/references/regression-cases.md")}\n${textOf("tests/regression-cases.md")}`;
+for (const text of [
+  "Inbound Routing Quality",
+  "lead source",
+  "AI/Data Readiness Guardrail",
+  "Event Attribution Guardrail",
+  "Mutation Disabled In V1",
+  "create_hubspot_task",
+  "append_hubspot_note",
+  "update_nurture_fields"
+]) {
+  if (!combinedRegressionText.includes(text)) fail(`regression cases missing SOP scenario text: ${text}`);
 }
 
 const accessPolicyTemplate = readJson(join(appRoot, "runtime/access-policy.template.json"));

@@ -3,12 +3,12 @@
 
 This server exposes bounded Luma event and guest context only. It never creates
 or updates events, sends invites, exports attendee lists, writes Google Sheets,
-or mutates HubSpot.
+or mutates HubSpot. Guest matching requires scoped HubSpot company inputs from
+NurtureAny before account context is shown.
 """
 
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 import re
@@ -21,6 +21,26 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
+
+from nurtureany_common.luma_filters import (
+    COUNTRY_TAGS,
+    EVENT_TYPE_TAGS,
+    LOCATION_TAGS,
+    canonical_country as _canonical_country,
+    canonical_event_type as _canonical_event_type,
+    canonical_location as _canonical_location,
+    event_tag_filters as _event_tag_filters,
+    resolved_event_filters as _resolved_event_filters,
+)
+from nurtureany_common.responses import blocked_response
+from nurtureany_common.scoped_company import scoped_company_error as _shared_scoped_company_error
+from nurtureany_common.text import (
+    clean_domain as _clean_domain,
+    email_domain as _email_domain,
+    hash_email as _hash_email,
+    normalize_email as _normalize_email,
+    unique_text as _unique_text,
+)
 
 
 LUMA_BASE_URL = "https://public-api.luma.com"
@@ -44,24 +64,6 @@ GUEST_APPROVAL_STATUSES = (
     "declined",
     "waitlist",
 )
-EVENT_TYPE_TAGS = (
-    "Sports",
-    "Appreciation Afternoon",
-    "HR Happy Hour",
-    "Leaders Lounge",
-)
-EVENT_TYPE_ALIASES = {
-    "sports": "Sports",
-    "sport": "Sports",
-    "appreciation afternoon": "Appreciation Afternoon",
-    "appreciation": "Appreciation Afternoon",
-    "hr happy hour": "HR Happy Hour",
-    "happy hour": "HR Happy Hour",
-    "leaders lounge": "Leaders Lounge",
-    "leader lounge": "Leaders Lounge",
-}
-COUNTRY_TAGS = ("Singapore", "Malaysia", "Indonesia")
-LOCATION_TAGS = ("Singapore", "Jakarta", "Bali", "Kuala Lumpur")
 PERSONAL_EMAIL_DOMAINS = {
     "gmail.com",
     "googlemail.com",
@@ -87,15 +89,6 @@ COMPANY_QUESTION_MARKERS = (
     "employer",
     "workplace",
 )
-LOCATION_ALIASES = {
-    "singapore": "Singapore",
-    "sg": "Singapore",
-    "jakarta": "Jakarta",
-    "jkt": "Jakarta",
-    "bali": "Bali",
-    "kuala lumpur": "Kuala Lumpur",
-    "kl": "Kuala Lumpur",
-}
 TAG_FIELD_NAMES = ("event_tags", "eventTags", "tags", "tag_ids", "tagIds")
 
 
@@ -134,13 +127,7 @@ def _scope(slack_user_email: str, extra: dict[str, Any] | None = None) -> dict[s
 
 
 def _blocked(message: str, scope: dict[str, Any] | None = None) -> dict[str, Any]:
-    return {
-        "answer": message,
-        "source": "Luma",
-        "scope": scope or {},
-        "confidence": "blocked",
-        "caveat": message,
-    }
+    return blocked_response(message, "Luma", scope)
 
 
 def _request_json(path: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -258,114 +245,6 @@ def _guest_payload(item: dict[str, Any]) -> dict[str, Any]:
 
 def _event_id(event: dict[str, Any]) -> str:
     return str(event.get("event_id") or event.get("api_id") or event.get("id") or "").strip()
-
-
-def _unique_text(values: list[str]) -> list[str]:
-    seen: set[str] = set()
-    output: list[str] = []
-    for value in values:
-        text = str(value or "").strip()
-        key = text.lower()
-        if text and key not in seen:
-            seen.add(key)
-            output.append(text)
-    return output
-
-
-def _normalized_words(value: str) -> str:
-    return re.sub(r"[^a-z0-9]+", " ", str(value or "").lower()).strip()
-
-
-def _canonical_event_type(value: str) -> str:
-    words = _normalized_words(value)
-    if not words:
-        return ""
-    for alias, display in EVENT_TYPE_ALIASES.items():
-        if words == alias or alias in words:
-            return display
-    return ""
-
-
-def _canonical_location(value: str) -> str:
-    words = _normalized_words(value)
-    if not words:
-        return ""
-    for alias, display in LOCATION_ALIASES.items():
-        if words == alias or alias in words:
-            return display
-    return ""
-
-
-def _canonical_country(value: str) -> str:
-    text = str(value or "").lower()
-    words = _normalized_words(text)
-    tokens = set(words.split())
-    if not words:
-        return ""
-    if "singapore" in words or "sg" in tokens or "asia singapore" in words:
-        return "Singapore"
-    if (
-        "indonesia" in words
-        or "jakarta" in words
-        or "bali" in words
-        or "jkt" in tokens
-        or "id" in tokens
-        or "asia jakarta" in words
-    ):
-        return "Indonesia"
-    if (
-        "malaysia" in words
-        or "kuala lumpur" in words
-        or "kl" in tokens
-        or "my" in tokens
-        or "asia kuala lumpur" in words
-    ):
-        return "Malaysia"
-    return ""
-
-
-def _resolved_event_filters(country: str, event_type: str, location: str) -> dict[str, str]:
-    location_filter = _canonical_location(location)
-    event_type_filter = _canonical_event_type(event_type)
-    country_filter = _canonical_country(country)
-
-    # Be tolerant of LLM/tool callers that put location tags in country or
-    # event_type. Luma exposes a flat tag list, so Jakarta/Bali should still
-    # narrow event lookup to the exact location tag.
-    if not location_filter:
-        location_filter = _canonical_location(event_type)
-    if not location_filter:
-        location_filter = _canonical_location(country)
-    if not country_filter and location_filter:
-        country_filter = _canonical_country(location_filter)
-
-    return {
-        "country": country_filter,
-        "event_type": event_type_filter,
-        "location": location_filter,
-    }
-
-
-def _event_tag_filters(event_tags: Any, country: str, event_type: str, location: str) -> list[str]:
-    raw: list[Any] = []
-    if isinstance(event_tags, str):
-        raw.extend(part.strip() for part in re.split(r"[,;]", event_tags) if part.strip())
-    elif isinstance(event_tags, list):
-        raw.extend(event_tags)
-
-    tags: list[str] = []
-    for value in raw:
-        text = str(value or "").strip()
-        if not text:
-            continue
-        tags.append(_canonical_location(text) or _canonical_event_type(text) or _canonical_country(text) or text)
-
-    filters = _resolved_event_filters(country, event_type, location)
-    if filters["location"]:
-        tags.append(filters["location"])
-    if filters["event_type"]:
-        tags.append(filters["event_type"])
-    return _unique_text(tags)
 
 
 def _event_metadata_text(event: dict[str, Any]) -> str:
@@ -614,49 +493,8 @@ def _single_event(event_id: str) -> dict[str, Any]:
     return event
 
 
-def _normalize_email(email: str) -> str:
-    return (email or "").strip().lower()
-
-
-def _email_domain(email: str) -> str:
-    normalized = _normalize_email(email)
-    if "@" not in normalized:
-        return ""
-    return normalized.rsplit("@", 1)[1]
-
-
-def _hash_email(email: str) -> str:
-    normalized = _normalize_email(email)
-    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:16] if normalized else ""
-
-
-def _clean_domain(domain: str) -> str:
-    text = str(domain or "").strip().lower()
-    for prefix in ("https://", "http://"):
-        if text.startswith(prefix):
-            text = text[len(prefix) :]
-    return text.split("/")[0]
-
-
-def _is_scoped_hubspot_company(company: dict[str, Any]) -> bool:
-    company_id = str(company.get("company_id") or company.get("id") or "").strip()
-    if not company_id:
-        return False
-    return company.get("hubspot_scoped") is True or str(company.get("scope_source") or "") == SCOPE_SOURCE
-
-
 def _scoped_company_error(companies: list[dict[str, Any]]) -> str:
-    unscoped = [
-        str(index + 1)
-        for index, company in enumerate(companies)
-        if not isinstance(company, dict) or not _is_scoped_hubspot_company(company)
-    ]
-    if not unscoped:
-        return ""
-    return (
-        "Luma guest matching requires scoped HubSpot company inputs from NurtureAny "
-        f"with company_id and scope_source={SCOPE_SOURCE}; unscoped input positions: {', '.join(unscoped)}."
-    )
+    return _shared_scoped_company_error(companies, "Luma guest matching", SCOPE_SOURCE)
 
 
 def _company_names(company: dict[str, Any]) -> list[str]:

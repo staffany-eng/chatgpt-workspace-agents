@@ -3,7 +3,8 @@
 
 This server exposes only public people-discovery search. It does not fetch
 profile contents, reveal contact details, mutate HubSpot, or bypass gated
-social surfaces.
+social surfaces. Paid enrichment requires scoped HubSpot company inputs from
+NurtureAny before any API call.
 """
 
 from __future__ import annotations
@@ -17,6 +18,10 @@ import urllib.request
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
+
+from nurtureany_common.responses import blocked_response
+from nurtureany_common.scoped_company import scoped_company_error as _shared_scoped_company_error
+from nurtureany_common.text import clean_domain as _clean_domain
 
 
 EXA_BASE_URL = "https://api.exa.ai"
@@ -123,14 +128,12 @@ def _scope(slack_user_email: str, extra: dict[str, Any] | None = None) -> dict[s
 
 
 def _blocked(message: str, scope: dict[str, Any] | None = None, cost_report: dict[str, Any] | None = None) -> dict[str, Any]:
-    return {
-        "answer": message,
-        "source": "Exa People Search",
-        "scope": scope or {},
-        "confidence": "blocked",
-        "caveat": message,
-        "cost_report": cost_report or _cost_report([], "No Exa call completed.", 0),
-    }
+    return blocked_response(
+        message,
+        "Exa People Search",
+        scope,
+        cost_report=cost_report or _cost_report([], "No Exa call completed.", 0),
+    )
 
 
 def _number(value: Any) -> int | float | None:
@@ -188,33 +191,8 @@ def _company_input(company: dict[str, Any]) -> dict[str, str]:
     }
 
 
-def _is_scoped_hubspot_company(company: dict[str, Any]) -> bool:
-    company_id = str(company.get("company_id") or company.get("id") or "").strip()
-    if not company_id:
-        return False
-    return company.get("hubspot_scoped") is True or str(company.get("scope_source") or "") == SCOPE_SOURCE
-
-
 def _scoped_company_error(companies: list[dict[str, Any]]) -> str:
-    unscoped = [
-        str(index + 1)
-        for index, company in enumerate(companies[:MAX_SEARCH_COMPANIES])
-        if not isinstance(company, dict) or not _is_scoped_hubspot_company(company)
-    ]
-    if not unscoped:
-        return ""
-    return (
-        "Exa paid enrichment requires scoped HubSpot company inputs from NurtureAny "
-        f"with company_id and scope_source={SCOPE_SOURCE}; unscoped input positions: {', '.join(unscoped)}."
-    )
-
-
-def _clean_domain(domain: str) -> str:
-    text = domain.strip().lower()
-    for prefix in ("https://", "http://"):
-        if text.startswith(prefix):
-            text = text[len(prefix) :]
-    return text.split("/")[0]
+    return _shared_scoped_company_error(companies, "Exa paid enrichment", SCOPE_SOURCE, MAX_SEARCH_COMPANIES)
 
 
 def _user_location(country: str) -> str:

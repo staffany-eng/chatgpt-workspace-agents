@@ -44,10 +44,11 @@ Do not use this skill for generic data analysis, payroll metrics, product suppor
 
 1. `references/hubspot-fields.md` for confirmed fields, access policy, regional scope, and HubSpot follow-up activity rules.
 2. `references/sales-best-practices.md` for operating rhythm, QO/QO Met quality, warm activity, event discipline, outreach, pre-demo, demo, post-demo, coaching, and conflict handling.
-3. `references/playbooks.md` for enrichment tiers, scoring, and nurture plays.
-4. `references/pre-demo-game-plans.md` for selected-account pre-demo planning format and guardrails.
-5. `references/regression-cases.md` for expected behavior and safety checks.
-6. `references/rev-planning-and-metrics.md` for Rev planning targets, QO definitions, and new ARR metric disambiguation.
+3. `references/sop-tool-coverage.md` for per-tool SOP coverage, mutation-disabled state, inbound/routing, AI/data readiness, event attribution, cost/credit, access, and PII/body safety.
+4. `references/playbooks.md` for enrichment tiers, scoring, and nurture plays.
+5. `references/pre-demo-game-plans.md` for selected-account pre-demo planning format and guardrails.
+6. `references/regression-cases.md` for expected behavior and safety checks.
+7. `references/rev-planning-and-metrics.md` for Rev planning targets, QO definitions, and new ARR metric disambiguation.
 7. HubSpot tools for target accounts, owners, companies, contacts, deals, activities, tasks, notes, Conversations inbox threads, and Marketing Campaigns.
 8. Free public search tasks and public evidence review for company websites, careers pages, public job boards, general search, and manual social checks.
 9. Exa People Search for public decision-maker candidate discovery when HubSpot contact coverage is missing and free sources are insufficient.
@@ -58,7 +59,7 @@ Do not use this skill for generic data analysis, payroll metrics, product suppor
 14. Google Calendar tools for read-only `team@staffany.com` scheduling, invite, meeting, event follow-up, and meeting-quality context when the user request is calendar-related.
 15. Luma tools for event invite, RSVP, attendance, and follow-up context when the user request is event-related. Use exact Luma event tags before broad country/date-only scans. For broad event-wide questions, use event-first match keys before HubSpot candidate lookup instead of paging every target account.
 
-Before drafting, Friday sales reviews, pre-demo plans, event follow-ups, coaching summaries, QO/QO Met quality answers, or operating-rhythm advice, apply `references/sales-best-practices.md`.
+Before drafting, Friday sales reviews, pre-demo plans, event follow-ups, coaching summaries, QO/QO Met quality answers, inbound/routing answers, AI/data-readiness advice, or operating-rhythm advice, apply `references/sales-best-practices.md` and `references/sop-tool-coverage.md`.
 
 HubSpot remains the source of truth for the queue, follow-up status, and Friday sales review. Durable field-level truth is `hs_is_target_account` for target-account membership, `hubspot_owner_id` plus the HubSpot owners API for ownership, `company_country` for region, `contract_end_date` for renewal timing, and `current_tools` for current-tools context. Follow-up status comes from HubSpot WhatsApp `communications`, notes, completed tasks, existing incomplete tasks, and completed meeting logs where available. Friday connected calls come from completed HubSpot calls with at least 120 seconds duration. Friday warm activity proof comes from completed HubSpot meetings whose title/type matches HHH, LL, coffee, lunch, dinner, cosy, ABM, event, appreciation afternoon, or sports. Rev planning artifacts explain targets and definitions, not actual performance. Free public evidence, Exa, Lusha, C360, Google Places, Google Calendar, Luma, Slack, and `current_tool_renewal_date` enrich prioritization; they do not override HubSpot ownership, target-account membership, `contract_end_date`, `current_tools`, or follow-up activity.
 
@@ -71,6 +72,12 @@ For near-me answers, `known_areas` is curated config outside HubSpot, BigQuery `
 If asked what data sources are used, answer from the durable map above and name any enrichment source separately as context only.
 
 For Luma, attendance means `checked_in_at` is present. Approved, invited, pending, waitlist, declined, and other RSVP states are not attendance.
+
+For inbound/routing answers, consider lead source, ICP fit, buying role, current tools, clean-lead completeness, and QO/QO Met quality before treating inbound as sales-ready. Do not treat all inbound equally.
+
+For event attribution, do not imply event-attributed QO, QO Met, deals, or follow-up unless configured HubSpot stages/tags and event-specific evidence verify it. Otherwise mark attribution as `needs-check`.
+
+For AI/data readiness, clean HubSpot target-account fields, owner mapping, contact coverage, follow-up activity, and meeting/call hygiene before recommending automation.
 
 For Luma event lookup, pass exact Luma event tags through `event_tags` when the prompt implies them. Tags are flat Luma labels, for example `Singapore`, `Jakarta`, `Bali`, `HR Happy Hour`, `Sports`, `Appreciation Afternoon`, and `Leaders Lounge`. Use `event_tags=["Singapore", "Sports"]` for the screenshot case, and `event_tags=["Jakarta", "HR Happy Hour"]` for Jakarta HHH. Country tags normalize to `Singapore`, `Malaysia`, and `Indonesia`; `Jakarta` and `Bali` map to `Indonesia`, and `Kuala Lumpur` maps to `Malaysia` for HubSpot account scope.
 
@@ -181,13 +188,13 @@ Preview tool:
 - `plan_hubspot_writeback`: dry-run plan for tasks, notes, and field updates.
 - `plan_event_photo_followup`: after a confirmed photo match, preview the HubSpot note summary, WhatsApp follow-up task, next-business-day 10:00 Asia/Singapore due date, draft WhatsApp copy, and `nurture_person_appearance` plan. No WhatsApp auto-send.
 
-Mutation tools, disabled until write phase and always approval-gated:
+Mutation tools, planned but disabled in V1 until the write phase and always approval-gated:
 
 - `create_hubspot_task`
 - `append_hubspot_note`
 - `update_nurture_fields`
 
-All mutation tools must support dry-run/preview mode and must refuse execution without explicit approval of the preview.
+These planned write tools are not callable in V1. When the write phase is approved later, they must support dry-run/preview mode and refuse execution without explicit approval of the preview.
 
 ## Slack Plan-First Workflow
 

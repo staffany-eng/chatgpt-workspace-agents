@@ -1,6 +1,11 @@
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join, resolve } from "node:path";
+import {
+  assertFile as sharedAssertFile,
+  readJson as sharedReadJson,
+  scanForSecretPatterns as sharedScanForSecretPatterns
+} from "./lib/app-packet-verify.mjs";
 
 const repoRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const appRoot = join(repoRoot, "apps", "hermes-data-bot");
@@ -13,39 +18,15 @@ function fail(message) {
 }
 
 function readJson(path) {
-  try {
-    return JSON.parse(readFileSync(path, "utf8"));
-  } catch (error) {
-    fail(`Invalid JSON: ${path}: ${error.message}`);
-    return null;
-  }
+  return sharedReadJson(path, fail);
 }
 
 function assertFile(relPath) {
-  const path = join(appRoot, relPath);
-  if (!existsSync(path)) {
-    fail(`Missing app file: ${relPath}`);
-    return;
-  }
-  if (!statSync(path).isFile()) {
-    fail(`Expected file, got non-file path: ${relPath}`);
-  }
+  sharedAssertFile(appRoot, relPath, fail);
 }
 
 function scanForSecretPatterns(relPath) {
-  const path = join(appRoot, relPath);
-  if (!existsSync(path) || !statSync(path).isFile()) return;
-  const text = readFileSync(path, "utf8");
-  const patterns = [
-    [/xox[baprs]-[A-Za-z0-9-]+/, "Slack token"],
-    [/xapp-[A-Za-z0-9-]+/, "Slack app token"],
-    [/sk-[A-Za-z0-9_-]{20,}/, "OpenAI-style API key"],
-    [/-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/, "private key"],
-    [/AIza[0-9A-Za-z_-]{20,}/, "Google API key"]
-  ];
-  for (const [pattern, label] of patterns) {
-    if (pattern.test(text)) fail(`${label} pattern found in ${relPath}`);
-  }
+  sharedScanForSecretPatterns(appRoot, relPath, fail);
 }
 
 if (!existsSync(manifestPath)) {

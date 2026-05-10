@@ -16,14 +16,26 @@ import socket
 import urllib.error
 import urllib.parse
 import urllib.request
-from pathlib import Path
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
+from nurtureany_common.google_oauth import (
+    access_token as _google_access_token,
+    account_email as _google_account_email,
+    client_credentials as _google_client_credentials,
+    load_json as _google_load_json,
+    profile_file as _google_profile_file,
+    refresh_access_token as _google_refresh_access_token,
+    request_json as _google_request_json,
+    token_scopes as _google_token_scopes,
+    validate_scope as _google_validate_scope,
+    write_json as _google_write_json,
+)
+from nurtureany_common.responses import blocked_response, safe_detail as _safe_detail
+
 
 GOOGLE_DRIVE_API_BASE_URL = "https://www.googleapis.com/drive/v3"
-GOOGLE_OAUTH_TOKEN_URL = "https://oauth2.googleapis.com/token"
 GOOGLE_DRIVE_USER_AGENT = "StaffAny-NurtureAny/1.0 (+https://staffany.com)"
 DRIVE_READONLY_SCOPE = "https://www.googleapis.com/auth/drive.readonly"
 DEFAULT_ACCOUNT_EMAIL = "team@staffany.com"
@@ -61,38 +73,23 @@ class GoogleDriveError(RuntimeError):
 
 
 def _account_email() -> str:
-    return os.environ.get("GOOGLE_DRIVE_ACCOUNT_EMAIL", DEFAULT_ACCOUNT_EMAIL).strip().lower() or DEFAULT_ACCOUNT_EMAIL
+    return _google_account_email("GOOGLE_DRIVE_ACCOUNT_EMAIL", DEFAULT_ACCOUNT_EMAIL)
 
 
-def _token_file() -> Path:
-    raw = os.environ.get("GOOGLE_DRIVE_TOKEN_FILE", "").strip()
-    if raw and not _is_unresolved_env_placeholder(raw):
-        return Path(raw).expanduser()
-    return Path.home() / ".hermes" / "profiles" / "nurtureanysalesbot" / "google-drive-token.json"
+def _token_file():
+    return _google_profile_file("GOOGLE_DRIVE_TOKEN_FILE", "google-drive-token.json")
 
 
-def _client_secret_file() -> Path:
-    raw = os.environ.get("GOOGLE_DRIVE_CLIENT_SECRET_FILE", "").strip()
-    if raw and not _is_unresolved_env_placeholder(raw):
-        return Path(raw).expanduser()
-    return Path.home() / ".hermes" / "profiles" / "nurtureanysalesbot" / "google-drive-client-secret.json"
+def _client_secret_file():
+    return _google_profile_file("GOOGLE_DRIVE_CLIENT_SECRET_FILE", "google-drive-client-secret.json")
 
 
-def _is_unresolved_env_placeholder(value: str) -> bool:
-    return value.startswith("${") and value.endswith("}")
+def _load_json(path) -> dict[str, Any]:
+    return _google_load_json(path, "Google Drive", GoogleDriveError)
 
 
-def _load_json(path: Path) -> dict[str, Any]:
-    try:
-        return json.loads(path.read_text())
-    except FileNotFoundError as error:
-        raise GoogleDriveError(f"Missing Google Drive OAuth file: {path}") from error
-    except json.JSONDecodeError as error:
-        raise GoogleDriveError(f"Invalid Google Drive OAuth JSON file: {path}") from error
-
-
-def _write_json(path: Path, payload: dict[str, Any]) -> None:
-    path.write_text(json.dumps(payload, indent=2))
+def _write_json(path, payload: dict[str, Any]) -> None:
+    _google_write_json(path, payload)
 
 
 def _scope(slack_user_email: str, extra: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -107,101 +104,43 @@ def _scope(slack_user_email: str, extra: dict[str, Any] | None = None) -> dict[s
 
 
 def _blocked(message: str, scope: dict[str, Any] | None = None) -> dict[str, Any]:
-    return {
-        "answer": message,
-        "source": "Google Drive",
-        "scope": scope or {},
-        "confidence": "blocked",
-        "caveat": message,
-    }
+    return blocked_response(message, "Google Drive", scope)
 
 
 def _token_scopes(payload: dict[str, Any]) -> set[str]:
-    raw = payload.get("scopes") or payload.get("scope") or []
-    if isinstance(raw, str):
-        return {item.strip() for item in raw.split() if item.strip()}
-    if isinstance(raw, list):
-        return {str(item).strip() for item in raw if str(item).strip()}
-    return set()
+    return _google_token_scopes(payload)
 
 
 def _validate_scope(payload: dict[str, Any]) -> None:
-    scopes = _token_scopes(payload)
-    if scopes and DRIVE_READONLY_SCOPE not in scopes:
-        raise GoogleDriveError("Google Drive OAuth token is missing drive.readonly scope.")
+    _google_validate_scope(payload, {DRIVE_READONLY_SCOPE}, "Google Drive", GoogleDriveError)
 
 
 def _client_credentials(payload: dict[str, Any]) -> tuple[str, str]:
-    client_id = str(payload.get("client_id") or "").strip()
-    client_secret = str(payload.get("client_secret") or "").strip()
-    if client_id and client_secret:
-        return client_id, client_secret
-
-    secret = _load_json(_client_secret_file())
-    installed = secret.get("installed") or secret.get("web") or {}
-    client_id = str(installed.get("client_id") or "").strip()
-    client_secret = str(installed.get("client_secret") or "").strip()
-    if not client_id or not client_secret:
-        raise GoogleDriveError("Google Drive OAuth client secret file is missing client_id/client_secret.")
-    return client_id, client_secret
+    return _google_client_credentials(payload, _client_secret_file(), "Google Drive", GoogleDriveError)
 
 
-def _refresh_access_token(payload: dict[str, Any], token_path: Path) -> str:
-    refresh_token = str(payload.get("refresh_token") or "").strip()
-    if not refresh_token:
-        raise GoogleDriveError("Google Drive OAuth token has no refresh_token. Re-run OAuth setup.")
-
-    client_id, client_secret = _client_credentials(payload)
-    data = urllib.parse.urlencode(
-        {
-            "client_id": client_id,
-            "client_secret": client_secret,
-            "refresh_token": refresh_token,
-            "grant_type": "refresh_token",
-        }
-    ).encode("utf-8")
-    request = urllib.request.Request(
-        str(payload.get("token_uri") or GOOGLE_OAUTH_TOKEN_URL),
-        data=data,
-        headers={"content-type": "application/x-www-form-urlencoded", "user-agent": GOOGLE_DRIVE_USER_AGENT},
-        method="POST",
+def _refresh_access_token(payload: dict[str, Any], token_path) -> str:
+    return _google_refresh_access_token(
+        payload,
+        token_path,
+        _client_secret_file(),
+        GOOGLE_DRIVE_USER_AGENT,
+        GOOGLE_DRIVE_TIMEOUT_SECONDS,
+        "Google Drive",
+        GoogleDriveError,
     )
-
-    try:
-        with urllib.request.urlopen(request, timeout=GOOGLE_DRIVE_TIMEOUT_SECONDS) as response:
-            refreshed = json.loads(response.read().decode("utf-8"))
-    except urllib.error.HTTPError as error:
-        detail = error.read().decode("utf-8", errors="replace")
-        raise GoogleDriveError(f"Google OAuth refresh failed: {error.code} {_safe_detail(detail)}", error.code) from error
-    except (urllib.error.URLError, socket.timeout, TimeoutError) as error:
-        reason = getattr(error, "reason", error)
-        raise GoogleDriveError(f"Google OAuth refresh timed out or failed: {reason}") from error
-
-    access_token = str(refreshed.get("access_token") or "").strip()
-    if not access_token:
-        raise GoogleDriveError("Google OAuth refresh did not return an access token.")
-
-    merged = dict(payload)
-    merged.update(refreshed)
-    merged["refresh_token"] = refresh_token
-    if not merged.get("type"):
-        merged["type"] = "authorized_user"
-    _write_json(token_path, merged)
-    return access_token
 
 
 def _access_token() -> str:
-    token_path = _token_file()
-    payload = _load_json(token_path)
-    _validate_scope(payload)
-    token = str(payload.get("token") or payload.get("access_token") or "").strip()
-    if token:
-        return token
-    return _refresh_access_token(payload, token_path)
-
-
-def _safe_detail(detail: str) -> str:
-    return detail.replace("\n", " ")[:300]
+    return _google_access_token(
+        _token_file(),
+        _client_secret_file(),
+        {DRIVE_READONLY_SCOPE},
+        GOOGLE_DRIVE_USER_AGENT,
+        GOOGLE_DRIVE_TIMEOUT_SECONDS,
+        "Google Drive",
+        GoogleDriveError,
+    )
 
 
 def _parse_drive_photo_name(name: str) -> dict[str, str]:
@@ -248,29 +187,16 @@ def _slack_user_profile(user_id: str) -> dict[str, str]:
 
 
 def _request_json(path: str, params: dict[str, Any], access_token: str) -> dict[str, Any]:
-    query = urllib.parse.urlencode({key: value for key, value in params.items() if value not in (None, "")})
-    url = f"{GOOGLE_DRIVE_API_BASE_URL}{path}"
-    if query:
-        url = f"{url}?{query}"
-    request = urllib.request.Request(
-        url,
-        headers={
-            "authorization": f"Bearer {access_token}",
-            "accept": "application/json",
-            "user-agent": GOOGLE_DRIVE_USER_AGENT,
-        },
-        method="GET",
+    return _google_request_json(
+        GOOGLE_DRIVE_API_BASE_URL,
+        path,
+        params,
+        access_token,
+        GOOGLE_DRIVE_USER_AGENT,
+        GOOGLE_DRIVE_TIMEOUT_SECONDS,
+        "Google Drive",
+        GoogleDriveError,
     )
-    try:
-        with urllib.request.urlopen(request, timeout=GOOGLE_DRIVE_TIMEOUT_SECONDS) as response:
-            raw = response.read().decode("utf-8")
-            return json.loads(raw) if raw else {}
-    except urllib.error.HTTPError as error:
-        detail = error.read().decode("utf-8", errors="replace")
-        raise GoogleDriveError(f"Google Drive API failed: {error.code} {_safe_detail(detail)}", error.code) from error
-    except (urllib.error.URLError, socket.timeout, TimeoutError) as error:
-        reason = getattr(error, "reason", error)
-        raise GoogleDriveError(f"Google Drive API request timed out or failed: {reason}") from error
 
 
 def _request_bytes(path: str, params: dict[str, Any], access_token: str, max_bytes: int) -> tuple[bytes, str]:

@@ -14,10 +14,11 @@
     "references": [
       "skills/nurtureany-sales-bot/references/hubspot-fields.md",
       "skills/nurtureany-sales-bot/references/sales-best-practices.md",
+      "skills/nurtureany-sales-bot/references/sop-tool-coverage.md",
       "skills/nurtureany-sales-bot/references/playbooks.md",
       "skills/nurtureany-sales-bot/references/pre-demo-game-plans.md",
-      "skills/nurtureany-sales-bot/references/rev-planning-and-metrics.md",
-      "skills/nurtureany-sales-bot/references/regression-cases.md"
+      "skills/nurtureany-sales-bot/references/regression-cases.md",
+      "skills/nurtureany-sales-bot/references/rev-planning-and-metrics.md"
     ],
     "slack_runtime": "runtime/slack.md",
     "hubspot_runtime": "runtime/hubspot.md",
@@ -256,11 +257,14 @@
     "approval_gated_enrichment": [
       "reveal_lusha_contact_details"
     ],
-    "mutation_requires_explicit_approval": [
-      "create_hubspot_task",
-      "append_hubspot_note",
-      "update_nurture_fields"
-    ]
+    "write_phase_planned_disabled": {
+      "state": "disabled_in_v1",
+      "tools": [
+        "create_hubspot_task",
+        "append_hubspot_note",
+        "update_nurture_fields"
+      ]
+    }
   },
   "photo_matching": {
     "drive_folder_id": "1qXlFnr5TKFtsYNWk7ZywBBctDaae3RY-",

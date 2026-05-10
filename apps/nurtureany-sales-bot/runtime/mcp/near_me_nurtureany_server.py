@@ -25,6 +25,16 @@ from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
+from nurtureany_common.c360 import (
+    c360_company_url_template as _shared_c360_company_url_template,
+    c360_org_url_template as _shared_c360_org_url_template,
+    c360_route_key_map as _shared_c360_route_key_map,
+    customer360_route_key as _shared_customer360_route_key,
+    encode_url_value as _shared_encode_url_value,
+    render_c360_url as _shared_render_c360_url,
+)
+from nurtureany_common.responses import blocked_response
+
 
 GOOGLE_PLACES_BASE_URL = "https://places.googleapis.com"
 GOOGLE_PLACES_USER_AGENT = "StaffAny-NurtureAny/1.0 (+https://staffany.com)"
@@ -219,13 +229,7 @@ def _scope(slack_user_email: str, extra: dict[str, Any] | None = None) -> dict[s
 
 
 def _blocked(message: str, scope: dict[str, Any] | None = None, source: str = "Known Area Near-Me") -> dict[str, Any]:
-    return {
-        "answer": message,
-        "source": source,
-        "scope": scope or {},
-        "confidence": "blocked",
-        "caveat": message,
-    }
+    return blocked_response(message, source, scope)
 
 
 def _bounded_int(value: Any, default: int, maximum: int, minimum: int = 1) -> int:
@@ -497,30 +501,15 @@ def _outlet_matches_table() -> str:
 
 
 def _c360_company_url_template() -> str:
-    return os.environ.get(C360_COMPANY_URL_TEMPLATE_ENV, "").strip() or DEFAULT_C360_COMPANY_URL_TEMPLATE
+    return _shared_c360_company_url_template()
 
 
 def _c360_org_url_template() -> str:
-    return os.environ.get(C360_ORG_URL_TEMPLATE_ENV, "").strip() or DEFAULT_C360_ORG_URL_TEMPLATE
+    return _shared_c360_org_url_template()
 
 
 def _c360_route_key_map() -> dict[str, str]:
-    mappings = dict(DEFAULT_C360_ROUTE_KEY_BY_COMPANY_ID)
-    raw = os.environ.get(C360_ROUTE_KEY_BY_COMPANY_ID_ENV, "").strip()
-    if not raw:
-        return mappings
-    try:
-        configured = json.loads(raw)
-    except json.JSONDecodeError:
-        return mappings
-    if not isinstance(configured, dict):
-        return mappings
-    for company_id, route_key in configured.items():
-        company_id_text = str(company_id or "").strip()
-        route_key_text = str(route_key or "").strip()
-        if company_id_text and route_key_text:
-            mappings[company_id_text] = route_key_text
-    return mappings
+    return _shared_c360_route_key_map()
 
 
 def _customer360_route_key(
@@ -528,26 +517,11 @@ def _customer360_route_key(
     company_name: Any = "",
     customer360_route_key: Any = "",
 ) -> str:
-    explicit_route_key = str(customer360_route_key or "").strip()
-    if explicit_route_key:
-        return explicit_route_key
-
-    company_id = str(hubspot_company_id or "").strip()
-    if not company_id:
-        return ""
-
-    mapped_route_key = _c360_route_key_map().get(company_id)
-    if mapped_route_key:
-        return mapped_route_key
-
-    if not company_id.isdigit():
-        return company_id
-
-    return ""
+    return _shared_customer360_route_key(hubspot_company_id, company_name, customer360_route_key)
 
 
 def _encode_url_value(value: Any) -> str:
-    return urllib.parse.quote(str(value or "").strip(), safe="")
+    return _shared_encode_url_value(value)
 
 
 def _render_c360_url(
@@ -556,20 +530,12 @@ def _render_c360_url(
     customer360_route_key: Any = "",
     company_name: Any = "",
 ) -> str:
-    company_id = str(hubspot_company_id or "").strip()
-    org_id = str(organisation_id or "").strip()
-    route_key = _customer360_route_key(company_id, company_name, customer360_route_key)
-    if not route_key:
-        return ""
-
-    values = {
-        "customer360_route_key": _encode_url_value(route_key),
-        "hubspot_company_id": _encode_url_value(route_key),
-        "hubspot_numeric_company_id": _encode_url_value(company_id),
-        "organisation_id": _encode_url_value(org_id),
-    }
-    template = _c360_org_url_template() if org_id else _c360_company_url_template()
-    return template.format(**values)
+    return _shared_render_c360_url(
+        hubspot_company_id,
+        organisation_id,
+        customer360_route_key_value=customer360_route_key,
+        company_name=company_name,
+    )
 
 
 def _sql_literal(value: str) -> str:

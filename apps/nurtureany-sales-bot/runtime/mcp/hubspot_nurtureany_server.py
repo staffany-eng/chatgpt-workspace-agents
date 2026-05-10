@@ -7,8 +7,8 @@ HubSpot write tools are not exposed until the write-back phase is approved.
 
 from __future__ import annotations
 
-import hashlib
 import html
+import hashlib
 import ipaddress
 import json
 import os
@@ -22,6 +22,31 @@ from datetime import date, datetime, time as datetime_time, timedelta, timezone
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
+
+from nurtureany_common.c360 import (
+    c360_company_url_template as _shared_c360_company_url_template,
+    c360_org_url_template as _shared_c360_org_url_template,
+    c360_route_key_map as _shared_c360_route_key_map,
+    customer360_route_key as _shared_customer360_route_key,
+    encode_url_value as _shared_encode_url_value,
+    render_c360_url as _shared_render_c360_url,
+)
+from nurtureany_common.luma_filters import (
+    canonical_country as _shared_canonical_country,
+    canonical_event_type as _shared_canonical_event_type,
+    canonical_location as _shared_canonical_location,
+    event_tag_filters as _shared_event_tag_filters,
+    resolved_event_filters as _shared_resolved_event_filters,
+)
+from nurtureany_common.responses import blocked_response
+from nurtureany_common.text import (
+    clean_domain as _shared_clean_domain,
+    email_domain as _shared_email_domain,
+    hash_email as _shared_hash_email,
+    normalize_email as _shared_normalize_email,
+    normalized_words as _shared_normalized_words,
+    unique_text as _shared_unique_text,
+)
 
 
 HUBSPOT_BASE_URL = "https://api.hubapi.com"
@@ -402,7 +427,7 @@ def _luma_token() -> str:
 
 
 def _normalize_email(email: str) -> str:
-    return (email or "").strip().lower()
+    return _shared_normalize_email(email)
 
 
 def _normalize_countries(countries: list[str] | tuple[str, ...] | None) -> tuple[str, ...]:
@@ -567,13 +592,7 @@ def _post(path: str, body: dict[str, Any]) -> dict[str, Any]:
 
 
 def _blocked(message: str, scope: dict[str, Any] | None = None) -> dict[str, Any]:
-    return {
-        "answer": message,
-        "source": "HubSpot",
-        "scope": scope or {},
-        "confidence": "blocked",
-        "caveat": message,
-    }
+    return blocked_response(message, "HubSpot", scope)
 
 
 def _owner_by_email(email: str) -> dict[str, Any] | None:
@@ -1368,30 +1387,15 @@ def _account_status_from_props(props: dict[str, Any]) -> dict[str, str]:
 
 
 def _c360_company_url_template() -> str:
-    return os.environ.get(C360_COMPANY_URL_TEMPLATE_ENV, "").strip() or DEFAULT_C360_COMPANY_URL_TEMPLATE
+    return _shared_c360_company_url_template()
 
 
 def _c360_org_url_template() -> str:
-    return os.environ.get(C360_ORG_URL_TEMPLATE_ENV, "").strip() or DEFAULT_C360_ORG_URL_TEMPLATE
+    return _shared_c360_org_url_template()
 
 
 def _c360_route_key_map() -> dict[str, str]:
-    mappings = dict(DEFAULT_C360_ROUTE_KEY_BY_COMPANY_ID)
-    raw = os.environ.get(C360_ROUTE_KEY_BY_COMPANY_ID_ENV, "").strip()
-    if not raw:
-        return mappings
-    try:
-        configured = json.loads(raw)
-    except json.JSONDecodeError:
-        return mappings
-    if not isinstance(configured, dict):
-        return mappings
-    for company_id, route_key in configured.items():
-        company_id_text = str(company_id or "").strip()
-        route_key_text = str(route_key or "").strip()
-        if company_id_text and route_key_text:
-            mappings[company_id_text] = route_key_text
-    return mappings
+    return _shared_c360_route_key_map()
 
 
 def _customer360_route_key(
@@ -1399,26 +1403,11 @@ def _customer360_route_key(
     company_name: Any = "",
     customer360_route_key: Any = "",
 ) -> str:
-    explicit_route_key = str(customer360_route_key or "").strip()
-    if explicit_route_key:
-        return explicit_route_key
-
-    company_id = str(hubspot_company_id or "").strip()
-    if not company_id:
-        return ""
-
-    mapped_route_key = _c360_route_key_map().get(company_id)
-    if mapped_route_key:
-        return mapped_route_key
-
-    if not company_id.isdigit():
-        return company_id
-
-    return ""
+    return _shared_customer360_route_key(hubspot_company_id, company_name, customer360_route_key)
 
 
 def _encode_url_value(value: Any) -> str:
-    return urllib.parse.quote(str(value or "").strip(), safe="")
+    return _shared_encode_url_value(value)
 
 
 def _render_c360_url(
@@ -1427,20 +1416,12 @@ def _render_c360_url(
     customer360_route_key: Any = "",
     company_name: Any = "",
 ) -> str:
-    company_id = str(hubspot_company_id or "").strip()
-    org_id = str(organisation_id or "").strip()
-    route_key = _customer360_route_key(company_id, company_name, customer360_route_key)
-    if not route_key:
-        return ""
-
-    values = {
-        "customer360_route_key": _encode_url_value(route_key),
-        "hubspot_company_id": _encode_url_value(route_key),
-        "hubspot_numeric_company_id": _encode_url_value(company_id),
-        "organisation_id": _encode_url_value(org_id),
-    }
-    template = _c360_org_url_template() if org_id else _c360_company_url_template()
-    return template.format(**values)
+    return _shared_render_c360_url(
+        hubspot_company_id,
+        organisation_id,
+        customer360_route_key_value=customer360_route_key,
+        company_name=company_name,
+    )
 
 
 def _decision_maker_count_source(props: dict[str, Any]) -> dict[str, str]:
@@ -1704,19 +1685,11 @@ def _datetime_value(value: str | None) -> datetime | None:
 
 
 def _unique_text(values: list[Any]) -> list[str]:
-    seen: set[str] = set()
-    output: list[str] = []
-    for value in values:
-        text = str(value or "").strip()
-        key = text.lower()
-        if text and key not in seen:
-            seen.add(key)
-            output.append(text)
-    return output
+    return _shared_unique_text(values)
 
 
 def _normalized_words(value: str) -> str:
-    return re.sub(r"[^a-z0-9]+", " ", str(value or "").lower()).strip()
+    return _shared_normalized_words(value)
 
 
 def _text_contains_term(text: str, term: str) -> bool:
@@ -1728,86 +1701,35 @@ def _text_contains_term(text: str, term: str) -> bool:
 
 
 def _clean_domain(domain: str) -> str:
-    text = str(domain or "").strip().lower()
-    for prefix in ("https://", "http://"):
-        if text.startswith(prefix):
-            text = text[len(prefix) :]
-    return text.split("/")[0].strip()
+    return _shared_clean_domain(domain)
 
 
 def _email_domain(email: str) -> str:
-    normalized = _normalize_email(email)
-    if "@" not in normalized:
-        return ""
-    return _clean_domain(normalized.rsplit("@", 1)[1])
+    return _shared_email_domain(email)
 
 
 def _hash_email(email: str) -> str:
-    normalized = _normalize_email(email)
-    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:16] if normalized else ""
+    return _shared_hash_email(email)
 
 
 def _canonical_event_type(value: str) -> str:
-    words = _normalized_words(value)
-    if not words:
-        return ""
-    for alias, display in EVENT_TYPE_ALIASES.items():
-        if words == alias or alias in words:
-            return display
-    return ""
+    return _shared_canonical_event_type(value)
 
 
 def _canonical_location(value: str) -> str:
-    words = _normalized_words(value)
-    if not words:
-        return ""
-    for alias, display in LOCATION_ALIASES.items():
-        if words == alias or alias in words:
-            return display
-    return ""
+    return _shared_canonical_location(value)
 
 
 def _canonical_country(value: str) -> str:
-    text = str(value or "")
-    words = _normalized_words(text)
-    tokens = set(words.split())
-    if not words:
-        return ""
-    if "singapore" in words or "sg" in tokens or "asia singapore" in words:
-        return "Singapore"
-    if "indonesia" in words or "jakarta" in words or "bali" in words or "jkt" in tokens:
-        return "Indonesia"
-    if "malaysia" in words or "kuala lumpur" in words or "kl" in tokens:
-        return "Malaysia"
-    return ""
+    return _shared_canonical_country(value)
 
 
 def _resolved_event_filters(country: str, event_type: str, location: str) -> dict[str, str]:
-    location_filter = _canonical_location(location) or _canonical_location(event_type) or _canonical_location(country)
-    event_type_filter = _canonical_event_type(event_type)
-    country_filter = _canonical_country(country)
-    if not country_filter and location_filter:
-        country_filter = LOCATION_COUNTRY_MAP.get(location_filter, "")
-    return {"country": country_filter, "event_type": event_type_filter, "location": location_filter}
+    return _shared_resolved_event_filters(country, event_type, location)
 
 
 def _event_tag_filters(event_tags: Any, country: str = "", event_type: str = "", location: str = "") -> list[str]:
-    raw: list[Any] = []
-    if isinstance(event_tags, str):
-        raw.extend(part.strip() for part in re.split(r"[,;]", event_tags) if part.strip())
-    elif isinstance(event_tags, list):
-        raw.extend(event_tags)
-    tags: list[str] = []
-    for value in raw:
-        text = str(value or "").strip()
-        if text:
-            tags.append(_canonical_location(text) or _canonical_event_type(text) or _canonical_country(text) or text)
-    filters = _resolved_event_filters(country, event_type, location)
-    if filters["location"]:
-        tags.append(filters["location"])
-    if filters["event_type"]:
-        tags.append(filters["event_type"])
-    return _unique_text(tags)
+    return _shared_event_tag_filters(event_tags, country, event_type, location)
 
 
 def _luma_entries(payload: Any) -> list[dict[str, Any]]:
@@ -5528,7 +5450,7 @@ def _read_marketing_company(company_id: str) -> dict[str, Any] | None:
     return _read_crm_object("companies", str(company_id), MARKETING_COMPANY_PROPERTIES)
 
 
-def _email_domain(value: str) -> str:
+def _marketing_email_domain(value: str) -> str:
     email = _safe_email(value)
     return email.split("@", 1)[1] if "@" in email else ""
 
@@ -5552,7 +5474,7 @@ def _safe_marketing_contact_summary(contact: dict[str, Any] | None) -> dict[str,
         "display_name": _contact_display_name(contact),
         "jobtitle": props.get("jobtitle") or "",
         "owner_id": props.get("hubspot_owner_id") or "",
-        "email_domain": _email_domain(str(props.get("email") or "")),
+        "email_domain": _marketing_email_domain(str(props.get("email") or "")),
         "lifecycle_stage": props.get("lifecyclestage") or "",
         "created_at": props.get("createdate") or "",
         "last_modified_at": props.get("lastmodifieddate") or "",
