@@ -52,7 +52,8 @@ MAX_DRIVE_FILES = 100
 MAX_VISION_FILES = 5
 MAX_IMAGE_BYTES = 7_500_000
 MAX_REGISTRATION_ROWS = 250
-MAX_REGISTRATION_ROW_SAMPLE = 10
+MAX_REGISTRATION_ROW_SAMPLE = 5
+DEFAULT_REGISTRATION_ROW_SAMPLE = 0
 ANTHROPIC_API_KEY_ENV = "ANTHROPIC_API_KEY"
 DEFAULT_VISION_MODEL = "claude-sonnet-4-6"
 SUPPORTED_VISION_MEDIA_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
@@ -835,7 +836,7 @@ def read_indonesia_event_registration_attendance(
     sheet_name: str = "",
     spreadsheet_id: str = ID_REV_EVENTS_SPREADSHEET_ID,
     limit: int = MAX_REGISTRATION_ROWS,
-    row_sample_limit: int = MAX_REGISTRATION_ROW_SAMPLE,
+    row_sample_limit: int = DEFAULT_REGISTRATION_ROW_SAMPLE,
     account_email: str = DEFAULT_ACCOUNT_EMAIL,
 ) -> dict[str, Any]:
     """Read compact attendance keys from the Indonesia Rev LL/HHH registration Sheet.

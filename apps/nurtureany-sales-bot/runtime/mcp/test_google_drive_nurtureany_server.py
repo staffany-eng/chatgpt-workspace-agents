@@ -334,7 +334,7 @@ class GoogleDriveNurtureAnyServerTest(unittest.TestCase):
         self.assertEqual(result["confidence"], "needs-check")
         self.assertEqual(result["answer"]["sheet_name"], "HHH Bali 7 May - Rsvp")
         self.assertEqual(result["answer"]["counts"]["attended_rows"], 1)
-        self.assertEqual(result["answer"]["registration_rows_returned"], 1)
+        self.assertEqual(result["answer"]["registration_rows_returned"], 0)
         self.assertTrue(result["answer"]["row_details_truncated"])
         self.assertNotIn("registration_rows", result["answer"])
         self.assertIn("registration_rows_sample", result["answer"])
@@ -345,7 +345,7 @@ class GoogleDriveNurtureAnyServerTest(unittest.TestCase):
         self.assertLess(len(payload), 20_000)
         self.assertNotIn("+6281338337762", payload)
         self.assertNotIn("hr@sevnlegian.com", payload)
-        self.assertIn("email_hash", payload)
+        self.assertNotIn("email_hash", payload)
         self.assertEqual(calls[0][0], self.module.ID_REV_EVENTS_SPREADSHEET_ID)
         self.assertIn("/values/", calls[1][1])
 

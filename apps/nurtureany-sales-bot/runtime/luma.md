@@ -45,13 +45,13 @@ The local stdio MCP adapter lives at `runtime/mcp/luma_nurtureany_server.py`.
 
 - Use for broad event-wide questions where the Luma guest list is smaller than the HubSpot target-account universe.
 - Input: Slack user email, optional event IDs or event search window, optional `event_tags`, optional location, optional country, optional event type, and optional guest cap.
-- Output: event metadata, RSVP/checked-in counts, safe email domains, and company-name candidates only.
+- Output: event metadata, RSVP/checked-in counts, safe email domains, and company-name candidates only. For past events, keys come only from checked-in guests; if `checked_in_count=0`, do not match RSVP/no-show guests as attended.
 - Does not return attendee names, full emails, phone numbers, raw registration answers, or raw guest lists.
 - Follow with `find_target_accounts_by_luma_match_keys`, then `get_luma_event_context` using only those scoped candidate companies.
 
 Attendance means `checked_in_at` is present. Approved, invited, pending, waitlist, declined, and other RSVP states are not attendance.
 
-For Indonesia LL/HHH follow-up, Luma remains the first attendance source. If a selected Luma event has zero checked-in guests or the team clearly did not use Luma check-in, use `read_indonesia_event_registration_attendance` from the Google Drive MCP as a viable manual fallback. That fallback reads the ID Rev registration Sheet `Attend The Event` column, returns safe company/domain match keys only, and must still be resolved back to scoped HubSpot target accounts before account-level output.
+For Indonesia LL/HHH follow-up, Luma remains the first attendance source. If a selected Luma event has zero checked-in guests or the team clearly did not use Luma check-in, use `read_indonesia_event_registration_attendance` from the Google Drive MCP as a viable manual fallback instead of matching Luma RSVP/no-show keys. That fallback reads the ID Rev registration Sheet `Attend The Event` column, returns safe company/domain match keys only, and must still be resolved back to scoped HubSpot target accounts before account-level output.
 
 ## Event Tags
 
