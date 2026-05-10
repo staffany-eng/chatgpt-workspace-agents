@@ -24,14 +24,29 @@ Useful signals:
 - Main deal start and end dates.
 - Account owner and PSM context.
 - Live customer status where available.
+- QO sales points, converted ARR, MRR movement, and revenue snapshot actuals when the user asks for revenue pace or manager rollups.
 
 Known C360 tables from the current enrichment flow:
 
 - `fct_upcoming_renewal_cycles`
 - `fct_company_revenue_snapshot`
 - `fct_company_main_deals`
+- `fct_sales_points`
+- `fct_deal_metrics_with_pilot_conversion`
+- `fct_mrr_movements`
 
 Inspect schema before relying on table or column names. The existing Luma events platform uses these tables for C360 customer enrichment, but NurtureAny must support Singapore, Malaysia, and Indonesia instead of Singapore-only logic.
+
+## Revenue Metrics
+
+Use `skills/nurtureany-sales-bot/references/rev-planning-and-metrics.md` before querying revenue metrics.
+
+- QO actuals should use `fct_sales_points.qo_set` after schema inspection.
+- `new ARR` is ambiguous. Ask whether the user wants signed converted ARR, paid converted ARR, or new MRR movement annualized.
+- Signed and paid converted ARR come from `fct_deal_metrics_with_pilot_conversion`.
+- New ARR movement and net ARR movement come from `fct_mrr_movements`; annualize MRR movement only when the queried source value is MRR.
+- Current ARR/MRR snapshots come from the latest available `fct_company_revenue_snapshot` snapshot month.
+- Rev planning Sheets/Slides provide target and definition context only. Do not use them as actuals.
 
 ## Known-Area Near-Me Customer Coverage
 
@@ -80,5 +95,7 @@ Do not query person GPS, clock records, raw employee location rows, or employee 
 - Never run DDL, DML, export, load, grant, revoke, or mutation statements.
 - Join back to HubSpot company IDs or stable canonical company IDs when available.
 - Aggregate or summarize before returning Slack output.
+- Include the time grain and as-of date or latest snapshot month in every revenue metric answer.
+- State whether the answer uses HubSpot account scope, Rev planning targets/definitions, or C360 BigQuery actuals.
 - Return `Confidence: needs-check` when HubSpot and C360 ownership or renewal evidence conflicts.
 - Return `Confidence: blocked` when schema, auth, or table access fails.

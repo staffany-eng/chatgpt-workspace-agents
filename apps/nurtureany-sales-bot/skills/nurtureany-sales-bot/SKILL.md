@@ -31,6 +31,7 @@ V1 is review-first. It never auto-sends WhatsApp, email, LinkedIn, Instagram, SM
 - Requests to generate free public search tasks or review public enrichment evidence.
 - Approved requests to use Exa People Search for public decision-maker candidates.
 - Approved requests to search Lusha for decision-maker candidates or reveal selected contact details.
+- Questions about QO, new ARR, revenue pace, or revenue snapshots when they are scoped to target-account nurture, AE queues, manager rollups, or Friday review.
 - Drive photo scans from `all-random` and ad hoc Slack photo match requests where a user uploads a photo and tags `@NurtureAny`.
 - Drafting nurture copy for manual AE review.
 - Friday review, tactical pause, coaching summary, activity hygiene, QO/QO Met quality, and sales operating-rhythm advice.
@@ -46,19 +47,20 @@ Do not use this skill for generic data analysis, payroll metrics, product suppor
 3. `references/playbooks.md` for enrichment tiers, scoring, and nurture plays.
 4. `references/pre-demo-game-plans.md` for selected-account pre-demo planning format and guardrails.
 5. `references/regression-cases.md` for expected behavior and safety checks.
-6. HubSpot tools for target accounts, owners, companies, contacts, deals, activities, tasks, and notes.
-7. Free public search tasks and public evidence review for company websites, careers pages, public job boards, general search, and manual social checks.
-8. Exa People Search for public decision-maker candidate discovery when HubSpot contact coverage is missing and free sources are insufficient.
-9. Lusha tools for selected decision-maker candidate lookup or reveal after the user selects candidates.
-10. Slack/Drive photo source pointers, Luma event-date candidates, and transient LLM vision/OCR clues for event photo matching. Drive file listing uses `list_drive_folder_images` through `team@staffany.com` with `drive.readonly`; Drive image clue extraction uses `extract_drive_image_clues` with bounded transient downloads only. Slack image access requires `files:read`; store source pointers in `nurture_event`, `nurture_event_photo`, and `nurture_person_appearance` plans, not raw images.
-11. StaffAny C360 BigQuery tools for commercial value, renewal timing, MRR, account owner, and PSM context.
-12. Near-me tools for known-area snapping, BigQuery outlet-match lookup, Google Places live restaurant refresh, C360 current-customer query building, and deterministic merge/ranking when the user asks who is nearby.
-13. Google Calendar tools for read-only `team@staffany.com` scheduling, invite, meeting, event follow-up, and meeting-quality context when the user request is calendar-related.
-14. Luma tools for event invite, RSVP, attendance, and follow-up context when the user request is event-related. Use exact Luma event tags before broad country/date-only scans.
+6. `references/rev-planning-and-metrics.md` for Rev planning targets, QO definitions, and new ARR metric disambiguation.
+7. HubSpot tools for target accounts, owners, companies, contacts, deals, activities, tasks, and notes.
+8. Free public search tasks and public evidence review for company websites, careers pages, public job boards, general search, and manual social checks.
+9. Exa People Search for public decision-maker candidate discovery when HubSpot contact coverage is missing and free sources are insufficient.
+10. Lusha tools for selected decision-maker candidate lookup or reveal after the user selects candidates.
+11. Slack/Drive photo source pointers, Luma event-date candidates, and transient LLM vision/OCR clues for event photo matching. Drive file listing uses `list_drive_folder_images` through `team@staffany.com` with `drive.readonly`; Drive image clue extraction uses `extract_drive_image_clues` with bounded transient downloads only. Slack image access requires `files:read`; store source pointers in `nurture_event`, `nurture_event_photo`, and `nurture_person_appearance` plans, not raw images.
+12. StaffAny C360 BigQuery tools for commercial value, renewal timing, MRR, account owner, PSM context, QO sales points, converted ARR, MRR movements, and revenue snapshots.
+13. Near-me tools for known-area snapping, BigQuery outlet-match lookup, Google Places live restaurant refresh, C360 current-customer query building, and deterministic merge/ranking when the user asks who is nearby.
+14. Google Calendar tools for read-only `team@staffany.com` scheduling, invite, meeting, event follow-up, and meeting-quality context when the user request is calendar-related.
+15. Luma tools for event invite, RSVP, attendance, and follow-up context when the user request is event-related. Use exact Luma event tags before broad country/date-only scans.
 
 Before drafting, Friday sales reviews, pre-demo plans, event follow-ups, coaching summaries, QO/QO Met quality answers, or operating-rhythm advice, apply `references/sales-best-practices.md`.
 
-HubSpot remains the source of truth for the queue, follow-up status, and Friday sales review. Durable field-level truth is `hs_is_target_account` for target-account membership, `hubspot_owner_id` plus the HubSpot owners API for ownership, `company_country` for region, `contract_end_date` for renewal timing, and `current_tools` for current-tools context. Follow-up status comes from HubSpot WhatsApp `communications`, notes, completed tasks, existing incomplete tasks, and completed meeting logs where available. Friday connected calls come from completed HubSpot calls with at least 120 seconds duration. Friday warm activity proof comes from completed HubSpot meetings whose title/type matches HHH, LL, coffee, lunch, dinner, cosy, ABM, event, appreciation afternoon, or sports. Free public evidence, Exa, Lusha, C360, Google Places, Google Calendar, Luma, Slack, and `current_tool_renewal_date` enrich prioritization; they do not override HubSpot ownership, target-account membership, `contract_end_date`, `current_tools`, or follow-up activity.
+HubSpot remains the source of truth for the queue, follow-up status, and Friday sales review. Durable field-level truth is `hs_is_target_account` for target-account membership, `hubspot_owner_id` plus the HubSpot owners API for ownership, `company_country` for region, `contract_end_date` for renewal timing, and `current_tools` for current-tools context. Follow-up status comes from HubSpot WhatsApp `communications`, notes, completed tasks, existing incomplete tasks, and completed meeting logs where available. Friday connected calls come from completed HubSpot calls with at least 120 seconds duration. Friday warm activity proof comes from completed HubSpot meetings whose title/type matches HHH, LL, coffee, lunch, dinner, cosy, ABM, event, appreciation afternoon, or sports. Rev planning artifacts explain targets and definitions, not actual performance. Free public evidence, Exa, Lusha, C360, Google Places, Google Calendar, Luma, Slack, and `current_tool_renewal_date` enrich prioritization; they do not override HubSpot ownership, target-account membership, `contract_end_date`, `current_tools`, or follow-up activity.
 
 Customer/prospect status comes from HubSpot company `type`, then `lifecyclestage`, then `prospecting_account`; C360 current-customer evidence may strengthen customer status when explicitly used. When any answer refers to a verified current customer/client and the tool output includes `c360_url`, include the Customer 360 link near the account name or company section and name Customer 360 in `Source`. Do not say "renewal call" or imply StaffAny renewal unless customer status is verified. For prospects or unknowns, describe `contract_end_date` as incumbent-tool contract timing, migration/procurement timing, or current-tool confirmation.
 
@@ -240,6 +242,8 @@ For Luma flows, check scoped HubSpot accounts first, then call Luma. Use exact `
 
 For Lusha flows, include the returned `credit_report`. Search responses show availability flags only. Reveal responses may show selected PII in internal Slack only for explicitly selected contacts after approval; phone details require `reveal_phones=true`.
 
+For revenue metric flows, name the metric definition, source class, and as-of period. For QO pace, use `fct_sales_points.qo_set` after schema inspection. If the user says `new ARR`, ask whether they mean signed converted ARR, paid converted ARR, or new MRR movement annualized before running BigQuery.
+
 For near-me flows, first resolve the known area, build and run the outlet-match SQL through `staffany_bigquery.execute_sql_readonly`, refresh Google Places, run the returned C360 SQL through `staffany_bigquery.execute_sql_readonly`, and call `merge_near_me_sources`. Use C360 current customers even when no outlet match exists. Link every current customer name to returned `c360_url`; if a current-customer item has no `c360_url`, keep it visible with `Confidence: needs-check` and the missing-link caveat. Do not query person GPS, clock records, raw employee location rows, or expose unnecessary internal IDs. Google-only restaurants must be shown as `candidate` / review needed, not confirmed accounts. Current/open selected deals rank above past selected deals; past selected deals stay visible with a caveat.
 
 ## HubSpot Write-Back Rules
@@ -289,3 +293,5 @@ Store only confirmed reusable operating preferences if the runtime supports memo
 22. Treating Friday sales review as a freeform summary instead of calling `build_friday_sales_review`, or claiming QO/QO Met/deal numbers are verified when stage config is missing.
 23. Counting short or incomplete calls as connected calls. Only completed HubSpot calls of at least 120 seconds count toward the 40 connected-call guardrail.
 24. Promoting outdated, archive, or copy-file sales guidance over current HubSpot truth or the maintained best-practices reference.
+25. Treating Rev planning targets as actual sales or revenue performance.
+26. Answering `new ARR` without choosing and stating signed converted ARR, paid converted ARR, or new MRR movement annualized.

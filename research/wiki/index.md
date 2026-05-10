@@ -26,6 +26,7 @@ This directory is the maintained research wiki for designing ChatGPT workspace a
 - [NurtureAny Leadership Tactical Pause](./sources/nurtureany-leadership-tactical-pause.md)
 - [NurtureAny Sales Training Materials](./sources/nurtureany-sales-training-materials.md)
 - [NurtureAny Sales Onboarding Master Template](./sources/nurtureany-sales-onboarding-master-template.md)
+- [StaffAny Rev Team Planning And Metrics](./sources/staffany-rev-team-planning-and-metrics.md)
 
 ## Syntheses
 
@@ -37,6 +38,7 @@ This directory is the maintained research wiki for designing ChatGPT workspace a
 - [OpenClaw Kaiyi Current State Audit](./syntheses/openclaw-kaiyi-current-state-audit.md)
 - [ChatGPT Workspace Agent Build Rubric](./syntheses/chatgpt-workspace-agent-build-rubric.md)
 - [NurtureAny Sales Best Practices](./syntheses/nurtureany-sales-best-practices.md)
+- [StaffAny Revenue Operating Model](./syntheses/staffany-revenue-operating-model.md)
 
 ## Maintenance
 

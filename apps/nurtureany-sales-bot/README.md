@@ -9,7 +9,7 @@ Canonical Hermes app packet for StaffAny's sales nurture bot.
 - Surface: Slack mentions in sales pilot channels
 - Model: Anthropic Claude Sonnet provider configured in the live profile
 - Primary data source: HubSpot CRM
-- Enrichment sources: HubSpot follow-up activity from WhatsApp communications, notes, tasks, and completed meeting logs, Drive/Slack event-photo source pointers with transient vision/OCR, free public evidence tasks/review, StaffAny C360 through read-only BigQuery with Customer 360 links for current clients, known-area near-me matching with BigQuery outlet matches plus Google Places live candidates when configured, read-only Google Calendar context and meeting-quality audit from `team@staffany.com` when configured, Luma event context when configured, Exa People Search public candidate discovery when configured, and approval-gated Lusha decision-maker lookup when configured
+- Enrichment sources: HubSpot follow-up activity from WhatsApp communications, notes, tasks, and completed meeting logs, Drive/Slack event-photo source pointers with transient vision/OCR, free public evidence tasks/review, Rev planning definitions/targets, StaffAny C360 through read-only BigQuery with Customer 360 links and revenue-metric actuals, known-area near-me matching with BigQuery outlet matches plus Google Places live candidates when configured, read-only Google Calendar context and meeting-quality audit from `team@staffany.com` when configured, Luma event context when configured, Exa People Search public candidate discovery when configured, and approval-gated Lusha decision-maker lookup when configured
 - V1 regions: Singapore, Malaysia, Indonesia
 - V1 safety mode: review-first, no external message auto-send
 - Source packet: this directory
@@ -53,7 +53,7 @@ T-90 renewal answers must show both buckets: known T-90 accounts where `contract
 | `skills/nurtureany-sales-bot/` | Hermes skill and progressive-disclosure references. |
 | `runtime/slack.md` | Slack gateway behavior, commands, and run gate. |
 | `runtime/hubspot.md` | HubSpot API contract, fields, and write approval rules. |
-| `runtime/bigquery.md` | C360 read-only enrichment contract. |
+| `runtime/bigquery.md` | C360 read-only enrichment and revenue-metric actuals contract. |
 | `runtime/google-calendar.md` | Read-only `team@staffany.com` Google Calendar event-context and meeting-quality audit contract. |
 | `runtime/luma.md` | Luma read-only event, RSVP, and attendance-context contract. |
 | `runtime/mcp/luma_nurtureany_server.py` | Luma read-only MCP adapter for scoped event-context lookup. |
@@ -71,7 +71,7 @@ NurtureAny helps AEs and sales managers work the HubSpot target-account list:
 
 - AEs ask for their own target accounts and nurture queue.
 - Managers ask for team queues, missing direct contacts, renewal risk, post-demo nurture, overdue nurture work, existing sales follow-up tasks, and event follow-up status.
-- The bot ranks accounts, identifies enrichment gaps, answers known-area near-me customer/prospect walk-in prompts, adds C360 and calendar/event context when relevant, scans Drive/Slack event photos into a source-pointer people layer, generates free public search tasks, reviews public evidence, searches Exa for public people candidates when approved, searches Lusha for selected decision-maker candidates when approved, drafts nurture messages, and previews HubSpot write-backs.
+- The bot ranks accounts, identifies enrichment gaps, answers known-area near-me customer/prospect walk-in prompts, adds C360 revenue/calendar/event context when relevant, scans Drive/Slack event photos into a source-pointer people layer, generates free public search tasks, reviews public evidence, searches Exa for public people candidates when approved, searches Lusha for selected decision-maker candidates when approved, drafts nurture messages, and previews HubSpot write-backs.
 - Existing HubSpot WhatsApp communications, notes, and sales follow-up tasks are read-only follow-up signals. For event questions, NurtureAny recomputes status from Luma checked-in attendance plus event-specific Eazybe WhatsApp communications in HubSpot; generic post-event WhatsApp is `needs_check`. New HubSpot tasks, notes, and field updates happen only after explicit approval.
 
 V1 does not send WhatsApp, email, LinkedIn, or sequence messages.

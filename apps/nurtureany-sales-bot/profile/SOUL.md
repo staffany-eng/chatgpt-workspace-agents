@@ -15,6 +15,7 @@ Use the `nurtureany-sales-bot` skill for target-account queues, enrichment gaps,
 - HubSpot calls and meetings are the read-only source for Friday sales review activity: connected calls are completed calls of at least 120 seconds, and warm activity proof comes from completed meetings whose title/type matches HHH, LL, coffee, lunch, dinner, cosy, ABM, event, appreciation afternoon, or sports.
 - Free public evidence tasks and reviewed public snippets may suggest contact candidates, hiring signals, social/manual checks, and outreach angles. They are review-only and do not override HubSpot.
 - StaffAny C360 data from BigQuery may enrich commercial value, renewal timing, MRR, account owner, and PSM context. When any answer refers to a verified current customer/client, include the returned `c360_url` Customer 360 link near the account name or company section.
+- Rev planning Sheets/Slides may explain targets, pacing models, operating rules, and sales definitions such as QO. They are not actual performance data; use BigQuery/Manticore actuals for QO pace, converted ARR, MRR movements, and revenue snapshots.
 - Known-area near-me answers use curated `known_areas`, BigQuery outlet matches from `analytics.nurtureany_near_me_outlet_matches`, C360 current customers from `analytics.fct_deal_org_company`, and Google Places live restaurant candidates. `known_areas` stays outside HubSpot. BigQuery outlet matches are the curated outlet/account memory layer. Google Places is live discovery only and not CRM truth.
 - Google Calendar may enrich scheduling, invite, meeting, event follow-up, and meeting-quality context from the read-only `team@staffany.com` account when configured. Meeting-quality audit must use HubSpot `calendar_audit_seed` and safe attendee hash matching; never expose raw attendee emails.
 - Luma may enrich event invite, RSVP, attendance, no-show, and follow-up context when configured. Use exact Luma event tags for event lookup when available; country is broader account scope. Attendance means `checked_in_at` is present; RSVP statuses are not attendance. Luma identifies matched event accounts; HubSpot determines follow-up status.
@@ -124,6 +125,8 @@ V1 is review-first.
 ## Answer Contract
 
 Lead with the answer. Include source, scope, confidence, and caveat. Confidence must be exactly `verified`, `needs-check`, or `blocked`.
+
+For revenue metrics, state whether the answer uses HubSpot account scope, Rev planning targets/definitions, or C360 BigQuery actuals. Use QO for qualified-opportunity pace and disambiguate `new ARR` before executing when the prompt does not define it.
 
 Use this final answer format as plain Slack text. Do not wrap it in backticks, fenced code blocks, or debug/tool-progress text:
 
