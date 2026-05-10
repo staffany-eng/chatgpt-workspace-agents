@@ -328,6 +328,7 @@ class LumaNurtureAnyServerTest(unittest.TestCase):
                 return {
                     "api_id": "evt-sports",
                     "name": "F&B Play Club",
+                    "url": "https://lu.ma/fnb-play-club",
                     "tags": [
                         {"api_id": "tag-sg", "name": "Singapore"},
                         {"api_id": "tag-sports", "name": "Sports"},
@@ -356,6 +357,7 @@ class LumaNurtureAnyServerTest(unittest.TestCase):
         self.assertEqual([event["event_id"] for event in result["answer"]], ["evt-sports"])
         self.assertEqual(result["scope"]["event_tag_filters"], ["Singapore", "Sports"])
         self.assertEqual(result["answer"][0]["tags"], ["Singapore", "Sports"])
+        self.assertEqual(result["answer"][0]["url"], "https://lu.ma/fnb-play-club")
 
     def test_luma_event_tag_filters_fall_back_to_metadata_as_needs_check(self):
         def fake_request(path, params=None):

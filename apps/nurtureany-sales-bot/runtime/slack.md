@@ -12,6 +12,7 @@ NurtureAny's first runtime surface is Slack mention usage in sales pilot channel
 - Exa People Search requests must show the estimated dollar-cost scope before execution and include `cost_report` after execution.
 - Luma guest or attendance requests must check HubSpot scope first, then return bounded RSVP/attendance context without raw attendee exports.
 - Luma event requests should pass exact Luma event tags when the prompt implies them, for example `event_tags=["Jakarta", "Appreciation Afternoon"]` for `StaffAny Appreciation Afternoon (JKT)` or `event_tags=["Singapore", "Sports"]` for a Singapore Sports event. Use country as broad account scope, not as the event filter when exact tags are known.
+- When Slack output says a Luma event was found or selected, include the clickable event link as `<event.url|event.name>` whenever `event.url` is present, followed by date and event ID.
 
 ## Commands
 

@@ -53,6 +53,8 @@ For Luma event lookup, pass exact Luma event tags through `event_tags` when the 
 
 If Luma/admin wording calls `Jakarta` or `Bali` an event type tag, still include it in `event_tags`. The adapter also tolerates those tags in `event_type`, `location`, or `country`, but the intended call is exact event tags first.
 
+When reporting a found/selected Luma event in Slack, include the event link using `<event.url|event.name>` plus date and event ID whenever `event.url` is present. Do not answer with only the event date or ID.
+
 ## Access Routing
 
 Use Slack user email as caller identity only. Access comes from explicit NurtureAny policy, loaded from `NURTUREANY_ACCESS_POLICY_PATH` when configured. Classified sales reps map `slack_email` to `hubspot_owner_email`, then to `hubspot_owner_id`; unclassified HubSpot owners are blocked.
@@ -123,7 +125,7 @@ Read tools:
 - `review_public_enrichment_evidence`: review public evidence snippets/URLs, fetch only safe public company/careers/job pages, normalize candidate contacts/signals, dedupe against HubSpot contacts, and return review-only output.
 - `draft_nurture_message`: manual-review draft for WhatsApp, email, or LinkedIn.
 - `list_google_calendar_events`: read-only `team@staffany.com` calendar event lookup. It returns bounded safe event metadata only, caps reads at 5 calendars and 50 events per calendar, and never creates, updates, deletes, invites, RSVPs, exports attendees, or returns raw guest lists.
-- `list_luma_events`: read-only Luma event lookup. It accepts optional `event_tags`, `location`, `country`, and `event_type` filters, returns bounded safe event metadata plus event tags only, caps events at 50, and never creates, updates, invites, RSVPs, checks in, exports attendees, or returns raw guest lists.
+- `list_luma_events`: read-only Luma event lookup. It accepts optional `event_tags`, `location`, `country`, and `event_type` filters, returns bounded safe event metadata plus event URL and tags only, caps events at 50, and never creates, updates, invites, RSVPs, checks in, exports attendees, or returns raw guest lists.
 - `get_luma_event_context`: read-only Luma RSVP and attendance context for HubSpot-scoped companies. It accepts optional `event_tags`, `location`, `country`, and `event_type` filters, requires scoped HubSpot company IDs, caps event context at 20 events and 250 guests per event, returns RSVP counts, checked-in counts, matched account IDs, attendee names only for matched scoped accounts, email domain/hash, RSVP status, checked-in timestamp, match reason, `has_more`, and `truncated`.
 - `search_exa_people_candidates`: search Exa People Search for public decision-maker candidates. It returns source URLs, inferred names/titles, decision-maker match signals, and `cost_report`; it never fetches profile contents or reveals email/phone.
 - `search_lusha_decision_maker_candidates`: search Lusha for selected company decision-maker candidates without revealing email or phone.
@@ -180,6 +182,8 @@ Exa and Lusha search inputs must come from NurtureAny scoped HubSpot account out
 For Google Calendar flows, include only bounded event metadata from the `team@staffany.com` account. Do not expose descriptions, attendee emails, raw guest lists, conference links, or private calendar metadata. Treat calendar hits as scheduling context and match them back to scoped HubSpot accounts before acting.
 
 For Luma flows, check scoped HubSpot accounts first, then call Luma. Use exact `event_tags` before guest lookup when the prompt mentions tags such as Singapore, Jakarta, Bali, appreciation afternoon, sports, HR happy hour, or leaders lounge. Use `country` for broader account scope and only as broad Luma fallback when no exact event tag is known. Do not use Luma for arbitrary company-name-only lookup. Treat exact HubSpot contact email and exact company email domain matches as verified; company-name matches from Luma fields or registration answers are candidate matches with `Confidence: needs-check`. Do not expose unmatched guests, full attendee emails, phone numbers, registration answers, or raw guest lists. Attendance means `checked_in_at` is present; RSVP status alone is not attendance.
+
+When a Luma event is found or selected, include the clickable Luma event link in the Slack answer using `<event.url|event.name>` when `event.url` is available, followed by the date and event ID. If `event.url` is missing, say the Luma URL was not returned.
 
 For Lusha flows, include the returned `credit_report`. Search responses show availability flags only. Reveal responses may show selected PII in internal Slack only for explicitly selected contacts after approval; phone details require `reveal_phones=true`.
 

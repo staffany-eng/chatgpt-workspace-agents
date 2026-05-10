@@ -210,6 +210,7 @@
       "Leaders Lounge"
     ],
     "preferred_event_filter": "event_tags",
+    "slack_event_links_required": true,
     "allowed_tools": [
       "list_luma_events",
       "get_luma_event_context"

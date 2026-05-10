@@ -190,6 +190,9 @@ if (!existsSync(manifestPath)) {
     if (manifest.luma?.preferred_event_filter !== "event_tags") {
       fail("Manifest Luma preferred_event_filter must be event_tags");
     }
+    if (manifest.luma?.slack_event_links_required !== true) {
+      fail("Manifest Luma slack_event_links_required must be true");
+    }
     if (manifest.luma?.location_tag_country_map?.Jakarta !== "Indonesia") {
       fail("Manifest Luma must map Jakarta location tag to Indonesia");
     }
@@ -300,6 +303,8 @@ for (const text of [
   "team@staffany.com",
   "Luma",
   "checked_in_at",
+  "found/selected Luma event",
+  "event.url|event.name",
   "raw guest lists",
   "cost_report",
   "credit_report",
@@ -329,6 +334,8 @@ for (const text of [
   "list_luma_events",
   "get_luma_event_context",
   "checked_in_at",
+  "found/selected Luma event",
+  "event.url|event.name",
   "raw guest lists",
   "search_exa_people_candidates",
   "search_lusha_decision_maker_candidates",
@@ -447,6 +454,8 @@ for (const text of [
   "HR Happy Hour",
   "Appreciation Afternoon",
   "Leaders Lounge",
+  "Slack Output",
+  "event.url|event.name",
   "runtime/mcp/luma_nurtureany_server.py",
   "15s hard timeout",
   "Requires scoped HubSpot company inputs",
@@ -456,6 +465,32 @@ for (const text of [
   "Confidence: blocked"
 ]) {
   if (!lumaText.includes(text)) fail(`runtime/luma.md missing required text: ${text}`);
+}
+
+const slackText = textOf("runtime/slack.md");
+for (const text of [
+  "event_tags=[\"Singapore\", \"Sports\"]",
+  "event.url|event.name",
+  "date and event ID"
+]) {
+  if (!slackText.includes(text)) fail(`runtime/slack.md missing required text: ${text}`);
+}
+
+const healthText = textOf("runtime/health-checks.md");
+for (const text of [
+  "Luma event-link smoke check",
+  "event.url|event.name"
+]) {
+  if (!healthText.includes(text)) fail(`runtime/health-checks.md missing required text: ${text}`);
+}
+
+const lumaRegressionText = `${textOf("tests/regression-cases.md")}\n${textOf("skills/nurtureany-sales-bot/references/regression-cases.md")}`;
+for (const text of [
+  "clickable Luma event link",
+  "event.url|event.name",
+  "date and event ID"
+]) {
+  if (!lumaRegressionText.includes(text)) fail(`Luma regression cases missing required text: ${text}`);
 }
 
 const lumaServerText = textOf("runtime/mcp/luma_nurtureany_server.py");

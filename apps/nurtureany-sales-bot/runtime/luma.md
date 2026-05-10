@@ -28,6 +28,7 @@ The local stdio MCP adapter lives at `runtime/mcp/luma_nurtureany_server.py`.
 - Output: safe event id, name, date/time, timezone, URL, Luma tags, normalized location tags, normalized country tags, normalized event type tags, and tag match source only.
 - Caps events at 50, defaults to 20, and returns `has_more` plus `truncated`.
 - Uses exact Luma event tags first when `event_tags` is supplied. If Luma omits tags from `list-events`, the adapter fetches event detail; if tags are still unavailable, it falls back to event name/timezone metadata with `Confidence: needs-check`.
+- Slack answers that say a Luma event was found or selected must include the clickable event link as `<event.url|event.name>` whenever `event.url` is present, plus date and event ID. Do not report only the event date or ID.
 
 `get_luma_event_context`:
 
@@ -40,6 +41,10 @@ The local stdio MCP adapter lives at `runtime/mcp/luma_nurtureany_server.py`.
 - Returns attendee names only for matched scoped accounts, plus email domain/hash, RSVP status, checked-in timestamp, match reason, matched account IDs, RSVP counts, checked-in count, `has_more`, and `truncated`.
 
 Attendance means `checked_in_at` is present. Approved, invited, pending, waitlist, declined, and other RSVP states are not attendance.
+
+## Slack Output
+
+When reporting a found/selected Luma event, use the event URL returned by Luma. In Slack, render it as `<event.url|event.name>` and include the date plus `event_id` beside it. If the Luma API response has no `event.url`, explicitly say the Luma URL was not returned and keep `Confidence: needs-check`.
 
 ## Event Tags
 
