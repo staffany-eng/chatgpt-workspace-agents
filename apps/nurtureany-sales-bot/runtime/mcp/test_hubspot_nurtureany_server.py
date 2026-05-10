@@ -4,6 +4,10 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+
+MCP_DIR = Path(__file__).resolve().parent
+if str(MCP_DIR) not in sys.path:
+    sys.path.insert(0, str(MCP_DIR))
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -1992,6 +1996,12 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         self.assertEqual(result["confidence"], "needs-check")
         self.assertEqual(result["answer"][0]["luma_match_reasons"], ["exact_email_domain"])
         self.assertEqual(result["answer"][1]["luma_match_reasons"], ["company_name_candidate"])
+        self.assertEqual(result["answer"][0]["luma_match_key_kinds"], ["exact_email_domain"])
+        self.assertEqual(result["answer"][0]["luma_match_key_count"], 1)
+        payload = json.dumps(result)
+        self.assertNotIn("luma_match_keys", payload)
+        self.assertNotIn("current_tools", payload)
+        self.assertLess(len(payload), 8_000)
         self.assertIn({"propertyName": "hs_is_target_account", "operator": "EQ", "value": "true"}, calls[0])
         self.assertIn({"propertyName": "company_country", "operator": "IN", "values": ["Singapore"]}, calls[0])
         self.assertEqual(calls[0][-1], {"propertyName": "domain", "operator": "EQ", "value": "noci.example"})

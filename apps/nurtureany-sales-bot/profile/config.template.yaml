@@ -98,6 +98,9 @@ nurtureany:
       qo_stage_ids: "NURTUREANY_QO_STAGE_IDS"
       qo_met_stage_ids: "NURTUREANY_QO_MET_STAGE_IDS"
       closed_won_stage_ids: "NURTUREANY_CLOSED_WON_STAGE_IDS"
+    warehouse_qo_actuals_source: "staffany-warehouse.analytics.fct_sales_points.qo_set"
+    direct_qo_metric_route: "revenue_metric_bigquery_not_friday_review"
+    friday_qo_actuals_mode: "optional_second_step_after_hubspot_review"
     missing_stage_config_result: "Confidence: needs-check; still return hygiene/account coverage"
   photo_matching:
     drive_folder_id: "1qXlFnr5TKFtsYNWk7ZywBBctDaae3RY-"
@@ -126,12 +129,24 @@ mcp_servers:
       type: "bearer_env"
       env: "HUBSPOT_PRIVATE_APP_TOKEN"
       note: "check_event_followup_status also reads LUMA_API_KEY from the profile environment for read-only event lookup."
+    env:
+      HUBSPOT_PRIVATE_APP_TOKEN: "${HUBSPOT_PRIVATE_APP_TOKEN}"
+      NURTUREANY_ACCESS_POLICY_PATH: "${NURTUREANY_ACCESS_POLICY_PATH}"
+      LUMA_API_KEY: "${LUMA_API_KEY}"
+      NURTUREANY_C360_COMPANY_URL_TEMPLATE: "${NURTUREANY_C360_COMPANY_URL_TEMPLATE}"
+      NURTUREANY_C360_ORG_URL_TEMPLATE: "${NURTUREANY_C360_ORG_URL_TEMPLATE}"
+      NURTUREANY_C360_ROUTE_KEY_BY_COMPANY_ID: "${NURTUREANY_C360_ROUTE_KEY_BY_COMPANY_ID}"
+      NURTUREANY_C360_SALES_PACKET_URL_TEMPLATE: "${NURTUREANY_C360_SALES_PACKET_URL_TEMPLATE}"
+      NURTUREANY_C360_INTERNAL_API_TOKEN: "${NURTUREANY_C360_INTERNAL_API_TOKEN}"
     customer360_links:
       company_url_template_env: "NURTUREANY_C360_COMPANY_URL_TEMPLATE"
       org_url_template_env: "NURTUREANY_C360_ORG_URL_TEMPLATE"
       route_key_map_env: "NURTUREANY_C360_ROUTE_KEY_BY_COMPANY_ID"
+      sales_packet_url_template_env: "NURTUREANY_C360_SALES_PACKET_URL_TEMPLATE"
+      sales_packet_token_env: "NURTUREANY_C360_INTERNAL_API_TOKEN"
       default_company_url_template: "https://customer-360-qv4r5xkisq-as.a.run.app/companies/{customer360_route_key}"
       default_org_url_template: "https://customer-360-qv4r5xkisq-as.a.run.app/companies/{customer360_route_key}/orgs/{organisation_id}"
+      default_sales_packet_url_template: "https://customer-360-qv4r5xkisq-as.a.run.app/api/companies/{customer360_route_key}/sales-packet"
       known_route_keys:
         "1991281569": "fei-siong-group"
     timeout: 600
@@ -152,6 +167,7 @@ mcp_servers:
       - "list_sales_followup_tasks"
       - "check_account_followup_status"
       - "check_event_followup_status"
+      - "find_target_accounts_by_luma_match_keys"
       - "score_nurture_accounts"
       - "find_contact_gaps"
       - "find_t90_renewal_gaps"
@@ -283,6 +299,7 @@ mcp_servers:
       - "build_near_me_outlet_matches_query"
       - "refresh_google_places_for_known_area"
       - "build_near_me_c360_customer_query"
+      - "prepare_near_me_seed_review_candidates"
       - "merge_near_me_sources"
 
   google_calendar_nurtureany:

@@ -172,7 +172,10 @@
       "qo_pipeline_ids_env_var": "NURTUREANY_QO_PIPELINE_IDS",
       "qo_stage_ids_env_var": "NURTUREANY_QO_STAGE_IDS",
       "qo_met_stage_ids_env_var": "NURTUREANY_QO_MET_STAGE_IDS",
-      "closed_won_stage_ids_env_var": "NURTUREANY_CLOSED_WON_STAGE_IDS"
+      "closed_won_stage_ids_env_var": "NURTUREANY_CLOSED_WON_STAGE_IDS",
+      "warehouse_qo_actuals_source": "staffany-warehouse.analytics.fct_sales_points.qo_set",
+      "direct_qo_metric_route": "revenue_metric_bigquery_not_friday_review",
+      "friday_qo_actuals_mode": "optional_second_step_after_hubspot_review"
     },
     "source_of_truth_fields": {
       "target_accounts": "hs_is_target_account",
@@ -228,6 +231,7 @@
       "list_sales_followup_tasks",
       "check_account_followup_status",
       "check_event_followup_status",
+      "find_target_accounts_by_luma_match_keys",
       "score_nurture_accounts",
       "find_contact_gaps",
       "find_t90_renewal_gaps",
@@ -249,6 +253,7 @@
       "build_near_me_outlet_matches_query",
       "refresh_google_places_for_known_area",
       "build_near_me_c360_customer_query",
+      "prepare_near_me_seed_review_candidates",
       "merge_near_me_sources",
       "search_exa_people_candidates",
       "search_lusha_decision_maker_candidates",
@@ -441,6 +446,7 @@
       "build_near_me_outlet_matches_query",
       "refresh_google_places_for_known_area",
       "build_near_me_c360_customer_query",
+      "prepare_near_me_seed_review_candidates",
       "merge_near_me_sources"
     ],
     "bigquery_writeback": "separate_review_or_admin_job_only",

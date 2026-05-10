@@ -42,7 +42,7 @@ Inspect schema before relying on table or column names. The existing Luma events
 Use `skills/nurtureany-sales-bot/references/rev-planning-and-metrics.md` before querying revenue metrics.
 
 - QO actuals should use `fct_sales_points.qo_set` after schema inspection.
-- Direct QO count or pace prompts should call `hubspot_nurtureany.build_sales_metric_actuals_query` first, then run the returned SQL through `staffany_bigquery.execute_sql_readonly`. Do not route direct QO prompts through Friday review.
+- Direct QO count or pace prompts should resolve owner/team/date scope, call `hubspot_nurtureany.build_sales_metric_actuals_query` first, then run the returned SQL through `staffany_bigquery.execute_sql_readonly`. Do not route direct QO prompts through Friday review.
 - `new ARR` is ambiguous. Ask whether the user wants signed converted ARR, paid converted ARR, or new MRR movement annualized.
 - Signed and paid converted ARR come from `fct_deal_metrics_with_pilot_conversion`.
 - New ARR movement and net ARR movement come from `fct_mrr_movements`; annualize MRR movement only when the queried source value is MRR.
@@ -99,5 +99,6 @@ Do not query person GPS, clock records, raw employee location rows, or employee 
 - Aggregate or summarize before returning Slack output.
 - Include the time grain and as-of date or latest snapshot month in every revenue metric answer.
 - State whether the answer uses HubSpot account scope, Rev planning targets/definitions, or C360 BigQuery actuals.
+- For Friday review, use BigQuery QO actuals only as an additional aggregate source after the HubSpot review output; do not replace account-coverage, calls, meetings, or hygiene checks with warehouse metrics.
 - Return `Confidence: needs-check` when HubSpot and C360 ownership or renewal evidence conflicts.
 - Return `Confidence: blocked` when schema, auth, or table access fails.
