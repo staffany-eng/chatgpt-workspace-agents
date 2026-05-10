@@ -20,6 +20,7 @@ NurtureAny's first runtime surface is Slack mention usage in sales pilot channel
 - Post-event follow-up requests must use `check_event_followup_status` when the event is named or needs Luma resolution, then use HubSpot/Eazybe event-specific WhatsApp communications, notes, and tasks for status. Generic post-event WhatsApp is `needs_check`, not clean follow-up.
 - Luma event requests should pass exact Luma event tags when the prompt implies them, for example `event_tags=["Jakarta", "Appreciation Afternoon"]` for `StaffAny Appreciation Afternoon (JKT)` or `event_tags=["Singapore", "Sports"]` for the screenshot-style Sports event. Use country as broad account scope, not as the event filter when exact tags are known.
 - Broad event-wide Luma questions must use event-first matching instead of paging every HubSpot target account: find event, extract safe match keys, search HubSpot scoped candidates, then fetch Luma context for those candidates only.
+- For Indonesia LL/HHH event follow-up where Luma returns zero checked-in attendees or check-in was not tracked, use the `ID REV - LL & HHH EVENTS` Google Sheet fallback through `read_indonesia_event_registration_attendance`. Treat `Attend The Event` as manual attendance, match attended company/domain keys back to scoped HubSpot target accounts, then check HubSpot follow-up. Do not expose phone numbers, full emails, raw registration rows, or raw attendee exports.
 - When Slack output says a Luma event was found or selected, include the clickable event link as `<event.url|event.name>` whenever `event.url` is present, followed by date and event ID.
 - Near-me prompts should plan for known-area snapping, BigQuery outlet-match lookup, Google Places live restaurant refresh, C360 BigQuery current-customer query, and merge/ranking. Ask for `run` before tool execution.
 - Near-me answers must show C360 current customers even when no BigQuery outlet match exists, link every current customer name to returned `c360_url` when available, and mark Google-only restaurants as live candidates.
@@ -56,6 +57,7 @@ Manager commands:
 - `@NurtureAny renewal risk queue this month`
 - `@NurtureAny which target accounts attended yesterday's Luma event`
 - `@NurtureAny which target accounts attended our last Jakarta HHH and did we follow up`
+- `@NurtureAny which target accounts attended our last Bali HHH and did we follow up`
 - `@NurtureAny which target accounts attended StaffAny Appreciation Afternoon (JKT)?`
 - `@NurtureAny build pre-demo game plans for these 3 HubSpot company links`
 - `@NurtureAny build pre-demo game plans for Noci Bakehouse, Bali Beans, and Kopi House`

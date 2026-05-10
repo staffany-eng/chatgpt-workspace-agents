@@ -234,6 +234,7 @@
       "propose_photo_people_matches",
       "list_drive_folder_images",
       "extract_drive_image_clues",
+      "read_indonesia_event_registration_attendance",
       "draft_nurture_message",
       "list_google_calendar_events",
       "audit_google_calendar_meeting_quality",
@@ -348,10 +349,14 @@
     "required_scope": "https://www.googleapis.com/auth/drive.readonly",
     "read_only": true,
     "default_folder_id": "1qXlFnr5TKFtsYNWk7ZywBBctDaae3RY-",
+    "id_rev_events_spreadsheet_id": "1mXixAVJGk0Uy0u1LtOmDFxU3XuW8DRfedB69E1f-drc",
+    "registration_attendance_fallback": "Indonesia LL/HHH Google Sheet Attend The Event when Luma checked_in_at is empty or not used",
+    "registration_attendance_column": "Attend The Event",
     "max_files": 100,
     "allowed_tools": [
       "list_drive_folder_images",
-      "extract_drive_image_clues"
+      "extract_drive_image_clues",
+      "read_indonesia_event_registration_attendance"
     ],
     "transient_vision_downloads": true,
     "uploader_profile_lookup": "best_effort_slack_users_info",

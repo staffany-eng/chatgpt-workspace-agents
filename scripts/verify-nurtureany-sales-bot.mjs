@@ -156,6 +156,7 @@ if (!existsSync(manifestPath)) {
       "propose_photo_people_matches",
       "list_drive_folder_images",
       "extract_drive_image_clues",
+      "read_indonesia_event_registration_attendance",
       "draft_nurture_message",
       "list_google_calendar_events",
       "audit_google_calendar_meeting_quality",
@@ -316,6 +317,18 @@ if (!existsSync(manifestPath)) {
     }
     if (!manifest.google_drive?.allowed_tools?.includes("extract_drive_image_clues")) {
       fail("Manifest Google Drive missing extract_drive_image_clues tool");
+    }
+    if (!manifest.google_drive?.allowed_tools?.includes("read_indonesia_event_registration_attendance")) {
+      fail("Manifest Google Drive missing read_indonesia_event_registration_attendance tool");
+    }
+    if (manifest.google_drive?.id_rev_events_spreadsheet_id !== "1mXixAVJGk0Uy0u1LtOmDFxU3XuW8DRfedB69E1f-drc") {
+      fail("Manifest Google Drive ID Rev events spreadsheet id is incorrect");
+    }
+    if (!String(manifest.google_drive?.registration_attendance_fallback || "").includes("Attend The Event")) {
+      fail("Manifest Google Drive registration_attendance_fallback must reference Attend The Event");
+    }
+    if (manifest.google_drive?.registration_attendance_column !== "Attend The Event") {
+      fail("Manifest Google Drive registration_attendance_column must be Attend The Event");
     }
     if (manifest.google_drive?.transient_vision_downloads !== true) {
       fail("Manifest Google Drive transient_vision_downloads must be true");
@@ -506,6 +519,10 @@ for (const text of [
   "https://www.googleapis.com/auth/drive.readonly",
   "list_drive_folder_images",
   "extract_drive_image_clues",
+  "read_indonesia_event_registration_attendance",
+  "1mXixAVJGk0Uy0u1LtOmDFxU3XuW8DRfedB69E1f-drc",
+  "registration_attendance_fallback",
+  "Attend The Event",
   "team@staffany.com",
   "team_oauth_shared_calendar",
   "resolved_hubspot_owner_email",
@@ -581,6 +598,10 @@ for (const text of [
   "event.url|event.name",
   "event-first matching",
   "raw guest lists",
+  "read_indonesia_event_registration_attendance",
+  "ID REV - LL & HHH EVENTS",
+  "Attend The Event",
+  "raw registration rows",
   "cost_report",
   "credit_report",
   "approval_marker",
@@ -591,6 +612,7 @@ for (const text of [
   "photo match",
   "list_drive_folder_images",
   "extract_drive_image_clues",
+  "read_indonesia_event_registration_attendance",
   "uploader display names",
   "original Slack uploader",
   "Luma event-date context",
@@ -666,6 +688,9 @@ for (const text of [
   "event.url|event.name",
   "event-first match keys",
   "raw guest lists",
+  "ID REV - LL & HHH EVENTS",
+  "Attend The Event",
+  "raw registration rows",
   "resolve_known_area_for_near_me",
   "build_near_me_outlet_matches_query",
   "refresh_google_places_for_known_area",
@@ -908,6 +933,10 @@ for (const text of [
   "slack_uploader_name",
   "users.info",
   "all-random",
+  "ID REV - LL & HHH EVENTS",
+  "read_indonesia_event_registration_attendance",
+  "Attend The Event",
+  "phone numbers, full emails",
   "Download image bytes only transiently",
   "Confidence: blocked"
 ]) {
@@ -921,8 +950,14 @@ for (const text of [
   "DEFAULT_ACCOUNT_EMAIL = \"team@staffany.com\"",
   "DEFAULT_DRIVE_FOLDER_ID = \"1qXlFnr5TKFtsYNWk7ZywBBctDaae3RY-\"",
   "MAX_DRIVE_FILES = 100",
+  "GOOGLE_SHEETS_API_BASE_URL",
+  "ID_REV_EVENTS_SPREADSHEET_ID",
+  "MAX_REGISTRATION_ROWS = 250",
   "list_drive_folder_images",
   "extract_drive_image_clues",
+  "read_indonesia_event_registration_attendance",
+  "Attend The Event",
+  "No phone numbers, full emails, raw exports, or Drive mutations.",
   "slack_uploader_name",
   "SLACK_BOT_TOKEN",
   "Metadata only. No image bytes, Drive mutations, exports, or raw image copies.",
@@ -960,6 +995,8 @@ for (const text of [
   "checked_in_at",
   "Do not expose raw attendee exports",
   "Do not paste raw match-key lists",
+  "read_indonesia_event_registration_attendance",
+  "Attend The Event",
   "Do not create, update, invite, RSVP, check in",
   "Confidence: blocked"
 ]) {
@@ -971,6 +1008,8 @@ for (const text of [
   "event_tags=[\"Singapore\", \"Sports\"]",
   "event-first matching",
   "event.url|event.name",
+  "read_indonesia_event_registration_attendance",
+  "Attend The Event",
   "date and event ID"
 ]) {
   if (!slackText.includes(text)) fail(`runtime/slack.md missing required text: ${text}`);
@@ -980,6 +1019,9 @@ const healthText = textOf("runtime/health-checks.md");
 for (const text of [
   "Luma event-link smoke check",
   "Event-first Luma smoke check",
+  "Indonesia event-registration fallback smoke check",
+  "read_indonesia_event_registration_attendance",
+  "Attend The Event",
   "event.url|event.name"
 ]) {
   if (!healthText.includes(text)) fail(`runtime/health-checks.md missing required text: ${text}`);
@@ -990,6 +1032,9 @@ for (const text of [
   "clickable Luma event link",
   "event-first matching",
   "event.url|event.name",
+  "ID REV - LL & HHH EVENTS",
+  "HHH Bali 7 May - Rsvp",
+  "raw registration rows",
   "date and event ID"
 ]) {
   if (!lumaRegressionText.includes(text)) fail(`Luma regression cases missing required text: ${text}`);
@@ -1092,7 +1137,8 @@ const healthScriptText = textOf("runtime/check-health.sh");
 for (const text of [
   "PROFILE=\"${HERMES_PROFILE:-nurtureanysalesbot}\"",
   "export HERMES_HOME=\"$HOME/.hermes/profiles/$PROFILE\"",
-  "EXPECT_HUBSPOT_TOOLS=\"${EXPECT_HUBSPOT_TOOLS:-25}\"",
+  "EXPECT_HUBSPOT_TOOLS=\"${EXPECT_HUBSPOT_TOOLS:-26}\"",
+  "EXPECT_GOOGLE_DRIVE_TOOLS=\"${EXPECT_GOOGLE_DRIVE_TOOLS:-3}\"",
   "EXPECT_LUMA_TOOLS=\"${EXPECT_LUMA_TOOLS:-3}\"",
   "EXPECT_NEAR_ME_TOOLS=\"${EXPECT_NEAR_ME_TOOLS:-5}\"",
   "slack-display:interim-assistant-messages-not-disabled",

@@ -325,6 +325,9 @@ mcp_servers:
       drive_account_email: "team@staffany.com"
       required_scope: "https://www.googleapis.com/auth/drive.readonly"
       default_folder_id: "1qXlFnr5TKFtsYNWk7ZywBBctDaae3RY-"
+      id_rev_events_spreadsheet_id: "1mXixAVJGk0Uy0u1LtOmDFxU3XuW8DRfedB69E1f-drc"
+      registration_attendance_fallback: "Indonesia LL/HHH Google Sheet Attend The Event when Luma checked_in_at is empty or not used"
+      registration_attendance_column: "Attend The Event"
       max_files: 100
       max_vision_files_per_call: 5
       transient_vision_downloads: true
@@ -335,6 +338,7 @@ mcp_servers:
     tool_allowlist:
       - "list_drive_folder_images"
       - "extract_drive_image_clues"
+      - "read_indonesia_event_registration_attendance"
 
   luma_nurtureany:
     description: "Read-only Luma event context adapter for RSVP, attendance, and no-show nurture."
@@ -380,7 +384,6 @@ mcp_servers:
     tool_allowlist:
       - "list_luma_events"
       - "get_luma_event_match_keys"
-      - "find_target_accounts_by_luma_match_keys"
       - "get_luma_event_context"
 
 gateway:

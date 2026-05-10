@@ -388,6 +388,22 @@ Expected behavior:
 - Returns account, owner, latest safe follow-up timestamp, activity counts, source, scope, confidence, and caveat.
 - Does not expose raw WhatsApp bodies, note bodies, task bodies, phone numbers, unmatched guests, guest emails, raw attendee lists, mutate HubSpot, or call Eazybe directly.
 
+Prompt:
+
+```text
+@NurtureAny which target accounts attended our last Bali HHH? and did we follow up
+```
+
+Expected behavior:
+
+- First Slack response is plan-only.
+- After `run`, resolves the Luma event with exact tags such as `Bali` and `HR Happy Hour` and includes the clickable Luma event link as `<event.url|event.name>` plus date and event ID.
+- If Luma returns zero `checked_in_at` attendees or check-in was not tracked, uses `read_indonesia_event_registration_attendance` as a viable fallback.
+- Reads only the `ID REV - LL & HHH EVENTS` Sheet, for example tab `HHH Bali 7 May - Rsvp`, and treats `Attend The Event` as manual attendance.
+- Uses safe Sheet match keys to resolve scoped Indonesia HubSpot target accounts before account-level output or follow-up checks.
+- Keeps Sheet fallback as `Confidence: needs-check` until HubSpot scope and follow-up evidence are checked.
+- Does not expose phone numbers, full emails, raw registration rows, raw attendee exports, or unmatched people.
+
 ## Slack Photo Match With Explicit Context
 
 Prompt:

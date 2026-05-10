@@ -57,6 +57,7 @@ Use this reference with `sales-best-practices.md` before changing or answering f
 | `get_lusha_credit_usage` | Paid enrichment | Credit reporting tool; `credit_report` required; no prospect PII; no HubSpot mutation; blocked/needs-check if usage API is unavailable. |
 | `list_drive_folder_images` | Drive photo | Drive metadata only from `team@staffany.com`; source pointers and uploader names only; no raw image copy; no Drive mutation. |
 | `extract_drive_image_clues` | Drive photo | Transient image download for OCR/vision clues only; raw bytes discarded; event attribution remains `needs-check` until confirmed; no mutation. |
+| `read_indonesia_event_registration_attendance` | Event fallback | Indonesia LL/HHH Sheet fallback only when Luma check-in is empty or not used; `Attend The Event` is manual attendance evidence; safe rows and match keys only; no phone numbers, full emails, raw registration exports, or mutation. |
 | `resolve_known_area_for_near_me` | Near-me | Curated known areas outside HubSpot; plan-first flow; no person GPS or employee movement; PII/body safety; no mutation. |
 | `build_near_me_c360_customer_query` | Near-me | C360 current-customer layer enriches near-me; HubSpot override fields still govern CRM truth; read-only SQL; PII/body safety; no mutation. |
 | `refresh_google_places_for_known_area` | Near-me | Google Places is live candidate discovery only; Google-only rows are not CRM truth; PII/body safety; no mutation. |

@@ -51,6 +51,8 @@ The local stdio MCP adapter lives at `runtime/mcp/luma_nurtureany_server.py`.
 
 Attendance means `checked_in_at` is present. Approved, invited, pending, waitlist, declined, and other RSVP states are not attendance.
 
+For Indonesia LL/HHH follow-up, Luma remains the first attendance source. If a selected Luma event has zero checked-in guests or the team clearly did not use Luma check-in, use `read_indonesia_event_registration_attendance` from the Google Drive MCP as a viable manual fallback. That fallback reads the ID Rev registration Sheet `Attend The Event` column, returns safe company/domain match keys only, and must still be resolved back to scoped HubSpot target accounts before account-level output.
+
 ## Event Tags
 
 Use Luma event tags to narrow event lookup before scanning guests:

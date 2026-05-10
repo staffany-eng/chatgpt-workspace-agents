@@ -245,6 +245,117 @@ class GoogleDriveNurtureAnyServerTest(unittest.TestCase):
         self.assertEqual(result["returned_count"], 0)
         self.assertEqual(result["answer"]["skipped"][0]["reason"], "unsupported_image_type")
 
+    def test_registration_attendance_fallback_returns_safe_rows_and_match_keys(self):
+        calls = []
+
+        def fake_sheets_request(spreadsheet_id, path, params, access_token):
+            calls.append((spreadsheet_id, path, params, access_token))
+            if path == "":
+                return {
+                    "properties": {"title": self.module.ID_REV_EVENTS_SPREADSHEET_TITLE},
+                    "sheets": [
+                        {"properties": {"sheetId": 113156488, "title": "HHH Bali 7 May - Rsvp", "index": 98}},
+                        {"properties": {"sheetId": 780592408, "title": "HHH Bali 7 May - Feedback", "index": 99}},
+                    ],
+                }
+            return {
+                "values": [
+                    [
+                        "Name",
+                        "Email",
+                        "Phone Number",
+                        "Approval\nStatus",
+                        "Job Role",
+                        "Job Title",
+                        "Company Name",
+                        "Industry",
+                        "Total\nEmployees",
+                        "Account\nMapping",
+                        "RSVPs Confirmation",
+                        "WA\nConfirm",
+                        "Attend\nThe Event",
+                        "QO Set",
+                        "Remarks",
+                    ],
+                    [
+                        "Marini",
+                        "hr@sevnlegian.com",
+                        "+6281338337762",
+                        "approved",
+                        "HR Manager",
+                        "HR Lead",
+                        "Sevn Legian",
+                        "Hospitality",
+                        "51-100",
+                        "Simone",
+                        "New Prospect",
+                        "Yes",
+                        "TRUE",
+                        "",
+                        "",
+                    ],
+                    [
+                        "Nia",
+                        "nia@gmail.com",
+                        "+6287800048999",
+                        "approved",
+                        "Others",
+                        "HR Supervisor",
+                        "Biru Laut Abadi",
+                        "Retail",
+                        "101-200",
+                        "Khrisna",
+                        "New Prospect",
+                        "Yes",
+                        "FALSE",
+                        "",
+                        "",
+                    ],
+                ]
+            }
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            token_file = Path(tmpdir) / "token.json"
+            token_file.write_text('{"token":"access-token","scopes":["https://www.googleapis.com/auth/drive.readonly"]}')
+            with patch.dict(
+                os.environ,
+                {
+                    "GOOGLE_DRIVE_TOKEN_FILE": str(token_file),
+                    "GOOGLE_DRIVE_ACCOUNT_EMAIL": "team@staffany.com",
+                },
+            ), patch.object(self.module, "_request_sheets_json", side_effect=fake_sheets_request):
+                result = self.module.read_indonesia_event_registration_attendance(
+                    "kaiyi@staffany.com",
+                    event_name="StaffAny Happy HR Hour (HHH) - Bali",
+                    event_date="2026-05-07",
+                    event_tags=["Bali", "HR Happy Hour"],
+                )
+
+        self.assertEqual(result["confidence"], "needs-check")
+        self.assertEqual(result["answer"]["sheet_name"], "HHH Bali 7 May - Rsvp")
+        self.assertEqual(result["answer"]["counts"]["attended_rows"], 1)
+        self.assertIn("sevnlegian.com", result["answer"]["match_keys"]["attended_email_domains"])
+        self.assertNotIn("gmail.com", result["answer"]["match_keys"]["email_domains"])
+        self.assertIn("Sevn Legian", result["answer"]["match_keys"]["attended_company_name_candidates"])
+        payload = json.dumps(result)
+        self.assertNotIn("+6281338337762", payload)
+        self.assertNotIn("hr@sevnlegian.com", payload)
+        self.assertIn("email_hash", payload)
+        self.assertEqual(calls[0][0], self.module.ID_REV_EVENTS_SPREADSHEET_ID)
+        self.assertIn("/values/", calls[1][1])
+
+    def test_registration_attendance_fallback_restricts_spreadsheet(self):
+        with patch.dict(os.environ, {"GOOGLE_DRIVE_ACCOUNT_EMAIL": "team@staffany.com"}), patch.object(
+            self.module, "_request_sheets_json", side_effect=AssertionError("should not call Google")
+        ):
+            result = self.module.read_indonesia_event_registration_attendance(
+                "kaiyi@staffany.com",
+                spreadsheet_id="other-spreadsheet",
+            )
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("ID REV - LL & HHH EVENTS", result["answer"])
+
 
 if __name__ == "__main__":
     unittest.main()
