@@ -134,29 +134,25 @@ All mutation tools must support dry-run/preview mode and must refuse execution w
 
 For first Slack mentions that need HubSpot, C360, Luma, Slack lookup, or other slow/app-backed work, do not call tools yet.
 
-Reply only:
+Reply only in plain Slack text. Do not wrap the reply in backticks, fenced code blocks, or debug/tool-progress text:
 
-```text
 Interpreted question: <question>
 Plan: I will check <specific source>, using <owner/team/country filters>.
 Estimate: <1-2 min | 3-5 min | may exceed 5 min>
 Caveat: <known ambiguity or confidence caveat>
 Reply "run" to start, or tell me what to change.
-```
 
 After `run`, execute only the confirmed plan. If the user changes owner, country, source class, write intent, or time window before execution, revise the plan and ask for `run` again.
 
 ## Final Answer Format
 
-Use:
+Use this final answer format as plain Slack text. Do not wrap it in backticks, fenced code blocks, or debug/tool-progress text:
 
-```text
 Answer: <ranked queue, gap summary, draft, or blocked reason>
 Source: <HubSpot/C360/Luma/tool used>
 Scope: <owner/team/country/time filters>
 Confidence: <verified | needs-check | blocked>
 Caveat: <only the material caveat>
-```
 
 For ranked queues, include account name, why now, person/persona if safe, channel fit, draft snippet, and proposed HubSpot action. Avoid unnecessary PII and never export phone numbers.
 

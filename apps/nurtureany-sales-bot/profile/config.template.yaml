@@ -10,6 +10,8 @@ security:
 
 display:
   busy_input_mode: "queue"
+  tool_progress: "off"
+  tool_preview_length: 0
 
 model:
   default: "claude-sonnet-4-6"
