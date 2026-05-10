@@ -9,14 +9,14 @@ EXPECTED_HEALTH_CRON_NAME="${EXPECTED_HEALTH_CRON_NAME:-nurtureanysalesbot healt
 EXPECTED_AUDIT_CRON_NAME="${EXPECTED_AUDIT_CRON_NAME:-nurtureanysalesbot live profile audit}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROFILE_DIR="${HERMES_PROFILE_DIR:-$HOME/.hermes/profiles/$PROFILE}"
 if [ -n "${NURTUREANY_APP_ROOT:-}" ]; then
   APP_ROOT="$NURTUREANY_APP_ROOT"
 elif [ -f "$SCRIPT_DIR/../app.manifest.json" ]; then
   APP_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 else
-  APP_ROOT="/Users/leekaiyi/workspace/agent-builder-main/apps/nurtureany-sales-bot"
+  APP_ROOT="$PROFILE_DIR/source/nurtureany-sales-bot"
 fi
-PROFILE_DIR="${HERMES_PROFILE_DIR:-$HOME/.hermes/profiles/$PROFILE}"
 HERMES_AGENT_DIR="${HERMES_AGENT_DIR:-$HOME/.hermes/hermes-agent}"
 PATH="$HOME/.local/bin:$HERMES_AGENT_DIR:$PATH"
 export PATH

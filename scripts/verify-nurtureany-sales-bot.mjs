@@ -1162,7 +1162,7 @@ for (const text of [
   "PROFILE=\"${HERMES_PROFILE:-nurtureanysalesbot}\"",
   "export HERMES_HOME=\"$HOME/.hermes/profiles/$PROFILE\"",
   "NURTUREANY_APP_ROOT",
-  "/Users/leekaiyi/workspace/agent-builder-main/apps/nurtureany-sales-bot",
+  "APP_ROOT=\"$PROFILE_DIR/source/nurtureany-sales-bot\"",
   "profile-drift:soul",
   "profile-drift:nurtureany-sales-bot-skill",
   "profile-boundary:staffany-data-bot-skill-installed",

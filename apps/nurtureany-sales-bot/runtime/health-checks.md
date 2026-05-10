@@ -82,6 +82,8 @@ Install profile-local scripts under `~/.hermes/profiles/nurtureanysalesbot/scrip
 
 ```bash
 mkdir -p ~/.hermes/profiles/nurtureanysalesbot/scripts
+mkdir -p ~/.hermes/profiles/nurtureanysalesbot/source
+rsync -a --delete apps/nurtureany-sales-bot/ ~/.hermes/profiles/nurtureanysalesbot/source/nurtureany-sales-bot/
 cp apps/nurtureany-sales-bot/runtime/check-health.sh ~/.hermes/profiles/nurtureanysalesbot/scripts/nurtureanysalesbot-check-health.sh
 cp apps/nurtureany-sales-bot/runtime/audit-live-profile.sh ~/.hermes/profiles/nurtureanysalesbot/scripts/nurtureanysalesbot-audit-live-profile.sh
 hermes -p nurtureanysalesbot cron create "0 1 * * 1-5" \
