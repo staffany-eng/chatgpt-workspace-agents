@@ -38,7 +38,9 @@ NurtureAny needs deterministic runtime checks because prompt correctness does no
 - Google Calendar MCP lists only `list_google_calendar_events` and `audit_google_calendar_meeting_quality` when Google Calendar is enabled.
 - Google Calendar smoke check uses the `team@staffany.com` read-only OAuth token and returns bounded event metadata without attendee exports or event mutation tools.
 - Google Calendar meeting-quality smoke check uses HubSpot `calendar_audit_seed`, scans the resolved AE calendar through `team@staffany.com`, matches attendee email hashes internally, and returns no raw attendee emails, descriptions, guest lists, conference links, phone numbers, or raw HubSpot bodies.
-- Luma MCP lists only `list_luma_events` and `get_luma_event_context` when Luma is enabled.
+- Luma MCP lists only `list_luma_events`, `get_luma_event_match_keys`, and `get_luma_event_context` when Luma is enabled.
+- Luma event-link smoke check confirms found/selected event output includes `<event.url|event.name>` plus date and event ID when `event.url` is present.
+- Event-first Luma smoke check confirms `get_luma_event_match_keys` and `find_target_accounts_by_luma_match_keys` are available, and broad event questions do not page every HubSpot target account.
 - Luma read-only smoke check succeeds when Luma is enabled, uses `LUMA_API_KEY`, and returns bounded event metadata.
 - Luma event-tag smoke check can filter by exact Luma event tags such as `Jakarta` plus `HR Happy Hour` or `Singapore` plus `Sports`, with country used for broader account scope.
 - Luma guest-context smoke check requires scoped HubSpot company IDs, caps guest reads, returns `has_more`/`truncated`, treats attendance as `checked_in_at` present, and does not expose raw attendee exports, phone numbers, full emails, registration answers, or mutation tools.

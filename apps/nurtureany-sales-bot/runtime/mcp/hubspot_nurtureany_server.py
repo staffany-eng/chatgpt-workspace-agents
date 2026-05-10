@@ -228,6 +228,9 @@ HUBSPOT_SEARCH_RESULT_LIMIT = 1000
 HUBSPOT_SEARCH_TOTAL_LIMIT = 10_000
 TASK_ASSOCIATION_LIMIT = 100
 TASK_RETURN_LIMIT = 100
+LUMA_MATCH_DOMAIN_LIMIT = 100
+LUMA_MATCH_NAME_LIMIT = 100
+LUMA_MATCH_RETURN_LIMIT = 100
 TASK_SEARCH_RESULT_LIMIT = 300
 TASK_SEARCH_AIRTIGHT_RESULT_LIMIT = 10_000
 FOLLOWUP_ASSOCIATION_LIMIT = 100
@@ -1266,6 +1269,55 @@ def _target_filters(countries: list[str], owner_id: str | None = None) -> list[d
     if owner_id:
         filters.append({"propertyName": "hubspot_owner_id", "operator": "EQ", "value": owner_id})
     return filters
+
+
+def _normalize_domain_key(value: Any) -> str:
+    text = str(value or "").strip().lower()
+    for prefix in ("https://", "http://"):
+        if text.startswith(prefix):
+            text = text[len(prefix) :]
+    return text.split("/")[0]
+
+
+def _normalize_company_name_key(value: Any) -> str:
+    text = re.sub(r"\s+", " ", str(value or "").strip())
+    if not text or len(text) < 3 or len(text) > 80:
+        return ""
+    return text
+
+
+def _unique_values(values: list[str]) -> list[str]:
+    seen: set[str] = set()
+    unique: list[str] = []
+    for value in values:
+        if value and value not in seen:
+            unique.append(value)
+            seen.add(value)
+    return unique
+
+
+def _add_luma_candidate(
+    candidates: dict[str, dict[str, Any]],
+    company: dict[str, Any],
+    match_reason: str,
+    match_key: str,
+    confidence: str,
+) -> None:
+    company_id = str(company.get("id") or "")
+    if not company_id:
+        return
+    summary = candidates.setdefault(company_id, _summarize_company(company))
+    reasons = summary.setdefault("luma_match_reasons", [])
+    if match_reason not in reasons:
+        reasons.append(match_reason)
+    keys = summary.setdefault("luma_match_keys", [])
+    key_entry = {"kind": match_reason, "value": match_key}
+    if key_entry not in keys:
+        keys.append(key_entry)
+    if confidence == "needs-check":
+        summary["luma_match_confidence"] = "needs-check"
+    else:
+        summary.setdefault("luma_match_confidence", "verified")
 
 
 def _target_owner_id_for_scope(scope: dict[str, Any], owner_email: str | None = None) -> tuple[str | None, str]:
@@ -6262,6 +6314,93 @@ def list_team_target_accounts(
             **_search_metadata(data),
             "confidence": "needs-check" if data.get("truncated") else "verified",
             "caveat": _coverage_caveat(data, "Manager scope is country-based."),
+        }
+    except ScopeError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email, "owner_email": owner_email})
+    except HubSpotError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email})
+
+
+@mcp.tool()
+def find_target_accounts_by_luma_match_keys(
+    slack_user_email: str,
+    email_domains: list[str] | None = None,
+    company_name_candidates: list[str] | None = None,
+    countries: list[str] | None = None,
+    limit: int = LUMA_MATCH_RETURN_LIMIT,
+    owner_email: str | None = None,
+) -> dict[str, Any]:
+    """Find scoped HubSpot target accounts from safe Luma attendee match keys.
+
+    Use after get_luma_event_match_keys. This avoids paging every target account
+    for event-wide questions while still enforcing HubSpot target-account,
+    country, owner, and caller scope before any Luma guest details are shown.
+    """
+
+    try:
+        scope = _caller_scope(slack_user_email)
+        if scope["kind"] == "blocked":
+            return _blocked("Caller identity is not mapped to an allowed scope.", {"caller_email": slack_user_email})
+        selected = _safe_countries(countries, scope["countries"])
+        if not selected:
+            return _blocked("Requested countries are outside caller scope.", _scope_response(scope, []))
+        target_owner_id, target_owner_email = _target_owner_id_for_scope(scope, owner_email)
+        requested_limit = _bounded_int(limit, default=LUMA_MATCH_RETURN_LIMIT, maximum=LUMA_MATCH_RETURN_LIMIT)
+        raw_domains = [domain for value in (email_domains or []) if (domain := _normalize_domain_key(value))]
+        raw_names = [name for value in (company_name_candidates or []) if (name := _normalize_company_name_key(value))]
+        domains = _unique_values(raw_domains)[:LUMA_MATCH_DOMAIN_LIMIT]
+        names = _unique_values(raw_names)[:LUMA_MATCH_NAME_LIMIT]
+        if not domains and not names:
+            return _blocked("No safe Luma match keys were provided.", _scope_response(scope, selected, target_owner_id, target_owner_email))
+
+        candidates: dict[str, dict[str, Any]] = {}
+        any_truncated = len(_unique_values(raw_domains)) > len(domains) or len(_unique_values(raw_names)) > len(names)
+        base_filters = _target_filters(selected, target_owner_id)
+
+        for domain in domains:
+            if len(candidates) >= requested_limit:
+                any_truncated = True
+                break
+            data = _company_search(base_filters + [{"propertyName": "domain", "operator": "EQ", "value": domain}], limit=5)
+            any_truncated = any_truncated or bool(data.get("truncated"))
+            for company in data.get("results", []):
+                _add_luma_candidate(candidates, company, "exact_email_domain", domain, "verified")
+
+        for name in names:
+            if len(candidates) >= requested_limit:
+                any_truncated = True
+                break
+            data = _company_search(
+                base_filters + [{"propertyName": "name", "operator": "CONTAINS_TOKEN", "value": name}],
+                limit=5,
+            )
+            any_truncated = any_truncated or bool(data.get("truncated"))
+            for company in data.get("results", []):
+                _add_luma_candidate(candidates, company, "company_name_candidate", name, "needs-check")
+
+        answer = list(candidates.values())[:requested_limit]
+        return {
+            "answer": answer,
+            "source": "HubSpot target-account lookup from Luma safe match keys",
+            "scope": {
+                **_scope_response(scope, selected, target_owner_id, target_owner_email),
+                "email_domain_key_count": len(domains),
+                "company_name_candidate_count": len(names),
+                "requested_limit": requested_limit,
+            },
+            "total": len(answer),
+            "requested_limit": requested_limit,
+            "returned_count": len(answer),
+            "has_more": any_truncated or len(candidates) > requested_limit,
+            "truncated": any_truncated or len(candidates) > requested_limit,
+            "confidence": "needs-check"
+            if any_truncated or any(account.get("luma_match_confidence") == "needs-check" for account in answer)
+            else "verified",
+            "caveat": (
+                "This is event-first HubSpot scoping from safe Luma match keys. "
+                "Domain matches are stronger; company-name candidates need review. "
+                "No raw Luma attendees, emails, phone numbers, or registration answers are returned."
+            ),
         }
     except ScopeError as error:
         return _blocked(str(error), {"caller_email": slack_user_email, "owner_email": owner_email})

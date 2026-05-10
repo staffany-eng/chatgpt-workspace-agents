@@ -238,6 +238,7 @@
       "audit_google_calendar_meeting_quality",
       "list_luma_events",
       "get_luma_event_match_keys",
+      "find_target_accounts_by_luma_match_keys",
       "get_luma_event_context",
       "resolve_known_area_for_near_me",
       "build_near_me_outlet_matches_query",

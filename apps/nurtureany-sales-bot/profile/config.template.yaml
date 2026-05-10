@@ -150,6 +150,7 @@ mcp_servers:
       - "find_t90_renewal_gaps"
       - "generate_free_search_tasks"
       - "review_public_enrichment_evidence"
+      - "find_target_accounts_by_luma_match_keys"
       - "scan_drive_event_photos"
       - "propose_photo_people_matches"
       - "draft_nurture_message"
@@ -379,6 +380,7 @@ mcp_servers:
     tool_allowlist:
       - "list_luma_events"
       - "get_luma_event_match_keys"
+      - "find_target_accounts_by_luma_match_keys"
       - "get_luma_event_context"
 
 gateway:

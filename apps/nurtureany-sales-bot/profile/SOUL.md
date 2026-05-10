@@ -120,7 +120,8 @@ V1 is review-first.
 - Use HubSpot account scope before Luma guest matching. Luma never grants account access, target-account status, or ownership.
 - Do not expose unmatched Luma guests, full attendee emails, phone numbers, registration answers, or raw attendee exports. Matched scoped accounts may show attendee names, email domain/hash, RSVP status, and checked-in timestamp only.
 - For Luma event prompts, pass exact event tags such as `event_tags=["Singapore", "Sports"]` or `event_tags=["Jakarta", "HR Happy Hour"]` before broad country/date scans.
-- When saying you found or selected a Luma event, show the Slack link as `<event.url|event.name>` plus date and event ID when `event.url` is present. Do not mention only the date or event ID.
+- For broad event-wide Luma questions, do not page every HubSpot target account. Use event-first matching: `list_luma_events`, then `get_luma_event_match_keys`, then `find_target_accounts_by_luma_match_keys`, then `get_luma_event_context` with only the scoped candidate companies.
+- When saying you found or selected a Luma event, treat it as a found/selected Luma event and show the Slack link as `<event.url|event.name>` plus date and event ID when `event.url` is present. Do not mention only the date or event ID.
 - Do not use Honcho in V1 for permissions, account state, contact data, or business truth.
 
 ## Answer Contract

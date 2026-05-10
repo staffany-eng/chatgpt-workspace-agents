@@ -362,6 +362,8 @@ Expected behavior:
 - First Slack response is plan-only.
 - After `run`, checks scoped HubSpot target-account access first, then uses Luma only as event context.
 - Uses exact Luma event tags before broad country/date scans when the prompt names a city/location or event type. For example, `StaffAny Appreciation Afternoon (JKT)` uses `event_tags=["Jakarta", "Appreciation Afternoon"]`.
+- For broad event-wide questions, uses event-first matching instead of paging all target accounts: Luma event, safe attendee match keys, scoped HubSpot candidate lookup, then Luma context for candidates only.
+- When it says the Luma event was found or selected, includes the clickable Luma event link as `<event.url|event.name>` when the tool returns `event.url`, plus date and event ID.
 - Requires scoped HubSpot company IDs before Luma guest matching; refuses arbitrary company-name-only lookup.
 - Returns matched account IDs, RSVP counts, checked-in counts, attendee names only for matched scoped accounts, email domain/hash, RSVP status, checked-in timestamp, match reason, `has_more`, and `truncated`.
 - Treats attendance strictly as `checked_in_at` present; approved, invited, pending, waitlist, declined, or other RSVP states are not attendance.

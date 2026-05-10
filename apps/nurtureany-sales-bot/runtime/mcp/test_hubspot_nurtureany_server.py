@@ -1734,6 +1734,74 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         self.assertIn("Configure HubSpot pipeline/stage IDs", result["answer"]["support_needed"][0])
         self.assertNotIn("_internal", result)
 
+    def test_find_target_accounts_by_luma_match_keys_is_event_first(self):
+        calls = []
+
+        def fake_company_search(filters, limit=5):
+            calls.append(filters)
+            key_filter = filters[-1]
+            if key_filter["propertyName"] == "domain":
+                return {
+                    "results": [
+                        {
+                            "id": "company-domain",
+                            "properties": {
+                                "name": "Noci Bakehouse",
+                                "domain": "noci.example",
+                                "hs_is_target_account": "true",
+                                "company_country": "Singapore",
+                                "hubspot_owner_id": "owner-sales",
+                            },
+                        }
+                    ],
+                    "total": 1,
+                    "requested_limit": limit,
+                    "returned_count": 1,
+                    "has_more": False,
+                    "truncated": False,
+                }
+            if key_filter["propertyName"] == "name":
+                return {
+                    "results": [
+                        {
+                            "id": "company-name",
+                            "properties": {
+                                "name": "Bali Beans",
+                                "domain": "balibeans.example",
+                                "hs_is_target_account": "true",
+                                "company_country": "Singapore",
+                                "hubspot_owner_id": "owner-sales",
+                            },
+                        }
+                    ],
+                    "total": 1,
+                    "requested_limit": limit,
+                    "returned_count": 1,
+                    "has_more": False,
+                    "truncated": False,
+                }
+            raise AssertionError(filters)
+
+        with patch.object(self.module, "_caller_scope", return_value={**SCOPE, "kind": "admin", "email": "kaiyi@staffany.com"}), patch.object(
+            self.module, "_company_search", side_effect=fake_company_search
+        ):
+            result = self.module.find_target_accounts_by_luma_match_keys(
+                "kaiyi@staffany.com",
+                email_domains=["noci.example"],
+                company_name_candidates=["Bali Beans"],
+                countries=["Singapore"],
+            )
+
+        self.assertEqual(result["returned_count"], 2)
+        self.assertEqual(result["confidence"], "needs-check")
+        self.assertEqual(result["answer"][0]["luma_match_reasons"], ["exact_email_domain"])
+        self.assertEqual(result["answer"][1]["luma_match_reasons"], ["company_name_candidate"])
+        self.assertIn({"propertyName": "hs_is_target_account", "operator": "EQ", "value": "true"}, calls[0])
+        self.assertIn({"propertyName": "company_country", "operator": "IN", "values": ["Singapore"]}, calls[0])
+        self.assertEqual(calls[0][-1], {"propertyName": "domain", "operator": "EQ", "value": "noci.example"})
+        self.assertEqual(calls[1][-1], {"propertyName": "name", "operator": "CONTAINS_TOKEN", "value": "Bali Beans"})
+        self.assertIn("No raw Luma attendees", result["caveat"])
+
     def test_score_uses_sales_followup_task_signals(self):
         with patch.object(self.module, "_caller_scope", return_value={**SCOPE, "kind": "admin", "email": "kaiyi@staffany.com"}), patch.object(
             self.module,

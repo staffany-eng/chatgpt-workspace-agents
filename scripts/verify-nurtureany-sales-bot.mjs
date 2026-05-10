@@ -138,6 +138,7 @@ if (!existsSync(manifestPath)) {
       "audit_google_calendar_meeting_quality",
       "list_luma_events",
       "get_luma_event_match_keys",
+      "find_target_accounts_by_luma_match_keys",
       "get_luma_event_context",
       "resolve_known_area_for_near_me",
       "build_near_me_outlet_matches_query",
@@ -456,6 +457,7 @@ for (const text of [
   "checked_in_at_present",
   "list_luma_events",
   "get_luma_event_match_keys",
+  "find_target_accounts_by_luma_match_keys",
   "get_luma_event_context",
   "near_me_nurtureany",
   "GOOGLE_PLACES_API_KEY",
@@ -508,6 +510,9 @@ for (const text of [
   "Confidence: blocked",
   "Luma",
   "checked_in_at",
+  "found/selected Luma event",
+  "event.url|event.name",
+  "event-first matching",
   "raw guest lists",
   "cost_report",
   "credit_report",
@@ -586,8 +591,12 @@ for (const text of [
   "Confidence: blocked",
   "list_luma_events",
   "get_luma_event_match_keys",
+  "find_target_accounts_by_luma_match_keys",
   "get_luma_event_context",
   "checked_in_at",
+  "found/selected Luma event",
+  "event.url|event.name",
+  "event-first match keys",
   "raw guest lists",
   "resolve_known_area_for_near_me",
   "build_near_me_outlet_matches_query",
@@ -690,7 +699,10 @@ for (const text of [
   "get_campaign_assets",
   "get_marketing_touch_context",
   "HubSpot Conversations",
-  "PODCAST_EPISODE"
+  "PODCAST_EPISODE",
+  "find_target_accounts_by_luma_match_keys",
+  "LUMA_MATCH_DOMAIN_LIMIT",
+  "No raw Luma attendees"
 ]) {
   if (!hubspotServerText.includes(text)) fail(`runtime/mcp/hubspot_nurtureany_server.py missing required text: ${text}`);
 }
@@ -818,6 +830,7 @@ for (const text of [
   "GET /v1/event/get-guests",
   "list_luma_events",
   "get_luma_event_match_keys",
+  "find_target_accounts_by_luma_match_keys",
   "get_luma_event_context",
   "event_tags=[\"Singapore\", \"Sports\"]",
   "event_tags=[\"Jakarta\", \"Appreciation Afternoon\"]",
@@ -829,10 +842,40 @@ for (const text of [
   "Requires scoped HubSpot company inputs",
   "checked_in_at",
   "Do not expose raw attendee exports",
+  "Do not paste raw match-key lists",
   "Do not create, update, invite, RSVP, check in",
   "Confidence: blocked"
 ]) {
   if (!lumaText.includes(text)) fail(`runtime/luma.md missing required text: ${text}`);
+}
+
+const slackText = textOf("runtime/slack.md");
+for (const text of [
+  "event_tags=[\"Singapore\", \"Sports\"]",
+  "event-first matching",
+  "event.url|event.name",
+  "date and event ID"
+]) {
+  if (!slackText.includes(text)) fail(`runtime/slack.md missing required text: ${text}`);
+}
+
+const healthText = textOf("runtime/health-checks.md");
+for (const text of [
+  "Luma event-link smoke check",
+  "Event-first Luma smoke check",
+  "event.url|event.name"
+]) {
+  if (!healthText.includes(text)) fail(`runtime/health-checks.md missing required text: ${text}`);
+}
+
+const lumaRegressionText = `${textOf("tests/regression-cases.md")}\n${textOf("skills/nurtureany-sales-bot/references/regression-cases.md")}`;
+for (const text of [
+  "clickable Luma event link",
+  "event-first matching",
+  "event.url|event.name",
+  "date and event ID"
+]) {
+  if (!lumaRegressionText.includes(text)) fail(`Luma regression cases missing required text: ${text}`);
 }
 
 const lumaServerText = textOf("runtime/mcp/luma_nurtureany_server.py");
@@ -848,6 +891,9 @@ for (const text of [
   "COUNTRY_TAGS",
   "LOCATION_TAGS",
   "event_tags",
+  "get_luma_event_match_keys",
+  "MATCH_KEY_LIMIT",
+  "PERSONAL_EMAIL_DOMAINS",
   "event_tag_filters",
   "event_type",
   "location_filter",
@@ -915,7 +961,6 @@ for (const text of [
   if (!nearMeSqlText.includes(text)) fail(`runtime/sql/near-me-outlet-matches.sql missing required text: ${text}`);
 }
 
-const healthText = textOf("runtime/health-checks.md");
 for (const text of [
   "runtime/check-health.sh",
   "runtime/audit-live-profile.sh",

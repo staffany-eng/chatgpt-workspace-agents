@@ -68,6 +68,7 @@ It exposes these tools:
 - `find_t90_renewal_gaps`
 - `generate_free_search_tasks`
 - `review_public_enrichment_evidence`
+- `find_target_accounts_by_luma_match_keys`
 - `scan_drive_event_photos`
 - `propose_photo_people_matches`
 - `draft_nurture_message`
@@ -244,6 +245,14 @@ Friday sales review uses the same scoped association discipline, plus HubSpot ca
 - Use explicit user hints first; otherwise use Luma event-date context, OCR, badge/signage, caption, uploader/thread context, timestamp/event cluster, and scoped HubSpot search.
 - High-confidence photo match still requires confirmation from the original uploader or an explicitly responsible human before creating `nurture_person_appearance`, linking a HubSpot contact, or preparing follow-up writes.
 - Low-confidence or ambiguous matches should ask one short missing clue, for example `company name?` or `Which contact should I use?`.
+
+`find_target_accounts_by_luma_match_keys`:
+
+- Input: Slack user email, safe Luma email domains, safe Luma company-name candidates, optional countries, optional owner email filter, and limit.
+- Output: HubSpot-scoped target-account candidates only, with `hubspot_scoped=true`, `scope_source=hubspot_nurtureany`, and Luma match reason metadata.
+- Use after `get_luma_event_match_keys` for broad event-wide questions so the bot searches from Luma attendee keys into HubSpot instead of paging every target account.
+- Domain matches are stronger; company-name candidate matches return `Confidence: needs-check`.
+- Must not accept raw attendee exports, full Luma emails, phone numbers, or registration answers.
 
 `draft_nurture_message`:
 
