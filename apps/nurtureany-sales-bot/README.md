@@ -94,7 +94,7 @@ Slack user email is identity only. Access is granted by explicit NurtureAny poli
 | Indonesia manager | `sarah@staffany.com` | Indonesia team view only |
 | AE | Explicit `sales_reps` policy entry | Own HubSpot target accounts only |
 
-The full rep roster is runtime-only through `NURTUREANY_ACCESS_POLICY_PATH`; `runtime/access-policy.template.json` contains fake example reps only. Permissions are not inferred from Slack titles, channel membership, or a bare HubSpot owner lookup.
+The full rep roster is runtime-only through `NURTUREANY_ACCESS_POLICY_PATH`; `runtime/access-policy.template.json` contains fake example reps only. Known Slack or Google email variants must be declared with `alias_for` or top-level `aliases`, then canonicalized before role lookup. Permissions are not inferred from Slack titles, channel membership, display names, or a bare HubSpot owner lookup.
 
 ## Restore Order
 

@@ -110,6 +110,53 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         self.assertEqual(scope["kind"], "admin")
         self.assertEqual(scope["countries"], self.module.SUPPORTED_COUNTRIES)
 
+    def test_runtime_policy_alias_canonicalizes_admin_email(self):
+        policy = {"aliases": [{"email": "kaiy@staffany.com", "alias_for": "kaiyi@staffany.com"}]}
+        with tempfile.NamedTemporaryFile("w", delete=False) as handle:
+            json.dump(policy, handle)
+            policy_path = handle.name
+
+        try:
+            with patch.dict(os.environ, {self.module.ACCESS_POLICY_ENV_VAR: policy_path}):
+                scope = self.module._caller_scope("kaiy@staffany.com")
+        finally:
+            os.unlink(policy_path)
+
+        self.assertEqual(scope["kind"], "admin")
+        self.assertEqual(scope["email"], "kaiyi@staffany.com")
+        self.assertEqual(scope["requested_email"], "kaiy@staffany.com")
+        self.assertEqual(scope["countries"], self.module.SUPPORTED_COUNTRIES)
+
+    def test_runtime_policy_alias_canonicalizes_sales_rep_email(self):
+        policy = {
+            "sales_reps": [
+                {
+                    "slack_email": "rep.slack@staffany.com",
+                    "slack_email_aliases": ["rep.alias@staffany.com"],
+                    "hubspot_owner_email": "rep.owner@staffany.com",
+                    "countries": ["Malaysia"],
+                    "active": True,
+                }
+            ]
+        }
+        with tempfile.NamedTemporaryFile("w", delete=False) as handle:
+            json.dump(policy, handle)
+            policy_path = handle.name
+
+        try:
+            with patch.dict(os.environ, {self.module.ACCESS_POLICY_ENV_VAR: policy_path}), patch.object(
+                self.module, "_owner_by_email", return_value={"id": "owner-rep", "email": "rep.owner@staffany.com"}
+            ) as owner_by_email:
+                scope = self.module._caller_scope("rep.alias@staffany.com")
+        finally:
+            os.unlink(policy_path)
+
+        owner_by_email.assert_called_once_with("rep.owner@staffany.com")
+        self.assertEqual(scope["kind"], "ae")
+        self.assertEqual(scope["email"], "rep.slack@staffany.com")
+        self.assertEqual(scope["requested_email"], "rep.alias@staffany.com")
+        self.assertEqual(scope["countries"], ("Malaysia",))
+
     def test_luma_company_name_match_does_not_match_single_token_plus_generic_suffix(self):
         self.assertFalse(self.module._luma_company_name_matches("Sundays Beach Club", "Sundays Cafe"))
 

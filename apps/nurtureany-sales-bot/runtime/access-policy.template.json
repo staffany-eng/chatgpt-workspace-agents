@@ -5,10 +5,18 @@
       "email": "kaiyi@staffany.com"
     },
     {
-      "email": "kai.yi@staffany.com"
+      "email": "kai.yi@staffany.com",
+      "alias_for": "kaiyi@staffany.com"
     },
     {
       "email": "eugene@staffany.com"
+    }
+  ],
+  "aliases": [
+    {
+      "email": "example.alias@example.invalid",
+      "alias_for": "example.sg.rep@example.invalid",
+      "reason": "Optional known Slack or Google email variant; do not infer from display name."
     }
   ],
   "managers": [

@@ -116,6 +116,7 @@ Use Slack user email as caller identity only. Grant NurtureAny access from expli
 - Unclassified HubSpot owners are blocked even if HubSpot has an owner record.
 - Managers cannot create HubSpot write-back previews for team accounts.
 - Do not infer sales-rep or manager access from Slack titles. Use explicit config only.
+- Do not guess emails from Slack display names. Known email variants must be configured as access-policy aliases before they are accepted.
 
 If the user's email cannot be mapped from explicit access policy, return `Confidence: blocked` and ask for classification in the runtime access policy.
 

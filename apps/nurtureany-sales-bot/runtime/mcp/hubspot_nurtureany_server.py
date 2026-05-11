@@ -531,6 +531,36 @@ def _entry_email(entry: Any, *keys: str) -> str:
     return ""
 
 
+def _register_email_alias(aliases: dict[str, str], alias_email: Any, canonical_email: Any) -> None:
+    alias = _normalize_email(str(alias_email or ""))
+    canonical = _normalize_email(str(canonical_email or ""))
+    if alias and canonical and alias != canonical:
+        aliases[alias] = canonical
+
+
+def _register_policy_alias_entry(aliases: dict[str, str], entry: Any) -> None:
+    if isinstance(entry, dict):
+        alias = _entry_email(entry, "email", "slack_email", "alias")
+        canonical = _entry_email(entry, "alias_for", "canonical_email", "canonical_slack_email", "target_email")
+        _register_email_alias(aliases, alias, canonical)
+        return
+    if isinstance(entry, (list, tuple)) and len(entry) >= 2:
+        _register_email_alias(aliases, entry[0], entry[1])
+
+
+def _canonical_policy_email(email: str, policy: dict[str, Any]) -> str:
+    aliases = policy.get("aliases", {})
+    current = _normalize_email(email)
+    seen: set[str] = set()
+    while current and current in aliases and current not in seen:
+        seen.add(current)
+        next_email = _normalize_email(str(aliases.get(current) or ""))
+        if not next_email:
+            break
+        current = next_email
+    return current
+
+
 def _access_policy_path() -> str:
     return os.environ.get(ACCESS_POLICY_ENV_VAR, "").strip()
 
@@ -559,26 +589,49 @@ def _access_policy() -> dict[str, Any]:
     }
     sales_reps: dict[str, dict[str, Any]] = {}
     disabled: set[str] = set()
+    aliases: dict[str, str] = {}
+
+    raw_aliases = raw.get("aliases", raw.get("email_aliases", []))
+    if isinstance(raw_aliases, dict):
+        for alias, canonical in raw_aliases.items():
+            _register_email_alias(aliases, alias, canonical)
+    elif isinstance(raw_aliases, list):
+        for entry in raw_aliases:
+            _register_policy_alias_entry(aliases, entry)
 
     for entry in raw.get("admins", []):
         email = _entry_email(entry, "email", "slack_email")
+        alias_for = _entry_email(entry, "alias_for", "canonical_email", "canonical_slack_email")
         if email:
-            admins.add(email)
+            if alias_for:
+                _register_email_alias(aliases, email, alias_for)
+                admins.add(alias_for)
+            else:
+                admins.add(email)
 
     for entry in raw.get("managers", []):
         email = _entry_email(entry, "email", "slack_email")
         if not email:
             continue
         countries = entry.get("countries") if isinstance(entry, dict) else None
-        managers[email] = _normalize_countries(_string_list(countries))
+        alias_for = _entry_email(entry, "alias_for", "canonical_email", "canonical_slack_email")
+        manager_email = alias_for or email
+        if alias_for:
+            _register_email_alias(aliases, email, alias_for)
+        managers[manager_email] = _normalize_countries(_string_list(countries))
 
     for entry in raw.get("sales_reps", []):
         if not isinstance(entry, dict) or entry.get("active") is False:
             continue
         slack_email = _normalize_email(str(entry.get("slack_email") or entry.get("email") or ""))
+        canonical_slack_email = _entry_email(entry, "alias_for", "canonical_email", "canonical_slack_email") or slack_email
         owner_email = _normalize_email(str(entry.get("hubspot_owner_email") or ""))
-        if slack_email and owner_email:
-            sales_reps[slack_email] = {
+        if slack_email and canonical_slack_email and canonical_slack_email != slack_email:
+            _register_email_alias(aliases, slack_email, canonical_slack_email)
+        for alias in _string_list(entry.get("slack_email_aliases")) + _string_list(entry.get("aliases")):
+            _register_email_alias(aliases, alias, canonical_slack_email)
+        if canonical_slack_email and owner_email:
+            sales_reps[canonical_slack_email] = {
                 "hubspot_owner_email": owner_email,
                 "countries": _normalize_countries(_string_list(entry.get("countries"))),
             }
@@ -599,6 +652,7 @@ def _access_policy() -> dict[str, Any]:
             if email not in disabled and data["hubspot_owner_email"] not in disabled
         },
         "disabled": disabled,
+        "aliases": aliases,
     }
 
 
@@ -751,31 +805,34 @@ def _owner_name_by_id(owner_id: Any) -> str:
 
 
 def _caller_scope(slack_user_email: str) -> dict[str, Any]:
-    email = _normalize_email(slack_user_email)
-    if not email:
+    requested_email = _normalize_email(slack_user_email)
+    if not requested_email:
         return {"kind": "blocked", "email": "", "countries": (), "owner_id": None}
     try:
         policy = _access_policy()
     except AccessPolicyError as error:
-        return {"kind": "blocked", "email": email, "countries": (), "owner_id": None, "blocked_reason": str(error)}
-    if email in policy["disabled"]:
-        return {"kind": "blocked", "email": email, "countries": (), "owner_id": None}
+        return {"kind": "blocked", "email": requested_email, "countries": (), "owner_id": None, "blocked_reason": str(error)}
+    email = _canonical_policy_email(requested_email, policy)
+    alias_context = {"requested_email": requested_email} if requested_email and requested_email != email else {}
+    if requested_email in policy["disabled"] or email in policy["disabled"]:
+        return {"kind": "blocked", "email": email, "countries": (), "owner_id": None, **alias_context}
     if email in policy["admins"]:
-        return {"kind": "admin", "email": email, "countries": SUPPORTED_COUNTRIES, "owner_id": None}
+        return {"kind": "admin", "email": email, "countries": SUPPORTED_COUNTRIES, "owner_id": None, **alias_context}
     if email in policy["managers"]:
-        return {"kind": "manager", "email": email, "countries": policy["managers"][email], "owner_id": None}
+        return {"kind": "manager", "email": email, "countries": policy["managers"][email], "owner_id": None, **alias_context}
     rep = policy["sales_reps"].get(email)
     if not rep:
-        return {"kind": "blocked", "email": email, "countries": (), "owner_id": None}
+        return {"kind": "blocked", "email": email, "countries": (), "owner_id": None, **alias_context}
     owner = _owner_by_email(rep["hubspot_owner_email"])
     if not owner:
-        return {"kind": "blocked", "email": email, "countries": (), "owner_id": None}
+        return {"kind": "blocked", "email": email, "countries": (), "owner_id": None, **alias_context}
     return {
         "kind": "ae",
         "email": email,
         "countries": rep["countries"],
         "owner_id": str(owner["id"]),
         "hubspot_owner_email": rep["hubspot_owner_email"],
+        **alias_context,
     }
 
 
@@ -5450,6 +5507,8 @@ def _scope_response(
         "countries": countries,
         "owner_id": scope.get("owner_id"),
     }
+    if scope.get("requested_email") and scope.get("requested_email") != scope.get("email"):
+        response["requested_caller_email"] = scope["requested_email"]
     if scope.get("hubspot_owner_email"):
         response["hubspot_owner_email"] = scope["hubspot_owner_email"]
     if target_owner_id:
@@ -6466,8 +6525,9 @@ def _outreach_angles(signals: list[dict[str, Any]], candidates: list[dict[str, A
 
 
 def _policy_classification(email: str, policy: dict[str, Any]) -> str:
-    normalized = _normalize_email(email)
-    if normalized in policy["disabled"]:
+    requested = _normalize_email(email)
+    normalized = _canonical_policy_email(requested, policy)
+    if requested in policy["disabled"] or normalized in policy["disabled"]:
         return "disabled"
     if normalized in policy["admins"]:
         return "admin"

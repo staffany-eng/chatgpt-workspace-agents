@@ -83,6 +83,7 @@ Use Slack user email as the caller identity.
 - Manager calls require explicit email allowlist and are team read-only.
 - Unclassified HubSpot owners are blocked even if Slack email matches a HubSpot owner record.
 - Country filters come from the manager scope, not from channel name.
+- Known Slack or Google email variants must be configured as access-policy aliases. Never infer `slack_user_email` from a display name.
 
 If Slack cannot provide the user email, return `Confidence: blocked` and ask for the missing identity mapping. If the Slack email is not classified, ask for runtime access policy classification.
 
