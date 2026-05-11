@@ -41,6 +41,7 @@ Registry rows are guidance, not automatic truth. Product Corrections prevent kno
 
 Use `staffany-release-feature-registry.md` for questions about what was released in Jira, launch-priority classification, and the weekly high-priority feature usage digest.
 
+- Before answering any release-feature tracking or digest request, explicitly load `references/staffany-release-feature-registry.md` with `skill_view`, then load `references/staffany-data-bot-metric-registry.md` for any `usage_metric_key` you plan to use. Do not say the release-feature registry is missing unless that exact reference-file load fails.
 - Do not query Jira live from Slack answers or scheduled digests. Jira release facts must come from the synced and reviewed registry.
 - If the registry priority mapping is `needs-confirmation`, return `Confidence: blocked` for launch-priority classification and state that the Jira custom field/value mapping needs review.
 - Track only rows where `priority_mapping_status = confirmed`, `priority_class = high`, and `tracking_status = track`.

@@ -118,6 +118,7 @@ for (const requiredText of [
   'employee-level payroll detail',
   'staffany-release-feature-registry.md',
   'Do not query Jira live',
+  'Do not say the release-feature registry is missing unless that exact reference-file load fails',
   'needs-mapping',
   'scheduled digest'
 ]) {

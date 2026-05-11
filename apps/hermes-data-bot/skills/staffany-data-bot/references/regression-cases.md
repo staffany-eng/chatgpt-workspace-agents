@@ -387,6 +387,7 @@ Produce the weekly high-priority release feature usage digest.
 Expected behavior:
 
 - Reads `staffany-release-feature-registry.md` before any BigQuery query.
+- Must explicitly load `references/staffany-release-feature-registry.md` and must not claim the registry is missing when that reference file exists.
 - Does not query Jira live.
 - Considers only rows where `priority_mapping_status = confirmed` and `priority_class = high`.
 - Queries usage only for rows where `tracking_status = track`.
