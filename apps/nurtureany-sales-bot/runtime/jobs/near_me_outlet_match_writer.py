@@ -23,7 +23,7 @@ ACCESS_POLICY_ENV_VAR = "NURTUREANY_ACCESS_POLICY_PATH"
 OUTLET_MATCHES_TABLE_ENV = "NURTUREANY_OUTLET_MATCHES_TABLE"
 DEFAULT_OUTLET_MATCHES_TABLE = "staffany-warehouse.analytics.nurtureany_near_me_outlet_matches"
 SUPPORTED_COUNTRIES = ("Singapore", "Malaysia", "Indonesia")
-OVERALL_ADMINS = {"eugene@staffany.com", "kaiyi@staffany.com"}
+OVERALL_ADMINS = {"eugene@staffany.com", "kaiyi@staffany.com", "kai.yi@staffany.com"}
 REGIONAL_MANAGERS = {
     "kerren.fong@staffany.com": ("Singapore", "Malaysia"),
     "sarah@staffany.com": ("Indonesia",),

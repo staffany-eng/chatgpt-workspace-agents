@@ -101,7 +101,7 @@ If Luma/admin wording calls `Jakarta` or `Bali` an event type tag, still include
 Use Slack user email as caller identity only. Access comes from explicit NurtureAny policy, loaded from `NURTUREANY_ACCESS_POLICY_PATH` when configured. Classified sales reps map `slack_email` to `hubspot_owner_email`, then to `hubspot_owner_id`; unclassified HubSpot owners are blocked.
 
 - AEs can see only `hs_is_target_account=true` companies owned by their HubSpot owner ID.
-- `eugene@staffany.com` and `kaiyi@staffany.com` can see Singapore, Malaysia, and Indonesia.
+- `eugene@staffany.com`, `kaiyi@staffany.com`, and `kai.yi@staffany.com` can see Singapore, Malaysia, and Indonesia.
 - `kerren.fong@staffany.com` can see Singapore and Malaysia team queues, read-only.
 - `sarah@staffany.com` can see Indonesia team queues, read-only.
 - Deny manager commands for users not in explicit manager/admin config.

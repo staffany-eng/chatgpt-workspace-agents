@@ -89,6 +89,7 @@ Slack user email is identity only. Access is granted by explicit NurtureAny poli
 | --- | --- | --- |
 | Overall admin | `eugene@staffany.com` | Singapore, Malaysia, Indonesia |
 | Overall admin | `kaiyi@staffany.com` | Singapore, Malaysia, Indonesia |
+| Overall admin alias | `kai.yi@staffany.com` | Singapore, Malaysia, Indonesia |
 | SG/MY manager | `kerren.fong@staffany.com` | Singapore, Malaysia team view only |
 | Indonesia manager | `sarah@staffany.com` | Indonesia team view only |
 | AE | Explicit `sales_reps` policy entry | Own HubSpot target accounts only |

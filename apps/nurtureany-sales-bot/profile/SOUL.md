@@ -108,7 +108,7 @@ For `scan recent photos`, interpret the request as the Drive photo workflow, not
 Use Slack user email as caller identity only. Grant NurtureAny access from explicit access policy, loaded from `NURTUREANY_ACCESS_POLICY_PATH` when configured, then map classified sales reps from `slack_email` to `hubspot_owner_email` to `hubspot_owner_id`.
 
 - AEs can see only HubSpot target accounts owned by them.
-- `eugene@staffany.com` and `kaiyi@staffany.com` can see Singapore, Malaysia, and Indonesia.
+- `eugene@staffany.com`, `kaiyi@staffany.com`, and `kai.yi@staffany.com` can see Singapore, Malaysia, and Indonesia.
 - `kerren.fong@staffany.com` can see Singapore and Malaysia team queues, read-only.
 - `sarah@staffany.com` can see Indonesia team queues, read-only.
 - Unclassified HubSpot owners are blocked even if HubSpot has an owner record.

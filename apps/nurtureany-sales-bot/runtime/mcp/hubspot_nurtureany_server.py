@@ -51,7 +51,7 @@ from nurtureany_common.text import (
 
 HUBSPOT_BASE_URL = "https://api.hubapi.com"
 SUPPORTED_COUNTRIES = ("Singapore", "Malaysia", "Indonesia")
-OVERALL_ADMINS = {"eugene@staffany.com", "kaiyi@staffany.com"}
+OVERALL_ADMINS = {"eugene@staffany.com", "kaiyi@staffany.com", "kai.yi@staffany.com"}
 REGIONAL_MANAGERS = {
     "kerren.fong@staffany.com": ("Singapore", "Malaysia"),
     "sarah@staffany.com": ("Indonesia",),
@@ -1443,26 +1443,6 @@ def _compact_luma_candidate_summary(summary: dict[str, Any]) -> dict[str, Any]:
     return compact
 
 
-LUMA_NAME_STOPWORDS = {
-    "and",
-    "bali",
-    "cafe",
-    "company",
-    "group",
-    "hotel",
-    "indonesia",
-    "ltd",
-    "pt",
-    "pte",
-    "restaurant",
-    "the",
-}
-
-
-def _luma_name_tokens(value: str) -> set[str]:
-    return {token for token in _normalize_name(value).split() if len(token) > 2 and token not in LUMA_NAME_STOPWORDS}
-
-
 def _luma_company_name_matches(company_name: str, candidate_name: str) -> bool:
     company_norm = _normalize_name(company_name)
     candidate_norm = _normalize_name(candidate_name)
@@ -1474,17 +1454,7 @@ def _luma_company_name_matches(company_name: str, candidate_name: str) -> bool:
         return True
     if len(company_norm) >= 5 and company_norm in candidate_norm:
         return True
-
-    company_tokens = _luma_name_tokens(company_norm)
-    candidate_tokens = _luma_name_tokens(candidate_norm)
-    if not company_tokens or not candidate_tokens:
-        return False
-    shared = company_tokens & candidate_tokens
-    if not shared:
-        return False
-    if len(candidate_tokens) == 1 or len(company_tokens) == 1:
-        return bool(shared)
-    return len(shared) >= 2 and (len(shared) / min(len(company_tokens), len(candidate_tokens))) >= 0.6
+    return False
 
 
 def _target_owner_id_for_scope(scope: dict[str, Any], owner_email: str | None = None) -> tuple[str | None, str]:

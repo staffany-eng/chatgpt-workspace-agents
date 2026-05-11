@@ -103,6 +103,16 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         self.assertEqual(scope["kind"], "blocked")
         self.assertEqual(scope["email"], "owner.but.unclassified@staffany.com")
 
+    def test_kai_yi_slack_email_alias_is_admin(self):
+        with patch.dict(os.environ, {self.module.ACCESS_POLICY_ENV_VAR: ""}):
+            scope = self.module._caller_scope("kai.yi@staffany.com")
+
+        self.assertEqual(scope["kind"], "admin")
+        self.assertEqual(scope["countries"], self.module.SUPPORTED_COUNTRIES)
+
+    def test_luma_company_name_match_does_not_match_single_token_plus_generic_suffix(self):
+        self.assertFalse(self.module._luma_company_name_matches("Sundays Beach Club", "Sundays Cafe"))
+
     def test_company_search_paginates_past_hubspot_page_limit(self):
         calls = []
 
