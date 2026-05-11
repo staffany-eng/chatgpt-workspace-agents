@@ -35,7 +35,7 @@ Use this reference with `sales-best-practices.md` before changing or answering f
 | `build_sales_metric_actuals_query` | Revenue actuals | Builds scoped aggregate SQL for QO and revenue actuals; Rev Sheets/Slides are targets/definitions only; execute through `staffany_bigquery.execute_sql_readonly`. |
 | `build_friday_sales_review` | Friday rhythm | Uses sales best practices for hygiene, funnel, coaching, actions, support, and optional warehouse follow-ups; stage config gates QO/QO Met; no raw bodies. |
 | `get_account_context` | Account context | HubSpot account truth plus C360 enrichment for verified customers; safe packet by default; access scope, PII/body safety, no mutation. |
-| `build_pre_demo_game_plans` | Pre-demo | Selected scoped accounts only; I-C-BANT and missing-evidence rules; no invented pricing/current tools/case studies; no mutation. |
+| `build_pre_demo_game_plans` | Pre-demo | Selected scoped accounts only; I-C-BANT and missing-evidence rules; optional Slack source-thread permalink as provenance only; no raw Slack transcript, invented pricing/current tools/case studies, or mutation. |
 | `list_sales_followup_tasks` | Follow-up | Existing incomplete sales-owned HubSpot tasks only; safe task fields; no duplicate task creation. |
 | `check_account_followup_status` | Follow-up | HubSpot communications, notes, tasks, and meetings determine status; event attribution requires proof; body-free by default, with admin-only `include_body=true` for bounded WhatsApp communication bodies. |
 | `check_event_followup_status` | Event follow-up | Luma/Sheet attendance identifies matched accounts; HubSpot verifies event-specific WhatsApp/tasks; raw attendees and bodies hidden. |

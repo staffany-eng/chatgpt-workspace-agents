@@ -204,13 +204,14 @@ Expected behavior:
 - After `run`, calls `build_pre_demo_game_plans` directly with the selected IDs, links, or raw exact names for at most 5 accounts; it does not pre-resolve with `list_team_target_accounts`, `score_nurture_accounts`, or `find_contact_gaps`.
 - Compact names such as `Tung Lok` can resolve to HubSpot's stored `Tunglok` spelling inside the game-plan tool.
 - Returns Static Information, Research / stalking signal, Hypothesized interest, Alternatives, What to show to win, 3 name drops, Game Plan A, Game Plan B, IC-BANT prompts, and Missing evidence.
+- Preserves the useful Slack pre-meeting thread permalink as `Source thread` when the request supplies or links one.
 - Applies `sales-best-practices.md` for I-C-BANT, current tools, contract end date, lead source, why-now signal, stakeholder map, and missing-evidence handling.
 - Uses approved public StaffAny case-study matches when selected account context supports them.
 - Uses `pricing needed` and `case-study match needed` when those facts are missing.
 - Does not invent pricing, lead source, current tools, meeting reason, case studies, or name drops.
 - Treats LinkedIn, Instagram, TikTok, Facebook, Google Maps, and gated/social sources as manual-check only unless the user provides snippets.
-- Does not expose task body, raw PII, mutate HubSpot, or send external messages.
-- Optional HubSpot note/task creation remains a separate `plan_hubspot_writeback` preview after review and approval.
+- Does not expose task body, raw Slack transcript, raw PII, mutate HubSpot, or send external messages.
+- Optional HubSpot note/task creation remains a separate `plan_hubspot_writeback` preview after review and approval, carrying the same Slack permalink as source provenance only.
 
 Prompt:
 

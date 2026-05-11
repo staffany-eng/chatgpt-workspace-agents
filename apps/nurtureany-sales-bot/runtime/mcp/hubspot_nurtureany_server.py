@@ -4996,6 +4996,24 @@ def _slack_link(label: str, url: str) -> str:
     return f"<{href}|{text}>" if href else text
 
 
+def _slack_thread_source(source_slack_thread_url: str = "", source_url: str = "") -> dict[str, Any]:
+    raw_url = str(source_slack_thread_url or source_url or "").strip()
+    if not raw_url:
+        return {}
+    parsed = urllib.parse.urlparse(raw_url)
+    if parsed.scheme not in {"http", "https"}:
+        return {}
+    hostname = (parsed.hostname or "").lower()
+    if not hostname.endswith("slack.com") or "/archives/" not in parsed.path:
+        return {}
+    return {
+        "source_type": "slack_thread",
+        "url": raw_url,
+        "label": "Source thread",
+        "provenance_policy": "Link only; raw Slack transcript was not copied into HubSpot.",
+    }
+
+
 def _owner_psm_line(company: dict[str, Any], account: dict[str, Any]) -> str:
     owner = _first_non_empty(account.get("accountOwner"), company.get("owner_name"), company.get("owner_email"), "needs-check")
     psm = _first_non_empty(account.get("psmOwner"), "needs-check")
@@ -5487,12 +5505,12 @@ def _pre_demo_ic_bant_prompts(context: dict[str, Any]) -> dict[str, list[str]]:
     }
 
 
-def _build_pre_demo_game_plan_row(context: dict[str, Any]) -> dict[str, Any]:
+def _build_pre_demo_game_plan_row(context: dict[str, Any], source_thread: dict[str, Any] | None = None) -> dict[str, Any]:
     company = context.get("company", {})
     contacts = context.get("contacts", [])
     coverage = context.get("coverage", {})
     missing = _pre_demo_missing_evidence(context)
-    return {
+    row = {
         "company_id": company.get("company_id"),
         "hubspot_scoped": True,
         "scope_source": SCOPE_SOURCE,
@@ -5532,6 +5550,14 @@ def _build_pre_demo_game_plan_row(context: dict[str, Any]) -> dict[str, Any]:
         "missing_evidence": missing,
         "confidence": "needs-check" if missing else "verified",
     }
+    if source_thread:
+        row["source_thread"] = source_thread
+        row["writeback_source_evidence"] = {
+            "source_type": source_thread.get("source_type"),
+            "source_url": source_thread.get("url"),
+            "provenance_policy": source_thread.get("provenance_policy"),
+        }
+    return row
 
 
 def _scope_response(
@@ -8426,7 +8452,13 @@ def get_account_context(slack_user_email: str, company_id: str) -> dict[str, Any
 
 
 @mcp.tool()
-def build_pre_demo_game_plans(slack_user_email: str, company_ids: list[str], limit: int = PRE_DEMO_GAME_PLAN_ACCOUNT_LIMIT) -> dict[str, Any]:
+def build_pre_demo_game_plans(
+    slack_user_email: str,
+    company_ids: list[str],
+    limit: int = PRE_DEMO_GAME_PLAN_ACCOUNT_LIMIT,
+    source_slack_thread_url: str = "",
+    source_url: str = "",
+) -> dict[str, Any]:
     """Build game plans for selected HubSpot IDs, links, or exact company names."""
 
     try:
@@ -8466,6 +8498,7 @@ def build_pre_demo_game_plans(slack_user_email: str, company_ids: list[str], lim
         selected_ids = normalized_ids[:requested_limit]
         plans = []
         countries: list[str] = []
+        source_thread = _slack_thread_source(source_slack_thread_url, source_url)
         for company_id in selected_ids:
             context = _company_context(company_id, scope)
             if context is None:
@@ -8473,11 +8506,11 @@ def build_pre_demo_game_plans(slack_user_email: str, company_ids: list[str], lim
             country = context.get("company", {}).get("country")
             if country and country not in countries:
                 countries.append(country)
-            plans.append(_build_pre_demo_game_plan_row(context))
+            plans.append(_build_pre_demo_game_plan_row(context, source_thread))
 
         truncated = bool(resolution["truncated"])
         missing_evidence = sorted({item for plan in plans for item in plan.get("missing_evidence", [])})
-        return {
+        response = {
             "answer": plans,
             "source": "HubSpot scoped account context and NurtureAny pre-demo game-plan playbook",
             "scope": _scope_response(scope, countries or list(scope.get("countries", ()))),
@@ -8494,6 +8527,9 @@ def build_pre_demo_game_plans(slack_user_email: str, company_ids: list[str], lim
                 "social/gated research stays manual-check unless user snippets are provided."
             ),
         }
+        if source_thread:
+            response["source_thread"] = source_thread
+        return response
     except ScopeError as error:
         return _blocked(str(error), {"caller_email": slack_user_email, "company_ids": company_ids})
     except HubSpotError as error:

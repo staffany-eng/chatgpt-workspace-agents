@@ -3232,6 +3232,28 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         self.assertNotIn("Safe subject", json.dumps(result))
         self.assertIn("pricing", result["missing_evidence"])
 
+    def test_build_pre_demo_game_plans_preserves_slack_source_thread(self):
+        source_thread_url = "https://staffany.slack.com/archives/C04MSJ1BGF9/p1778471025436219?thread_ts=1776659145.164259&channel=C04MSJ1BGF9"
+        context = company_context("32662274616")
+        context["company"].update({"name": "Marugame Udon", "headcount": "3000", "industry": "F&B"})
+
+        with patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
+            self.module, "_company_context", return_value=context
+        ):
+            result = self.module.build_pre_demo_game_plans(
+                "kerren.fong@staffany.com",
+                ["https://app-na2.hubspot.com/contacts/4137076/record/0-2/32662274616"],
+                source_slack_thread_url=source_thread_url,
+            )
+
+        self.assertEqual(result["source_thread"]["url"], source_thread_url)
+        self.assertEqual(result["source_thread"]["source_type"], "slack_thread")
+        first = result["answer"][0]
+        self.assertEqual(first["source_thread"]["label"], "Source thread")
+        self.assertEqual(first["writeback_source_evidence"]["source_url"], source_thread_url)
+        self.assertEqual(first["writeback_source_evidence"]["source_type"], "slack_thread")
+        self.assertNotIn("Pre-meeting notes can be shared here", json.dumps(result))
+
     def test_build_pre_demo_game_plans_resolves_exact_scoped_company_name(self):
         search_calls = []
 
@@ -3869,6 +3891,36 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         self.assertEqual(action["source_url"], "https://noci.example/careers")
         self.assertEqual(action["source_evidence"]["title"], "Careers")
         self.assertEqual(action["confidence"], "needs-check")
+
+    def test_plan_hubspot_writeback_preserves_slack_source_metadata(self):
+        admin_scope = {"kind": "admin", "email": "kaiyi@staffany.com", "countries": self.module.SUPPORTED_COUNTRIES, "owner_id": None}
+        source_thread_url = "https://staffany.slack.com/archives/C04MSJ1BGF9/p1778471025436219?thread_ts=1776659145.164259&channel=C04MSJ1BGF9"
+        with patch.object(self.module, "_caller_scope", return_value=admin_scope), patch.object(
+            self.module, "_assert_company_access", return_value={"id": "32662274616", "properties": {"hs_is_target_account": "true", "company_country": "Indonesia"}}
+        ):
+            result = self.module.plan_hubspot_writeback(
+                "kaiyi@staffany.com",
+                [
+                    {
+                        "company_id": "32662274616",
+                        "note_summary": "Pre-demo game plan reviewed for Marugame Udon.",
+                        "source_evidence": {
+                            "source_type": "slack_thread",
+                            "source_url": source_thread_url,
+                            "provenance_policy": "Link only; raw Slack transcript was not copied into HubSpot.",
+                        },
+                        "source_type": "slack_thread",
+                        "source_url": source_thread_url,
+                        "confidence": "needs-check",
+                    }
+                ],
+            )
+
+        action = result["answer"]["actions"][0]
+        self.assertFalse(result["answer"]["will_mutate_hubspot"])
+        self.assertEqual(action["source_type"], "slack_thread")
+        self.assertEqual(action["source_url"], source_thread_url)
+        self.assertEqual(action["source_evidence"]["source_url"], source_thread_url)
 
 
 if __name__ == "__main__":

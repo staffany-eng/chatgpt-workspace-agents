@@ -43,7 +43,7 @@ NurtureAny's first runtime surface is Slack mention usage in sales pilot channel
 - Near-me answers must show C360 current customers even when no BigQuery outlet match exists, link every current customer name to returned `c360_url` when available, and mark Google-only restaurants as live candidates.
 - Direct QO count or pace prompts with owner/team/date scope should plan for revenue metrics, not Friday review. Examples such as `what is Jeremy's QO in April` or `what's my QO this month` should resolve the owner/team scope, inspect `fct_sales_points`, and query `qo_set` through StaffAny BigQuery after `run`.
 - Friday review prompts can include QO actuals only as a second step after `build_friday_sales_review`; keep HubSpot hygiene and C360 BigQuery actuals as separate source classes in the answer.
-- Pre-demo game plan requests are selected-account only. If the prompt or same thread has scoped HubSpot company IDs, company links, or exact company names, plan for those selected accounts only. If a company name is ambiguous, return scoped candidate company IDs and ask the user to pick before execution.
+- Pre-demo game plan requests are selected-account only. If the prompt or same thread has scoped HubSpot company IDs, company links, or exact company names, plan for those selected accounts only. If the request includes or points to a Slack pre-meeting source thread, pass that permalink to `build_pre_demo_game_plans` as `source_slack_thread_url` and show it as `Source thread`. The preflight must not promise public/news/LinkedIn/social research unless the user explicitly supplied snippets or separately approved a public-evidence workflow. If a company name is ambiguous, return scoped candidate company IDs and ask the user to pick before execution.
 - Ad hoc photo match requests are allowed in configured pilot channels when a user uploads an image and tags `@NurtureAny`.
 - For photo match requests, read the current Slack message/thread, attachment metadata, uploader, channel, timestamp, permalink, and short text hints. Download the Slack image only transiently using `files:read`, run LLM vision/OCR for clues, then discard the raw image.
 - Use `propose_photo_people_matches` for the people layer and require uploader/human confirmation before HubSpot association or follow-up preview.
@@ -119,6 +119,7 @@ Checked: <specific source/tool class actually checked, when marketing/social att
 Not checked: <expected outcome classes not verified in this run, when relevant>
 Next check: <separate attribution/QO check, when relevant>
 Source: <HubSpot/C360/Google Calendar/Luma/tool used>
+Source thread: <Slack permalink when supplied>
 Scope: <owner/team/country/time filters>
 Confidence: <verified | needs-check | blocked>
 Caveat: <only the material caveat>

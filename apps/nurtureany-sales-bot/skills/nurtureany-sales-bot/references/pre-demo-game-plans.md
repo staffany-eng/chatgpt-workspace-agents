@@ -8,6 +8,7 @@ Use this reference when the user asks for `game plan`, `pre-demo prep`, `demo pl
 - Cap each run at 5 accounts.
 - Resolve names only inside the caller's scoped HubSpot target accounts. If one exact scoped match is found, proceed. If multiple scoped matches are found, return candidate company IDs and ask the user to pick. If no match is found, ask for the HubSpot company ID or link.
 - Do not generate game plans for all target accounts by default.
+- Preserve the originating Slack pre-meeting thread permalink as `Source thread` when the request supplies one. Store/link provenance only; do not copy raw Slack transcripts into HubSpot.
 
 ## Framework
 
@@ -23,6 +24,7 @@ Each account output must include:
 - Game Plan B
 - IC-BANT prompts
 - Missing evidence
+- Source thread, when supplied
 
 ## Game Plan Rules
 
@@ -54,4 +56,6 @@ Estimate: 1-2 min
 Caveat: I will not invent pricing, current tools, lead source, meeting reason, or case studies; missing items will be marked.
 Reply "run" to start, or tell me what to change.
 
-After `run`, call `build_pre_demo_game_plans` directly with the selected company IDs, HubSpot links, or raw exact names and return a Slack-first answer. Do not pre-resolve game-plan names with `list_team_target_accounts`, `score_nurture_accounts`, or `find_contact_gaps`; the game-plan tool owns scoped resolution and compact-name matching such as `Tung Lok` to `Tunglok`. If the tool returns ambiguous company-name candidates, ask the user to reply with the intended HubSpot company ID before building the plan. HubSpot write-back is a separate `plan_hubspot_writeback` preview after review and approval.
+Do not add public/news/LinkedIn/social research to this preflight unless the user explicitly supplied snippets or separately approved a public-evidence workflow.
+
+After `run`, call `build_pre_demo_game_plans` directly with the selected company IDs, HubSpot links, or raw exact names and return a Slack-first answer. If the request includes a useful pre-meeting Slack thread permalink, pass it as `source_slack_thread_url`; if the current request merely links to the true pre-meeting notes thread, use the linked thread as the source. Do not pre-resolve game-plan names with `list_team_target_accounts`, `score_nurture_accounts`, or `find_contact_gaps`; the game-plan tool owns scoped resolution and compact-name matching such as `Tung Lok` to `Tunglok`. If the tool returns ambiguous company-name candidates, ask the user to reply with the intended HubSpot company ID before building the plan. HubSpot write-back is a separate `plan_hubspot_writeback` preview after review and approval; when previewing a note, pass the same Slack permalink as `source_url` / `source_evidence` and do not paste the raw Slack text.
