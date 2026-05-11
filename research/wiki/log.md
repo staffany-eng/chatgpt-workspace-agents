@@ -77,3 +77,11 @@ Ingested the 2026 Rev Team planning Sheet, 2025Q3 sales onboarding Slides, and M
 ## [2026-05-11] ingest | StaffAny Public Customer Case Studies
 
 Ingested 26 approved public StaffAny customer case studies from StaffAny Singapore and Malaysia public pages. Added a structured NurtureAny case-study catalog for pre-demo name-drop matching and kept Slack-only/WIP case-study mentions out of approved source context until a published page or approved internal asset exists.
+
+## [2026-05-12] ingest | NurtureAny Target Market And User Journey
+
+Ingested the Target Market and User Journey Google Slides deck as private NurtureAny sales enablement evidence. Extracted stable guidance for StaffAny value framing, country-specific ICP thresholds, ICP stage behavior, persona/JTBD mapping, team-management and payroll-processing journeys, and internal customer proof patterns.
+
+## [2026-05-12] ingest | NurtureAny Mobile Number Rollout
+
+Ingested the Mobile Number Google Doc as private NurtureAny sales execution hygiene evidence. Extracted the company-controlled mobile-number rollout intent, WhatsApp Business and Eazybe logging requirements, HubSpot conversation-capture expectations, onboarding/offboarding requirements, and `needs-check` rollout caveat.

@@ -9,6 +9,8 @@ This synthesis combines the Leadership Tactical Pause folder and Sales Training 
 - Leadership Tactical Pause: [source note](../sources/nurtureany-leadership-tactical-pause.md), [raw record](../../raw/nurtureany-sales-best-practices/leadership-tactical-pause.md).
 - Sales Training Materials: [source note](../sources/nurtureany-sales-training-materials.md), [raw record](../../raw/nurtureany-sales-best-practices/sales-training-materials.md).
 - Sales Onboarding Master Template: [source note](../sources/nurtureany-sales-onboarding-master-template.md), [raw record](../../raw/nurtureany-sales-best-practices/sales-onboarding-master-template-linked-files.md).
+- Target Market And User Journey: [source note](../sources/nurtureany-target-market-user-journey.md), [raw record](../../raw/google-drive/2026-05-12-target-market-user-journey/source-extract.md).
+- Mobile Number Rollout: [source note](../sources/nurtureany-mobile-number-rollout.md), [raw record](../../raw/google-drive/2026-05-12-mobile-number-memo/source-extract.md).
 
 ## Source Hierarchy
 
@@ -16,7 +18,9 @@ This synthesis combines the Leadership Tactical Pause folder and Sales Training 
 2. Current/final Tactical Pause materials are the source of truth for operating rhythm, account coverage, QO quality, warm activity, event discipline, and Friday correction.
 3. Current instructor-copy training materials and current rubric sheets are the source of truth for outreach, pre-demo, demo, post-demo, and coaching quality standards.
 4. Current onboarding plans, master templates, and assessment sheets are supporting evidence for ramp, certification, and scoring.
-5. Archive, old, copy, outdated, and trainee files are lower-authority context. Surface conflicts when material.
+5. Current target-market/persona training guides ICP, JTBD, and value framing for drafts and pre-demo planning.
+6. Current mobile-number rollout planning guides conversation-capture readiness, but rollout status needs live verification.
+7. Archive, old, copy, outdated, and trainee files are lower-authority context. Surface conflicts when material.
 
 ## Operating Rhythm
 
@@ -78,6 +82,23 @@ This synthesis combines the Leadership Tactical Pause folder and Sales Training 
 - Inbound should be routed to reps with proven qualification and meeting discipline when quality is the bottleneck.
 - The bot should avoid treating every inbound as equal; lead source, ICP fit, buying role, and current tools matter.
 
+## ICP And Value Framing
+
+- Use ICP stage, country headcount, industry, outlet count, maturity, persona, and JTBD before choosing a nurture angle.
+- Country headcount guide from the training deck: SG below 20 is no-fit, above 20 is possible, and above 50 is good fit; MY/ID below 50 is no-fit, above 50 is possible, and above 100 is good fit.
+- ICP 0 should be moved fast or disqualified; ICP 1 and ICP 2 are farmable low-hanging fruit; ICP 3 requires relationship-led nurturing across multiple stakeholders.
+- Owners care about cost, scale, and visibility; HR cares about payroll accuracy, compliance, and less consolidation work; ops cares about scheduling, last-minute changes, and cross-outlet coordination.
+- Map feature talk to business value: cost savings, time savings, visibility/accountability, accuracy, compliance, team trust, flexibility, and retention.
+- Use customer examples as proof patterns only when allowed by the approved case-study rules. Internal training examples are not automatically approved name drops.
+
+## Conversation Capture Readiness
+
+- Company-controlled mobile numbers, WhatsApp Business, Eazybe logging, and HubSpot auto-logging are sales-execution hygiene, not just admin setup.
+- Until the rollout tracker or live systems verify status, mark company-number and conversation-capture readiness as `needs-check`.
+- Coaching and Friday review should distinguish real HubSpot activity gaps from capture-infrastructure gaps where reps may be using personal numbers or unverified logging paths.
+- Onboarding and offboarding checks should include number assignment, WhatsApp Business setup, Eazybe linkage, HubSpot logging test, central access, and reassignment.
+- Sales-call evidence remains weaker unless HubSpot call logging or an approved telephony integration is verified.
+
 ## AI And Data Readiness
 
 - AI workflow ideas are downstream of data capture. Missing CRM fields, notes, calls, or meetings should be flagged as readiness gaps.
@@ -97,3 +118,5 @@ This synthesis combines the Leadership Tactical Pause folder and Sales Training 
 - Tool calls still matter: Friday sales reviews should call `build_friday_sales_review`, and pre-demo plans should call `build_pre_demo_game_plans` for selected scoped accounts.
 - Drafts remain manual-review only. The bot should not send external messages.
 - The bot should surface lower-authority old/archive guidance when it conflicts with current/final/instructor material.
+- Nurture drafts and pre-demo plans should select persona-specific value angles instead of generic feature lists.
+- Friday review and coaching answers should flag conversation-capture readiness when WhatsApp/HubSpot evidence is missing or untrusted.

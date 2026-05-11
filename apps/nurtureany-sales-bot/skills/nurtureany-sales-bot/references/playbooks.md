@@ -38,6 +38,22 @@ Use `needs-check` confidence when any major scoring input is missing, inferred, 
 - Missing direct contact
 - High-value dormant account
 
+## ICP And Persona Angles
+
+Use these as framing guidance only. HubSpot and approved live tools still decide target-account scope, owner, country, contact coverage, current tools, and follow-up status.
+
+| Segment | Useful angle |
+| --- | --- |
+| SG headcount >20 / MY or ID headcount >50 | Possible fit; check industry, outlet count, current tools, and timing before investing heavy effort. |
+| SG headcount >50 / MY or ID headcount >100 | Good-fit ICP; prioritize persona-specific pain and value proof. |
+| ICP 0 | Move fast, disqualify when needed, or route to freemium/light-touch rather than deep nurture. |
+| ICP 1-2 | Farmable low-hanging fruit; use practical pain around scheduling, attendance, timesheets, and scaling process. |
+| ICP 3 | Relationship-led nurture; map HR, Ops, Finance, and director stakeholders before pushing for a close. |
+| Owner / founder | Cost control, visibility, scale, auditability, and reduced unnecessary labour hours. |
+| HR manager / HR ops | Timesheet consolidation, payroll accuracy, compliance, leave reports, and fewer disputes. |
+| Ops / outlet manager | Scheduling, last-minute changes, staffing visibility, cross-outlet coordination, and attendance issues. |
+| Staff-facing concern | Timesheet transparency, mobile clock-in/out, fewer discrepancies, and trust. |
+
 ## Drafting Rules
 
 - Draft for manual AE review only.

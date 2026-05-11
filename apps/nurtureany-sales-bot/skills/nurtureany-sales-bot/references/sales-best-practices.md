@@ -46,6 +46,15 @@ When facts are missing, write `needs-check` instead of inventing them.
 - ID: prioritize activity-to-QO efficiency. Bahasa Indonesia case material can support localized coaching. Do not force SG call-heavy assumptions where WhatsApp, events, or referrals are stronger local evidence.
 - Cross-market: choose playbooks from ICP, industry, headcount, current tools, contract end date, lead source, buying role, and why-now signal.
 
+## ICP And Value Framing
+
+- Use ICP stage, country headcount, industry, outlet count, maturity, persona, and JTBD before choosing the angle.
+- Training threshold guide: SG below 20 headcount is no-fit, above 20 is possible fit, and above 50 is good fit; MY/ID below 50 is no-fit, above 50 is possible fit, and above 100 is good fit.
+- ICP 0 should be disqualified or moved fast; ICP 1 and ICP 2 are farmable; ICP 3 requires relationship-led nurturing across multiple stakeholders.
+- Owners usually care about cost, scale, visibility, and auditability. HR usually cares about payroll accuracy, compliance, and less consolidation work. Ops usually cares about scheduling, last-minute changes, cross-outlet coordination, and attendance visibility.
+- Map features to business value: cost savings, time savings, visibility/accountability, accuracy, compliance, trust, flexibility, and retention.
+- Internal training case examples are proof patterns only. Use public name drops only when the approved case-study bank or another approved source supports them.
+
 ## QO And QO Met Quality
 
 Clean lead checklist:
@@ -81,6 +90,14 @@ Warm activity proof should include:
 WhatsApp may autolog through Eazybe where configured, but HubSpot is the durable reporting source. Do not expose raw images, phone exports, attendee lists, form responses, WhatsApp bodies, note bodies, task bodies, or private comments.
 
 Events are outbound demand generation. Track registrations, attendance, follow-up, QO, QO Met, deals, and blocked follow-up. Keep event volume constrained when QO output or manager capacity is weak.
+
+## Conversation Capture Readiness
+
+- Company-controlled mobile numbers, WhatsApp Business, Eazybe logging, and HubSpot auto-logging are sales-execution hygiene.
+- Do not claim the rollout is live unless a tracker or live system verifies it. Use `needs-check` for mobile-number readiness, Eazybe linkage, central access, and reassignment status when unverified.
+- Coaching and Friday review answers should separate real HubSpot activity gaps from capture-infrastructure gaps where WhatsApp evidence may be missing because reps use personal numbers or unverified logging paths.
+- Onboarding/offboarding checks should include number assignment, WhatsApp Business setup, Eazybe linkage, HubSpot logging test, central access, and reassignment.
+- Sales-call evidence remains weaker unless HubSpot call logging or an approved telephony integration is verified.
 
 ## Outreach And Nurture Drafting
 
@@ -196,4 +213,6 @@ For AI, low-code, or custom-build objections:
 - Priority-account coverage: use HubSpot activity evidence and classify dirty accounts by missing industry, headcount, current tools, contract end date, associated contact, or verified decision maker.
 - Pre-demo game plans: still call `build_pre_demo_game_plans`; use this reference for the training framework and missing-evidence rules.
 - Nurture drafts: use CCC, 3C, K/N/S, QO quality, and warm-activity standards, but keep all output manual-review only.
+- ICP/value-angle answers: use persona, JTBD, country headcount, outlet count, and business maturity before recommending feature-led messaging.
+- Conversation-capture answers: use HubSpot as the activity source of truth, but flag company-number, WhatsApp Business, Eazybe, and central repository readiness when missing evidence may be infrastructure-related.
 - Conflicting old/archive guidance: surface it as lower-authority context and do not silently promote it.
