@@ -22,9 +22,18 @@ display:
 slack:
   require_mention: true
   reactions: false
+  # Allows user-token smoke messages that include a bot-authored mention block
+  # to trigger the gateway without opening free bot-to-bot chatter.
+  allow_bots: "mentions"
 
 kanban:
   dispatch_in_gateway: false
+
+agent:
+  # Keep restart auto-continue from replaying old Slack test sessions after
+  # gateway restarts. A one-second freshness window only resumes truly current
+  # interrupted work.
+  gateway_auto_continue_freshness: 1
 
 model:
   default: "claude-sonnet-4-6"
