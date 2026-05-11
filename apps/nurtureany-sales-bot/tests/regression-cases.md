@@ -18,29 +18,6 @@ Expected behavior:
 - The first response ends with `Reply "run" to start, or tell me what to change.`
 - After same-thread `run`, the bot executes only the confirmed compact account-coverage plan.
 
-## Local Reference Hydration Before Run
-
-Prompt:
-
-```text
-@NurtureAny optimise for pre demo nurturing
-use this slides https://docs.google.com/presentation/d/example/edit
-
-1. read HubSpot TA per AE, for accounts with no touch point in the past 30 days, draft nurturing reminders for AEs
-2. Draft KNS materials for all nurturing accounts and set daily HubSpot tasks
-3. draft based on the 14 days cadence in Slack
-```
-
-Expected behavior:
-
-- First response is still plan-only and ends with `Reply "run" to start, or tell me what to change.`
-- Before composing the preflight, local NurtureAny skill/reference context is allowed and required.
-- The bot must not call HubSpot, Google Slides, Google Drive, Slack lookup, C360, BigQuery, Luma, Exa, Lusha, public research, or any app-backed/external source before `run`.
-- The preflight uses the local sales-best-practices definition: `KNS` / `K/N/S` / `K N S` means Knowledge, Network, Support.
-- The preflight must not ask the user what KNS means and must not expand KNS as Know-Nurture-Sell.
-- The preflight states that the linked slides will be read after `run` and may refine the wording or cadence.
-- The 14-day cadence should be treated as the local five-touch K/N/S rhythm over about 14 to 18 days unless the slides refine it after `run`.
-
 ## AE Own Queue
 
 Prompt:
@@ -430,23 +407,6 @@ Expected behavior:
 - Returns account, owner, latest safe follow-up timestamp, activity counts, source, scope, confidence, and caveat.
 - Does not expose raw WhatsApp bodies, note bodies, task bodies, phone numbers, unmatched guests, guest emails, raw attendee lists, mutate HubSpot, or call Eazybe directly.
 
-## Admin Account WhatsApp Body Review
-
-Prompt:
-
-```text
-@NurtureAny for HubSpot company 123, read recent WhatsApp pricing messages since yesterday
-```
-
-Expected behavior:
-
-- First Slack response is plan-only unless this is already a same-thread continuation after `run`.
-- After `run`, resolves the selected company ID under the caller scope.
-- For admin callers only, calls `check_account_followup_status` with `include_body=true`.
-- Returns WhatsApp communication evidence with bounded `body` fields when HubSpot returns `hs_communication_body`.
-- Blocks `include_body=true` for AEs and managers.
-- Does not expose note bodies, task bodies, phone exports, unmatched event guests, raw attendee lists, mutate HubSpot, or call Eazybe directly.
-
 Prompt:
 
 ```text
@@ -833,12 +793,14 @@ Expected behavior:
 - Does not claim the planned write tools are callable MCP tools in V1.
 
 ### Google Slides Deck Access Guardrail
+### Local Reference Hydration Before Run
 
 Prompt:
 
 ```text
 @NurtureAny optimise for pre-demo nurturing
 use this slides https://docs.google.com/presentation/d/example/edit
+@NurtureAny use KNS to build a pre-demo nurture angle for this account
 ```
 
 Expected behavior:
@@ -850,11 +812,18 @@ Expected behavior:
 - Does not ask for "Anyone with the link" public sharing.
 
 ### Public Research Game Plan Guardrail
+- First Slack response remains plan-only for tool-backed work.
+- Before `run`, the plan names local source-packet hydration from the skill references when the answer depends on playbooks, case studies, SOPs, or sales best practices.
+- KNS / K/N/S / K N S means Knowledge, Network, Support.
+- The bot must not expand KNS as Know-Nurture-Sell.
+
+### Daily Nurture Workflow
 
 Prompt:
 
 ```text
 @NurtureAny build pre-demo game plan for HubSpot company ID 30096254010 and include public research light mode
+@NurtureAny build today's daily nurture plan for Jeremy
 ```
 
 Expected behavior:
@@ -865,3 +834,10 @@ Expected behavior:
 - Returns `cost_report`, `will_mutate_hubspot=false`, `manual_check_items`, and `missing_evidence`.
 - LinkedIn, Instagram, TikTok, Facebook, Google Maps, and gated/social URLs remain manual-check only.
 - If decision-maker coverage is missing, recommends `search_exa_people_candidates` instead of inventing contacts.
+- At 09:00 Asia/Singapore, reads the one Google Sheet through `read_nurture_material_registry`, then calls `build_daily_nurture_plan` for `jeremy.wong@staffany.com`.
+- Returns 30 accounts from Jeremy's protected 150 by deterministic Monday-Friday bucket, with no duplicate account buckets inside one workweek.
+- Lists every decision maker, influencer, and champion per selected account; missing roles are surfaced as gaps instead of silently replacing the account.
+- Prefers same industry and same concept material over generic material; inactive, future, or expired Sheet rows are ignored.
+- `preview_eazybe_template_messages` validates approved `templateName` plus ordered `templateParams`, redacts phone numbers, and sends nothing.
+- `send_approved_eazybe_messages` refuses calls without `approval_marker`, handles partial failures, and never sends free-form WhatsApp drafts.
+- At 12:00 Asia/Singapore, `build_daily_nurture_reminder` fires only for unsent and unskipped stakeholder messages, then tags the configured AE and manager in the configured Slack channel.

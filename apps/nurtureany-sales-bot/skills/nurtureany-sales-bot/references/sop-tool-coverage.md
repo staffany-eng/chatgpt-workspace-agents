@@ -11,6 +11,9 @@ Use this reference with `sales-best-practices.md` before changing or answering f
 - PII/body safety: never return raw Slack transcripts, raw HubSpot rows, communication bodies, note bodies, task bodies, call/meeting bodies, attendee exports, phone exports, raw images, raw registration answers, raw match-key lists, or secrets by default. The only communication-body exception is `check_account_followup_status(include_body=true)` for admin callers and selected company IDs; note/task bodies, event guest data, phone exports, and bulk exports remain blocked.
 - Cost/credit reporting: Tavily public research and Exa must return `cost_report`; Lusha must return `credit_report`; no hidden paid enrichment.
 - Mutation policy: V1 exposes read, preview, and selected approval-gated enrichment tools only. `create_hubspot_task`, `append_hubspot_note`, and `update_nurture_fields` are planned write-phase tools and are disabled in V1.
+- PII/body safety: never return raw Slack transcripts, raw HubSpot rows, communication bodies, note bodies, task bodies, call/meeting bodies, attendee exports, phone exports, raw images, raw registration answers, raw match-key lists, or secrets.
+- Cost/credit reporting: Exa must return `cost_report`; Lusha must return `credit_report`; no hidden paid enrichment.
+- Mutation policy: V1 exposes read, preview, selected approval-gated enrichment, and selected approval-gated Eazybe template-send tools only. `create_hubspot_task`, `append_hubspot_note`, and `update_nurture_fields` are planned write-phase tools and are disabled in V1.
 - Sales-best-practices usage: apply `sales-best-practices.md` for Friday review, operating rhythm, QO/QO Met quality, inbound/routing, warm activity, events, pre-demo/demo/post-demo, coaching, AI/data readiness, and nurture drafting.
 - Inbound/routing: consider lead source, ICP fit, buying role, current tools, clean-lead completeness, and QO/QO Met quality before treating inbound as sales-ready.
 - Event attribution: do not attribute QO, QO Met, deals, or follow-up to an event unless HubSpot stages/tags and event-specific evidence verify it; otherwise mark `needs-check`.
@@ -39,9 +42,9 @@ Use this reference with `sales-best-practices.md` before changing or answering f
 | `get_account_context` | Account context | HubSpot account truth plus C360 enrichment for verified customers; safe packet by default; access scope, PII/body safety, no mutation. |
 | `build_pre_demo_game_plans` | Pre-demo | Selected scoped accounts only; I-C-BANT and missing-evidence rules; optional Slack source-thread permalink as provenance only; no raw Slack transcript, invented pricing/current tools/case studies, or mutation. |
 | `list_sales_followup_tasks` | Follow-up | Existing incomplete sales-owned HubSpot tasks only; safe task fields; no duplicate task creation. |
-| `check_account_followup_status` | Follow-up | HubSpot communications, notes, tasks, and meetings determine status; event attribution requires proof; body-free by default, with admin-only `include_body=true` for bounded WhatsApp communication bodies. |
+| `check_account_followup_status` | Follow-up | HubSpot communications, notes, tasks, and meetings determine status; event attribution requires proof; raw bodies hidden. |
 | `check_event_followup_status` | Event follow-up | Luma/Sheet attendance identifies matched accounts; HubSpot verifies event-specific WhatsApp/tasks; raw attendees and bodies hidden. |
-| `build_daily_nurture_plan` | Daily nurture | Builds a scoped daily nurture queue and approved-template draft rows from HubSpot plus selected enrichment; no WhatsApp send or HubSpot mutation. |
+| `build_daily_nurture_plan` | Daily nurture | Jeremy-style 09:00 Asia/Singapore pack; HubSpot target accounts/contacts/roles are source of truth, Sheet material rows are read-only context, 30/150 rotation has no silent replacement, all decision makers/influencers/champions get draft rows. |
 | `score_nurture_accounts` | Queue scoring | HubSpot override fields and clean-lead completeness; access scope and pagination caveats; no mutation. |
 | `find_contact_gaps` | Enrichment gaps | HubSpot decision-maker and buying-role fields; clean-lead completeness; no paid enrichment or raw PII export. |
 | `find_t90_renewal_gaps` | Renewal timing | HubSpot `contract_end_date` is durable timing truth; missing-date bucket is explicit; no raw contacts/task bodies. |
@@ -62,15 +65,17 @@ Use this reference with `sales-best-practices.md` before changing or answering f
 | `search_lusha_decision_maker_candidates` | Paid enrichment | Scoped HubSpot companies only; `credit_report` required; availability flags only; no PII reveal or mutation. |
 | `reveal_lusha_contact_details` | Approval-gated enrichment | Selected contacts plus approval marker; selected PII only in internal Slack; phone reveal requires explicit flag; no HubSpot mutation. |
 | `get_lusha_credit_usage` | Paid enrichment | Credit reporting only; `credit_report` required; no prospect PII or mutation. |
+| `read_google_slides_deck` | Drive material | Read-only Google Slides extraction for approved sales material; no Drive mutation and no raw export beyond bounded text. |
 | `list_drive_folder_images` | Drive photo | Drive metadata only from `team@staffany.com`; source pointers and uploader names only; no raw image copy or Drive mutation. |
 | `read_google_slides_deck` | Drive deck | Selected Google Slides or Drive-hosted `.pptx` text only through `team@staffany.com`; no public link sharing, edits, comments, raw byte retention, or CRM truth override. |
 | `extract_drive_image_clues` | Drive photo | Transient OCR/vision clues only; raw bytes discarded; event/person attribution remains `needs-check` until confirmed. |
 | `read_nurture_material_registry` | Drive registry | One-sheet nurture material registry from `NURTUREANY_MATERIAL_REGISTRY_SPREADSHEET_ID`; safe rows only; no raw exports or Drive mutation. |
+| `read_nurture_material_registry` | Material registry | One read-only Google Sheet for Materials, Playbooks, Peer Intros, Speaker/Venue Opportunities, Events, and Review Log; active/approved/live rows only; no Drive mutation. |
 | `read_indonesia_event_registration_attendance` | Event fallback | Indonesia LL/HHH Sheet fallback only when Luma check-in is empty or not used; `Attend The Event` is manual attendance evidence; safe rows and match keys only. |
-| `preview_eazybe_template_messages` | Eazybe preview | Reviews selected stored daily nurture template rows with redacted phone metadata; no send. |
-| `send_approved_eazybe_messages` | Eazybe send | Approval-gated approved-template send only with explicit approval marker; no free-form WhatsApp text. |
-| `check_eazybe_send_status` | Eazybe status | Read-only status lookup for selected message IDs; no message body export or mutation. |
-| `build_daily_nurture_reminder` | Eazybe preview | Builds Slack reminder copy for daily nurture review; preview only. |
+| `preview_eazybe_template_messages` | Eazybe preview | Selected message IDs only; validates approved template payload and ordered params; phone numbers redacted; no send. |
+| `send_approved_eazybe_messages` | Approval-gated send | Requires `approval_marker`; sends only approved Eazybe `templateName` plus ordered `templateParams`; partial failures surfaced; no free-form drafts. |
+| `check_eazybe_send_status` | Eazybe status | Summarizes accepted/queued/sent/delivered/failed/pending states for the run; HubSpot WhatsApp evidence can also satisfy sent definition. |
+| `build_daily_nurture_reminder` | Slack reminder | 12:00 Asia/Singapore reminder; fires for unsent/unskipped stakeholder messages and tags the configured AE and manager. |
 | `resolve_known_area_for_near_me` | Near-me | Curated known areas outside HubSpot; no person GPS or employee movement; no mutation. |
 | `build_near_me_outlet_matches_query` | Near-me | Builds read-only SQL for curated outlet matches; BigQuery mutation is out of scope. |
 | `refresh_google_places_for_known_area` | Near-me | Google Places is live candidate discovery only; Google-only rows are not CRM truth; no mutation. |

@@ -223,7 +223,6 @@ COMMUNICATION_PROPERTIES = [
     "hs_lastmodifieddate",
 ]
 COMMUNICATION_EVENT_PROPERTIES = [*COMMUNICATION_PROPERTIES, "hs_communication_body"]
-FOLLOWUP_BODY_MAX_CHARS = 4000
 
 NOTE_PROPERTIES = [
     "hs_timestamp",
@@ -2908,7 +2907,6 @@ def _safe_followup_evidence(
     activity: dict[str, Any],
     activity_sources: dict[str, list[dict[str, str]]],
     event_match: dict[str, str] | None = None,
-    include_body: bool = False,
 ) -> dict[str, Any]:
     props = activity.get("properties", {})
     object_id = str(activity.get("id") or "")
@@ -2922,10 +2920,6 @@ def _safe_followup_evidence(
     if object_type == "communication":
         evidence["channel"] = props.get("hs_communication_channel_type") or ""
         evidence["logged_from"] = props.get("hs_communication_logged_from") or ""
-        if include_body:
-            body = str(props.get("hs_communication_body") or "")
-            evidence["body"] = body[:FOLLOWUP_BODY_MAX_CHARS]
-            evidence["body_truncated"] = len(body) > FOLLOWUP_BODY_MAX_CHARS
     if object_type == "task":
         evidence["status"] = props.get("hs_task_status") or ""
     if object_type == "meeting":
@@ -2952,7 +2946,6 @@ def _account_followup_status(
     since_dt: datetime,
     until_dt: datetime | None,
     event_context: dict[str, Any] | None = None,
-    include_body: bool = False,
 ) -> dict[str, Any]:
     company_id = str(company.get("id") or "")
     props = company.get("properties", {})
@@ -2984,11 +2977,7 @@ def _account_followup_status(
     weak_evidence = False
 
     activity_specs = [
-        (
-            "communications",
-            "communication",
-            COMMUNICATION_EVENT_PROPERTIES if event_mode or include_body else COMMUNICATION_PROPERTIES,
-        ),
+        ("communications", "communication", COMMUNICATION_EVENT_PROPERTIES if event_mode else COMMUNICATION_PROPERTIES),
         ("notes", "note", NOTE_PROPERTIES),
         ("tasks", "task", TASK_PROPERTIES),
         ("meetings", "meeting", MEETING_PROPERTIES),
@@ -3012,13 +3001,7 @@ def _account_followup_status(
                 continue
 
             event_match = _event_specific_match(evidence_type, activity, event_context) if event_mode else None
-            safe_evidence = _safe_followup_evidence(
-                evidence_type,
-                activity,
-                association_data["activity_sources"],
-                event_match,
-                include_body=include_body and evidence_type == "communication",
-            )
+            safe_evidence = _safe_followup_evidence(evidence_type, activity, association_data["activity_sources"], event_match)
             evidence_owner_id = str(safe_evidence.get("owner_id") or "")
             if evidence_owner_id and company_owner_id and evidence_owner_id != company_owner_id:
                 owner_mismatch = True
@@ -3094,9 +3077,7 @@ def _account_followup_status(
         "weak_evidence": weak_evidence,
         "confidence": "needs-check" if status == "needs_check" else "verified",
         "caveat": (
-            "Admin-requested WhatsApp bodies are included for communication evidence."
-            if include_body
-            else "Safe HubSpot follow-up evidence only; raw WhatsApp bodies, note bodies, task bodies, phone numbers, and bulk PII are omitted."
+            "Safe HubSpot follow-up evidence only; raw WhatsApp bodies, note bodies, task bodies, phone numbers, and bulk PII are omitted."
         ),
     }
 
@@ -3124,7 +3105,6 @@ def _count_indexed_followup_activity(
     evidence_type: str,
     activity: dict[str, Any],
     sources: list[dict[str, str]],
-    include_body: bool = False,
 ) -> None:
     if evidence_type == "communication" and not _is_whatsapp_communication(activity):
         return
@@ -3132,12 +3112,7 @@ def _count_indexed_followup_activity(
         return
 
     activity_id = str(activity.get("id") or "")
-    safe_evidence = _safe_followup_evidence(
-        evidence_type,
-        activity,
-        {activity_id: sources},
-        include_body=include_body and evidence_type == "communication",
-    )
+    safe_evidence = _safe_followup_evidence(evidence_type, activity, {activity_id: sources})
     evidence_owner_id = str(safe_evidence.get("owner_id") or "")
     if evidence_owner_id and company_owner_id and evidence_owner_id != company_owner_id:
         account_activity["owner_mismatch"] = True
@@ -3162,7 +3137,6 @@ def _followup_activity_index_for_companies(
     deal_index: dict[str, list[str]],
     since_dt: datetime,
     until_dt: datetime | None,
-    include_body: bool = False,
 ) -> dict[str, dict[str, Any]]:
     company_ids = [str(company.get("id") or "") for company in companies if company.get("id")]
     if not company_ids:
@@ -3179,7 +3153,7 @@ def _followup_activity_index_for_companies(
     contact_ids = list(contact_to_companies.keys())
     deal_ids = list(deal_to_companies.keys())
     activity_specs = [
-        ("communications", "communication", COMMUNICATION_EVENT_PROPERTIES if include_body else COMMUNICATION_PROPERTIES),
+        ("communications", "communication", COMMUNICATION_PROPERTIES),
         ("notes", "note", NOTE_PROPERTIES),
         ("tasks", "task", TASK_PROPERTIES),
         ("meetings", "meeting", MEETING_PROPERTIES),
@@ -3237,7 +3211,6 @@ def _followup_activity_index_for_companies(
                     evidence_type,
                     activity,
                     sources,
-                    include_body=include_body,
                 )
 
     for account_activity in activity_by_company.values():
@@ -3247,11 +3220,7 @@ def _followup_activity_index_for_companies(
     return activity_by_company
 
 
-def _account_followup_status_from_index(
-    company: dict[str, Any],
-    account_activity: dict[str, Any],
-    include_body: bool = False,
-) -> dict[str, Any]:
+def _account_followup_status_from_index(company: dict[str, Any], account_activity: dict[str, Any]) -> dict[str, Any]:
     counts = dict(_empty_followup_activity()["counts"])
     counts.update(account_activity.get("counts") or {})
     truncated = bool(account_activity.get("activity_truncated") or account_activity.get("truncated"))
@@ -3284,9 +3253,7 @@ def _account_followup_status_from_index(
         "weak_evidence": weak_evidence,
         "confidence": "needs-check" if status == "needs_check" else "verified",
         "caveat": (
-            "Admin-requested WhatsApp bodies are included for communication evidence."
-            if include_body
-            else "Safe HubSpot follow-up evidence only; raw WhatsApp bodies, note bodies, task bodies, phone numbers, and bulk PII are omitted."
+            "Safe HubSpot follow-up evidence only; raw WhatsApp bodies, note bodies, task bodies, phone numbers, and bulk PII are omitted."
         ),
     }
 
@@ -5636,8 +5603,10 @@ def _daily_nurture_for_date(value: str = "") -> date:
         return parsed
     return datetime.now(SINGAPORE_TIMEZONE).date()
 
+
 def _daily_nurture_bucket_index(for_date: date) -> int:
     return min(for_date.weekday(), DAILY_NURTURE_WORKWEEK_DAYS - 1)
+
 
 def _company_sort_key(company: dict[str, Any]) -> tuple[str, str]:
     props = company.get("properties") if isinstance(company.get("properties"), dict) else {}
@@ -5645,6 +5614,7 @@ def _company_sort_key(company: dict[str, Any]) -> tuple[str, str]:
         str(props.get("name") or company.get("name") or "").strip().lower(),
         str(company.get("id") or company.get("company_id") or ""),
     )
+
 
 def _daily_nurture_company_bucket(
     companies: list[dict[str, Any]],
@@ -5666,6 +5636,7 @@ def _daily_nurture_company_bucket(
         "sorted_company_ids": [str(company.get("id") or company.get("company_id") or "") for company in sorted_companies],
     }
 
+
 def _split_material_tags(value: Any) -> list[str]:
     if isinstance(value, list):
         raw_values = value
@@ -5678,11 +5649,13 @@ def _split_material_tags(value: Any) -> list[str]:
             tags.append(tag)
     return tags
 
+
 def _material_date(value: Any) -> date | None:
     text = str(value or "").strip()
     if not text:
         return None
     return _date_value(text)
+
 
 def _material_registry_contract() -> dict[str, Any]:
     return {
@@ -5691,6 +5664,7 @@ def _material_registry_contract() -> dict[str, Any]:
         "minimum_fields": list(DAILY_NURTURE_MATERIAL_FIELDS),
         "status_policy": "Only active, approved, or live rows are eligible. Expired/future rows are ignored.",
     }
+
 
 def _safe_material_rows(rows: list[dict[str, Any]] | None, for_date: date) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     active: list[dict[str, Any]] = []
@@ -5714,6 +5688,7 @@ def _safe_material_rows(rows: list[dict[str, Any]] | None, for_date: date) -> tu
         active.append(dict(row))
     return active, ignored
 
+
 def _material_country_matches(material: dict[str, Any], country: str) -> bool:
     scopes = _split_material_tags(material.get("country_scope"))
     if not scopes:
@@ -5721,9 +5696,19 @@ def _material_country_matches(material: dict[str, Any], country: str) -> bool:
     normalized_country = _normalized_words(country)
     return "all" in scopes or normalized_country in scopes or any(scope in normalized_country for scope in scopes)
 
+
 def _contact_role_text(contact: dict[str, Any]) -> str:
-    props = contact.get("properties", {})
-    return str(contact.get("persona") or props.get("job_role") or props.get("jobtitle") or "")
+    return _normalized_words(
+        " ".join(
+            [
+                str(contact.get("persona") or ""),
+                str(contact.get("buying_role") or ""),
+                str(contact.get("channel_fit") or ""),
+                str(contact.get("contact_confidence") or ""),
+            ]
+        )
+    )
+
 
 def _stakeholder_roles_for_contact(contact: dict[str, Any]) -> list[dict[str, str]]:
     roles: list[dict[str, str]] = []
@@ -5771,6 +5756,7 @@ def _stakeholder_roles_for_contact(contact: dict[str, Any]) -> list[dict[str, st
         unique_roles.append(role)
     return unique_roles
 
+
 def _daily_nurture_stakeholders(context: dict[str, Any]) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
     stakeholders: list[dict[str, Any]] = []
     present_roles: set[str] = set()
@@ -5796,6 +5782,7 @@ def _daily_nurture_stakeholders(context: dict[str, Any]) -> tuple[list[dict[str,
             gaps.append({"role": required_role, "reason": f"no {required_role} identified from HubSpot contacts"})
     return stakeholders, gaps
 
+
 def _material_schema_names(value: Any) -> list[str]:
     if isinstance(value, list):
         names = [str(item or "").strip() for item in value]
@@ -5814,8 +5801,10 @@ def _material_schema_names(value: Any) -> list[str]:
     cleaned = [name for name in names if name]
     return cleaned or list(DAILY_NURTURE_DEFAULT_TEMPLATE_SCHEMA)
 
+
 def _first_name(display_name: str) -> str:
     return str(display_name or "").strip().split(" ")[0] or "there"
+
 
 def _template_params(schema_names: list[str], context: dict[str, Any], stakeholder: dict[str, Any], material: dict[str, Any]) -> list[str]:
     company = context.get("company", {})
@@ -5835,6 +5824,7 @@ def _template_params(schema_names: list[str], context: dict[str, Any], stakehold
         "ae_name": str(company.get("owner_name") or company.get("owner_email") or ""),
     }
     return [mapping.get(_normalized_words(name).replace(" ", "_"), "") for name in schema_names]
+
 
 def _case_study_materials(context: dict[str, Any]) -> list[dict[str, Any]]:
     materials = []
@@ -5860,6 +5850,7 @@ def _case_study_materials(context: dict[str, Any]) -> list[dict[str, Any]]:
             }
         )
     return materials
+
 
 def _material_score(material: dict[str, Any], context: dict[str, Any], stakeholder: dict[str, Any]) -> tuple[int, list[str]]:
     company = context.get("company", {})
@@ -5923,6 +5914,7 @@ def _material_score(material: dict[str, Any], context: dict[str, Any], stakehold
         reasons.extend([str(reason) for reason in material.get("match_reasons")[:3]])
     return score, reasons[:5]
 
+
 def _match_nurture_material(
     context: dict[str, Any],
     stakeholder: dict[str, Any],
@@ -5954,9 +5946,11 @@ def _match_nurture_material(
     material["match_reasons"] = reasons
     return material
 
+
 def _daily_nurture_message_id(run_id: str, company_id: str, contact_id: str, stakeholder_role: str) -> str:
     payload = f"{run_id}:{company_id}:{contact_id}:{stakeholder_role}".encode("utf-8")
     return hashlib.sha256(payload).hexdigest()[:16]
+
 
 def _daily_nurture_draft(context: dict[str, Any], stakeholder: dict[str, Any], material: dict[str, Any]) -> str:
     company = context.get("company", {})
@@ -5972,6 +5966,7 @@ def _daily_nurture_draft(context: dict[str, Any], stakeholder: dict[str, Any], m
     if url:
         body = f"{body}\n{url}"
     return body[:900]
+
 
 def _daily_nurture_message(
     run_id: str,
@@ -6019,16 +6014,51 @@ def _daily_nurture_message(
         "safe_for_slack": True,
     }
 
+
 def _daily_nurture_run_id(owner_email: str, for_date: date, bucket_index: int, company_ids: list[str]) -> str:
     digest = hashlib.sha256("|".join(company_ids).encode("utf-8")).hexdigest()[:8]
     owner_key = _normalize_name(owner_email or "owner") or "owner"
     return f"daily-nurture:{owner_key}:{for_date.isoformat()}:bucket-{bucket_index + 1}:{digest}"
+
+
+def _daily_nurture_contexts(companies: list[dict[str, Any]], scope: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    company_ids = [
+        str(company.get("id") or company.get("company_id") or "").strip()
+        for company in companies
+        if str(company.get("id") or company.get("company_id") or "").strip()
+    ]
+    contact_index = _batch_association_ids("companies", "contacts", company_ids)
+    contact_detail_index = _safe_contact_index(contact_index)
+    contexts: dict[str, dict[str, Any]] = {}
+
+    for company in companies:
+        company_id = str(company.get("id") or company.get("company_id") or "").strip()
+        if not company_id or not _has_company_access(company, scope):
+            continue
+        contacts = contact_detail_index.get(company_id, [])
+        props = company.get("properties", {})
+        company_summary = _summarize_company_with_contacts(
+            company,
+            contacts,
+            contact_count=len(contact_index.get(company_id, [])),
+        )
+        contexts[company_id] = {
+            "company": company_summary,
+            "contacts": contacts,
+            "deals": [],
+            "sales_followup_tasks": [],
+            "coverage": _coverage(props, contacts),
+        }
+
+    return contexts
+
 
 def _daily_nurture_runs_dir() -> Path | None:
     raw = os.environ.get(DAILY_NURTURE_RUNS_DIR_ENV, "").strip()
     if not raw:
         return None
     return Path(raw).expanduser()
+
 
 def _persist_daily_nurture_run(run_id: str, payload: dict[str, Any]) -> dict[str, str | bool]:
     runs_dir = _daily_nurture_runs_dir()
@@ -6044,6 +6074,7 @@ def _persist_daily_nurture_run(run_id: str, payload: dict[str, Any]) -> dict[str
     except OSError as error:
         return {"persisted": False, "reason": f"write failed: {error.__class__.__name__}"}
     return {"persisted": True, "path": str(path)}
+
 
 def _pre_demo_case_study_name_drops(context: dict[str, Any]) -> list[str]:
     drops = [
@@ -6260,6 +6291,50 @@ def _pre_demo_ic_bant_prompts(context: dict[str, Any]) -> dict[str, list[str]]:
 
 
 def _public_research_company_input(context: dict[str, Any]) -> dict[str, Any]:
+    company = context.get("company", {})
+    return {
+        "company_id": str(company.get("company_id") or ""),
+        "name": str(company.get("name") or ""),
+        "domain": str(company.get("domain") or ""),
+        "country": str(company.get("country") or ""),
+        "hubspot_scoped": True,
+        "scope_source": SCOPE_SOURCE,
+    }
+
+
+def _public_research_for_game_plan_contexts(
+    contexts: list[dict[str, Any]],
+    include_public_research: bool,
+    research_mode: str,
+) -> tuple[dict[str, dict[str, Any]], dict[str, Any] | None, list[str]]:
+    if not include_public_research:
+        return {}, None, []
+
+    token = os.environ.get("TAVILY_API_KEY", "").strip()
+    if not token:
+        message = "public research blocked: Missing TAVILY_API_KEY."
+        return {}, _public_research.research_cost_report([], message, research_mode), [message]
+
+    companies = [_public_research_company_input(context) for context in contexts[: _public_research.MAX_RESEARCH_COMPANIES]]
+    try:
+        result = _public_research.research_public_company_signals(companies, token, research_mode)
+    except _public_research.TavilyError as error:
+        message = f"public research blocked: {str(error)}"
+        return {}, _public_research.research_cost_report([], message, research_mode), [message]
+
+    by_company = {
+        str(item.get("input_company", {}).get("company_id") or ""): item
+        for item in result.get("answer", [])
+        if isinstance(item, dict)
+    }
+    return by_company, result.get("cost_report"), list(result.get("missing_evidence", []))
+
+
+def _build_pre_demo_game_plan_row(
+    context: dict[str, Any],
+    public_research: dict[str, Any] | None = None,
+    source_thread: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     company = context.get("company", {})
     return {
         "company_id": str(company.get("company_id") or ""),
@@ -10187,19 +10262,13 @@ def check_account_followup_status(
     since_at: str,
     until_at: str = "",
     limit: int = 50,
-    include_body: bool = False,
 ) -> dict[str, Any]:
-    """Check HubSpot follow-up status for selected scoped target accounts."""
+    """Check safe HubSpot follow-up status for selected scoped target accounts."""
 
     try:
         scope = _caller_scope(slack_user_email)
         if scope["kind"] == "blocked":
             return _blocked("Caller identity is not mapped to an allowed scope.", {"caller_email": slack_user_email})
-        if include_body and scope.get("kind") != "admin":
-            return _blocked(
-                "include_body requires admin scope.",
-                {"caller_email": slack_user_email, "scope_kind": scope.get("kind"), "include_body": True},
-            )
 
         since_dt = _datetime_value(since_at)
         if not since_dt:
@@ -10230,19 +10299,11 @@ def check_account_followup_status(
 
         contact_index = _batch_association_ids("companies", "contacts", selected_ids)
         deal_index = _batch_association_ids("companies", "deals", selected_ids)
-        activity_index = _followup_activity_index_for_companies(
-            companies,
-            contact_index,
-            deal_index,
-            since_dt,
-            until_dt,
-            include_body=include_body,
-        )
+        activity_index = _followup_activity_index_for_companies(companies, contact_index, deal_index, since_dt, until_dt)
         rows = [
             _account_followup_status_from_index(
                 company,
                 activity_index.get(str(company.get("id") or ""), _empty_followup_activity()),
-                include_body=include_body,
             )
             for company in companies
         ]
@@ -10253,8 +10314,6 @@ def check_account_followup_status(
         scope_response["since_at"] = since_at
         if until_at:
             scope_response["until_at"] = until_at
-        if include_body:
-            scope_response["include_body"] = True
 
         return {
             "answer": rows,
@@ -10267,10 +10326,7 @@ def check_account_followup_status(
             "truncated": truncated,
             "confidence": "needs-check" if needs_check else "verified",
             "caveat": (
-                "Read-only follow-up status. Admin-requested WhatsApp bodies are included only for HubSpot communication evidence; "
-                "note bodies, task bodies, unmatched event attendees, and secrets are omitted."
-                if include_body
-                else "Read-only follow-up status. WhatsApp is read from HubSpot communications; raw WhatsApp bodies, note bodies, "
+                "Read-only follow-up status. WhatsApp is read from HubSpot communications; raw WhatsApp bodies, note bodies, "
                 "task bodies, phone numbers, unmatched event attendees, and secrets are omitted."
             ),
         }
@@ -11435,6 +11491,7 @@ def build_daily_nurture_plan(
         selected_companies = bucket["companies"]
         selected_company_ids = [str(company.get("id") or company.get("company_id") or "") for company in selected_companies]
         run_id = _daily_nurture_run_id(target_owner_email, selected_date, bucket["bucket_index"], selected_company_ids)
+        daily_contexts = _daily_nurture_contexts(selected_companies, scope)
 
         accounts: list[dict[str, Any]] = []
         messages: list[dict[str, Any]] = []
@@ -11446,7 +11503,7 @@ def build_daily_nurture_plan(
             company_id = str(company.get("id") or company.get("company_id") or "")
             if not company_id:
                 continue
-            context = _company_context(company_id, scope, task_limit=5)
+            context = daily_contexts.get(company_id)
             if not context:
                 inaccessible_accounts.append({"company_id": company_id, "reason": "outside caller scope or inaccessible"})
                 continue
@@ -11513,6 +11570,8 @@ def build_daily_nurture_plan(
         if not material_registry_rows:
             confidence = "needs-check"
             caveats.append("No Google Sheet material registry rows were supplied; matching fell back to approved repo case studies only.")
+        if selected_companies:
+            caveats.append("Daily Slack plan uses batched HubSpot company/contact context; deep task/deal/C360 expansion is skipped to stay inside the Slack runtime window.")
 
         response = {
             "answer": {
@@ -11567,6 +11626,7 @@ def build_daily_nurture_plan(
         return _blocked(str(error), {"caller_email": slack_user_email})
     except ValueError as error:
         return _blocked(str(error), {"caller_email": slack_user_email})
+
 
 @mcp.tool()
 def draft_nurture_message(

@@ -28,6 +28,7 @@ Read phase:
 - Search companies by target-account flag, owner, and country.
 - Read company, contact, deal, association, activity, task, and note context.
 - Read HubSpot follow-up activity associated to scoped target accounts through company, contact, or deal links: WhatsApp communications, notes, completed tasks, existing incomplete sales-owned tasks, and completed meeting logs where available.
+- Build the daily nurture plan from HubSpot target accounts, owner scope, contacts, buying roles, current tools, activity, and follow-up status. HubSpot remains source of truth; the material registry Sheet is read-only context.
 - Read HubSpot calls and meetings for the Friday sales review with safe properties only: completed calls, call duration, completed meeting outcome/title/type, and association paths. Do not read call bodies, meeting bodies, recordings, phone numbers, or attachments.
 - Read property metadata for field validation and option values.
 
@@ -70,6 +71,7 @@ It exposes these tools:
 - `list_sales_followup_tasks`
 - `check_account_followup_status`
 - `check_event_followup_status`
+- `build_daily_nurture_plan`
 - `score_nurture_accounts`
 - `find_contact_gaps`
 - `find_t90_renewal_gaps`
@@ -227,9 +229,8 @@ Friday sales review uses the same scoped association discipline, plus HubSpot ca
 
 - Input: Slack user email, selected HubSpot company IDs or links, `since_at`, optional `until_at`, optional limit.
 - Output: one row per scoped target account with follow-up status, latest safe follow-up timestamp, activity counts, and safe evidence.
-- Optional `include_body=true` is admin-only. When supplied by an admin caller, WhatsApp communication evidence may include a bounded `body` field from HubSpot `hs_communication_body`; non-admin callers are blocked and the default remains body-free.
 - Status is `followed_up` when a WhatsApp communication, note, or completed task exists after `since_at`; `scheduled` when only open tasks exist; `not_found` when no associated activity exists; `needs_check` when associations are truncated, ownership does not match cleanly, or evidence is weak.
-- Must not expose communication bodies unless `include_body=true` and caller scope is admin. Must not expose note bodies, task bodies, phone numbers, unmatched Luma guests, raw attendee lists, mutate HubSpot, or call Eazybe directly.
+- Must not expose raw communication bodies, note bodies, task bodies, phone numbers, unmatched Luma guests, raw attendee lists, mutate HubSpot, or call Eazybe directly.
 
 `check_event_followup_status`:
 
@@ -238,7 +239,7 @@ Friday sales review uses the same scoped association discipline, plus HubSpot ca
 - Resolves Luma checked-in guests, matches them to scoped HubSpot target accounts, and classifies follow-up from associated event-specific Eazybe WhatsApp communications or event-specific tasks.
 - If Luma checked-in attendance is empty for an Indonesia LL/HHH event, Slack workflow may use `read_indonesia_event_registration_attendance` first, then pass attended keys into `find_target_accounts_by_luma_match_keys`, then pass the resolved scoped HubSpot companies into `check_account_followup_status` from the event end time.
 - Generic post-event WhatsApp, candidate attendee matching, truncated reads, owner mismatch, or incomplete Eazybe association returns `needs_check`.
-- It may inspect `hs_communication_body` internally for event-keyword matching, but the body is never returned, logged, or stored by `check_event_followup_status`.
+- It may inspect `hs_communication_body` internally for event-keyword matching, but the body is never returned, logged, or stored.
 
 `score_nurture_accounts`:
 
@@ -310,6 +311,15 @@ Friday sales review uses the same scoped association discipline, plus HubSpot ca
 
 - Input: account context, segment, manual channel.
 - Output: draft only; no send action.
+
+`build_daily_nurture_plan`:
+
+- Input: AE Slack email, optional date, owner/country filters, daily account count, protected pool size, and rows from the read-only material registry Sheet.
+- Output: deterministic Monday-Friday bucket over the protected target-account pool, selected 30 accounts, every decision maker / influencer / champion per account, role gaps, material gaps, Eazybe-ready template payloads, and WhatsApp draft previews.
+- Decision makers are verified only from HubSpot `hs_buying_role=DECISION_MAKER`; title-only matches are `needs-check`.
+- Influencers use HubSpot buying role/persona when available, otherwise HR/Ops/Finance/Area/Outlet leadership title candidates are `needs-check`.
+- Champions use explicit HubSpot/persona signals when present, otherwise warm activity or reply evidence is `needs-check`.
+- Do not silently replace accounts when the pool, contacts, or roles are incomplete. Surface the gap.
 
 `plan_event_photo_followup`:
 

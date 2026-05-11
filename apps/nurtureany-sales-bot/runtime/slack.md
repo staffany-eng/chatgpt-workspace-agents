@@ -21,7 +21,6 @@ NurtureAny's first runtime surface is Slack mention usage in sales pilot channel
 - Materially expanded scope, source-class changes, write intent, or expensive/ambiguous follow-ups require a revised plan and `run`.
 - T-90 renewal answers must display both the known T-90 `contract_end_date` bucket and the missing `contract_end_date` classification bucket. Do not bury missing-date accounts in the caveat.
 - Repeated account-name follow-up requests should reuse bounded sources or run bounded target-account `query` lookup. Do not switch to broad queue scoring as a direct lookup.
-- Admin requests to read recent HubSpot WhatsApp message text for selected account reviews may use `check_account_followup_status(include_body=true)` after scoped company IDs are selected. Non-admin callers stay body-free and should be blocked if they ask for body access.
 - Account-background and `get account context` answers should render the slim packet returned by `get_account_context` and should not add `Additional context`, contacts, last activity, open tasks, deals, or IC-BANT unless explicitly requested.
 - Follow-up coverage answers must name the calendars checked. For a scoped HubSpot account, include the account owner's email calendar ID when calling Google Calendar; if it is inaccessible to `team@staffany.com`, say that instead of saying no follow-up.
 - Calendar meeting-quality audit requests must first resolve the scoped HubSpot account, then fetch `get_account_context`, pass `company.calendar_audit_seed` to `audit_google_calendar_meeting_quality`, and only then summarize whether the right people are on the meeting.
@@ -39,6 +38,8 @@ NurtureAny's first runtime surface is Slack mention usage in sales pilot channel
 - Friday review requests should plan HubSpot hygiene first with `build_friday_sales_review`, then run returned `warehouse_metric_followups` through `staffany_bigquery.execute_sql_readonly` when QO actuals are needed.
 - Luma guest or attendance requests must check HubSpot scope first, then return bounded RSVP/attendance context without raw attendee exports.
 - Post-event follow-up requests must use `check_event_followup_status` when the event is named or needs Luma resolution, then use HubSpot/Eazybe event-specific WhatsApp communications, notes, and tasks for status. Generic post-event WhatsApp is `needs_check`, not clean follow-up.
+- Daily nurture scheduled flow: at 09:00 Asia/Singapore, read `NURTUREANY_MATERIAL_REGISTRY_SPREADSHEET_ID` through `read_nurture_material_registry`, then call `build_daily_nurture_plan` for Jeremy (`jeremy.wong@staffany.com`) with 30 accounts from his protected 150. Post the pack to the configured Slack destination with selected accounts, all decision makers / influencers / champions, material matches, role/material gaps, and Eazybe-template-ready message IDs. At 12:00 Asia/Singapore, call `build_daily_nurture_reminder`; if any assigned stakeholder message is not sent or explicitly skipped, post the reminder to `reminder_channel_id` and tag Jeremy plus his manager.
+- WhatsApp send flow is approval-gated only: call `preview_eazybe_template_messages` for selected message IDs, then `send_approved_eazybe_messages` only after Jeremy provides `approval_marker`. No free-form WhatsApp sends and no auto-blast.
 - Luma event requests should pass exact Luma event tags when the prompt implies them, for example `event_tags=["Jakarta", "Appreciation Afternoon"]` for `StaffAny Appreciation Afternoon (JKT)` or `event_tags=["Singapore", "Sports"]` for the screenshot-style Sports event. Use country as broad account scope, not as the event filter when exact tags are known.
 - Broad event-wide Luma questions must use event-first matching instead of paging every HubSpot target account: find event, extract safe match keys, search HubSpot scoped candidates, then fetch Luma context for those candidates only.
 - For Indonesia LL/HHH event follow-up where Luma returns zero checked-in attendees or check-in was not tracked, use the `ID REV - LL & HHH EVENTS` Google Sheet fallback through `read_indonesia_event_registration_attendance`. Do not match Luma RSVP/no-show keys as attended when `checked_in_count=0` for a past event. Treat `Attend The Event` as manual attendance, match attended company/domain keys back to scoped HubSpot target accounts through `find_target_accounts_by_luma_match_keys`, then check HubSpot follow-up. Do not call `list_team_target_accounts` or delegate the matching flow. Do not expose phone numbers, full emails, raw registration rows, or raw attendee exports.
@@ -61,6 +62,8 @@ AE commands:
 - `@NurtureAny my 150`
 - `@NurtureAny my target accounts`
 - `@NurtureAny my nurture queue`
+- `@NurtureAny build today's daily nurture plan`
+- `@NurtureAny preview Eazybe messages msg-1 msg-2`
 - `@NurtureAny accounts missing direct contact`
 - `@NurtureAny build game plan for company 123456789`
 - `@NurtureAny build game plan for Noci Bakehouse`

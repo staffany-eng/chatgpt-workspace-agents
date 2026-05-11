@@ -132,7 +132,6 @@ expected_servers = {
         "list_sales_followup_tasks",
         "check_account_followup_status",
         "check_event_followup_status",
-        "build_daily_nurture_plan",
         "score_nurture_accounts",
         "find_contact_gaps",
         "find_t90_renewal_gaps",
@@ -144,6 +143,7 @@ expected_servers = {
         "plan_event_photo_followup",
         "draft_nurture_message",
         "plan_hubspot_writeback",
+        "build_daily_nurture_plan",
     ],
     "google_calendar_nurtureany": ["list_google_calendar_events", "audit_google_calendar_meeting_quality"],
     "google_drive_nurtureany": [
@@ -368,7 +368,7 @@ if [ "$EXPECT_MODEL_AUTH" = "1" ]; then
 fi
 
 memory_out="$tmp_dir/memory.out"
-hermes -p "$PROFILE" memory status >"$memory_out" 2>&1 || fail "memory:status-failed"
+env -u HERMES_HOME hermes -p "$PROFILE" memory status >"$memory_out" 2>&1 || fail "memory:status-failed"
 if grep -Eq 'Provider:[[:space:]]+honcho|Status:[[:space:]]+available.*honcho' "$memory_out"; then
   fail "memory:honcho-active"
 fi

@@ -120,7 +120,7 @@ Use these safe HubSpot timeline fields for post-event follow-up status:
 | Tasks | `hs_timestamp`, `hubspot_owner_id`, `hs_task_status`, `hs_task_priority`, `hs_task_type`, `hs_lastmodifieddate` | Completed tasks count as followed up; incomplete tasks count as scheduled follow-up. |
 | Meetings | `hs_timestamp`, `hubspot_owner_id`, `hs_meeting_title`, `hs_meeting_outcome`, `hs_activity_type`, `hs_lastmodifieddate` | Completed meeting logs are safe CRM hygiene evidence; do not return meeting body or guest exports. |
 
-Return safe evidence only by default: object type, object ID, timestamp, owner ID, channel/status when safe, event-match label when applicable, and association path. `check_account_followup_status` may expose a bounded WhatsApp communication `body` field only when an admin caller explicitly sets `include_body=true` for selected company IDs. `check_event_followup_status` may inspect `hs_communication_body` internally to confirm event-specific Eazybe WhatsApp follow-up, but must never return, log, store, or expose the body. Do not expose `hs_note_body`, task body, phone numbers, unmatched event attendees, or raw attendee lists.
+Return safe evidence only: object type, object ID, timestamp, owner ID, channel/status when safe, event-match label when applicable, and association path. `check_event_followup_status` may inspect `hs_communication_body` internally to confirm event-specific Eazybe WhatsApp follow-up, but must never return, log, store, or expose the body. Do not expose `hs_communication_body`, `hs_note_body`, task body, phone numbers, unmatched event attendees, or raw attendee lists.
 
 ## Friday Sales Review Activity Properties
 

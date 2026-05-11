@@ -1,240 +1,254 @@
-# Non-secret Hermes profile template for NurtureAny Sales Bot.
-# Copy relevant values into ~/.hermes/profiles/nurtureanysalesbot/config.yaml and verify
-# exact key support with the installed Hermes version before restarting the gateway.
-
 terminal:
-  cwd: "~/agent-builder/apps/nurtureany-sales-bot"
-
+  cwd: ~/agent-builder/apps/nurtureany-sales-bot
 security:
   redact_secrets: true
-
 display:
-  busy_input_mode: "queue"
+  busy_input_mode: queue
   interim_assistant_messages: false
   streaming: false
-  tool_progress: "off"
+  tool_progress: 'off'
   tool_preview_length: 0
   platforms:
     slack:
       streaming: false
-      tool_progress: "off"
-
+      tool_progress: 'off'
 slack:
   require_mention: true
   reactions: false
-  # Allows user-token smoke messages that include a bot-authored mention block
-  # to trigger the gateway without opening free bot-to-bot chatter.
-  allow_bots: "mentions"
-
+  allow_bots: mentions
 kanban:
   dispatch_in_gateway: false
-
 agent:
-  # Keep restart auto-continue from replaying old Slack test sessions after
-  # gateway restarts. A one-second freshness window only resumes truly current
-  # interrupted work.
   gateway_auto_continue_freshness: 1
-
 model:
   default: "claude-sonnet-4-6"
   provider: "anthropic"
-
 nurtureany:
   supported_countries:
-    - "Singapore"
-    - "Malaysia"
-    - "Indonesia"
+  - Singapore
+  - Malaysia
+  - Indonesia
   access_policy:
-    runtime_policy_env: "NURTUREANY_ACCESS_POLICY_PATH"
-    template_file: "runtime/access-policy.template.json"
-    owner_mapping_source: "hubspot_owners_api"
-    unclassified_hubspot_owners: "blocked"
+    runtime_policy_env: NURTUREANY_ACCESS_POLICY_PATH
+    template_file: runtime/access-policy.template.json
+    owner_mapping_source: hubspot_owners_api
+    unclassified_hubspot_owners: blocked
     ae_scope:
-      type: "explicit_sales_rep_slack_email_to_hubspot_owner_email_to_hubspot_owner_id"
-      company_owner_property: "hubspot_owner_id"
-      allowed_accounts: "own_hubspot_target_accounts_only"
+      type: explicit_sales_rep_slack_email_to_hubspot_owner_email_to_hubspot_owner_id
+      company_owner_property: hubspot_owner_id
+      allowed_accounts: own_hubspot_target_accounts_only
     manager_scope:
-      access: "country_scoped_team_read_only"
+      access: country_scoped_team_read_only
       hubspot_writeback_preview: false
     overall_admins:
-      - "eugene@staffany.com"
-      - "kaiyi@staffany.com"
-      - "kai.yi@staffany.com"
+    - eugene@staffany.com
+    - kaiyi@staffany.com
+    - kai.yi@staffany.com
     regional_managers:
-      - email: "kerren.fong@staffany.com"
-        countries:
-          - "Singapore"
-          - "Malaysia"
-      - email: "sarah@staffany.com"
-        countries:
-          - "Indonesia"
-      - email: "sarah.ayutania@staffany.com"
-        countries:
-          - "Indonesia"
+    - email: kerren.fong@staffany.com
+      countries:
+      - Singapore
+      - Malaysia
+    - email: sarah@staffany.com
+      countries:
+      - Indonesia
+    - email: sarah.ayutania@staffany.com
+      countries:
+      - Indonesia
     sales_reps:
-      - slack_email: "example.sg.rep@example.invalid"
-        hubspot_owner_email: "example.sg.owner@example.invalid"
-        countries:
-          - "Singapore"
-        active: true
+    - slack_email: example.sg.rep@example.invalid
+      hubspot_owner_email: example.sg.owner@example.invalid
+      countries:
+      - Singapore
+      active: true
   approval_policy:
-    first_slack_request: "plan_first"
-    first_execution_approval: "run"
-    hubspot_mutations: "explicit_preview_approval"
-    external_message_sending: "disabled"
+    first_slack_request: plan_first
+    first_execution_approval: run
+    hubspot_mutations: explicit_preview_approval
+    external_message_sending: disabled
+    eazybe_template_sending: approval_gated_v2_only
+    free_form_whatsapp_sending: blocked
   revenue_actuals:
-    query_builder_tool: "build_sales_metric_actuals_query"
-    execution_tool: "staffany_bigquery.execute_sql_readonly"
-    qo_actuals_source: "staffany-warehouse.analytics.fct_sales_points.qo_set"
-    new_arr_policy: "ask_signed_converted_arr_vs_paid_converted_arr_vs_new_mrr_movement_arr"
-    friday_review_mode: "hubspot_hygiene_first_then_optional_warehouse_qo_followup"
+    query_builder_tool: build_sales_metric_actuals_query
+    execution_tool: staffany_bigquery.execute_sql_readonly
+    qo_actuals_source: staffany-warehouse.analytics.fct_sales_points.qo_set
+    new_arr_policy: ask_signed_converted_arr_vs_paid_converted_arr_vs_new_mrr_movement_arr
+    friday_review_mode: hubspot_hygiene_first_then_optional_warehouse_qo_followup
   friday_sales_review:
-    locked_pool_source: "HubSpot target accounts: hs_is_target_account=true + hubspot_owner_id + company_country"
+    locked_pool_source: 'HubSpot target accounts: hs_is_target_account=true + hubspot_owner_id
+      + company_country'
     weekly_account_target: 120
     locked_pool_baseline: 150
     connected_call_target: 40
-    connected_call_definition: "HubSpot calls with hs_call_status=COMPLETED and hs_call_duration>=120000 ms"
+    connected_call_definition: HubSpot calls with hs_call_status=COMPLETED and hs_call_duration>=120000
+      ms
     daily_whatsapp_rhythm: 30
     warm_activity_labels:
-      - "HHH"
-      - "LL"
-      - "coffee"
-      - "lunch"
-      - "dinner"
-      - "cosy"
-      - "ABM"
-      - "event"
-      - "appreciation afternoon"
-      - "sports"
+    - HHH
+    - LL
+    - coffee
+    - lunch
+    - dinner
+    - cosy
+    - ABM
+    - event
+    - appreciation afternoon
+    - sports
     hubspot_funnel_stage_env:
-      qo_pipeline_ids: "NURTUREANY_QO_PIPELINE_IDS"
-      qo_stage_ids: "NURTUREANY_QO_STAGE_IDS"
-      qo_met_stage_ids: "NURTUREANY_QO_MET_STAGE_IDS"
-      closed_won_stage_ids: "NURTUREANY_CLOSED_WON_STAGE_IDS"
-    missing_stage_config_result: "Confidence: needs-check; still return hygiene/account coverage"
+      qo_pipeline_ids: NURTUREANY_QO_PIPELINE_IDS
+      qo_stage_ids: NURTUREANY_QO_STAGE_IDS
+      qo_met_stage_ids: NURTUREANY_QO_MET_STAGE_IDS
+      closed_won_stage_ids: NURTUREANY_CLOSED_WON_STAGE_IDS
+    missing_stage_config_result: 'Confidence: needs-check; still return hygiene/account
+      coverage'
   manager_chase:
-    delivery_mode: "manager_draft_only"
-    source_of_truth: "HubSpot priority-account coverage and sales-owned task/activity evidence"
-    selected_slack_context: "summary_and_permalink_only"
+    delivery_mode: manager_draft_only
+    source_of_truth: HubSpot priority-account coverage and sales-owned task/activity
+      evidence
+    selected_slack_context: summary_and_permalink_only
     no_rep_tagging: true
     no_external_send: true
     no_hubspot_mutation: true
   photo_matching:
-    drive_folder_id: "1qXlFnr5TKFtsYNWk7ZywBBctDaae3RY-"
-    drive_folder_label: "all-random"
-    slack_ad_hoc_trigger: "mention_with_photo"
-    slack_required_scope: "files:read"
+    drive_folder_id: 1qXlFnr5TKFtsYNWk7ZywBBctDaae3RY-
+    drive_folder_label: all-random
+    slack_ad_hoc_trigger: mention_with_photo
+    slack_required_scope: files:read
     source_pointer_only: true
     raw_image_copy_default: false
     human_confirmation_required: true
     whatsapp_auto_send: false
     hubspot_custom_objects:
-      - "nurture_event"
-      - "nurture_event_photo"
-      - "nurture_person_appearance"
+    - nurture_event
+    - nurture_event_photo
+    - nurture_person_appearance
   honcho:
     enabled: false
-    reason: "V1 uses deterministic config and HubSpot as source of truth."
-
+    reason: V1 uses deterministic config and HubSpot as source of truth.
+  daily_nurture:
+    pilot: Jeremy
+    hubspot_owner_email: jeremy.wong@staffany.com
+    protected_pool_baseline: 150
+    daily_account_count: 30
+    timezone: Asia/Singapore
+    working_days: Monday-Friday
+    nine_am_cron_utc: 0 1 * * 1-5
+    noon_reminder_cron_utc: 0 4 * * 1-5
+    material_registry_spreadsheet_id_env: NURTUREANY_MATERIAL_REGISTRY_SPREADSHEET_ID
+    daily_runs_dir_env: NURTUREANY_DAILY_RUNS_DIR
+    sent_definition: Eazybe accepted/queued approved template OR HubSpot matching
+      WhatsApp communication after run start
+    per_ae_runtime_config:
+    - name: Jeremy
+      slack_user_id: U_JEREMY_PLACEHOLDER
+      hubspot_owner_email: jeremy.wong@staffany.com
+      manager_slack_user_id: U_MANAGER_PLACEHOLDER
+      reminder_channel_id: C_REMINDER_PLACEHOLDER
+      supported_countries:
+      - Singapore
+      daily_account_count: 30
+      timezone: Asia/Singapore
+      eazybe_sender_ref: EAZYBE_SENDER_REF_PLACEHOLDER
+      default_template_name: nurture_material_share_v1
 mcp_servers:
   hubspot_nurtureany:
-    description: "Custom HubSpot adapter for target-account nurture workflows."
-    command: "/Users/leekaiyi/.hermes/hermes-agent/venv/bin/python"
+    description: Custom HubSpot adapter for target-account nurture workflows.
+    command: /Users/leekaiyi/.hermes/hermes-agent/venv/bin/python
     args:
-      - "/Users/leekaiyi/workspace/agent builder/apps/nurtureany-sales-bot/runtime/mcp/hubspot_nurtureany_server.py"
+    - /Users/leekaiyi/workspace/agent builder/apps/nurtureany-sales-bot/runtime/mcp/hubspot_nurtureany_server.py
     auth:
-      type: "bearer_env"
-      env: "HUBSPOT_PRIVATE_APP_TOKEN"
-      note: "check_event_followup_status also reads LUMA_API_KEY; build_pre_demo_game_plans(include_public_research=true) also reads TAVILY_API_KEY from the profile environment."
+      type: bearer_env
+      env: HUBSPOT_PRIVATE_APP_TOKEN
+      note: check_event_followup_status also reads LUMA_API_KEY from the profile environment
+        for read-only event lookup.
     customer360_links:
-      company_url_template_env: "NURTUREANY_C360_COMPANY_URL_TEMPLATE"
-      org_url_template_env: "NURTUREANY_C360_ORG_URL_TEMPLATE"
-      route_key_map_env: "NURTUREANY_C360_ROUTE_KEY_BY_COMPANY_ID"
-      default_company_url_template: "https://customer-360-qv4r5xkisq-as.a.run.app/companies/{customer360_route_key}"
-      default_org_url_template: "https://customer-360-qv4r5xkisq-as.a.run.app/companies/{customer360_route_key}/orgs/{organisation_id}"
+      company_url_template_env: NURTUREANY_C360_COMPANY_URL_TEMPLATE
+      org_url_template_env: NURTUREANY_C360_ORG_URL_TEMPLATE
+      route_key_map_env: NURTUREANY_C360_ROUTE_KEY_BY_COMPANY_ID
+      default_company_url_template: https://customer-360-qv4r5xkisq-as.a.run.app/companies/{customer360_route_key}
+      default_org_url_template: https://customer-360-qv4r5xkisq-as.a.run.app/companies/{customer360_route_key}/orgs/{organisation_id}
       known_route_keys:
-        "1991281569": "fei-siong-group"
+        '1991281569': fei-siong-group
     timeout: 600
     tool_allowlist:
-      - "list_inbound_threads"
-      - "get_inbound_thread_context"
-      - "audit_inbound_sla"
-      - "list_marketing_campaigns"
-      - "get_campaign_assets"
-      - "get_campaign_social_effectiveness"
-      - "get_marketing_touch_context"
-      - "get_marketing_campaign_attribution"
-      - "list_my_target_accounts"
-      - "list_team_target_accounts"
-      - "audit_hubspot_owner_roster"
-      - "audit_priority_account_coverage"
-      - "build_sales_metric_actuals_query"
-      - "build_friday_sales_review"
-      - "build_manager_chase_plan"
-      - "get_account_context"
-      - "build_pre_demo_game_plans"
-      - "list_sales_followup_tasks"
-      - "check_account_followup_status"
-      - "check_event_followup_status"
-      - "build_daily_nurture_plan"
-      - "score_nurture_accounts"
-      - "find_contact_gaps"
-      - "find_t90_renewal_gaps"
-      - "generate_free_search_tasks"
-      - "review_public_enrichment_evidence"
-      - "find_target_accounts_by_luma_match_keys"
-      - "scan_drive_event_photos"
-      - "propose_photo_people_matches"
-      - "plan_event_photo_followup"
-      - "draft_nurture_message"
-      - "plan_hubspot_writeback"
+    - list_inbound_threads
+    - get_inbound_thread_context
+    - audit_inbound_sla
+    - list_marketing_campaigns
+    - get_campaign_assets
+    - get_campaign_social_effectiveness
+    - get_marketing_touch_context
+    - get_marketing_campaign_attribution
+    - list_my_target_accounts
+    - list_team_target_accounts
+    - audit_hubspot_owner_roster
+    - audit_priority_account_coverage
+    - build_sales_metric_actuals_query
+    - build_friday_sales_review
+    - build_manager_chase_plan
+    - get_account_context
+    - build_pre_demo_game_plans
+    - list_sales_followup_tasks
+    - check_account_followup_status
+    - check_event_followup_status
+    - score_nurture_accounts
+    - find_contact_gaps
+    - find_t90_renewal_gaps
+    - generate_free_search_tasks
+    - review_public_enrichment_evidence
+    - find_target_accounts_by_luma_match_keys
+    - scan_drive_event_photos
+    - propose_photo_people_matches
+    - plan_event_photo_followup
+    - draft_nurture_message
+    - plan_hubspot_writeback
+    - build_daily_nurture_plan
     mutation_tools_disabled_until_write_phase:
-      - "create_hubspot_task"
-      - "append_hubspot_note"
-      - "update_nurture_fields"
-
+    - create_hubspot_task
+    - append_hubspot_note
+    - update_nurture_fields
   public_research_nurtureany:
-    description: "Read-only Tavily public company research for scoped HubSpot companies."
-    command: "/Users/leekaiyi/.hermes/hermes-agent/venv/bin/python"
+    description: Read-only Tavily public company research for scoped HubSpot companies.
+    command: /Users/leekaiyi/.hermes/hermes-agent/venv/bin/python
     args:
-      - "/Users/leekaiyi/workspace/agent builder/apps/nurtureany-sales-bot/runtime/mcp/public_research_nurtureany_server.py"
+    - /Users/leekaiyi/workspace/agent builder/apps/nurtureany-sales-bot/runtime/mcp/public_research_nurtureany_server.py
     auth:
-      type: "api_key_env"
-      env: "TAVILY_API_KEY"
+      type: api_key_env
+      env: TAVILY_API_KEY
     cost_policy:
       max_search_companies: 5
-      light_mode_credits_per_company: "about 3"
-      standard_mode_credits_per_company: "about 5"
-      deep_mode_credits_per_company: "about 6-8"
+      light_mode_credits_per_company: about 3
+      standard_mode_credits_per_company: about 5
+      deep_mode_credits_per_company: about 6-8
       require_cost_report: true
       estimate_before_run: true
     pii_policy:
       selected_pii_in_internal_slack: false
       safe_company_fields_only:
-        - "company_id"
-        - "name"
-        - "domain"
-        - "country"
+      - company_id
+      - name
+      - domain
+      - country
       bulk_contact_exports: false
       no_private_hubspot_notes_tasks_or_contact_pii: true
       social_gated_urls_are_manual_check_only: true
     endpoint_policy:
       allowed_endpoints:
-        - "POST /search"
-        - "POST /extract"
+      - POST /search
+      - POST /extract
       tavily_research_api: false
-      note: "Tavily Research API disabled in V1."
+      note: Tavily Research API disabled in V1.
     tool_allowlist:
-      - "research_public_company_signals"
-
+    - research_public_company_signals
   lusha_nurtureany:
-    description: "Cost-controlled Lusha adapter for selected decision-maker lookup, reveal approval, and credit reporting."
-    command: "/Users/leekaiyi/.hermes/hermes-agent/venv/bin/python"
+    description: Cost-controlled Lusha adapter for selected decision-maker lookup,
+      reveal approval, and credit reporting.
+    command: /Users/leekaiyi/.hermes/hermes-agent/venv/bin/python
     args:
-      - "/Users/leekaiyi/workspace/agent builder/apps/nurtureany-sales-bot/runtime/mcp/lusha_nurtureany_server.py"
+    - /Users/leekaiyi/workspace/agent builder/apps/nurtureany-sales-bot/runtime/mcp/lusha_nurtureany_server.py
     auth:
-      type: "api_key_env"
-      env: "LUSHA_API_KEY"
+      type: api_key_env
+      env: LUSHA_API_KEY
     cost_policy:
       max_search_companies: 5
       max_candidates_per_company: 5
@@ -246,18 +260,18 @@ mcp_servers:
       bulk_contact_exports: false
       phone_reveal_requires_flag: true
     tool_allowlist:
-      - "search_lusha_decision_maker_candidates"
-      - "reveal_lusha_contact_details"
-      - "get_lusha_credit_usage"
-
+    - search_lusha_decision_maker_candidates
+    - reveal_lusha_contact_details
+    - get_lusha_credit_usage
   exa_nurtureany:
-    description: "LinkedIn-safe Exa People Search adapter for public decision-maker candidate discovery."
-    command: "/Users/leekaiyi/.hermes/hermes-agent/venv/bin/python"
+    description: LinkedIn-safe Exa People Search adapter for public decision-maker
+      candidate discovery.
+    command: /Users/leekaiyi/.hermes/hermes-agent/venv/bin/python
     args:
-      - "/Users/leekaiyi/workspace/agent builder/apps/nurtureany-sales-bot/runtime/mcp/exa_nurtureany_server.py"
+    - /Users/leekaiyi/workspace/agent builder/apps/nurtureany-sales-bot/runtime/mcp/exa_nurtureany_server.py
     auth:
-      type: "api_key_env"
-      env: "EXA_API_KEY"
+      type: api_key_env
+      env: EXA_API_KEY
     cost_policy:
       max_search_companies: 5
       max_candidates_per_company: 5
@@ -269,135 +283,138 @@ mcp_servers:
       no_email_or_phone_reveal: true
       linkedin_urls_are_manual_check_only: true
     tool_allowlist:
-      - "search_exa_people_candidates"
-
+    - search_exa_people_candidates
   staffany_bigquery:
-    description: "Read-only C360 enrichment source for MRR, renewal timing, account owner, and PSM context."
-    url: "https://bq-mcp-proxy-1093387803298.asia-southeast1.run.app/mcp"
+    description: Read-only C360 enrichment source for MRR, renewal timing, account
+      owner, and PSM context.
+    url: https://bq-mcp-proxy-1093387803298.asia-southeast1.run.app/mcp
     auth:
-      type: "bearer_env"
-      env: "MCP_STAFFANY_BIGQUERY_API_KEY"
+      type: bearer_env
+      env: MCP_STAFFANY_BIGQUERY_API_KEY
     tool_allowlist:
-      - "list_dataset_ids"
-      - "list_table_ids"
-      - "get_table_info"
-      - "execute_sql_readonly"
-
+    - list_dataset_ids
+    - list_table_ids
+    - get_table_info
+    - execute_sql_readonly
   near_me_nurtureany:
-    description: "Known-area near-me adapter for BigQuery outlet matches, Google Places restaurant refresh, and C360 customer SQL."
-    command: "/Users/leekaiyi/.hermes/hermes-agent/venv/bin/python"
+    description: Known-area near-me adapter for BigQuery outlet matches, Google Places
+      restaurant refresh, and C360 customer SQL.
+    command: /Users/leekaiyi/.hermes/hermes-agent/venv/bin/python
     args:
-      - "/Users/leekaiyi/workspace/agent builder/apps/nurtureany-sales-bot/runtime/mcp/near_me_nurtureany_server.py"
+    - /Users/leekaiyi/workspace/agent builder/apps/nurtureany-sales-bot/runtime/mcp/near_me_nurtureany_server.py
     auth:
       google_places:
-        type: "api_key_env"
-        env: "GOOGLE_PLACES_API_KEY"
+        type: api_key_env
+        env: GOOGLE_PLACES_API_KEY
       known_areas:
-        type: "file_env_optional"
-        env: "NURTUREANY_KNOWN_AREAS_FILE"
+        type: file_env_optional
+        env: NURTUREANY_KNOWN_AREAS_FILE
       outlet_matches_table:
-        type: "env_optional"
-        env: "NURTUREANY_OUTLET_MATCHES_TABLE"
-        default: "staffany-warehouse.analytics.nurtureany_near_me_outlet_matches"
+        type: env_optional
+        env: NURTUREANY_OUTLET_MATCHES_TABLE
+        default: staffany-warehouse.analytics.nurtureany_near_me_outlet_matches
       c360_company_url_template:
-        type: "env_optional"
-        env: "NURTUREANY_C360_COMPANY_URL_TEMPLATE"
-        default: "https://customer-360-qv4r5xkisq-as.a.run.app/companies/{customer360_route_key}"
+        type: env_optional
+        env: NURTUREANY_C360_COMPANY_URL_TEMPLATE
+        default: https://customer-360-qv4r5xkisq-as.a.run.app/companies/{customer360_route_key}
       c360_org_url_template:
-        type: "env_optional"
-        env: "NURTUREANY_C360_ORG_URL_TEMPLATE"
-        default: "https://customer-360-qv4r5xkisq-as.a.run.app/companies/{customer360_route_key}/orgs/{organisation_id}"
+        type: env_optional
+        env: NURTUREANY_C360_ORG_URL_TEMPLATE
+        default: https://customer-360-qv4r5xkisq-as.a.run.app/companies/{customer360_route_key}/orgs/{organisation_id}
       c360_route_key_map:
-        type: "env_optional_json"
-        env: "NURTUREANY_C360_ROUTE_KEY_BY_COMPANY_ID"
+        type: env_optional_json
+        env: NURTUREANY_C360_ROUTE_KEY_BY_COMPANY_ID
         default: '{"1991281569":"fei-siong-group"}'
     access_policy:
-      mode: "read_only"
-      known_areas_source: "curated config/table outside HubSpot"
-      google_places_endpoint: "POST https://places.googleapis.com/v1/places:searchNearby"
+      mode: read_only
+      known_areas_source: curated config/table outside HubSpot
+      google_places_endpoint: POST https://places.googleapis.com/v1/places:searchNearby
       google_places_included_types:
-        - "restaurant"
+      - restaurant
       google_places_field_mask:
-        - "places.id"
-        - "places.displayName"
-        - "places.formattedAddress"
-        - "places.location"
-        - "places.googleMapsUri"
-      memory_layer: "BigQuery outlet_matches table"
-      outlet_matches_table: "staffany-warehouse.analytics.nurtureany_near_me_outlet_matches"
-      c360_customer_layer: "analytics.fct_deal_org_company"
-      mrr_enrichment_only: "analytics.fct_company_org_mrr"
-      geofence_source: "kraken_rds.Locations"
+      - places.id
+      - places.displayName
+      - places.formattedAddress
+      - places.location
+      - places.googleMapsUri
+      memory_layer: BigQuery outlet_matches table
+      outlet_matches_table: staffany-warehouse.analytics.nurtureany_near_me_outlet_matches
+      c360_customer_layer: analytics.fct_deal_org_company
+      mrr_enrichment_only: analytics.fct_company_org_mrr
+      geofence_source: kraken_rds.Locations
       employee_gps_allowed: false
-      google_candidate_storage: "live_candidate_only_until_review_approval"
-      c360_company_url_template: "https://customer-360-qv4r5xkisq-as.a.run.app/companies/{customer360_route_key}"
-      c360_org_url_template: "https://customer-360-qv4r5xkisq-as.a.run.app/companies/{customer360_route_key}/orgs/{organisation_id}"
+      google_candidate_storage: live_candidate_only_until_review_approval
+      c360_company_url_template: https://customer-360-qv4r5xkisq-as.a.run.app/companies/{customer360_route_key}
+      c360_org_url_template: https://customer-360-qv4r5xkisq-as.a.run.app/companies/{customer360_route_key}/orgs/{organisation_id}
       c360_route_key_map: '{"1991281569":"fei-siong-group"}'
-      bigquery_writeback: "separate_review_or_admin_job_only"
-      hubspot_writeback: "none"
+      bigquery_writeback: separate_review_or_admin_job_only
+      hubspot_writeback: none
     depends_on:
-      staffany_bigquery_tool: "execute_sql_readonly"
+      staffany_bigquery_tool: execute_sql_readonly
     tool_allowlist:
-      - "resolve_known_area_for_near_me"
-      - "build_near_me_outlet_matches_query"
-      - "refresh_google_places_for_known_area"
-      - "build_near_me_c360_customer_query"
-      - "merge_near_me_sources"
-
+    - resolve_known_area_for_near_me
+    - build_near_me_outlet_matches_query
+    - refresh_google_places_for_known_area
+    - build_near_me_c360_customer_query
+    - prepare_near_me_seed_review_candidates
+    - merge_near_me_sources
   google_calendar_nurtureany:
-    description: "Read-only Google Calendar event context from team@staffany.com OAuth and AE calendars shared to that account."
-    command: "/Users/leekaiyi/.hermes/hermes-agent/venv/bin/python"
+    description: Read-only Google Calendar event context from team@staffany.com OAuth
+      and AE calendars shared to that account.
+    command: /Users/leekaiyi/.hermes/hermes-agent/venv/bin/python
     args:
-      - "/Users/leekaiyi/workspace/agent builder/apps/nurtureany-sales-bot/runtime/mcp/google_calendar_nurtureany_server.py"
+    - /Users/leekaiyi/workspace/agent builder/apps/nurtureany-sales-bot/runtime/mcp/google_calendar_nurtureany_server.py
     auth:
-      type: "oauth_token_file"
-      account: "team@staffany.com"
-      token_file_env: "GOOGLE_CALENDAR_TOKEN_FILE"
-      client_secret_file_env: "GOOGLE_CALENDAR_CLIENT_SECRET_FILE"
+      type: oauth_token_file
+      account: team@staffany.com
+      token_file_env: GOOGLE_CALENDAR_TOKEN_FILE
+      client_secret_file_env: GOOGLE_CALENDAR_CLIENT_SECRET_FILE
     access_policy:
-      mode: "read_only"
-      access_mode: "team_oauth_shared_calendar"
+      mode: read_only
+      access_mode: team_oauth_shared_calendar
       service_account: false
-      calendar_account_email: "team@staffany.com"
-      ae_calendar_source: "resolved_hubspot_owner_email"
-      inaccessible_calendar_result: "confidence_blocked"
+      calendar_account_email: team@staffany.com
+      ae_calendar_source: resolved_hubspot_owner_email
+      inaccessible_calendar_result: confidence_blocked
       max_calendars: 5
       max_events_per_calendar: 50
-      meeting_quality_audit: "internal_attendee_email_hash_match_to_hubspot_contacts"
-      attendee_visibility: "safe_summary_only_no_raw_emails"
+      meeting_quality_audit: internal_attendee_email_hash_match_to_hubspot_contacts
+      attendee_visibility: safe_summary_only_no_raw_emails
       event_mutations: false
       attendee_exports: false
     tool_allowlist:
-      - "list_google_calendar_events"
-      - "audit_google_calendar_meeting_quality"
-
+    - list_google_calendar_events
+    - audit_google_calendar_meeting_quality
   google_drive_nurtureany:
-    description: "Read-only Google Drive event-photo metadata, selected Slides/PPTX text, and Indonesia registration fallback from team@staffany.com OAuth."
-    command: "/Users/leekaiyi/.hermes/hermes-agent/venv/bin/python"
+    description: Read-only Google Drive event-photo metadata from team@staffany.com
+      OAuth.
+    command: /Users/leekaiyi/.hermes/hermes-agent/venv/bin/python
     args:
-      - "/Users/leekaiyi/workspace/agent builder/apps/nurtureany-sales-bot/runtime/mcp/google_drive_nurtureany_server.py"
+    - /Users/leekaiyi/workspace/agent builder/apps/nurtureany-sales-bot/runtime/mcp/google_drive_nurtureany_server.py
     auth:
-      type: "oauth_token_file"
-      account: "team@staffany.com"
-      token_file_env: "GOOGLE_DRIVE_TOKEN_FILE"
-      client_secret_file_env: "GOOGLE_DRIVE_CLIENT_SECRET_FILE"
-      vision_key_env: "ANTHROPIC_API_KEY"
-      vision_model_env: "NURTUREANY_DRIVE_VISION_MODEL"
-      uploader_profile_token_env: "SLACK_BOT_TOKEN"
-      material_registry_spreadsheet_id_env: "NURTUREANY_MATERIAL_REGISTRY_SPREADSHEET_ID"
+      type: oauth_token_file
+      account: team@staffany.com
+      token_file_env: GOOGLE_DRIVE_TOKEN_FILE
+      client_secret_file_env: GOOGLE_DRIVE_CLIENT_SECRET_FILE
+      vision_key_env: ANTHROPIC_API_KEY
+      vision_model_env: NURTUREANY_DRIVE_VISION_MODEL
+      uploader_profile_token_env: SLACK_BOT_TOKEN
+      material_registry_spreadsheet_id_env: NURTUREANY_MATERIAL_REGISTRY_SPREADSHEET_ID
     access_policy:
-      mode: "read_only"
-      access_mode: "team_oauth_drive_readonly"
+      mode: read_only
+      access_mode: team_oauth_drive_readonly
       service_account: false
-      drive_account_email: "team@staffany.com"
-      required_scope: "https://www.googleapis.com/auth/drive.readonly"
-      default_folder_id: "1qXlFnr5TKFtsYNWk7ZywBBctDaae3RY-"
-      id_rev_events_spreadsheet_id: "1mXixAVJGk0Uy0u1LtOmDFxU3XuW8DRfedB69E1f-drc"
-      registration_attendance_fallback: "Indonesia LL/HHH Google Sheet Attend The Event when Luma checked_in_at is empty or not used"
-      registration_attendance_column: "Attend The Event"
-      material_registry_env_var: "NURTUREANY_MATERIAL_REGISTRY_SPREADSHEET_ID"
-      material_registry_mode: "read_only_one_sheet_registry"
-      presentation_text_extraction: "Selected Google Slides or Drive-hosted .pptx decks through team@staffany.com drive.readonly"
+      drive_account_email: team@staffany.com
+      required_scope: https://www.googleapis.com/auth/drive.readonly
+      default_folder_id: 1qXlFnr5TKFtsYNWk7ZywBBctDaae3RY-
+      id_rev_events_spreadsheet_id: 1mXixAVJGk0Uy0u1LtOmDFxU3XuW8DRfedB69E1f-drc
+      registration_attendance_fallback: Indonesia LL/HHH Google Sheet Attend The Event
+        when Luma checked_in_at is empty or not used
+      registration_attendance_column: Attend The Event
+      material_registry_env_var: NURTUREANY_MATERIAL_REGISTRY_SPREADSHEET_ID
+      material_registry_mode: read_only_one_sheet_registry
+      presentation_text_extraction: Selected Google Slides or Drive-hosted .pptx decks
+        through team@staffany.com drive.readonly
       max_slides_text_chars: 30000
       max_presentation_bytes: 25000000
       public_link_sharing: false
@@ -405,94 +422,101 @@ mcp_servers:
       max_files: 100
       max_vision_files_per_call: 5
       transient_vision_downloads: true
-      uploader_profile_lookup: "best_effort_slack_users_info"
+      uploader_profile_lookup: best_effort_slack_users_info
       file_downloads: false
       drive_mutations: false
       raw_image_copy_default: false
+      material_registry_tabs:
+      - Materials
+      - Playbooks
+      - Peer Intros
+      - Speaker/Venue Opportunities
+      - Events
+      - Review Log
     tool_allowlist:
-      - "list_drive_folder_images"
-      - "read_google_slides_deck"
-      - "extract_drive_image_clues"
-      - "read_nurture_material_registry"
-      - "read_indonesia_event_registration_attendance"
-
-  eazybe_nurtureany:
-    description: "Approval-gated Eazybe WhatsApp template adapter for daily nurture."
-    command: "/Users/leekaiyi/.hermes/hermes-agent/venv/bin/python"
-    args:
-      - "/Users/leekaiyi/workspace/agent builder/apps/nurtureany-sales-bot/runtime/mcp/eazybe_nurtureany_server.py"
-    auth:
-      type: "api_key_env"
-      env: "EAZYBE_API_KEY"
-      broadcast_url_env: "EAZYBE_BROADCAST_API_URL"
-      status_url_env: "EAZYBE_STATUS_API_URL"
-    access_policy:
-      mode: "approval_gated"
-      free_form_messages: false
-      approved_template_only: true
-      approval_marker_required: true
-      phone_numbers_redacted_in_slack: true
-      daily_runs_dir_env: "NURTUREANY_DAILY_RUNS_DIR"
-    tool_allowlist:
-      - "preview_eazybe_template_messages"
-      - "send_approved_eazybe_messages"
-      - "check_eazybe_send_status"
-      - "build_daily_nurture_reminder"
-
+    - list_drive_folder_images
+    - read_google_slides_deck
+    - extract_drive_image_clues
+    - read_nurture_material_registry
+    - read_indonesia_event_registration_attendance
   luma_nurtureany:
-    description: "Read-only Luma event context adapter for RSVP, attendance, and no-show nurture."
-    command: "/Users/leekaiyi/.hermes/hermes-agent/venv/bin/python"
+    description: Read-only Luma event context adapter for RSVP, attendance, and no-show
+      nurture.
+    command: /Users/leekaiyi/.hermes/hermes-agent/venv/bin/python
     args:
-      - "/Users/leekaiyi/workspace/agent builder/apps/nurtureany-sales-bot/runtime/mcp/luma_nurtureany_server.py"
+    - /Users/leekaiyi/workspace/agent builder/apps/nurtureany-sales-bot/runtime/mcp/luma_nurtureany_server.py
     auth:
-      type: "api_key_env"
-      env: "LUMA_API_KEY"
-      header: "x-luma-api-key"
+      type: api_key_env
+      env: LUMA_API_KEY
+      header: x-luma-api-key
     access_policy:
-      mode: "read_only"
-      base_url: "https://public-api.luma.com"
+      mode: read_only
+      base_url: https://public-api.luma.com
       requires_scoped_hubspot_companies: true
-      attendance_definition: "checked_in_at_present"
+      attendance_definition: checked_in_at_present
       max_events: 50
       default_event_limit: 20
       max_events_for_context: 20
       max_guests_per_event: 250
       country_tags:
-        - "Singapore"
-        - "Malaysia"
-        - "Indonesia"
+      - Singapore
+      - Malaysia
+      - Indonesia
       location_tags:
-        - "Singapore"
-        - "Jakarta"
-        - "Bali"
-        - "Kuala Lumpur"
+      - Singapore
+      - Jakarta
+      - Bali
+      - Kuala Lumpur
       location_tag_country_map:
-        Singapore: "Singapore"
-        Jakarta: "Indonesia"
-        Bali: "Indonesia"
-        Kuala Lumpur: "Malaysia"
+        Singapore: Singapore
+        Jakarta: Indonesia
+        Bali: Indonesia
+        Kuala Lumpur: Malaysia
       event_type_tags:
-        - "Sports"
-        - "Appreciation Afternoon"
-        - "HR Happy Hour"
-        - "Leaders Lounge"
-      preferred_event_filter: "event_tags"
+      - Sports
+      - Appreciation Afternoon
+      - HR Happy Hour
+      - Leaders Lounge
+      preferred_event_filter: event_tags
       event_mutations: false
       raw_attendee_exports: false
-      hubspot_writeback: "none"
+      hubspot_writeback: none
     tool_allowlist:
-      - "list_luma_events"
-      - "get_luma_event_match_keys"
-      - "get_luma_event_context"
-
+    - list_luma_events
+    - get_luma_event_match_keys
+    - get_luma_event_context
+  eazybe_nurtureany:
+    description: Approval-gated Eazybe Broadcast API adapter for WhatsApp template
+      sends.
+    command: /Users/leekaiyi/.hermes/hermes-agent/venv/bin/python
+    args:
+    - /Users/leekaiyi/workspace/agent builder/apps/nurtureany-sales-bot/runtime/mcp/eazybe_nurtureany_server.py
+    auth:
+      type: api_key_env
+      env: EAZYBE_API_KEY
+      broadcast_api_url_env: EAZYBE_BROADCAST_API_URL
+      status_api_url_env: EAZYBE_STATUS_API_URL
+      daily_runs_dir_env: NURTUREANY_DAILY_RUNS_DIR
+    access_policy:
+      mode: approval_gated_template_send
+      approved_templates_only: true
+      free_form_drafts_sendable: false
+      phone_numbers_redacted_in_slack: true
+      approval_marker_required: true
+      broadcast_api_model: templateName plus ordered templateParams
+    tool_allowlist:
+    - preview_eazybe_template_messages
+    - send_approved_eazybe_messages
+    - check_eazybe_send_status
+    - build_daily_nurture_reminder
 gateway:
   slack:
     enabled: true
-    app_token_env: "SLACK_APP_TOKEN"
-    bot_token_env: "SLACK_BOT_TOKEN"
-    allowed_users_env: "SLACK_ALLOWED_USERS"
+    app_token_env: SLACK_APP_TOKEN
+    bot_token_env: SLACK_BOT_TOKEN
+    allowed_users_env: SLACK_ALLOWED_USERS
     channels:
-      - "#kaiyi-bot-testing"
-      - "#team-rev-onboarding-sgmy-sales"
-      - "#team-rev-bd-sgmy-proj12"
-      - "#team-rev-bd-id-proj18"
+    - '#kaiyi-bot-testing'
+    - '#team-rev-onboarding-sgmy-sales'
+    - '#team-rev-bd-sgmy-proj12'
+    - '#team-rev-bd-id-proj18'

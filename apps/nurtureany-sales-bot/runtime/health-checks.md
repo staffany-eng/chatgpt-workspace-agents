@@ -26,12 +26,12 @@ NurtureAny needs deterministic runtime checks because prompt correctness does no
 - C360 sales-packet smoke check calls `GET /api/companies/{customer360_route_key_or_hubspot_company_id}/sales-packet` with `NURTUREANY_C360_INTERNAL_API_TOKEN`, expects HTTP 200 plus `status=ok`, and fails with only subsystem/reason such as `c360-sales-packet:http-401`; it must not print token values or raw auth bodies.
 - HubSpot task smoke check returns safe sales-owned follow-up task summaries only and does not expose task body or mutation tools.
 - HubSpot T-90 smoke check returns a primary answer object with known T-90 `contract_end_date` accounts and a separate missing `contract_end_date` classification bucket.
-- HubSpot follow-up-status smoke check returns safe WhatsApp communication, note, and task evidence by default, blocks `include_body=true` for non-admin callers, and allows admin-only `include_body=true` to return bounded WhatsApp communication bodies for selected company IDs. It must not expose note bodies, task bodies, phone numbers, unmatched attendees, or mutation tools.
+- HubSpot follow-up-status smoke check returns safe WhatsApp communication, note, and task evidence only and does not expose raw communication bodies, note bodies, task bodies, phone numbers, unmatched attendees, or mutation tools.
 - HubSpot event-follow-up smoke check resolves Luma checked-in attendance, verifies event-specific Eazybe WhatsApp communications in HubSpot, marks generic WhatsApp as `needs_check`, and never exposes raw WhatsApp bodies, guest emails, phone numbers, or raw attendee lists.
-- HubSpot daily nurture smoke check confirms `build_daily_nurture_plan` is available, builds reviewable daily nurture rows from scoped HubSpot accounts and selected enrichment context, and does not send WhatsApp or mutate HubSpot.
 - Indonesia event-registration fallback smoke check confirms `read_indonesia_event_registration_attendance` is available, restricted to `ID REV - LL & HHH EVENTS`, uses `Attend The Event` as manual attendance only when Luma check-in is empty or not used, and never exposes phone numbers, full emails, or raw registration exports.
 - Google Slides deck-access smoke check confirms `read_google_slides_deck` is available, uses the `team@staffany.com` read-only Drive OAuth token, supports native Slides and Drive-hosted `.pptx` text extraction, never retains raw deck bytes, and never asks for "Anyone with the link" public sharing.
-- Eazybe MCP lists only `preview_eazybe_template_messages`, `send_approved_eazybe_messages`, `check_eazybe_send_status`, and `build_daily_nurture_reminder`; sends require stored approved-template rows plus an explicit approval marker.
+- Daily nurture smoke check confirms `read_nurture_material_registry` and `build_daily_nurture_plan` are available, the 30/150 weekday rotation is deterministic for Jeremy, role gaps are surfaced, and no free-form WhatsApp sends occur.
+- Eazybe approval-gated smoke check confirms `preview_eazybe_template_messages`, `send_approved_eazybe_messages`, `check_eazybe_send_status`, and `build_daily_nurture_reminder` are available; sends require `approval_marker`, `templateName`, ordered `templateParams`, and phone-number redaction.
 - HubSpot photo scan smoke check accepts Luma event candidates, correlates Drive photo timestamps to Luma event dates, auto-tags `nurture_event` only for one clear event-date match, and keeps HubSpot person/contact association blocked until uploader confirmation.
 - A tiny target-account count query succeeds for each supported country.
 - StaffAny BigQuery MCP lists only expected read-only tools.
@@ -111,6 +111,14 @@ hermes -p nurtureanysalesbot cron create "15 1 * * 1-5" \
   --name "nurtureanysalesbot live profile audit" \
   --script nurtureanysalesbot-audit-live-profile.sh \
   --no-agent
+hermes -p nurtureanysalesbot cron create "0 1 * * 1-5" \
+  --name "nurtureanysalesbot Jeremy daily nurture pack" \
+  --prompt "Read the NurtureAny material registry, build Jeremy's daily nurture plan for 30 of his protected 150 HubSpot target accounts, and post the 9am Asia/Singapore Slack pack with message IDs for approval-gated Eazybe preview." \
+  --timezone "Asia/Singapore"
+hermes -p nurtureanysalesbot cron create "0 4 * * 1-5" \
+  --name "nurtureanysalesbot Jeremy noon nurture reminder" \
+  --prompt "Check Jeremy's daily nurture run statuses. If any assigned stakeholder message was not Eazybe accepted/queued, later matched in HubSpot WhatsApp, or explicitly skipped, post the Slack reminder tagging Jeremy and his manager." \
+  --timezone "Asia/Singapore"
 ```
 
 ## Failure Behavior

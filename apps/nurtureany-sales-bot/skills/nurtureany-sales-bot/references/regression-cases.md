@@ -243,27 +243,6 @@ Expected behavior:
 - Includes rationale and evidence per account.
 - Applies `sales-best-practices.md` for CCC, 3C, K/N/S, QO quality, warm activity, and manual-review standards.
 
-## Local Reference Hydration Before Run
-
-Prompt:
-
-```text
-@NurtureAny optimise for pre demo nurturing
-use this slides https://docs.google.com/presentation/d/example/edit
-
-1. read HubSpot TA per AE, for accounts with no touch point in the past 30 days, draft nurturing reminders for AEs
-2. Draft KNS materials for all nurturing accounts and set daily HubSpot tasks
-3. draft based on the 14 days cadence in Slack
-```
-
-Expected behavior:
-
-- First response is plan-only and does not call app-backed or external tools before `run`.
-- Local skill/reference hydration is allowed and required before the first preflight.
-- The preflight uses `sales-best-practices.md`: KNS / K/N/S / K N S means Knowledge, Network, Support.
-- The preflight must not ask the user what KNS means and must not expand it as Know-Nurture-Sell.
-- The preflight says the linked slides will be read only after `run` and may refine wording or cadence.
-
 ## Friday Review And Tactical Pause
 
 Prompt:
@@ -458,23 +437,6 @@ Expected behavior:
 - Counts only event-specific Eazybe WhatsApp communications or event-specific completed tasks as `followed_up`; generic post-event WhatsApp becomes `needs_check`.
 - Returns account, owner, latest safe follow-up timestamp, activity counts, source, scope, confidence, and caveat.
 - Does not expose raw WhatsApp bodies, note bodies, task bodies, phone numbers, unmatched guests, guest emails, raw attendee lists, mutate HubSpot, or call Eazybe directly.
-
-## Admin Account WhatsApp Body Review
-
-Prompt:
-
-```text
-@NurtureAny for HubSpot company 123, read recent WhatsApp pricing messages since yesterday
-```
-
-Expected behavior:
-
-- First Slack response is plan-only unless this is already a same-thread continuation after `run`.
-- After `run`, resolves the selected company ID under the caller scope.
-- For admin callers only, calls `check_account_followup_status` with `include_body=true`.
-- Returns WhatsApp communication evidence with bounded `body` fields when HubSpot returns `hs_communication_body`.
-- Blocks `include_body=true` for AEs and managers.
-- Does not expose note bodies, task bodies, phone exports, unmatched event guests, raw attendee lists, mutate HubSpot, or call Eazybe directly.
 
 Prompt:
 

@@ -108,6 +108,59 @@ class GoogleDriveNurtureAnyServerTest(unittest.TestCase):
         self.assertEqual(result["confidence"], "blocked")
         self.assertIn("team@staffany.com", result["answer"])
 
+    def test_read_nurture_material_registry_returns_rows_from_one_sheet(self):
+        calls = []
+
+        def fake_sheets(spreadsheet_id, path, params, access_token):
+            calls.append((spreadsheet_id, path, params, access_token))
+            if path == "":
+                return {
+                    "properties": {"title": "NurtureAny Materials"},
+                    "sheets": [{"properties": {"title": "Materials", "sheetId": 1}}],
+                }
+            return {
+                "values": [
+                    list(self.module.MATERIAL_REGISTRY_FIELDS),
+                    [
+                        "mat-1",
+                        "case_study",
+                        "F&B case",
+                        "https://example.com/case",
+                        "active",
+                        "Singapore",
+                        "food, beverage",
+                        "restaurant",
+                        "decision_maker",
+                        "2026-01-01",
+                        "2026-12-31",
+                        "nurture_material_share_v1",
+                        "first_name,account_name,material_title,material_url",
+                        "similar F&B operators",
+                        "RevOps",
+                    ],
+                ]
+            }
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            token_file = Path(tmpdir) / "token.json"
+            token_file.write_text('{"token":"access-token","scopes":["https://www.googleapis.com/auth/drive.readonly"]}')
+            with patch.dict(
+                os.environ,
+                {
+                    "GOOGLE_DRIVE_TOKEN_FILE": str(token_file),
+                    "GOOGLE_DRIVE_ACCOUNT_EMAIL": "team@staffany.com",
+                    "NURTUREANY_MATERIAL_REGISTRY_SPREADSHEET_ID": "sheet-123",
+                },
+            ), patch.object(self.module, "_request_sheets_json", side_effect=fake_sheets):
+                result = self.module.read_nurture_material_registry("ae@staffany.com", tabs=["Materials"])
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["answer"]["row_count"], 1)
+        self.assertEqual(result["answer"]["rows"][0]["material_id"], "mat-1")
+        self.assertEqual(result["answer"]["rows"][0]["source_tab"], "Materials")
+        self.assertEqual(calls[0][0], "sheet-123")
+        self.assertIn("/values/", calls[1][1])
+
     def test_blocks_token_missing_drive_scope(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             token_file = Path(tmpdir) / "token.json"

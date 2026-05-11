@@ -48,6 +48,23 @@ Use `needs-check` confidence when any major scoring input is missing, inferred, 
 - Do not invent facts, incentives, relationships, or prior conversations.
 - Do not include raw phone numbers or unnecessary contact details in Slack output.
 
+## Daily Nurture Material Registry
+
+Use one read-only Google Sheet as the material database. Tabs:
+
+- `Materials`
+- `Playbooks`
+- `Peer Intros`
+- `Speaker/Venue Opportunities`
+- `Events`
+- `Review Log`
+
+Minimum fields: `material_id`, `category`, `title`, `url`, `status`, `country_scope`, `industry_tags`, `concept_tags`, `persona_tags`, `valid_from`, `valid_until`, `template_name`, `template_params_schema`, `message_hook`, `owner`.
+
+Allowed material categories include podcast, case study, same-industry/same-concept proof, event invite, speaking opportunity, fireside speaker or podcast speaker ask, venue opportunity, salary benchmark, fireside chat learning, and warm peer intro. Approved public case studies can stay in the repo catalog; Sheet rows may reference case-study IDs for matching.
+
+For the Jeremy pilot, `build_daily_nurture_plan` selects 30 accounts per working day from the protected 150, expands every decision maker / influencer / champion, and produces Eazybe-template-ready previews. Do not silently replace accounts with missing contacts, roles, or material; surface the gap.
+
 ## HubSpot Action Planning
 
 For each selected account, preview:

@@ -47,6 +47,42 @@ def company_context(company_id="123"):
     }
 
 
+def daily_context(company_id="123", contacts=None):
+    context = company_context(company_id)
+    context["company"].update(
+        {
+            "name": f"Account {int(company_id):03d}" if str(company_id).isdigit() else "Bubble Tea Lab",
+            "country": "Singapore",
+            "industry": "Food & Beverage",
+            "current_tools": "legacy scheduler",
+            "owner_email": "jeremy.wong@staffany.com",
+            "owner_name": "Jeremy Wong",
+        }
+    )
+    context["contacts"] = contacts or []
+    return context
+
+
+def daily_context_index(companies, contacts_by_company=None):
+    contacts_by_company = contacts_by_company or {}
+    return {
+        str(company.get("id") or company.get("company_id") or ""): daily_context(
+            str(company.get("id") or company.get("company_id") or ""),
+            contacts_by_company.get(str(company.get("id") or company.get("company_id") or ""), []),
+        )
+        for company in companies
+    }
+
+
+JEREMY_SCOPE = {
+    "kind": "ae",
+    "email": "jeremy.wong@staffany.com",
+    "hubspot_owner_email": "jeremy.wong@staffany.com",
+    "countries": ("Singapore",),
+    "owner_id": "owner-jeremy",
+}
+
+
 class FakeHTTPResponse:
     def __init__(self, payload):
         self.payload = payload
@@ -215,6 +251,307 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         self.assertEqual(result["returned_count"], 100)
         self.assertTrue(result["has_more"])
         self.assertTrue(result["truncated"])
+
+    def test_daily_nurture_rotation_splits_150_accounts_into_30_account_weekday_buckets(self):
+        companies = [{"id": str(index), "properties": {"name": f"Account {index:03d}"}} for index in range(150)]
+
+        with patch.object(self.module, "_caller_scope", return_value=JEREMY_SCOPE), patch.object(
+            self.module,
+            "_company_search",
+            return_value={
+                "results": companies,
+                "total": 150,
+                "requested_limit": 150,
+                "returned_count": 150,
+                "has_more": False,
+                "truncated": False,
+            },
+        ), patch.object(self.module, "_daily_nurture_contexts", side_effect=lambda selected, scope: daily_context_index(selected)), patch.object(
+            self.module, "_pre_demo_case_study_matches", return_value=[]
+        ):
+            monday = self.module.build_daily_nurture_plan(
+                "jeremy.wong@staffany.com",
+                for_date="2026-05-11",
+                material_registry_rows=[],
+            )
+            tuesday = self.module.build_daily_nurture_plan(
+                "jeremy.wong@staffany.com",
+                for_date="2026-05-12",
+                material_registry_rows=[],
+            )
+
+        monday_ids = monday["answer"]["account_rotation"]["selected_company_ids"]
+        tuesday_ids = tuesday["answer"]["account_rotation"]["selected_company_ids"]
+        self.assertEqual(len(monday_ids), 30)
+        self.assertEqual(len(tuesday_ids), 30)
+        self.assertEqual(len(set(monday_ids).intersection(tuesday_ids)), 0)
+        self.assertEqual(monday_ids[0], "0")
+        self.assertEqual(tuesday_ids[0], "30")
+
+    def test_daily_nurture_expands_all_stakeholder_roles_and_surfaces_missing_roles(self):
+        contacts = [
+            {
+                "contact_id": "dm-1",
+                "display_name": "Dana D.",
+                "persona": "Founder",
+                "buying_role": "DECISION_MAKER",
+                "is_verified_decision_maker": True,
+            },
+            {
+                "contact_id": "inf-1",
+                "display_name": "Ivan I.",
+                "persona": "HR Manager",
+                "buying_role": "INFLUENCER",
+            },
+            {
+                "contact_id": "champ-1",
+                "display_name": "Cheryl C.",
+                "persona": "Implementation Sponsor",
+                "buying_role": "CHAMPION",
+            },
+        ]
+        material_rows = [
+            {
+                "material_id": "mat-1",
+                "category": "case_study",
+                "title": "F&B case study",
+                "url": "https://example.com/case",
+                "status": "active",
+                "country_scope": "Singapore",
+                "industry_tags": "food, beverage",
+                "concept_tags": "restaurant",
+                "persona_tags": "decision_maker, influencer, champion, hr, ops",
+                "valid_from": "2026-01-01",
+                "valid_until": "2026-12-31",
+                "template_name": "nurture_material_share_v1",
+                "template_params_schema": "first_name,account_name,material_title,material_url",
+                "message_hook": "similar F&B operators are tightening labour coverage",
+                "owner": "RevOps",
+            }
+        ]
+
+        with patch.object(self.module, "_caller_scope", return_value=JEREMY_SCOPE), patch.object(
+            self.module,
+            "_company_search",
+            return_value={
+                "results": [{"id": "123", "properties": {"name": "Bubble Tea Lab"}}],
+                "total": 1,
+                "requested_limit": 1,
+                "returned_count": 1,
+                "has_more": False,
+                "truncated": False,
+            },
+        ), patch.object(
+            self.module,
+            "_daily_nurture_contexts",
+            return_value={"123": daily_context("123", contacts)},
+        ), patch.object(
+            self.module, "_pre_demo_case_study_matches", return_value=[]
+        ):
+            result = self.module.build_daily_nurture_plan(
+                "jeremy.wong@staffany.com",
+                for_date="2026-05-11",
+                protected_pool_size=1,
+                daily_account_count=1,
+                material_registry_rows=material_rows,
+            )
+
+        roles = [message["stakeholder_role"] for message in result["answer"]["messages"]]
+        self.assertEqual(sorted(roles), ["champion", "decision_maker", "influencer"])
+        self.assertEqual(result["answer"]["message_count"], 3)
+        self.assertEqual(result["answer"]["role_gaps"], [])
+
+    def test_daily_nurture_persists_run_payload_for_noon_reminder(self):
+        contacts = [
+            {
+                "contact_id": "dm-1",
+                "display_name": "Dana D.",
+                "persona": "Founder",
+                "buying_role": "DECISION_MAKER",
+                "is_verified_decision_maker": True,
+            }
+        ]
+        material_rows = [
+            {
+                "material_id": "mat-1",
+                "category": "case_study",
+                "title": "F&B case study",
+                "url": "https://example.com/case",
+                "status": "active",
+                "country_scope": "Singapore",
+                "industry_tags": "food, beverage",
+                "concept_tags": "restaurant",
+                "persona_tags": "decision_maker",
+                "valid_until": "2026-12-31",
+                "template_name": "nurture_material_share_v1",
+                "template_params_schema": "first_name,account_name,material_title,material_url",
+                "message_hook": "similar F&B operators are tightening labour coverage",
+            }
+        ]
+
+        with tempfile.TemporaryDirectory() as runs_dir, patch.dict(
+            os.environ, {"NURTUREANY_DAILY_RUNS_DIR": runs_dir}
+        ), patch.object(self.module, "_caller_scope", return_value=JEREMY_SCOPE), patch.object(
+            self.module,
+            "_company_search",
+            return_value={
+                "results": [{"id": "123", "properties": {"name": "Bubble Tea Lab"}}],
+                "total": 1,
+                "requested_limit": 1,
+                "returned_count": 1,
+                "has_more": False,
+                "truncated": False,
+            },
+        ), patch.object(
+            self.module,
+            "_daily_nurture_contexts",
+            return_value={"123": daily_context("123", contacts)},
+        ), patch.object(
+            self.module, "_pre_demo_case_study_matches", return_value=[]
+        ):
+            result = self.module.build_daily_nurture_plan(
+                "jeremy.wong@staffany.com",
+                for_date="2026-05-11",
+                protected_pool_size=1,
+                daily_account_count=1,
+                material_registry_rows=material_rows,
+            )
+
+            persistence = result["answer"]["run_persistence"]
+            self.assertTrue(persistence["persisted"])
+            persisted = json.loads(Path(persistence["path"]).read_text())
+
+        self.assertEqual(persisted["answer"]["run_id"], result["answer"]["run_id"])
+        self.assertEqual(persisted["answer"]["message_count"], 1)
+        self.assertEqual(persisted["answer"]["messages"][0]["message_id"], result["answer"]["messages"][0]["message_id"])
+
+    def test_daily_nurture_surfaces_missing_role_gaps(self):
+        contacts = [
+            {
+                "contact_id": "dm-1",
+                "display_name": "Dana D.",
+                "persona": "Founder",
+                "buying_role": "DECISION_MAKER",
+                "is_verified_decision_maker": True,
+            }
+        ]
+
+        with patch.object(self.module, "_caller_scope", return_value=JEREMY_SCOPE), patch.object(
+            self.module,
+            "_company_search",
+            return_value={
+                "results": [{"id": "123", "properties": {"name": "Bubble Tea Lab"}}],
+                "total": 1,
+                "requested_limit": 1,
+                "returned_count": 1,
+                "has_more": False,
+                "truncated": False,
+            },
+        ), patch.object(
+            self.module,
+            "_daily_nurture_contexts",
+            return_value={"123": daily_context("123", contacts)},
+        ), patch.object(
+            self.module, "_pre_demo_case_study_matches", return_value=[]
+        ):
+            result = self.module.build_daily_nurture_plan(
+                "jeremy.wong@staffany.com",
+                for_date="2026-05-11",
+                protected_pool_size=1,
+                daily_account_count=1,
+                material_registry_rows=[],
+            )
+
+        missing_roles = {gap["role"] for gap in result["answer"]["role_gaps"]}
+        self.assertEqual(missing_roles, {"influencer", "champion"})
+        self.assertEqual(result["answer"]["message_count"], 1)
+
+    def test_daily_nurture_material_matching_prefers_same_industry_and_ignores_expired(self):
+        contacts = [
+            {
+                "contact_id": "dm-1",
+                "display_name": "Dana D.",
+                "persona": "Founder",
+                "buying_role": "DECISION_MAKER",
+                "is_verified_decision_maker": True,
+            }
+        ]
+        material_rows = [
+            {
+                "material_id": "generic",
+                "category": "podcast",
+                "title": "Generic ops podcast",
+                "url": "https://example.com/generic",
+                "status": "active",
+                "country_scope": "Singapore",
+                "industry_tags": "",
+                "concept_tags": "",
+                "persona_tags": "",
+                "valid_until": "2026-12-31",
+                "template_name": "nurture_material_share_v1",
+                "template_params_schema": "first_name,account_name,material_title,material_url",
+                "message_hook": "operators are improving hiring rhythm",
+            },
+            {
+                "material_id": "same-industry",
+                "category": "case_study",
+                "title": "Bubble tea labour coverage",
+                "url": "https://example.com/bubble-tea",
+                "status": "active",
+                "country_scope": "Singapore",
+                "industry_tags": "food, beverage",
+                "concept_tags": "bubble, tea, restaurant",
+                "persona_tags": "decision_maker, founder",
+                "valid_until": "2026-12-31",
+                "template_name": "nurture_material_share_v1",
+                "template_params_schema": "first_name,account_name,material_title,material_url",
+                "message_hook": "bubble tea teams are cutting rota gaps",
+            },
+            {
+                "material_id": "expired",
+                "category": "case_study",
+                "title": "Expired F&B case",
+                "url": "https://example.com/expired",
+                "status": "active",
+                "country_scope": "Singapore",
+                "industry_tags": "food, beverage",
+                "valid_until": "2026-01-01",
+                "template_name": "nurture_material_share_v1",
+                "template_params_schema": "first_name,account_name,material_title,material_url",
+                "message_hook": "expired",
+            },
+        ]
+
+        with patch.object(self.module, "_caller_scope", return_value=JEREMY_SCOPE), patch.object(
+            self.module,
+            "_company_search",
+            return_value={
+                "results": [{"id": "123", "properties": {"name": "Bubble Tea Lab"}}],
+                "total": 1,
+                "requested_limit": 1,
+                "returned_count": 1,
+                "has_more": False,
+                "truncated": False,
+            },
+        ), patch.object(
+            self.module,
+            "_daily_nurture_contexts",
+            return_value={"123": daily_context("123", contacts)},
+        ), patch.object(
+            self.module, "_pre_demo_case_study_matches", return_value=[]
+        ):
+            result = self.module.build_daily_nurture_plan(
+                "jeremy.wong@staffany.com",
+                for_date="2026-05-11",
+                protected_pool_size=1,
+                daily_account_count=1,
+                material_registry_rows=material_rows,
+            )
+
+        message = result["answer"]["messages"][0]
+        self.assertEqual(message["material"]["material_id"], "same-industry")
+        ignored_ids = {row["material_id"] for row in result["answer"]["material_registry"]["ignored_rows"]}
+        self.assertIn("expired", ignored_ids)
 
     def test_company_summary_includes_owner_email_when_available(self):
         company = {
@@ -1458,79 +1795,6 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         self.assertNotIn("raw WhatsApp body", json.dumps(result))
         self.assertNotIn("raw task body", json.dumps(result))
         self.assertNotIn("+6512345678", json.dumps(result))
-
-    def test_check_account_followup_status_include_body_is_admin_only(self):
-        with patch.object(self.module, "_caller_scope", return_value=SCOPE):
-            result = self.module.check_account_followup_status(
-                "kerren.fong@staffany.com",
-                ["123"],
-                "2026-05-10T09:00:00Z",
-                include_body=True,
-            )
-
-        self.assertEqual(result["confidence"], "blocked")
-        self.assertIn("include_body requires admin scope", result["answer"])
-
-    def test_check_account_followup_status_admin_include_body_returns_whatsapp_body(self):
-        company = {
-            "id": "123",
-            "properties": {
-                "name": "Ajumma's",
-                "hs_is_target_account": "true",
-                "company_country": "Singapore",
-                "hubspot_owner_id": "owner-sales",
-            },
-        }
-        admin_scope = {
-            "kind": "admin",
-            "email": "kaiyi@staffany.com",
-            "countries": self.module.SUPPORTED_COUNTRIES,
-            "owner_id": None,
-        }
-
-        def fake_batch_association_ids(from_type, to_type, ids):
-            if (from_type, to_type) == ("companies", "contacts"):
-                return {"123": []}
-            if (from_type, to_type) == ("companies", "deals"):
-                return {"123": []}
-            if (from_type, to_type) == ("companies", "communications"):
-                return {"123": ["comm-1"]}
-            return {str(item): [] for item in ids}
-
-        def fake_batch_read(object_type, ids, properties):
-            if object_type == "communications":
-                self.assertIn("hs_communication_body", properties)
-                return [
-                    {
-                        "id": "comm-1",
-                        "properties": {
-                            "hs_timestamp": "2026-05-10T10:00:00Z",
-                            "hubspot_owner_id": "owner-sales",
-                            "hs_communication_channel_type": "WHATS_APP",
-                            "hs_communication_logged_from": "Eazybe",
-                            "hs_communication_body": "Dom asked whether appraisal scope can fit the current package.",
-                        },
-                    }
-                ]
-            return []
-
-        with patch.object(self.module, "_caller_scope", return_value=admin_scope), patch.object(
-            self.module, "_assert_company_access", return_value=company
-        ), patch.object(self.module, "_batch_association_ids", side_effect=fake_batch_association_ids), patch.object(
-            self.module, "_batch_read", side_effect=fake_batch_read
-        ):
-            result = self.module.check_account_followup_status(
-                "kaiyi@staffany.com",
-                ["123"],
-                "2026-05-10T09:00:00Z",
-                include_body=True,
-            )
-
-        self.assertEqual(result["confidence"], "verified")
-        self.assertTrue(result["scope"]["include_body"])
-        evidence = result["answer"][0]["evidence"][0]
-        self.assertEqual(evidence["body"], "Dom asked whether appraisal scope can fit the current package.")
-        self.assertFalse(evidence["body_truncated"])
 
     def test_event_followup_status_uses_checked_in_luma_and_event_specific_whatsapp(self):
         company = {
