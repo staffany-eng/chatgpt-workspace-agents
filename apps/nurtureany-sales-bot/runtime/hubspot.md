@@ -65,6 +65,7 @@ It exposes these tools:
 - `audit_priority_account_coverage`
 - `build_sales_metric_actuals_query`
 - `build_friday_sales_review`
+- `build_manager_chase_plan`
 - `get_account_context`
 - `build_pre_demo_game_plans`
 - `build_daily_nurture_plan`
@@ -200,6 +201,14 @@ Friday sales review uses the same scoped association discipline, plus HubSpot ca
 - Friday review is HubSpot hygiene first. Warehouse QO actuals are a second source and require executing returned SQL through `staffany_bigquery.execute_sql_readonly`.
 - Next-week actions must be concrete corrections tied to 120/150 account coverage, double tap, 30 WhatsApp daily rhythm, 40 connected calls, clean-lead fields, and warm activity proof.
 - Direct QO count/pace questions should not call this tool. They should resolve owner/team scope and use StaffAny BigQuery `fct_sales_points.qo_set`. A Friday review may add that revenue-metric result as a second source after this HubSpot review output.
+
+`build_manager_chase_plan`:
+
+- Input: manager/admin Slack user email, optional countries, optional owner email filter, optional selected HubSpot company IDs, optional week start/end, optional selected Slack context summary, optional Slack permalink, and optional limit.
+- Output: ranked `answer.chase_drafts` with rep, account, trigger, evidence, ask, deadline, fallback action, copy-ready `manager_draft_text`, source, confidence, and caveat.
+- Delivery mode is `manager_draft_only`: the tool does not tag reps, send external messages, or mutate HubSpot.
+- HubSpot coverage, safe sales-owned tasks, and safe activity fields are the source of truth. Selected Slack context may shape wording only when supplied as a short summary and permalink; do not pass raw Slack transcripts or message dumps.
+- Use this for manager chase prompts that need Kerren/Sarah/Eugene to turn vague rep blockers into dated asks and fallback actions.
 
 `get_account_context`:
 

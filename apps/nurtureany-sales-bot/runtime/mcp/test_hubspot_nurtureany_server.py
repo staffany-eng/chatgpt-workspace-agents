@@ -2668,6 +2668,123 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         self.assertIn("Configure HubSpot pipeline/stage IDs", result["answer"]["support_needed"][0])
         self.assertNotIn("_internal", result)
 
+    def test_manager_chase_plan_builds_copy_ready_drafts_from_coverage_and_selected_slack_context(self):
+        coverage = {
+            "answer": {
+                "owners": [
+                    {
+                        "owner_id": "owner-1",
+                        "owner_email": "jeremy.wong@staffany.com",
+                        "owner_name": "Jeremy",
+                        "120_150_accounts_worked": "80/150 worked; target 120/150",
+                        "40_connected_calls": "12/40",
+                        "worked_account_count": 80,
+                        "weekly_account_target": 120,
+                        "connected_call_count": 12,
+                        "single_touch_account_count": 4,
+                        "warm_activity_points": 0,
+                        "open_followup_accounts": [
+                            {
+                                "company_id": "123",
+                                "name": "Ajumma",
+                                "country": "Singapore",
+                                "latest_activity_at": "2026-05-10T02:00:00Z",
+                                "open_followup_task_count": 1,
+                            }
+                        ],
+                        "untouched_accounts": [],
+                        "stale_accounts": [],
+                        "dirty_accounts": [],
+                    }
+                ]
+            },
+            "scope": {
+                "caller_email": "kerren.fong@staffany.com",
+                "scope_kind": "manager",
+                "countries": ["Singapore", "Malaysia"],
+                "week_start": "2026-05-04",
+                "week_end": "2026-05-10",
+            },
+            "has_more": False,
+            "truncated": False,
+            "confidence": "verified",
+        }
+
+        with patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
+            self.module, "_target_owner_id_for_scope", return_value=("321", "jeremy.wong@staffany.com")
+        ), patch.object(
+            self.module, "_priority_account_coverage", return_value=coverage
+        ):
+            result = self.module.build_manager_chase_plan(
+                "kerren.fong@staffany.com",
+                owner_email="jeremy.wong@staffany.com",
+                slack_context_summary="Rep needs budget range from Dom before appraisal proposal can move.",
+                slack_source_permalink="https://staffany.slack.com/archives/C123/p123",
+                limit=3,
+            )
+
+        self.assertEqual(result["confidence"], "needs-check")
+        self.assertEqual(result["answer"]["delivery_mode"], "manager_draft_only")
+        self.assertFalse(result["answer"]["will_tag_reps"])
+        self.assertFalse(result["answer"]["will_send_external_messages"])
+        self.assertFalse(result["answer"]["will_mutate_hubspot"])
+        first = result["answer"]["chase_drafts"][0]
+        self.assertEqual(first["trigger"], "selected_slack_blocker")
+        self.assertIn("give us timeline", first["manager_draft_text"])
+        self.assertIn("by EOD today", first["manager_draft_text"])
+        self.assertEqual(first["source_permalink"], "https://staffany.slack.com/archives/C123/p123")
+        self.assertNotIn("raw Slack transcript", json.dumps(result))
+        self.assertNotIn("task body", json.dumps(result).lower())
+
+    def test_manager_chase_plan_blocks_ae_scope(self):
+        ae_scope = {"kind": "ae", "email": "ae@staffany.com", "countries": ("Singapore",), "owner_id": "owner-ae"}
+        with patch.object(self.module, "_caller_scope", return_value=ae_scope), patch.object(
+            self.module, "_priority_account_coverage", side_effect=AssertionError("AE chase plan must stop before coverage")
+        ):
+            result = self.module.build_manager_chase_plan("ae@staffany.com")
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("manager/admin", result["answer"])
+
+    def test_manager_chase_plan_selected_company_uses_context_without_mutation(self):
+        context = company_context("123")
+        context["company"].update(
+            {
+                "owner_id": "owner-1",
+                "owner_email": "jeremy.wong@staffany.com",
+                "owner_name": "Jeremy",
+                "country": "Singapore",
+                "missing_fields": ["decision maker", "contract end date"],
+            }
+        )
+        context["sales_followup_tasks"] = [
+            {
+                "task_id": "task-1",
+                "due_at": "2026-05-11T02:00:00Z",
+                "subject": "Get budget range",
+                "owner_id": "owner-1",
+                "status": "NOT_STARTED",
+                "priority": "HIGH",
+                "type": "TODO",
+                "associated_via": [{"object_type": "company", "object_id": "123"}],
+            }
+        ]
+
+        with patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
+            self.module, "_company_context", return_value=context
+        ):
+            result = self.module.build_manager_chase_plan(
+                "kerren.fong@staffany.com",
+                company_ids=["https://app.hubspot.com/contacts/123/record/0-2/123"],
+                limit=5,
+            )
+
+        self.assertEqual(result["answer"]["draft_count"], 2)
+        self.assertEqual(result["answer"]["chase_drafts"][0]["trigger"], "open_followup_task")
+        self.assertEqual(result["answer"]["chase_drafts"][0]["account"]["company_id"], "123")
+        self.assertIn("Get budget range", result["answer"]["chase_drafts"][0]["evidence"])
+        self.assertFalse(result["answer"]["will_mutate_hubspot"])
+
     def test_find_target_accounts_by_luma_match_keys_is_event_first(self):
         calls = []
 

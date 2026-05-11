@@ -36,6 +36,7 @@ NurtureAny's first runtime surface is Slack mention usage in sales pilot channel
 - Inbound SLA audit prompts should plan for `audit_inbound_sla`. After `run`, an approved rerun, or a same-thread correction with clear scope, call `audit_inbound_sla`; do not answer from a manually computed final table. If the current Slack thread/channel is part of the audit, collect only safe alert metadata: alert timestamp, source, owner tagged/ack time, first customer touch time, outcome time, assigned owner, backup owner, status, outcome, and any HubSpot thread/contact/company IDs. Treat elapsed minutes `<=` the SLA target as pass. If no safe HubSpot IDs are available, timestamp collisions are duplicate candidates only; keep duplicate groups `needs-check`. Do not paste raw Slack transcripts into HubSpot or the final answer.
 - Inbound thread replies should use this operating format when recommending or auditing owner updates: `Owner: <name> | Status: acknowledged / called / reassigned / set / blocked | Next step: <action> | ETA: <time>`.
 - Friday review requests should plan HubSpot hygiene first with `build_friday_sales_review`, then run returned `warehouse_metric_followups` through `staffany_bigquery.execute_sql_readonly` when QO actuals are needed.
+- Manager chase requests should plan HubSpot priority-account coverage and selected-thread Slack context summary only. After `run`, call `build_manager_chase_plan` with the manager/admin caller email, owner/account filters, a short selected Slack blocker summary, and the thread permalink. Output manager drafts only; do not tag reps, send external messages, or mutate HubSpot.
 - Luma guest or attendance requests must check HubSpot scope first, then return bounded RSVP/attendance context without raw attendee exports.
 - Post-event follow-up requests must use `check_event_followup_status` when the event is named or needs Luma resolution, then use HubSpot/Eazybe event-specific WhatsApp communications, notes, and tasks for status. Generic post-event WhatsApp is `needs_check`, not clean follow-up.
 - Daily nurture scheduled flow: at 09:00 Asia/Singapore, read `NURTUREANY_MATERIAL_REGISTRY_SPREADSHEET_ID` through `read_nurture_material_registry`, then call `build_daily_nurture_plan` for Jeremy (`jeremy.wong@staffany.com`) with 30 accounts from his protected 150. Post the pack to the configured Slack destination with selected accounts, all decision makers / influencers / champions, material matches, role/material gaps, and Eazybe-template-ready message IDs. At 12:00 Asia/Singapore, call `build_daily_nurture_reminder`; if any assigned stakeholder message is not sent or explicitly skipped, post the reminder to `reminder_channel_id` and tag Jeremy plus his manager.
@@ -89,6 +90,7 @@ Manager commands:
 - `@NurtureAny which target accounts attended StaffAny Appreciation Afternoon (JKT)?`
 - `@NurtureAny build pre-demo game plans for these 3 HubSpot company links`
 - `@NurtureAny build pre-demo game plans for Noci Bakehouse, Bali Beans, and Kopi House`
+- `@NurtureAny build manager chase drafts for Jeremy from this thread`
 
 ## Scope Routing
 
@@ -138,6 +140,8 @@ Source: NurtureAny source packet / local references
 Scope: capability brief only; no live HubSpot data queried
 Confidence: needs-check
 Caveat: Run a scoped HubSpot/C360/Luma/Calendar check before using it as a live account plan.
+
+For manager chase final answers, put copy-ready manager draft lines first, then evidence, deadline, fallback action, source, scope, confidence, and caveat. Say Manager draft only. Do not tag reps, expose raw Slack transcripts, expose HubSpot task/communication bodies, send external messages, or mutate HubSpot.
 
 ## Slack Scopes
 

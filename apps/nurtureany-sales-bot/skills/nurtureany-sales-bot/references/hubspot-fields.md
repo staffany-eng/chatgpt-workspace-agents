@@ -71,6 +71,7 @@ When NurtureAny is asked what data sources it used, answer definitively from thi
 - Sales follow-up status: HubSpot WhatsApp `communications`, notes, completed tasks, and existing incomplete tasks associated to the scoped company/contact/deal.
 - Friday connected calls: HubSpot `calls` associated to scoped accounts through company/contact/deal where `hs_call_status=COMPLETED` and `hs_call_duration>=120000`.
 - Friday warm activity proof: HubSpot `meetings` associated to scoped accounts through company/contact/deal where `hs_meeting_outcome=COMPLETED` and `hs_meeting_title` or `hs_activity_type` matches a configured warm activity label.
+- Manager chase drafts: HubSpot priority-account coverage, safe sales-owned tasks, and safe activity summary fields are truth; selected Slack context is only a short summary/permalink for wording.
 
 `current_tool_renewal_date`, C360, Google Calendar, Luma, Exa, Lusha, Slack, and public evidence are enrichment or context sources only. They must not override HubSpot target-account membership, ownership, `contract_end_date`, or `current_tools`.
 

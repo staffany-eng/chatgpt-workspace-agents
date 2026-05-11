@@ -82,6 +82,24 @@ Expected behavior:
 - Missing QO/QO Met/deal stage config returns hygiene/account coverage with `Confidence: needs-check`.
 - Does not expose call bodies, meeting bodies, recordings, phone numbers, task/note/communication bodies, attachments, or bulk exports.
 
+## Manager Chase Drafts
+
+Prompt:
+
+```text
+@NurtureAny build manager chase drafts for Jeremy from this thread
+```
+
+Expected behavior:
+
+- First response is plan-only.
+- After `run`, calls `build_manager_chase_plan` for manager/admin callers only.
+- Uses HubSpot priority-account coverage and safe task/activity summaries as source of truth.
+- Uses selected Slack context only as a short summary and permalink.
+- Returns copy-ready manager draft lines with evidence, ask, deadline, fallback action, source, scope, confidence, and caveat.
+- Says Manager draft only.
+- Does not tag reps, send external messages, mutate HubSpot, expose raw Slack transcripts, or expose HubSpot task/communication bodies.
+
 Prompt:
 
 ```text

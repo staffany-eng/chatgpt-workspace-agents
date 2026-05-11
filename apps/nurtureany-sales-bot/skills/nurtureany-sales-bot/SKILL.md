@@ -47,6 +47,7 @@ Good CRO output leads with the revenue operating decision, not feature inventory
 - `my 150`, `my target accounts`, `my nurture queue`, or similar AE-owned target-account requests.
 - Manager requests such as `team queue`, `accounts with no direct contact`, `post-demo nurture queue`, or `renewal risk queue`.
 - Inbound ownership, duplicate alert, and SLA audit requests such as `audit inbound SLA`, `was this RaD too slow`, or `check this inbound Slack thread`.
+- Manager chase requests such as `chase my rep`, `make Jeremy give timeline`, `manager chase`, `sales manager follow-up`, or selected Slack blocker threads where the manager needs copy-ready rep follow-up.
 - Tactical pause / Friday sales review requests such as `Friday report`, `audit priority account coverage`, `120/150`, `double tap`, `40 connected calls`, `QO Met`, or `warm activity`.
 - Questions about existing sales-owned HubSpot follow-up tasks, overdue follow-ups, or due-this-week follow-ups.
 - Questions about whether a scoped account's Calendar meeting has the right people, HubSpot-linked buying roles, or a verified decision maker invited.
@@ -307,6 +308,8 @@ Do not hide missing-contract-end-date accounts in the caveat. Include the sectio
 
 For Friday sales review answers, use `build_friday_sales_review` for managers/admins. Show Hygiene Summary, Funnel Snapshot, optional warehouse metric follow-up, Top Coaching Observations, Actions for Next Week, and Support Needed. Tie actions to the tactical pause rules: 120/150 account coverage, double tap, 30 WhatsApp daily rhythm, 40 connected calls, QO/QO Met guardrail, warm activity proof, clean-lead fields, and Friday correction. If the caller is an AE, use `audit_priority_account_coverage` for self-audit rather than manager Friday review.
 
+For manager chase answers, `build_manager_chase_plan` is the primary tool for managers/admins. Do not route the first run through `list_team_target_accounts`, `get_account_context`, or manual draft composition unless `build_manager_chase_plan` returns blocked or the user explicitly asks for account context. Put the copy-ready manager draft lines first, then show evidence, deadline, fallback action, source, scope, confidence, and caveat. The output must say Manager draft only and must not tag reps, expose raw Slack transcripts, expose HubSpot task/communication bodies, send external messages, or mutate HubSpot.
+
 For campaign/social answers, keep the answer Slack-readable and outcome-safe:
 
 - Answer: state the social/campaign result first.
@@ -400,3 +403,4 @@ Store only confirmed reusable operating preferences if the runtime supports memo
 28. Treating Rev planning targets as actual sales or revenue performance.
 29. Answering `new ARR` without choosing and stating signed converted ARR, paid converted ARR, or new MRR movement annualized.
 30. Routing direct QO questions like `my QO this month` through Friday review instead of `build_sales_metric_actuals_query`.
+31. Treating a manager chase as a bot-to-rep tag or task creation. Use `build_manager_chase_plan` and return Manager draft only unless a separate approved write path exists.

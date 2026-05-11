@@ -305,6 +305,7 @@ PRIORITY_ACCOUNT_RETURN_LIMIT = 1000
 PRIORITY_ACCOUNT_LOCKED_POOL_BASELINE = 150
 PRIORITY_ACCOUNT_WEEKLY_WORKED_TARGET = 120
 MANAGER_CHASE_RETURN_LIMIT = 20
+MANAGER_CHASE_COVERAGE_LIMIT = 150
 _CASE_STUDY_CATALOG_CACHE: list[dict[str, Any]] | None = None
 CONNECTED_CALL_WEEKLY_TARGET = 40
 CONNECTED_CALL_MIN_DURATION_MS = 120_000
@@ -9952,6 +9953,37 @@ def build_manager_chase_plan(
                 "truncated": len(normalized_company_ids) > requested_limit,
             }
             scope_response = _scope_response(scope, selected_countries or list(scope.get("countries", ())))
+        elif safe_slack_context and owner_email:
+            selected_countries = _safe_countries(countries, scope["countries"]) or list(scope.get("countries", ()))
+            target_owner_id, target_owner_email = _target_owner_id_for_scope(scope, owner_email)
+            rep = {
+                "owner_id": str(target_owner_id or ""),
+                "owner_email": target_owner_email or _normalize_email(owner_email),
+                "owner_name": "",
+            }
+            rows.append(
+                _manager_chase_row(
+                    rep=rep,
+                    trigger="selected_slack_blocker",
+                    evidence=(
+                        f"Selected Slack context: {safe_slack_context}. "
+                        f"HubSpot owner scope verified for {target_owner_email or owner_email}."
+                    ),
+                    ask="turn the selected blocker into a dated next step and log the outcome in HubSpot",
+                    deadline="by EOD today",
+                    fallback_action="use the selected Slack fallback action, call the stakeholder, and log yes/no/next date.",
+                    source="HubSpot owner scope and selected Slack context",
+                    source_permalink=safe_slack_permalink,
+                )
+            )
+            scope_response = _scope_response(scope, selected_countries, target_owner_id, target_owner_email)
+            metadata = {
+                "total": len(rows),
+                "requested_limit": requested_limit,
+                "returned_count": len(rows),
+                "has_more": False,
+                "truncated": False,
+            }
         else:
             coverage = _priority_account_coverage(
                 slack_user_email=slack_user_email,
@@ -9959,7 +9991,7 @@ def build_manager_chase_plan(
                 owner_email=owner_email,
                 week_start=week_start,
                 week_end=week_end,
-                limit=PRIORITY_ACCOUNT_RETURN_LIMIT,
+                limit=MANAGER_CHASE_COVERAGE_LIMIT,
                 manager_only=True,
                 include_internal=False,
             )
