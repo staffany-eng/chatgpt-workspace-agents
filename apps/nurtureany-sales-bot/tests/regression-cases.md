@@ -18,6 +18,29 @@ Expected behavior:
 - The first response ends with `Reply "run" to start, or tell me what to change.`
 - After same-thread `run`, the bot executes only the confirmed compact account-coverage plan.
 
+## Local Reference Hydration Before Run
+
+Prompt:
+
+```text
+@NurtureAny optimise for pre demo nurturing
+use this slides https://docs.google.com/presentation/d/example/edit
+
+1. read HubSpot TA per AE, for accounts with no touch point in the past 30 days, draft nurturing reminders for AEs
+2. Draft KNS materials for all nurturing accounts and set daily HubSpot tasks
+3. draft based on the 14 days cadence in Slack
+```
+
+Expected behavior:
+
+- First response is still plan-only and ends with `Reply "run" to start, or tell me what to change.`
+- Before composing the preflight, local NurtureAny skill/reference context is allowed and required.
+- The bot must not call HubSpot, Google Slides, Google Drive, Slack lookup, C360, BigQuery, Luma, Exa, Lusha, public research, or any app-backed/external source before `run`.
+- The preflight uses the local sales-best-practices definition: `KNS` / `K/N/S` / `K N S` means Knowledge, Network, Support.
+- The preflight must not ask the user what KNS means and must not expand KNS as Know-Nurture-Sell.
+- The preflight states that the linked slides will be read after `run` and may refine the wording or cadence.
+- The 14-day cadence should be treated as the local five-touch K/N/S rhythm over about 14 to 18 days unless the slides refine it after `run`.
+
 ## AE Own Queue
 
 Prompt:

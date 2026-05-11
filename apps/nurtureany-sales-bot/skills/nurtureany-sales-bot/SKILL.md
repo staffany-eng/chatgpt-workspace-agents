@@ -224,6 +224,10 @@ These planned write tools are not callable in V1. When the write phase is approv
 
 For first Slack mentions that need HubSpot, C360, BigQuery, Google Calendar, Google Drive, Luma, Exa, Lusha, public research, Slack lookup, or other slow/app-backed work, do not call tools yet.
 
+This gate applies to external and business-data sources only. It does not block local source-packet hydration. Before composing the first preflight for drafting, pre-demo, demo, post-demo, event follow-up, Friday review, coaching, inbound/routing, AI/data readiness, operating rhythm, or other NurtureAny sales workflow, load and apply this skill plus local references, especially `references/sales-best-practices.md` and `references/sop-tool-coverage.md`.
+
+Use local definitions in the preflight when they exist. Do not ask the user to define local StaffAny terms just because external sources are still gated. For `KNS`, `K/N/S`, or `K N S`, use the sales best-practices definition: Knowledge, Network, Support. If the user provides slides or a doc, say you will read it after `run` and only caveat that the external source may refine the wording.
+
 Reply only in plain Slack text. Do not wrap the reply in backticks, fenced code blocks, or debug/tool-progress text:
 
 Interpreted question: <question>

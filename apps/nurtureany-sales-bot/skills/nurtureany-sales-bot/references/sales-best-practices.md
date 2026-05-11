@@ -97,6 +97,12 @@ Use 3C plus K/N/S for pre-demo nurturing:
 - K/N/S: Knowledge, Network, Support.
 - Five-touch rhythm over about 14 to 18 days: hook, contextual follow-up, K/N/S value, re-engage, close-loop.
 
+Terminology aliases:
+
+- `KNS`, `K/N/S`, and `K N S` all mean Knowledge, Network, Support.
+- Do not expand KNS as Know-Nurture-Sell unless a current StaffAny source explicitly says so.
+- In Slack preflight, use the local K/N/S definition first and say any linked slides or external docs will be checked after `run`.
+
 Drafts are manual-review only. Do not send WhatsApp, email, Slack, calendar invites, or HubSpot mutations from a draft answer.
 
 ## Pre-Demo Planning

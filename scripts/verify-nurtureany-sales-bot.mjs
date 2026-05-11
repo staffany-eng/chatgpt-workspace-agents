@@ -576,6 +576,10 @@ const soulText = textOf("profile/SOUL.md");
 for (const text of [
   "plan-first",
   "run",
+  "local, read-only source-packet hydration",
+  "Local references are allowed before `run`; app-backed or external sources are not",
+  "KNS, K/N/S, or K N S",
+  "Knowledge, Network, Support",
   "Smoke/test/eval prompts are still first requests",
   "explicit approval",
   "Never auto-send",
@@ -648,6 +652,9 @@ const skillText = textOf("skills/nurtureany-sales-bot/SKILL.md");
 for (const text of [
   "NURTUREANY_ACCESS_POLICY_PATH",
   "Smoke/test/eval prompts are still first requests",
+  "local source-packet hydration",
+  "KNS`, `K/N/S`, or `K N S`",
+  "Knowledge, Network, Support",
   "unclassified HubSpot owners are blocked",
   "hs_is_target_account",
   "company_country",
@@ -753,6 +760,9 @@ for (const text of [
   "build_friday_sales_review",
   "build_pre_demo_game_plans",
   "manual-review only",
+  "Terminology aliases",
+  "KNS`, `K/N/S`, and `K N S` all mean Knowledge, Network, Support",
+  "Do not expand KNS as Know-Nurture-Sell",
   "Do not build a new MCP"
 ]) {
   if (!salesBestPracticesText.includes(text)) {
@@ -799,6 +809,9 @@ for (const text of [
   "checked/not-checked",
   "QO / closed-won attribution was not checked in this run",
   "AI/Data Readiness Guardrail",
+  "Local Reference Hydration Before Run",
+  "KNS / K/N/S / K N S means Knowledge, Network, Support",
+  "must not expand KNS as Know-Nurture-Sell",
   "Campaign Social Effectiveness Style",
   "Event Attribution Guardrail",
   "Mutation Disabled In V1",

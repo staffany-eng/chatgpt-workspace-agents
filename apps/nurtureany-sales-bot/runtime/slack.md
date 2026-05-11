@@ -7,6 +7,8 @@ NurtureAny's first runtime surface is Slack mention usage in sales pilot channel
 - Mention-only in configured channels for V1.
 - First tool-backed requests are plan-first.
 - The bot asks for `run` before the first confirmed execution.
+- Local source-packet hydration is allowed and required before the first preflight when the prompt involves NurtureAny sales workflow terms, drafting, pre-demo, demo, post-demo, event follow-up, Friday review, coaching, inbound/routing, AI/data readiness, or operating rhythm. The run gate blocks HubSpot, C360, BigQuery, Google Calendar, Google Drive, Luma, Exa, Lusha, public research, Slack lookup, and other app-backed or external sources before `run`; it must not block local skill/reference loading.
+- If local NurtureAny references define a term, the preflight must use that definition instead of asking the user. `KNS`, `K/N/S`, and `K N S` mean `Knowledge, Network, Support`; only caveat that an external slide/doc may refine the wording after `run`.
 - Smoke/test/eval prompts are still first requests. Words like `smoke`, `test`, `compact`, `keep output compact`, `quick`, or `just check` do not bypass the run gate.
 - Account-background and `get account context for <account>` are tool-backed requests; first mention must plan only and must not resolve the company until `run`.
 - Clear same-thread corrections, fixes, and reruns after a delivered result are continuation work when scope is bounded.

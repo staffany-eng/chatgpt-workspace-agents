@@ -242,6 +242,27 @@ Expected behavior:
 - Includes rationale and evidence per account.
 - Applies `sales-best-practices.md` for CCC, 3C, K/N/S, QO quality, warm activity, and manual-review standards.
 
+## Local Reference Hydration Before Run
+
+Prompt:
+
+```text
+@NurtureAny optimise for pre demo nurturing
+use this slides https://docs.google.com/presentation/d/example/edit
+
+1. read HubSpot TA per AE, for accounts with no touch point in the past 30 days, draft nurturing reminders for AEs
+2. Draft KNS materials for all nurturing accounts and set daily HubSpot tasks
+3. draft based on the 14 days cadence in Slack
+```
+
+Expected behavior:
+
+- First response is plan-only and does not call app-backed or external tools before `run`.
+- Local skill/reference hydration is allowed and required before the first preflight.
+- The preflight uses `sales-best-practices.md`: KNS / K/N/S / K N S means Knowledge, Network, Support.
+- The preflight must not ask the user what KNS means and must not expand it as Know-Nurture-Sell.
+- The preflight says the linked slides will be read only after `run` and may refine wording or cadence.
+
 ## Friday Review And Tactical Pause
 
 Prompt:
