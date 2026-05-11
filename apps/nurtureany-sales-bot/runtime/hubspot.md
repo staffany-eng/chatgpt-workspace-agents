@@ -10,6 +10,7 @@ Field-level durable sources:
 - Renewal timing and T-90 windows: company `contract_end_date`.
 - Current tools: company `current_tools`.
 - Customer/prospect status: company `type`, then `lifecyclestage`, then `prospecting_account`; C360 current-customer evidence may strengthen customer status when explicitly used.
+- Current-customer account-background packets: C360 sales packet is StaffAny product/Payroll truth. If C360 is unavailable, return `Confidence: needs-check` and do not infer Payroll status from stale HubSpot `current_tools` / `contract_end_date`.
 - Decision-maker coverage: company `hs_num_decision_makers` plus contact `hs_buying_role=DECISION_MAKER` are verified HubSpot decision-maker sources. `hs_num_contacts_with_buying_roles` is reported separately as buying-role hygiene, but it does not satisfy decision-maker coverage by itself. NurtureAny does not read Eazybe directly for these counts.
 
 `current_tool_renewal_date` is secondary context only. C360, Google Calendar, Luma, the Indonesia event registration Sheet fallback, Exa, Lusha, Slack, and public evidence enrich the answer but do not override the durable HubSpot fields above.
@@ -187,9 +188,9 @@ Friday sales review uses the same scoped association discipline, plus HubSpot ca
 `get_account_context`:
 
 - Input: company ID or exact company selector plus caller identity.
-- Output: scoped account context with safe contact, deal, and existing sales follow-up task summary, plus HubSpot owner name/email, customer/prospect status/source, route-keyed `c360_url` for verified current customers, contact coverage source fields, and the recommended AE calendar ID for follow-up scans.
+- Output: scoped account context with safe contact, deal, and existing sales follow-up task summary, plus HubSpot owner name/email, customer/prospect status/source, route-keyed `c360_url` and `c360_sales_packet` for verified current customers, `account_packet` for default account-background answers, contact coverage source fields, and the recommended AE calendar ID for follow-up scans.
 - Output includes `company.calendar_audit_seed` for Google Calendar meeting-quality audits: company ID/name/domain, owner email/calendar ID, missing clean-lead fields, decision-maker coverage, I-C-BANT readiness hints, and safe contact match records with email domains/hashes only. It must not expose raw contact emails in Slack-facing output.
-- For account-background answers, use top-level `slack_markdown` or `answer.account_packet.slack_markdown` as the default Slack answer, include the Customer 360 link when returned, and name Customer 360 in `Source` whenever the scoped company is a verified customer. Do not append raw contacts, deals, last activity, open tasks, or IC-BANT by default.
+- For account-background answers, use top-level `slack_markdown` or `answer.account_packet.slack_markdown` as the default Slack answer, include the Customer 360 link when returned, and name Customer 360 in `Source` whenever the scoped company is a verified customer. C360 sales packet verifies StaffAny Payroll/product truth; HubSpot `current_tools`, `contract_end_date`, deals, last activity, open tasks, and full IC-BANT stay suppressed by default for StaffAny Payroll customers.
 
 `build_pre_demo_game_plans`:
 

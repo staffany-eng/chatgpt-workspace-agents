@@ -1,4 +1,5 @@
 import json
+import io
 import os
 import sys
 import tempfile
@@ -44,6 +45,20 @@ def company_context(company_id="123"):
             "channel_fit_known_count": 0,
         },
     }
+
+
+class FakeHTTPResponse:
+    def __init__(self, payload):
+        self.payload = payload
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, traceback):
+        return False
+
+    def read(self):
+        return json.dumps(self.payload).encode("utf-8")
 
 
 class HubSpotNurtureAnyServerTest(unittest.TestCase):
@@ -208,6 +223,90 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
 
         self.assertEqual(c360_url, "https://c360.test/companies/fei-siong-group")
 
+    def test_c360_sales_packet_missing_token_uses_safe_user_caveat(self):
+        company = {"account_status": "customer", "company_id": "1991281569", "name": "Fei Siong Group"}
+
+        with patch.dict(os.environ, {self.module.C360_INTERNAL_API_TOKEN_ENV: ""}):
+            result = self.module._fetch_c360_sales_packet(company)
+
+        rendered = json.dumps(result)
+        self.assertEqual(result["status"], "unavailable")
+        self.assertEqual(result["reason"], "missing_token")
+        self.assertEqual(result["caveat"], self.module.C360_SALES_PACKET_UNAVAILABLE_CAVEAT)
+        self.assertNotIn(self.module.C360_INTERNAL_API_TOKEN_ENV, rendered)
+
+    def test_c360_sales_packet_uses_numeric_company_id_without_route_key(self):
+        company = {"account_status": "customer", "company_id": "9003704457", "name": "Stripes Australia"}
+        response = FakeHTTPResponse(
+            {"status": "ok", "data": {"segment": "customer_on_staffany_payroll", "account": {"companyName": "Stripes Australia"}}}
+        )
+
+        with patch.dict(
+            os.environ,
+            {
+                self.module.C360_INTERNAL_API_TOKEN_ENV: "token",
+                "NURTUREANY_C360_ROUTE_KEY_BY_COMPANY_ID": "",
+            },
+        ), patch.object(self.module.urllib.request, "urlopen", return_value=response) as urlopen:
+            result = self.module._fetch_c360_sales_packet(company)
+
+        requested_url = urlopen.call_args.args[0].full_url
+        self.assertEqual(result["status"], "ok")
+        self.assertIn("/api/companies/9003704457/sales-packet", requested_url)
+
+    def test_c360_sales_packet_ignores_unresolved_template_placeholder(self):
+        company = {"account_status": "customer", "company_id": "9003704457", "name": "Stripes Australia"}
+        response = FakeHTTPResponse(
+            {"status": "ok", "data": {"segment": "customer_on_staffany_payroll", "account": {"companyName": "Stripes Australia"}}}
+        )
+
+        with patch.dict(
+            os.environ,
+            {
+                self.module.C360_INTERNAL_API_TOKEN_ENV: "token",
+                self.module.C360_SALES_PACKET_URL_TEMPLATE_ENV: "${NURTUREANY_C360_SALES_PACKET_URL_TEMPLATE}",
+                "NURTUREANY_C360_ROUTE_KEY_BY_COMPANY_ID": "",
+            },
+        ), patch.object(self.module.urllib.request, "urlopen", return_value=response) as urlopen:
+            result = self.module._fetch_c360_sales_packet(company)
+
+        requested_url = urlopen.call_args.args[0].full_url
+        self.assertEqual(result["status"], "ok")
+        self.assertIn("/api/companies/9003704457/sales-packet", requested_url)
+
+    def test_c360_packet_link_backfills_company_c360_url(self):
+        company = {"company_id": "9003704457", "name": "Stripes Australia"}
+        self.module._apply_c360_packet_company_link(
+            company,
+            {"status": "ok", "packet": {"c360Url": "https://customer-360.test/companies/9003704457"}},
+        )
+
+        self.assertEqual(company["c360_url"], "https://customer-360.test/companies/9003704457")
+        self.assertEqual(company["customer360_url"], company["c360_url"])
+
+    def test_c360_sales_packet_http_error_uses_safe_user_caveat(self):
+        company = {"account_status": "customer", "company_id": "1991281569", "name": "Fei Siong Group"}
+        http_error = self.module.urllib.error.HTTPError(
+            url="https://c360.test/internal/sales-packet",
+            code=401,
+            msg="Unauthorized",
+            hdrs={},
+            fp=io.BytesIO(b'{"error":"Unauthenticated"}'),
+        )
+
+        with patch.dict(os.environ, {self.module.C360_INTERNAL_API_TOKEN_ENV: "token"}), patch.object(
+            self.module.urllib.request, "urlopen", side_effect=http_error
+        ):
+            result = self.module._fetch_c360_sales_packet(company)
+
+        rendered = json.dumps(result)
+        self.assertEqual(result["status"], "unavailable")
+        self.assertEqual(result["reason"], "http_401")
+        self.assertEqual(result["caveat"], self.module.C360_SALES_PACKET_UNAVAILABLE_CAVEAT)
+        self.assertEqual(result["diagnostic"], {"http_status": 401})
+        self.assertNotIn("Unauthenticated", rendered)
+        self.assertNotIn(self.module.C360_INTERNAL_API_TOKEN_ENV, rendered)
+
     def test_decision_maker_coverage_separates_verified_and_role_candidates(self):
         owner = self.module._safe_contact({"id": "1", "properties": {"jobtitle": "Owner", "hs_buying_role": ""}})
         hr_exec = self.module._safe_contact({"id": "2", "properties": {"jobtitle": "HR Executive", "hs_buying_role": ""}})
@@ -354,6 +453,127 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
 
         self.assertIn("Customer 360 link", result["source"])
         self.assertEqual(result["answer"]["company"]["c360_url"], context["company"]["c360_url"])
+
+    def test_payroll_customer_account_packet_suppresses_stale_hubspot_sections(self):
+        context = company_context("1991281569")
+        context["company"].update(
+            {
+                "name": "Fei Siong Group",
+                "account_status": "customer",
+                "owner_name": "Kerren Fong",
+                "current_tools": "Infotech",
+                "contract_end_date": "2025-10-01",
+                "last_activity_at": "2026-05-06T00:00:00.000Z",
+                "c360_url": "https://customer-360-qv4r5xkisq-as.a.run.app/companies/fei-siong-group",
+            }
+        )
+        context["deals"] = [{"dealname": "Stale deal"}]
+        context["sales_followup_tasks"] = [{"subject": "Open Follow-Up Task"}]
+        c360_packet = {
+            "status": "ok",
+            "packet": {
+                "segment": "customer_on_staffany_payroll",
+                "c360Url": "https://customer-360-qv4r5xkisq-as.a.run.app/companies/fei-siong-group",
+                "account": {
+                    "companyName": "Fei Siong Group",
+                    "accountOwner": "Kerren Fong",
+                    "psmOwner": "Josica",
+                },
+                "staffany": {
+                    "ownedProducts": ["StaffAny", "Payroll", "EngageAny"],
+                    "missingProducts": ["HRAny", "Claims"],
+                    "activeUsage": {"summary": "4 mapped StaffAny orgs; 1,486 active headcount"},
+                },
+                "crossSellSignals": ["Consider missing StaffAny modules: HRAny, Claims"],
+                "verifiedPics": [
+                    {
+                        "name": "Samantha Lin",
+                        "title": "Senior VP",
+                        "verificationBasis": ["HubSpot operation_pic = Yes"],
+                    }
+                ],
+                "minimalGaps": [],
+            },
+        }
+
+        packet = self.module._build_account_packet(context, c360_packet)
+        rendered = packet["slack_markdown"]
+
+        self.assertEqual(packet["segment"], "customer_on_staffany_payroll")
+        self.assertIn("<https://customer-360-qv4r5xkisq-as.a.run.app/companies/fei-siong-group|Fei Siong Group>", rendered)
+        self.assertIn("current customer on StaffAny Payroll", rendered)
+        self.assertNotIn("Infotech", rendered)
+        self.assertNotIn("2025-10-01", rendered)
+        self.assertNotIn("Last activity", rendered)
+        self.assertNotIn("Deals", rendered)
+        self.assertNotIn("Open Follow-Up", rendered)
+        self.assertNotIn("IC-BANT", rendered)
+        self.assertNotIn("Payroll conversion", rendered)
+
+    def test_non_payroll_customer_account_packet_focuses_payroll_conversion(self):
+        context = company_context("8051493928")
+        context["company"].update(
+            {
+                "name": "Rock Productions Pte Ltd",
+                "account_status": "customer",
+                "owner_name": "Account Owner",
+                "current_tools": "Infotech",
+                "c360_url": "https://customer-360-qv4r5xkisq-as.a.run.app/companies/rock-productions",
+            }
+        )
+        c360_packet = {
+            "status": "ok",
+            "packet": {
+                "segment": "customer_not_on_staffany_payroll",
+                "c360Url": "https://customer-360-qv4r5xkisq-as.a.run.app/companies/rock-productions",
+                "account": {
+                    "companyName": "Rock Productions Pte Ltd",
+                    "accountOwner": "Account Owner",
+                    "psmOwner": "PSM",
+                },
+                "staffany": {
+                    "ownedProducts": ["StaffAny"],
+                    "activeUsage": {"summary": "1 mapped StaffAny org"},
+                },
+                "crossSellSignals": ["Payroll conversion opportunity: no StaffAny Payroll evidence in C360"],
+                "verifiedPics": [],
+                "minimalGaps": ["External HRIS/payroll is not sourced in C360."],
+            },
+        }
+
+        packet = self.module._build_account_packet(context, c360_packet)
+        rendered = packet["slack_markdown"]
+
+        self.assertEqual(packet["segment"], "customer_not_on_staffany_payroll")
+        self.assertIn("Payroll conversion hook", rendered)
+        self.assertIn("Infotech (Source: HubSpot current_tools)", rendered)
+        self.assertNotIn("Deals", rendered)
+        self.assertEqual(len(packet["minimal_gaps"]), 1)
+
+    def test_prospect_account_packet_uses_qualification_brief_with_one_gap_line(self):
+        context = company_context("123")
+        context["company"].update(
+            {
+                "name": "Noci Bakehouse",
+                "account_status": "prospect",
+                "industry": "F&B",
+                "headcount": "80",
+                "current_tools": "Excel",
+                "contract_end_date": "2026-11-30",
+                "missing_fields": ["decision maker", "associated contact", "channel fit"],
+            }
+        )
+
+        packet = self.module._build_account_packet(context, {"status": "skipped"})
+        rendered = packet["slack_markdown"]
+
+        self.assertEqual(packet["segment"], "prospect")
+        self.assertIn("Segment: prospect", rendered)
+        self.assertIn("ICP fit: F&B industry, 80 headcount, Singapore", rendered)
+        self.assertIn("Current HRIS/payroll: Excel (Source: HubSpot current_tools)", rendered)
+        self.assertIn("Next discovery ask", rendered)
+        self.assertEqual(len(packet["minimal_gaps"]), 1)
+        self.assertNotIn("Other Contacts", rendered)
 
     def test_find_contact_gaps_propagates_truncation_metadata(self):
         company = {
