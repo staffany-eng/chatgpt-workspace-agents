@@ -21,7 +21,7 @@ DEFAULT_C360_ROUTE_KEY_BY_COMPANY_ID = {
 
 def _configured_template(env_var: str, default: str) -> str:
     value = os.environ.get(env_var, "").strip()
-    if not value or value in {f"${{{env_var}}}", f"${env_var}"}:
+    if not value or value in {f"${{{env_var}}}", f"${env_var}", f"{{{env_var}}}"}:
         return default
     return value
 
@@ -101,4 +101,8 @@ def render_c360_url(
         "organisation_id": encode_url_value(org_id),
     }
     template = c360_org_url_template() if org_id else c360_company_url_template()
-    return template.format(**values)
+    try:
+        return template.format(**values)
+    except (KeyError, ValueError):
+        fallback_template = DEFAULT_C360_ORG_URL_TEMPLATE if org_id else DEFAULT_C360_COMPANY_URL_TEMPLATE
+        return fallback_template.format(**values)
