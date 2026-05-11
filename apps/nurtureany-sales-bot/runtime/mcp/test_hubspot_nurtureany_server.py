@@ -105,10 +105,16 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
 
     def test_kai_yi_slack_email_alias_is_admin(self):
         with patch.dict(os.environ, {self.module.ACCESS_POLICY_ENV_VAR: ""}):
-            scope = self.module._caller_scope("kai.yi@staffany.com")
+            scopes = [
+                self.module._caller_scope("kai.yi@staffany.com"),
+                self.module._caller_scope("leekai.yi@staffany.com"),
+            ]
 
-        self.assertEqual(scope["kind"], "admin")
-        self.assertEqual(scope["countries"], self.module.SUPPORTED_COUNTRIES)
+        for scope in scopes:
+            self.assertEqual(scope["kind"], "admin")
+            self.assertEqual(scope["email"], "kaiyi@staffany.com")
+            self.assertIn(scope["requested_email"], {"kai.yi@staffany.com", "leekai.yi@staffany.com"})
+            self.assertEqual(scope["countries"], self.module.SUPPORTED_COUNTRIES)
 
     def test_runtime_policy_alias_canonicalizes_admin_email(self):
         policy = {"aliases": [{"email": "kaiy@staffany.com", "alias_for": "kaiyi@staffany.com"}]}

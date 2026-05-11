@@ -24,6 +24,10 @@ OUTLET_MATCHES_TABLE_ENV = "NURTUREANY_OUTLET_MATCHES_TABLE"
 DEFAULT_OUTLET_MATCHES_TABLE = "staffany-warehouse.analytics.nurtureany_near_me_outlet_matches"
 SUPPORTED_COUNTRIES = ("Singapore", "Malaysia", "Indonesia")
 OVERALL_ADMINS = {"eugene@staffany.com", "kaiyi@staffany.com", "kai.yi@staffany.com"}
+BUILT_IN_EMAIL_ALIASES = {
+    "kai.yi@staffany.com": "kaiyi@staffany.com",
+    "leekai.yi@staffany.com": "kaiyi@staffany.com",
+}
 REGIONAL_MANAGERS = {
     "kerren.fong@staffany.com": ("Singapore", "Malaysia"),
     "sarah@staffany.com": ("Indonesia",),
@@ -102,6 +106,36 @@ def _entry_email(entry: Any, *keys: str) -> str:
     return ""
 
 
+def _register_email_alias(aliases: dict[str, str], alias_email: Any, canonical_email: Any) -> None:
+    alias = _normalize_email(str(alias_email or ""))
+    canonical = _normalize_email(str(canonical_email or ""))
+    if alias and canonical and alias != canonical:
+        aliases[alias] = canonical
+
+
+def _register_policy_alias_entry(aliases: dict[str, str], entry: Any) -> None:
+    if isinstance(entry, dict):
+        alias = _entry_email(entry, "email", "slack_email", "alias")
+        canonical = _entry_email(entry, "alias_for", "canonical_email", "canonical_slack_email", "target_email")
+        _register_email_alias(aliases, alias, canonical)
+        return
+    if isinstance(entry, (list, tuple)) and len(entry) >= 2:
+        _register_email_alias(aliases, entry[0], entry[1])
+
+
+def _canonical_policy_email(email: str, policy: dict[str, Any]) -> str:
+    aliases = policy.get("aliases", {})
+    current = _normalize_email(email)
+    seen: set[str] = set()
+    while current and current in aliases and current not in seen:
+        seen.add(current)
+        next_email = _normalize_email(str(aliases.get(current) or ""))
+        if not next_email:
+            break
+        current = next_email
+    return current
+
+
 def _normalize_countries(countries: list[str]) -> tuple[str, ...]:
     selected = []
     for country in countries or list(SUPPORTED_COUNTRIES):
@@ -131,18 +165,36 @@ def _access_policy() -> dict[str, Any]:
     admins = set(OVERALL_ADMINS)
     managers = dict(REGIONAL_MANAGERS)
     disabled: set[str] = set()
+    aliases: dict[str, str] = dict(BUILT_IN_EMAIL_ALIASES)
+
+    raw_aliases = raw.get("aliases", raw.get("email_aliases", []))
+    if isinstance(raw_aliases, dict):
+        for alias, canonical in raw_aliases.items():
+            _register_email_alias(aliases, alias, canonical)
+    elif isinstance(raw_aliases, list):
+        for entry in raw_aliases:
+            _register_policy_alias_entry(aliases, entry)
 
     for entry in raw.get("admins", []):
         email = _entry_email(entry, "email", "slack_email")
+        alias_for = _entry_email(entry, "alias_for", "canonical_email", "canonical_slack_email")
         if email:
-            admins.add(email)
+            if alias_for:
+                _register_email_alias(aliases, email, alias_for)
+                admins.add(alias_for)
+            else:
+                admins.add(email)
 
     for entry in raw.get("managers", []):
         email = _entry_email(entry, "email", "slack_email")
         if not email:
             continue
         countries = entry.get("countries") if isinstance(entry, dict) else None
-        managers[email] = _normalize_countries(_string_list(countries))
+        alias_for = _entry_email(entry, "alias_for", "canonical_email", "canonical_slack_email")
+        manager_email = alias_for or email
+        if alias_for:
+            _register_email_alias(aliases, email, alias_for)
+        managers[manager_email] = _normalize_countries(_string_list(countries))
 
     for key in ("disabled", "unclassified"):
         for entry in raw.get(key, []):
@@ -154,13 +206,15 @@ def _access_policy() -> dict[str, Any]:
         "admins": admins - disabled,
         "managers": {email: countries for email, countries in managers.items() if email not in disabled},
         "disabled": disabled,
+        "aliases": aliases,
     }
 
 
 def _reviewer_scope(email: str) -> dict[str, Any]:
-    normalized = _normalize_email(email)
+    requested_email = _normalize_email(email)
     policy = _access_policy()
-    if not normalized or normalized in policy["disabled"]:
+    normalized = _canonical_policy_email(requested_email, policy)
+    if not requested_email or requested_email in policy["disabled"] or normalized in policy["disabled"]:
         return {"kind": "blocked", "email": normalized, "countries": ()}
     if normalized in policy["admins"]:
         return {"kind": "admin", "email": normalized, "countries": SUPPORTED_COUNTRIES}
@@ -278,7 +332,7 @@ def validate_payload(payload: dict[str, Any]) -> list[dict[str, Any]]:
     matches = payload.get("matches")
     if not isinstance(matches, list) or not matches:
         raise ValidationError("matches must be a non-empty list.")
-    return [_validated_row(row, reviewer_email, approval_marker) for row in matches]
+    return [_validated_row(row, reviewer["email"], approval_marker) for row in matches]
 
 
 def _sql_string(value: Any) -> str:

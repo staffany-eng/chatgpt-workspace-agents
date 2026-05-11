@@ -64,6 +64,11 @@ class NearMeOutletMatchWriterTest(unittest.TestCase):
         self.assertIn("'confirmed' AS match_status", sql)
         self.assertIn("WHEN MATCHED THEN UPDATE SET", sql)
 
+    def test_admin_alias_payload_canonicalizes_reviewer_email(self):
+        rows = self.module.validate_payload(self.payload(approved_by_email="leekai.yi@staffany.com"))
+
+        self.assertEqual(rows[0]["reviewed_by"], "kaiyi@staffany.com")
+
     def test_singapore_manager_can_approve(self):
         rows = self.module.validate_payload(self.payload(approved_by_email="kerren.fong@staffany.com"))
 

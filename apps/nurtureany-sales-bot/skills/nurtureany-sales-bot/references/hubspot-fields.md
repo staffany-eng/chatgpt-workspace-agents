@@ -26,6 +26,7 @@ Target-account count sanity check on 2026-05-09:
 | --- | --- | --- |
 | `eugene@staffany.com` | Overall admin | Singapore, Malaysia, Indonesia |
 | `kaiyi@staffany.com` | Overall admin | Singapore, Malaysia, Indonesia |
+| `kai.yi@staffany.com`, `leekai.yi@staffany.com` | Overall admin aliases for `kaiyi@staffany.com` | Singapore, Malaysia, Indonesia |
 | `kerren.fong@staffany.com` | SG/MY manager | Singapore, Malaysia team view only |
 | `sarah@staffany.com` | Indonesia manager | Indonesia team view only |
 | explicit `sales_reps` policy entry | AE | Own HubSpot target accounts only |

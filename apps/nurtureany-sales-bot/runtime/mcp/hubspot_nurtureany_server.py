@@ -52,6 +52,10 @@ from nurtureany_common.text import (
 HUBSPOT_BASE_URL = "https://api.hubapi.com"
 SUPPORTED_COUNTRIES = ("Singapore", "Malaysia", "Indonesia")
 OVERALL_ADMINS = {"eugene@staffany.com", "kaiyi@staffany.com", "kai.yi@staffany.com"}
+BUILT_IN_EMAIL_ALIASES = {
+    "kai.yi@staffany.com": "kaiyi@staffany.com",
+    "leekai.yi@staffany.com": "kaiyi@staffany.com",
+}
 REGIONAL_MANAGERS = {
     "kerren.fong@staffany.com": ("Singapore", "Malaysia"),
     "sarah@staffany.com": ("Indonesia",),
@@ -589,7 +593,7 @@ def _access_policy() -> dict[str, Any]:
     }
     sales_reps: dict[str, dict[str, Any]] = {}
     disabled: set[str] = set()
-    aliases: dict[str, str] = {}
+    aliases: dict[str, str] = dict(BUILT_IN_EMAIL_ALIASES)
 
     raw_aliases = raw.get("aliases", raw.get("email_aliases", []))
     if isinstance(raw_aliases, dict):
