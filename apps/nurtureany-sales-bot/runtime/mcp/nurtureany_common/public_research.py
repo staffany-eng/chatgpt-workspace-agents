@@ -667,20 +667,24 @@ def fetch_public_evidence_text(source_type: str, url: str) -> tuple[str, str]:
 
 
 def extract_company_signals(item: dict[str, Any], source_type: str, source_url: str, fetched_text: str) -> list[dict[str, Any]]:
-    text = " ".join(
+    search_text = " ".join(
         str(part or "")
         for part in [
             item.get("title"),
             item.get("snippet"),
             item.get("content"),
             item.get("description"),
-            fetched_text,
         ]
     )
-    lowered = text.lower()
+    text = " ".join([search_text, fetched_text])
+    # Generic directories often contain unrelated footer/navigation words like
+    # "job opening" or "new outlet". Use extracted page text only for sources
+    # whose type is already meaningfully tied to the company or market event.
+    signal_text = search_text if source_type == "general_web" else text
+    lowered = signal_text.lower()
     signal_keywords = {
         "hiring_signal": ("hiring", "vacancy", "recruit", "join our team", "open role", "job opening", "jobs available"),
-        "growth_signal": ("new outlet", "opening", "expanding", "expansion", "launch", "coming soon", "new branch"),
+        "growth_signal": ("new outlet", "opening soon", "grand opening", "new branch", "expanding", "expansion", "launch", "coming soon"),
         "pain_signal": ("manpower", "understaffed", "turnover", "attendance", "payroll", "scheduling", "retention"),
         "news_signal": ("award", "funding", "partnership", "franchise", "announced", "featured"),
         "decision_maker_hint": ("founder", "ceo", "managing director", "general manager", "hr director", "people director"),
@@ -697,7 +701,10 @@ def extract_company_signals(item: dict[str, Any], source_type: str, source_url: 
                     "keywords": matched[:5],
                     "source_type": source_type,
                     "source_url": source_url,
-                    "evidence": _short_text(str(item.get("snippet") or fetched_text or item.get("title") or ""), SIGNAL_EVIDENCE_CHAR_LIMIT),
+                    "evidence": _short_text(
+                        str(item.get("snippet") or (fetched_text if source_type != "general_web" else "") or item.get("title") or ""),
+                        SIGNAL_EVIDENCE_CHAR_LIMIT,
+                    ),
                     "confidence": "needs-check",
                 }
             )

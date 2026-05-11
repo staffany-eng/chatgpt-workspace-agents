@@ -199,6 +199,34 @@ class PublicResearchNurtureAnyServerTest(unittest.TestCase):
             "search_exa_people_candidates",
         )
 
+    def test_opening_hours_directory_copy_does_not_become_growth_signal(self):
+        signals = self.research_module.extract_company_signals(
+            {
+                "title": "Acme Cafe company profile",
+                "snippet": "Address, operating status, and opening hours for Acme Cafe.",
+            },
+            "general_web",
+            "https://directory.example/acme-cafe",
+            "",
+        )
+
+        self.assertNotIn("growth_signal", {signal["signal_type"] for signal in signals})
+
+    def test_generic_web_extract_boilerplate_does_not_create_positive_signal(self):
+        signals = self.research_module.extract_company_signals(
+            {
+                "title": "Acme Cafe company registry profile",
+                "snippet": "Official company information, address, and operating status.",
+            },
+            "general_web",
+            "https://directory.example/acme-cafe",
+            "Footer links: job opening, new outlet, payroll, expansion.",
+        )
+
+        signal_types = {signal["signal_type"] for signal in signals}
+        self.assertNotIn("hiring_signal", signal_types)
+        self.assertNotIn("growth_signal", signal_types)
+
     def test_unrelated_tavily_results_are_filtered_before_signals(self):
         def fake_request(endpoint, token, body):
             if endpoint == "/extract":
