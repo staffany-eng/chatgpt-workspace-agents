@@ -19,6 +19,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import date, datetime, time as datetime_time, timedelta, timezone
+from pathlib import Path
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
@@ -387,6 +388,38 @@ PHOTO_CUSTOM_OBJECT_TYPES = {
     "appearance": "nurture_person_appearance",
 }
 SINGAPORE_TIMEZONE = timezone(timedelta(hours=8))
+DAILY_NURTURE_DEFAULT_ACCOUNT_COUNT = 30
+DAILY_NURTURE_PROTECTED_POOL_SIZE = 150
+DAILY_NURTURE_WORKWEEK_DAYS = 5
+DAILY_NURTURE_MATERIAL_TABS = (
+    "Materials",
+    "Playbooks",
+    "Peer Intros",
+    "Speaker/Venue Opportunities",
+    "Events",
+    "Review Log",
+)
+DAILY_NURTURE_MATERIAL_FIELDS = (
+    "material_id",
+    "category",
+    "title",
+    "url",
+    "status",
+    "country_scope",
+    "industry_tags",
+    "concept_tags",
+    "persona_tags",
+    "valid_from",
+    "valid_until",
+    "template_name",
+    "template_params_schema",
+    "message_hook",
+    "owner",
+)
+DAILY_NURTURE_DEFAULT_TEMPLATE_NAME = "nurture_material_share_v1"
+DAILY_NURTURE_DEFAULT_TEMPLATE_SCHEMA = ("first_name", "account_name", "material_title", "material_url")
+DAILY_NURTURE_ACTIVE_MATERIAL_STATUSES = {"active", "approved", "live"}
+DAILY_NURTURE_RUNS_DIR_ENV = "NURTUREANY_DAILY_RUNS_DIR"
 LUMA_BASE_URL = "https://public-api.luma.com"
 LUMA_USER_AGENT = "StaffAny-NurtureAny/1.0 (+https://staffany.com)"
 LUMA_TIMEOUT_SECONDS = 15
@@ -5597,6 +5630,421 @@ def _pre_demo_case_study_matches(context: dict[str, Any]) -> list[dict[str, Any]
     return matches[:CASE_STUDY_MATCH_LIMIT]
 
 
+def _daily_nurture_for_date(value: str = "") -> date:
+    parsed = _date_value(value)
+    if parsed:
+        return parsed
+    return datetime.now(SINGAPORE_TIMEZONE).date()
+
+def _daily_nurture_bucket_index(for_date: date) -> int:
+    return min(for_date.weekday(), DAILY_NURTURE_WORKWEEK_DAYS - 1)
+
+def _company_sort_key(company: dict[str, Any]) -> tuple[str, str]:
+    props = company.get("properties") if isinstance(company.get("properties"), dict) else {}
+    return (
+        str(props.get("name") or company.get("name") or "").strip().lower(),
+        str(company.get("id") or company.get("company_id") or ""),
+    )
+
+def _daily_nurture_company_bucket(
+    companies: list[dict[str, Any]],
+    for_date: date,
+    daily_account_count: int,
+) -> dict[str, Any]:
+    capped_daily_count = max(1, min(int(daily_account_count or DAILY_NURTURE_DEFAULT_ACCOUNT_COUNT), DAILY_NURTURE_PROTECTED_POOL_SIZE))
+    sorted_companies = sorted(companies, key=_company_sort_key)
+    bucket_index = _daily_nurture_bucket_index(for_date)
+    start = bucket_index * capped_daily_count
+    end = start + capped_daily_count
+    return {
+        "bucket_index": bucket_index,
+        "bucket_label": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"][bucket_index],
+        "daily_account_count": capped_daily_count,
+        "start_index": start,
+        "end_index": end,
+        "companies": sorted_companies[start:end],
+        "sorted_company_ids": [str(company.get("id") or company.get("company_id") or "") for company in sorted_companies],
+    }
+
+def _split_material_tags(value: Any) -> list[str]:
+    if isinstance(value, list):
+        raw_values = value
+    else:
+        raw_values = re.split(r"[,;|]", str(value or ""))
+    tags = []
+    for raw in raw_values:
+        tag = _normalized_words(str(raw or "")).strip()
+        if tag and tag not in tags:
+            tags.append(tag)
+    return tags
+
+def _material_date(value: Any) -> date | None:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    return _date_value(text)
+
+def _material_registry_contract() -> dict[str, Any]:
+    return {
+        "source": "read-only Google Sheet",
+        "tabs": list(DAILY_NURTURE_MATERIAL_TABS),
+        "minimum_fields": list(DAILY_NURTURE_MATERIAL_FIELDS),
+        "status_policy": "Only active, approved, or live rows are eligible. Expired/future rows are ignored.",
+    }
+
+def _safe_material_rows(rows: list[dict[str, Any]] | None, for_date: date) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    active: list[dict[str, Any]] = []
+    ignored: list[dict[str, Any]] = []
+    for index, row in enumerate(rows or []):
+        if not isinstance(row, dict):
+            ignored.append({"row_index": index, "reason": "not an object"})
+            continue
+        status = str(row.get("status") or "").strip().lower()
+        if status and status not in DAILY_NURTURE_ACTIVE_MATERIAL_STATUSES:
+            ignored.append({"material_id": row.get("material_id") or "", "reason": f"inactive status {status}"})
+            continue
+        valid_from = _material_date(row.get("valid_from"))
+        valid_until = _material_date(row.get("valid_until"))
+        if valid_from and valid_from > for_date:
+            ignored.append({"material_id": row.get("material_id") or "", "reason": "not yet valid"})
+            continue
+        if valid_until and valid_until < for_date:
+            ignored.append({"material_id": row.get("material_id") or "", "reason": "expired"})
+            continue
+        active.append(dict(row))
+    return active, ignored
+
+def _material_country_matches(material: dict[str, Any], country: str) -> bool:
+    scopes = _split_material_tags(material.get("country_scope"))
+    if not scopes:
+        return True
+    normalized_country = _normalized_words(country)
+    return "all" in scopes or normalized_country in scopes or any(scope in normalized_country for scope in scopes)
+
+def _contact_role_text(contact: dict[str, Any]) -> str:
+    props = contact.get("properties", {})
+    return str(contact.get("persona") or props.get("job_role") or props.get("jobtitle") or "")
+
+def _stakeholder_roles_for_contact(contact: dict[str, Any]) -> list[dict[str, str]]:
+    roles: list[dict[str, str]] = []
+    buying_role = str(contact.get("buying_role") or "")
+    role_text = _contact_role_text(contact)
+    persona_text = _normalized_words(str(contact.get("persona") or ""))
+    warm_text = _normalized_words(f"{contact.get('channel_fit') or ''} {contact.get('contact_confidence') or ''}")
+
+    if contact.get("is_verified_decision_maker") or _has_decision_maker_buying_role(buying_role):
+        roles.append({"role": "decision_maker", "confidence": "verified", "basis": "HubSpot hs_buying_role=DECISION_MAKER"})
+    elif contact.get("is_role_inferred_decision_maker"):
+        roles.append({"role": "decision_maker", "confidence": "needs-check", "basis": "title-only decision-maker candidate"})
+
+    if "champion" in role_text or "advocate" in role_text:
+        confidence = "verified" if "champion" in _normalized_words(buying_role) else "needs-check"
+        roles.append({"role": "champion", "confidence": confidence, "basis": "HubSpot champion/persona signal" if confidence == "verified" else "warm activity/persona candidate"})
+    elif any(marker in warm_text for marker in ("warm", "reply", "replied", "responsive", "friend", "friendly")):
+        roles.append({"role": "champion", "confidence": "needs-check", "basis": "prior warm activity or reply evidence"})
+
+    influencer_markers = (
+        "hr",
+        "human resource",
+        "people",
+        "ops",
+        "operation",
+        "finance",
+        "payroll",
+        "area",
+        "outlet",
+        "manager",
+        "admin",
+        "talent",
+    )
+    if "influencer" in role_text or any(marker in persona_text for marker in influencer_markers):
+        confidence = "verified" if "influencer" in _normalized_words(buying_role) else "needs-check"
+        roles.append({"role": "influencer", "confidence": confidence, "basis": "HubSpot buying role/persona" if confidence == "verified" else "HR/Ops/Finance/Area/Outlet title candidate"})
+
+    seen = set()
+    unique_roles = []
+    for role in roles:
+        key = role["role"]
+        if key in seen:
+            continue
+        seen.add(key)
+        unique_roles.append(role)
+    return unique_roles
+
+def _daily_nurture_stakeholders(context: dict[str, Any]) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
+    stakeholders: list[dict[str, Any]] = []
+    present_roles: set[str] = set()
+    for contact in context.get("contacts", []):
+        if not isinstance(contact, dict):
+            continue
+        for role in _stakeholder_roles_for_contact(contact):
+            present_roles.add(role["role"])
+            stakeholders.append(
+                {
+                    "contact_id": contact.get("contact_id") or "",
+                    "display_name": contact.get("display_name") or "HubSpot contact",
+                    "persona": contact.get("persona") or "",
+                    "buying_role": contact.get("buying_role") or "",
+                    "stakeholder_role": role["role"],
+                    "role_confidence": role["confidence"],
+                    "role_basis": role["basis"],
+                }
+            )
+    gaps = []
+    for required_role in ("decision_maker", "influencer", "champion"):
+        if required_role not in present_roles:
+            gaps.append({"role": required_role, "reason": f"no {required_role} identified from HubSpot contacts"})
+    return stakeholders, gaps
+
+def _material_schema_names(value: Any) -> list[str]:
+    if isinstance(value, list):
+        names = [str(item or "").strip() for item in value]
+    else:
+        text = str(value or "").strip()
+        if not text:
+            return list(DAILY_NURTURE_DEFAULT_TEMPLATE_SCHEMA)
+        try:
+            payload = json.loads(text)
+            if isinstance(payload, list):
+                names = [str(item or "").strip() for item in payload]
+            else:
+                names = [part.strip() for part in re.split(r"[,;|]", text)]
+        except json.JSONDecodeError:
+            names = [part.strip() for part in re.split(r"[,;|]", text)]
+    cleaned = [name for name in names if name]
+    return cleaned or list(DAILY_NURTURE_DEFAULT_TEMPLATE_SCHEMA)
+
+def _first_name(display_name: str) -> str:
+    return str(display_name or "").strip().split(" ")[0] or "there"
+
+def _template_params(schema_names: list[str], context: dict[str, Any], stakeholder: dict[str, Any], material: dict[str, Any]) -> list[str]:
+    company = context.get("company", {})
+    mapping = {
+        "first_name": _first_name(stakeholder.get("display_name") or ""),
+        "account_name": str(company.get("name") or ""),
+        "company_name": str(company.get("name") or ""),
+        "material_title": str(material.get("title") or ""),
+        "material_url": str(material.get("url") or ""),
+        "message_hook": str(material.get("message_hook") or material.get("hook") or ""),
+        "hook": str(material.get("message_hook") or material.get("hook") or ""),
+        "industry": str(company.get("industry") or ""),
+        "current_tools": str(company.get("current_tools") or ""),
+        "country": str(company.get("country") or ""),
+        "stakeholder_role": str(stakeholder.get("stakeholder_role") or ""),
+        "persona": str(stakeholder.get("persona") or ""),
+        "ae_name": str(company.get("owner_name") or company.get("owner_email") or ""),
+    }
+    return [mapping.get(_normalized_words(name).replace(" ", "_"), "") for name in schema_names]
+
+def _case_study_materials(context: dict[str, Any]) -> list[dict[str, Any]]:
+    materials = []
+    for match in _pre_demo_case_study_matches(context):
+        title = str(match.get("customer") or "case study").strip()
+        materials.append(
+            {
+                "material_id": f"case-study:{_normalize_name(title) or hashlib.sha256(title.encode('utf-8')).hexdigest()[:8]}",
+                "category": "case_study",
+                "title": title,
+                "url": match.get("source_url") or "",
+                "status": "approved",
+                "country_scope": match.get("country") or "",
+                "industry_tags": match.get("industry") or "",
+                "concept_tags": "case study, same industry",
+                "persona_tags": "",
+                "template_name": DAILY_NURTURE_DEFAULT_TEMPLATE_NAME,
+                "template_params_schema": list(DAILY_NURTURE_DEFAULT_TEMPLATE_SCHEMA),
+                "message_hook": match.get("summary") or "",
+                "owner": "repo_case_study_catalog",
+                "match_reasons": match.get("match_reasons") or [],
+                "match_score": match.get("match_score") or 0,
+            }
+        )
+    return materials
+
+def _material_score(material: dict[str, Any], context: dict[str, Any], stakeholder: dict[str, Any]) -> tuple[int, list[str]]:
+    company = context.get("company", {})
+    score = 0
+    reasons: list[str] = []
+    if _material_country_matches(material, str(company.get("country") or "")):
+        score += 4
+        if material.get("country_scope"):
+            reasons.append("country_scope match")
+    else:
+        return -100, []
+
+    industry_terms = set(_split_material_tags(company.get("industry")))
+    industry_terms.update(_normalized_words(str(company.get("industry") or "")).split())
+    industry_hits = sorted(set(_split_material_tags(material.get("industry_tags"))).intersection(industry_terms))
+    if industry_hits:
+        score += 20 + min(len(industry_hits) * 3, 9)
+        reasons.append("same industry: " + ", ".join(industry_hits[:3]))
+
+    context_terms = set(
+        _normalized_words(
+            " ".join(
+                [
+                    str(company.get("name") or ""),
+                    str(company.get("industry") or ""),
+                    str(company.get("current_tools") or ""),
+                    str(company.get("account_status") or ""),
+                ]
+            )
+        ).split()
+    )
+    bucket = _pre_demo_industry_bucket(company)
+    if bucket != "general":
+        context_terms.add(bucket)
+    concept_hits = sorted(set(_split_material_tags(material.get("concept_tags"))).intersection(context_terms))
+    if concept_hits:
+        score += 16 + min(len(concept_hits) * 3, 9)
+        reasons.append("same concept: " + ", ".join(concept_hits[:3]))
+
+    persona_terms = set(_contact_role_text(stakeholder).split())
+    stakeholder_role = str(stakeholder.get("stakeholder_role") or "")
+    persona_terms.add(stakeholder_role)
+    persona_terms.add(stakeholder_role.replace("_", " "))
+    persona_hits = sorted(set(_split_material_tags(material.get("persona_tags"))).intersection(persona_terms))
+    if persona_hits:
+        score += 10
+        reasons.append("persona match: " + ", ".join(persona_hits[:3]))
+
+    category = str(material.get("category") or "").lower()
+    if category in {"peer_intro", "warm_intro"}:
+        score += 6
+    elif category in {"event", "event_invite", "speaking_opportunity", "venue_opportunity"}:
+        score += 5
+    elif category in {"case_study", "podcast"}:
+        score += 4
+    if not reasons and category:
+        score += 1
+        reasons.append(f"generic {category}")
+    score += _int_value(material.get("match_score"))
+    if material.get("match_reasons"):
+        reasons.extend([str(reason) for reason in material.get("match_reasons")[:3]])
+    return score, reasons[:5]
+
+def _match_nurture_material(
+    context: dict[str, Any],
+    stakeholder: dict[str, Any],
+    material_rows: list[dict[str, Any]],
+) -> dict[str, Any]:
+    candidates = list(material_rows) + _case_study_materials(context)
+    scored = []
+    for material in candidates:
+        score, reasons = _material_score(material, context, stakeholder)
+        if score < 0:
+            continue
+        scored.append((score, str(material.get("material_id") or material.get("title") or ""), material, reasons))
+    if not scored:
+        return {
+            "material_id": "",
+            "category": "material_needed",
+            "title": "Material match needed",
+            "url": "",
+            "template_name": "",
+            "template_params_schema": [],
+            "message_hook": "Pick a podcast, case study, event invite, salary benchmark, fireside learning, venue ask, speaker ask, or warm peer intro.",
+            "match_score": 0,
+            "match_reasons": ["no active same-industry/concept/persona material found"],
+        }
+    scored.sort(key=lambda item: (-item[0], item[1]))
+    score, _, selected, reasons = scored[0]
+    material = dict(selected)
+    material["match_score"] = score
+    material["match_reasons"] = reasons
+    return material
+
+def _daily_nurture_message_id(run_id: str, company_id: str, contact_id: str, stakeholder_role: str) -> str:
+    payload = f"{run_id}:{company_id}:{contact_id}:{stakeholder_role}".encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()[:16]
+
+def _daily_nurture_draft(context: dict[str, Any], stakeholder: dict[str, Any], material: dict[str, Any]) -> str:
+    company = context.get("company", {})
+    first_name = _first_name(stakeholder.get("display_name") or "")
+    company_name = str(company.get("name") or "your team")
+    hook = str(material.get("message_hook") or "").strip()
+    title = str(material.get("title") or "this").strip()
+    url = str(material.get("url") or "").strip()
+    if hook:
+        body = f"Hi {first_name}, thought of {company_name} because {hook}"
+    else:
+        body = f"Hi {first_name}, thought this might be useful for {company_name}: {title}"
+    if url:
+        body = f"{body}\n{url}"
+    return body[:900]
+
+def _daily_nurture_message(
+    run_id: str,
+    context: dict[str, Any],
+    stakeholder: dict[str, Any],
+    material_rows: list[dict[str, Any]],
+) -> dict[str, Any]:
+    company = context.get("company", {})
+    company_id = str(company.get("company_id") or "")
+    contact_id = str(stakeholder.get("contact_id") or "")
+    role = str(stakeholder.get("stakeholder_role") or "")
+    material = _match_nurture_material(context, stakeholder, material_rows)
+    schema_names = _material_schema_names(material.get("template_params_schema"))
+    template_name = str(material.get("template_name") or "").strip()
+    template_params = _template_params(schema_names, context, stakeholder, material)
+    eazybe_ready = bool(template_name and contact_id and material.get("category") != "material_needed")
+    return {
+        "message_id": _daily_nurture_message_id(run_id, company_id, contact_id, role),
+        "run_id": run_id,
+        "company_id": company_id,
+        "company_name": company.get("name") or "",
+        "contact_id": contact_id,
+        "stakeholder_name": stakeholder.get("display_name") or "HubSpot contact",
+        "stakeholder_role": role,
+        "role_confidence": stakeholder.get("role_confidence") or "needs-check",
+        "role_basis": stakeholder.get("role_basis") or "",
+        "persona": stakeholder.get("persona") or "",
+        "material": {
+            "material_id": material.get("material_id") or "",
+            "category": material.get("category") or "",
+            "title": material.get("title") or "",
+            "url": material.get("url") or "",
+            "message_hook": material.get("message_hook") or "",
+            "match_score": material.get("match_score") or 0,
+            "match_reasons": material.get("match_reasons") or [],
+        },
+        "draft_preview": _daily_nurture_draft(context, stakeholder, material),
+        "template_payload": {
+            "template_name": template_name,
+            "template_params_schema": schema_names,
+            "template_params": template_params,
+        },
+        "eazybe_ready": eazybe_ready,
+        "send_status": "pending_approval" if eazybe_ready else "needs_material_or_template",
+        "safe_for_slack": True,
+    }
+
+def _daily_nurture_run_id(owner_email: str, for_date: date, bucket_index: int, company_ids: list[str]) -> str:
+    digest = hashlib.sha256("|".join(company_ids).encode("utf-8")).hexdigest()[:8]
+    owner_key = _normalize_name(owner_email or "owner") or "owner"
+    return f"daily-nurture:{owner_key}:{for_date.isoformat()}:bucket-{bucket_index + 1}:{digest}"
+
+def _daily_nurture_runs_dir() -> Path | None:
+    raw = os.environ.get(DAILY_NURTURE_RUNS_DIR_ENV, "").strip()
+    if not raw:
+        return None
+    return Path(raw).expanduser()
+
+def _persist_daily_nurture_run(run_id: str, payload: dict[str, Any]) -> dict[str, str | bool]:
+    runs_dir = _daily_nurture_runs_dir()
+    if not runs_dir:
+        return {"persisted": False, "reason": f"{DAILY_NURTURE_RUNS_DIR_ENV} not configured"}
+    safe_name = re.sub(r"[^A-Za-z0-9_.:-]+", "_", run_id or "")
+    if not safe_name:
+        return {"persisted": False, "reason": "missing run_id"}
+    try:
+        runs_dir.mkdir(parents=True, exist_ok=True)
+        path = runs_dir / f"{safe_name}.json"
+        path.write_text(json.dumps(payload, ensure_ascii=True, indent=2, sort_keys=True), encoding="utf-8")
+    except OSError as error:
+        return {"persisted": False, "reason": f"write failed: {error.__class__.__name__}"}
+    return {"persisted": True, "path": str(path)}
+
 def _pre_demo_case_study_name_drops(context: dict[str, Any]) -> list[str]:
     drops = [
         f"{match.get('summary')} Source: {match.get('source_url')}"
@@ -5812,50 +6260,6 @@ def _pre_demo_ic_bant_prompts(context: dict[str, Any]) -> dict[str, list[str]]:
 
 
 def _public_research_company_input(context: dict[str, Any]) -> dict[str, Any]:
-    company = context.get("company", {})
-    return {
-        "company_id": str(company.get("company_id") or ""),
-        "name": str(company.get("name") or ""),
-        "domain": str(company.get("domain") or ""),
-        "country": str(company.get("country") or ""),
-        "hubspot_scoped": True,
-        "scope_source": SCOPE_SOURCE,
-    }
-
-
-def _public_research_for_game_plan_contexts(
-    contexts: list[dict[str, Any]],
-    include_public_research: bool,
-    research_mode: str,
-) -> tuple[dict[str, dict[str, Any]], dict[str, Any] | None, list[str]]:
-    if not include_public_research:
-        return {}, None, []
-
-    token = os.environ.get("TAVILY_API_KEY", "").strip()
-    if not token:
-        message = "public research blocked: Missing TAVILY_API_KEY."
-        return {}, _public_research.research_cost_report([], message, research_mode), [message]
-
-    companies = [_public_research_company_input(context) for context in contexts[: _public_research.MAX_RESEARCH_COMPANIES]]
-    try:
-        result = _public_research.research_public_company_signals(companies, token, research_mode)
-    except _public_research.TavilyError as error:
-        message = f"public research blocked: {str(error)}"
-        return {}, _public_research.research_cost_report([], message, research_mode), [message]
-
-    by_company = {
-        str(item.get("input_company", {}).get("company_id") or ""): item
-        for item in result.get("answer", [])
-        if isinstance(item, dict)
-    }
-    return by_company, result.get("cost_report"), list(result.get("missing_evidence", []))
-
-
-def _build_pre_demo_game_plan_row(
-    context: dict[str, Any],
-    public_research: dict[str, Any] | None = None,
-    source_thread: dict[str, Any] | None = None,
-) -> dict[str, Any]:
     company = context.get("company", {})
     return {
         "company_id": str(company.get("company_id") or ""),
@@ -10992,6 +11396,177 @@ def plan_event_photo_followup(
     except HubSpotError as error:
         return _blocked(str(error), {"caller_email": slack_user_email})
 
+
+@mcp.tool()
+def build_daily_nurture_plan(
+    slack_user_email: str,
+    for_date: str = "",
+    countries: list[str] | None = None,
+    owner_email: str | None = None,
+    daily_account_count: int = DAILY_NURTURE_DEFAULT_ACCOUNT_COUNT,
+    protected_pool_size: int = DAILY_NURTURE_PROTECTED_POOL_SIZE,
+    material_registry_rows: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Build the 9am daily target-account nurture pack with approval-gated WhatsApp drafts."""
+
+    try:
+        scope = _caller_scope(slack_user_email)
+        if scope["kind"] == "blocked":
+            return _blocked("Caller identity is not mapped to an allowed NurtureAny scope.", {"caller_email": slack_user_email})
+        selected_countries = _safe_countries(countries, scope["countries"])
+        target_owner_id, target_owner_email = _target_owner_id_for_scope(scope, owner_email)
+        if not target_owner_email:
+            target_owner_email = scope.get("hubspot_owner_email") or scope.get("email") or ""
+        if not target_owner_id:
+            return _blocked("Daily nurture planning requires a concrete HubSpot owner email.", _scope_response(scope, selected_countries))
+
+        selected_date = _daily_nurture_for_date(for_date)
+        weekend = selected_date.weekday() >= DAILY_NURTURE_WORKWEEK_DAYS
+        capped_pool = max(1, min(int(protected_pool_size or DAILY_NURTURE_PROTECTED_POOL_SIZE), HUBSPOT_SEARCH_TOTAL_LIMIT))
+        active_material_rows, ignored_material_rows = _safe_material_rows(material_registry_rows or [], selected_date)
+        search = _company_search(
+            _target_filters(selected_countries, target_owner_id),
+            limit=capped_pool,
+            maximum=HUBSPOT_SEARCH_TOTAL_LIMIT,
+            sorts=[{"propertyName": "name", "direction": "ASCENDING"}],
+        )
+        pool = search.get("results", [])
+        bucket = _daily_nurture_company_bucket(pool, selected_date, daily_account_count)
+        selected_companies = bucket["companies"]
+        selected_company_ids = [str(company.get("id") or company.get("company_id") or "") for company in selected_companies]
+        run_id = _daily_nurture_run_id(target_owner_email, selected_date, bucket["bucket_index"], selected_company_ids)
+
+        accounts: list[dict[str, Any]] = []
+        messages: list[dict[str, Any]] = []
+        inaccessible_accounts: list[dict[str, str]] = []
+        role_gaps: list[dict[str, str]] = []
+        material_gaps: list[dict[str, str]] = []
+
+        for company in selected_companies:
+            company_id = str(company.get("id") or company.get("company_id") or "")
+            if not company_id:
+                continue
+            context = _company_context(company_id, scope, task_limit=5)
+            if not context:
+                inaccessible_accounts.append({"company_id": company_id, "reason": "outside caller scope or inaccessible"})
+                continue
+            stakeholders, gaps = _daily_nurture_stakeholders(context)
+            company_summary = context.get("company", {})
+            account_messages = [
+                _daily_nurture_message(run_id, context, stakeholder, active_material_rows) for stakeholder in stakeholders
+            ]
+            messages.extend(account_messages)
+            role_gaps.extend(
+                [
+                    {
+                        "company_id": company_summary.get("company_id") or company_id,
+                        "company_name": company_summary.get("name") or "",
+                        "role": gap["role"],
+                        "reason": gap["reason"],
+                    }
+                    for gap in gaps
+                ]
+            )
+            material_gaps.extend(
+                [
+                    {
+                        "company_id": message.get("company_id") or company_id,
+                        "company_name": message.get("company_name") or "",
+                        "contact_id": message.get("contact_id") or "",
+                        "stakeholder_role": message.get("stakeholder_role") or "",
+                        "reason": "no active Sheet/case-study material or approved template",
+                    }
+                    for message in account_messages
+                    if not message.get("eazybe_ready")
+                ]
+            )
+            accounts.append(
+                {
+                    "company_id": company_summary.get("company_id") or company_id,
+                    "company_name": company_summary.get("name") or "",
+                    "country": company_summary.get("country") or "",
+                    "industry": company_summary.get("industry") or "",
+                    "current_tools": company_summary.get("current_tools") or "",
+                    "stakeholder_count": len(stakeholders),
+                    "message_count": len(account_messages),
+                    "role_gaps": gaps,
+                }
+            )
+
+        confidence = "verified"
+        caveats = []
+        if weekend:
+            confidence = "needs-check"
+            caveats.append("Requested date is a weekend; v1 working days are Monday to Friday and this returns the Friday bucket.")
+        if search.get("truncated"):
+            confidence = "needs-check"
+            caveats.append("HubSpot search was truncated; protected pool may exceed returned rows.")
+        if len(pool) < capped_pool:
+            confidence = "needs-check"
+            caveats.append(f"Only {len(pool)} protected target accounts were returned for this owner; no silent replacement was done.")
+        if len(selected_companies) < bucket["daily_account_count"]:
+            confidence = "needs-check"
+            caveats.append(f"Bucket has only {len(selected_companies)} accounts; no silent replacement was done.")
+        if role_gaps or material_gaps or inaccessible_accounts:
+            confidence = "needs-check"
+            caveats.append("Some accounts have missing stakeholder roles, inaccessible context, or missing approved material/template matches.")
+        if not material_registry_rows:
+            confidence = "needs-check"
+            caveats.append("No Google Sheet material registry rows were supplied; matching fell back to approved repo case studies only.")
+
+        response = {
+            "answer": {
+                "run_id": run_id,
+                "for_date": selected_date.isoformat(),
+                "timezone": "Asia/Singapore",
+                "working_day_policy": "Monday to Friday; public holiday suppression not enabled in v1",
+                "bucket_index": bucket["bucket_index"],
+                "bucket_label": bucket["bucket_label"],
+                "account_rotation": {
+                    "protected_pool_size": capped_pool,
+                    "daily_account_count": bucket["daily_account_count"],
+                    "returned_pool_count": len(pool),
+                    "selected_account_count": len(accounts),
+                    "selected_company_ids": selected_company_ids,
+                    "no_silent_replacement": True,
+                },
+                "material_registry": {
+                    "contract": _material_registry_contract(),
+                    "supplied_rows": len(material_registry_rows or []),
+                    "active_rows": len(active_material_rows),
+                    "ignored_rows": ignored_material_rows[:20],
+                    "read_only": True,
+                },
+                "selected_accounts": accounts,
+                "messages": messages,
+                "message_count": len(messages),
+                "eazybe_ready_message_count": sum(1 for message in messages if message.get("eazybe_ready")),
+                "role_gaps": role_gaps,
+                "material_gaps": material_gaps,
+                "inaccessible_accounts": inaccessible_accounts,
+                "approval_instructions": "Review message_ids, then call preview_eazybe_template_messages. Only call send_approved_eazybe_messages with selected message_ids and approval_marker.",
+                "twelve_pm_sent_definition": "Sent means Eazybe accepted/queued the approved template message, or HubSpot later shows a matching WhatsApp communication for the stakeholder/account after run start. Explicit skips suppress reminders.",
+                "whatsapp_auto_send": False,
+            },
+            "source": "HubSpot target accounts/contacts/activity + read-only Google Sheet material registry rows + approved repo case-study catalog",
+            "scope": {**_scope_response(scope, selected_countries, target_owner_id, target_owner_email), "target_owner_email": target_owner_email, "target_owner_id": target_owner_id},
+            "confidence": confidence,
+            "caveat": " ".join(caveats) if caveats else "Deterministic 5-working-day rotation over the returned protected target-account pool. WhatsApp sends remain approval-gated.",
+        }
+        persistence = _persist_daily_nurture_run(run_id, response)
+        response["answer"]["run_persistence"] = persistence
+        if not persistence.get("persisted"):
+            response["confidence"] = "needs-check"
+            response["caveat"] = f"{response['caveat']} Daily run payload was not persisted for 12pm reminder reload: {persistence.get('reason')}."
+        else:
+            _persist_daily_nurture_run(run_id, response)
+        return response
+    except ScopeError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email})
+    except HubSpotError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email})
+    except ValueError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email})
 
 @mcp.tool()
 def draft_nurture_message(

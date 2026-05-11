@@ -41,6 +41,7 @@ Use this reference with `sales-best-practices.md` before changing or answering f
 | `list_sales_followup_tasks` | Follow-up | Existing incomplete sales-owned HubSpot tasks only; safe task fields; no duplicate task creation. |
 | `check_account_followup_status` | Follow-up | HubSpot communications, notes, tasks, and meetings determine status; event attribution requires proof; body-free by default, with admin-only `include_body=true` for bounded WhatsApp communication bodies. |
 | `check_event_followup_status` | Event follow-up | Luma/Sheet attendance identifies matched accounts; HubSpot verifies event-specific WhatsApp/tasks; raw attendees and bodies hidden. |
+| `build_daily_nurture_plan` | Daily nurture | Builds a scoped daily nurture queue and approved-template draft rows from HubSpot plus selected enrichment; no WhatsApp send or HubSpot mutation. |
 | `score_nurture_accounts` | Queue scoring | HubSpot override fields and clean-lead completeness; access scope and pagination caveats; no mutation. |
 | `find_contact_gaps` | Enrichment gaps | HubSpot decision-maker and buying-role fields; clean-lead completeness; no paid enrichment or raw PII export. |
 | `find_t90_renewal_gaps` | Renewal timing | HubSpot `contract_end_date` is durable timing truth; missing-date bucket is explicit; no raw contacts/task bodies. |
@@ -66,6 +67,10 @@ Use this reference with `sales-best-practices.md` before changing or answering f
 | `extract_drive_image_clues` | Drive photo | Transient OCR/vision clues only; raw bytes discarded; event/person attribution remains `needs-check` until confirmed. |
 | `read_nurture_material_registry` | Drive registry | One-sheet nurture material registry from `NURTUREANY_MATERIAL_REGISTRY_SPREADSHEET_ID`; safe rows only; no raw exports or Drive mutation. |
 | `read_indonesia_event_registration_attendance` | Event fallback | Indonesia LL/HHH Sheet fallback only when Luma check-in is empty or not used; `Attend The Event` is manual attendance evidence; safe rows and match keys only. |
+| `preview_eazybe_template_messages` | Eazybe preview | Reviews selected stored daily nurture template rows with redacted phone metadata; no send. |
+| `send_approved_eazybe_messages` | Eazybe send | Approval-gated approved-template send only with explicit approval marker; no free-form WhatsApp text. |
+| `check_eazybe_send_status` | Eazybe status | Read-only status lookup for selected message IDs; no message body export or mutation. |
+| `build_daily_nurture_reminder` | Eazybe preview | Builds Slack reminder copy for daily nurture review; preview only. |
 | `resolve_known_area_for_near_me` | Near-me | Curated known areas outside HubSpot; no person GPS or employee movement; no mutation. |
 | `build_near_me_outlet_matches_query` | Near-me | Builds read-only SQL for curated outlet matches; BigQuery mutation is out of scope. |
 | `refresh_google_places_for_known_area` | Near-me | Google Places is live candidate discovery only; Google-only rows are not CRM truth; no mutation. |

@@ -157,6 +157,7 @@ if (!existsSync(manifestPath)) {
       "list_sales_followup_tasks",
       "check_account_followup_status",
       "check_event_followup_status",
+      "build_daily_nurture_plan",
       "find_target_accounts_by_luma_match_keys",
       "score_nurture_accounts",
       "find_contact_gaps",
@@ -170,6 +171,7 @@ if (!existsSync(manifestPath)) {
       "extract_drive_image_clues",
       "read_nurture_material_registry",
       "read_indonesia_event_registration_attendance",
+      "check_eazybe_send_status",
       "draft_nurture_message",
       "list_google_calendar_events",
       "audit_google_calendar_meeting_quality",
@@ -197,8 +199,17 @@ if (!existsSync(manifestPath)) {
     if (!manifest.tools?.preview?.includes("plan_event_photo_followup")) {
       fail("Manifest missing preview tool: plan_event_photo_followup");
     }
+    if (!manifest.tools?.preview?.includes("preview_eazybe_template_messages")) {
+      fail("Manifest missing preview tool: preview_eazybe_template_messages");
+    }
+    if (!manifest.tools?.preview?.includes("build_daily_nurture_reminder")) {
+      fail("Manifest missing preview tool: build_daily_nurture_reminder");
+    }
     if (!manifest.tools?.approval_gated_enrichment?.includes("reveal_lusha_contact_details")) {
       fail("Manifest missing approval-gated enrichment tool: reveal_lusha_contact_details");
+    }
+    if (!manifest.tools?.approval_gated_message_sending?.includes("send_approved_eazybe_messages")) {
+      fail("Manifest missing approval-gated message-sending tool: send_approved_eazybe_messages");
     }
     const plannedWriteTools = ["create_hubspot_task", "append_hubspot_note", "update_nurture_fields"];
     if (manifest.tools?.write_phase_planned_disabled?.state !== "disabled_in_v1") {
@@ -221,12 +232,14 @@ if (!existsSync(manifestPath)) {
     const manifestCallableTools = [
       ...(manifest.tools?.read || []),
       ...(manifest.tools?.preview || []),
-      ...(manifest.tools?.approval_gated_enrichment || [])
+      ...(manifest.tools?.approval_gated_enrichment || []),
+      ...(manifest.tools?.approval_gated_message_sending || [])
     ];
     const actualMcpTools = [
       "runtime/mcp/hubspot_nurtureany_server.py",
       "runtime/mcp/google_calendar_nurtureany_server.py",
       "runtime/mcp/google_drive_nurtureany_server.py",
+      "runtime/mcp/eazybe_nurtureany_server.py",
       "runtime/mcp/luma_nurtureany_server.py",
       "runtime/mcp/near_me_nurtureany_server.py",
       "runtime/mcp/public_research_nurtureany_server.py",
@@ -370,6 +383,18 @@ if (!existsSync(manifestPath)) {
     }
     if (manifest.google_drive?.file_downloads !== false) fail("Manifest Google Drive file_downloads must be false");
     if (manifest.google_drive?.drive_mutations !== false) fail("Manifest Google Drive drive_mutations must be false");
+    if (manifest.eazybe?.auth_env_var !== "EAZYBE_API_KEY") fail("Manifest Eazybe missing EAZYBE_API_KEY auth env var");
+    if (manifest.eazybe?.approval_marker_required !== true) fail("Manifest Eazybe must require approval_marker");
+    if (manifest.eazybe?.free_form_messages !== false) fail("Manifest Eazybe must block free-form messages");
+    if (manifest.eazybe?.approved_template_only !== true) fail("Manifest Eazybe must be approved-template only");
+    for (const tool of [
+      "preview_eazybe_template_messages",
+      "send_approved_eazybe_messages",
+      "check_eazybe_send_status",
+      "build_daily_nurture_reminder"
+    ]) {
+      if (!manifest.eazybe?.allowed_tools?.includes(tool)) fail(`Manifest Eazybe missing allowed tool: ${tool}`);
+    }
     if (manifest.luma?.auth_env_var !== "LUMA_API_KEY") fail("Manifest missing LUMA_API_KEY auth env var");
     if (manifest.luma?.base_url !== "https://public-api.luma.com") fail("Manifest Luma base_url must be public-api.luma.com");
     if (manifest.luma?.read_only !== true) fail("Manifest Luma read_only must be true");
@@ -475,6 +500,9 @@ const filesToScan = [
   "runtime/google-drive.md",
   "runtime/mcp/google_drive_nurtureany_server.py",
   "runtime/mcp/test_google_drive_nurtureany_server.py",
+  "runtime/eazybe.md",
+  "runtime/mcp/eazybe_nurtureany_server.py",
+  "runtime/mcp/test_eazybe_nurtureany_server.py",
   "runtime/luma.md",
   "runtime/mcp/luma_nurtureany_server.py",
   "runtime/mcp/test_luma_nurtureany_server.py",
@@ -537,6 +565,7 @@ for (const text of [
   "NURTUREANY_CLOSED_WON_STAGE_IDS",
   "connected_call_target: 40",
   "build_pre_demo_game_plans",
+  "build_daily_nurture_plan",
   "list_sales_followup_tasks",
   "check_account_followup_status",
   "check_event_followup_status",
@@ -562,6 +591,15 @@ for (const text of [
   "extract_drive_image_clues",
   "read_nurture_material_registry",
   "read_indonesia_event_registration_attendance",
+  "eazybe_nurtureany",
+  "EAZYBE_API_KEY",
+  "EAZYBE_BROADCAST_API_URL",
+  "EAZYBE_STATUS_API_URL",
+  "NURTUREANY_DAILY_RUNS_DIR",
+  "preview_eazybe_template_messages",
+  "send_approved_eazybe_messages",
+  "check_eazybe_send_status",
+  "build_daily_nurture_reminder",
   "1mXixAVJGk0Uy0u1LtOmDFxU3XuW8DRfedB69E1f-drc",
   "registration_attendance_fallback",
   "Attend The Event",
@@ -725,6 +763,7 @@ for (const text of [
   "sales-owned HubSpot follow-up tasks",
   "check_account_followup_status",
   "check_event_followup_status",
+  "build_daily_nurture_plan",
   "WhatsApp communications",
   "generate_free_search_tasks",
   "review_public_enrichment_evidence",
@@ -734,6 +773,10 @@ for (const text of [
   "read_google_slides_deck",
   "extract_drive_image_clues",
   "read_nurture_material_registry",
+  "preview_eazybe_template_messages",
+  "send_approved_eazybe_messages",
+  "check_eazybe_send_status",
+  "build_daily_nurture_reminder",
   "uploader display names",
   "original Slack uploader",
   "Luma event-date context",
@@ -832,6 +875,7 @@ for (const tool of [
   "runtime/mcp/hubspot_nurtureany_server.py",
   "runtime/mcp/google_calendar_nurtureany_server.py",
   "runtime/mcp/google_drive_nurtureany_server.py",
+  "runtime/mcp/eazybe_nurtureany_server.py",
   "runtime/mcp/luma_nurtureany_server.py",
   "runtime/mcp/near_me_nurtureany_server.py",
   "runtime/mcp/public_research_nurtureany_server.py",
@@ -901,6 +945,8 @@ for (const text of [
   "list_sales_followup_tasks",
   "check_account_followup_status",
   "check_event_followup_status",
+  "build_daily_nurture_plan",
+  "NURTUREANY_DAILY_RUNS_DIR",
   "COMMUNICATION_PROPERTIES",
   "calendar_audit_seed",
   "_hash_email",
@@ -1125,6 +1171,39 @@ for (const text of [
   }
 }
 
+const eazybeText = textOf("runtime/eazybe.md");
+for (const text of [
+  "EAZYBE_API_KEY",
+  "EAZYBE_BROADCAST_API_URL",
+  "EAZYBE_STATUS_API_URL",
+  "NURTUREANY_DAILY_RUNS_DIR",
+  "preview_eazybe_template_messages",
+  "send_approved_eazybe_messages",
+  "check_eazybe_send_status",
+  "build_daily_nurture_reminder",
+  "No free-form WhatsApp sends"
+]) {
+  if (!eazybeText.includes(text)) fail(`runtime/eazybe.md missing required text: ${text}`);
+}
+
+const eazybeServerText = textOf("runtime/mcp/eazybe_nurtureany_server.py");
+for (const text of [
+  "EAZYBE_API_KEY",
+  "EAZYBE_BROADCAST_API_URL",
+  "EAZYBE_STATUS_API_URL",
+  "NURTUREANY_DAILY_RUNS_DIR",
+  "preview_eazybe_template_messages",
+  "send_approved_eazybe_messages",
+  "check_eazybe_send_status",
+  "build_daily_nurture_reminder",
+  "approval_marker",
+  "mcp.run(\"stdio\")"
+]) {
+  if (!eazybeServerText.includes(text)) {
+    fail(`runtime/mcp/eazybe_nurtureany_server.py missing required text: ${text}`);
+  }
+}
+
 const lumaText = textOf("runtime/luma.md");
 for (const text of [
   "https://public-api.luma.com",
@@ -1298,8 +1377,9 @@ const healthScriptText = textOf("runtime/check-health.sh");
 for (const text of [
   "PROFILE=\"${HERMES_PROFILE:-nurtureanysalesbot}\"",
   "export HERMES_HOME=\"$HOME/.hermes/profiles/$PROFILE\"",
-  "EXPECT_HUBSPOT_TOOLS=\"${EXPECT_HUBSPOT_TOOLS:-31}\"",
+  "EXPECT_HUBSPOT_TOOLS=\"${EXPECT_HUBSPOT_TOOLS:-32}\"",
   "EXPECT_GOOGLE_DRIVE_TOOLS=\"${EXPECT_GOOGLE_DRIVE_TOOLS:-5}\"",
+  "EXPECT_EAZYBE_TOOLS=\"${EXPECT_EAZYBE_TOOLS:-4}\"",
   "EXPECT_LUMA_TOOLS=\"${EXPECT_LUMA_TOOLS:-3}\"",
   "EXPECT_PUBLIC_RESEARCH_TOOLS=\"${EXPECT_PUBLIC_RESEARCH_TOOLS:-1}\"",
   "EXPECT_NEAR_ME_TOOLS=\"${EXPECT_NEAR_ME_TOOLS:-6}\"",
@@ -1316,6 +1396,7 @@ for (const text of [
   "google-drive:token-permissions-not-600",
   "slack-allowlist:missing-policy-users",
   "slack-allowlist:extra-users",
+  "mcp_test eazybe_nurtureany",
   "mcp_test public_research_nurtureany",
   "mcp_test near_me_nurtureany"
 ]) {
@@ -1409,6 +1490,13 @@ if (googleDriveCompileCheck.status !== 0) {
   fail(`Python compile failed for Google Drive MCP: ${(googleDriveCompileCheck.stderr || googleDriveCompileCheck.stdout).trim()}`);
 }
 
+const eazybeCompileCheck = spawnSync("python3", ["-m", "py_compile", join(appRoot, "runtime/mcp/eazybe_nurtureany_server.py")], {
+  encoding: "utf8"
+});
+if (eazybeCompileCheck.status !== 0) {
+  fail(`Python compile failed for Eazybe MCP: ${(eazybeCompileCheck.stderr || eazybeCompileCheck.stdout).trim()}`);
+}
+
 const lumaCompileCheck = spawnSync("python3", ["-m", "py_compile", join(appRoot, "runtime/mcp/luma_nurtureany_server.py")], {
   encoding: "utf8"
 });
@@ -1453,6 +1541,14 @@ const googleDriveUnitCheck = spawnSync("python3", ["-m", "unittest", "apps/nurtu
 });
 if (googleDriveUnitCheck.status !== 0) {
   fail(`Python unit tests failed for Google Drive MCP: ${(googleDriveUnitCheck.stderr || googleDriveUnitCheck.stdout).trim()}`);
+}
+
+const eazybeUnitCheck = spawnSync("python3", ["-m", "unittest", "apps/nurtureany-sales-bot/runtime/mcp/test_eazybe_nurtureany_server.py"], {
+  cwd: repoRoot,
+  encoding: "utf8"
+});
+if (eazybeUnitCheck.status !== 0) {
+  fail(`Python unit tests failed for Eazybe MCP: ${(eazybeUnitCheck.stderr || eazybeUnitCheck.stdout).trim()}`);
 }
 
 const lumaUnitCheck = spawnSync("python3", ["-m", "unittest", "apps/nurtureany-sales-bot/runtime/mcp/test_luma_nurtureany_server.py"], {

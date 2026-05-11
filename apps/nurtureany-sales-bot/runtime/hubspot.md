@@ -42,6 +42,7 @@ Use a private app token from Secret Manager or the live profile `.env`. Do not s
 Use `NURTUREANY_ACCESS_POLICY_PATH` for the runtime-only access policy. Copy `runtime/access-policy.template.json` outside the repo and classify real people there; do not commit the full sales roster. Configure known Slack or Google email variants with `alias_for` or top-level `aliases`; the MCP adapter canonicalizes aliases before role lookup.
 
 `check_event_followup_status` also requires `LUMA_API_KEY` in the same runtime environment so the HubSpot adapter can resolve read-only Luma attendance before checking HubSpot/Eazybe follow-up evidence.
+`build_daily_nurture_plan` may use `NURTUREANY_DAILY_RUNS_DIR` to persist the 9am run payload for 12pm Eazybe status/reminder checks. If the env var is absent, return `Confidence: needs-check` instead of silently losing reminder continuity.
 
 ## Local MCP Adapter
 
@@ -65,6 +66,7 @@ It exposes these tools:
 - `build_friday_sales_review`
 - `get_account_context`
 - `build_pre_demo_game_plans`
+- `build_daily_nurture_plan`
 - `list_sales_followup_tasks`
 - `check_account_followup_status`
 - `check_event_followup_status`

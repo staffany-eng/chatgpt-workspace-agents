@@ -10,9 +10,10 @@ EXPECT_MODEL_AUTH="${EXPECT_MODEL_AUTH:-1}"
 EXPECT_MODEL_PROVIDER="${EXPECT_MODEL_PROVIDER:-anthropic}"
 EXPECT_MODEL_DEFAULT="${EXPECT_MODEL_DEFAULT:-claude-sonnet-4-6}"
 EXPECT_STAFFANY_BIGQUERY_TOOLS="${EXPECT_STAFFANY_BIGQUERY_TOOLS:-4}"
-EXPECT_HUBSPOT_TOOLS="${EXPECT_HUBSPOT_TOOLS:-31}"
+EXPECT_HUBSPOT_TOOLS="${EXPECT_HUBSPOT_TOOLS:-32}"
 EXPECT_GOOGLE_CALENDAR_TOOLS="${EXPECT_GOOGLE_CALENDAR_TOOLS:-2}"
 EXPECT_GOOGLE_DRIVE_TOOLS="${EXPECT_GOOGLE_DRIVE_TOOLS:-5}"
+EXPECT_EAZYBE_TOOLS="${EXPECT_EAZYBE_TOOLS:-4}"
 EXPECT_LUMA_TOOLS="${EXPECT_LUMA_TOOLS:-3}"
 EXPECT_LUSHA_TOOLS="${EXPECT_LUSHA_TOOLS:-3}"
 EXPECT_EXA_TOOLS="${EXPECT_EXA_TOOLS:-1}"
@@ -131,6 +132,7 @@ expected_servers = {
         "list_sales_followup_tasks",
         "check_account_followup_status",
         "check_event_followup_status",
+        "build_daily_nurture_plan",
         "score_nurture_accounts",
         "find_contact_gaps",
         "find_t90_renewal_gaps",
@@ -150,6 +152,12 @@ expected_servers = {
         "extract_drive_image_clues",
         "read_nurture_material_registry",
         "read_indonesia_event_registration_attendance",
+    ],
+    "eazybe_nurtureany": [
+        "preview_eazybe_template_messages",
+        "send_approved_eazybe_messages",
+        "check_eazybe_send_status",
+        "build_daily_nurture_reminder",
     ],
     "luma_nurtureany": ["list_luma_events", "get_luma_event_match_keys", "get_luma_event_context"],
     "public_research_nurtureany": ["research_public_company_signals"],
@@ -377,6 +385,7 @@ mcp_test staffany_bigquery "$EXPECT_STAFFANY_BIGQUERY_TOOLS"
 mcp_test hubspot_nurtureany "$EXPECT_HUBSPOT_TOOLS"
 mcp_test google_calendar_nurtureany "$EXPECT_GOOGLE_CALENDAR_TOOLS"
 mcp_test google_drive_nurtureany "$EXPECT_GOOGLE_DRIVE_TOOLS"
+mcp_test eazybe_nurtureany "$EXPECT_EAZYBE_TOOLS"
 mcp_test luma_nurtureany "$EXPECT_LUMA_TOOLS"
 mcp_test public_research_nurtureany "$EXPECT_PUBLIC_RESEARCH_TOOLS"
 mcp_test lusha_nurtureany "$EXPECT_LUSHA_TOOLS"

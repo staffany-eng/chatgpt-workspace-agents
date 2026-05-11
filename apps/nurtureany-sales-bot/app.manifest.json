@@ -45,7 +45,9 @@
     "health_checks": "runtime/health-checks.md",
     "health_check_script": "runtime/check-health.sh",
     "live_profile_audit": "runtime/audit-live-profile.sh",
-    "regression_cases": "tests/regression-cases.md"
+    "regression_cases": "tests/regression-cases.md",
+    "eazybe_runtime": "runtime/eazybe.md",
+    "eazybe_mcp": "runtime/mcp/eazybe_nurtureany_server.py"
   },
   "scope": {
     "countries": [
@@ -247,6 +249,7 @@
       "list_sales_followup_tasks",
       "check_account_followup_status",
       "check_event_followup_status",
+      "build_daily_nurture_plan",
       "find_target_accounts_by_luma_match_keys",
       "score_nurture_accounts",
       "find_contact_gaps",
@@ -260,6 +263,7 @@
       "extract_drive_image_clues",
       "read_nurture_material_registry",
       "read_indonesia_event_registration_attendance",
+      "check_eazybe_send_status",
       "draft_nurture_message",
       "list_google_calendar_events",
       "audit_google_calendar_meeting_quality",
@@ -280,7 +284,9 @@
     ],
     "preview": [
       "plan_hubspot_writeback",
-      "plan_event_photo_followup"
+      "plan_event_photo_followup",
+      "preview_eazybe_template_messages",
+      "build_daily_nurture_reminder"
     ],
     "approval_gated_enrichment": [
       "reveal_lusha_contact_details"
@@ -292,7 +298,10 @@
         "append_hubspot_note",
         "update_nurture_fields"
       ]
-    }
+    },
+    "approval_gated_message_sending": [
+      "send_approved_eazybe_messages"
+    ]
   },
   "photo_matching": {
     "drive_folder_id": "1qXlFnr5TKFtsYNWk7ZywBBctDaae3RY-",
@@ -515,5 +524,21 @@
       "Malaysia": 1457,
       "Indonesia": 4815
     }
+  },
+  "eazybe": {
+    "auth_env_var": "EAZYBE_API_KEY",
+    "broadcast_api_url_env_var": "EAZYBE_BROADCAST_API_URL",
+    "status_api_url_env_var": "EAZYBE_STATUS_API_URL",
+    "daily_runs_dir_env_var": "NURTUREANY_DAILY_RUNS_DIR",
+    "approval_marker_required": true,
+    "free_form_messages": false,
+    "phone_numbers_redacted_in_slack": true,
+    "approved_template_only": true,
+    "allowed_tools": [
+      "preview_eazybe_template_messages",
+      "send_approved_eazybe_messages",
+      "check_eazybe_send_status",
+      "build_daily_nurture_reminder"
+    ]
   }
 }

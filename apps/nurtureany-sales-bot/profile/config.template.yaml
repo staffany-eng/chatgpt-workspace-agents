@@ -176,6 +176,7 @@ mcp_servers:
       - "list_sales_followup_tasks"
       - "check_account_followup_status"
       - "check_event_followup_status"
+      - "build_daily_nurture_plan"
       - "score_nurture_accounts"
       - "find_contact_gaps"
       - "find_t90_renewal_gaps"
@@ -414,6 +415,29 @@ mcp_servers:
       - "extract_drive_image_clues"
       - "read_nurture_material_registry"
       - "read_indonesia_event_registration_attendance"
+
+  eazybe_nurtureany:
+    description: "Approval-gated Eazybe WhatsApp template adapter for daily nurture."
+    command: "/Users/leekaiyi/.hermes/hermes-agent/venv/bin/python"
+    args:
+      - "/Users/leekaiyi/workspace/agent builder/apps/nurtureany-sales-bot/runtime/mcp/eazybe_nurtureany_server.py"
+    auth:
+      type: "api_key_env"
+      env: "EAZYBE_API_KEY"
+      broadcast_url_env: "EAZYBE_BROADCAST_API_URL"
+      status_url_env: "EAZYBE_STATUS_API_URL"
+    access_policy:
+      mode: "approval_gated"
+      free_form_messages: false
+      approved_template_only: true
+      approval_marker_required: true
+      phone_numbers_redacted_in_slack: true
+      daily_runs_dir_env: "NURTUREANY_DAILY_RUNS_DIR"
+    tool_allowlist:
+      - "preview_eazybe_template_messages"
+      - "send_approved_eazybe_messages"
+      - "check_eazybe_send_status"
+      - "build_daily_nurture_reminder"
 
   luma_nurtureany:
     description: "Read-only Luma event context adapter for RSVP, attendance, and no-show nurture."
