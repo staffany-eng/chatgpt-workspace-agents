@@ -74,6 +74,12 @@ Run the live health check after config, MCP, token, or gateway changes:
 apps/nurtureany-sales-bot/runtime/check-health.sh
 ```
 
+For a different current-customer packet smoke account, override:
+
+```bash
+C360_SALES_PACKET_SMOKE_COMPANY_ID=<hubspot_company_id> apps/nurtureany-sales-bot/runtime/check-health.sh
+```
+
 Run the live profile drift audit after syncing repo packet files into the Hermes profile:
 
 ```bash

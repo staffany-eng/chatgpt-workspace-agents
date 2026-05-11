@@ -17,6 +17,9 @@ EXPECT_LUMA_TOOLS="${EXPECT_LUMA_TOOLS:-3}"
 EXPECT_LUSHA_TOOLS="${EXPECT_LUSHA_TOOLS:-3}"
 EXPECT_EXA_TOOLS="${EXPECT_EXA_TOOLS:-1}"
 EXPECT_NEAR_ME_TOOLS="${EXPECT_NEAR_ME_TOOLS:-6}"
+EXPECT_C360_SALES_PACKET="${EXPECT_C360_SALES_PACKET:-1}"
+C360_SALES_PACKET_SMOKE_COMPANY_ID="${C360_SALES_PACKET_SMOKE_COMPANY_ID:-9003704457}"
+C360_SALES_PACKET_SMOKE_COMPANY_NAME="${C360_SALES_PACKET_SMOKE_COMPANY_NAME:-Stripes Australia}"
 
 HERMES_AGENT_DIR="${HERMES_AGENT_DIR:-$HOME/.hermes/hermes-agent}"
 PATH="$HOME/.local/bin:$HERMES_AGENT_DIR:$PATH"
@@ -372,3 +375,131 @@ mcp_test luma_nurtureany "$EXPECT_LUMA_TOOLS"
 mcp_test lusha_nurtureany "$EXPECT_LUSHA_TOOLS"
 mcp_test exa_nurtureany "$EXPECT_EXA_TOOLS"
 mcp_test near_me_nurtureany "$EXPECT_NEAR_ME_TOOLS"
+
+if [ "$EXPECT_C360_SALES_PACKET" = "1" ]; then
+  c360_packet_out="$tmp_dir/c360-sales-packet.out"
+  if ! "$hermes_python" - "$config_path" "$profile_dir" "$C360_SALES_PACKET_SMOKE_COMPANY_ID" "$C360_SALES_PACKET_SMOKE_COMPANY_NAME" >"$c360_packet_out" 2>&1 <<'PY'
+import json
+import os
+import sys
+import urllib.error
+import urllib.parse
+import urllib.request
+
+config_path, profile_dir, company_id, company_name = sys.argv[1:5]
+DEFAULT_C360_SALES_PACKET_URL_TEMPLATE = "https://customer-360-qv4r5xkisq-as.a.run.app/api/companies/{customer360_route_key}/sales-packet"
+
+try:
+    import yaml
+except Exception:
+    print("dependency:yaml-not-available")
+    raise SystemExit(1)
+
+
+def read_profile_env(profile_dir: str) -> dict[str, str]:
+    env_path = os.path.join(profile_dir, ".env")
+    values: dict[str, str] = {}
+    if not os.path.exists(env_path):
+        return values
+    with open(env_path, "r", encoding="utf-8") as handle:
+        for raw_line in handle:
+            line = raw_line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            key = key.strip()
+            value = value.strip()
+            if (value.startswith('"') and value.endswith('"')) or (value.startswith("'") and value.endswith("'")):
+                value = value[1:-1]
+            values[key] = value
+    return values
+
+
+def configured_value(key: str, profile_env: dict[str, str], hubspot_env: dict[str, str]) -> str:
+    for source in (os.environ, profile_env, hubspot_env):
+        raw = str(source.get(key) or "").strip()
+        if raw and not (raw.startswith("${") and raw.endswith("}")):
+            return raw
+    return ""
+
+
+with open(config_path, "r", encoding="utf-8") as handle:
+    config = yaml.safe_load(handle) or {}
+
+profile_env = read_profile_env(profile_dir)
+servers = config.get("mcp_servers") or {}
+hubspot_env = ((servers.get("hubspot_nurtureany") or {}).get("env") or {})
+
+token = configured_value("NURTUREANY_C360_INTERNAL_API_TOKEN", profile_env, hubspot_env)
+if not token:
+    print("c360-sales-packet:token-missing")
+    raise SystemExit(1)
+
+template = (
+    configured_value("NURTUREANY_C360_SALES_PACKET_URL_TEMPLATE", profile_env, hubspot_env)
+    or DEFAULT_C360_SALES_PACKET_URL_TEMPLATE
+)
+customer_key = str(company_id or "").strip()
+if not customer_key:
+    print("c360-sales-packet:company-id-missing")
+    raise SystemExit(1)
+
+values = {
+    "customer360_route_key": urllib.parse.quote(customer_key, safe=""),
+    "hubspot_company_id": urllib.parse.quote(customer_key, safe=""),
+    "hubspot_numeric_company_id": urllib.parse.quote(customer_key, safe=""),
+    "company_name": urllib.parse.quote(str(company_name or "").strip(), safe=""),
+}
+try:
+    url = template.format(**values)
+except Exception:
+    print("c360-sales-packet:url-template-invalid")
+    raise SystemExit(1)
+
+request = urllib.request.Request(
+    url,
+    headers={
+        "authorization": f"Bearer {token}",
+        "accept": "application/json",
+        "user-agent": "StaffAny-NurtureAny/1.0",
+    },
+    method="GET",
+)
+
+try:
+    with urllib.request.urlopen(request, timeout=30) as response:
+        raw = response.read().decode("utf-8")
+except urllib.error.HTTPError as error:
+    print(f"c360-sales-packet:http-{error.code}")
+    raise SystemExit(1)
+except Exception:
+    print("c360-sales-packet:request-failed")
+    raise SystemExit(1)
+
+try:
+    payload = json.loads(raw) if raw else {}
+except json.JSONDecodeError:
+    print("c360-sales-packet:invalid-json")
+    raise SystemExit(1)
+
+if not isinstance(payload, dict):
+    print("c360-sales-packet:invalid-payload")
+    raise SystemExit(1)
+
+status = str(payload.get("status") or "ok").strip().lower()
+if status != "ok":
+    print("c360-sales-packet:status-not-ok")
+    raise SystemExit(1)
+
+data = payload.get("data")
+if not isinstance(data, dict):
+    print("c360-sales-packet:payload-missing-data")
+    raise SystemExit(1)
+if not str(data.get("segment") or "").strip():
+    print("c360-sales-packet:payload-missing-segment")
+    raise SystemExit(1)
+PY
+  then
+    fail "$(cat "$c360_packet_out")"
+  fi
+fi
