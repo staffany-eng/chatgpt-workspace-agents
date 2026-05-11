@@ -213,8 +213,9 @@ Friday sales review uses the same scoped association discipline, plus HubSpot ca
 
 - Input: Slack user email, selected HubSpot company IDs or links, `since_at`, optional `until_at`, optional limit.
 - Output: one row per scoped target account with follow-up status, latest safe follow-up timestamp, activity counts, and safe evidence.
+- Optional `include_body=true` is admin-only. When supplied by an admin caller, WhatsApp communication evidence may include a bounded `body` field from HubSpot `hs_communication_body`; non-admin callers are blocked and the default remains body-free.
 - Status is `followed_up` when a WhatsApp communication, note, or completed task exists after `since_at`; `scheduled` when only open tasks exist; `not_found` when no associated activity exists; `needs_check` when associations are truncated, ownership does not match cleanly, or evidence is weak.
-- Must not expose raw communication bodies, note bodies, task bodies, phone numbers, unmatched Luma guests, raw attendee lists, mutate HubSpot, or call Eazybe directly.
+- Must not expose communication bodies unless `include_body=true` and caller scope is admin. Must not expose note bodies, task bodies, phone numbers, unmatched Luma guests, raw attendee lists, mutate HubSpot, or call Eazybe directly.
 
 `check_event_followup_status`:
 
@@ -223,7 +224,7 @@ Friday sales review uses the same scoped association discipline, plus HubSpot ca
 - Resolves Luma checked-in guests, matches them to scoped HubSpot target accounts, and classifies follow-up from associated event-specific Eazybe WhatsApp communications or event-specific tasks.
 - If Luma checked-in attendance is empty for an Indonesia LL/HHH event, Slack workflow may use `read_indonesia_event_registration_attendance` first, then pass attended keys into `find_target_accounts_by_luma_match_keys`, then pass the resolved scoped HubSpot companies into `check_account_followup_status` from the event end time.
 - Generic post-event WhatsApp, candidate attendee matching, truncated reads, owner mismatch, or incomplete Eazybe association returns `needs_check`.
-- It may inspect `hs_communication_body` internally for event-keyword matching, but the body is never returned, logged, or stored.
+- It may inspect `hs_communication_body` internally for event-keyword matching, but the body is never returned, logged, or stored by `check_event_followup_status`.
 
 `score_nurture_accounts`:
 

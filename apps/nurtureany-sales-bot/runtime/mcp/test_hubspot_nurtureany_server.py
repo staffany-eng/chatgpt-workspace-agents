@@ -1451,6 +1451,79 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         self.assertNotIn("raw task body", json.dumps(result))
         self.assertNotIn("+6512345678", json.dumps(result))
 
+    def test_check_account_followup_status_include_body_is_admin_only(self):
+        with patch.object(self.module, "_caller_scope", return_value=SCOPE):
+            result = self.module.check_account_followup_status(
+                "kerren.fong@staffany.com",
+                ["123"],
+                "2026-05-10T09:00:00Z",
+                include_body=True,
+            )
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("include_body requires admin scope", result["answer"])
+
+    def test_check_account_followup_status_admin_include_body_returns_whatsapp_body(self):
+        company = {
+            "id": "123",
+            "properties": {
+                "name": "Ajumma's",
+                "hs_is_target_account": "true",
+                "company_country": "Singapore",
+                "hubspot_owner_id": "owner-sales",
+            },
+        }
+        admin_scope = {
+            "kind": "admin",
+            "email": "kaiyi@staffany.com",
+            "countries": self.module.SUPPORTED_COUNTRIES,
+            "owner_id": None,
+        }
+
+        def fake_batch_association_ids(from_type, to_type, ids):
+            if (from_type, to_type) == ("companies", "contacts"):
+                return {"123": []}
+            if (from_type, to_type) == ("companies", "deals"):
+                return {"123": []}
+            if (from_type, to_type) == ("companies", "communications"):
+                return {"123": ["comm-1"]}
+            return {str(item): [] for item in ids}
+
+        def fake_batch_read(object_type, ids, properties):
+            if object_type == "communications":
+                self.assertIn("hs_communication_body", properties)
+                return [
+                    {
+                        "id": "comm-1",
+                        "properties": {
+                            "hs_timestamp": "2026-05-10T10:00:00Z",
+                            "hubspot_owner_id": "owner-sales",
+                            "hs_communication_channel_type": "WHATS_APP",
+                            "hs_communication_logged_from": "Eazybe",
+                            "hs_communication_body": "Dom asked whether appraisal scope can fit the current package.",
+                        },
+                    }
+                ]
+            return []
+
+        with patch.object(self.module, "_caller_scope", return_value=admin_scope), patch.object(
+            self.module, "_assert_company_access", return_value=company
+        ), patch.object(self.module, "_batch_association_ids", side_effect=fake_batch_association_ids), patch.object(
+            self.module, "_batch_read", side_effect=fake_batch_read
+        ):
+            result = self.module.check_account_followup_status(
+                "kaiyi@staffany.com",
+                ["123"],
+                "2026-05-10T09:00:00Z",
+                include_body=True,
+            )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertTrue(result["scope"]["include_body"])
+        evidence = result["answer"][0]["evidence"][0]
+        self.assertEqual(evidence["body"], "Dom asked whether appraisal scope can fit the current package.")
+        self.assertFalse(evidence["body_truncated"])
+
     def test_event_followup_status_uses_checked_in_luma_and_event_specific_whatsapp(self):
         company = {
             "id": "company-1",

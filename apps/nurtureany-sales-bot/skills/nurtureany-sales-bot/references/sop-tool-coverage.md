@@ -8,7 +8,7 @@ Use this reference with `sales-best-practices.md` before changing or answering f
 - HubSpot override fields: `hs_is_target_account`, `hubspot_owner_id`, `company_country`, `contract_end_date`, `current_tools`, HubSpot communications/notes/tasks/meetings/calls, Conversations threads, Marketing Campaigns, and configured QO/QO Met/closed-won deal stages.
 - Plan-first Slack flow: first tool-backed Slack request plans only and waits for `run`; material scope changes need a revised plan.
 - Access scope: Slack email is caller identity only; access comes from `NURTUREANY_ACCESS_POLICY_PATH`, HubSpot owners API, and country/owner scope.
-- PII/body safety: never return raw Slack transcripts, raw HubSpot rows, communication bodies, note bodies, task bodies, call/meeting bodies, attendee exports, phone exports, raw images, raw registration answers, raw match-key lists, or secrets.
+- PII/body safety: never return raw Slack transcripts, raw HubSpot rows, communication bodies, note bodies, task bodies, call/meeting bodies, attendee exports, phone exports, raw images, raw registration answers, raw match-key lists, or secrets by default. The only communication-body exception is `check_account_followup_status(include_body=true)` for admin callers and selected company IDs; note/task bodies, event guest data, phone exports, and bulk exports remain blocked.
 - Cost/credit reporting: Exa must return `cost_report`; Lusha must return `credit_report`; no hidden paid enrichment.
 - Mutation policy: V1 exposes read, preview, and selected approval-gated enrichment tools only. `create_hubspot_task`, `append_hubspot_note`, and `update_nurture_fields` are planned write-phase tools and are disabled in V1.
 - Sales-best-practices usage: apply `sales-best-practices.md` for Friday review, operating rhythm, QO/QO Met quality, inbound/routing, warm activity, events, pre-demo/demo/post-demo, coaching, AI/data readiness, and nurture drafting.
@@ -37,7 +37,7 @@ Use this reference with `sales-best-practices.md` before changing or answering f
 | `get_account_context` | Account context | HubSpot account truth plus C360 enrichment for verified customers; safe packet by default; access scope, PII/body safety, no mutation. |
 | `build_pre_demo_game_plans` | Pre-demo | Selected scoped accounts only; I-C-BANT and missing-evidence rules; no invented pricing/current tools/case studies; no mutation. |
 | `list_sales_followup_tasks` | Follow-up | Existing incomplete sales-owned HubSpot tasks only; safe task fields; no duplicate task creation. |
-| `check_account_followup_status` | Follow-up | HubSpot communications, notes, tasks, and meetings determine status; event attribution requires proof; raw bodies hidden. |
+| `check_account_followup_status` | Follow-up | HubSpot communications, notes, tasks, and meetings determine status; event attribution requires proof; body-free by default, with admin-only `include_body=true` for bounded WhatsApp communication bodies. |
 | `check_event_followup_status` | Event follow-up | Luma/Sheet attendance identifies matched accounts; HubSpot verifies event-specific WhatsApp/tasks; raw attendees and bodies hidden. |
 | `score_nurture_accounts` | Queue scoring | HubSpot override fields and clean-lead completeness; access scope and pagination caveats; no mutation. |
 | `find_contact_gaps` | Enrichment gaps | HubSpot decision-maker and buying-role fields; clean-lead completeness; no paid enrichment or raw PII export. |

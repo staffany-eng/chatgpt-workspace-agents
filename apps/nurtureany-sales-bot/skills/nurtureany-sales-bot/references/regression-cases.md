@@ -437,6 +437,23 @@ Expected behavior:
 - Returns account, owner, latest safe follow-up timestamp, activity counts, source, scope, confidence, and caveat.
 - Does not expose raw WhatsApp bodies, note bodies, task bodies, phone numbers, unmatched guests, guest emails, raw attendee lists, mutate HubSpot, or call Eazybe directly.
 
+## Admin Account WhatsApp Body Review
+
+Prompt:
+
+```text
+@NurtureAny for HubSpot company 123, read recent WhatsApp pricing messages since yesterday
+```
+
+Expected behavior:
+
+- First Slack response is plan-only unless this is already a same-thread continuation after `run`.
+- After `run`, resolves the selected company ID under the caller scope.
+- For admin callers only, calls `check_account_followup_status` with `include_body=true`.
+- Returns WhatsApp communication evidence with bounded `body` fields when HubSpot returns `hs_communication_body`.
+- Blocks `include_body=true` for AEs and managers.
+- Does not expose note bodies, task bodies, phone exports, unmatched event guests, raw attendee lists, mutate HubSpot, or call Eazybe directly.
+
 Prompt:
 
 ```text

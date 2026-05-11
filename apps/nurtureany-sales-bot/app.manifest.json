@@ -134,6 +134,7 @@
       "hs_communication_logged_from",
       "hs_lastmodifieddate"
     ],
+    "admin_followup_body_property": "hs_communication_body",
     "note_properties": [
       "hs_timestamp",
       "hubspot_owner_id",

@@ -219,6 +219,7 @@ COMMUNICATION_PROPERTIES = [
     "hs_lastmodifieddate",
 ]
 COMMUNICATION_EVENT_PROPERTIES = [*COMMUNICATION_PROPERTIES, "hs_communication_body"]
+FOLLOWUP_BODY_MAX_CHARS = 4000
 
 NOTE_PROPERTIES = [
     "hs_timestamp",
@@ -2882,6 +2883,7 @@ def _safe_followup_evidence(
     activity: dict[str, Any],
     activity_sources: dict[str, list[dict[str, str]]],
     event_match: dict[str, str] | None = None,
+    include_body: bool = False,
 ) -> dict[str, Any]:
     props = activity.get("properties", {})
     object_id = str(activity.get("id") or "")
@@ -2895,6 +2897,10 @@ def _safe_followup_evidence(
     if object_type == "communication":
         evidence["channel"] = props.get("hs_communication_channel_type") or ""
         evidence["logged_from"] = props.get("hs_communication_logged_from") or ""
+        if include_body:
+            body = str(props.get("hs_communication_body") or "")
+            evidence["body"] = body[:FOLLOWUP_BODY_MAX_CHARS]
+            evidence["body_truncated"] = len(body) > FOLLOWUP_BODY_MAX_CHARS
     if object_type == "task":
         evidence["status"] = props.get("hs_task_status") or ""
     if object_type == "meeting":
@@ -2921,6 +2927,7 @@ def _account_followup_status(
     since_dt: datetime,
     until_dt: datetime | None,
     event_context: dict[str, Any] | None = None,
+    include_body: bool = False,
 ) -> dict[str, Any]:
     company_id = str(company.get("id") or "")
     props = company.get("properties", {})
@@ -2952,7 +2959,11 @@ def _account_followup_status(
     weak_evidence = False
 
     activity_specs = [
-        ("communications", "communication", COMMUNICATION_EVENT_PROPERTIES if event_mode else COMMUNICATION_PROPERTIES),
+        (
+            "communications",
+            "communication",
+            COMMUNICATION_EVENT_PROPERTIES if event_mode or include_body else COMMUNICATION_PROPERTIES,
+        ),
         ("notes", "note", NOTE_PROPERTIES),
         ("tasks", "task", TASK_PROPERTIES),
         ("meetings", "meeting", MEETING_PROPERTIES),
@@ -2976,7 +2987,13 @@ def _account_followup_status(
                 continue
 
             event_match = _event_specific_match(evidence_type, activity, event_context) if event_mode else None
-            safe_evidence = _safe_followup_evidence(evidence_type, activity, association_data["activity_sources"], event_match)
+            safe_evidence = _safe_followup_evidence(
+                evidence_type,
+                activity,
+                association_data["activity_sources"],
+                event_match,
+                include_body=include_body and evidence_type == "communication",
+            )
             evidence_owner_id = str(safe_evidence.get("owner_id") or "")
             if evidence_owner_id and company_owner_id and evidence_owner_id != company_owner_id:
                 owner_mismatch = True
@@ -3052,7 +3069,9 @@ def _account_followup_status(
         "weak_evidence": weak_evidence,
         "confidence": "needs-check" if status == "needs_check" else "verified",
         "caveat": (
-            "Safe HubSpot follow-up evidence only; raw WhatsApp bodies, note bodies, task bodies, phone numbers, and bulk PII are omitted."
+            "Admin-requested WhatsApp bodies are included for communication evidence."
+            if include_body
+            else "Safe HubSpot follow-up evidence only; raw WhatsApp bodies, note bodies, task bodies, phone numbers, and bulk PII are omitted."
         ),
     }
 
@@ -3080,6 +3099,7 @@ def _count_indexed_followup_activity(
     evidence_type: str,
     activity: dict[str, Any],
     sources: list[dict[str, str]],
+    include_body: bool = False,
 ) -> None:
     if evidence_type == "communication" and not _is_whatsapp_communication(activity):
         return
@@ -3087,7 +3107,12 @@ def _count_indexed_followup_activity(
         return
 
     activity_id = str(activity.get("id") or "")
-    safe_evidence = _safe_followup_evidence(evidence_type, activity, {activity_id: sources})
+    safe_evidence = _safe_followup_evidence(
+        evidence_type,
+        activity,
+        {activity_id: sources},
+        include_body=include_body and evidence_type == "communication",
+    )
     evidence_owner_id = str(safe_evidence.get("owner_id") or "")
     if evidence_owner_id and company_owner_id and evidence_owner_id != company_owner_id:
         account_activity["owner_mismatch"] = True
@@ -3112,6 +3137,7 @@ def _followup_activity_index_for_companies(
     deal_index: dict[str, list[str]],
     since_dt: datetime,
     until_dt: datetime | None,
+    include_body: bool = False,
 ) -> dict[str, dict[str, Any]]:
     company_ids = [str(company.get("id") or "") for company in companies if company.get("id")]
     if not company_ids:
@@ -3128,7 +3154,7 @@ def _followup_activity_index_for_companies(
     contact_ids = list(contact_to_companies.keys())
     deal_ids = list(deal_to_companies.keys())
     activity_specs = [
-        ("communications", "communication", COMMUNICATION_PROPERTIES),
+        ("communications", "communication", COMMUNICATION_EVENT_PROPERTIES if include_body else COMMUNICATION_PROPERTIES),
         ("notes", "note", NOTE_PROPERTIES),
         ("tasks", "task", TASK_PROPERTIES),
         ("meetings", "meeting", MEETING_PROPERTIES),
@@ -3186,6 +3212,7 @@ def _followup_activity_index_for_companies(
                     evidence_type,
                     activity,
                     sources,
+                    include_body=include_body,
                 )
 
     for account_activity in activity_by_company.values():
@@ -3195,7 +3222,11 @@ def _followup_activity_index_for_companies(
     return activity_by_company
 
 
-def _account_followup_status_from_index(company: dict[str, Any], account_activity: dict[str, Any]) -> dict[str, Any]:
+def _account_followup_status_from_index(
+    company: dict[str, Any],
+    account_activity: dict[str, Any],
+    include_body: bool = False,
+) -> dict[str, Any]:
     counts = dict(_empty_followup_activity()["counts"])
     counts.update(account_activity.get("counts") or {})
     truncated = bool(account_activity.get("activity_truncated") or account_activity.get("truncated"))
@@ -3228,7 +3259,9 @@ def _account_followup_status_from_index(company: dict[str, Any], account_activit
         "weak_evidence": weak_evidence,
         "confidence": "needs-check" if status == "needs_check" else "verified",
         "caveat": (
-            "Safe HubSpot follow-up evidence only; raw WhatsApp bodies, note bodies, task bodies, phone numbers, and bulk PII are omitted."
+            "Admin-requested WhatsApp bodies are included for communication evidence."
+            if include_body
+            else "Safe HubSpot follow-up evidence only; raw WhatsApp bodies, note bodies, task bodies, phone numbers, and bulk PII are omitted."
         ),
     }
 
@@ -8568,13 +8601,19 @@ def check_account_followup_status(
     since_at: str,
     until_at: str = "",
     limit: int = 50,
+    include_body: bool = False,
 ) -> dict[str, Any]:
-    """Check safe HubSpot follow-up status for selected scoped target accounts."""
+    """Check HubSpot follow-up status for selected scoped target accounts."""
 
     try:
         scope = _caller_scope(slack_user_email)
         if scope["kind"] == "blocked":
             return _blocked("Caller identity is not mapped to an allowed scope.", {"caller_email": slack_user_email})
+        if include_body and scope.get("kind") != "admin":
+            return _blocked(
+                "include_body requires admin scope.",
+                {"caller_email": slack_user_email, "scope_kind": scope.get("kind"), "include_body": True},
+            )
 
         since_dt = _datetime_value(since_at)
         if not since_dt:
@@ -8605,11 +8644,19 @@ def check_account_followup_status(
 
         contact_index = _batch_association_ids("companies", "contacts", selected_ids)
         deal_index = _batch_association_ids("companies", "deals", selected_ids)
-        activity_index = _followup_activity_index_for_companies(companies, contact_index, deal_index, since_dt, until_dt)
+        activity_index = _followup_activity_index_for_companies(
+            companies,
+            contact_index,
+            deal_index,
+            since_dt,
+            until_dt,
+            include_body=include_body,
+        )
         rows = [
             _account_followup_status_from_index(
                 company,
                 activity_index.get(str(company.get("id") or ""), _empty_followup_activity()),
+                include_body=include_body,
             )
             for company in companies
         ]
@@ -8620,6 +8667,8 @@ def check_account_followup_status(
         scope_response["since_at"] = since_at
         if until_at:
             scope_response["until_at"] = until_at
+        if include_body:
+            scope_response["include_body"] = True
 
         return {
             "answer": rows,
@@ -8632,7 +8681,10 @@ def check_account_followup_status(
             "truncated": truncated,
             "confidence": "needs-check" if needs_check else "verified",
             "caveat": (
-                "Read-only follow-up status. WhatsApp is read from HubSpot communications; raw WhatsApp bodies, note bodies, "
+                "Read-only follow-up status. Admin-requested WhatsApp bodies are included only for HubSpot communication evidence; "
+                "note bodies, task bodies, unmatched event attendees, and secrets are omitted."
+                if include_body
+                else "Read-only follow-up status. WhatsApp is read from HubSpot communications; raw WhatsApp bodies, note bodies, "
                 "task bodies, phone numbers, unmatched event attendees, and secrets are omitted."
             ),
         }
