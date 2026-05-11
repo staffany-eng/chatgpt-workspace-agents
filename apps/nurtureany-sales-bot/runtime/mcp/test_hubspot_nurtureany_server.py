@@ -2264,7 +2264,7 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         calls = []
 
         def fake_company_search(filters, limit=5, after=None, maximum=None, sorts=None, query=None):
-            calls.append(filters)
+            calls.append({"filters": filters, "limit": limit, "maximum": maximum, "sorts": sorts})
             return {
                 "results": [
                     {
@@ -2315,11 +2315,13 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         self.assertNotIn("luma_match_keys", payload)
         self.assertNotIn("current_tools", payload)
         self.assertLess(len(payload), 8_000)
-        self.assertIn({"propertyName": "hs_is_target_account", "operator": "EQ", "value": "true"}, calls[0])
-        self.assertIn({"propertyName": "company_country", "operator": "IN", "values": ["Singapore"]}, calls[0])
+        self.assertIn({"propertyName": "hs_is_target_account", "operator": "EQ", "value": "true"}, calls[0]["filters"])
+        self.assertIn({"propertyName": "company_country", "operator": "IN", "values": ["Singapore"]}, calls[0]["filters"])
+        self.assertEqual(calls[0]["limit"], self.module.HUBSPOT_SEARCH_TOTAL_LIMIT)
+        self.assertEqual(calls[0]["maximum"], self.module.HUBSPOT_SEARCH_TOTAL_LIMIT)
         self.assertEqual(len(calls), 1)
-        self.assertNotIn({"propertyName": "domain", "operator": "EQ", "value": "noci.example"}, calls[0])
-        self.assertNotIn({"propertyName": "name", "operator": "CONTAINS_TOKEN", "value": "Bali Beans"}, calls[0])
+        self.assertNotIn({"propertyName": "domain", "operator": "EQ", "value": "noci.example"}, calls[0]["filters"])
+        self.assertNotIn({"propertyName": "name", "operator": "CONTAINS_TOKEN", "value": "Bali Beans"}, calls[0]["filters"])
         self.assertEqual(result["scope"]["scanned_target_account_count"], 2)
         self.assertIn("No raw Luma attendees", result["caveat"])
 

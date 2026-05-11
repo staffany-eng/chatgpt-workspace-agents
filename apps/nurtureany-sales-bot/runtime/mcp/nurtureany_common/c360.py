@@ -19,12 +19,19 @@ DEFAULT_C360_ROUTE_KEY_BY_COMPANY_ID = {
 }
 
 
+def _configured_template(env_var: str, default: str) -> str:
+    value = os.environ.get(env_var, "").strip()
+    if not value or value in {f"${{{env_var}}}", f"${env_var}"}:
+        return default
+    return value
+
+
 def c360_company_url_template() -> str:
-    return os.environ.get(C360_COMPANY_URL_TEMPLATE_ENV, "").strip() or DEFAULT_C360_COMPANY_URL_TEMPLATE
+    return _configured_template(C360_COMPANY_URL_TEMPLATE_ENV, DEFAULT_C360_COMPANY_URL_TEMPLATE)
 
 
 def c360_org_url_template() -> str:
-    return os.environ.get(C360_ORG_URL_TEMPLATE_ENV, "").strip() or DEFAULT_C360_ORG_URL_TEMPLATE
+    return _configured_template(C360_ORG_URL_TEMPLATE_ENV, DEFAULT_C360_ORG_URL_TEMPLATE)
 
 
 def c360_route_key_map() -> dict[str, str]:

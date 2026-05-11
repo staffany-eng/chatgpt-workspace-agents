@@ -206,6 +206,36 @@ class NearMeNurtureAnyServerTest(unittest.TestCase):
             "https://customer-360-qv4r5xkisq-as.a.run.app/companies/company%20c360/orgs/org%2Fc360",
         )
 
+    def test_unresolved_c360_template_placeholders_use_defaults(self):
+        with patch.dict(
+            os.environ,
+            {
+                "NURTUREANY_C360_COMPANY_URL_TEMPLATE": "${NURTUREANY_C360_COMPANY_URL_TEMPLATE}",
+                "NURTUREANY_C360_ORG_URL_TEMPLATE": "${NURTUREANY_C360_ORG_URL_TEMPLATE}",
+            },
+        ):
+            result = self.module.merge_near_me_sources(
+                "kaiyi@staffany.com",
+                self.known_area("sg_raffles_place"),
+                outlet_matches=[],
+                c360_customer_rows=[
+                    {
+                        "organisation_id": "org/c360",
+                        "hubspot_company_id": "company c360",
+                        "c360_company_name": "C360 Cafe",
+                        "nearest_distance_m": 260,
+                        "selected_deal_status": "current_or_open_selected_deal",
+                    }
+                ],
+                google_places=[],
+            )
+
+        customer = result["answer"]["customers_nearby"][0]
+        self.assertEqual(
+            customer["c360_url"],
+            "https://customer-360-qv4r5xkisq-as.a.run.app/companies/company%20c360/orgs/org%2Fc360",
+        )
+
     def test_known_numeric_company_id_uses_customer360_route_key(self):
         result = self.module.merge_near_me_sources(
             "kaiyi@staffany.com",
