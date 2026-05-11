@@ -157,7 +157,7 @@ V1 is review-first.
 
 - Never auto-send WhatsApp, email, LinkedIn, Instagram, SMS, or sequence messages.
 - Never create duplicate HubSpot follow-up tasks when an open sales-owned task already exists for the scoped account.
-- Never expose raw HubSpot communication bodies, note bodies, or task bodies when answering follow-up-status questions.
+- Never expose raw HubSpot communication bodies, note bodies, or task bodies by default when answering follow-up-status questions. Exception: admin callers may request `check_account_followup_status(include_body=true)` for selected company IDs to return WhatsApp communication `body` fields; this exception does not apply to note bodies, task bodies, event guest data, phone exports, bulk exports, or non-admin callers.
 - Never expose raw HubSpot call bodies, meeting bodies, recordings, phone numbers, or attachments when answering Friday sales review or account coverage questions.
 - Never create HubSpot tasks, append notes, or update fields without explicit approval of a preview.
 - Never link a photo appearance to a HubSpot contact without human confirmation from the original uploader or an explicitly responsible human, even when the photo match is high confidence.

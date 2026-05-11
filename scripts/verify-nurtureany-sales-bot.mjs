@@ -67,7 +67,10 @@ if (!existsSync(manifestPath)) {
     if (manifest.profile_name !== "nurtureanysalesbot") fail("Manifest profile_name must be nurtureanysalesbot");
     if (manifest.model !== "claude-sonnet-4-6") fail("Manifest model must be claude-sonnet-4-6");
     if (manifest.secrets_copied !== false) fail("Manifest secrets_copied must be false");
-    if (manifest.external_message_sending !== false) fail("Manifest external_message_sending must be false");
+    if (manifest.external_message_sending !== "approval_gated_eazybe_templates") {
+      fail("Manifest external_message_sending must be approval_gated_eazybe_templates");
+    }
+    if (manifest.whatsapp_auto_send !== false) fail("Manifest whatsapp_auto_send must be false");
     if (manifest.honcho_enabled !== false) fail("Manifest honcho_enabled must be false");
 
     const countries = manifest.scope?.countries || [];
@@ -157,6 +160,7 @@ if (!existsSync(manifestPath)) {
       "list_sales_followup_tasks",
       "check_account_followup_status",
       "check_event_followup_status",
+      "build_daily_nurture_plan",
       "find_target_accounts_by_luma_match_keys",
       "score_nurture_accounts",
       "find_contact_gaps",
@@ -170,6 +174,8 @@ if (!existsSync(manifestPath)) {
       "extract_drive_image_clues",
       "read_nurture_material_registry",
       "read_indonesia_event_registration_attendance",
+      "check_eazybe_send_status",
+      "build_daily_nurture_reminder",
       "draft_nurture_message",
       "list_google_calendar_events",
       "audit_google_calendar_meeting_quality",
@@ -197,8 +203,14 @@ if (!existsSync(manifestPath)) {
     if (!manifest.tools?.preview?.includes("plan_event_photo_followup")) {
       fail("Manifest missing preview tool: plan_event_photo_followup");
     }
+    if (!manifest.tools?.preview?.includes("preview_eazybe_template_messages")) {
+      fail("Manifest missing preview tool: preview_eazybe_template_messages");
+    }
     if (!manifest.tools?.approval_gated_enrichment?.includes("reveal_lusha_contact_details")) {
       fail("Manifest missing approval-gated enrichment tool: reveal_lusha_contact_details");
+    }
+    if (!manifest.tools?.approval_gated_external_message_sending?.includes("send_approved_eazybe_messages")) {
+      fail("Manifest missing approval-gated Eazybe tool: send_approved_eazybe_messages");
     }
     const plannedWriteTools = ["create_hubspot_task", "append_hubspot_note", "update_nurture_fields"];
     if (manifest.tools?.write_phase_planned_disabled?.state !== "disabled_in_v1") {
@@ -355,6 +367,12 @@ if (!existsSync(manifestPath)) {
     if (!manifest.google_drive?.allowed_tools?.includes("read_indonesia_event_registration_attendance")) {
       fail("Manifest Google Drive missing read_indonesia_event_registration_attendance tool");
     }
+    if (manifest.google_drive?.material_registry_spreadsheet_id_env_var !== "NURTUREANY_MATERIAL_REGISTRY_SPREADSHEET_ID") {
+      fail("Manifest Google Drive missing NURTUREANY_MATERIAL_REGISTRY_SPREADSHEET_ID env var");
+    }
+    for (const tab of ["Materials", "Playbooks", "Peer Intros", "Speaker/Venue Opportunities", "Events", "Review Log"]) {
+      if (!manifest.google_drive?.material_registry_tabs?.includes(tab)) fail(`Manifest Google Drive missing material registry tab: ${tab}`);
+    }
     if (manifest.google_drive?.id_rev_events_spreadsheet_id !== "1mXixAVJGk0Uy0u1LtOmDFxU3XuW8DRfedB69E1f-drc") {
       fail("Manifest Google Drive ID Rev events spreadsheet id is incorrect");
     }
@@ -372,6 +390,28 @@ if (!existsSync(manifestPath)) {
     }
     if (manifest.google_drive?.file_downloads !== false) fail("Manifest Google Drive file_downloads must be false");
     if (manifest.google_drive?.drive_mutations !== false) fail("Manifest Google Drive drive_mutations must be false");
+    if (manifest.daily_nurture?.assumed_hubspot_owner_email !== "jeremy.wong@staffany.com") {
+      fail("Manifest daily_nurture must assume Jeremy hubspot owner email");
+    }
+    if (manifest.daily_nurture?.protected_pool_baseline !== 150) fail("Manifest daily_nurture protected pool must be 150");
+    if (manifest.daily_nurture?.daily_account_count !== 30) fail("Manifest daily_nurture daily account count must be 30");
+    if (manifest.daily_nurture?.timezone !== "Asia/Singapore") fail("Manifest daily_nurture timezone must be Asia/Singapore");
+    if (manifest.daily_nurture?.nine_am_cron_utc !== "0 1 * * 1-5") fail("Manifest daily_nurture 9am cron must be 01:00 UTC weekdays");
+    if (manifest.daily_nurture?.noon_reminder_cron_utc !== "0 4 * * 1-5") fail("Manifest daily_nurture 12pm cron must be 04:00 UTC weekdays");
+    if (manifest.eazybe?.auth_env_var !== "EAZYBE_API_KEY") fail("Manifest Eazybe missing EAZYBE_API_KEY auth env var");
+    if (manifest.eazybe?.base_mode !== "approval_gated_template_send") fail("Manifest Eazybe base_mode must be approval_gated_template_send");
+    if (manifest.eazybe?.approved_templates_only !== true) fail("Manifest Eazybe must require approved templates");
+    if (manifest.eazybe?.phone_numbers_redacted_in_slack !== true) fail("Manifest Eazybe must redact phone numbers in Slack");
+    if (manifest.eazybe?.free_form_drafts_sendable !== false) fail("Manifest Eazybe must block free-form sends");
+    if (manifest.eazybe?.approval_marker_required !== true) fail("Manifest Eazybe must require approval_marker");
+    for (const tool of [
+      "preview_eazybe_template_messages",
+      "send_approved_eazybe_messages",
+      "check_eazybe_send_status",
+      "build_daily_nurture_reminder"
+    ]) {
+      if (!manifest.eazybe?.allowed_tools?.includes(tool)) fail(`Manifest Eazybe missing allowed tool: ${tool}`);
+    }
     if (manifest.luma?.auth_env_var !== "LUMA_API_KEY") fail("Manifest missing LUMA_API_KEY auth env var");
     if (manifest.luma?.base_url !== "https://public-api.luma.com") fail("Manifest Luma base_url must be public-api.luma.com");
     if (manifest.luma?.read_only !== true) fail("Manifest Luma read_only must be true");
@@ -477,6 +517,9 @@ const filesToScan = [
   "runtime/google-drive.md",
   "runtime/mcp/google_drive_nurtureany_server.py",
   "runtime/mcp/test_google_drive_nurtureany_server.py",
+  "runtime/eazybe.md",
+  "runtime/mcp/eazybe_nurtureany_server.py",
+  "runtime/mcp/test_eazybe_nurtureany_server.py",
   "runtime/luma.md",
   "runtime/mcp/luma_nurtureany_server.py",
   "runtime/mcp/test_luma_nurtureany_server.py",
@@ -543,6 +586,12 @@ for (const text of [
   "list_sales_followup_tasks",
   "check_account_followup_status",
   "check_event_followup_status",
+  "build_daily_nurture_plan",
+  "daily_nurture",
+  "jeremy.wong@staffany.com",
+  "0 1 * * 1-5",
+  "0 4 * * 1-5",
+  "NURTUREANY_MATERIAL_REGISTRY_SPREADSHEET_ID",
   "get_campaign_social_effectiveness",
   "get_marketing_campaign_attribution",
   "generate_free_search_tasks",
@@ -565,7 +614,16 @@ for (const text of [
   "extract_drive_image_clues",
   "read_nurture_material_registry",
   "read_indonesia_event_registration_attendance",
+  "read_nurture_material_registry",
   "1mXixAVJGk0Uy0u1LtOmDFxU3XuW8DRfedB69E1f-drc",
+  "eazybe_nurtureany",
+  "EAZYBE_API_KEY",
+  "EAZYBE_BROADCAST_API_URL",
+  "preview_eazybe_template_messages",
+  "send_approved_eazybe_messages",
+  "check_eazybe_send_status",
+  "build_daily_nurture_reminder",
+  "approval_gated_v2_only",
   "registration_attendance_fallback",
   "Attend The Event",
   "team@staffany.com",
@@ -908,6 +966,9 @@ for (const text of [
   "list_sales_followup_tasks",
   "check_account_followup_status",
   "check_event_followup_status",
+  "build_daily_nurture_plan",
+  "DAILY_NURTURE_DEFAULT_ACCOUNT_COUNT = 30",
+  "DAILY_NURTURE_PROTECTED_POOL_SIZE = 150",
   "COMMUNICATION_PROPERTIES",
   "calendar_audit_seed",
   "_hash_email",
@@ -1117,7 +1178,10 @@ for (const text of [
   "extract_drive_image_clues",
   "read_nurture_material_registry",
   "read_indonesia_event_registration_attendance",
+  "read_nurture_material_registry",
   "Attend The Event",
+  "NURTUREANY_MATERIAL_REGISTRY_SPREADSHEET_ID",
+  "MATERIAL_REGISTRY_TABS",
   "No phone numbers, full emails, raw exports, or Drive mutations.",
   "slack_uploader_name",
   "SLACK_BOT_TOKEN",
@@ -1130,6 +1194,41 @@ for (const text of [
   if (!googleDriveServerText.includes(text)) {
     fail(`runtime/mcp/google_drive_nurtureany_server.py missing required text: ${text}`);
   }
+}
+
+const eazybeText = textOf("runtime/eazybe.md");
+for (const text of [
+  "EAZYBE_API_KEY",
+  "EAZYBE_BROADCAST_API_URL",
+  "preview_eazybe_template_messages",
+  "send_approved_eazybe_messages",
+  "check_eazybe_send_status",
+  "build_daily_nurture_reminder",
+  "approval_marker",
+  "templateName",
+  "ordered templateParams",
+  "phone numbers are redacted",
+  "No free-form WhatsApp sends"
+]) {
+  if (!eazybeText.includes(text)) fail(`runtime/eazybe.md missing required text: ${text}`);
+}
+
+const eazybeServerText = textOf("runtime/mcp/eazybe_nurtureany_server.py");
+for (const text of [
+  "EAZYBE_API_KEY",
+  "EAZYBE_BROADCAST_API_URL",
+  "EAZYBE_TIMEOUT_SECONDS = 15",
+  "approval_gated_template_send",
+  "PHONE_PATTERN",
+  "templateName",
+  "templateParams",
+  "preview_eazybe_template_messages",
+  "send_approved_eazybe_messages",
+  "check_eazybe_send_status",
+  "build_daily_nurture_reminder",
+  "mcp.run(\"stdio\")"
+]) {
+  if (!eazybeServerText.includes(text)) fail(`runtime/mcp/eazybe_nurtureany_server.py missing required text: ${text}`);
 }
 
 const lumaText = textOf("runtime/luma.md");
@@ -1189,6 +1288,10 @@ for (const text of [
   "read_google_slides_deck",
   "Anyone with the link",
   "read_indonesia_event_registration_attendance",
+  "Daily nurture smoke check",
+  "read_nurture_material_registry",
+  "Eazybe approval-gated smoke check",
+  "send_approved_eazybe_messages",
   "Attend The Event",
   "event.url|event.name"
 ]) {
@@ -1325,6 +1428,7 @@ for (const text of [
   "slack-allowlist:missing-policy-users",
   "slack-allowlist:extra-users",
   "mcp_test public_research_nurtureany",
+  "mcp_test eazybe_nurtureany",
   "mcp_test near_me_nurtureany"
 ]) {
   if (!healthScriptText.includes(text)) fail(`runtime/check-health.sh missing required text: ${text}`);
@@ -1417,6 +1521,13 @@ if (googleDriveCompileCheck.status !== 0) {
   fail(`Python compile failed for Google Drive MCP: ${(googleDriveCompileCheck.stderr || googleDriveCompileCheck.stdout).trim()}`);
 }
 
+const eazybeCompileCheck = spawnSync("python3", ["-m", "py_compile", join(appRoot, "runtime/mcp/eazybe_nurtureany_server.py")], {
+  encoding: "utf8"
+});
+if (eazybeCompileCheck.status !== 0) {
+  fail(`Python compile failed for Eazybe MCP: ${(eazybeCompileCheck.stderr || eazybeCompileCheck.stdout).trim()}`);
+}
+
 const lumaCompileCheck = spawnSync("python3", ["-m", "py_compile", join(appRoot, "runtime/mcp/luma_nurtureany_server.py")], {
   encoding: "utf8"
 });
@@ -1461,6 +1572,14 @@ const googleDriveUnitCheck = spawnSync("python3", ["-m", "unittest", "apps/nurtu
 });
 if (googleDriveUnitCheck.status !== 0) {
   fail(`Python unit tests failed for Google Drive MCP: ${(googleDriveUnitCheck.stderr || googleDriveUnitCheck.stdout).trim()}`);
+}
+
+const eazybeUnitCheck = spawnSync("python3", ["-m", "unittest", "apps/nurtureany-sales-bot/runtime/mcp/test_eazybe_nurtureany_server.py"], {
+  cwd: repoRoot,
+  encoding: "utf8"
+});
+if (eazybeUnitCheck.status !== 0) {
+  fail(`Python unit tests failed for Eazybe MCP: ${(eazybeUnitCheck.stderr || eazybeUnitCheck.stdout).trim()}`);
 }
 
 const lumaUnitCheck = spawnSync("python3", ["-m", "unittest", "apps/nurtureany-sales-bot/runtime/mcp/test_luma_nurtureany_server.py"], {

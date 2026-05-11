@@ -1,7 +1,6 @@
 # Google Drive Runtime
 
-NurtureAny may use the StaffAny `team@staffany.com` Google Drive OAuth account to read selected Google Slides decks, list event-photo metadata from the `all-random` folder, and read the Indonesia Rev LL/HHH registration Sheet as an attendance fallback. HubSpot remains the contact/company source of truth.
-NurtureAny may use the StaffAny `team@staffany.com` Google Drive OAuth account to list event-photo metadata from the `all-random` folder, read the one-sheet nurture material registry, and read the Indonesia Rev LL/HHH registration Sheet as an attendance fallback. HubSpot remains the contact/company source of truth.
+NurtureAny may use the StaffAny `team@staffany.com` Google Drive OAuth account to read selected Google Slides decks, list event-photo metadata from the `all-random` folder, read the one-sheet nurture material registry, and read the Indonesia Rev LL/HHH registration Sheet as an attendance fallback. HubSpot remains the contact/company source of truth.
 
 ## Contract
 

@@ -109,6 +109,30 @@ nurtureany:
     no_rep_tagging: true
     no_external_send: true
     no_hubspot_mutation: true
+  daily_nurture:
+    pilot: "Jeremy"
+    hubspot_owner_email: "jeremy.wong@staffany.com"
+    protected_pool_baseline: 150
+    daily_account_count: 30
+    timezone: "Asia/Singapore"
+    working_days: "Monday-Friday"
+    nine_am_cron_utc: "0 1 * * 1-5"
+    noon_reminder_cron_utc: "0 4 * * 1-5"
+    material_registry_spreadsheet_id_env: "NURTUREANY_MATERIAL_REGISTRY_SPREADSHEET_ID"
+    daily_runs_dir_env: "NURTUREANY_DAILY_RUNS_DIR"
+    sent_definition: "Eazybe accepted/queued approved template OR HubSpot matching WhatsApp communication after run start"
+    per_ae_runtime_config:
+      - name: "Jeremy"
+        slack_user_id: "U_JEREMY_PLACEHOLDER"
+        hubspot_owner_email: "jeremy.wong@staffany.com"
+        manager_slack_user_id: "U_MANAGER_PLACEHOLDER"
+        reminder_channel_id: "C_REMINDER_PLACEHOLDER"
+        supported_countries:
+          - "Singapore"
+        daily_account_count: 30
+        timezone: "Asia/Singapore"
+        eazybe_sender_ref: "EAZYBE_SENDER_REF_PLACEHOLDER"
+        default_template_name: "nurture_material_share_v1"
   photo_matching:
     drive_folder_id: 1qXlFnr5TKFtsYNWk7ZywBBctDaae3RY-
     drive_folder_label: all-random
@@ -125,31 +149,6 @@ nurtureany:
   honcho:
     enabled: false
     reason: V1 uses deterministic config and HubSpot as source of truth.
-  daily_nurture:
-    pilot: Jeremy
-    hubspot_owner_email: jeremy.wong@staffany.com
-    protected_pool_baseline: 150
-    daily_account_count: 30
-    timezone: Asia/Singapore
-    working_days: Monday-Friday
-    nine_am_cron_utc: 0 1 * * 1-5
-    noon_reminder_cron_utc: 0 4 * * 1-5
-    material_registry_spreadsheet_id_env: NURTUREANY_MATERIAL_REGISTRY_SPREADSHEET_ID
-    daily_runs_dir_env: NURTUREANY_DAILY_RUNS_DIR
-    sent_definition: Eazybe accepted/queued approved template OR HubSpot matching
-      WhatsApp communication after run start
-    per_ae_runtime_config:
-    - name: Jeremy
-      slack_user_id: U_JEREMY_PLACEHOLDER
-      hubspot_owner_email: jeremy.wong@staffany.com
-      manager_slack_user_id: U_MANAGER_PLACEHOLDER
-      reminder_channel_id: C_REMINDER_PLACEHOLDER
-      supported_countries:
-      - Singapore
-      daily_account_count: 30
-      timezone: Asia/Singapore
-      eazybe_sender_ref: EAZYBE_SENDER_REF_PLACEHOLDER
-      default_template_name: nurture_material_share_v1
 mcp_servers:
   hubspot_nurtureany:
     description: Custom HubSpot adapter for target-account nurture workflows.
@@ -386,8 +385,8 @@ mcp_servers:
     - list_google_calendar_events
     - audit_google_calendar_meeting_quality
   google_drive_nurtureany:
-    description: Read-only Google Drive event-photo metadata from team@staffany.com
-      OAuth.
+    description: Read-only Google Drive event-photo metadata, Google Slides text,
+      material registry, and registration fallback from team@staffany.com OAuth.
     command: /Users/leekaiyi/.hermes/hermes-agent/venv/bin/python
     args:
     - /Users/leekaiyi/workspace/agent builder/apps/nurtureany-sales-bot/runtime/mcp/google_drive_nurtureany_server.py
@@ -413,6 +412,13 @@ mcp_servers:
       registration_attendance_column: Attend The Event
       material_registry_env_var: NURTUREANY_MATERIAL_REGISTRY_SPREADSHEET_ID
       material_registry_mode: read_only_one_sheet_registry
+      material_registry_tabs:
+      - Materials
+      - Playbooks
+      - Peer Intros
+      - Speaker/Venue Opportunities
+      - Events
+      - Review Log
       presentation_text_extraction: Selected Google Slides or Drive-hosted .pptx decks
         through team@staffany.com drive.readonly
       max_slides_text_chars: 30000
@@ -426,13 +432,6 @@ mcp_servers:
       file_downloads: false
       drive_mutations: false
       raw_image_copy_default: false
-      material_registry_tabs:
-      - Materials
-      - Playbooks
-      - Peer Intros
-      - Speaker/Venue Opportunities
-      - Events
-      - Review Log
     tool_allowlist:
     - list_drive_folder_images
     - read_google_slides_deck

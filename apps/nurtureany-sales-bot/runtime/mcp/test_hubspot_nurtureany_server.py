@@ -354,6 +354,7 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
                 protected_pool_size=1,
                 daily_account_count=1,
                 material_registry_rows=material_rows,
+                include_full_payload=True,
             )
 
         roles = [message["stakeholder_role"] for message in result["answer"]["messages"]]
@@ -423,7 +424,77 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
 
         self.assertEqual(persisted["answer"]["run_id"], result["answer"]["run_id"])
         self.assertEqual(persisted["answer"]["message_count"], 1)
-        self.assertEqual(persisted["answer"]["messages"][0]["message_id"], result["answer"]["messages"][0]["message_id"])
+        self.assertEqual(result["answer"]["payload_mode"], "compact_slack_packet")
+        self.assertNotIn("messages", result["answer"])
+        self.assertIn("slack_review_packet", result["answer"])
+        self.assertIn("Daily nurture pack", result["answer"]["slack_review_packet"])
+        self.assertEqual(
+            persisted["answer"]["messages"][0]["message_id"],
+            result["answer"]["sample_accounts"][0]["stakeholder_rows"][0]["message_id"],
+        )
+
+    def test_daily_nurture_blocks_do_not_contact_from_eazybe_ready_queue(self):
+        contacts = [
+            {
+                "contact_id": "dm-1",
+                "display_name": "Dana D.",
+                "persona": "Founder",
+                "buying_role": "DECISION_MAKER",
+                "is_verified_decision_maker": True,
+                "contact_confidence": "dont contact",
+                "do_not_contact": True,
+                "do_not_contact_basis": "NurtureAny contact field marker",
+            }
+        ]
+        material_rows = [
+            {
+                "material_id": "mat-1",
+                "category": "case_study",
+                "title": "F&B case study",
+                "url": "https://example.com/case",
+                "status": "active",
+                "country_scope": "Singapore",
+                "industry_tags": "food, beverage",
+                "concept_tags": "restaurant",
+                "persona_tags": "decision_maker",
+                "template_name": "nurture_material_share_v1",
+                "template_params_schema": "first_name,account_name,material_title,material_url",
+                "message_hook": "similar F&B operators are tightening labour coverage",
+            }
+        ]
+
+        with patch.object(self.module, "_caller_scope", return_value=JEREMY_SCOPE), patch.object(
+            self.module,
+            "_company_search",
+            return_value={
+                "results": [{"id": "123", "properties": {"name": "Bubble Tea Lab"}}],
+                "total": 1,
+                "requested_limit": 1,
+                "returned_count": 1,
+                "has_more": False,
+                "truncated": False,
+            },
+        ), patch.object(
+            self.module,
+            "_daily_nurture_contexts",
+            return_value={"123": daily_context("123", contacts)},
+        ), patch.object(
+            self.module, "_pre_demo_case_study_matches", return_value=[]
+        ):
+            result = self.module.build_daily_nurture_plan(
+                "jeremy.wong@staffany.com",
+                for_date="2026-05-11",
+                protected_pool_size=1,
+                daily_account_count=1,
+                material_registry_rows=material_rows,
+                include_full_payload=True,
+            )
+
+        message = result["answer"]["messages"][0]
+        self.assertFalse(message["eazybe_ready"])
+        self.assertEqual(message["send_status"], "blocked_do_not_contact")
+        self.assertEqual(result["answer"]["eazybe_ready_message_count"], 0)
+        self.assertEqual(result["answer"]["material_gaps"][0]["reason"], "contact marked do-not-contact")
 
     def test_daily_nurture_surfaces_missing_role_gaps(self):
         contacts = [
@@ -460,6 +531,7 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
                 protected_pool_size=1,
                 daily_account_count=1,
                 material_registry_rows=[],
+                include_full_payload=True,
             )
 
         missing_roles = {gap["role"] for gap in result["answer"]["role_gaps"]}
@@ -546,6 +618,7 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
                 protected_pool_size=1,
                 daily_account_count=1,
                 material_registry_rows=material_rows,
+                include_full_payload=True,
             )
 
         message = result["answer"]["messages"][0]
@@ -738,6 +811,22 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         verified = self.module._decision_maker_coverage(props, [buyer], 1)
         self.assertEqual(verified["status"], "verified")
         self.assertEqual(verified["verified_decision_maker_count"], 1)
+
+    def test_safe_contact_blocks_do_not_contact_marker_in_name(self):
+        contact = self.module._safe_contact(
+            {
+                "id": "4",
+                "properties": {
+                    "firstname": "Jeanne (dont contact)",
+                    "lastname": "Tan",
+                    "jobtitle": "Operations Manager",
+                    "hs_buying_role": "",
+                },
+            }
+        )
+
+        self.assertTrue(contact["do_not_contact"])
+        self.assertIn("contact name", contact["do_not_contact_basis"])
 
     def test_decision_maker_rollup_without_associated_contact_is_needs_check(self):
         company = {

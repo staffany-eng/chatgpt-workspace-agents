@@ -69,7 +69,6 @@ Use this reference with `sales-best-practices.md` before changing or answering f
 | `list_drive_folder_images` | Drive photo | Drive metadata only from `team@staffany.com`; source pointers and uploader names only; no raw image copy or Drive mutation. |
 | `read_google_slides_deck` | Drive deck | Selected Google Slides or Drive-hosted `.pptx` text only through `team@staffany.com`; no public link sharing, edits, comments, raw byte retention, or CRM truth override. |
 | `extract_drive_image_clues` | Drive photo | Transient OCR/vision clues only; raw bytes discarded; event/person attribution remains `needs-check` until confirmed. |
-| `read_nurture_material_registry` | Drive registry | One-sheet nurture material registry from `NURTUREANY_MATERIAL_REGISTRY_SPREADSHEET_ID`; safe rows only; no raw exports or Drive mutation. |
 | `read_nurture_material_registry` | Material registry | One read-only Google Sheet for Materials, Playbooks, Peer Intros, Speaker/Venue Opportunities, Events, and Review Log; active/approved/live rows only; no Drive mutation. |
 | `read_indonesia_event_registration_attendance` | Event fallback | Indonesia LL/HHH Sheet fallback only when Luma check-in is empty or not used; `Attend The Event` is manual attendance evidence; safe rows and match keys only. |
 | `preview_eazybe_template_messages` | Eazybe preview | Selected message IDs only; validates approved template payload and ordered params; phone numbers redacted; no send. |

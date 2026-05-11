@@ -99,6 +99,7 @@ CONTACT_PROPERTIES = [
     "jobtitle",
     "job_role",
     "hs_buying_role",
+    "hs_email_optout",
     "hubspot_owner_id",
     "lastmodifieddate",
     "nurtureany_persona",
@@ -418,6 +419,17 @@ DAILY_NURTURE_MATERIAL_FIELDS = (
 )
 DAILY_NURTURE_DEFAULT_TEMPLATE_NAME = "nurture_material_share_v1"
 DAILY_NURTURE_DEFAULT_TEMPLATE_SCHEMA = ("first_name", "account_name", "material_title", "material_url")
+DAILY_NURTURE_DO_NOT_CONTACT_MARKERS = (
+    "do not contact",
+    "dont contact",
+    "do-not-contact",
+    "dnc",
+    "opt out",
+    "opted out",
+    "unsubscribe",
+    "unsubscribed",
+    "blacklist",
+)
 DAILY_NURTURE_ACTIVE_MATERIAL_STATUSES = {"active", "approved", "live"}
 DAILY_NURTURE_RUNS_DIR_ENV = "NURTUREANY_DAILY_RUNS_DIR"
 LUMA_BASE_URL = "https://public-api.luma.com"
@@ -5040,6 +5052,13 @@ def _safe_contact(contact: dict[str, Any]) -> dict[str, Any]:
     buying_role = props.get("hs_buying_role") or ""
     has_verified_decision_maker_role = _has_decision_maker_buying_role(buying_role)
     has_role_inferred_decision_maker = _role_is_decision_maker(role)
+    contact_confidence = props.get("nurtureany_contact_confidence") or ""
+    channel_fit = props.get("nurtureany_channel_fit") or ""
+    block_text = _normalized_words(
+        f"{first} {last} {props.get('email') or ''} {role} {buying_role} {channel_fit} {contact_confidence}"
+    )
+    email_optout = str(props.get("hs_email_optout") or "").strip().lower() in {"true", "1", "yes"}
+    do_not_contact = email_optout or any(marker in block_text for marker in DAILY_NURTURE_DO_NOT_CONTACT_MARKERS)
     return {
         "contact_id": contact.get("id"),
         "display_name": " ".join(part for part in [first, last[:1] + "." if last else ""] if part).strip(),
@@ -5050,8 +5069,12 @@ def _safe_contact(contact: dict[str, Any]) -> dict[str, Any]:
         "is_decision_maker": has_verified_decision_maker_role or has_role_inferred_decision_maker,
         "decision_maker_confidence": "verified" if has_verified_decision_maker_role else "needs-check" if has_role_inferred_decision_maker else "",
         "last_verified_at": props.get("nurtureany_last_verified_at") or props.get("lastmodifieddate") or "",
-        "channel_fit": props.get("nurtureany_channel_fit") or "",
-        "contact_confidence": props.get("nurtureany_contact_confidence") or "",
+        "channel_fit": channel_fit,
+        "contact_confidence": contact_confidence,
+        "do_not_contact": do_not_contact,
+        "do_not_contact_basis": "HubSpot hs_email_optout, contact name, or NurtureAny contact field marker"
+        if do_not_contact
+        else "",
     }
 
 
@@ -5775,6 +5798,10 @@ def _daily_nurture_stakeholders(context: dict[str, Any]) -> tuple[list[dict[str,
                     "stakeholder_role": role["role"],
                     "role_confidence": role["confidence"],
                     "role_basis": role["basis"],
+                    "channel_fit": contact.get("channel_fit") or "",
+                    "contact_confidence": contact.get("contact_confidence") or "",
+                    "do_not_contact": bool(contact.get("do_not_contact")),
+                    "do_not_contact_basis": contact.get("do_not_contact_basis") or "",
                 }
             )
     gaps = []
@@ -5983,7 +6010,14 @@ def _daily_nurture_message(
     schema_names = _material_schema_names(material.get("template_params_schema"))
     template_name = str(material.get("template_name") or "").strip()
     template_params = _template_params(schema_names, context, stakeholder, material)
-    eazybe_ready = bool(template_name and contact_id and material.get("category") != "material_needed")
+    do_not_contact = bool(stakeholder.get("do_not_contact"))
+    eazybe_ready = bool(template_name and contact_id and material.get("category") != "material_needed" and not do_not_contact)
+    if do_not_contact:
+        send_status = "blocked_do_not_contact"
+    elif eazybe_ready:
+        send_status = "pending_approval"
+    else:
+        send_status = "needs_material_or_template"
     return {
         "message_id": _daily_nurture_message_id(run_id, company_id, contact_id, role),
         "run_id": run_id,
@@ -5995,6 +6029,8 @@ def _daily_nurture_message(
         "role_confidence": stakeholder.get("role_confidence") or "needs-check",
         "role_basis": stakeholder.get("role_basis") or "",
         "persona": stakeholder.get("persona") or "",
+        "do_not_contact": do_not_contact,
+        "do_not_contact_basis": stakeholder.get("do_not_contact_basis") or "",
         "material": {
             "material_id": material.get("material_id") or "",
             "category": material.get("category") or "",
@@ -6011,7 +6047,7 @@ def _daily_nurture_message(
             "template_params": template_params,
         },
         "eazybe_ready": eazybe_ready,
-        "send_status": "pending_approval" if eazybe_ready else "needs_material_or_template",
+        "send_status": send_status,
         "safe_for_slack": True,
     }
 
@@ -6075,6 +6111,203 @@ def _persist_daily_nurture_run(run_id: str, payload: dict[str, Any]) -> dict[str
     except OSError as error:
         return {"persisted": False, "reason": f"write failed: {error.__class__.__name__}"}
     return {"persisted": True, "path": str(path)}
+
+
+def _count_rows_by_key(rows: list[dict[str, Any]], key: str) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for row in rows:
+        value = str(row.get(key) or "unknown").strip() or "unknown"
+        counts[value] = counts.get(value, 0) + 1
+    return dict(sorted(counts.items(), key=lambda item: (-item[1], item[0])))
+
+
+def _render_daily_nurture_slack_packet(answer: dict[str, Any], source: str, scope: dict[str, Any], confidence: str, caveat: str) -> str:
+    rotation = answer.get("account_rotation") if isinstance(answer.get("account_rotation"), dict) else {}
+    lines = [
+        f"Daily nurture pack: {answer.get('for_date')} ({answer.get('bucket_label')})",
+        f"run_id: {answer.get('run_id')}",
+        f"payload_mode: {answer.get('payload_mode')}",
+        f"returned_pool_count: {rotation.get('returned_pool_count')}",
+        f"selected_account_count: {answer.get('selected_account_count')}",
+        f"stakeholder_count: {answer.get('stakeholder_count')}",
+        f"message_count: {answer.get('message_count')}",
+        f"eazybe_ready_message_count: {answer.get('eazybe_ready_message_count')}",
+        "",
+        "5 sample accounts:",
+    ]
+    for index, account in enumerate(answer.get("sample_accounts") or [], start=1):
+        lines.append(
+            f"{index}. {account.get('company_name')} ({account.get('country') or 'country n/a'}; "
+            f"{account.get('industry') or 'industry n/a'}) - stakeholders {account.get('stakeholder_row_count')}"
+        )
+        for row in (account.get("stakeholder_rows") or [])[:1]:
+            blocked = " BLOCKED do-not-contact" if row.get("do_not_contact") else ""
+            lines.append(
+                f"   - {row.get('stakeholder_name')} | {row.get('stakeholder_role')} | {row.get('role_confidence')}{blocked} | "
+                f"material: {row.get('material_title') or row.get('material_category') or 'material needed'} | "
+                f"msg_id: {row.get('message_id')}"
+            )
+            draft = re.sub(r"https?://\S+", "[link]", str(row.get("draft_preview") or "").replace("\n", " "))[:120]
+            if draft:
+                lines.append(f"     draft: {draft}")
+        extra_count = max(0, int(account.get("stakeholder_row_count") or 0) - 1)
+        if extra_count:
+            lines.append(f"     + {extra_count} more stakeholder row(s) in persisted run")
+    role_summary = ", ".join(f"{role}: {count}" for role, count in (answer.get("role_gap_summary") or {}).items()) or "none"
+    material_summary = ", ".join(f"{reason}: {count}" for reason, count in (answer.get("material_gap_summary") or {}).items()) or "none"
+    lines.extend(
+        [
+            "",
+            f"role_gap_count: {answer.get('role_gap_count')} ({role_summary})",
+            f"material_gap_count: {answer.get('material_gap_count')} ({material_summary})",
+            f"do_not_contact_blocked_count: {answer.get('do_not_contact_blocked_count')}",
+            "Source: HubSpot + read-only Sheet registry + approved repo case studies",
+            f"Scope: target_owner={scope.get('target_owner_email') or scope.get('hubspot_owner_email') or scope.get('email')}; countries={', '.join(scope.get('countries') or [])}",
+            f"Confidence: {confidence}",
+            f"Caveat: {str(caveat or '')[:220]}",
+            "No WhatsApp sent; no HubSpot mutated.",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def _compact_daily_nurture_response(
+    response: dict[str, Any],
+    sample_account_count: int = 5,
+    max_gap_rows: int = 10,
+    max_message_index: int = 30,
+) -> dict[str, Any]:
+    answer = response.get("answer") if isinstance(response.get("answer"), dict) else {}
+    messages = [message for message in answer.get("messages", []) if isinstance(message, dict)]
+    selected_accounts = [account for account in answer.get("selected_accounts", []) if isinstance(account, dict)]
+    role_gaps = [gap for gap in answer.get("role_gaps", []) if isinstance(gap, dict)]
+    material_gaps = [gap for gap in answer.get("material_gaps", []) if isinstance(gap, dict)]
+    inaccessible_accounts = [account for account in answer.get("inaccessible_accounts", []) if isinstance(account, dict)]
+
+    messages_by_company: dict[str, list[dict[str, Any]]] = {}
+    for message in messages:
+        company_id = str(message.get("company_id") or "")
+        messages_by_company.setdefault(company_id, []).append(message)
+
+    sample_accounts = []
+    for account in selected_accounts[: max(0, sample_account_count)]:
+        company_id = str(account.get("company_id") or "")
+        account_messages = messages_by_company.get(company_id, [])
+        stakeholder_rows = []
+        for message in account_messages[:3]:
+            material = message.get("material") if isinstance(message.get("material"), dict) else {}
+            stakeholder_rows.append(
+                {
+                    "message_id": message.get("message_id") or "",
+                    "stakeholder_name": message.get("stakeholder_name") or "",
+                    "stakeholder_role": message.get("stakeholder_role") or "",
+                    "role_confidence": message.get("role_confidence") or "",
+                    "role_basis": message.get("role_basis") or "",
+                    "material_id": material.get("material_id") or "",
+                    "material_category": material.get("category") or "",
+                    "material_title": material.get("title") or "",
+                    "material_match_reasons": (material.get("match_reasons") or [])[:3],
+                    "draft_preview": str(message.get("draft_preview") or "")[:360],
+                    "eazybe_ready": bool(message.get("eazybe_ready")),
+                    "send_status": message.get("send_status") or "",
+                    "do_not_contact": bool(message.get("do_not_contact")),
+                }
+            )
+        sample_accounts.append(
+            {
+                **account,
+                "stakeholder_rows": stakeholder_rows,
+                "stakeholder_row_count": len(account_messages),
+                "stakeholder_rows_truncated": len(account_messages) > len(stakeholder_rows),
+            }
+        )
+
+    selected_account_summaries = [
+        {
+            "company_id": account.get("company_id") or "",
+            "company_name": account.get("company_name") or "",
+            "country": account.get("country") or "",
+            "industry": account.get("industry") or "",
+            "current_tools": account.get("current_tools") or "",
+            "stakeholder_count": account.get("stakeholder_count") or 0,
+            "message_count": account.get("message_count") or 0,
+            "role_gap_count": len(account.get("role_gaps") or []),
+        }
+        for account in selected_accounts
+    ]
+
+    message_index_sample = []
+    for message in messages[: max(0, max_message_index)]:
+        material = message.get("material") if isinstance(message.get("material"), dict) else {}
+        message_index_sample.append(
+            {
+                "message_id": message.get("message_id") or "",
+                "company_id": message.get("company_id") or "",
+                "company_name": message.get("company_name") or "",
+                "stakeholder_name": message.get("stakeholder_name") or "",
+                "stakeholder_role": message.get("stakeholder_role") or "",
+                "role_confidence": message.get("role_confidence") or "",
+                "material_id": material.get("material_id") or "",
+                "material_title": material.get("title") or "",
+                "eazybe_ready": bool(message.get("eazybe_ready")),
+                "send_status": message.get("send_status") or "",
+                "do_not_contact": bool(message.get("do_not_contact")),
+            }
+        )
+
+    compact_answer = {
+        "payload_mode": "compact_slack_packet",
+        "full_payload_location": "run_persistence.path when persisted=true",
+        "run_id": answer.get("run_id") or "",
+        "for_date": answer.get("for_date") or "",
+        "timezone": answer.get("timezone") or "Asia/Singapore",
+        "working_day_policy": answer.get("working_day_policy") or "",
+        "bucket_index": answer.get("bucket_index"),
+        "bucket_label": answer.get("bucket_label") or "",
+        "account_rotation": answer.get("account_rotation") or {},
+        "material_registry": answer.get("material_registry") or {},
+        "selected_account_summaries": selected_account_summaries,
+        "selected_account_count": len(selected_accounts),
+        "stakeholder_count": sum(_int_value(account.get("stakeholder_count")) for account in selected_accounts),
+        "message_count": answer.get("message_count") if answer.get("message_count") is not None else len(messages),
+        "eazybe_ready_message_count": answer.get("eazybe_ready_message_count")
+        if answer.get("eazybe_ready_message_count") is not None
+        else sum(1 for message in messages if message.get("eazybe_ready")),
+        "sample_accounts": sample_accounts,
+        "sample_account_count": len(sample_accounts),
+        "message_index_sample": message_index_sample,
+        "message_index_sample_count": len(message_index_sample),
+        "message_index_truncated": len(messages) > len(message_index_sample),
+        "role_gap_count": len(role_gaps),
+        "role_gap_summary": _count_rows_by_key(role_gaps, "role"),
+        "role_gaps_sample": role_gaps[:max_gap_rows],
+        "role_gaps_truncated": len(role_gaps) > max_gap_rows,
+        "material_gap_count": len(material_gaps),
+        "material_gap_summary": _count_rows_by_key(material_gaps, "reason"),
+        "material_gaps_sample": material_gaps[:max_gap_rows],
+        "material_gaps_truncated": len(material_gaps) > max_gap_rows,
+        "do_not_contact_blocked_count": sum(1 for message in messages if message.get("do_not_contact")),
+        "inaccessible_account_count": len(inaccessible_accounts),
+        "inaccessible_accounts_sample": inaccessible_accounts[:max_gap_rows],
+        "run_persistence": answer.get("run_persistence") or {},
+        "approval_instructions": answer.get("approval_instructions") or "",
+        "twelve_pm_sent_definition": answer.get("twelve_pm_sent_definition") or "",
+        "whatsapp_auto_send": bool(answer.get("whatsapp_auto_send")),
+    }
+    compact_answer["slack_review_packet"] = _render_daily_nurture_slack_packet(
+        compact_answer,
+        response.get("source") or "",
+        response.get("scope") or {},
+        response.get("confidence") or "needs-check",
+        response.get("caveat") or "",
+    )
+    return {
+        "answer": compact_answer,
+        "source": response.get("source") or "",
+        "scope": response.get("scope") or {},
+        "confidence": response.get("confidence") or "needs-check",
+        "caveat": response.get("caveat") or "",
+    }
 
 
 def _pre_demo_case_study_name_drops(context: dict[str, Any]) -> list[str]:
@@ -11494,6 +11727,8 @@ def build_daily_nurture_plan(
     daily_account_count: int = DAILY_NURTURE_DEFAULT_ACCOUNT_COUNT,
     protected_pool_size: int = DAILY_NURTURE_PROTECTED_POOL_SIZE,
     material_registry_rows: list[dict[str, Any]] | None = None,
+    include_full_payload: bool = False,
+    sample_account_count: int = 5,
 ) -> dict[str, Any]:
     """Build the 9am daily target-account nurture pack with approval-gated WhatsApp drafts."""
 
@@ -11563,7 +11798,9 @@ def build_daily_nurture_plan(
                         "company_name": message.get("company_name") or "",
                         "contact_id": message.get("contact_id") or "",
                         "stakeholder_role": message.get("stakeholder_role") or "",
-                        "reason": "no active Sheet/case-study material or approved template",
+                        "reason": "contact marked do-not-contact"
+                        if message.get("do_not_contact")
+                        else "no active Sheet/case-study material or approved template",
                     }
                     for message in account_messages
                     if not message.get("eazybe_ready")
@@ -11651,7 +11888,9 @@ def build_daily_nurture_plan(
             response["caveat"] = f"{response['caveat']} Daily run payload was not persisted for 12pm reminder reload: {persistence.get('reason')}."
         else:
             _persist_daily_nurture_run(run_id, response)
-        return response
+        if include_full_payload:
+            return response
+        return _compact_daily_nurture_response(response, sample_account_count=sample_account_count)
     except ScopeError as error:
         return _blocked(str(error), {"caller_email": slack_user_email})
     except HubSpotError as error:
