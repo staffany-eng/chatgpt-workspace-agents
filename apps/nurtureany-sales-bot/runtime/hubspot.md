@@ -13,7 +13,7 @@ Field-level durable sources:
 - Current-customer account-background packets: C360 sales packet is StaffAny product/Payroll truth. If C360 is unavailable, return `Confidence: needs-check` and do not infer Payroll status from stale HubSpot `current_tools` / `contract_end_date`.
 - Decision-maker coverage: company `hs_num_decision_makers` plus contact `hs_buying_role=DECISION_MAKER` are verified HubSpot decision-maker sources. `hs_num_contacts_with_buying_roles` is reported separately as buying-role hygiene, but it does not satisfy decision-maker coverage by itself. NurtureAny does not read Eazybe directly for these counts.
 
-`current_tool_renewal_date` is secondary context only. C360, Google Calendar, Luma, the Indonesia event registration Sheet fallback, Exa, Lusha, Slack, and public evidence enrich the answer but do not override the durable HubSpot fields above.
+`current_tool_renewal_date` is secondary context only. C360, Google Calendar, Luma, the Indonesia event registration Sheet fallback, Tavily public research, Exa, Lusha, Slack, and public evidence enrich the answer but do not override the durable HubSpot fields above.
 
 Do not call contract timing a StaffAny renewal unless customer status is verified. For prospects or unknowns, use incumbent-tool contract timing or migration/procurement timing.
 
@@ -51,6 +51,7 @@ It exposes these tools:
 
 - `list_inbound_threads`
 - `get_inbound_thread_context`
+- `audit_inbound_sla`
 - `list_marketing_campaigns`
 - `get_campaign_assets`
 - `get_campaign_social_effectiveness`
@@ -141,6 +142,17 @@ Friday sales review uses the same scoped association discipline, plus HubSpot ca
 - Search source fields such as `utm_campaign`, conversion-event names, and analytics source data; never expose raw PII, raw form submissions, raw contact rows, or mutation tools.
 - QO, QO Met, and closed-won counts are valid only when `NURTUREANY_QO_PIPELINE_IDS`, `NURTUREANY_QO_STAGE_IDS`, `NURTUREANY_QO_MET_STAGE_IDS`, and `NURTUREANY_CLOSED_WON_STAGE_IDS` are configured. Without that config, return `Confidence: needs-check`.
 - Do not use generic `build_sales_metric_actuals_query` QO totals as campaign attribution. Use BigQuery only after a purpose-built, schema-inspected campaign/UTM query is available.
+
+`audit_inbound_sla`:
+
+- Input: Slack user email, optional safe Slack alert metadata, optional HubSpot inbox/thread filters, SLA minutes, and limit.
+- Output: SLA policy, one audit row per Slack alert or HubSpot inbound thread, duplicate summary, rollup, source, scope, confidence, and caveat.
+- Default SLA is 5-minute owner acknowledgement and 15-minute first customer touch. Reassignment remains a manual Eugene/manager action; the tool must not auto-assign or mutate HubSpot.
+- Treat elapsed minutes `<=` the configured SLA target as pass; do not create a separate boundary status.
+- Dedupe only through the same HubSpot conversation thread, contact, ticket, or company. Slack-only duplicate hints stay `needs-check`.
+- If supplied Slack alerts have no safe HubSpot IDs, keep `hubspot_match_mode=skipped_no_safe_ids`, say HubSpot match was skipped/no safe IDs, and report timestamp overlaps only as duplicate candidates.
+- Final inbound SLA audit answers must use the tool output as the answer source; do not manually recompute a replacement audit table.
+- Must not expose raw Slack transcripts, raw HubSpot message bodies, phone numbers, bulk PII, or send external messages.
 
 `list_my_target_accounts`:
 

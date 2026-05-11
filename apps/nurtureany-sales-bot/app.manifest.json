@@ -36,6 +36,8 @@
     "near_me_runtime": "runtime/near-me.md",
     "near_me_mcp": "runtime/mcp/near_me_nurtureany_server.py",
     "near_me_outlet_matches_sql": "runtime/sql/near-me-outlet-matches.sql",
+    "public_research_runtime": "runtime/public-research.md",
+    "public_research_mcp": "runtime/mcp/public_research_nurtureany_server.py",
     "exa_runtime": "runtime/exa.md",
     "exa_mcp": "runtime/mcp/exa_nurtureany_server.py",
     "lusha_runtime": "runtime/lusha.md",
@@ -227,6 +229,7 @@
     "read": [
       "list_inbound_threads",
       "get_inbound_thread_context",
+      "audit_inbound_sla",
       "list_marketing_campaigns",
       "get_campaign_assets",
       "get_campaign_social_effectiveness",
@@ -238,6 +241,7 @@
       "audit_priority_account_coverage",
       "build_sales_metric_actuals_query",
       "build_friday_sales_review",
+      "build_manager_chase_plan",
       "get_account_context",
       "build_pre_demo_game_plans",
       "list_sales_followup_tasks",
@@ -252,7 +256,9 @@
       "scan_drive_event_photos",
       "propose_photo_people_matches",
       "list_drive_folder_images",
+      "read_google_slides_deck",
       "extract_drive_image_clues",
+      "read_nurture_material_registry",
       "read_indonesia_event_registration_attendance",
       "draft_nurture_message",
       "list_google_calendar_events",
@@ -267,6 +273,7 @@
       "build_near_me_c360_customer_query",
       "prepare_near_me_seed_review_candidates",
       "merge_near_me_sources",
+      "research_public_company_signals",
       "search_exa_people_candidates",
       "search_lusha_decision_maker_candidates",
       "get_lusha_credit_usage"
@@ -308,6 +315,8 @@
     ],
     "allowed_tools": [
       "extract_drive_image_clues",
+      "read_google_slides_deck",
+      "read_nurture_material_registry",
       "scan_drive_event_photos",
       "propose_photo_people_matches",
       "plan_event_photo_followup"
@@ -372,12 +381,21 @@
     "id_rev_events_spreadsheet_id": "1mXixAVJGk0Uy0u1LtOmDFxU3XuW8DRfedB69E1f-drc",
     "registration_attendance_fallback": "Indonesia LL/HHH Google Sheet Attend The Event when Luma checked_in_at is empty or not used",
     "registration_attendance_column": "Attend The Event",
+    "material_registry_env_var": "NURTUREANY_MATERIAL_REGISTRY_SPREADSHEET_ID",
+    "material_registry_mode": "read_only_one_sheet_registry",
+    "presentation_text_extraction": "Selected Google Slides or Drive-hosted .pptx decks through team@staffany.com drive.readonly",
+    "max_slides_text_chars": 30000,
+    "max_presentation_bytes": 25000000,
     "max_files": 100,
     "allowed_tools": [
       "list_drive_folder_images",
+      "read_google_slides_deck",
       "extract_drive_image_clues",
+      "read_nurture_material_registry",
       "read_indonesia_event_registration_attendance"
     ],
+    "public_link_sharing": false,
+    "presentation_raw_file_retention": false,
     "transient_vision_downloads": true,
     "uploader_profile_lookup": "best_effort_slack_users_info",
     "file_downloads": false,
@@ -424,6 +442,29 @@
     "requires_scoped_hubspot_companies": true,
     "raw_attendee_exports": false,
     "event_mutations": false,
+    "hubspot_writeback": "none"
+  },
+  "public_research": {
+    "auth_env_var": "TAVILY_API_KEY",
+    "provider": "Tavily Search and Extract",
+    "tavily_research_api": false,
+    "max_search_companies": 5,
+    "modes": {
+      "light": "about 3 credits/company",
+      "standard": "about 5 credits/company",
+      "deep": "about 6-8 credits/company"
+    },
+    "safe_company_fields_only": [
+      "company_id",
+      "name",
+      "domain",
+      "country"
+    ],
+    "requires_scoped_hubspot_companies": true,
+    "allowed_tools": [
+      "research_public_company_signals"
+    ],
+    "social_gated_urls": "manual_check_only",
     "hubspot_writeback": "none"
   },
   "near_me": {

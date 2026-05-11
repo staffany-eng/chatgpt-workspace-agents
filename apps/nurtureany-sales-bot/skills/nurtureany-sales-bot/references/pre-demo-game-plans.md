@@ -42,6 +42,7 @@ Each account output must include:
 - For Calendar follow-up checks, scan the HubSpot company owner's email calendar through the `team@staffany.com` OAuth account. If that AE calendar is inaccessible, mark calendar coverage blocked/needs-check.
 - Use customer/prospect status from HubSpot `type`, `lifecyclestage`, `prospecting_account`, and C360 when explicitly used. Say `renewal call` only for verified customers; for prospects use incumbent-tool contract timing, migration/procurement timing, or current-tool confirmation.
 - Social/gated sources such as LinkedIn, Instagram, Facebook, TikTok, and Google Maps are manual-check only unless the user provides snippets.
+- If the user explicitly asks for public research, use `include_public_research=true` with `research_mode` `light`, `standard`, or `deep`. Tavily public evidence may enrich Research / stalking signal only; it never overrides HubSpot owner, status, current tools, contract dates, contacts, tasks, notes, or follow-up truth. Include `cost_report`, `will_mutate_hubspot=false`, manual-check items, and missing-evidence notes.
 - Public StaffAny case-study pages in `case-studies.md` are approved for name drops; Slack-only or WIP case-study mentions are not approved until a published page or approved internal asset exists.
 - Do not scrape social/gated sources, reveal unnecessary PII, fetch raw task bodies, mutate HubSpot, or send external messages.
 - If current tools, lead source, meeting reason, stakeholders, pricing, or case studies are missing, mark `Confidence: needs-check`.
@@ -51,7 +52,7 @@ Each account output must include:
 First Slack request is plan-first:
 
 Interpreted question: <question>
-Plan: I will build pre-demo game plans for the selected HubSpot accounts using scoped HubSpot account context only.
+Plan: I will build pre-demo game plans for the selected HubSpot accounts using scoped HubSpot account context only. If you explicitly asked for public research, I will add bounded Tavily public evidence to Research / stalking signal only.
 Estimate: 1-2 min
 Caveat: I will not invent pricing, current tools, lead source, meeting reason, or case studies; missing items will be marked.
 Reply "run" to start, or tell me what to change.

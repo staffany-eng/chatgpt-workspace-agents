@@ -3,15 +3,17 @@
 
 This server lists bounded image metadata from the StaffAny team@staffany.com
 Drive account, can transiently inspect Drive images for OCR/vision clues, and
-can read safe bounded rows from the Indonesia Rev event registration Sheet. It
-never exports files, mutates Drive/Sheets, returns phone numbers/full emails, or
-stores raw image bytes.
+can read safe bounded rows from the Indonesia Rev event registration Sheet and
+presentation decks explicitly shared to the same account. It never asks for
+public link sharing, mutates Drive/Sheets, returns phone numbers/full emails, or
+stores raw file or image bytes.
 """
 
 from __future__ import annotations
 
 import base64
 import hashlib
+import io
 import json
 import os
 import re
@@ -19,6 +21,8 @@ import socket
 import urllib.error
 import urllib.parse
 import urllib.request
+import xml.etree.ElementTree as ET
+import zipfile
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
@@ -42,6 +46,9 @@ GOOGLE_DRIVE_API_BASE_URL = "https://www.googleapis.com/drive/v3"
 GOOGLE_SHEETS_API_BASE_URL = "https://sheets.googleapis.com/v4/spreadsheets"
 GOOGLE_DRIVE_USER_AGENT = "StaffAny-NurtureAny/1.0 (+https://staffany.com)"
 DRIVE_READONLY_SCOPE = "https://www.googleapis.com/auth/drive.readonly"
+GOOGLE_SLIDES_MIME_TYPE = "application/vnd.google-apps.presentation"
+GOOGLE_SLIDES_EXPORT_MIME_TYPE = "text/plain"
+POWERPOINT_MIME_TYPE = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
 DEFAULT_ACCOUNT_EMAIL = "team@staffany.com"
 DEFAULT_DRIVE_FOLDER_ID = "1qXlFnr5TKFtsYNWk7ZywBBctDaae3RY-"
 ID_REV_EVENTS_SPREADSHEET_ID = "1mXixAVJGk0Uy0u1LtOmDFxU3XuW8DRfedB69E1f-drc"
@@ -54,6 +61,36 @@ MAX_IMAGE_BYTES = 7_500_000
 MAX_REGISTRATION_ROWS = 250
 MAX_REGISTRATION_ROW_SAMPLE = 5
 DEFAULT_REGISTRATION_ROW_SAMPLE = 0
+MAX_SLIDES_TEXT_CHARS = 30_000
+MAX_PRESENTATION_BYTES = 25_000_000
+MATERIAL_REGISTRY_SPREADSHEET_ID_ENV = "NURTUREANY_MATERIAL_REGISTRY_SPREADSHEET_ID"
+MATERIAL_REGISTRY_SPREADSHEET_URL_TEMPLATE = "https://docs.google.com/spreadsheets/d/{spreadsheet_id}/edit"
+MATERIAL_REGISTRY_TABS = (
+    "Materials",
+    "Playbooks",
+    "Peer Intros",
+    "Speaker/Venue Opportunities",
+    "Events",
+    "Review Log",
+)
+MATERIAL_REGISTRY_FIELDS = (
+    "material_id",
+    "category",
+    "title",
+    "url",
+    "status",
+    "country_scope",
+    "industry_tags",
+    "concept_tags",
+    "persona_tags",
+    "valid_from",
+    "valid_until",
+    "template_name",
+    "template_params_schema",
+    "message_hook",
+    "owner",
+)
+MAX_MATERIAL_REGISTRY_ROWS_PER_TAB = 500
 ANTHROPIC_API_KEY_ENV = "ANTHROPIC_API_KEY"
 DEFAULT_VISION_MODEL = "claude-sonnet-4-6"
 SUPPORTED_VISION_MEDIA_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
@@ -92,15 +129,18 @@ SLACK_USER_ID_PATTERN = re.compile(r"^[UW][A-Z0-9]+$")
 SLACK_EXPORT_FILENAME_PATTERN = re.compile(
     r"^(?P<source_timestamp>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z)-(?P<slack_user_id>[UW][A-Z0-9]+)-(?P<original_filename>.+)$"
 )
+GOOGLE_SLIDES_URL_ID_PATTERN = re.compile(r"/presentation/(?:u/\d+/)?d/([A-Za-z0-9_-]{20,})")
+GOOGLE_SLIDES_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{20,}$")
 _SLACK_USER_CACHE: dict[str, dict[str, str]] = {}
 
 
 mcp = FastMCP(
     "google_drive_nurtureany",
     instructions=(
-        "Read-only Google Drive photo metadata for NurtureAny. Use only the "
-        "team@staffany.com account, list bounded image metadata, extract transient vision/OCR clues, "
-        "and never store raw images or mutate Drive files."
+        "Read-only Google Drive and Slides access for NurtureAny. Use only the "
+        "team@staffany.com account, list bounded image metadata, read selected Google Slides decks, "
+        "extract transient vision/OCR clues, and never ask for public link sharing, store raw images, "
+        "or mutate Drive files."
     ),
 )
 
@@ -270,6 +310,17 @@ def _request_bytes(path: str, params: dict[str, Any], access_token: str, max_byt
         raise GoogleDriveError(f"Google Drive API request timed out or failed: {reason}") from error
 
 
+def _request_export_text(file_id: str, access_token: str, max_bytes: int = MAX_SLIDES_TEXT_CHARS * 4) -> str:
+    file_path = f"/files/{urllib.parse.quote(file_id, safe='')}/export"
+    data, _media_type = _request_bytes(
+        file_path,
+        {"mimeType": GOOGLE_SLIDES_EXPORT_MIME_TYPE},
+        access_token,
+        max_bytes,
+    )
+    return data.decode("utf-8", errors="replace")
+
+
 def _request_sheets_json(spreadsheet_id: str, path: str, params: dict[str, Any], access_token: str) -> dict[str, Any]:
     query = urllib.parse.urlencode({key: value for key, value in params.items() if value not in (None, "")})
     quoted_id = urllib.parse.quote(spreadsheet_id, safe="")
@@ -339,6 +390,90 @@ def _safe_folder(folder: dict[str, Any]) -> dict[str, Any]:
         "driveId": folder.get("driveId") or "",
         "trashed": bool(folder.get("trashed")),
     }
+
+
+def _safe_presentation(file: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": file.get("id") or "",
+        "name": file.get("name") or "",
+        "mimeType": file.get("mimeType") or "",
+        "webViewLink": file.get("webViewLink") or "",
+        "driveId": file.get("driveId") or "",
+        "trashed": bool(file.get("trashed")),
+        "modifiedTime": file.get("modifiedTime") or "",
+        "size": file.get("size") or "",
+    }
+
+
+def _extract_presentation_id(value: str) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    if GOOGLE_SLIDES_ID_PATTERN.match(text):
+        return text
+    parsed = urllib.parse.urlparse(text)
+    match = GOOGLE_SLIDES_URL_ID_PATTERN.search(parsed.path or "")
+    if match:
+        return match.group(1)
+    match = re.search(r"[?&]id=([A-Za-z0-9_-]{20,})", text)
+    if match:
+        return match.group(1)
+    return ""
+
+
+def _normalize_slides_text(raw_text: str, max_chars: int) -> tuple[str, bool, int]:
+    text = str(raw_text or "").replace("\r\n", "\n").replace("\r", "\n")
+    lines = [line.rstrip() for line in text.split("\n")]
+    compact_lines: list[str] = []
+    previous_blank = False
+    for line in lines:
+        blank = not line.strip()
+        if blank and previous_blank:
+            continue
+        compact_lines.append(line)
+        previous_blank = blank
+    normalized = "\n".join(compact_lines).strip()
+    total_chars = len(normalized)
+    if total_chars > max_chars:
+        return normalized[:max_chars].rstrip(), True, total_chars
+    return normalized, False, total_chars
+
+
+def _slide_sort_key(path: str) -> tuple[int, str]:
+    match = re.search(r"slide(\d+)\.xml$", path)
+    if match:
+        return int(match.group(1)), path
+    return 10**9, path
+
+
+def _extract_pptx_text(pptx_bytes: bytes, max_chars: int) -> tuple[str, bool, int]:
+    try:
+        archive = zipfile.ZipFile(io.BytesIO(pptx_bytes))
+    except zipfile.BadZipFile as error:
+        raise GoogleDriveError("PowerPoint file could not be parsed as a PPTX archive.", 422) from error
+    with archive:
+        slide_paths = sorted(
+            [
+                name
+                for name in archive.namelist()
+                if name.startswith("ppt/slides/slide") and name.endswith(".xml")
+            ],
+            key=_slide_sort_key,
+        )
+        chunks: list[str] = []
+        for index, slide_path in enumerate(slide_paths, start=1):
+            try:
+                root = ET.fromstring(archive.read(slide_path))
+            except ET.ParseError:
+                continue
+            texts = [
+                str(node.text or "").strip()
+                for node in root.iter()
+                if node.tag.endswith("}t") and str(node.text or "").strip()
+            ]
+            if texts:
+                chunks.append(f"Slide {index}\n" + "\n".join(texts))
+    return _normalize_slides_text("\n\n".join(chunks), max_chars)
 
 
 def _media_type_for_image(metadata: dict[str, Any], downloaded_media_type: str = "") -> str:
@@ -482,6 +617,41 @@ def _select_registration_sheet(sheets: list[dict[str, Any]], sheet_name: str, ev
         return None
     candidates.sort(key=lambda item: (item[0], item[1]), reverse=True)
     return candidates[0][2]
+
+
+def _material_registry_spreadsheet_id() -> str:
+    return os.environ.get(MATERIAL_REGISTRY_SPREADSHEET_ID_ENV, "").strip()
+
+
+def _material_registry_contract() -> dict[str, Any]:
+    return {
+        "spreadsheet_id_env_var": MATERIAL_REGISTRY_SPREADSHEET_ID_ENV,
+        "tabs": list(MATERIAL_REGISTRY_TABS),
+        "minimum_fields": list(MATERIAL_REGISTRY_FIELDS),
+        "read_only": True,
+    }
+
+
+def _material_field_map(headers: list[Any]) -> dict[str, int | None]:
+    normalized = [_normalize_header(header) for header in headers]
+    mapping: dict[str, int | None] = {}
+    for field in MATERIAL_REGISTRY_FIELDS:
+        key = _normalize_header(field)
+        try:
+            mapping[field] = normalized.index(key)
+        except ValueError:
+            mapping[field] = None
+    return mapping
+
+
+def _safe_material_registry_row(row: list[Any], row_number: int, columns: dict[str, int | None], tab_name: str) -> dict[str, Any]:
+    safe = {
+        field: _cell(row, columns.get(field))[:1000]
+        for field in MATERIAL_REGISTRY_FIELDS
+    }
+    safe["source_tab"] = tab_name
+    safe["row_number"] = row_number
+    return safe
 
 
 def _download_drive_file_bytes(file_id: str, access_token: str, max_bytes: int = MAX_IMAGE_BYTES) -> tuple[bytes, str]:
@@ -695,6 +865,121 @@ def list_drive_folder_images(
 
 
 @mcp.tool()
+def read_google_slides_deck(
+    slack_user_email: str,
+    presentation_url_or_id: str,
+    account_email: str = DEFAULT_ACCOUNT_EMAIL,
+    max_text_chars: int = MAX_SLIDES_TEXT_CHARS,
+) -> dict[str, Any]:
+    """Read text from a selected Google Slides or Drive-hosted PPTX deck through team@staffany.com.
+
+    The deck must already be accessible to the configured team OAuth account.
+    If access is blocked, ask for viewer access to team@staffany.com instead of
+    public-link sharing. Native Slides are exported as text; PPTX files are
+    downloaded transiently for ZIP/XML text extraction and discarded. The output
+    is bounded text only and does not mutate or publish the deck.
+    """
+
+    configured_account = _account_email()
+    requested_account = (account_email or DEFAULT_ACCOUNT_EMAIL).strip().lower()
+    presentation_id = _extract_presentation_id(presentation_url_or_id)
+    capped_chars = max(1, min(int(max_text_chars or MAX_SLIDES_TEXT_CHARS), MAX_SLIDES_TEXT_CHARS))
+    scope = _scope(
+        slack_user_email,
+        {
+            "requested_account_email": requested_account,
+            "drive_access_mode": "team_oauth_drive_readonly",
+            "presentation_id": presentation_id,
+            "max_text_chars": capped_chars,
+            "safety": "Text-only presentation extraction through Drive API. No public link sharing, Drive mutations, comments, edits, persistent file download, or raw file bytes returned.",
+        },
+    )
+
+    if requested_account != configured_account:
+        return _blocked("Google Drive connector is restricted to team@staffany.com.", scope)
+    if not presentation_id:
+        return _blocked("Could not parse a Google Slides presentation ID from the supplied URL or ID.", scope)
+
+    try:
+        access_token = _access_token()
+        file_path = f"/files/{urllib.parse.quote(presentation_id, safe='')}"
+        metadata_params = {
+            "fields": "id,name,mimeType,webViewLink,trashed,driveId,modifiedTime,size",
+            "supportsAllDrives": "true",
+        }
+        try:
+            file_payload = _request_json(file_path, metadata_params, access_token)
+        except GoogleDriveError as error:
+            if error.status_code != 401:
+                raise
+            access_token = _refresh_access_token(_load_json(_token_file()), _token_file())
+            file_payload = _request_json(file_path, metadata_params, access_token)
+        presentation = _safe_presentation(file_payload)
+        if presentation.get("trashed"):
+            return _blocked("Google Slides deck is trashed.", {**scope, "presentation": presentation})
+        mime_type = presentation.get("mimeType")
+        if mime_type == GOOGLE_SLIDES_MIME_TYPE:
+            try:
+                exported_text = _request_export_text(presentation_id, access_token)
+            except GoogleDriveError as error:
+                if error.status_code != 401:
+                    raise
+                access_token = _refresh_access_token(_load_json(_token_file()), _token_file())
+                exported_text = _request_export_text(presentation_id, access_token)
+            slide_text, text_truncated, text_char_count = _normalize_slides_text(exported_text, capped_chars)
+            extraction_method = "google_slides_export_text"
+        elif mime_type == POWERPOINT_MIME_TYPE:
+            try:
+                pptx_bytes, _downloaded_media_type = _download_drive_file_bytes(
+                    presentation_id,
+                    access_token,
+                    MAX_PRESENTATION_BYTES,
+                )
+            except GoogleDriveError as error:
+                if error.status_code != 401:
+                    raise
+                access_token = _refresh_access_token(_load_json(_token_file()), _token_file())
+                pptx_bytes, _downloaded_media_type = _download_drive_file_bytes(
+                    presentation_id,
+                    access_token,
+                    MAX_PRESENTATION_BYTES,
+                )
+            slide_text, text_truncated, text_char_count = _extract_pptx_text(pptx_bytes, capped_chars)
+            del pptx_bytes
+            extraction_method = "pptx_transient_zip_xml_text"
+        else:
+            return _blocked("Google Drive file is not a supported presentation type. Supported: Google Slides or .pptx.", {**scope, "presentation": presentation})
+    except GoogleDriveError as error:
+        if error.status_code in (403, 404):
+            return _blocked(
+                "Google Slides deck is not accessible to team@staffany.com. Ask the owner to share viewer access with team@staffany.com or an approved StaffAny group that includes it; do not request public link sharing.",
+                scope,
+            )
+        return _blocked(str(error), scope)
+
+    return {
+        "answer": {
+            "presentation": presentation,
+            "slide_text": slide_text,
+            "text_char_count": text_char_count,
+            "text_truncated": text_truncated,
+            "extraction_method": extraction_method,
+            "raw_file_retained": False,
+            "next_step": "Use the extracted slide_text to ground the requested nurture/cadence work; do not paste the full deck text back unless explicitly asked.",
+        },
+        "source": "Google Drive presentation text extraction",
+        "scope": {**scope, "presentation": presentation},
+        "total": 1,
+        "requested_limit": capped_chars,
+        "returned_count": len(slide_text),
+        "has_more": text_truncated,
+        "truncated": text_truncated,
+        "confidence": "needs-check" if text_truncated else "verified",
+        "caveat": "Text-only presentation extraction. Share the deck with team@staffany.com if access is blocked; do not make private decks public for the bot.",
+    }
+
+
+@mcp.tool()
 def extract_drive_image_clues(
     slack_user_email: str,
     drive_files: list[dict[str, Any]],
@@ -825,6 +1110,116 @@ def _safe_registration_row(row: list[Any], row_number: int, columns: dict[str, i
         "email_hash": _email_hash(email),
     }
     return {key: value for key, value in safe.items() if value not in ("", None)}
+
+
+@mcp.tool()
+def read_nurture_material_registry(
+    slack_user_email: str,
+    spreadsheet_id: str = "",
+    tabs: list[str] | None = None,
+    limit_per_tab: int = MAX_MATERIAL_REGISTRY_ROWS_PER_TAB,
+    account_email: str = DEFAULT_ACCOUNT_EMAIL,
+) -> dict[str, Any]:
+    """Read the one-sheet NurtureAny nurture material registry."""
+
+    configured_account = _account_email()
+    requested_account = (account_email or DEFAULT_ACCOUNT_EMAIL).strip().lower()
+    selected_spreadsheet_id = (spreadsheet_id or _material_registry_spreadsheet_id()).strip()
+    selected_tabs = [str(tab or "").strip() for tab in (tabs or list(MATERIAL_REGISTRY_TABS)) if str(tab or "").strip()]
+    capped_limit = max(1, min(int(limit_per_tab or MAX_MATERIAL_REGISTRY_ROWS_PER_TAB), MAX_MATERIAL_REGISTRY_ROWS_PER_TAB))
+    scope = _scope(
+        slack_user_email,
+        {
+            "requested_account_email": requested_account,
+            "drive_access_mode": "team_oauth_drive_readonly",
+            "spreadsheet_id": selected_spreadsheet_id,
+            "registry_contract": _material_registry_contract(),
+            "safety": "Read-only material registry rows only. No phone numbers, full emails, raw exports, or Drive mutations.",
+        },
+    )
+
+    if requested_account != configured_account:
+        return _blocked("Google Drive connector is restricted to team@staffany.com.", scope)
+    if not selected_spreadsheet_id:
+        return _blocked(f"Missing {MATERIAL_REGISTRY_SPREADSHEET_ID_ENV} or explicit spreadsheet_id.", scope)
+
+    try:
+        access_token = _access_token()
+        metadata_params = {"fields": "properties(title),sheets(properties(sheetId,title,index,hidden))"}
+        try:
+            metadata = _request_sheets_json(selected_spreadsheet_id, "", metadata_params, access_token)
+        except GoogleDriveError as error:
+            if error.status_code != 401:
+                raise
+            access_token = _refresh_access_token(_load_json(_token_file()), _token_file())
+            metadata = _request_sheets_json(selected_spreadsheet_id, "", metadata_params, access_token)
+    except GoogleDriveError as error:
+        return _blocked(str(error), scope)
+
+    sheets = metadata.get("sheets") if isinstance(metadata.get("sheets"), list) else []
+    available_tabs = {
+        str((sheet.get("properties") if isinstance(sheet.get("properties"), dict) else {}).get("title") or ""): sheet
+        for sheet in sheets
+    }
+    rows: list[dict[str, Any]] = []
+    missing_tabs: list[str] = []
+    invalid_tabs: list[dict[str, Any]] = []
+
+    for tab_name in selected_tabs:
+        if tab_name not in available_tabs:
+            missing_tabs.append(tab_name)
+            continue
+        encoded_range = urllib.parse.quote(f"'{tab_name}'!A1:ZZ{capped_limit + 1}", safe="")
+        try:
+            values_payload = _request_sheets_json(
+                selected_spreadsheet_id,
+                f"/values/{encoded_range}",
+                {"valueRenderOption": "FORMATTED_VALUE"},
+                access_token,
+            )
+        except GoogleDriveError as error:
+            invalid_tabs.append({"tab": tab_name, "reason": str(error)})
+            continue
+        values = values_payload.get("values") if isinstance(values_payload.get("values"), list) else []
+        if not values:
+            invalid_tabs.append({"tab": tab_name, "reason": "no rows"})
+            continue
+        headers = values[0] if isinstance(values[0], list) else []
+        columns = _material_field_map(headers)
+        missing_fields = [field for field in MATERIAL_REGISTRY_FIELDS if columns.get(field) is None]
+        if missing_fields:
+            invalid_tabs.append({"tab": tab_name, "reason": "missing fields", "missing_fields": missing_fields})
+            continue
+        tab_rows = [
+            _safe_material_registry_row(row, index + 2, columns, tab_name)
+            for index, row in enumerate(values[1:])
+            if isinstance(row, list)
+        ]
+        rows.extend([row for row in tab_rows if row.get("material_id") or row.get("title")])
+
+    spreadsheet_title = str((metadata.get("properties") if isinstance(metadata.get("properties"), dict) else {}).get("title") or "NurtureAny material registry")
+    spreadsheet_url = MATERIAL_REGISTRY_SPREADSHEET_URL_TEMPLATE.format(spreadsheet_id=selected_spreadsheet_id)
+    return {
+        "answer": {
+            "spreadsheet_title": spreadsheet_title,
+            "spreadsheet_url": spreadsheet_url,
+            "registry_contract": _material_registry_contract(),
+            "rows": rows,
+            "row_count": len(rows),
+            "missing_tabs": missing_tabs,
+            "invalid_tabs": invalid_tabs,
+            "next_step": "Pass rows into build_daily_nurture_plan.material_registry_rows.",
+        },
+        "source": "Google Sheets NurtureAny material registry",
+        "scope": {**scope, "tabs": selected_tabs, "requested_limit_per_tab": capped_limit},
+        "total": len(rows),
+        "requested_limit": capped_limit,
+        "returned_count": len(rows),
+        "has_more": False,
+        "truncated": False,
+        "confidence": "needs-check" if missing_tabs or invalid_tabs else "verified",
+        "caveat": "Read-only Google Sheet registry. HubSpot remains source of truth for target accounts, ownership, contacts, and follow-up status.",
+    }
 
 
 @mcp.tool()

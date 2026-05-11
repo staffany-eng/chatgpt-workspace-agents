@@ -1,8 +1,10 @@
 import json
+import io
 import os
 import sys
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 
 MCP_DIR = Path(__file__).resolve().parent
@@ -162,6 +164,130 @@ class GoogleDriveNurtureAnyServerTest(unittest.TestCase):
 
         self.assertEqual(result["confidence"], "needs-check")
         self.assertEqual(calls, ["old-token", "new-token", "new-token"])
+
+    def test_read_google_slides_deck_exports_text_with_team_oauth(self):
+        request_calls = []
+
+        def fake_request(path, params, access_token):
+            request_calls.append((path, params, access_token))
+            return {
+                "id": "1DiK3PffYE79r7ZxTLHzi9NPw9ZPVMs8Y",
+                "name": "Pre Demo Nurturing",
+                "mimeType": self.module.GOOGLE_SLIDES_MIME_TYPE,
+                "webViewLink": "https://docs.google.com/presentation/d/1DiK3PffYE79r7ZxTLHzi9NPw9ZPVMs8Y/edit",
+                "modifiedTime": "2026-05-11T12:00:00Z",
+            }
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            token_file = Path(tmpdir) / "token.json"
+            token_file.write_text('{"token":"access-token","scopes":["https://www.googleapis.com/auth/drive.readonly"]}')
+            with patch.dict(
+                os.environ,
+                {
+                    "GOOGLE_DRIVE_TOKEN_FILE": str(token_file),
+                    "GOOGLE_DRIVE_ACCOUNT_EMAIL": "team@staffany.com",
+                },
+            ), patch.object(self.module, "_request_json", side_effect=fake_request), patch.object(
+                self.module, "_request_export_text", return_value="Hook\n\nKNS\n\n14 day cadence"
+            ) as export:
+                result = self.module.read_google_slides_deck(
+                    "kerren.fong@staffany.com",
+                    "https://docs.google.com/presentation/d/1DiK3PffYE79r7ZxTLHzi9NPw9ZPVMs8Y/edit?slide=id.p7#slide=id.p7",
+                )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["answer"]["presentation"]["name"], "Pre Demo Nurturing")
+        self.assertEqual(result["answer"]["slide_text"], "Hook\n\nKNS\n\n14 day cadence")
+        self.assertEqual(result["source"], "Google Drive presentation text extraction")
+        self.assertEqual(result["answer"]["extraction_method"], "google_slides_export_text")
+        self.assertEqual(result["scope"]["drive_access_mode"], "team_oauth_drive_readonly")
+        self.assertEqual(request_calls[0][0], "/files/1DiK3PffYE79r7ZxTLHzi9NPw9ZPVMs8Y")
+        export.assert_called_once_with("1DiK3PffYE79r7ZxTLHzi9NPw9ZPVMs8Y", "access-token")
+        self.assertNotIn("Anyone with the link", json.dumps(result))
+
+    def test_read_google_slides_deck_extracts_pptx_text_transiently(self):
+        request_calls = []
+
+        def fake_request(path, params, access_token):
+            request_calls.append((path, params, access_token))
+            return {
+                "id": "1DiK3PffYE79r7ZxTLHzi9NPw9ZPVMs8Y",
+                "name": "2. 20260330 Training Module 1: Pre-Demo Nurturing Training.pptx",
+                "mimeType": self.module.POWERPOINT_MIME_TYPE,
+                "webViewLink": "https://docs.google.com/presentation/d/1DiK3PffYE79r7ZxTLHzi9NPw9ZPVMs8Y/edit",
+                "modifiedTime": "2026-05-11T12:00:00Z",
+                "size": "123456",
+            }
+
+        pptx = io.BytesIO()
+        with zipfile.ZipFile(pptx, "w") as archive:
+            archive.writestr(
+                "ppt/slides/slide1.xml",
+                """<?xml version="1.0" encoding="UTF-8"?>
+                <p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+                  <p:cSld><p:spTree><p:sp><p:txBody><a:p><a:r><a:t>KNS</a:t></a:r></a:p>
+                  <a:p><a:r><a:t>14 day cadence</a:t></a:r></a:p></p:txBody></p:sp></p:spTree></p:cSld>
+                </p:sld>""",
+            )
+        pptx_bytes = pptx.getvalue()
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            token_file = Path(tmpdir) / "token.json"
+            token_file.write_text('{"token":"access-token","scopes":["https://www.googleapis.com/auth/drive.readonly"]}')
+            with patch.dict(
+                os.environ,
+                {
+                    "GOOGLE_DRIVE_TOKEN_FILE": str(token_file),
+                    "GOOGLE_DRIVE_ACCOUNT_EMAIL": "team@staffany.com",
+                },
+            ), patch.object(self.module, "_request_json", side_effect=fake_request), patch.object(
+                self.module, "_download_drive_file_bytes", return_value=(pptx_bytes, self.module.POWERPOINT_MIME_TYPE)
+            ) as download:
+                result = self.module.read_google_slides_deck(
+                    "kerren.fong@staffany.com",
+                    "https://docs.google.com/presentation/d/1DiK3PffYE79r7ZxTLHzi9NPw9ZPVMs8Y/edit",
+                )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["answer"]["extraction_method"], "pptx_transient_zip_xml_text")
+        self.assertFalse(result["answer"]["raw_file_retained"])
+        self.assertIn("Slide 1", result["answer"]["slide_text"])
+        self.assertIn("KNS", result["answer"]["slide_text"])
+        self.assertIn("14 day cadence", result["answer"]["slide_text"])
+        self.assertNotIn("PK", json.dumps(result))
+        download.assert_called_once_with(
+            "1DiK3PffYE79r7ZxTLHzi9NPw9ZPVMs8Y",
+            "access-token",
+            self.module.MAX_PRESENTATION_BYTES,
+        )
+        self.assertEqual(request_calls[0][0], "/files/1DiK3PffYE79r7ZxTLHzi9NPw9ZPVMs8Y")
+
+    def test_read_google_slides_deck_blocks_inaccessible_deck_without_public_sharing_advice(self):
+        def fake_request(path, params, access_token):
+            raise self.module.GoogleDriveError("Google Drive API failed: 403 permission denied", 403)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            token_file = Path(tmpdir) / "token.json"
+            token_file.write_text('{"token":"access-token","scopes":["https://www.googleapis.com/auth/drive.readonly"]}')
+            with patch.dict(
+                os.environ,
+                {
+                    "GOOGLE_DRIVE_TOKEN_FILE": str(token_file),
+                    "GOOGLE_DRIVE_ACCOUNT_EMAIL": "team@staffany.com",
+                },
+            ), patch.object(self.module, "_request_json", side_effect=fake_request), patch.object(
+                self.module, "_request_export_text", side_effect=AssertionError("should not export inaccessible deck")
+            ):
+                result = self.module.read_google_slides_deck(
+                    "kerren.fong@staffany.com",
+                    "https://docs.google.com/presentation/d/1DiK3PffYE79r7ZxTLHzi9NPw9ZPVMs8Y/edit",
+                )
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("team@staffany.com", result["answer"])
+        self.assertIn("do not request public link sharing", result["answer"])
+        self.assertNotIn("Anyone with the link", json.dumps(result))
 
     def test_extract_drive_image_clues_downloads_transiently_and_returns_only_clues(self):
         with tempfile.TemporaryDirectory() as tmpdir:

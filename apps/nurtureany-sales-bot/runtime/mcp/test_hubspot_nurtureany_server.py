@@ -3203,6 +3203,57 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         self.assertIn("lead source", first["missing_evidence"])
         self.assertIn("social/gated research stays manual-check", result["caveat"])
 
+    def test_build_pre_demo_game_plans_public_research_default_off(self):
+        context = company_context("123")
+        context["company"].update({"headcount": "80", "industry": "F&B"})
+
+        with patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
+            self.module, "_company_context", return_value=context
+        ):
+            result = self.module.build_pre_demo_game_plans("kerren.fong@staffany.com", ["123"])
+
+        self.assertNotIn("public_research", result)
+        self.assertNotIn("public_research_signals", result["answer"][0]["research_stalking_signal"])
+
+    def test_build_pre_demo_game_plans_enriches_public_research_without_mutation(self):
+        context = company_context("123")
+        context["company"].update({"headcount": "80", "industry": "F&B", "name": "Noci Bakehouse"})
+        research_row = {
+            "input_company": {"company_id": "123"},
+            "game_plan_inputs": {
+                "public_signals": [{"signal_type": "hiring_signal", "confidence": "needs-check"}],
+                "source_evidence_refs": [{"source_type": "company_website", "source_url": "https://noci.example"}],
+                "outreach_angles": ["Use hiring as a discovery angle."],
+                "manual_checks_needed": [{"source_type": "linkedin_manual", "source_url": "https://linkedin.example"}],
+                "recommended_next_tool": "search_exa_people_candidates",
+            },
+            "missing_evidence": ["Noci Bakehouse: no public decision-maker hint found"],
+            "recommended_next_tool": "search_exa_people_candidates",
+            "will_mutate_hubspot": False,
+        }
+
+        with patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
+            self.module, "_company_context", return_value=context
+        ), patch.object(
+            self.module,
+            "_public_research_for_game_plan_contexts",
+            return_value=({"123": research_row}, {"estimated_credits": 3}, ["Noci Bakehouse: no public decision-maker hint found"]),
+        ) as public_research:
+            result = self.module.build_pre_demo_game_plans(
+                "kerren.fong@staffany.com",
+                ["123"],
+                include_public_research=True,
+                research_mode="light",
+            )
+
+        public_research.assert_called_once()
+        self.assertFalse(result["public_research"]["will_mutate_hubspot"])
+        self.assertEqual(result["public_research"]["research_mode"], "light")
+        signal = result["answer"][0]["research_stalking_signal"]
+        self.assertEqual(signal["public_research_signals"][0]["signal_type"], "hiring_signal")
+        self.assertEqual(signal["recommended_next_tool"], "search_exa_people_candidates")
+        self.assertIn("Noci Bakehouse: no public decision-maker hint found", result["missing_evidence"])
+
     def test_build_pre_demo_game_plans_blocks_when_account_outside_scope(self):
         with patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
             self.module, "_company_context", return_value=None
@@ -3471,6 +3522,212 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         self.assertFalse(result["answer"]["will_mutate_hubspot"])
         self.assertEqual(result["answer"]["messages"][0]["text"], "Can I book a RaD demo?")
         self.assertEqual(result["answer"]["messages"][0]["attachment_count"], 1)
+
+    def test_audit_inbound_sla_computes_slack_ack_touch_and_duplicate_group(self):
+        thread = {
+            "id": "thread-1",
+            "status": "OPEN",
+            "associatedContactId": "contact-1",
+            "createdAt": "2026-05-11T03:54:51Z",
+            "latestMessageTimestamp": "2026-05-11T05:03:22Z",
+            "latestMessageReceivedTimestamp": "2026-05-11T03:54:51Z",
+            "threadAssociations": {"associatedTicketId": "ticket-1"},
+        }
+        access_context = {
+            "allowed": True,
+            "contact": {
+                "id": "contact-1",
+                "properties": {
+                    "email": "buyer@noci.example",
+                    "firstname": "Buyer",
+                    "jobtitle": "Owner",
+                    "hs_buying_role": "DECISION_MAKER",
+                    "utm_campaign": "rad",
+                },
+            },
+            "companies": [
+                {
+                    "id": "company-1",
+                    "properties": {
+                        "name": "Noci Bakehouse",
+                        "domain": "noci.example",
+                        "company_country": "Singapore",
+                        "hubspot_owner_id": "owner-1",
+                        "hs_is_target_account": "true",
+                        "current_tools": "manual scheduling",
+                        "hs_num_decision_makers": "1",
+                    },
+                }
+            ],
+            "scope_status": "company_scoped",
+            "associated_contact_id": "contact-1",
+            "associated_ticket_id": "ticket-1",
+        }
+        slack_alerts = [
+            {
+                "alert_id": "1778471691.420279",
+                "source": "RaD",
+                "alert_time": "2026-05-11T03:54:51Z",
+                "owner_tagged_time": "2026-05-11T03:58:22Z",
+                "owner_ack_time": "2026-05-11T04:24:39Z",
+                "first_customer_touch_time": "2026-05-11T04:46:31Z",
+                "outcome_time": "2026-05-11T05:03:22Z",
+                "assigned_owner": "Jeremy",
+                "status": "set",
+                "outcome": "set",
+                "associated_contact_id": "contact-1",
+            },
+            {
+                "alert_id": "1778471832.997089",
+                "source": "RaD",
+                "alert_time": "2026-05-11T03:57:12Z",
+                "assigned_owner": "Jeremy",
+                "associated_contact_id": "contact-1",
+            },
+        ]
+        activity_snapshot = {
+            "first_customer_touch_at": "2026-05-11T04:46:31Z",
+            "latest_activity_at": "2026-05-11T05:03:22Z",
+            "activity_counts": {"whatsapp_communications": 0, "completed_calls": 1, "notes": 0, "completed_tasks": 0, "meetings": 1},
+            "deal_stage_status": "verified",
+            "truncated": False,
+        }
+
+        with patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
+            self.module,
+            "_conversation_threads",
+            return_value={"results": [thread], "requested_limit": 20, "returned_count": 1, "has_more": False, "truncated": False},
+        ), patch.object(self.module, "_marketing_access_context_for_thread", return_value=access_context), patch.object(
+            self.module,
+            "_conversation_messages",
+            return_value={
+                "results": [{"id": "message-1", "direction": "INCOMING", "createdAt": "2026-05-11T03:54:51Z", "text": "Can I book a RaD demo?"}],
+                "requested_limit": 100,
+                "returned_count": 1,
+                "has_more": False,
+                "truncated": False,
+            },
+        ), patch.object(self.module, "_inbound_activity_snapshot_for_thread", return_value=activity_snapshot), patch.object(
+            self.module, "_owner_email_by_id", return_value="jeremy.wong@staffany.com"
+        ):
+            result = self.module.audit_inbound_sla("kerren.fong@staffany.com", slack_alerts=slack_alerts)
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["answer"]["rollup"]["row_count"], 2)
+        self.assertEqual(result["answer"]["rollup"]["sla_miss_count"], 2)
+        first_row = result["answer"]["audit_rows"][0]
+        self.assertEqual(first_row["sla_status"], "miss")
+        self.assertEqual(first_row["ack_sla_status"], "miss")
+        self.assertEqual(first_row["first_touch_sla_status"], "miss")
+        self.assertEqual(first_row["duplicate_group"], "contact:contact-1")
+        self.assertEqual(first_row["outcome"], "set")
+        self.assertFalse(result["answer"]["will_mutate_hubspot"])
+        self.assertEqual(result["answer"]["duplicate_summary"][0]["alert_count"], 2)
+
+    def test_audit_inbound_sla_with_slack_only_alerts_skips_hubspot_scan(self):
+        slack_alerts = [
+            {
+                "alert_id": "wa-1054",
+                "source": "WhatsApp",
+                "alert_time": "2026-05-11T10:54:00+07:00",
+                "owner_ack_time": "2026-05-11T11:24:00+07:00",
+                "first_customer_touch_time": "2026-05-11T11:46:00+07:00",
+                "assigned_owner": "Jeremy",
+                "status": "called",
+                "outcome": "set",
+            },
+            {
+                "alert_id": "payroll-1131",
+                "source": "portal payroll interest",
+                "alert_time": "2026-05-11T11:31:00+07:00",
+                "owner_ack_time": "2026-05-11T11:46:00+07:00",
+                "first_customer_touch_time": "2026-05-11T11:46:00+07:00",
+                "assigned_owner": "Jeremy",
+                "status": "called",
+                "outcome": "set",
+            },
+        ]
+
+        with patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
+            self.module, "_conversation_threads"
+        ) as conversation_threads:
+            result = self.module.audit_inbound_sla("kerren.fong@staffany.com", slack_alerts=slack_alerts)
+
+        conversation_threads.assert_not_called()
+        self.assertEqual(result["scope"]["hubspot_match_mode"], "skipped_no_safe_ids")
+        self.assertEqual(result["returned_count"], 2)
+        self.assertEqual(result["answer"]["audit_rows"][0]["sla_status"], "miss")
+        self.assertEqual(result["answer"]["audit_rows"][1]["ack_sla_status"], "miss")
+        self.assertEqual(result["answer"]["audit_rows"][1]["first_touch_sla_status"], "pass")
+        self.assertEqual(result["confidence"], "needs-check")
+
+    def test_audit_inbound_sla_without_slack_alerts_marks_ack_needs_check(self):
+        thread = {
+            "id": "thread-1",
+            "status": "OPEN",
+            "associatedContactId": "contact-1",
+            "createdAt": "2026-05-11T03:54:51Z",
+            "latestMessageTimestamp": "2026-05-11T04:02:00Z",
+            "latestMessageReceivedTimestamp": "2026-05-11T03:54:51Z",
+            "threadAssociations": {"associatedTicketId": "ticket-1"},
+        }
+        access_context = {
+            "allowed": True,
+            "contact": {"id": "contact-1", "properties": {"email": "buyer@noci.example", "utm_campaign": "rad"}},
+            "companies": [
+                {
+                    "id": "company-1",
+                    "properties": {
+                        "name": "Noci Bakehouse",
+                        "domain": "noci.example",
+                        "company_country": "Singapore",
+                        "hubspot_owner_id": "owner-1",
+                        "hs_is_target_account": "true",
+                        "current_tools": "manual scheduling",
+                    },
+                }
+            ],
+            "scope_status": "company_scoped",
+            "associated_contact_id": "contact-1",
+            "associated_ticket_id": "ticket-1",
+        }
+
+        with patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
+            self.module,
+            "_conversation_threads",
+            return_value={"results": [thread], "requested_limit": 20, "returned_count": 1, "has_more": False, "truncated": False},
+        ), patch.object(self.module, "_marketing_access_context_for_thread", return_value=access_context), patch.object(
+            self.module,
+            "_conversation_messages",
+            return_value={
+                "results": [
+                    {"id": "message-1", "direction": "INCOMING", "createdAt": "2026-05-11T03:54:51Z", "text": "Can I book a RaD demo?"},
+                    {"id": "message-2", "direction": "OUTGOING", "createdAt": "2026-05-11T04:02:00Z", "text": "Calling you now."},
+                ],
+                "requested_limit": 100,
+                "returned_count": 2,
+                "has_more": False,
+                "truncated": False,
+            },
+        ), patch.object(
+            self.module,
+            "_inbound_activity_snapshot_for_thread",
+            return_value={
+                "first_customer_touch_at": "",
+                "latest_activity_at": "",
+                "activity_counts": {"whatsapp_communications": 0, "completed_calls": 0, "notes": 0, "completed_tasks": 0, "meetings": 0},
+                "deal_stage_status": "needs-check",
+                "truncated": False,
+            },
+        ), patch.object(self.module, "_owner_email_by_id", return_value="jeremy.wong@staffany.com"):
+            result = self.module.audit_inbound_sla("kerren.fong@staffany.com")
+
+        row = result["answer"]["audit_rows"][0]
+        self.assertEqual(result["confidence"], "needs-check")
+        self.assertEqual(row["ack_sla_status"], "needs-check")
+        self.assertEqual(row["first_touch_sla_status"], "pass")
+        self.assertEqual(row["source"], "RaD")
+        self.assertIn("deal stage needs-check", row["hubspot_gaps"])
 
     def test_list_marketing_campaigns_blocks_ae_scope(self):
         ae_scope = {"kind": "ae", "email": "rep@staffany.com", "countries": ("Singapore",), "owner_id": "owner-1"}

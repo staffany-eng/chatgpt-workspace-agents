@@ -112,6 +112,13 @@ nurtureany:
       qo_met_stage_ids: "NURTUREANY_QO_MET_STAGE_IDS"
       closed_won_stage_ids: "NURTUREANY_CLOSED_WON_STAGE_IDS"
     missing_stage_config_result: "Confidence: needs-check; still return hygiene/account coverage"
+  manager_chase:
+    delivery_mode: "manager_draft_only"
+    source_of_truth: "HubSpot priority-account coverage and sales-owned task/activity evidence"
+    selected_slack_context: "summary_and_permalink_only"
+    no_rep_tagging: true
+    no_external_send: true
+    no_hubspot_mutation: true
   photo_matching:
     drive_folder_id: "1qXlFnr5TKFtsYNWk7ZywBBctDaae3RY-"
     drive_folder_label: "all-random"
@@ -138,7 +145,7 @@ mcp_servers:
     auth:
       type: "bearer_env"
       env: "HUBSPOT_PRIVATE_APP_TOKEN"
-      note: "check_event_followup_status also reads LUMA_API_KEY from the profile environment for read-only event lookup."
+      note: "check_event_followup_status also reads LUMA_API_KEY; build_pre_demo_game_plans(include_public_research=true) also reads TAVILY_API_KEY from the profile environment."
     customer360_links:
       company_url_template_env: "NURTUREANY_C360_COMPANY_URL_TEMPLATE"
       org_url_template_env: "NURTUREANY_C360_ORG_URL_TEMPLATE"
@@ -151,6 +158,7 @@ mcp_servers:
     tool_allowlist:
       - "list_inbound_threads"
       - "get_inbound_thread_context"
+      - "audit_inbound_sla"
       - "list_marketing_campaigns"
       - "get_campaign_assets"
       - "get_campaign_social_effectiveness"
@@ -162,6 +170,7 @@ mcp_servers:
       - "audit_priority_account_coverage"
       - "build_sales_metric_actuals_query"
       - "build_friday_sales_review"
+      - "build_manager_chase_plan"
       - "get_account_context"
       - "build_pre_demo_game_plans"
       - "list_sales_followup_tasks"
@@ -182,6 +191,40 @@ mcp_servers:
       - "create_hubspot_task"
       - "append_hubspot_note"
       - "update_nurture_fields"
+
+  public_research_nurtureany:
+    description: "Read-only Tavily public company research for scoped HubSpot companies."
+    command: "/Users/leekaiyi/.hermes/hermes-agent/venv/bin/python"
+    args:
+      - "/Users/leekaiyi/workspace/agent builder/apps/nurtureany-sales-bot/runtime/mcp/public_research_nurtureany_server.py"
+    auth:
+      type: "api_key_env"
+      env: "TAVILY_API_KEY"
+    cost_policy:
+      max_search_companies: 5
+      light_mode_credits_per_company: "about 3"
+      standard_mode_credits_per_company: "about 5"
+      deep_mode_credits_per_company: "about 6-8"
+      require_cost_report: true
+      estimate_before_run: true
+    pii_policy:
+      selected_pii_in_internal_slack: false
+      safe_company_fields_only:
+        - "company_id"
+        - "name"
+        - "domain"
+        - "country"
+      bulk_contact_exports: false
+      no_private_hubspot_notes_tasks_or_contact_pii: true
+      social_gated_urls_are_manual_check_only: true
+    endpoint_policy:
+      allowed_endpoints:
+        - "POST /search"
+        - "POST /extract"
+      tavily_research_api: false
+      note: "Tavily Research API disabled in V1."
+    tool_allowlist:
+      - "research_public_company_signals"
 
   lusha_nurtureany:
     description: "Cost-controlled Lusha adapter for selected decision-maker lookup, reveal approval, and credit reporting."
@@ -328,7 +371,7 @@ mcp_servers:
       - "audit_google_calendar_meeting_quality"
 
   google_drive_nurtureany:
-    description: "Read-only Google Drive event-photo metadata from team@staffany.com OAuth."
+    description: "Read-only Google Drive event-photo metadata, selected Slides/PPTX text, and Indonesia registration fallback from team@staffany.com OAuth."
     command: "/Users/leekaiyi/.hermes/hermes-agent/venv/bin/python"
     args:
       - "/Users/leekaiyi/workspace/agent builder/apps/nurtureany-sales-bot/runtime/mcp/google_drive_nurtureany_server.py"
@@ -340,6 +383,7 @@ mcp_servers:
       vision_key_env: "ANTHROPIC_API_KEY"
       vision_model_env: "NURTUREANY_DRIVE_VISION_MODEL"
       uploader_profile_token_env: "SLACK_BOT_TOKEN"
+      material_registry_spreadsheet_id_env: "NURTUREANY_MATERIAL_REGISTRY_SPREADSHEET_ID"
     access_policy:
       mode: "read_only"
       access_mode: "team_oauth_drive_readonly"
@@ -350,6 +394,13 @@ mcp_servers:
       id_rev_events_spreadsheet_id: "1mXixAVJGk0Uy0u1LtOmDFxU3XuW8DRfedB69E1f-drc"
       registration_attendance_fallback: "Indonesia LL/HHH Google Sheet Attend The Event when Luma checked_in_at is empty or not used"
       registration_attendance_column: "Attend The Event"
+      material_registry_env_var: "NURTUREANY_MATERIAL_REGISTRY_SPREADSHEET_ID"
+      material_registry_mode: "read_only_one_sheet_registry"
+      presentation_text_extraction: "Selected Google Slides or Drive-hosted .pptx decks through team@staffany.com drive.readonly"
+      max_slides_text_chars: 30000
+      max_presentation_bytes: 25000000
+      public_link_sharing: false
+      presentation_raw_file_retention: false
       max_files: 100
       max_vision_files_per_call: 5
       transient_vision_downloads: true
@@ -359,7 +410,9 @@ mcp_servers:
       raw_image_copy_default: false
     tool_allowlist:
       - "list_drive_folder_images"
+      - "read_google_slides_deck"
       - "extract_drive_image_clues"
+      - "read_nurture_material_registry"
       - "read_indonesia_event_registration_attendance"
 
   luma_nurtureany:

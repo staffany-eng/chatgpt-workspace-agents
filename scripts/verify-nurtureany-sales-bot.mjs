@@ -139,6 +139,7 @@ if (!existsSync(manifestPath)) {
     const expectedReadTools = [
       "list_inbound_threads",
       "get_inbound_thread_context",
+      "audit_inbound_sla",
       "list_marketing_campaigns",
       "get_campaign_assets",
       "get_campaign_social_effectiveness",
@@ -150,6 +151,7 @@ if (!existsSync(manifestPath)) {
       "audit_priority_account_coverage",
       "build_sales_metric_actuals_query",
       "build_friday_sales_review",
+      "build_manager_chase_plan",
       "get_account_context",
       "build_pre_demo_game_plans",
       "list_sales_followup_tasks",
@@ -164,7 +166,9 @@ if (!existsSync(manifestPath)) {
       "scan_drive_event_photos",
       "propose_photo_people_matches",
       "list_drive_folder_images",
+      "read_google_slides_deck",
       "extract_drive_image_clues",
+      "read_nurture_material_registry",
       "read_indonesia_event_registration_attendance",
       "draft_nurture_message",
       "list_google_calendar_events",
@@ -225,6 +229,7 @@ if (!existsSync(manifestPath)) {
       "runtime/mcp/google_drive_nurtureany_server.py",
       "runtime/mcp/luma_nurtureany_server.py",
       "runtime/mcp/near_me_nurtureany_server.py",
+      "runtime/mcp/public_research_nurtureany_server.py",
       "runtime/mcp/exa_nurtureany_server.py",
       "runtime/mcp/lusha_nurtureany_server.py"
     ].flatMap((relPath) => decoratedMcpTools(relPath));
@@ -245,6 +250,16 @@ if (!existsSync(manifestPath)) {
     if (manifest.exa?.bulk_contact_exports !== false) fail("Manifest Exa bulk_contact_exports must be false");
     if (manifest.exa?.allowed_endpoint !== "POST /search") fail("Manifest Exa allowed_endpoint must be POST /search");
     if (manifest.exa?.category !== "people") fail("Manifest Exa category must be people");
+    if (manifest.public_research?.auth_env_var !== "TAVILY_API_KEY") fail("Manifest missing TAVILY_API_KEY auth env var");
+    if (manifest.public_research?.provider !== "Tavily Search and Extract") fail("Manifest public_research provider must be Tavily Search and Extract");
+    if (manifest.public_research?.tavily_research_api !== false) fail("Manifest public_research must disable Tavily Research API");
+    if (manifest.public_research?.max_search_companies !== 5) fail("Manifest public_research max_search_companies must be 5");
+    if (manifest.public_research?.requires_scoped_hubspot_companies !== true) {
+      fail("Manifest public_research must require scoped HubSpot company inputs");
+    }
+    if (!manifest.public_research?.allowed_tools?.includes("research_public_company_signals")) {
+      fail("Manifest public_research missing research_public_company_signals");
+    }
     if (manifest.photo_matching?.drive_folder_id !== "1qXlFnr5TKFtsYNWk7ZywBBctDaae3RY-") {
       fail("Manifest photo_matching drive_folder_id must be the all-random folder");
     }
@@ -326,8 +341,14 @@ if (!existsSync(manifestPath)) {
     if (!manifest.google_drive?.allowed_tools?.includes("list_drive_folder_images")) {
       fail("Manifest Google Drive missing list_drive_folder_images tool");
     }
+    if (!manifest.google_drive?.allowed_tools?.includes("read_google_slides_deck")) {
+      fail("Manifest Google Drive missing read_google_slides_deck tool");
+    }
     if (!manifest.google_drive?.allowed_tools?.includes("extract_drive_image_clues")) {
       fail("Manifest Google Drive missing extract_drive_image_clues tool");
+    }
+    if (!manifest.google_drive?.allowed_tools?.includes("read_nurture_material_registry")) {
+      fail("Manifest Google Drive missing read_nurture_material_registry tool");
     }
     if (!manifest.google_drive?.allowed_tools?.includes("read_indonesia_event_registration_attendance")) {
       fail("Manifest Google Drive missing read_indonesia_event_registration_attendance tool");
@@ -461,6 +482,10 @@ const filesToScan = [
   "runtime/sql/near-me-outlet-matches.sql",
   "runtime/mcp/near_me_nurtureany_server.py",
   "runtime/mcp/test_near_me_nurtureany_server.py",
+  "runtime/public-research.md",
+  "runtime/mcp/nurtureany_common/public_research.py",
+  "runtime/mcp/public_research_nurtureany_server.py",
+  "runtime/mcp/test_public_research_nurtureany_server.py",
   "runtime/exa.md",
   "runtime/mcp/exa_nurtureany_server.py",
   "runtime/mcp/test_exa_nurtureany_server.py",
@@ -533,7 +558,9 @@ for (const text of [
   "SLACK_BOT_TOKEN",
   "https://www.googleapis.com/auth/drive.readonly",
   "list_drive_folder_images",
+  "read_google_slides_deck",
   "extract_drive_image_clues",
+  "read_nurture_material_registry",
   "read_indonesia_event_registration_attendance",
   "1mXixAVJGk0Uy0u1LtOmDFxU3XuW8DRfedB69E1f-drc",
   "registration_attendance_fallback",
@@ -565,6 +592,11 @@ for (const text of [
   "merge_near_me_sources",
   "analytics.fct_deal_org_company",
   "kraken_rds.Locations",
+  "public_research_nurtureany",
+  "TAVILY_API_KEY",
+  "runtime/mcp/public_research_nurtureany_server.py",
+  "research_public_company_signals",
+  "tavily_research_api: false",
   "exa_nurtureany",
   "EXA_API_KEY",
   "search_exa_people_candidates",
@@ -632,7 +664,9 @@ for (const text of [
   "people layer",
   "photo match",
   "list_drive_folder_images",
+  "read_google_slides_deck",
   "extract_drive_image_clues",
+  "read_nurture_material_registry",
   "read_indonesia_event_registration_attendance",
   "uploader display names",
   "original Slack uploader",
@@ -697,7 +731,9 @@ for (const text of [
   "scan_drive_event_photos",
   "propose_photo_people_matches",
   "list_drive_folder_images",
+  "read_google_slides_deck",
   "extract_drive_image_clues",
+  "read_nurture_material_registry",
   "uploader display names",
   "original Slack uploader",
   "Luma event-date context",
@@ -798,6 +834,7 @@ for (const tool of [
   "runtime/mcp/google_drive_nurtureany_server.py",
   "runtime/mcp/luma_nurtureany_server.py",
   "runtime/mcp/near_me_nurtureany_server.py",
+  "runtime/mcp/public_research_nurtureany_server.py",
   "runtime/mcp/exa_nurtureany_server.py",
   "runtime/mcp/lusha_nurtureany_server.py"
 ].flatMap((relPath) => decoratedMcpTools(relPath))) {
@@ -852,6 +889,8 @@ for (const text of [
   "CONNECTED_CALL_MIN_DURATION_MS",
   "NURTUREANY_QO_PIPELINE_IDS",
   "PRE_DEMO_GAME_PLAN_ACCOUNT_LIMIT = 5",
+  "include_public_research: bool = False",
+  "_public_research_for_game_plan_contexts",
   "_resolve_scoped_company_name",
   "ambiguous_matches",
   "pricing needed",
@@ -919,6 +958,60 @@ for (const text of [
   if (!exaText.includes(text)) fail(`runtime/exa.md missing required text: ${text}`);
 }
 
+const publicResearchText = textOf("runtime/public-research.md");
+for (const text of [
+  "TAVILY_API_KEY",
+  "research_public_company_signals",
+  "POST /search",
+  "POST /extract",
+  "POST /research",
+  "about 3 Tavily credits",
+  "about 5 Tavily credits",
+  "about 6-8 Tavily credits",
+  "cost_report",
+  "will_mutate_hubspot=false",
+  "scope_source=hubspot_nurtureany",
+  "manual-check only",
+  "recommended_next_tool=search_exa_people_candidates"
+]) {
+  if (!publicResearchText.includes(text)) fail(`runtime/public-research.md missing required text: ${text}`);
+}
+
+const publicResearchServerText = textOf("runtime/mcp/public_research_nurtureany_server.py");
+for (const text of [
+  "TAVILY_API_KEY",
+  "MAX_RESEARCH_COMPANIES",
+  "research_public_company_signals",
+  "Tavily public company research",
+  "scoped HubSpot",
+  "cost_report",
+  "will_mutate_hubspot=False",
+  "mcp.run(\"stdio\")"
+]) {
+  if (!publicResearchServerText.includes(text)) fail(`runtime/mcp/public_research_nurtureany_server.py missing required text: ${text}`);
+}
+
+const publicResearchCommonText = textOf("runtime/mcp/nurtureany_common/public_research.py");
+for (const text of [
+  "TAVILY_BASE_URL = \"https://api.tavily.com\"",
+  "MAX_RESEARCH_COMPANIES = 5",
+  "MODE_CONFIGS",
+  "research_public_company_signals",
+  "company_signals",
+  "source_evidence",
+  "game_plan_inputs",
+  "manual_check_items",
+  "missing_evidence",
+  "cost_report",
+  "linkedin_manual",
+  "instagram_tiktok_manual",
+  "facebook_manual",
+  "google_maps_manual",
+  "search_exa_people_candidates"
+]) {
+  if (!publicResearchCommonText.includes(text)) fail(`runtime/mcp/nurtureany_common/public_research.py missing required text: ${text}`);
+}
+
 const exaServerText = textOf("runtime/mcp/exa_nurtureany_server.py");
 for (const text of [
   "EXA_API_KEY",
@@ -983,10 +1076,14 @@ for (const text of [
   "GOOGLE_DRIVE_TOKEN_FILE",
   "https://www.googleapis.com/auth/drive.readonly",
   "list_drive_folder_images",
+  "read_google_slides_deck",
   "extract_drive_image_clues",
+  "read_nurture_material_registry",
   "slack_uploader_name",
   "users.info",
   "all-random",
+  "Google Slides",
+  "Anyone with the link",
   "ID REV - LL & HHH EVENTS",
   "read_indonesia_event_registration_attendance",
   "Attend The Event",
@@ -1006,9 +1103,12 @@ for (const text of [
   "MAX_DRIVE_FILES = 100",
   "GOOGLE_SHEETS_API_BASE_URL",
   "ID_REV_EVENTS_SPREADSHEET_ID",
+  "MATERIAL_REGISTRY_SPREADSHEET_ID_ENV",
   "MAX_REGISTRATION_ROWS = 250",
   "list_drive_folder_images",
+  "read_google_slides_deck",
   "extract_drive_image_clues",
+  "read_nurture_material_registry",
   "read_indonesia_event_registration_attendance",
   "Attend The Event",
   "No phone numbers, full emails, raw exports, or Drive mutations.",
@@ -1062,6 +1162,8 @@ for (const text of [
   "event_tags=[\"Singapore\", \"Sports\"]",
   "event-first matching",
   "event.url|event.name",
+  "read_google_slides_deck",
+  "Anyone with the link",
   "read_indonesia_event_registration_attendance",
   "Attend The Event",
   "date and event ID"
@@ -1076,6 +1178,9 @@ for (const text of [
   "campaign social-effectiveness smoke check",
   "marketing attribution smoke check",
   "Indonesia event-registration fallback smoke check",
+  "Google Slides deck-access smoke check",
+  "read_google_slides_deck",
+  "Anyone with the link",
   "read_indonesia_event_registration_attendance",
   "Attend The Event",
   "event.url|event.name"
@@ -1193,9 +1298,10 @@ const healthScriptText = textOf("runtime/check-health.sh");
 for (const text of [
   "PROFILE=\"${HERMES_PROFILE:-nurtureanysalesbot}\"",
   "export HERMES_HOME=\"$HOME/.hermes/profiles/$PROFILE\"",
-  "EXPECT_HUBSPOT_TOOLS=\"${EXPECT_HUBSPOT_TOOLS:-29}\"",
-  "EXPECT_GOOGLE_DRIVE_TOOLS=\"${EXPECT_GOOGLE_DRIVE_TOOLS:-3}\"",
+  "EXPECT_HUBSPOT_TOOLS=\"${EXPECT_HUBSPOT_TOOLS:-31}\"",
+  "EXPECT_GOOGLE_DRIVE_TOOLS=\"${EXPECT_GOOGLE_DRIVE_TOOLS:-5}\"",
   "EXPECT_LUMA_TOOLS=\"${EXPECT_LUMA_TOOLS:-3}\"",
+  "EXPECT_PUBLIC_RESEARCH_TOOLS=\"${EXPECT_PUBLIC_RESEARCH_TOOLS:-1}\"",
   "EXPECT_NEAR_ME_TOOLS=\"${EXPECT_NEAR_ME_TOOLS:-6}\"",
   "EXPECT_C360_SALES_PACKET=\"${EXPECT_C360_SALES_PACKET:-1}\"",
   "C360_SALES_PACKET_SMOKE_COMPANY_ID=\"${C360_SALES_PACKET_SMOKE_COMPANY_ID:-9003704457}\"",
@@ -1210,6 +1316,7 @@ for (const text of [
   "google-drive:token-permissions-not-600",
   "slack-allowlist:missing-policy-users",
   "slack-allowlist:extra-users",
+  "mcp_test public_research_nurtureany",
   "mcp_test near_me_nurtureany"
 ]) {
   if (!healthScriptText.includes(text)) fail(`runtime/check-health.sh missing required text: ${text}`);

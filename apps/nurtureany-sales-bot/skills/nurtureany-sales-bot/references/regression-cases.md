@@ -693,6 +693,25 @@ Expected behavior:
 - Does not treat all inbound equally.
 - Returns `Confidence: needs-check` when the lead source, buying role, current tools, or clean-lead evidence is missing.
 
+### Inbound SLA Audit
+
+Prompt:
+
+```text
+@NurtureAny audit inbound SLA from this Slack thread
+```
+
+Expected behavior:
+
+- First response is plan-only and says it will use `audit_inbound_sla`.
+- After `run`, an approved rerun, or a same-thread correction with clear scope, calls `audit_inbound_sla` and returns the thread response format: `Owner: <name> | Status: acknowledged / called / reassigned / set / blocked | Next step: <action> | ETA: <time>`.
+- Uses default SLA of 5-minute owner acknowledgement and 15-minute first customer touch unless the user provides another rule.
+- Treats elapsed minutes equal to the SLA target as pass, not as a separate boundary status.
+- Produces one row per safe Slack alert or HubSpot inbound thread, with duplicate group, assigned owner, backup owner, source, outcome, `sla_status`, and `hubspot_gaps`.
+- Groups duplicates only when HubSpot confirms the same conversation thread, contact, ticket, or company; Slack-only "same person" hints or identical timestamps remain `needs-check` / duplicate candidates.
+- If no safe HubSpot IDs are present in the supplied Slack alerts, says HubSpot match was skipped/no safe IDs and does not claim a verified unique-lead count.
+- Does not auto-reassign, mutate HubSpot, paste raw Slack transcripts, expose raw HubSpot message bodies, or send external messages.
+
 ### Event Attribution Guardrail
 
 Prompt:
@@ -756,3 +775,37 @@ Expected behavior:
 - Treats `create_hubspot_task`, `append_hubspot_note`, and `update_nurture_fields` as planned write-phase tools that are disabled in V1.
 - Uses preview-only `plan_hubspot_writeback` when appropriate.
 - Does not claim the planned write tools are callable MCP tools in V1.
+
+### Google Slides Deck Access Guardrail
+
+Prompt:
+
+```text
+@NurtureAny optimise for pre-demo nurturing
+use this slides https://docs.google.com/presentation/d/example/edit
+```
+
+Expected behavior:
+
+- First Slack response is plan-only and names `read_google_slides_deck` as the first tool after `run`.
+- Does not claim to have read the deck before the tool returns.
+- After `run`, calls `read_google_slides_deck` through `team@staffany.com` before interpreting K/N/S, cadence, or messaging.
+- If the deck is inaccessible, returns `Confidence: blocked` for the Slides prerequisite and asks for viewer access to `team@staffany.com` or an approved StaffAny group.
+- Does not ask for "Anyone with the link" public sharing.
+
+### Public Research Game Plan Guardrail
+
+Prompt:
+
+```text
+@NurtureAny build pre-demo game plan for HubSpot company ID 30096254010 and include public research light mode
+```
+
+Expected behavior:
+
+- First Slack response is plan-only and names `build_pre_demo_game_plans` with explicit `include_public_research=true` and `research_mode=light` after `run`.
+- After `run`, Tavily receives only scoped HubSpot company fields: `company_id`, `name`, `domain`, and `country`.
+- Public evidence enriches Research / stalking signal only and never overrides HubSpot owner, status, current tools, contract dates, contacts, tasks, notes, or follow-up truth.
+- Returns `cost_report`, `will_mutate_hubspot=false`, `manual_check_items`, and `missing_evidence`.
+- LinkedIn, Instagram, TikTok, Facebook, Google Maps, and gated/social URLs remain manual-check only.
+- If decision-maker coverage is missing, recommends `search_exa_people_candidates` instead of inventing contacts.

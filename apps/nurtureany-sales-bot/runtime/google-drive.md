@@ -1,6 +1,6 @@
 # Google Drive Runtime
 
-NurtureAny may use the StaffAny `team@staffany.com` Google Drive OAuth account to list event-photo metadata from the `all-random` folder and read the Indonesia Rev LL/HHH registration Sheet as an attendance fallback. HubSpot remains the contact/company source of truth.
+NurtureAny may use the StaffAny `team@staffany.com` Google Drive OAuth account to read selected Google Slides decks, list event-photo metadata from the `all-random` folder, and read the Indonesia Rev LL/HHH registration Sheet as an attendance fallback. HubSpot remains the contact/company source of truth.
 
 ## Contract
 
@@ -20,12 +20,18 @@ NurtureAny may use the StaffAny `team@staffany.com` Google Drive OAuth account t
 - Manual attendance fallback column: `Attend The Event`
 - Allowed tools:
   - `list_drive_folder_images`
+  - `read_google_slides_deck`
   - `extract_drive_image_clues`
+  - `read_nurture_material_registry`
   - `read_indonesia_event_registration_attendance`
 
 ## Query Rules
 
 - List only bounded image metadata from the configured Drive folder.
+- Read Google Slides or Drive-hosted `.pptx` decks only when the user supplies a specific Google Slides URL or presentation ID and has approved the Slack plan with `run`.
+- Use `read_google_slides_deck` to extract bounded text through the Drive API using `team@staffany.com`. Native Google Slides are exported as text. `.pptx` files are downloaded transiently for ZIP/XML text extraction, then raw bytes are discarded.
+- If Slides access is blocked, return `Confidence: blocked` and ask the deck owner to share viewer access with `team@staffany.com` or an approved StaffAny group. Do not ask for "Anyone with the link" public sharing as the fix.
+- Use `read_nurture_material_registry` only for the one-sheet NurtureAny material registry configured by `NURTUREANY_MATERIAL_REGISTRY_SPREADSHEET_ID`. It returns safe rows from approved registry tabs and does not mutate Drive/Sheets.
 - Return Drive file IDs, filenames, MIME type, timestamps, webViewLink, checksum, and size.
 - Parse Slack-export filenames into `source_timestamp`, `slack_user_id`, and `original_filename`.
 - Resolve `slack_uploader_name` with Slack `users.info` when `SLACK_BOT_TOKEN` has access; keep it best-effort and do not block Drive scans if Slack profile lookup fails.

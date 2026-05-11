@@ -29,6 +29,7 @@ NurtureAny needs deterministic runtime checks because prompt correctness does no
 - HubSpot follow-up-status smoke check returns safe WhatsApp communication, note, and task evidence by default, blocks `include_body=true` for non-admin callers, and allows admin-only `include_body=true` to return bounded WhatsApp communication bodies for selected company IDs. It must not expose note bodies, task bodies, phone numbers, unmatched attendees, or mutation tools.
 - HubSpot event-follow-up smoke check resolves Luma checked-in attendance, verifies event-specific Eazybe WhatsApp communications in HubSpot, marks generic WhatsApp as `needs_check`, and never exposes raw WhatsApp bodies, guest emails, phone numbers, or raw attendee lists.
 - Indonesia event-registration fallback smoke check confirms `read_indonesia_event_registration_attendance` is available, restricted to `ID REV - LL & HHH EVENTS`, uses `Attend The Event` as manual attendance only when Luma check-in is empty or not used, and never exposes phone numbers, full emails, or raw registration exports.
+- Google Slides deck-access smoke check confirms `read_google_slides_deck` is available, uses the `team@staffany.com` read-only Drive OAuth token, supports native Slides and Drive-hosted `.pptx` text extraction, never retains raw deck bytes, and never asks for "Anyone with the link" public sharing.
 - HubSpot photo scan smoke check accepts Luma event candidates, correlates Drive photo timestamps to Luma event dates, auto-tags `nurture_event` only for one clear event-date match, and keeps HubSpot person/contact association blocked until uploader confirmation.
 - A tiny target-account count query succeeds for each supported country.
 - StaffAny BigQuery MCP lists only expected read-only tools.
@@ -53,6 +54,8 @@ NurtureAny needs deterministic runtime checks because prompt correctness does no
 - Luma guest-context smoke check requires scoped HubSpot company IDs, caps guest reads, returns `has_more`/`truncated`, treats attendance as `checked_in_at` present, and does not expose raw attendee exports, phone numbers, full emails, registration answers, or mutation tools.
 - Exa MCP lists only `search_exa_people_candidates` when Exa is enabled.
 - Exa smoke check returns `cost_report`, requires scoped HubSpot company IDs, uses `category: "people"`, and does not fetch profile contents or expose email/phone.
+- Public research MCP lists only `research_public_company_signals` when Tavily is enabled.
+- Public research smoke blocks missing `TAVILY_API_KEY` before HTTP, requires scoped HubSpot company IDs, returns `cost_report`, and never mutates HubSpot.
 - Lusha MCP lists only `search_lusha_decision_maker_candidates`, `reveal_lusha_contact_details`, and `get_lusha_credit_usage` when Lusha is enabled.
 - Lusha search and reveal smoke checks require scoped HubSpot company IDs before any paid/API call.
 - Lusha usage smoke check returns `credit_report` and does not block the gateway when `/account/usage` is rate-limited.

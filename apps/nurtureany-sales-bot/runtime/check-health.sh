@@ -10,12 +10,13 @@ EXPECT_MODEL_AUTH="${EXPECT_MODEL_AUTH:-1}"
 EXPECT_MODEL_PROVIDER="${EXPECT_MODEL_PROVIDER:-anthropic}"
 EXPECT_MODEL_DEFAULT="${EXPECT_MODEL_DEFAULT:-claude-sonnet-4-6}"
 EXPECT_STAFFANY_BIGQUERY_TOOLS="${EXPECT_STAFFANY_BIGQUERY_TOOLS:-4}"
-EXPECT_HUBSPOT_TOOLS="${EXPECT_HUBSPOT_TOOLS:-29}"
+EXPECT_HUBSPOT_TOOLS="${EXPECT_HUBSPOT_TOOLS:-31}"
 EXPECT_GOOGLE_CALENDAR_TOOLS="${EXPECT_GOOGLE_CALENDAR_TOOLS:-2}"
-EXPECT_GOOGLE_DRIVE_TOOLS="${EXPECT_GOOGLE_DRIVE_TOOLS:-3}"
+EXPECT_GOOGLE_DRIVE_TOOLS="${EXPECT_GOOGLE_DRIVE_TOOLS:-5}"
 EXPECT_LUMA_TOOLS="${EXPECT_LUMA_TOOLS:-3}"
 EXPECT_LUSHA_TOOLS="${EXPECT_LUSHA_TOOLS:-3}"
 EXPECT_EXA_TOOLS="${EXPECT_EXA_TOOLS:-1}"
+EXPECT_PUBLIC_RESEARCH_TOOLS="${EXPECT_PUBLIC_RESEARCH_TOOLS:-1}"
 EXPECT_NEAR_ME_TOOLS="${EXPECT_NEAR_ME_TOOLS:-6}"
 EXPECT_C360_SALES_PACKET="${EXPECT_C360_SALES_PACKET:-1}"
 C360_SALES_PACKET_SMOKE_COMPANY_ID="${C360_SALES_PACKET_SMOKE_COMPANY_ID:-9003704457}"
@@ -112,6 +113,7 @@ expected_servers = {
     "hubspot_nurtureany": [
         "list_inbound_threads",
         "get_inbound_thread_context",
+        "audit_inbound_sla",
         "list_marketing_campaigns",
         "get_campaign_assets",
         "get_campaign_social_effectiveness",
@@ -123,6 +125,7 @@ expected_servers = {
         "audit_priority_account_coverage",
         "build_sales_metric_actuals_query",
         "build_friday_sales_review",
+        "build_manager_chase_plan",
         "get_account_context",
         "build_pre_demo_game_plans",
         "list_sales_followup_tasks",
@@ -143,10 +146,13 @@ expected_servers = {
     "google_calendar_nurtureany": ["list_google_calendar_events", "audit_google_calendar_meeting_quality"],
     "google_drive_nurtureany": [
         "list_drive_folder_images",
+        "read_google_slides_deck",
         "extract_drive_image_clues",
+        "read_nurture_material_registry",
         "read_indonesia_event_registration_attendance",
     ],
     "luma_nurtureany": ["list_luma_events", "get_luma_event_match_keys", "get_luma_event_context"],
+    "public_research_nurtureany": ["research_public_company_signals"],
     "lusha_nurtureany": ["search_lusha_decision_maker_candidates", "reveal_lusha_contact_details", "get_lusha_credit_usage"],
     "exa_nurtureany": ["search_exa_people_candidates"],
     "near_me_nurtureany": [
@@ -372,6 +378,7 @@ mcp_test hubspot_nurtureany "$EXPECT_HUBSPOT_TOOLS"
 mcp_test google_calendar_nurtureany "$EXPECT_GOOGLE_CALENDAR_TOOLS"
 mcp_test google_drive_nurtureany "$EXPECT_GOOGLE_DRIVE_TOOLS"
 mcp_test luma_nurtureany "$EXPECT_LUMA_TOOLS"
+mcp_test public_research_nurtureany "$EXPECT_PUBLIC_RESEARCH_TOOLS"
 mcp_test lusha_nurtureany "$EXPECT_LUSHA_TOOLS"
 mcp_test exa_nurtureany "$EXPECT_EXA_TOOLS"
 mcp_test near_me_nurtureany "$EXPECT_NEAR_ME_TOOLS"
