@@ -26,6 +26,22 @@ Use this skill for StaffAny internal sales nurture work. NurtureAny helps AEs an
 
 V1 is review-first. It never auto-sends WhatsApp, email, LinkedIn, Instagram, SMS, or sequence messages.
 
+## CRO Readiness And Demo Answers
+
+For prompts asking what NurtureAny can do for revenue leaders, keep the answer operational and role-correct:
+
+- `kerren.fong@staffany.com`: SG/MY manager scope.
+- `sarah@staffany.com`: Indonesia manager scope.
+- `eugene@staffany.com`: overall admin scope.
+
+Kerren, Eugene, and Sarah are revenue leaders in this readiness context, not AEs being inspected. Never write `For each AE (Kerren, Eugene, Sarah)` or imply they each own an AE daily queue. Phrase the answer as leader coverage: Kerren can review SG/MY manager gaps, Sarah can review Indonesia manager gaps, and Eugene can review cross-market/admin gaps.
+
+If the user asks for capability/readiness only, answer from the packet and local references without live tools, state that no live HubSpot data was queried, avoid Markdown tables, and end with Source, Scope, Confidence, and Caveat. Capability-only readiness must use `Confidence: needs-check`, never `verified`. If the user asks for current account findings, this-week recommendations, owner-specific queue rows, or a live sample, use the Slack run gate before calling HubSpot, C360, Luma, Calendar, Drive, public research, Exa, or Lusha.
+
+For bounded live samples, smoke tests, or prompts asking to show 1-3 accounts, keep tool use deterministic and low-latency. Do not call `score_nurture_accounts` unless the user explicitly asks for a ranked queue. Use `list_team_target_accounts` or `list_my_target_accounts` with exact `owner_email`, country, query, and limit filters first. Then call `get_account_context` and optional `draft_nurture_message` only for the selected scoped company IDs. If the result is only a sample, say so in `Scope` and keep `Confidence: needs-check` unless the selected account evidence is fully verified.
+
+Good CRO output leads with the revenue operating decision, not feature inventory. Name 2-3 next actions that a manager can use this week. Do not mention unavailable send tools, auto-blast flows, or HubSpot writes as executable; V1 output is read-only or preview-only unless an approved tool and approval marker are explicitly present.
+
 ## When To Use
 
 - `my 150`, `my target accounts`, `my nurture queue`, or similar AE-owned target-account requests.
@@ -177,7 +193,7 @@ Read tools:
 - `list_sales_followup_tasks`: existing incomplete sales-owned HubSpot tasks associated to scoped target accounts through company, contact, or deal links. It returns safe task summaries only and never creates tasks.
 - `check_account_followup_status`: selected scoped target-account follow-up status from HubSpot WhatsApp communications, notes, completed tasks, open tasks, and completed meeting logs. It returns body-free safe evidence by default and never calls Eazybe directly. Admin callers may set `include_body=true` for selected company IDs to include bounded WhatsApp communication `body` fields; non-admin callers must be blocked.
 - `check_event_followup_status`: read-only event follow-up orchestrator. It resolves Luma checked-in attendance, matches attendees to scoped HubSpot target accounts, then verifies event-specific Eazybe WhatsApp communications or event-specific tasks in HubSpot. Generic post-event WhatsApp returns `needs_check`; raw bodies and attendee exports are never returned.
-- `score_nurture_accounts`: ranked queue with rationale, missing evidence, and pagination completeness metadata. Optional `owner_email` narrows an authorized manager/admin request to one HubSpot owner. Do not use this as an account-name resolver or as a generic follow-up existence fallback.
+- `score_nurture_accounts`: ranked queue with rationale, missing evidence, and pagination completeness metadata. Optional `owner_email` narrows an authorized manager/admin request to one HubSpot owner. Use it for deliberate ranked-queue requests, not for bounded live samples, smoke tests, account-name resolution, or generic follow-up existence fallback.
 - `find_contact_gaps`: contact, persona, channel, and decision-maker gaps plus `gap_count`, `scored_account_count`, and pagination completeness metadata. Optional `owner_email` narrows an authorized manager/admin request to one HubSpot owner.
 - `find_t90_renewal_gaps`: lightweight T-90 renewal scan for scoped target accounts. Use this instead of combining `score_nurture_accounts` and `find_contact_gaps` for renewal-window questions. Its primary `answer` contains both `known_t90_contract_end_date_accounts` and `missing_contract_end_date_accounts`, and the Slack answer must display both sections. It returns all accounts whose HubSpot `contract_end_date` is inside the requested window when `truncated=false`; if no window is requested, it defaults to today through today plus 90 days. Pass `start_date` and `end_date` for explicit date-window requests. It returns the subset with nurture/follow-up gaps, and a bounded sample plus total/truncation metadata for target accounts missing `contract_end_date` for classification. It returns `current_tool_renewal_date` only as secondary context and `current_tools` as the durable current-tools field. It filters `contract_end_date` first, then uses bounded aggregate coverage and optional batched task lookup; it does not fetch raw contacts or per-account task bodies. Do not pass a small `limit` for air-tight known-T90 answers unless the user explicitly asks for a sample. Increase `missing_contract_end_date_limit` only when the user explicitly asks for the full missing-date classification list. In preflight, never promise a full missing-contract-end-date list for broad manager scopes; call it the bounded default classification sample with total/truncation metadata unless explicitly widened.
 - `generate_free_search_tasks`: scoped manual/free public-search tasks for company website, careers, public job boards, general web, LinkedIn manual search, Google Maps manual check, Instagram/TikTok manual check, Facebook manual check, and review sites.
@@ -259,6 +275,8 @@ Confidence: <verified | needs-check | blocked>
 Caveat: <only the material caveat>
 
 For ranked queues, include account name, why now, person/persona if safe, channel fit, draft snippet, and proposed HubSpot action. Avoid unnecessary PII and never export phone numbers.
+
+For readiness briefs, this same final contract is mandatory even when no external tool ran. Use plain labeled lines instead of tables, `Source: NurtureAny source packet / local references`, `Scope: capability brief only`, and `Confidence: needs-check` unless live HubSpot/C360/Luma/Calendar evidence was actually checked. Do not call Kerren, Eugene, or Sarah AEs in this brief.
 
 For T-90 renewal answers, always show two separate sections:
 

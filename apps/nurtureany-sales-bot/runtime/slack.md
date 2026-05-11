@@ -10,6 +10,10 @@ NurtureAny's first runtime surface is Slack mention usage in sales pilot channel
 - Local source-packet hydration is allowed and required before the first preflight when the prompt involves NurtureAny sales workflow terms, drafting, pre-demo, demo, post-demo, event follow-up, Friday review, coaching, inbound/routing, AI/data readiness, or operating rhythm. The run gate blocks HubSpot, C360, BigQuery, Google Calendar, Google Drive, Luma, Exa, Lusha, public research, Slack lookup, and other app-backed or external sources before `run`; it must not block local skill/reference loading.
 - If local NurtureAny references define a term, the preflight must use that definition instead of asking the user. `KNS`, `K/N/S`, and `K N S` mean `Knowledge, Network, Support`; only caveat that an external slide/doc may refine the wording after `run`.
 - Smoke/test/eval prompts are still first requests. Words like `smoke`, `test`, `compact`, `keep output compact`, `quick`, or `just check` do not bypass the run gate.
+- CRO readiness prompts that only ask what NurtureAny can help leaders do may answer from the source packet without tools, but must stay role-correct and end with Source, Scope, Confidence, and Caveat.
+- CRO readiness prompts for Kerren, Eugene, and Sarah must treat them as revenue leaders, not AEs. Never write `For each AE (Kerren, Eugene, Sarah)`. Capability-only readiness must use `Confidence: needs-check`, not `verified`, and must not use Markdown tables.
+- CRO prompts that ask for a live sample, current account recommendations, this-week account findings, or owner-specific queue rows are tool-backed and must use the run gate before HubSpot/C360/Luma/Calendar/Drive/public tools.
+- Bounded live samples and smoke tests should plan `list_team_target_accounts` or `list_my_target_accounts` with exact owner/country/query/limit filters, then `get_account_context` and optional `draft_nurture_message` for selected scoped company IDs. Do not plan `score_nurture_accounts` unless the user explicitly asks for a ranked queue.
 - Account-background and `get account context for <account>` are tool-backed requests; first mention must plan only and must not resolve the company until `run`.
 - Clear same-thread corrections, fixes, and reruns after a delivered result are continuation work when scope is bounded.
 - A `run` after a gateway interruption, shutdown warning, or missing post-`run` tool result must execute the confirmed plan again; do not answer from a stale "already ran" assumption.
@@ -118,6 +122,13 @@ Source: <HubSpot/C360/Google Calendar/Luma/tool used>
 Scope: <owner/team/country/time filters>
 Confidence: <verified | needs-check | blocked>
 Caveat: <only the material caveat>
+
+For readiness briefs with no live data, use plain labeled lines rather than tables and set:
+
+Source: NurtureAny source packet / local references
+Scope: capability brief only; no live HubSpot data queried
+Confidence: needs-check
+Caveat: Run a scoped HubSpot/C360/Luma/Calendar check before using it as a live account plan.
 
 ## Slack Scopes
 
