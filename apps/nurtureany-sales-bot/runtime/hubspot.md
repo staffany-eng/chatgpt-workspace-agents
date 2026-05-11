@@ -156,7 +156,7 @@ Friday sales review uses the same scoped association discipline, plus HubSpot ca
 - Treat elapsed minutes `<=` the configured SLA target as pass; do not create a separate boundary status.
 - Dedupe only through the same HubSpot conversation thread, contact, ticket, or company. Slack-only duplicate hints stay `needs-check`.
 - If supplied Slack alerts have no safe HubSpot IDs, keep `hubspot_match_mode=skipped_no_safe_ids`, say HubSpot match was skipped/no safe IDs, and report timestamp overlaps only as duplicate candidates.
-- Final inbound SLA audit answers must use the tool output as the answer source; do not manually recompute a replacement audit table.
+- Final inbound SLA audit answers must use the tool output as the answer source; do not manually recompute a replacement audit table. If the tool is not visible or cannot be called, report the audit as blocked by tool registration instead of calculating SLA rows manually.
 - Must not expose raw Slack transcripts, raw HubSpot message bodies, phone numbers, bulk PII, or send external messages.
 
 `list_my_target_accounts`:
