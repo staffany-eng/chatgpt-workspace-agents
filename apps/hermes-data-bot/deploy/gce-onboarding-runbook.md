@@ -71,6 +71,12 @@ SLACK_ALLOWED_USERS=<comma-separated Slack member IDs>
 MCP_STAFFANY_BIGQUERY_API_KEY=<bq-mcp-proxy-shared-secret value>
 ```
 
+Use the source-packet helper for live-profile allowlist updates instead of hand-editing `.env`:
+
+```bash
+apps/hermes-data-bot/runtime/update-slack-allowlist.sh --restart <slack-user-id>
+```
+
 ## VM Bootstrap
 
 ```bash

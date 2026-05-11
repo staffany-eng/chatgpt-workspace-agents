@@ -27,6 +27,18 @@ Do not add or request `groups:read` for this POC. Private-channel enumeration is
 
 If Slack private file URLs return login HTML or gateway logs show missing file access, update the Slack app scopes, reinstall/save the app, and restart the gateway.
 
+## User Allowlist Updates
+
+Slack POC access is controlled by `SLACK_ALLOWED_USERS` in the live profile `.env` or the matching Secret Manager value. Do not commit the live `.env` file.
+
+To add approved StaffAny teammates to the live local profile:
+
+```bash
+apps/hermes-data-bot/runtime/update-slack-allowlist.sh --restart U02RQTX3U0H
+```
+
+The helper creates a timestamped profile `.env` backup, dedupes IDs, updates only `SLACK_ALLOWED_USERS`, and can restart the gateway when `--restart` is passed.
+
 ## Output Contract
 
 Final Slack answers should use:

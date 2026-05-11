@@ -25,6 +25,7 @@ Canonical app packet for StaffAny's Hermes runtime data bot.
 | `runtime/high-priority-feature-digest.md` | Weekly high-priority release-feature usage digest setup. |
 | `runtime/memory-honcho.md` | Honcho external-memory contract and boundaries. |
 | `runtime/slack.md` | Slack gateway behavior, scopes, and run gate. |
+| `runtime/update-slack-allowlist.sh` | Safe live-profile helper for adding Slack POC users. |
 | `runtime/health-checks.md` | No-agent operational checks and expected silence. |
 | `deploy/gce-onboarding-runbook.md` | GCE restore and bootstrap runbook. |
 | `tests/regression-cases.md` | Manual/eval regression cases for app behavior. |
