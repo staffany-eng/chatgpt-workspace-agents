@@ -90,6 +90,10 @@ if (!existsSync(manifestPath)) {
     if (!sarah.includes("Indonesia") || sarah.includes("Singapore") || sarah.includes("Malaysia")) {
       fail("Manifest Sarah scope must be Indonesia only");
     }
+    const sarahAlias = managerByEmail.get("sarah.ayutania@staffany.com") || [];
+    if (!sarahAlias.includes("Indonesia") || sarahAlias.includes("Singapore") || sarahAlias.includes("Malaysia")) {
+      fail("Manifest Sarah alias scope must be Indonesia only");
+    }
     if (manifest.access_policy?.runtime_env_var !== "NURTUREANY_ACCESS_POLICY_PATH") {
       fail("Manifest access_policy runtime_env_var must be NURTUREANY_ACCESS_POLICY_PATH");
     }
@@ -492,6 +496,7 @@ for (const text of [
   "kaiyi@staffany.com",
   "kerren.fong@staffany.com",
   "sarah@staffany.com",
+  "sarah.ayutania@staffany.com",
   "NURTUREANY_ACCESS_POLICY_PATH",
   "runtime/access-policy.template.json",
   "unclassified_hubspot_owners",

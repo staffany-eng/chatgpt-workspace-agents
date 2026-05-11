@@ -28,7 +28,7 @@ Target-account count sanity check on 2026-05-09:
 | `kaiyi@staffany.com` | Overall admin | Singapore, Malaysia, Indonesia |
 | `kai.yi@staffany.com`, `leekai.yi@staffany.com` | Overall admin aliases for `kaiyi@staffany.com` | Singapore, Malaysia, Indonesia |
 | `kerren.fong@staffany.com` | SG/MY manager | Singapore, Malaysia team view only |
-| `sarah@staffany.com` | Indonesia manager | Indonesia team view only |
+| `sarah@staffany.com`, `sarah.ayutania@staffany.com` | Indonesia manager | Indonesia team view only |
 | explicit `sales_reps` policy entry | AE | Own HubSpot target accounts only |
 | unclassified HubSpot owner | blocked | No NurtureAny access |
 
@@ -65,7 +65,7 @@ When NurtureAny is asked what data sources it used, answer definitively from thi
 - Target-account membership: HubSpot company property `hs_is_target_account`.
 - Owner scope: HubSpot owners API plus HubSpot company property `hubspot_owner_id`.
 - Region scope: HubSpot company property `company_country`.
-- Renewal timing / T-90 windows: HubSpot company property `contract_end_date`.
+- Renewal timing / T-90 windows: HubSpot company property `contract_end_date`; explicit date-window requests must pass `start_date` and `end_date`.
 - Current tools: HubSpot company property `current_tools`.
 - Customer/prospect status: HubSpot company property `type`, then `lifecyclestage`, then `prospecting_account`; C360 current-customer evidence may strengthen customer status when explicitly used.
 - Sales follow-up status: HubSpot WhatsApp `communications`, notes, completed tasks, and existing incomplete tasks associated to the scoped company/contact/deal.
@@ -107,7 +107,7 @@ Multiple outlet-match rows may point to one HubSpot Company, for example multipl
 
 Google Places live refresh should not permanently store every restaurant. Save, update, reject, or confirm outlet-match records only after review/admin workflow approval.
 
-For T-90 renewal output, split accounts into two explicit buckets: known T-90 accounts with `contract_end_date` inside the window, and target accounts missing `contract_end_date` that need classification. The missing-date bucket is required output, not an optional caveat.
+For T-90 renewal output, split accounts into two explicit buckets: known T-90 accounts with `contract_end_date` inside the requested window, and target accounts missing `contract_end_date` that need classification. If no window is requested, use today through today plus 90 days. The missing-date bucket is required output, not an optional caveat, but broad manager scopes should use the bounded default sample plus total/truncation metadata unless the user explicitly asks for a full missing-date classification list.
 
 ## Follow-Up Activity Properties
 

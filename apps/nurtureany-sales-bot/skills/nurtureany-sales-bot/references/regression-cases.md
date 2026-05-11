@@ -338,7 +338,7 @@ Expected behavior:
 - First response is plan-only.
 - After `run`, calls `find_t90_renewal_gaps`.
 - Uses HubSpot company `contract_end_date` as the renewal source of truth.
-- Returns all scoped target accounts with `contract_end_date` in the next 90 days when `truncated=false`.
+- Returns all scoped target accounts with `contract_end_date` in the requested window when `truncated=false`; if no window is requested, defaults to today through today plus 90 days.
 - Separately surfaces target accounts missing `contract_end_date`, even when `current_tool_renewal_date` exists.
 - Final Slack answer includes both sections: known T-90 accounts and missing contract end date accounts. It does not mention missing-date accounts only in the caveat.
 - Returns HubSpot company `current_tools` as the durable current-tools field.

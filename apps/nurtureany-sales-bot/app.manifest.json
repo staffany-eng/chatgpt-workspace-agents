@@ -70,6 +70,12 @@
         "countries": [
           "Indonesia"
         ]
+      },
+      {
+        "email": "sarah.ayutania@staffany.com",
+        "countries": [
+          "Indonesia"
+        ]
       }
     ]
   },
@@ -200,9 +206,10 @@
         "missing_contract_end_date_accounts",
         "completeness"
       ],
-      "known_t90_source": "contract_end_date inside next 90 days",
+      "known_t90_source": "contract_end_date inside requested window; defaults to today through today plus 90 days",
       "missing_date_source": "hs_is_target_account=true companies with no contract_end_date",
-      "missing_date_limit": "independent of known-T90 display limit; default full HubSpot search cap"
+      "date_window_inputs": "optional ISO start_date and end_date for explicit renewal-window requests",
+      "missing_date_limit": "independent of known-T90 display limit; bounded default 250 unless explicitly widened"
     }
   },
   "customer360": {

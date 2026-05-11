@@ -239,15 +239,15 @@ Friday sales review uses the same scoped association discipline, plus HubSpot ca
 
 `find_t90_renewal_gaps`:
 
-- Input: Slack user email, optional countries, optional owner email filter, optional known-T90 limit, optional missing-contract-end-date limit, optional follow-up task lookup flag.
+- Input: Slack user email, optional countries, optional owner email filter, optional `start_date`/`end_date` renewal window, optional known-T90 limit, optional missing-contract-end-date limit, optional follow-up task lookup flag.
 - Output: a primary `answer` object with `known_t90_contract_end_date_accounts`, `gap_accounts`, `missing_contract_end_date_accounts`, counts, and required output sections; plus backward-compatible top-level lists for each bucket.
 - Must make missing-contract-date classification a first-class output bucket, not a caveat. The Slack answer must display it even when the user asks for "known T90" or "T90 gaps".
-- Returns all scoped target accounts whose HubSpot `contract_end_date` is in the next 90 days when not truncated, the subset with weak nurture coverage or no verified open sales-owned follow-up, and target accounts with no `contract_end_date` for classification.
+- Returns all scoped target accounts whose HubSpot `contract_end_date` is in the requested window when not truncated, the subset with weak nurture coverage or no verified open sales-owned follow-up, and target accounts with no `contract_end_date` for classification. If no window is requested, use today through today plus 90 days.
 - Must filter `contract_end_date` first before any enrichment or task checks.
 - Must return `current_tool_renewal_date` as secondary context only; it must not cause T-90 inclusion when `contract_end_date` is missing or outside the window.
 - Must return `current_tools` from HubSpot company `current_tools` as the durable current-tools field.
 - Must surface completeness metadata separately for the renewal-window bucket and missing-contract-end-date bucket. Do not claim "all" unless `truncated=false` and `has_more=false`.
-- Must not let a small known-T90 display `limit` cap the missing-contract-end-date classification bucket; use the full default `missing_contract_end_date_limit` unless the user explicitly asks for a sample.
+- Must not let a small known-T90 display `limit` cap the missing-contract-end-date classification bucket; use the bounded default `missing_contract_end_date_limit` with total/truncation metadata unless the user explicitly asks for a full classification list.
 - Must not compose broad `score_nurture_accounts` + `find_contact_gaps` calls for this workflow.
 - Must not fetch raw contacts, task bodies, paid enrichment, social/gated pages, or mutate HubSpot.
 

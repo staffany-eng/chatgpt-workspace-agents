@@ -31,6 +31,7 @@ BUILT_IN_EMAIL_ALIASES = {
 REGIONAL_MANAGERS = {
     "kerren.fong@staffany.com": ("Singapore", "Malaysia"),
     "sarah@staffany.com": ("Indonesia",),
+    "sarah.ayutania@staffany.com": ("Indonesia",),
 }
 AREA_NAMES = {
     "sg_raffles_place": "Raffles Place",

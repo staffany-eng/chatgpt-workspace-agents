@@ -59,6 +59,7 @@ BUILT_IN_EMAIL_ALIASES = {
 REGIONAL_MANAGERS = {
     "kerren.fong@staffany.com": ("Singapore", "Malaysia"),
     "sarah@staffany.com": ("Indonesia",),
+    "sarah.ayutania@staffany.com": ("Indonesia",),
 }
 
 COMPANY_PROPERTIES = [
@@ -275,6 +276,7 @@ CASE_STUDY_CATALOG_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)
 HUBSPOT_SEARCH_PAGE_LIMIT = 100
 HUBSPOT_SEARCH_RESULT_LIMIT = 1000
 HUBSPOT_SEARCH_TOTAL_LIMIT = 10_000
+T90_MISSING_CONTRACT_END_DATE_DEFAULT_LIMIT = 250
 TASK_ASSOCIATION_LIMIT = 100
 TASK_RETURN_LIMIT = 100
 LUMA_MATCH_DOMAIN_LIMIT = 100
@@ -9032,7 +9034,9 @@ def find_t90_renewal_gaps(
     owner_email: str | None = None,
     include_followup_tasks: bool = True,
     include_missing_renewal_dates: bool = True,
-    missing_contract_end_date_limit: int = HUBSPOT_SEARCH_TOTAL_LIMIT,
+    missing_contract_end_date_limit: int = T90_MISSING_CONTRACT_END_DATE_DEFAULT_LIMIT,
+    start_date: str | None = None,
+    end_date: str | None = None,
 ) -> dict[str, Any]:
     """Find T-90 renewal target accounts and renewal-date classification gaps."""
 
@@ -9049,12 +9053,18 @@ def find_t90_renewal_gaps(
         requested_limit = _bounded_int(limit, default=HUBSPOT_SEARCH_TOTAL_LIMIT, maximum=HUBSPOT_SEARCH_TOTAL_LIMIT)
         requested_missing_contract_end_date_limit = _bounded_int(
             missing_contract_end_date_limit,
-            default=HUBSPOT_SEARCH_TOTAL_LIMIT,
+            default=T90_MISSING_CONTRACT_END_DATE_DEFAULT_LIMIT,
             maximum=HUBSPOT_SEARCH_TOTAL_LIMIT,
         )
         today = datetime.now(timezone.utc).date()
-        window_end = today + timedelta(days=90)
-        data = _company_search_by_renewal_window(selected, target_owner_id, today, window_end, requested_limit)
+        window_start = _date_value(start_date) or today
+        window_end = _date_value(end_date) or today + timedelta(days=90)
+        if window_end < window_start:
+            return _blocked(
+                "end_date must be on or after start_date.",
+                {"caller_email": slack_user_email, "start_date": start_date, "end_date": end_date},
+            )
+        data = _company_search_by_renewal_window(selected, target_owner_id, window_start, window_end, requested_limit)
         missing_data = (
             _company_search_missing_renewal_dates(
                 selected,
@@ -9101,7 +9111,7 @@ def find_t90_renewal_gaps(
                 len(renewing_contact_index.get(company_id, [])),
             )
             company_id = str(summary.get("company_id") or "")
-            renewal_matches = _renewal_matches_in_window(company, today, window_end)
+            renewal_matches = _renewal_matches_in_window(company, window_start, window_end)
             if not renewal_matches:
                 continue
             primary_renewal = renewal_matches[0]
@@ -9228,7 +9238,7 @@ def find_t90_renewal_gaps(
         if include_followup_tasks and target_owner_id:
             source_bits.append("batched HubSpot task lookup")
         scope_response = _scope_response(scope, selected, target_owner_id, target_owner_email)
-        scope_response["renewal_window_start"] = today.isoformat()
+        scope_response["renewal_window_start"] = window_start.isoformat()
         scope_response["renewal_window_end"] = window_end.isoformat()
         account_truncated = bool(metadata.get("truncated") or missing_metadata.get("truncated"))
         result_truncated = bool(account_truncated or task_truncated)
@@ -9237,6 +9247,8 @@ def find_t90_renewal_gaps(
         )
         if account_truncated:
             caveat += " Account buckets are truncated; do not present counts as complete."
+        if missing_metadata.get("truncated"):
+            caveat += " Missing-contract-end-date bucket is a bounded classification sample; use a larger missing_contract_end_date_limit only when a full classification list is explicitly needed."
         if task_truncated:
             caveat += " Task lookup was truncated, so missing-follow-up flags may be incomplete."
         if task_lookup_skipped:

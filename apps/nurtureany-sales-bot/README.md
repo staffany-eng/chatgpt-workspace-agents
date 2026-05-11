@@ -35,14 +35,14 @@ When NurtureAny is asked what sources it is using, it must answer with this fiel
 - Target accounts: HubSpot company `hs_is_target_account`.
 - Owner scope: HubSpot owners API plus HubSpot company `hubspot_owner_id`.
 - Region scope: HubSpot company `company_country`.
-- Renewal timing and T-90 windows: HubSpot company `contract_end_date`.
+- Renewal timing and T-90 windows: HubSpot company `contract_end_date`; explicit date-window requests must pass `start_date` and `end_date`.
 - Current tools: HubSpot company `current_tools`.
 - Verified decision-maker coverage: HubSpot company `hs_num_decision_makers` or contact `hs_buying_role=DECISION_MAKER`; buying-role contact count is hygiene context only.
 - Follow-up signal: HubSpot WhatsApp `communications`, notes, completed tasks, and existing incomplete HubSpot tasks associated to scoped companies, contacts, or deals. Event follow-up uses Luma attendance to find matched scoped accounts, with the Indonesia Rev LL/HHH Google Sheet `Attend The Event` column as a manual attendance fallback when Luma check-in is empty or not used, then verifies event-specific Eazybe WhatsApp logs in HubSpot.
 
 `current_tool_renewal_date`, C360, Google Places, Google Calendar, Luma, the Indonesia event registration Sheet fallback, Exa, Lusha, Slack, and public evidence are context/enrichment only unless a specific workflow says otherwise. For near-me answers, C360 is the current-customer coverage layer, BigQuery `nurtureany_near_me_outlet_matches` is the curated outlet/account memory layer, and Google Places is live discovery only.
 
-T-90 renewal answers must show both buckets: known T-90 accounts where `contract_end_date` is inside the window, and scoped target accounts missing `contract_end_date` for classification.
+T-90 renewal answers must show both buckets: known T-90 accounts where `contract_end_date` is inside the requested window, and scoped target accounts missing `contract_end_date` for classification. If no window is requested, use today through today plus 90 days.
 
 ## Packet Contents
 
@@ -92,7 +92,7 @@ Slack user email is identity only. Access is granted by explicit NurtureAny poli
 | Overall admin alias | `kai.yi@staffany.com` | Singapore, Malaysia, Indonesia |
 | Overall admin alias | `leekai.yi@staffany.com` | Singapore, Malaysia, Indonesia |
 | SG/MY manager | `kerren.fong@staffany.com` | Singapore, Malaysia team view only |
-| Indonesia manager | `sarah@staffany.com` | Indonesia team view only |
+| Indonesia manager | `sarah@staffany.com`, `sarah.ayutania@staffany.com` | Indonesia team view only |
 | AE | Explicit `sales_reps` policy entry | Own HubSpot target accounts only |
 
 The full rep roster is runtime-only through `NURTUREANY_ACCESS_POLICY_PATH`; `runtime/access-policy.template.json` contains fake example reps only. Known Slack or Google email variants must be declared with `alias_for` or top-level `aliases`, then canonicalized before role lookup. Permissions are not inferred from Slack titles, channel membership, display names, or a bare HubSpot owner lookup.

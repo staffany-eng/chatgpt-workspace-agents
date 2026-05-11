@@ -59,6 +59,9 @@ nurtureany:
       - email: "sarah@staffany.com"
         countries:
           - "Indonesia"
+      - email: "sarah.ayutania@staffany.com"
+        countries:
+          - "Indonesia"
     sales_reps:
       - slack_email: "example.sg.rep@example.invalid"
         hubspot_owner_email: "example.sg.owner@example.invalid"

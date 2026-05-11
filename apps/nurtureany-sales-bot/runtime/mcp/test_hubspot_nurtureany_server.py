@@ -116,6 +116,14 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
             self.assertIn(scope["requested_email"], {"kai.yi@staffany.com", "leekai.yi@staffany.com"})
             self.assertEqual(scope["countries"], self.module.SUPPORTED_COUNTRIES)
 
+    def test_sarah_ayutania_slack_email_is_indonesia_manager(self):
+        with patch.dict(os.environ, {self.module.ACCESS_POLICY_ENV_VAR: ""}):
+            scope = self.module._caller_scope("sarah.ayutania@staffany.com")
+
+        self.assertEqual(scope["kind"], "manager")
+        self.assertEqual(scope["email"], "sarah.ayutania@staffany.com")
+        self.assertEqual(scope["countries"], ("Indonesia",))
+
     def test_runtime_policy_alias_canonicalizes_admin_email(self):
         policy = {"aliases": [{"email": "kaiy@staffany.com", "alias_for": "kaiyi@staffany.com"}]}
         with tempfile.NamedTemporaryFile("w", delete=False) as handle:
@@ -2613,6 +2621,62 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         self.assertEqual(result["renewing_account_count"], 1)
         self.assertEqual(result["missing_renewal_date_account_count"], 0)
 
+    def test_find_t90_renewal_gaps_accepts_explicit_date_window(self):
+        company = {
+            "id": "123",
+            "properties": {
+                "name": "Noci Bakehouse",
+                "hs_is_target_account": "true",
+                "company_country": "Indonesia",
+                "hubspot_owner_id": "owner-sarah",
+                "contract_end_date": "2026-08-31",
+                "current_tools": "Talenta",
+                "hs_num_decision_makers": "1",
+                "hs_num_contacts_with_buying_roles": "1",
+            },
+        }
+        windows = []
+
+        def fake_renewal_window(countries, owner_id, start_date, end_date, limit):
+            windows.append((countries, owner_id, start_date.isoformat(), end_date.isoformat(), limit))
+            return {
+                "results": [company],
+                "total": 1,
+                "requested_limit": limit,
+                "returned_count": 1,
+                "has_more": False,
+                "truncated": False,
+            }
+
+        with patch.object(
+            self.module,
+            "_caller_scope",
+            return_value={"kind": "manager", "email": "sarah.ayutania@staffany.com", "countries": ("Indonesia",), "owner_id": None},
+        ), patch.object(self.module, "_company_search_by_renewal_window", side_effect=fake_renewal_window), patch.object(
+            self.module,
+            "_company_search_missing_renewal_dates",
+            return_value={"results": [], "total": 0, "requested_limit": 250, "returned_count": 0, "has_more": False, "truncated": False},
+        ), patch.object(self.module, "_sales_followup_task_index_for_companies") as task_index, patch.object(
+            self.module, "_batch_association_ids", return_value={"123": []}
+        ), patch.object(self.module, "_safe_contact_index", return_value={"123": []}), patch.object(
+            self.module, "_owner_email_by_id", return_value="sarah.ayutania@staffany.com"
+        ), patch.object(
+            self.module, "_owner_name_by_id", return_value="Sarah Ayutania"
+        ):
+            result = self.module.find_t90_renewal_gaps(
+                "sarah.ayutania@staffany.com",
+                countries=["Indonesia"],
+                start_date="2026-06-01",
+                end_date="2026-08-31",
+            )
+
+        task_index.assert_not_called()
+        self.assertEqual(windows, [(["Indonesia"], None, "2026-06-01", "2026-08-31", self.module.HUBSPOT_SEARCH_TOTAL_LIMIT)])
+        self.assertEqual(result["scope"]["renewal_window_start"], "2026-06-01")
+        self.assertEqual(result["scope"]["renewal_window_end"], "2026-08-31")
+        self.assertEqual(result["answer"]["known_t90_contract_end_date_accounts"][0]["contract_end_date"], "2026-08-31")
+        self.assertEqual(result["answer"]["counts"]["missing_contract_end_date_requested_limit"], 250)
+
     def test_find_t90_renewal_gaps_excludes_current_tool_date_when_contract_date_outside_window(self):
         today = self.module.datetime.now(self.module.timezone.utc).date()
         renewal = today + self.module.timedelta(days=45)
@@ -2790,16 +2854,16 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
             )
 
         self.assertEqual(result["requested_limit"], 1)
-        self.assertEqual(missing_limits, [self.module.HUBSPOT_SEARCH_TOTAL_LIMIT])
+        self.assertEqual(missing_limits, [self.module.T90_MISSING_CONTRACT_END_DATE_DEFAULT_LIMIT])
         self.assertEqual(
             result["missing_contract_end_date_metadata"]["requested_limit"],
-            self.module.HUBSPOT_SEARCH_TOTAL_LIMIT,
+            self.module.T90_MISSING_CONTRACT_END_DATE_DEFAULT_LIMIT,
         )
         self.assertEqual(result["missing_contract_end_date_account_count"], 2)
         self.assertTrue(result["missing_contract_end_date_account_list_complete"])
         self.assertEqual(
             result["answer"]["counts"]["missing_contract_end_date_requested_limit"],
-            self.module.HUBSPOT_SEARCH_TOTAL_LIMIT,
+            self.module.T90_MISSING_CONTRACT_END_DATE_DEFAULT_LIMIT,
         )
 
     def test_review_public_evidence_dedupes_candidates_and_omits_phone(self):
