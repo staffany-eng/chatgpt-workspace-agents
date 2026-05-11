@@ -186,6 +186,156 @@ if [ -e "$drive_token" ]; then
   [ "$perms" = "600" ] || fail "google-drive:token-permissions-not-600"
 fi
 
+slack_allowlist_out="$tmp_dir/slack-allowlist.out"
+if ! "$hermes_python" - "$config_path" "$profile_dir" "$HERMES_AGENT_DIR" >"$slack_allowlist_out" 2>&1 <<'PY'
+import json
+import os
+import sys
+import time
+import urllib.parse
+import urllib.request
+
+config_path, profile_dir, hermes_agent_dir = sys.argv[1:4]
+sys.path.insert(0, hermes_agent_dir)
+
+try:
+    import yaml
+except Exception:
+    print("dependency:yaml-not-available")
+    raise SystemExit(1)
+
+
+def read_profile_env(profile_dir: str) -> dict[str, str]:
+    env_path = os.path.join(profile_dir, ".env")
+    values: dict[str, str] = {}
+    if not os.path.exists(env_path):
+        return values
+    with open(env_path, "r", encoding="utf-8") as handle:
+        for raw_line in handle:
+            line = raw_line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            key = key.strip()
+            value = value.strip()
+            if (value.startswith('"') and value.endswith('"')) or (value.startswith("'") and value.endswith("'")):
+                value = value[1:-1]
+            values[key] = value
+    return values
+
+
+def entry_email(entry):
+    if isinstance(entry, str):
+        return entry.strip().lower()
+    if isinstance(entry, dict):
+        return str(entry.get("email") or entry.get("slack_email") or "").strip().lower()
+    return ""
+
+
+def disabled_emails(raw_policy: dict) -> set[str]:
+    disabled: set[str] = set()
+    for key in ("disabled", "unclassified"):
+        for entry in raw_policy.get(key, []):
+            email = entry_email(entry)
+            if not email and isinstance(entry, dict):
+                email = str(entry.get("hubspot_owner_email") or "").strip().lower()
+            if email:
+                disabled.add(email)
+    return disabled
+
+
+with open(config_path, "r", encoding="utf-8") as handle:
+    config = yaml.safe_load(handle) or {}
+
+profile_env = read_profile_env(profile_dir)
+slack_token = os.environ.get("SLACK_BOT_TOKEN") or profile_env.get("SLACK_BOT_TOKEN") or ""
+allowed_users_raw = os.environ.get("SLACK_ALLOWED_USERS") or profile_env.get("SLACK_ALLOWED_USERS") or ""
+if not slack_token:
+    print("slack-allowlist:bot-token-missing")
+    raise SystemExit(1)
+if not allowed_users_raw:
+    print("slack-allowlist:allowed-users-missing")
+    raise SystemExit(1)
+
+servers = config.get("mcp_servers") or {}
+hubspot_env = ((servers.get("hubspot_nurtureany") or {}).get("env") or {})
+policy_path = (
+    os.environ.get("NURTUREANY_ACCESS_POLICY_PATH")
+    or profile_env.get("NURTUREANY_ACCESS_POLICY_PATH")
+    or hubspot_env.get("NURTUREANY_ACCESS_POLICY_PATH")
+    or ""
+)
+if not policy_path:
+    print("slack-allowlist:access-policy-path-missing")
+    raise SystemExit(1)
+if not os.path.exists(policy_path):
+    print("slack-allowlist:access-policy-not-found")
+    raise SystemExit(1)
+
+with open(policy_path, "r", encoding="utf-8") as handle:
+    raw_policy = json.load(handle)
+
+disabled = disabled_emails(raw_policy)
+policy_emails: list[str] = []
+for entry in raw_policy.get("admins", []):
+    email = entry_email(entry)
+    if email and email not in disabled:
+        policy_emails.append(email)
+for entry in raw_policy.get("managers", []):
+    email = entry_email(entry)
+    if email and email not in disabled:
+        policy_emails.append(email)
+for entry in raw_policy.get("sales_reps", []):
+    if not isinstance(entry, dict) or entry.get("active") is False:
+        continue
+    slack_email = str(entry.get("slack_email") or entry.get("email") or "").strip().lower()
+    owner_email = str(entry.get("hubspot_owner_email") or "").strip().lower()
+    if slack_email and slack_email not in disabled and owner_email not in disabled:
+        policy_emails.append(slack_email)
+
+allowed_ids = {value.strip() for value in allowed_users_raw.split(",") if value.strip()}
+if not allowed_ids:
+    print("slack-allowlist:allowed-users-empty")
+    raise SystemExit(1)
+
+resolved_ids: set[str] = set()
+for email in sorted(set(policy_emails)):
+    url = "https://slack.com/api/users.lookupByEmail?" + urllib.parse.urlencode({"email": email})
+    request = urllib.request.Request(url, headers={"Authorization": f"Bearer {slack_token}"})
+    try:
+        with urllib.request.urlopen(request, timeout=20) as response:
+            data = json.loads(response.read().decode("utf-8"))
+    except Exception:
+        print("slack-allowlist:user-lookup-failed")
+        raise SystemExit(1)
+    if not data.get("ok"):
+        if data.get("error") == "users_not_found":
+            continue
+        print("slack-allowlist:user-lookup-error")
+        raise SystemExit(1)
+    user = data.get("user") or {}
+    if user.get("deleted") or user.get("is_bot"):
+        continue
+    user_id = str(user.get("id") or "").strip()
+    if user_id:
+        resolved_ids.add(user_id)
+    time.sleep(0.05)
+
+if not resolved_ids:
+    print("slack-allowlist:no-resolved-policy-users")
+    raise SystemExit(1)
+
+if resolved_ids - allowed_ids:
+    print("slack-allowlist:missing-policy-users")
+    raise SystemExit(1)
+if allowed_ids - resolved_ids:
+    print("slack-allowlist:extra-users")
+    raise SystemExit(1)
+PY
+then
+  fail "$(cat "$slack_allowlist_out")"
+fi
+
 if [ "$EXPECT_GATEWAY" = "1" ]; then
   gateway_out="$tmp_dir/gateway.out"
   hermes -p "$PROFILE" gateway status >"$gateway_out" 2>&1 || fail "gateway:status-failed"

@@ -1184,6 +1184,8 @@ for (const text of [
   "terminal:cwd-points-at-codex-worktree",
   "mcp:near_me_nurtureany:missing-google-places-env",
   "google-drive:token-permissions-not-600",
+  "slack-allowlist:missing-policy-users",
+  "slack-allowlist:extra-users",
   "mcp_test near_me_nurtureany"
 ]) {
   if (!healthScriptText.includes(text)) fail(`runtime/check-health.sh missing required text: ${text}`);

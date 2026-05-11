@@ -8,6 +8,7 @@ NurtureAny needs deterministic runtime checks because prompt correctness does no
 - Secret redaction remains enabled.
 - Model route is pinned to native Anthropic Sonnet: `model.provider=anthropic`, `model.default=claude-sonnet-4-6`.
 - Slack gateway can receive mentions and identify caller email.
+- Slack gateway `SLACK_ALLOWED_USERS` matches the active, resolved Slack users from `NURTUREANY_ACCESS_POLICY_PATH`; policy aliases that do not resolve in Slack are ignored, but missing or extra resolved user IDs fail health.
 - `NURTUREANY_ACCESS_POLICY_PATH` points to a runtime-only policy file when sales reps are enabled; the source template has fake example reps only.
 - HubSpot owner lookup works for configured admins/managers and classified sales reps.
 - HubSpot MCP lists `audit_hubspot_owner_roster`, and non-admin roster audit requests return `Confidence: blocked`.
