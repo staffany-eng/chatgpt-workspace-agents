@@ -125,7 +125,6 @@ expected_servers = {
         "list_sales_followup_tasks",
         "check_account_followup_status",
         "check_event_followup_status",
-        "find_target_accounts_by_luma_match_keys",
         "score_nurture_accounts",
         "find_contact_gaps",
         "find_t90_renewal_gaps",

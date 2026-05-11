@@ -793,7 +793,10 @@ const combinedRegressionText = `${textOf("skills/nurtureany-sales-bot/references
 for (const text of [
   "Inbound Routing Quality",
   "lead source",
+  "checked/not-checked",
+  "QO / closed-won attribution was not checked in this run",
   "AI/Data Readiness Guardrail",
+  "Campaign Social Effectiveness Style",
   "Event Attribution Guardrail",
   "Mutation Disabled In V1",
   "create_hubspot_task",

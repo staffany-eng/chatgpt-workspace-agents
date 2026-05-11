@@ -717,11 +717,14 @@ Prompt:
 Expected behavior:
 
 - First Slack response is plan-only.
+- First Slack response explicitly names `list_marketing_campaigns`, `get_campaign_assets`, and `get_marketing_campaign_attribution` in the plan.
+- First Slack response does not call HubSpot, C360, BigQuery, or any other data-source tool before `run`.
 - After `run`, calls `list_marketing_campaigns`, `get_campaign_assets`, and `get_marketing_campaign_attribution`.
 - Searches HubSpot campaign/source fields such as `utm_campaign`, conversion-event names, and analytics source data before saying whether scoped contacts or companies were attributed.
 - Counts QO, QO Met, or closed-won only through configured HubSpot pipeline/stage IDs.
 - Does not use generic `build_sales_metric_actuals_query` QO totals as campaign attribution.
 - Does not claim zero contacts, zero companies, or zero deals unless the attribution search ran and returned no scoped matches.
+- Surfaces QO, QO Met, and closed-won counts from `get_marketing_campaign_attribution` before detailed contact/company samples so large result truncation cannot hide outcome counts.
 - Marks attribution as `needs-check` when form metrics are unavailable, source-field search is truncated, or stage config is missing.
 
 ### AI/Data Readiness Guardrail

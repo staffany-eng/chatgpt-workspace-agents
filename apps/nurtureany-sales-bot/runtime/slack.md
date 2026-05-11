@@ -21,6 +21,9 @@ NurtureAny's first runtime surface is Slack mention usage in sales pilot channel
 - Exa People Search requests must show the estimated dollar-cost scope before execution and include `cost_report` after execution.
 - Campaign-effectiveness questions such as `did the Salary Benchmark campaign lead to QO or closed-won` must plan for HubSpot campaign lookup, campaign assets, `get_marketing_campaign_attribution`, and configured HubSpot deal-stage checks. Do not answer from campaign metadata alone, and do not use generic QO totals as campaign attribution.
 - Direct QO count or pace requests such as `what's my QO this month` should plan HubSpot owner/team scope plus C360 BigQuery actuals via `build_sales_metric_actuals_query`; they are not Friday review prompts unless the user asks for Friday, tactical-pause, hygiene, or coaching context.
+- Campaign-effectiveness questions that ask whether a campaign led to QO, QO Met, closed-won, pipeline, or revenue must plan by name for `list_marketing_campaigns`, `get_campaign_assets`, and `get_marketing_campaign_attribution`. On the first Slack mention, this is plan-only: do not call HubSpot, C360, BigQuery, or any other data-source tool before `run`. Do not answer from campaign metadata, social metrics, or generic QO totals.
+- After `get_marketing_campaign_attribution`, read `answer.outcome_summary` first. Report QO, QO Met, and closed-won counts from that summary before any detailed contact/company samples; if the result is `needs-check`, still show the visible counts as partial instead of saying deal outcomes were not read.
+- Campaign/social answers must use checked/not-checked wording. A social-only run must include the exact sentence "QO / closed-won attribution was not checked in this run", not say that no QO/conversion evidence exists.
 - Friday review requests should plan HubSpot hygiene first with `build_friday_sales_review`, then run returned `warehouse_metric_followups` through `staffany_bigquery.execute_sql_readonly` when QO actuals are needed.
 - Luma guest or attendance requests must check HubSpot scope first, then return bounded RSVP/attendance context without raw attendee exports.
 - Post-event follow-up requests must use `check_event_followup_status` when the event is named or needs Luma resolution, then use HubSpot/Eazybe event-specific WhatsApp communications, notes, and tasks for status. Generic post-event WhatsApp is `needs_check`, not clean follow-up.
@@ -92,9 +95,20 @@ Estimate: <1-2 min | 3-5 min | may exceed 5 min>
 Caveat: <material limitation>
 Reply "run" to start, or tell me what to change.
 
+Campaign-effectiveness preflight plain Slack text for QO / closed-won questions:
+
+Interpreted question: <campaign effectiveness question>
+Plan: I will check list_marketing_campaigns to find the HubSpot campaign, get_campaign_assets to inspect campaign assets, and get_marketing_campaign_attribution to search source-field touched contacts/companies plus configured QO/QO Met/closed-won deal-stage outcomes, using <owner/team/country filters>.
+Estimate: 2-3 min
+Caveat: Campaign metadata and assets do not prove QO or closed-won attribution; deal outcomes are verified only when HubSpot stage IDs are configured.
+Reply "run" to start, or tell me what to change.
+
 Final plain Slack text:
 
 Answer: <result or blocked reason>
+Checked: <specific source/tool class actually checked, when marketing/social attribution can be confused>
+Not checked: <expected outcome classes not verified in this run, when relevant>
+Next check: <separate attribution/QO check, when relevant>
 Source: <HubSpot/C360/Google Calendar/Luma/tool used>
 Scope: <owner/team/country/time filters>
 Confidence: <verified | needs-check | blocked>

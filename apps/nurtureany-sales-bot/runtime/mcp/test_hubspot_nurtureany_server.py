@@ -1282,6 +1282,112 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         self.assertEqual(result["confidence"], "blocked")
         self.assertIn("outside caller scope", result["answer"])
 
+    def test_check_account_followup_status_batches_activity_lookup(self):
+        companies = {
+            "123": {
+                "id": "123",
+                "properties": {
+                    "name": "Noci Bakehouse",
+                    "hs_is_target_account": "true",
+                    "company_country": "Singapore",
+                    "hubspot_owner_id": "owner-sales",
+                },
+            },
+            "456": {
+                "id": "456",
+                "properties": {
+                    "name": "Bali Buda",
+                    "hs_is_target_account": "true",
+                    "company_country": "Indonesia",
+                    "hubspot_owner_id": "owner-sales",
+                },
+            },
+        }
+        association_calls: list[tuple[str, str, tuple[str, ...]]] = []
+
+        def fake_assert_company_access(company_id, scope):
+            return companies[str(company_id)]
+
+        def fake_batch_association_ids(from_type, to_type, ids):
+            id_tuple = tuple(str(item) for item in ids)
+            association_calls.append((from_type, to_type, id_tuple))
+            if (from_type, to_type) == ("companies", "contacts"):
+                return {"123": ["contact-1"], "456": []}
+            if (from_type, to_type) == ("companies", "deals"):
+                return {"123": [], "456": ["deal-2"]}
+            if to_type == "communications":
+                if from_type == "companies":
+                    return {"123": ["comm-company"], "456": []}
+                if from_type == "contacts":
+                    return {"contact-1": ["comm-contact"]}
+                if from_type == "deals":
+                    return {"deal-2": []}
+            if to_type == "tasks":
+                if from_type == "companies":
+                    return {"123": [], "456": []}
+                if from_type == "contacts":
+                    return {"contact-1": []}
+                if from_type == "deals":
+                    return {"deal-2": ["task-deal"]}
+            return {str(item): [] for item in ids}
+
+        def fake_batch_read(object_type, ids, properties):
+            self.assertNotIn("hs_communication_body", properties)
+            self.assertNotIn("hs_note_body", properties)
+            if object_type == "communications":
+                return [
+                    {
+                        "id": activity_id,
+                        "properties": {
+                            "hs_timestamp": "2026-05-10T10:00:00Z",
+                            "hubspot_owner_id": "owner-sales",
+                            "hs_communication_channel_type": "WHATS_APP",
+                            "hs_communication_body": "raw WhatsApp body must never appear",
+                            "phone": "+6512345678",
+                        },
+                    }
+                    for activity_id in ids
+                ]
+            if object_type == "tasks":
+                return [
+                    {
+                        "id": "task-deal",
+                        "properties": {
+                            "hs_timestamp": "2026-05-12T10:00:00Z",
+                            "hubspot_owner_id": "owner-sales",
+                            "hs_task_status": "NOT_STARTED",
+                            "hs_task_body": "raw task body must never appear",
+                        },
+                    }
+                ]
+            return []
+
+        with patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
+            self.module, "_assert_company_access", side_effect=fake_assert_company_access
+        ), patch.object(self.module, "_batch_association_ids", side_effect=fake_batch_association_ids), patch.object(
+            self.module, "_batch_read", side_effect=fake_batch_read
+        ), patch.object(
+            self.module, "_collect_activity_associations", side_effect=AssertionError("must batch activity lookup")
+        ), patch.object(self.module, "_association_ids", side_effect=AssertionError("must batch company associations")):
+            result = self.module.check_account_followup_status(
+                "kerren.fong@staffany.com",
+                ["123", "456"],
+                "2026-05-10T09:00:00Z",
+            )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["returned_count"], 2)
+        by_id = {row["company_id"]: row for row in result["answer"]}
+        self.assertEqual(by_id["123"]["followup_status"], "followed_up")
+        self.assertEqual(by_id["123"]["activity_counts"]["whatsapp_communications"], 2)
+        self.assertEqual(by_id["456"]["followup_status"], "scheduled")
+        self.assertEqual(by_id["456"]["activity_counts"]["open_tasks"], 1)
+        self.assertIn(("companies", "contacts", ("123", "456")), association_calls)
+        self.assertIn(("companies", "communications", ("123", "456")), association_calls)
+        self.assertNotIn("raw WhatsApp body", json.dumps(result))
+        self.assertNotIn("raw task body", json.dumps(result))
+        self.assertNotIn("+6512345678", json.dumps(result))
+
     def test_event_followup_status_uses_checked_in_luma_and_event_specific_whatsapp(self):
         company = {
             "id": "company-1",
@@ -2157,50 +2263,37 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
     def test_find_target_accounts_by_luma_match_keys_is_event_first(self):
         calls = []
 
-        def fake_company_search(filters, limit=5):
+        def fake_company_search(filters, limit=5, after=None, maximum=None, sorts=None, query=None):
             calls.append(filters)
-            key_filter = filters[-1]
-            if key_filter["propertyName"] == "domain":
-                return {
-                    "results": [
-                        {
-                            "id": "company-domain",
-                            "properties": {
-                                "name": "Noci Bakehouse",
-                                "domain": "noci.example",
-                                "hs_is_target_account": "true",
-                                "company_country": "Singapore",
-                                "hubspot_owner_id": "owner-sales",
-                            },
-                        }
-                    ],
-                    "total": 1,
-                    "requested_limit": limit,
-                    "returned_count": 1,
-                    "has_more": False,
-                    "truncated": False,
-                }
-            if key_filter["propertyName"] == "name":
-                return {
-                    "results": [
-                        {
-                            "id": "company-name",
-                            "properties": {
-                                "name": "Bali Beans",
-                                "domain": "balibeans.example",
-                                "hs_is_target_account": "true",
-                                "company_country": "Singapore",
-                                "hubspot_owner_id": "owner-sales",
-                            },
-                        }
-                    ],
-                    "total": 1,
-                    "requested_limit": limit,
-                    "returned_count": 1,
-                    "has_more": False,
-                    "truncated": False,
-                }
-            raise AssertionError(filters)
+            return {
+                "results": [
+                    {
+                        "id": "company-domain",
+                        "properties": {
+                            "name": "Noci Bakehouse",
+                            "domain": "noci.example",
+                            "hs_is_target_account": "true",
+                            "company_country": "Singapore",
+                            "hubspot_owner_id": "owner-sales",
+                        },
+                    },
+                    {
+                        "id": "company-name",
+                        "properties": {
+                            "name": "Bali Beans",
+                            "domain": "balibeans.example",
+                            "hs_is_target_account": "true",
+                            "company_country": "Singapore",
+                            "hubspot_owner_id": "owner-sales",
+                        },
+                    },
+                ],
+                "total": 2,
+                "requested_limit": limit,
+                "returned_count": 2,
+                "has_more": False,
+                "truncated": False,
+            }
 
         with patch.object(self.module, "_caller_scope", return_value={**SCOPE, "kind": "admin", "email": "kaiyi@staffany.com"}), patch.object(
             self.module, "_company_search", side_effect=fake_company_search
@@ -2224,8 +2317,10 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         self.assertLess(len(payload), 8_000)
         self.assertIn({"propertyName": "hs_is_target_account", "operator": "EQ", "value": "true"}, calls[0])
         self.assertIn({"propertyName": "company_country", "operator": "IN", "values": ["Singapore"]}, calls[0])
-        self.assertEqual(calls[0][-1], {"propertyName": "domain", "operator": "EQ", "value": "noci.example"})
-        self.assertEqual(calls[1][-1], {"propertyName": "name", "operator": "CONTAINS_TOKEN", "value": "Bali Beans"})
+        self.assertEqual(len(calls), 1)
+        self.assertNotIn({"propertyName": "domain", "operator": "EQ", "value": "noci.example"}, calls[0])
+        self.assertNotIn({"propertyName": "name", "operator": "CONTAINS_TOKEN", "value": "Bali Beans"}, calls[0])
+        self.assertEqual(result["scope"]["scanned_target_account_count"], 2)
         self.assertIn("No raw Luma attendees", result["caveat"])
 
     def test_score_uses_sales_followup_task_signals(self):
@@ -3191,6 +3286,105 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         self.assertIn("Podcast episodes", result["caveat"])
         self.assertEqual(result["answer"]["assets_by_type"]["PODCAST_EPISODE"]["assets"][0]["asset_id"], "episode-1")
 
+    def test_marketing_campaign_attribution_keeps_outcome_summary_when_contact_search_truncated(self):
+        campaign = {"id": "campaign-1", "properties": {"hs_name": "Salary Benchmark", "hs_utm": "salary-benchmark"}}
+        contacts = [
+            {
+                "id": f"contact-{index}",
+                "properties": {
+                    "email": f"buyer{index}@account{index}.example",
+                    "recent_conversion_event_name": "Salary Benchmark",
+                },
+            }
+            for index in range(20)
+        ]
+
+        companies = [
+            {
+                "id": f"company-{index}",
+                "properties": {
+                    "name": f"Account {index}",
+                    "domain": f"account{index}.example",
+                    "company_country": "Singapore",
+                    "hs_is_target_account": "true",
+                },
+            }
+            for index in range(20)
+        ]
+
+        def fake_batch_association_ids(object_type, target_type, ids):
+            if object_type == "contacts" and target_type == "companies":
+                return {contact_id: [f"company-{contact_id.rsplit('-', 1)[-1]}"] for contact_id in ids}
+            if object_type == "companies" and target_type == "deals":
+                return {
+                    company_id: {
+                        "company-0": ["deal-qo"],
+                        "company-1": ["deal-qo-met"],
+                        "company-2": ["deal-closed-won"],
+                    }.get(company_id, [])
+                    for company_id in ids
+                }
+            raise AssertionError(f"Unexpected association read: {object_type} -> {target_type}")
+
+        def fake_batch_read(object_type, ids, properties):
+            if object_type == "companies":
+                company_by_id = {company["id"]: company for company in companies}
+                return [company_by_id[company_id] for company_id in ids if company_id in company_by_id]
+            if object_type == "deals":
+                deal_by_id = {
+                    "deal-qo": {"id": "deal-qo", "properties": {"pipeline": "sales", "dealstage": "stage-qo", "dealname": "QO"}},
+                    "deal-qo-met": {"id": "deal-qo-met", "properties": {"pipeline": "sales", "dealstage": "stage-qo-met", "dealname": "QO Met"}},
+                    "deal-closed-won": {"id": "deal-closed-won", "properties": {"pipeline": "sales", "dealstage": "stage-cw", "dealname": "Won"}},
+                }
+                return [deal_by_id[deal_id] for deal_id in ids if deal_id in deal_by_id]
+            raise AssertionError(f"Unexpected batch read: {object_type}")
+
+        stage_config = {
+            "pipeline_ids": ["sales"],
+            "qo_stage_ids": ["stage-qo"],
+            "qo_met_stage_ids": ["stage-qo-met"],
+            "closed_won_stage_ids": ["stage-cw"],
+            "configured": True,
+            "missing": [],
+        }
+        contact_data = {
+            "results": contacts,
+            "searched_properties": ["recent_conversion_event_name"],
+            "search_run_count": 1,
+            "errors": [],
+            "requested_limit": 100,
+            "returned_count": 20,
+            "has_more": True,
+            "truncated": True,
+        }
+
+        with patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
+            self.module, "_marketing_campaign_search", return_value={"results": [campaign], "truncated": False}
+        ), patch.object(
+            self.module,
+            "_campaign_assets",
+            return_value={"asset_types": [], "assets_by_type": {}, "requested_limit": 100, "has_more": False, "truncated": False},
+        ), patch.object(
+            self.module, "_marketing_contact_campaign_search", return_value=contact_data
+        ), patch.object(
+            self.module, "_batch_association_ids", side_effect=fake_batch_association_ids
+        ), patch.object(
+            self.module, "_batch_read", side_effect=fake_batch_read
+        ), patch.object(
+            self.module, "_friday_review_stage_config", return_value=stage_config
+        ):
+            result = self.module.get_marketing_campaign_attribution("kerren.fong@staffany.com", campaign_name="Salary Benchmark")
+
+        summary = result["answer"]["outcome_summary"]
+        self.assertEqual(result["confidence"], "needs-check")
+        self.assertEqual(summary["deal_stage_counts"]["qos"], 1)
+        self.assertEqual(summary["deal_stage_counts"]["qo_met"], 1)
+        self.assertEqual(summary["deal_stage_counts"]["closed_won"], 1)
+        self.assertEqual(summary["matched_contact_count"], 20)
+        self.assertEqual(len(result["answer"]["matched_contact_samples"]), self.module.MARKETING_ATTRIBUTION_DETAIL_RETURN_LIMIT)
+        self.assertNotIn("matched_contacts", result["answer"])
+        self.assertIn("contact_source_search_truncated", summary["truncation_reasons"])
+
     def test_get_marketing_touch_context_combines_scoped_sources_without_mutation(self):
         contact = {
             "id": "contact-1",
@@ -3290,6 +3484,20 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
             "required_env": [],
         }
 
+        def fake_batch_association_ids(from_type, to_type, ids):
+            if from_type == "contacts" and to_type == "companies":
+                return {"contact-1": ["company-1"]}
+            if from_type == "companies" and to_type == "deals":
+                return {"company-1": ["deal-1", "deal-2"]}
+            return {}
+
+        def fake_batch_read(object_type, ids, properties):
+            if object_type == "companies":
+                return [company]
+            if object_type == "deals":
+                return deals
+            return []
+
         with patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
             self.module, "_get_campaign", return_value=campaign
         ), patch.object(self.module, "_campaign_assets", return_value=asset_data), patch.object(
@@ -3314,7 +3522,9 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
             self.module,
             "_association_ids_with_metadata",
             return_value={"ids": ["deal-1", "deal-2"], "has_more": False, "truncated": False, "requested_limit": 100},
-        ), patch.object(self.module, "_batch_read", return_value=deals), patch.object(
+        ), patch.object(self.module, "_batch_association_ids", side_effect=fake_batch_association_ids), patch.object(
+            self.module, "_batch_read", side_effect=fake_batch_read
+        ), patch.object(
             self.module, "_friday_review_stage_config", return_value=stage_config
         ):
             result = self.module.get_marketing_campaign_attribution(
@@ -3365,6 +3575,20 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
             "required_env": [self.module.QO_PIPELINE_IDS_ENV_VAR],
         }
 
+        def fake_batch_association_ids(from_type, to_type, ids):
+            if from_type == "contacts" and to_type == "companies":
+                return {"contact-1": ["company-1"]}
+            if from_type == "companies" and to_type == "deals":
+                return {"company-1": ["deal-1"]}
+            return {}
+
+        def fake_batch_read(object_type, ids, properties):
+            if object_type == "companies":
+                return [company]
+            if object_type == "deals":
+                return [{"id": "deal-1", "properties": {"dealname": "Noci QO", "pipeline": "pipe-1", "dealstage": "qo"}}]
+            return []
+
         with patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
             self.module, "_get_campaign", return_value=campaign
         ), patch.object(
@@ -3394,9 +3618,9 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
             "_association_ids_with_metadata",
             return_value={"ids": ["deal-1"], "has_more": False, "truncated": False, "requested_limit": 100},
         ), patch.object(
-            self.module,
-            "_batch_read",
-            return_value=[{"id": "deal-1", "properties": {"dealname": "Noci QO", "pipeline": "pipe-1", "dealstage": "qo"}}],
+            self.module, "_batch_association_ids", side_effect=fake_batch_association_ids
+        ), patch.object(
+            self.module, "_batch_read", side_effect=fake_batch_read
         ), patch.object(self.module, "_friday_review_stage_config", return_value=stage_config):
             result = self.module.get_marketing_campaign_attribution("kerren.fong@staffany.com", campaign_id="campaign-1")
 

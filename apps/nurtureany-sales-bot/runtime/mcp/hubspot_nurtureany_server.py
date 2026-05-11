@@ -275,6 +275,22 @@ TASK_RETURN_LIMIT = 100
 LUMA_MATCH_DOMAIN_LIMIT = 100
 LUMA_MATCH_NAME_LIMIT = 100
 LUMA_MATCH_RETURN_LIMIT = 75
+LUMA_MATCH_SCAN_LIMIT = 1500
+LUMA_MATCH_CANDIDATE_FIELDS = (
+    "company_id",
+    "hubspot_scoped",
+    "scope_source",
+    "name",
+    "domain",
+    "country",
+    "owner_id",
+    "owner_email",
+    "owner_name",
+    "luma_match_reasons",
+    "luma_match_key_kinds",
+    "luma_match_key_count",
+    "luma_match_confidence",
+)
 TASK_SEARCH_RESULT_LIMIT = 300
 TASK_SEARCH_AIRTIGHT_RESULT_LIMIT = 10_000
 FOLLOWUP_ASSOCIATION_LIMIT = 100
@@ -286,6 +302,7 @@ CAMPAIGN_ASSET_RETURN_LIMIT = 100
 CAMPAIGN_SOCIAL_ASSET_RETURN_LIMIT = 1000
 SOCIAL_TOP_POST_RETURN_LIMIT = 10
 MARKETING_ATTRIBUTION_RETURN_LIMIT = 100
+MARKETING_ATTRIBUTION_DETAIL_RETURN_LIMIT = 15
 MARKETING_ATTRIBUTION_TERM_LIMIT = 10
 MESSAGE_TEXT_LIMIT = 4000
 PRIORITY_ACCOUNT_RETURN_LIMIT = 1000
@@ -1381,7 +1398,7 @@ def _add_luma_candidate(
     match_key: str,
     confidence: str,
 ) -> None:
-    company_id = str(company.get("id") or "")
+    company_id = str(company.get("id") or company.get("company_id") or "")
     if not company_id:
         return
     summary = candidates.setdefault(company_id, _summarize_luma_candidate_company(company))
@@ -1396,22 +1413,78 @@ def _add_luma_candidate(
         summary["luma_match_confidence"] = "needs-check"
     else:
         summary.setdefault("luma_match_confidence", "verified")
+    candidates[company_id] = _compact_luma_candidate_summary(summary)
 
 
 def _summarize_luma_candidate_company(company: dict[str, Any]) -> dict[str, Any]:
     props = company.get("properties", {})
-    owner_id = props.get("hubspot_owner_id") or ""
+    owner_id = props.get("hubspot_owner_id") or company.get("owner_id") or company.get("hubspot_owner_id") or ""
     return {
-        "company_id": company.get("id"),
+        "company_id": company.get("id") or company.get("company_id") or "",
         "hubspot_scoped": True,
         "scope_source": SCOPE_SOURCE,
-        "name": props.get("name") or "",
-        "domain": props.get("domain") or "",
-        "country": props.get("company_country") or "",
+        "name": props.get("name") or company.get("name") or "",
+        "domain": props.get("domain") or company.get("domain") or "",
+        "country": props.get("company_country") or company.get("country") or company.get("company_country") or "",
         "owner_id": owner_id,
-        "owner_email": _owner_email_by_id(owner_id),
-        "owner_name": _owner_name_by_id(owner_id),
+        "owner_email": company.get("owner_email") or _owner_email_by_id(owner_id),
+        "owner_name": company.get("owner_name") or _owner_name_by_id(owner_id),
     }
+
+
+def _compact_luma_candidate_summary(summary: dict[str, Any]) -> dict[str, Any]:
+    compact = {key: summary.get(key) for key in LUMA_MATCH_CANDIDATE_FIELDS}
+    compact["hubspot_scoped"] = bool(compact.get("hubspot_scoped", True))
+    compact["scope_source"] = compact.get("scope_source") or SCOPE_SOURCE
+    compact["luma_match_reasons"] = list(compact.get("luma_match_reasons") or [])
+    compact["luma_match_key_kinds"] = list(compact.get("luma_match_key_kinds") or [])
+    compact["luma_match_key_count"] = int(compact.get("luma_match_key_count") or 0)
+    compact["luma_match_confidence"] = compact.get("luma_match_confidence") or "verified"
+    return compact
+
+
+LUMA_NAME_STOPWORDS = {
+    "and",
+    "bali",
+    "cafe",
+    "company",
+    "group",
+    "hotel",
+    "indonesia",
+    "ltd",
+    "pt",
+    "pte",
+    "restaurant",
+    "the",
+}
+
+
+def _luma_name_tokens(value: str) -> set[str]:
+    return {token for token in _normalize_name(value).split() if len(token) > 2 and token not in LUMA_NAME_STOPWORDS}
+
+
+def _luma_company_name_matches(company_name: str, candidate_name: str) -> bool:
+    company_norm = _normalize_name(company_name)
+    candidate_norm = _normalize_name(candidate_name)
+    if not company_norm or not candidate_norm:
+        return False
+    if company_norm == candidate_norm:
+        return True
+    if len(candidate_norm) >= 5 and candidate_norm in company_norm:
+        return True
+    if len(company_norm) >= 5 and company_norm in candidate_norm:
+        return True
+
+    company_tokens = _luma_name_tokens(company_norm)
+    candidate_tokens = _luma_name_tokens(candidate_norm)
+    if not company_tokens or not candidate_tokens:
+        return False
+    shared = company_tokens & candidate_tokens
+    if not shared:
+        return False
+    if len(candidate_tokens) == 1 or len(company_tokens) == 1:
+        return bool(shared)
+    return len(shared) >= 2 and (len(shared) / min(len(company_tokens), len(candidate_tokens))) >= 0.6
 
 
 def _target_owner_id_for_scope(scope: dict[str, Any], owner_email: str | None = None) -> tuple[str | None, str]:
@@ -2943,6 +3016,182 @@ def _account_followup_status(
         "latest_followup_at": sorted_evidence[0]["timestamp"] if sorted_evidence else "",
         "activity_counts": counts,
         "evidence": sorted_evidence[:10],
+        "activity_truncated": truncated,
+        "owner_mismatch": owner_mismatch,
+        "weak_evidence": weak_evidence,
+        "confidence": "needs-check" if status == "needs_check" else "verified",
+        "caveat": (
+            "Safe HubSpot follow-up evidence only; raw WhatsApp bodies, note bodies, task bodies, phone numbers, and bulk PII are omitted."
+        ),
+    }
+
+
+def _empty_followup_activity() -> dict[str, Any]:
+    return {
+        "counts": {
+            "whatsapp_communications": 0,
+            "notes": 0,
+            "completed_tasks": 0,
+            "open_tasks": 0,
+            "completed_meetings": 0,
+        },
+        "latest_followup_at": "",
+        "evidence": [],
+        "activity_truncated": False,
+        "owner_mismatch": False,
+        "weak_evidence": False,
+    }
+
+
+def _count_indexed_followup_activity(
+    account_activity: dict[str, Any],
+    company_owner_id: str,
+    evidence_type: str,
+    activity: dict[str, Any],
+    sources: list[dict[str, str]],
+) -> None:
+    if evidence_type == "communication" and not _is_whatsapp_communication(activity):
+        return
+    if evidence_type == "meeting" and not _is_completed_meeting(activity):
+        return
+
+    activity_id = str(activity.get("id") or "")
+    safe_evidence = _safe_followup_evidence(evidence_type, activity, {activity_id: sources})
+    evidence_owner_id = str(safe_evidence.get("owner_id") or "")
+    if evidence_owner_id and company_owner_id and evidence_owner_id != company_owner_id:
+        account_activity["owner_mismatch"] = True
+
+    counts = account_activity["counts"]
+    if evidence_type == "communication":
+        counts["whatsapp_communications"] += 1
+    elif evidence_type == "note":
+        counts["notes"] += 1
+    elif evidence_type == "meeting":
+        counts["completed_meetings"] += 1
+    elif _is_incomplete_task(activity):
+        counts["open_tasks"] += 1
+    else:
+        counts["completed_tasks"] += 1
+    account_activity["evidence"].append(safe_evidence)
+
+
+def _followup_activity_index_for_companies(
+    companies: list[dict[str, Any]],
+    contact_index: dict[str, list[str]],
+    deal_index: dict[str, list[str]],
+    since_dt: datetime,
+    until_dt: datetime | None,
+) -> dict[str, dict[str, Any]]:
+    company_ids = [str(company.get("id") or "") for company in companies if company.get("id")]
+    if not company_ids:
+        return {}
+
+    activity_by_company = {company_id: _empty_followup_activity() for company_id in company_ids}
+    company_owner_ids = {
+        str(company.get("id") or ""): str(company.get("properties", {}).get("hubspot_owner_id") or "")
+        for company in companies
+        if company.get("id")
+    }
+    contact_to_companies = _reverse_company_association_index(contact_index)
+    deal_to_companies = _reverse_company_association_index(deal_index)
+    contact_ids = list(contact_to_companies.keys())
+    deal_ids = list(deal_to_companies.keys())
+    activity_specs = [
+        ("communications", "communication", COMMUNICATION_PROPERTIES),
+        ("notes", "note", NOTE_PROPERTIES),
+        ("tasks", "task", TASK_PROPERTIES),
+        ("meetings", "meeting", MEETING_PROPERTIES),
+    ]
+
+    for hubspot_type, evidence_type, properties in activity_specs:
+        company_activity_sources: dict[str, dict[str, list[dict[str, str]]]] = {}
+
+        for company_id, activity_ids in _batch_association_ids("companies", hubspot_type, company_ids).items():
+            for activity_id in activity_ids:
+                _add_indexed_activity_source(company_activity_sources, company_id, activity_id, "company", company_id)
+
+        for contact_id, activity_ids in _batch_association_ids("contacts", hubspot_type, contact_ids).items():
+            for company_id in contact_to_companies.get(str(contact_id), []):
+                for activity_id in activity_ids:
+                    _add_indexed_activity_source(company_activity_sources, company_id, activity_id, "contact", contact_id)
+
+        for deal_id, activity_ids in _batch_association_ids("deals", hubspot_type, deal_ids).items():
+            for company_id in deal_to_companies.get(str(deal_id), []):
+                for activity_id in activity_ids:
+                    _add_indexed_activity_source(company_activity_sources, company_id, activity_id, "deal", deal_id)
+
+        activity_to_company_sources: dict[str, dict[str, list[dict[str, str]]]] = {}
+        for company_id, activity_sources in company_activity_sources.items():
+            for activity_id, sources in activity_sources.items():
+                activity_to_company_sources.setdefault(activity_id, {})[company_id] = sources
+
+        activity_ids = sorted(activity_to_company_sources.keys())
+        if not activity_ids:
+            continue
+
+        read_limit = FOLLOWUP_RETURN_LIMIT * max(1, len(company_ids))
+        read_ids = activity_ids[:read_limit]
+        omitted_ids = set(activity_ids[read_limit:])
+        for activity_id in omitted_ids:
+            for company_id in activity_to_company_sources.get(activity_id, {}):
+                activity_by_company[company_id]["activity_truncated"] = True
+
+        raw_activities = _batch_read(hubspot_type, read_ids, properties)
+        for activity in raw_activities:
+            activity_id = str(activity.get("id") or "")
+            if not activity_id:
+                continue
+            associated_companies = activity_to_company_sources.get(activity_id, {})
+            if not _activity_timestamp(activity):
+                for company_id in associated_companies:
+                    activity_by_company[company_id]["weak_evidence"] = True
+                continue
+            if not _is_activity_in_window(activity, since_dt, until_dt):
+                continue
+            for company_id, sources in associated_companies.items():
+                _count_indexed_followup_activity(
+                    activity_by_company[company_id],
+                    company_owner_ids.get(company_id, ""),
+                    evidence_type,
+                    activity,
+                    sources,
+                )
+
+    for account_activity in activity_by_company.values():
+        sorted_evidence = _sort_followup_evidence(account_activity["evidence"])
+        account_activity["latest_followup_at"] = sorted_evidence[0]["timestamp"] if sorted_evidence else ""
+        account_activity["evidence"] = sorted_evidence[:10]
+    return activity_by_company
+
+
+def _account_followup_status_from_index(company: dict[str, Any], account_activity: dict[str, Any]) -> dict[str, Any]:
+    counts = dict(_empty_followup_activity()["counts"])
+    counts.update(account_activity.get("counts") or {})
+    truncated = bool(account_activity.get("activity_truncated") or account_activity.get("truncated"))
+    owner_mismatch = bool(account_activity.get("owner_mismatch"))
+    weak_evidence = bool(account_activity.get("weak_evidence"))
+    completed_count = counts["whatsapp_communications"] + counts["notes"] + counts["completed_tasks"]
+    scheduled_count = counts["open_tasks"]
+
+    if truncated or owner_mismatch or weak_evidence:
+        status = "needs_check"
+    elif completed_count:
+        status = "followed_up"
+    elif scheduled_count:
+        status = "scheduled"
+    else:
+        status = "not_found"
+
+    summary = _summarize_company(company)
+    return {
+        "company_id": summary.get("company_id"),
+        "company_name": summary.get("name"),
+        "owner_id": summary.get("owner_id"),
+        "country": summary.get("country"),
+        "followup_status": status,
+        "latest_followup_at": account_activity.get("latest_followup_at") or "",
+        "activity_counts": counts,
+        "evidence": account_activity.get("evidence") or [],
         "activity_truncated": truncated,
         "owner_mismatch": owner_mismatch,
         "weak_evidence": weak_evidence,
@@ -6884,8 +7133,8 @@ def _campaign_attribution_terms(
     return terms[:MARKETING_ATTRIBUTION_TERM_LIMIT]
 
 
-def _marketing_contact_campaign_search(terms: list[str], limit: int = 50) -> dict[str, Any]:
-    requested_limit = _bounded_int(limit, default=50, maximum=MARKETING_ATTRIBUTION_RETURN_LIMIT)
+def _marketing_contact_campaign_search(terms: list[str], limit: int = MARKETING_ATTRIBUTION_RETURN_LIMIT) -> dict[str, Any]:
+    requested_limit = _bounded_int(limit, default=MARKETING_ATTRIBUTION_RETURN_LIMIT, maximum=MARKETING_ATTRIBUTION_RETURN_LIMIT)
     contacts_by_id: dict[str, dict[str, Any]] = {}
     search_runs: list[dict[str, Any]] = []
     errors: list[dict[str, str]] = []
@@ -7420,7 +7669,7 @@ def get_marketing_campaign_attribution(
     campaign_utm: str = "",
     start_date: str = "",
     end_date: str = "",
-    limit: int = 50,
+    limit: int = MARKETING_ATTRIBUTION_RETURN_LIMIT,
 ) -> dict[str, Any]:
     """Search HubSpot source fields for campaign-touched contacts and scoped deal outcomes."""
 
@@ -7472,12 +7721,12 @@ def get_marketing_campaign_attribution(
         asset_data = {
             "asset_types": [],
             "assets_by_type": {},
-            "requested_limit": _bounded_int(limit, default=50, maximum=CAMPAIGN_ASSET_RETURN_LIMIT),
+            "requested_limit": _bounded_int(limit, default=MARKETING_ATTRIBUTION_RETURN_LIMIT, maximum=CAMPAIGN_ASSET_RETURN_LIMIT),
             "has_more": False,
             "truncated": False,
         }
         if selected_campaign_id:
-            asset_data = _campaign_assets(selected_campaign_id, limit=min(_bounded_int(limit, default=50), CAMPAIGN_ASSET_RETURN_LIMIT))
+            asset_data = _campaign_assets(selected_campaign_id, limit=min(_bounded_int(limit, default=MARKETING_ATTRIBUTION_RETURN_LIMIT), CAMPAIGN_ASSET_RETURN_LIMIT))
 
         terms = _campaign_attribution_terms(selected_campaign, campaign_utm, campaign_name, asset_data)
         if not terms:
@@ -7487,39 +7736,60 @@ def get_marketing_campaign_attribution(
             )
 
         contact_data = _marketing_contact_campaign_search(terms, limit)
+        contact_results = [contact for contact in contact_data.get("results", []) if str(contact.get("id") or "")]
+        contact_ids = [str(contact.get("id") or "") for contact in contact_results]
+        contact_by_id = {str(contact.get("id") or ""): contact for contact in contact_results}
+        contact_company_ids = _batch_association_ids("contacts", "companies", contact_ids)
+        all_company_ids = sorted(
+            {
+                str(company_id)
+                for company_ids in contact_company_ids.values()
+                for company_id in company_ids
+                if str(company_id)
+            }
+        )
+        companies_by_id = {
+            str(company.get("id") or ""): company
+            for company in _batch_read("companies", all_company_ids, MARKETING_COMPANY_PROPERTIES)
+            if str(company.get("id") or "")
+        }
+
         matched_contacts: list[dict[str, Any]] = []
         scoped_companies: dict[str, dict[str, Any]] = {}
         inaccessible_contact_count = 0
         unresolved_contact_count = 0
 
-        for contact in contact_data.get("results", []):
-            contact_id_value = str(contact.get("id") or "")
-            access_context = _marketing_access_context_for_contact(contact_id_value, scope)
-            if not access_context.get("allowed"):
-                inaccessible_contact_count += 1
-                continue
-            scoped_contact = access_context.get("contact") or contact
-            companies = access_context.get("companies", [])
-            if not companies:
-                unresolved_contact_count += 1
-            for company in companies:
+        for contact_id_value in contact_ids:
+            contact = contact_by_id[contact_id_value]
+            associated_companies = [
+                companies_by_id[company_id]
+                for company_id in contact_company_ids.get(contact_id_value, [])
+                if company_id in companies_by_id
+            ]
+            accessible_companies = [company for company in associated_companies if _has_marketing_company_access(company, scope)]
+            if not accessible_companies:
+                if scope["kind"] in {"admin", "manager"} and not associated_companies:
+                    unresolved_contact_count += 1
+                else:
+                    inaccessible_contact_count += 1
+                    continue
+            for company in accessible_companies:
                 company_id_value = str(company.get("id") or "")
                 if company_id_value and company_id_value not in scoped_companies:
                     scoped_companies[company_id_value] = company
             matched_contacts.append(
                 {
-                    **_safe_marketing_contact_summary(scoped_contact),
-                    "source_fields": _marketing_signal_fields(scoped_contact.get("properties", {})),
-                    "scoped_company_ids": [str(company.get("id") or "") for company in companies if company.get("id")],
+                    **_safe_marketing_contact_summary(contact),
+                    "source_fields": _marketing_signal_fields(contact.get("properties", {})),
+                    "scoped_company_ids": [str(company.get("id") or "") for company in accessible_companies if company.get("id")],
                 }
             )
 
+        company_deal_ids = _batch_association_ids("companies", "deals", list(scoped_companies.keys()))
         deal_ids: list[str] = []
         deal_association_truncated = False
-        for company_id_value in scoped_companies:
-            association_data = _association_ids_with_metadata("companies", company_id_value, "deals", TASK_ASSOCIATION_LIMIT)
-            deal_association_truncated = deal_association_truncated or bool(association_data.get("truncated"))
-            for deal_id in association_data.get("ids", []):
+        for associated_deal_ids in company_deal_ids.values():
+            for deal_id in associated_deal_ids:
                 if deal_id not in deal_ids:
                     deal_ids.append(deal_id)
 
@@ -7544,11 +7814,56 @@ def get_marketing_campaign_attribution(
             caveats.append("QO/QO Met/closed-won counts require configured HubSpot pipeline and stage IDs.")
         if not matched_contacts:
             caveats.append("No scoped contacts matched the searched campaign terms; do not turn this into proof that nobody submitted the form if HubSpot form metrics are unavailable.")
+        if contact_data.get("truncated") or deal_association_truncated:
+            caveats.append(
+                "Deal-stage counts cover only the returned/scoped campaign matches; do not present QO/QO Met/closed-won counts as complete when truncated=true."
+            )
+
+        truncation_reasons: list[str] = []
+        if campaign_search_truncated:
+            truncation_reasons.append("campaign_search_truncated")
+        if asset_data.get("truncated"):
+            truncation_reasons.append("campaign_assets_truncated")
+        if contact_data.get("truncated"):
+            truncation_reasons.append("contact_source_search_truncated")
+        if contact_data.get("errors"):
+            truncation_reasons.append("contact_source_search_errors")
+        if inaccessible_contact_count:
+            truncation_reasons.append("contacts_outside_scope")
+        if unresolved_contact_count:
+            truncation_reasons.append("contacts_without_scoped_company")
+        if deal_association_truncated:
+            truncation_reasons.append("deal_associations_truncated")
+        if not stage_config.get("configured"):
+            truncation_reasons.append("stage_config_missing")
+
+        detail_limit = MARKETING_ATTRIBUTION_DETAIL_RETURN_LIMIT
+        matched_contact_samples = matched_contacts[:detail_limit]
+        scoped_company_samples = [_safe_marketing_company_summary(company) for company in list(scoped_companies.values())[:detail_limit]]
+        outcome_summary = {
+            "campaign": selected_campaign,
+            "matched_contact_count": len(matched_contacts),
+            "matched_contact_sample_count": len(matched_contact_samples),
+            "scoped_company_count": len(scoped_companies),
+            "scoped_company_sample_count": len(scoped_company_samples),
+            "deal_stage_counts": {
+                "qos": deal_counts.get("qos"),
+                "qo_met": deal_counts.get("qo_met"),
+                "closed_won": deal_counts.get("closed_won"),
+                "classified_deal_count": deal_counts.get("classified_deal_count"),
+                "stage_configured": deal_counts.get("stage_configured"),
+            },
+            "result_completeness": "needs-check" if needs_check else "complete",
+            "truncation_reasons": truncation_reasons,
+        }
 
         return {
             "answer": {
+                "outcome_summary": outcome_summary,
                 "campaign": selected_campaign,
                 "candidate_campaigns": candidate_campaigns,
+                "deal_stage_counts": deal_counts,
+                "deal_association_truncated": deal_association_truncated,
                 "attribution_search": {
                     "terms": terms,
                     "searched_properties": contact_data.get("searched_properties", []),
@@ -7560,10 +7875,9 @@ def get_marketing_campaign_attribution(
                     "inaccessible_contact_count": inaccessible_contact_count,
                     "unresolved_contact_count": unresolved_contact_count,
                 },
-                "matched_contacts": matched_contacts,
-                "scoped_companies": [_safe_marketing_company_summary(company) for company in scoped_companies.values()],
-                "deal_stage_counts": deal_counts,
-                "deal_association_truncated": deal_association_truncated,
+                "matched_contact_samples": matched_contact_samples,
+                "scoped_company_samples": scoped_company_samples,
+                "detail_sample_limit": detail_limit,
                 "will_mutate_hubspot": False,
             },
             "source": "HubSpot Marketing Campaigns, CRM contacts, scoped companies, and deals APIs",
@@ -7574,7 +7888,7 @@ def get_marketing_campaign_attribution(
                 "campaign_utm": campaign_utm,
                 "start_date": start_date,
                 "end_date": end_date,
-                "requested_limit": _bounded_int(limit, default=50, maximum=MARKETING_ATTRIBUTION_RETURN_LIMIT),
+                "requested_limit": _bounded_int(limit, default=MARKETING_ATTRIBUTION_RETURN_LIMIT, maximum=MARKETING_ATTRIBUTION_RETURN_LIMIT),
             },
             "requested_limit": contact_data.get("requested_limit"),
             "returned_count": len(matched_contacts),
@@ -7728,32 +8042,35 @@ def find_target_accounts_by_luma_match_keys(
         if not domains and not names:
             return _blocked("No safe Luma match keys were provided.", _scope_response(scope, selected, target_owner_id, target_owner_email))
 
-        candidates: dict[str, dict[str, Any]] = {}
         any_truncated = len(_unique_values(raw_domains)) > len(domains) or len(_unique_values(raw_names)) > len(names)
         base_filters = _target_filters(selected, target_owner_id)
 
-        for domain in domains:
+        scoped_accounts = _company_search(
+            base_filters,
+            limit=LUMA_MATCH_SCAN_LIMIT,
+            maximum=HUBSPOT_SEARCH_TOTAL_LIMIT,
+            sorts=[{"propertyName": "name", "direction": "ASCENDING"}],
+        )
+        any_truncated = any_truncated or bool(scoped_accounts.get("truncated"))
+        domain_keys = set(domains)
+        candidates: dict[str, dict[str, Any]] = {}
+
+        for company in scoped_accounts.get("results", []):
+            props = company.get("properties", {})
+            company_domain = _normalize_domain_key(props.get("domain") or company.get("domain"))
+            if company_domain and company_domain in domain_keys:
+                _add_luma_candidate(candidates, company, "exact_email_domain", company_domain, "verified")
+
+            company_name = str(props.get("name") or company.get("name") or "")
+            for name in names:
+                if _luma_company_name_matches(company_name, name):
+                    _add_luma_candidate(candidates, company, "company_name_candidate", name, "needs-check")
+
             if len(candidates) >= requested_limit:
                 any_truncated = True
                 break
-            data = _company_search(base_filters + [{"propertyName": "domain", "operator": "EQ", "value": domain}], limit=5)
-            any_truncated = any_truncated or bool(data.get("truncated"))
-            for company in data.get("results", []):
-                _add_luma_candidate(candidates, company, "exact_email_domain", domain, "verified")
 
-        for name in names:
-            if len(candidates) >= requested_limit:
-                any_truncated = True
-                break
-            data = _company_search(
-                base_filters + [{"propertyName": "name", "operator": "CONTAINS_TOKEN", "value": name}],
-                limit=5,
-            )
-            any_truncated = any_truncated or bool(data.get("truncated"))
-            for company in data.get("results", []):
-                _add_luma_candidate(candidates, company, "company_name_candidate", name, "needs-check")
-
-        answer = list(candidates.values())[:requested_limit]
+        answer = [_compact_luma_candidate_summary(candidate) for candidate in list(candidates.values())[:requested_limit]]
         return {
             "answer": answer,
             "source": "HubSpot target-account lookup from Luma safe match keys",
@@ -7761,6 +8078,7 @@ def find_target_accounts_by_luma_match_keys(
                 **_scope_response(scope, selected, target_owner_id, target_owner_email),
                 "email_domain_key_count": len(domains),
                 "company_name_candidate_count": len(names),
+                "scanned_target_account_count": scoped_accounts.get("returned_count", len(scoped_accounts.get("results", []))),
                 "requested_limit": requested_limit,
             },
             "total": len(answer),
@@ -8242,16 +8560,25 @@ def check_account_followup_status(
 
         requested_limit = _bounded_int(limit, default=50, maximum=50)
         selected_ids = normalized_ids[:requested_limit]
-        rows: list[dict[str, Any]] = []
+        companies: list[dict[str, Any]] = []
         countries: list[str] = []
         for company_id in selected_ids:
             company = _assert_company_access(company_id, scope)
+            companies.append(company)
             company_country = str(company.get("properties", {}).get("company_country") or "")
             if company_country and company_country not in countries:
                 countries.append(company_country)
-            contact_ids = _association_ids("companies", company_id, "contacts", 50)
-            deal_ids = _association_ids("companies", company_id, "deals", 20)
-            rows.append(_account_followup_status(company, contact_ids, deal_ids, since_dt, until_dt))
+
+        contact_index = _batch_association_ids("companies", "contacts", selected_ids)
+        deal_index = _batch_association_ids("companies", "deals", selected_ids)
+        activity_index = _followup_activity_index_for_companies(companies, contact_index, deal_index, since_dt, until_dt)
+        rows = [
+            _account_followup_status_from_index(
+                company,
+                activity_index.get(str(company.get("id") or ""), _empty_followup_activity()),
+            )
+            for company in companies
+        ]
 
         truncated = len(normalized_ids) > requested_limit
         needs_check = truncated or any(row.get("confidence") == "needs-check" for row in rows)
