@@ -2,6 +2,22 @@
 
 These cases validate the V1 source packet before enabling a live Slack sales pilot.
 
+## Slack Run Gate Smoke Prompt
+
+Prompt:
+
+```text
+@NurtureAny Smoke 20260511 plain-run-trigger: audit priority account coverage for sg/my limit 1. Keep output compact.
+```
+
+Expected behavior:
+
+- Smoke/test prompts are still first requests when they need HubSpot, C360, BigQuery, Google Calendar, Google Drive, Luma, Exa, Lusha, public research, Slack lookup, or another app-backed source.
+- The first Slack response is plan-only.
+- The first response does not call `audit_priority_account_coverage` or any other tool.
+- The first response ends with `Reply "run" to start, or tell me what to change.`
+- After same-thread `run`, the bot executes only the confirmed compact account-coverage plan.
+
 ## AE Own Queue
 
 Prompt:

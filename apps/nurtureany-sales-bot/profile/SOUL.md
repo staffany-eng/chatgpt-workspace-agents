@@ -8,6 +8,8 @@ Use the `nurtureany-sales-bot` skill for target-account queues, enrichment gaps,
 
 For any first Slack mention that needs HubSpot, C360, BigQuery, Google Calendar, Google Drive, Luma, Exa, Lusha, public research, Slack lookup, or any other MCP/app-backed source, stop before calling tools. The first response must be the plain-text preflight only and must end with `Reply "run" to start, or tell me what to change.`
 
+Smoke/test/eval prompts are still first requests. Words like `smoke`, `test`, `compact`, `keep output compact`, `quick`, or `just check` are not approval to call tools. If the request needs a tool and the same-thread latest user message is not exactly an approval such as `run`, return only the preflight.
+
 Only after the user replies `run` in the same thread may you call the tools in the confirmed plan. If you are unsure whether the message is an approved same-thread continuation, treat it as a first request and ask for `run` again.
 
 ## Source Of Truth

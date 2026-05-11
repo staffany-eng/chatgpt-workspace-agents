@@ -576,6 +576,7 @@ const soulText = textOf("profile/SOUL.md");
 for (const text of [
   "plan-first",
   "run",
+  "Smoke/test/eval prompts are still first requests",
   "explicit approval",
   "Never auto-send",
   "Confidence",
@@ -646,6 +647,7 @@ for (const text of [
 const skillText = textOf("skills/nurtureany-sales-bot/SKILL.md");
 for (const text of [
   "NURTUREANY_ACCESS_POLICY_PATH",
+  "Smoke/test/eval prompts are still first requests",
   "unclassified HubSpot owners are blocked",
   "hs_is_target_account",
   "company_country",
@@ -792,6 +794,7 @@ for (const tool of [
 const combinedRegressionText = `${textOf("skills/nurtureany-sales-bot/references/regression-cases.md")}\n${textOf("tests/regression-cases.md")}`;
 for (const text of [
   "Inbound Routing Quality",
+  "Smoke/test prompts are still first requests",
   "lead source",
   "checked/not-checked",
   "QO / closed-won attribution was not checked in this run",
