@@ -193,9 +193,15 @@ for (const requiredText of [
   if (!e2eRunnerText.includes(requiredText)) fail(`E2E runner missing required text: ${requiredText}`);
 }
 
-const pyCompile = spawnSync("python3", ["-m", "py_compile", join(appRoot, "runtime", "launchbot_e2e.py")], {
-  encoding: "utf8"
-});
+const pyCompile = spawnSync(
+  "python3",
+  [
+    "-c",
+    "from pathlib import Path; import sys; p=Path(sys.argv[1]); compile(p.read_text(encoding='utf-8'), str(p), 'exec')",
+    join(appRoot, "runtime", "launchbot_e2e.py")
+  ],
+  { encoding: "utf8" }
+);
 if (pyCompile.status !== 0) {
   fail(`E2E runner Python syntax check failed: ${(pyCompile.stderr || pyCompile.stdout || "").trim()}`);
 }
