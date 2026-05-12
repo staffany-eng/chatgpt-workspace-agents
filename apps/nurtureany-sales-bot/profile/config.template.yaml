@@ -8,6 +8,12 @@ display:
   streaming: false
   tool_progress: 'off'
   tool_preview_length: 0
+  runtime_footer:
+    enabled: false
+    fields:
+    - model
+    - context_pct
+    - cwd
   platforms:
     slack:
       streaming: false
