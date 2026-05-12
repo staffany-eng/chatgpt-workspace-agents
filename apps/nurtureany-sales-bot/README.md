@@ -69,6 +69,7 @@ T-90 renewal answers must show both buckets: known T-90 accounts where `contract
 | `runtime/lusha.md` | Cost-controlled Lusha lookup, selected-PII, and credit-reporting contract. |
 | `runtime/health-checks.md` | Operational checks and expected silence. |
 | `runtime/check-health.sh` | Silent no-agent health check for live runtime wiring. |
+| `runtime/check-slack-socket-health.sh` | Silent no-agent Slack Socket Mode watchdog for managed gateway restart. |
 | `runtime/audit-live-profile.sh` | Live profile drift audit against the source packet. |
 | `tests/regression-cases.md` | Manual/eval regression cases for app behavior. |
 

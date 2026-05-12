@@ -539,6 +539,7 @@ const filesToScan = [
   "runtime/mcp/test_lusha_nurtureany_server.py",
   "runtime/health-checks.md",
   "runtime/check-health.sh",
+  "runtime/check-slack-socket-health.sh",
   "runtime/audit-live-profile.sh",
   "runtime/jobs/near_me_outlet_match_writer.py",
   "runtime/jobs/test_near_me_outlet_match_writer.py",
@@ -1396,9 +1397,13 @@ for (const text of [
 
 for (const text of [
   "runtime/check-health.sh",
+  "runtime/check-slack-socket-health.sh",
   "runtime/audit-live-profile.sh",
   "nurtureanysalesbot health check",
   "nurtureanysalesbot live profile audit",
+  "nurtureanysalesbot Slack socket watchdog",
+  "check-slack-socket-health.sh",
+  "*/5 * * * *",
   "--no-agent"
 ]) {
   if (!healthText.includes(text)) fail(`runtime/health-checks.md missing required text: ${text}`);
@@ -1442,12 +1447,74 @@ for (const text of [
   "APP_ROOT=\"$PROFILE_DIR/source/nurtureany-sales-bot\"",
   "profile-drift:soul",
   "profile-drift:nurtureany-sales-bot-skill",
+  "profile-drift:slack-socket-watchdog-script",
   "profile-boundary:staffany-data-bot-skill-installed",
   "cron:health-check-missing",
   "cron:audit-missing",
+  "cron:slack-socket-watchdog-missing",
   "live-profile:audit-ok"
 ]) {
   if (!auditScriptText.includes(text)) fail(`runtime/audit-live-profile.sh missing required text: ${text}`);
+}
+
+const slackSocketScriptPath = join(appRoot, "runtime/check-slack-socket-health.sh");
+const slackSocketScriptText = textOf("runtime/check-slack-socket-health.sh");
+for (const text of [
+  "PROFILE=\"${HERMES_PROFILE:-nurtureanysalesbot}\"",
+  "NURTUREANY_SLACK_SOCKET_THRESHOLD_SECONDS",
+  "NURTUREANY_SLACK_SOCKET_RESTART_COOLDOWN_SECONDS",
+  "NURTUREANY_SLACK_SOCKET_DRY_RUN",
+  "systemctl --user restart hermes-gateway-$PROFILE.service",
+  "seems to be stale",
+  "A new session .* has been established",
+  "slack-socket:restart-needed",
+  "slack-socket:restart-failed",
+  "slack-socket-watchdog.log"
+]) {
+  if (!slackSocketScriptText.includes(text)) fail(`runtime/check-slack-socket-health.sh missing required text: ${text}`);
+}
+
+const slackSocketSyntaxCheck = spawnSync("bash", ["-n", slackSocketScriptPath], {
+  encoding: "utf8"
+});
+if (slackSocketSyntaxCheck.status !== 0) {
+  fail(`Shell syntax check failed for Slack socket watchdog: ${(slackSocketSyntaxCheck.stderr || slackSocketSyntaxCheck.stdout).trim()}`);
+}
+
+const staleSocketCheck = spawnSync("bash", ["-lc", `
+tmp_dir="$(mktemp -d)"
+trap 'rm -rf "$tmp_dir"' EXIT
+cat >"$tmp_dir/agent.log" <<'LOG'
+2026-05-12 15:00:00,000 INFO slack_bolt.AsyncApp: A new session (s_1) has been established
+2026-05-12 15:10:00,000 INFO slack_bolt.AsyncApp: The session (s_1) seems to be stale. Reconnecting... reason: disconnected for 600+ seconds)
+LOG
+NURTUREANY_SLACK_SOCKET_LOG="$tmp_dir/agent.log" \\
+HERMES_PROFILE_DIR="$tmp_dir/profile" \\
+NURTUREANY_SLACK_SOCKET_STATE_DIR="$tmp_dir/state" \\
+NURTUREANY_SLACK_SOCKET_NOW_EPOCH=1778570400 \\
+NURTUREANY_SLACK_SOCKET_DRY_RUN=1 \\
+bash ${JSON.stringify(slackSocketScriptPath)}
+`], { encoding: "utf8" });
+if (staleSocketCheck.status !== 0 || !staleSocketCheck.stdout.includes("slack-socket:restart-needed")) {
+  fail(`Slack socket watchdog stale dry-run failed: ${(staleSocketCheck.stderr || staleSocketCheck.stdout).trim()}`);
+}
+
+const recoveredSocketCheck = spawnSync("bash", ["-lc", `
+tmp_dir="$(mktemp -d)"
+trap 'rm -rf "$tmp_dir"' EXIT
+cat >"$tmp_dir/agent.log" <<'LOG'
+2026-05-12 15:00:00,000 INFO slack_bolt.AsyncApp: The session (s_1) seems to be stale. Reconnecting... reason: disconnected for 600+ seconds)
+2026-05-12 15:01:00,000 INFO slack_bolt.AsyncApp: A new session (s_2) has been established
+LOG
+NURTUREANY_SLACK_SOCKET_LOG="$tmp_dir/agent.log" \\
+HERMES_PROFILE_DIR="$tmp_dir/profile" \\
+NURTUREANY_SLACK_SOCKET_STATE_DIR="$tmp_dir/state" \\
+NURTUREANY_SLACK_SOCKET_NOW_EPOCH=1778570400 \\
+NURTUREANY_SLACK_SOCKET_DRY_RUN=1 \\
+bash ${JSON.stringify(slackSocketScriptPath)}
+`], { encoding: "utf8" });
+if (recoveredSocketCheck.status !== 0 || recoveredSocketCheck.stdout.trim() !== "") {
+  fail(`Slack socket watchdog recovered dry-run failed: ${(recoveredSocketCheck.stderr || recoveredSocketCheck.stdout).trim()}`);
 }
 
 const lushaText = textOf("runtime/lusha.md");

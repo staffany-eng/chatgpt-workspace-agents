@@ -46,6 +46,7 @@
     "lusha_mcp": "runtime/mcp/lusha_nurtureany_server.py",
     "health_checks": "runtime/health-checks.md",
     "health_check_script": "runtime/check-health.sh",
+    "slack_socket_watchdog_script": "runtime/check-slack-socket-health.sh",
     "live_profile_audit": "runtime/audit-live-profile.sh",
     "regression_cases": "tests/regression-cases.md",
     "eazybe_runtime": "runtime/eazybe.md",

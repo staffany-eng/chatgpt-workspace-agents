@@ -36,6 +36,10 @@ need_command() {
   command -v "$1" >/dev/null 2>&1 || fail "dependency:$1:not-found"
 }
 
+file_mode() {
+  stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1" 2>/dev/null || true
+}
+
 tmp_dir="$(mktemp -d)"
 cleanup() {
   rm -rf "$tmp_dir"
@@ -199,7 +203,7 @@ fi
 
 drive_token="$profile_dir/google-drive-token.json"
 if [ -e "$drive_token" ]; then
-  perms="$(stat -f '%Lp' "$drive_token" 2>/dev/null || stat -c '%a' "$drive_token" 2>/dev/null || true)"
+  perms="$(file_mode "$drive_token")"
   [ "$perms" = "600" ] || fail "google-drive:token-permissions-not-600"
 fi
 

@@ -7,6 +7,7 @@ if [ -z "${HERMES_HOME:-}" ] && [ -d "$HOME/.hermes/profiles/$PROFILE" ]; then
 fi
 EXPECTED_HEALTH_CRON_NAME="${EXPECTED_HEALTH_CRON_NAME:-nurtureanysalesbot health check}"
 EXPECTED_AUDIT_CRON_NAME="${EXPECTED_AUDIT_CRON_NAME:-nurtureanysalesbot live profile audit}"
+EXPECTED_SLACK_SOCKET_WATCHDOG_CRON_NAME="${EXPECTED_SLACK_SOCKET_WATCHDOG_CRON_NAME:-nurtureanysalesbot Slack socket watchdog}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROFILE_DIR="${HERMES_PROFILE_DIR:-$HOME/.hermes/profiles/$PROFILE}"
@@ -40,6 +41,7 @@ cmp -s "$APP_ROOT/profile/SOUL.md" "$PROFILE_DIR/SOUL.md" || fail "profile-drift
 diff -qr "$APP_ROOT/skills/nurtureany-sales-bot" "$PROFILE_DIR/skills/nurtureany-sales-bot" >/dev/null || fail "profile-drift:nurtureany-sales-bot-skill"
 cmp -s "$APP_ROOT/runtime/check-health.sh" "$PROFILE_DIR/scripts/nurtureanysalesbot-check-health.sh" || fail "profile-drift:health-script"
 cmp -s "$APP_ROOT/runtime/audit-live-profile.sh" "$PROFILE_DIR/scripts/nurtureanysalesbot-audit-live-profile.sh" || fail "profile-drift:audit-script"
+cmp -s "$APP_ROOT/runtime/check-slack-socket-health.sh" "$PROFILE_DIR/scripts/nurtureanysalesbot-check-slack-socket-health.sh" || fail "profile-drift:slack-socket-watchdog-script"
 
 if [ -e "$PROFILE_DIR/skills/staffany-data-bot/SKILL.md" ]; then
   fail "profile-boundary:staffany-data-bot-skill-installed"
@@ -48,6 +50,7 @@ fi
 cron_out="$(hermes -p "$PROFILE" cron list 2>&1)" || fail "cron:list-failed"
 printf '%s\n' "$cron_out" | grep -Fq "$EXPECTED_HEALTH_CRON_NAME" || fail "cron:health-check-missing"
 printf '%s\n' "$cron_out" | grep -Fq "$EXPECTED_AUDIT_CRON_NAME" || fail "cron:audit-missing"
+printf '%s\n' "$cron_out" | grep -Fq "$EXPECTED_SLACK_SOCKET_WATCHDOG_CRON_NAME" || fail "cron:slack-socket-watchdog-missing"
 
 "$PROFILE_DIR/scripts/nurtureanysalesbot-check-health.sh" >/dev/null
 

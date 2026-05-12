@@ -5,6 +5,7 @@ NurtureAny needs deterministic runtime checks because prompt correctness does no
 ## Expected Checks
 
 - Hermes gateway service for `nurtureanysalesbot` is active.
+- Slack Socket Mode watchdog is installed as no-agent cron and restarts the managed `nurtureanysalesbot` gateway service when the latest stale Socket Mode line is not followed by a fresh session for at least 300 seconds.
 - Secret redaction remains enabled.
 - Model route is pinned to native Anthropic Sonnet: `model.provider=anthropic`, `model.default=claude-sonnet-4-6`.
 - Slack gateway can receive mentions and identify caller email.
@@ -104,6 +105,7 @@ mkdir -p ~/.hermes/profiles/nurtureanysalesbot/source
 rsync -a --delete apps/nurtureany-sales-bot/ ~/.hermes/profiles/nurtureanysalesbot/source/nurtureany-sales-bot/
 cp apps/nurtureany-sales-bot/runtime/check-health.sh ~/.hermes/profiles/nurtureanysalesbot/scripts/nurtureanysalesbot-check-health.sh
 cp apps/nurtureany-sales-bot/runtime/audit-live-profile.sh ~/.hermes/profiles/nurtureanysalesbot/scripts/nurtureanysalesbot-audit-live-profile.sh
+cp apps/nurtureany-sales-bot/runtime/check-slack-socket-health.sh ~/.hermes/profiles/nurtureanysalesbot/scripts/nurtureanysalesbot-check-slack-socket-health.sh
 hermes -p nurtureanysalesbot cron create "0 1 * * 1-5" \
   --name "nurtureanysalesbot health check" \
   --script nurtureanysalesbot-check-health.sh \
@@ -111,6 +113,10 @@ hermes -p nurtureanysalesbot cron create "0 1 * * 1-5" \
 hermes -p nurtureanysalesbot cron create "15 1 * * 1-5" \
   --name "nurtureanysalesbot live profile audit" \
   --script nurtureanysalesbot-audit-live-profile.sh \
+  --no-agent
+hermes -p nurtureanysalesbot cron create "*/5 * * * *" \
+  --name "nurtureanysalesbot Slack socket watchdog" \
+  --script nurtureanysalesbot-check-slack-socket-health.sh \
   --no-agent
 hermes -p nurtureanysalesbot cron create "0 1 * * 1-5" \
   --name "nurtureanysalesbot Jeremy daily nurture pack" \
