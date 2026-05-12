@@ -151,13 +151,13 @@ Friday sales review uses the same scoped association discipline, plus HubSpot ca
 `audit_inbound_sla`:
 
 - Input: Slack user email, optional safe Slack alert metadata, optional HubSpot inbox/thread filters, SLA minutes, and limit.
-- Output: SLA policy, one audit row per Slack alert or HubSpot inbound thread, duplicate summary, rollup, source, scope, confidence, and caveat.
+- Output: SLA policy, one audit row per Slack alert or HubSpot inbound thread, safe lead context, duplicate summary, rollup, source, scope, confidence, and caveat.
 - Default SLA is 5-minute owner acknowledgement and 15-minute first customer touch. Reassignment remains a manual Eugene/manager action; the tool must not auto-assign or mutate HubSpot.
 - Treat elapsed minutes `<=` the configured SLA target as pass; do not create a separate boundary status.
 - Dedupe only through the same HubSpot conversation thread, contact, ticket, or company. Slack-only duplicate hints stay `needs-check`.
 - If supplied Slack alerts have no safe HubSpot IDs, keep `hubspot_match_mode=skipped_no_safe_ids`, say HubSpot match was skipped/no safe IDs, and report timestamp overlaps only as duplicate candidates.
 - Final inbound SLA audit answers must use the tool output as the answer source; do not manually recompute a replacement audit table. If the tool is not visible or cannot be called, report the audit as blocked by tool registration instead of calculating SLA rows manually.
-- Must not expose raw Slack transcripts, raw HubSpot message bodies, phone numbers, bulk PII, or send external messages.
+- Must not expose raw Slack transcripts, raw HubSpot message bodies, phone numbers, bulk PII, or send external messages. If a row has only an alert ID/time/source and no safe contact/company/context, return `lead_context.context_status=missing` so the Slack answer can say what is missing.
 
 `list_my_target_accounts`:
 

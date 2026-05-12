@@ -8015,6 +8015,7 @@ def _normalize_inbound_alert(raw_alert: dict[str, Any], index: int) -> dict[str,
         "eta": _inbound_alert_string(raw_alert, "eta"),
         "outcome": _inbound_alert_string(raw_alert, "outcome") or "needs-check",
         "duplicate_group_hint": _inbound_alert_string(raw_alert, "duplicate_group", "duplicate_hint"),
+        "lead_context": _safe_inbound_lead_context(raw_alert),
     }
 
 
@@ -8085,6 +8086,60 @@ def _inbound_duplicate_group(alert: dict[str, Any] | None, thread_summary: dict[
     if thread_id:
         return f"thread:{thread_id}"
     return "needs-check"
+
+
+def _safe_inbound_lead_context(raw_alert: dict[str, Any]) -> dict[str, Any]:
+    """Keep inbound audit rows actionable without exposing phone numbers or raw bodies."""
+    contact_name = _inbound_alert_string(raw_alert, "contact_name", "lead_name", "name")
+    company_name = _inbound_alert_string(raw_alert, "company_name", "company", "account_name", "lead_company")
+    role = _inbound_alert_string(raw_alert, "contact_role", "jobtitle", "job_title", "title", "persona")
+    email_domain = _inbound_alert_string(raw_alert, "email_domain", "domain", "company_domain")
+    summary = _safe_activity_label(
+        _inbound_alert_string(raw_alert, "lead_context", "context", "summary", "safe_context", "lead_summary"),
+        180,
+    )
+    phone_status = (
+        "redacted"
+        if _inbound_alert_string(raw_alert, "phone", "phone_number", "mobile", "mobile_number", "whatsapp_number")
+        else "not_supplied"
+    )
+    has_context = bool(contact_name or company_name or role or email_domain or summary)
+    return {
+        "contact_name": contact_name,
+        "company_name": company_name,
+        "contact_role": role,
+        "email_domain": email_domain,
+        "summary": summary,
+        "phone_number_status": phone_status,
+        "context_status": "provided" if has_context else "missing",
+    }
+
+
+def _thread_lead_context(thread_summary: dict[str, Any], fallback: dict[str, Any] | None = None) -> dict[str, Any]:
+    contact = thread_summary.get("contact", {}) if isinstance(thread_summary.get("contact"), dict) else {}
+    companies = thread_summary.get("companies", []) if isinstance(thread_summary.get("companies"), list) else []
+    first_company = companies[0] if companies and isinstance(companies[0], dict) else {}
+    fallback_context = fallback or {}
+    contact_name = contact.get("display_name") or fallback_context.get("contact_name") or ""
+    company_name = first_company.get("name") or fallback_context.get("company_name") or ""
+    role = contact.get("jobtitle") or fallback_context.get("contact_role") or ""
+    email_domain = contact.get("email_domain") or first_company.get("domain") or fallback_context.get("email_domain") or ""
+    summary_parts = []
+    if first_company.get("country"):
+        summary_parts.append(str(first_company["country"]))
+    if first_company.get("lifecycle_stage"):
+        summary_parts.append(f"lifecycle {first_company['lifecycle_stage']}")
+    summary = fallback_context.get("summary") or "; ".join(summary_parts)
+    has_context = bool(contact_name or company_name or role or email_domain or summary)
+    return {
+        "contact_name": contact_name,
+        "company_name": company_name,
+        "contact_role": role,
+        "email_domain": email_domain,
+        "summary": _safe_activity_label(summary, 180),
+        "phone_number_status": fallback_context.get("phone_number_status") or "not_returned",
+        "context_status": "provided" if has_context else "missing",
+    }
 
 
 def _marketing_has_source_signal(access_context: dict[str, Any]) -> bool:
@@ -8247,6 +8302,7 @@ def _inbound_thread_audit_row(
     source_candidates = message_timing.get("message_source_candidates", [])
     source = (alert or {}).get("source") or (source_candidates[0] if source_candidates else "other")
     company_summaries = thread_summary.get("companies", [])
+    fallback_context = (alert or {}).get("lead_context", {})
     owner_from_company = ""
     if company_summaries:
         owner_from_company = company_summaries[0].get("owner_email") or _owner_email_by_id(company_summaries[0].get("owner_id"))
@@ -8266,6 +8322,7 @@ def _inbound_thread_audit_row(
         "eta": (alert or {}).get("eta") or "",
         "duplicate_group": _inbound_duplicate_group(alert, thread_summary),
         "outcome": (alert or {}).get("outcome") or "needs-check",
+        "lead_context": _thread_lead_context(thread_summary, fallback_context),
         "sla_status": _combined_sla_status(ack_status, first_touch_status),
         "ack_sla_status": ack_status,
         "first_touch_sla_status": first_touch_status,
@@ -8308,6 +8365,7 @@ def _inbound_alert_only_row(alert: dict[str, Any], ack_sla_minutes: int, first_t
         "eta": alert.get("eta") or "",
         "duplicate_group": _inbound_duplicate_group(alert, None),
         "outcome": alert.get("outcome") or "needs-check",
+        "lead_context": alert.get("lead_context") or _safe_inbound_lead_context({}),
         "sla_status": _combined_sla_status(ack_status, first_touch_status),
         "ack_sla_status": ack_status,
         "first_touch_sla_status": first_touch_status,

@@ -25,7 +25,7 @@ Use this reference with `sales-best-practices.md` before changing or answering f
 | --- | --- | --- |
 | `list_inbound_threads` | Inbound | HubSpot Conversations summaries only; apply inbound/routing SOP, access scope, plan-first flow, PII/body safety, no mutation. |
 | `get_inbound_thread_context` | Inbound | One selected thread only; HubSpot override fields govern account truth; no bulk export, no raw-body dump, no mutation. |
-| `audit_inbound_sla` | Inbound | Admin/manager inbound SLA audit only; safe aggregate routing/ack/first-touch evidence, no bulk raw thread export, no mutation. |
+| `audit_inbound_sla` | Inbound | Admin/manager inbound SLA audit only; safe aggregate routing/ack/first-touch evidence plus safe per-row lead context when available; no phone numbers, bulk raw thread export, or mutation. |
 | `list_marketing_campaigns` | Marketing | Campaign metadata is context only; manager/admin access, PII/body safety, no mutation, no revenue attribution without HubSpot proof. |
 | `get_campaign_assets` | Marketing | Reads bounded HubSpot campaign assets and safe Forms summaries; raw submissions hidden; campaign assets do not override CRM fields. |
 | `get_campaign_social_effectiveness` | Marketing | Reads HubSpot social connected-account status and aggregate `SOCIAL_BROADCAST` clicks for one campaign; social clicks are engagement evidence only, raw channel IDs and bulk post exports stay hidden, and no native social scraping or mutation is allowed. |
