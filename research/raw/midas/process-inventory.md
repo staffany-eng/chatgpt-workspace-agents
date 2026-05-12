@@ -17,8 +17,8 @@ This inventory records process files used to model Agent Builder's research work
 | Path | Bytes | SHA-256 | Title |
 | AGENTS.md | 948 | 57878fc506c55564 | Midas Agent Guide |
 | docs/documentation-guide.md | 7426 | e251ad0f7bb00473 | Midas Documentation Guide |
-| docs/product-compass.md | 7246 | 55a910daafecdf5e | Midas Product Compass |
-| research/wiki/index.md | 34637 | de44768ab093ae20 | Midas Research Wiki Index |
+| docs/product-compass.md | 8460 | c3788bea60f918fd | Midas Product Compass |
+| research/wiki/index.md | 58290 | 59829ee9ffe83c23 | Midas Research Wiki Index |
 | research/wiki/playbooks/ingest-source.md | 6894 | 5becacc2a9ed2d79 | Ingest Source Playbook |
 | research/wiki/playbooks/plan-feature-from-research.md | 1136 | e20f44c4e149a437 | Plan Feature From Research Playbook |
 | research/wiki/weights.md | 1435 | ccc36b29cf593d3c | Evidence Weights |

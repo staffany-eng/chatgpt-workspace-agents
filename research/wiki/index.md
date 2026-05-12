@@ -28,6 +28,7 @@ This directory is the maintained research wiki for designing ChatGPT workspace a
 - [NurtureAny Sales Onboarding Master Template](./sources/nurtureany-sales-onboarding-master-template.md)
 - [StaffAny Rev Team Planning And Metrics](./sources/staffany-rev-team-planning-and-metrics.md)
 - [StaffAny Public Customer Case Studies](./sources/staffany-public-customer-case-studies.md)
+- [Launch Superpower Bot Handoff](./sources/launch-superpower-bot-handoff.md)
 - [NurtureAny Target Market And User Journey](./sources/nurtureany-target-market-user-journey.md)
 - [NurtureAny Mobile Number Rollout](./sources/nurtureany-mobile-number-rollout.md)
 

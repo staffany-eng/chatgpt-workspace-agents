@@ -6,13 +6,13 @@
 - Source class: Hermes Agent
 - Source path: /tmp/hermes-agent-agent-builder
 - Source URL: https://github.com/NousResearch/hermes-agent
-- Commit: 98f5be1
+- Commit: ce374bc
 - Date checked: 2026-04-30
-- Total indexed files: 865
-- Website docs count: 260
+- Total indexed files: 999
+- Website docs count: 310
 - Built-in skill count: 87
-- Optional skill count: 58
-- Plugin doc/config count: 31
+- Optional skill count: 76
+- Plugin doc/config count: 70
 
 ## Raw Content Policy
 
@@ -21,17 +21,17 @@ This inventory records all discovered Hermes docs, skill docs, optional skill do
 ## Source Inventory
 
 | Path | Bytes | SHA-256 | Title |
-| AGENTS.md | 35534 | 99224eab9d34529b | Hermes Agent - Development Guide |
-| CONTRIBUTING.md | 26961 | bec5698458c37082 | Contributing to Hermes Agent |
-| gateway/platforms/ADDING_A_PLATFORM.md | 8826 | 11d1974eb73effb5 | Adding a New Messaging Platform |
-| optional-skills/autonomous-ai-agents/blackbox/SKILL.md | 5400 | 0559dddaa9e3a4ce | Blackbox CLI |
+| AGENTS.md | 45759 | 6d323819e6bf9e08 | Hermes Agent - Development Guide |
+| CONTRIBUTING.md | 35369 | e972604bdccc95f3 | Contributing to Hermes Agent |
+| gateway/platforms/ADDING_A_PLATFORM.md | 10856 | ab77f0c59cecace6 | Adding a New Messaging Platform |
+| optional-skills/autonomous-ai-agents/blackbox/SKILL.md | 5435 | fd66cd3748724a48 | Blackbox CLI |
 | optional-skills/autonomous-ai-agents/DESCRIPTION.md | 128 | 5ca53eca3d6b3841 |  |
-| optional-skills/autonomous-ai-agents/honcho/SKILL.md | 19530 | e27066821bc275e9 | Honcho Memory for Hermes |
-| optional-skills/blockchain/base/SKILL.md | 7812 | 76c43e8437ecc682 | Base Blockchain Skill |
-| optional-skills/blockchain/solana/SKILL.md | 6557 | 85c079338e071903 | Solana Blockchain Skill |
+| optional-skills/autonomous-ai-agents/honcho/SKILL.md | 19565 | 8e31f879f7dd2c72 | Honcho Memory for Hermes |
+| optional-skills/blockchain/base/SKILL.md | 7847 | bf947256e9910e46 | Base Blockchain Skill |
+| optional-skills/blockchain/solana/SKILL.md | 6592 | 1002083d99926218 | Solana Blockchain Skill |
 | optional-skills/communication/DESCRIPTION.md | 151 | eeb3564b0e826d30 |  |
-| optional-skills/communication/one-three-one-rule/SKILL.md | 5026 | a4de46b4da5a90a5 | 1-3-1 Communication Rule |
-| optional-skills/creative/blender-mcp/SKILL.md | 4112 | 6e0e3868200d8f41 | Blender MCP |
+| optional-skills/communication/one-three-one-rule/SKILL.md | 5061 | e2da7f526aa812a3 | 1-3-1 Communication Rule |
+| optional-skills/creative/blender-mcp/SKILL.md | 4147 | 0edd9c57d0171b28 | Blender MCP |
 | optional-skills/creative/concept-diagrams/examples/apartment-floor-plan-conversion.md | 9231 | ceb12290ea71a3ec | Apartment Floor Plan: 3 BHK to 4 BHK Conversion |
 | optional-skills/creative/concept-diagrams/examples/automated-password-reset-flow.md | 15268 | c208e230b4a9ed33 | Automated Password Reset Flow |
 | optional-skills/creative/concept-diagrams/examples/autonomous-llm-research-agent-flow.md | 12630 | e736920b94e8f89e | Autonomous LLM Research Agent Flow |
@@ -50,150 +50,206 @@ This inventory records all discovered Hermes docs, skill docs, optional skill do
 | optional-skills/creative/concept-diagrams/references/dashboard-patterns.md | 1799 | 09db70368ea5a176 | Dashboard Patterns |
 | optional-skills/creative/concept-diagrams/references/infrastructure-patterns.md | 5335 | ece5ef64f425ca6c | Infrastructure Patterns |
 | optional-skills/creative/concept-diagrams/references/physical-shape-cookbook.md | 2083 | 37a57278ab296761 | Physical Shape Cookbook |
-| optional-skills/creative/concept-diagrams/SKILL.md | 17237 | 67a0ee370b8df3ce | Concept Diagrams |
+| optional-skills/creative/concept-diagrams/SKILL.md | 17272 | 7691a8201899b259 | Concept Diagrams |
+| optional-skills/creative/hyperframes/references/cli.md | 8788 | 7d787a6c84d4045b | HyperFrames CLI |
+| optional-skills/creative/hyperframes/references/composition.md | 7747 | 3dc83501198a0902 | Composition Authoring |
+| optional-skills/creative/hyperframes/references/features.md | 14280 | 788675b1b77ca327 | HyperFrames Feature Reference |
+| optional-skills/creative/hyperframes/references/gsap.md | 5705 | e792b0b20bc47a91 | GSAP for HyperFrames |
+| optional-skills/creative/hyperframes/references/troubleshooting.md | 5474 | 3b7e80bf87557e3b | Troubleshooting |
+| optional-skills/creative/hyperframes/references/website-to-video.md | 5258 | 468c85c067d3ea38 | Website to Video |
+| optional-skills/creative/hyperframes/SKILL.md | 14598 | da32efe3b316e1a2 | HyperFrames |
+| optional-skills/creative/kanban-video-orchestrator/references/examples.md | 10285 | b41b6d1df6389d2a | Worked Examples |
+| optional-skills/creative/kanban-video-orchestrator/references/intake.md | 7951 | 8ecd661b4dd7fe2c | Intake — Discovery Question Banks |
+| optional-skills/creative/kanban-video-orchestrator/references/kanban-setup.md | 11120 | 68790afcfecd4ae1 | Kanban Setup — Project Bootstrap & Profile Configuration |
+| optional-skills/creative/kanban-video-orchestrator/references/monitoring.md | 7463 | c1a23160ce32fdca | Monitoring — Watch the Pipeline + Intervene |
+| optional-skills/creative/kanban-video-orchestrator/references/role-archetypes.md | 12344 | 87bdc99fac46f6ad | Role Archetypes |
+| optional-skills/creative/kanban-video-orchestrator/references/tool-matrix.md | 14427 | e1740888af497c8f | Tool Matrix — Skills + Toolsets per Role |
+| optional-skills/creative/kanban-video-orchestrator/SKILL.md | 10749 | bfc0e920b5d38315 | Kanban Video Orchestrator |
 | optional-skills/creative/meme-generation/EXAMPLES.md | 1076 | cf246c6b10385559 | Meme Generation Examples |
 | optional-skills/creative/meme-generation/scripts/templates.json | 4154 | 3295f8fdc9f43eee |  |
-| optional-skills/creative/meme-generation/SKILL.md | 5429 | 1d4d3099a41f477e | Meme Generation |
+| optional-skills/creative/meme-generation/SKILL.md | 5464 | 7b78562bf8239628 | Meme Generation |
 | optional-skills/DESCRIPTION.md | 1015 | c9f081324ba230b3 | Optional Skills |
 | optional-skills/devops/cli/references/app-discovery.md | 2120 | 99a6745ccf5e4a35 | Discovering Apps |
 | optional-skills/devops/cli/references/authentication.md | 1084 | 65924807bfa86c67 | Authentication & Setup |
 | optional-skills/devops/cli/references/cli-reference.md | 3181 | f5e64c46a4e9d90e | CLI Reference |
 | optional-skills/devops/cli/references/running-apps.md | 3705 | a7b4e2102f0d1fdf | Running Apps |
-| optional-skills/devops/cli/SKILL.md | 4656 | 696c22c0b96a7b9c | inference.sh CLI |
-| optional-skills/devops/docker-management/SKILL.md | 10405 | b9cffd3f6e84f4c0 | Docker Management |
-| optional-skills/dogfood/adversarial-ux-test/SKILL.md | 9132 | 41a2befba92ac381 | Adversarial UX Test |
+| optional-skills/devops/cli/SKILL.md | 4691 | 7a41a46d63224684 | inference.sh CLI |
+| optional-skills/devops/docker-management/SKILL.md | 10440 | 0e362cce7c39d0d2 | Docker Management |
+| optional-skills/devops/watchers/SKILL.md | 4484 | df2ac08ad1a204ca | Watchers |
+| optional-skills/dogfood/adversarial-ux-test/SKILL.md | 9167 | ad4401ace143ce7d | Adversarial UX Test |
 | optional-skills/dogfood/DESCRIPTION.md | 248 | b325e691996d65c3 | Dogfood — Advanced QA & Testing Skills |
-| optional-skills/email/agentmail/SKILL.md | 4127 | 0fa8c58e3e7d9a0c | AgentMail — Agent-Owned Email Inboxes |
+| optional-skills/email/agentmail/SKILL.md | 4162 | 12e10595db82948e | AgentMail — Agent-Owned Email Inboxes |
+| optional-skills/finance/3-statement-model/references/formatting.md | 4270 | 7e1c5ca7dd566f68 | Formatting Standards Reference |
+| optional-skills/finance/3-statement-model/references/formulas.md | 7874 | 5761041366248bba | Formula Reference |
+| optional-skills/finance/3-statement-model/references/sec-filings.md | 4598 | 9765c2f789b8d87b | SEC Filings Data Extraction Reference |
+| optional-skills/finance/3-statement-model/SKILL.md | 21754 | 587d8151fea28424 | 3-Statement Financial Model Template Completion |
+| optional-skills/finance/comps-analysis/SKILL.md | 31116 | 24ec14d62d7be3e1 | Comparable Company Analysis |
+| optional-skills/finance/dcf-model/SKILL.md | 49305 | a6acd237bc4005f6 | DCF Model Builder |
+| optional-skills/finance/dcf-model/TROUBLESHOOTING.md | 1495 | 6e605b4550329734 | DCF Model Troubleshooting Guide |
+| optional-skills/finance/excel-author/SKILL.md | 8980 | 3445ec1d481f3759 | excel-author |
+| optional-skills/finance/lbo-model/SKILL.md | 17073 | 7cf6b5d937d7c57d |  |
+| optional-skills/finance/merger-model/SKILL.md | 5438 | 64f323ee1fcaded2 | Merger Model |
+| optional-skills/finance/pptx-author/SKILL.md | 6556 | 716f68baffa3f04d | pptx-author |
 | optional-skills/health/DESCRIPTION.md | 133 | 04253dcc0da88aab |  |
 | optional-skills/health/fitness-nutrition/references/FORMULAS.md | 3234 | 2728c2d308be0733 | Formulas Reference |
-| optional-skills/health/fitness-nutrition/SKILL.md | 10052 | 76a5a39be0d2b764 | Fitness & Nutrition |
+| optional-skills/health/fitness-nutrition/SKILL.md | 10087 | 433eb4dd583dc40f | Fitness & Nutrition |
 | optional-skills/health/neuroskill-bci/references/api.md | 8386 | 518aeab1e7aca616 | NeuroSkill WebSocket & HTTP API Reference |
 | optional-skills/health/neuroskill-bci/references/metrics.md | 9479 | a25875c4fe453bc2 | NeuroSkill Metric Definitions & Interpretation Guide |
 | optional-skills/health/neuroskill-bci/references/protocols.md | 16532 | 66e579a7261cf64c | NeuroSkill Guided Protocols |
-| optional-skills/health/neuroskill-bci/SKILL.md | 16653 | eba3167ecd523c4a | NeuroSkill BCI Integration |
+| optional-skills/health/neuroskill-bci/SKILL.md | 16688 | 078d78c01356904b | NeuroSkill BCI Integration |
 | optional-skills/mcp/DESCRIPTION.md | 89 | 12c5e5cb4b498ff1 | MCP |
 | optional-skills/mcp/fastmcp/references/fastmcp-cli.md | 2359 | c60573a39c12a352 | FastMCP CLI Reference |
-| optional-skills/mcp/fastmcp/SKILL.md | 8334 | a82c2fe6639aa816 | FastMCP |
-| optional-skills/mcp/mcporter/SKILL.md | 3152 | b76f64a0e82ea216 | mcporter |
+| optional-skills/mcp/fastmcp/SKILL.md | 8369 | 62d5d58a279909c6 | FastMCP |
+| optional-skills/mcp/mcporter/SKILL.md | 3187 | cfa853b5deabe6b1 | mcporter |
 | optional-skills/migration/DESCRIPTION.md | 117 | d5825ac3f0cf8bf5 |  |
-| optional-skills/migration/openclaw-migration/SKILL.md | 15893 | 451927d23e6afc58 | OpenClaw -> Hermes Migration |
+| optional-skills/migration/openclaw-migration/SKILL.md | 15928 | 8031f816866cddd1 | OpenClaw -> Hermes Migration |
 | optional-skills/mlops/accelerate/references/custom-plugins.md | 11781 | 1b2f1cf5d70a155f | Custom Plugins for Accelerate |
 | optional-skills/mlops/accelerate/references/megatron-integration.md | 11252 | 69dedcc3c78c197d | Megatron Integration with Accelerate |
 | optional-skills/mlops/accelerate/references/performance.md | 12569 | 559ea051c23773d3 | Accelerate Performance Tuning |
-| optional-skills/mlops/accelerate/SKILL.md | 8365 | 1d765256578364ea | HuggingFace Accelerate - Unified Distributed Training |
+| optional-skills/mlops/accelerate/SKILL.md | 8400 | 0754c78b724091c4 | HuggingFace Accelerate - Unified Distributed Training |
 | optional-skills/mlops/chroma/references/integration.md | 771 | fe82af7e33a228d2 | Chroma Integration Guide |
-| optional-skills/mlops/chroma/SKILL.md | 9190 | 42670bbda74e2d13 | Chroma - Open-Source Embedding Database |
+| optional-skills/mlops/chroma/SKILL.md | 9225 | e5e79c324874c0f0 | Chroma - Open-Source Embedding Database |
 | optional-skills/mlops/clip/references/applications.md | 5360 | 682fc313e63cefbe | CLIP Applications Guide |
-| optional-skills/mlops/clip/SKILL.md | 6909 | 437d50cf395fadac | CLIP - Contrastive Language-Image Pre-Training |
+| optional-skills/mlops/clip/SKILL.md | 6944 | 6b18785db99c5a44 | CLIP - Contrastive Language-Image Pre-Training |
 | optional-skills/mlops/faiss/references/index_types.md | 6181 | aa6cb4267ad3a8bc | FAISS Index Types Guide |
-| optional-skills/mlops/faiss/SKILL.md | 5073 | 8dee0440907d4720 | FAISS - Efficient Similarity Search |
+| optional-skills/mlops/faiss/SKILL.md | 5099 | 6ff662b5b5715708 | FAISS - Efficient Similarity Search |
 | optional-skills/mlops/flash-attention/references/benchmarks.md | 7129 | 264ff3060af824c3 | Performance Benchmarks |
 | optional-skills/mlops/flash-attention/references/transformers-integration.md | 7427 | 89ebe8e20756ee21 | HuggingFace Transformers Integration |
-| optional-skills/mlops/flash-attention/SKILL.md | 10226 | b44e2b159ea4e9ae | Flash Attention - Fast Memory-Efficient Attention |
+| optional-skills/mlops/flash-attention/SKILL.md | 9940 | 5cbde033c8544cc0 | Flash Attention - Fast Memory-Efficient Attention |
 | optional-skills/mlops/guidance/references/backends.md | 12010 | cf7ac97bcca4dc42 | Backend Configuration Guide |
 | optional-skills/mlops/guidance/references/constraints.md | 15886 | d50d0d4eab3a04ff | Comprehensive Constraint Patterns |
 | optional-skills/mlops/guidance/references/examples.md | 20079 | 08701c3fa2067a0c | Production-Ready Examples |
-| optional-skills/mlops/guidance/SKILL.md | 14540 | e46f6f6fa3042114 | Guidance: Constrained LLM Generation |
+| optional-skills/mlops/guidance/SKILL.md | 14575 | 4409b0995122bb1f | Guidance: Constrained LLM Generation |
 | optional-skills/mlops/hermes-atropos-environments/references/agentresult-fields.md | 2055 | 1fd89ab3bfb81d5a | AgentResult Fields Reference |
 | optional-skills/mlops/hermes-atropos-environments/references/atropos-base-env.md | 3033 | c8e414f49369b9d9 | Atropos BaseEnv Reference |
 | optional-skills/mlops/hermes-atropos-environments/references/usage-patterns.md | 5850 | 7dd64a1d379561fd | Usage Patterns — Testing Environments and Evaluating Models |
-| optional-skills/mlops/hermes-atropos-environments/SKILL.md | 13413 | 27edd6fd483864ba | Hermes Agent Atropos Environments |
+| optional-skills/mlops/hermes-atropos-environments/SKILL.md | 13448 | e0d253c20f385c24 | Hermes Agent Atropos Environments |
 | optional-skills/mlops/huggingface-tokenizers/references/algorithms.md | 15182 | b26bb48dca45c577 | Tokenization Algorithms Deep Dive |
 | optional-skills/mlops/huggingface-tokenizers/references/integration.md | 15389 | 9e9c3f938424434d | Transformers Integration |
 | optional-skills/mlops/huggingface-tokenizers/references/pipeline.md | 16746 | 3fe8a70a27b1bf9a | Tokenization Pipeline Components |
 | optional-skills/mlops/huggingface-tokenizers/references/training.md | 14559 | 9732225aacd7dacd | Training Custom Tokenizers |
-| optional-skills/mlops/huggingface-tokenizers/SKILL.md | 13699 | 4c8da17b5568a0ee | HuggingFace Tokenizers - Fast Tokenization for NLP |
+| optional-skills/mlops/huggingface-tokenizers/SKILL.md | 13734 | 8ae10d6d98aa0ee3 | HuggingFace Tokenizers - Fast Tokenization for NLP |
+| optional-skills/mlops/inference/outlines/references/backends.md | 14407 | b2e1698429b8c0a2 | Backend Configuration Guide |
+| optional-skills/mlops/inference/outlines/references/examples.md | 21231 | 1055815c239a3b9f | Production-Ready Examples |
+| optional-skills/mlops/inference/outlines/references/json_generation.md | 14927 | 5392ed2d69970778 | Comprehensive JSON Generation Guide |
+| optional-skills/mlops/inference/outlines/SKILL.md | 15838 | 5bf7a17a3a5a87d9 | Outlines: Structured Text Generation |
 | optional-skills/mlops/instructor/references/examples.md | 2320 | 77da5ba3ffc15c9a | Real-World Examples |
 | optional-skills/mlops/instructor/references/providers.md | 1329 | 5482459ae8d27494 | Provider Configuration |
 | optional-skills/mlops/instructor/references/validation.md | 15306 | 83039b93f697c721 | Advanced Validation Patterns |
-| optional-skills/mlops/instructor/SKILL.md | 16852 | ba3ac3ef1bde01d5 | Instructor: Structured LLM Outputs |
+| optional-skills/mlops/instructor/SKILL.md | 16887 | 17b435f1c3bb9125 | Instructor: Structured LLM Outputs |
 | optional-skills/mlops/lambda-labs/references/advanced-usage.md | 15100 | 2b8207cce0675df7 | Lambda Labs Advanced Usage Guide |
 | optional-skills/mlops/lambda-labs/references/troubleshooting.md | 11683 | 0225b965ea55d05c | Lambda Labs Troubleshooting Guide |
-| optional-skills/mlops/lambda-labs/SKILL.md | 12178 | 41022fa7d143e558 | Lambda Labs GPU Cloud |
+| optional-skills/mlops/lambda-labs/SKILL.md | 12213 | 77b7e02e7e53317a | Lambda Labs GPU Cloud |
 | optional-skills/mlops/llava/references/training.md | 4738 | 6377ab1567ba7d28 | LLaVA Training Guide |
-| optional-skills/mlops/llava/SKILL.md | 7858 | 936f768bbe10ad74 | LLaVA - Large Language and Vision Assistant |
+| optional-skills/mlops/llava/SKILL.md | 7893 | 5c4dd6ce70f8e32a | LLaVA - Large Language and Vision Assistant |
 | optional-skills/mlops/modal/references/advanced-usage.md | 10903 | 1e65ec0c842b7fb0 | Modal Advanced Usage Guide |
 | optional-skills/mlops/modal/references/troubleshooting.md | 10516 | df2d4f66c8301c9f | Modal Troubleshooting Guide |
-| optional-skills/mlops/modal/SKILL.md | 8580 | 54f8153eba414346 | Modal Serverless GPU |
+| optional-skills/mlops/modal/SKILL.md | 8615 | 723a4c8beed632f9 | Modal Serverless GPU |
 | optional-skills/mlops/nemo-curator/references/deduplication.md | 2142 | ca5594ba9ee31772 | Deduplication Guide |
 | optional-skills/mlops/nemo-curator/references/filtering.md | 2351 | d02c933f79b140c6 | Quality Filtering Guide |
-| optional-skills/mlops/nemo-curator/SKILL.md | 9363 | 4e116c3f8a3cce53 | NeMo Curator - GPU-Accelerated Data Curation |
+| optional-skills/mlops/nemo-curator/SKILL.md | 9389 | afbce199ca750386 | NeMo Curator - GPU-Accelerated Data Curation |
 | optional-skills/mlops/peft/references/advanced-usage.md | 12541 | 8663cf75afa2e104 | PEFT Advanced Usage Guide |
 | optional-skills/mlops/peft/references/troubleshooting.md | 10344 | 06645be59b9ad046 | PEFT Troubleshooting Guide |
-| optional-skills/mlops/peft/SKILL.md | 12235 | 79ec7275734ceb97 | PEFT (Parameter-Efficient Fine-Tuning) |
+| optional-skills/mlops/peft/SKILL.md | 12270 | 0dabfc591157be5c | PEFT (Parameter-Efficient Fine-Tuning) |
 | optional-skills/mlops/pinecone/references/deployment.md | 3557 | 20b7582d8d8a9fa7 | Pinecone Deployment Guide |
-| optional-skills/mlops/pinecone/SKILL.md | 7852 | 5d185c386c19a02b | Pinecone - Managed Vector Database |
+| optional-skills/mlops/pinecone/SKILL.md | 7887 | b74df7625eb54ea1 | Pinecone - Managed Vector Database |
 | optional-skills/mlops/pytorch-fsdp/references/index.md | 96 | 5f370512e174f559 | Pytorch-Fsdp Documentation Index |
 | optional-skills/mlops/pytorch-fsdp/references/other.md | 337500 | 07711998889a60a6 | Pytorch-Fsdp - Other |
-| optional-skills/mlops/pytorch-fsdp/SKILL.md | 160170 | c24e9e5123daa6a5 | Pytorch-Fsdp Skill |
+| optional-skills/mlops/pytorch-fsdp/SKILL.md | 160196 | f1365e845fdb6f1d | Pytorch-Fsdp Skill |
 | optional-skills/mlops/pytorch-lightning/references/callbacks.md | 12031 | 2940b978bdec21b6 | PyTorch Lightning Callbacks |
 | optional-skills/mlops/pytorch-lightning/references/distributed.md | 10818 | c7d183b74a485505 | PyTorch Lightning Distributed Training |
 | optional-skills/mlops/pytorch-lightning/references/hyperparameter-tuning.md | 12517 | fb733b9a324d4bb0 | Hyperparameter Tuning with PyTorch Lightning |
-| optional-skills/mlops/pytorch-lightning/SKILL.md | 9146 | a627587c4470a4c2 | PyTorch Lightning - High-Level Training Framework |
+| optional-skills/mlops/pytorch-lightning/SKILL.md | 9181 | e58fbcdc0fd9f332 | PyTorch Lightning - High-Level Training Framework |
 | optional-skills/mlops/qdrant/references/advanced-usage.md | 14969 | 49f8216f976db698 | Qdrant Advanced Usage Guide |
 | optional-skills/mlops/qdrant/references/troubleshooting.md | 12682 | 07fbbe57fc0b11d8 | Qdrant Troubleshooting Guide |
-| optional-skills/mlops/qdrant/SKILL.md | 13476 | 996042f85f588fd1 | Qdrant - Vector Similarity Search Engine |
+| optional-skills/mlops/qdrant/SKILL.md | 13511 | 5b7fc64f72a126f4 | Qdrant - Vector Similarity Search Engine |
 | optional-skills/mlops/saelens/references/api.md | 6968 | 528edc8369d0c8b4 | SAELens API Reference |
-| optional-skills/mlops/saelens/references/README.md | 2155 | 1ae9c3f499b5db57 | SAELens Reference Documentation |
+| optional-skills/mlops/saelens/references/README.md | 2085 | 98b5180f6c239348 | SAELens Reference Documentation |
 | optional-skills/mlops/saelens/references/tutorials.md | 9383 | 7b4c7a2ba9a11116 | SAELens Tutorials |
-| optional-skills/mlops/saelens/SKILL.md | 12779 | 26b92b40c16d4b71 | SAELens: Sparse Autoencoders for Mechanistic Interpretability |
+| optional-skills/mlops/saelens/SKILL.md | 12814 | 2d9ffce4734cc5ef | SAELens: Sparse Autoencoders for Mechanistic Interpretability |
 | optional-skills/mlops/simpo/references/datasets.md | 10889 | 885d747d64d810b5 | Datasets |
 | optional-skills/mlops/simpo/references/hyperparameters.md | 8502 | 56f2ad2aa946254a | Hyperparameters |
 | optional-skills/mlops/simpo/references/loss-functions.md | 7067 | a197433caba8cd89 | Loss Functions |
-| optional-skills/mlops/simpo/SKILL.md | 5941 | 25be59e0f05f6d90 | SimPO - Simple Preference Optimization |
+| optional-skills/mlops/simpo/SKILL.md | 5976 | 87a8f3fb5e4321a8 | SimPO - Simple Preference Optimization |
 | optional-skills/mlops/slime/references/api-reference.md | 11907 | 4f078938e1c175ab | slime API Reference |
 | optional-skills/mlops/slime/references/troubleshooting.md | 7221 | 8ded52e21ebf3737 | slime Troubleshooting Guide |
-| optional-skills/mlops/slime/SKILL.md | 11625 | 08cba0294f80c5a8 | slime: LLM Post-Training Framework for RL Scaling |
+| optional-skills/mlops/slime/SKILL.md | 11651 | c75a54bbaa1677c6 | slime: LLM Post-Training Framework for RL Scaling |
 | optional-skills/mlops/stable-diffusion/references/advanced-usage.md | 17690 | ff9c1b1621353af9 | Stable Diffusion Advanced Usage Guide |
 | optional-skills/mlops/stable-diffusion/references/troubleshooting.md | 12401 | 6d42dc6feaa88f07 | Stable Diffusion Troubleshooting Guide |
-| optional-skills/mlops/stable-diffusion/SKILL.md | 13014 | 5c0f78ac8e6eb624 | Stable Diffusion Image Generation |
+| optional-skills/mlops/stable-diffusion/SKILL.md | 13049 | 7c9cee8dba3e1b03 | Stable Diffusion Image Generation |
 | optional-skills/mlops/tensorrt-llm/references/multi-gpu.md | 6699 | f5992df6c444d430 | Multi-GPU Deployment Guide |
 | optional-skills/mlops/tensorrt-llm/references/optimization.md | 5613 | deb727998b471654 | TensorRT-LLM Optimization Guide |
 | optional-skills/mlops/tensorrt-llm/references/serving.md | 9798 | edab4ad7f7bda493 | Production Serving Guide |
-| optional-skills/mlops/tensorrt-llm/SKILL.md | 5064 | 4dea352b21630f64 | TensorRT-LLM |
+| optional-skills/mlops/tensorrt-llm/SKILL.md | 5090 | 7b914ffe6b4fa06f | TensorRT-LLM |
 | optional-skills/mlops/torchtitan/references/checkpoint.md | 4216 | 0cacfc3cf87a3fa8 | Checkpointing in TorchTitan |
 | optional-skills/mlops/torchtitan/references/custom-models.md | 7383 | 05136b49e9f53a3e | Adding Custom Models to TorchTitan |
 | optional-skills/mlops/torchtitan/references/float8.md | 4055 | 33f05eacea84e571 | Float8 Training in TorchTitan |
 | optional-skills/mlops/torchtitan/references/fsdp.md | 3888 | d0743e131ff12948 | FSDP2 in TorchTitan |
-| optional-skills/mlops/torchtitan/SKILL.md | 8952 | 1341b2727f3340de | TorchTitan - PyTorch Native Distributed LLM Pretraining |
+| optional-skills/mlops/torchtitan/SKILL.md | 8978 | c6524deef44ba817 | TorchTitan - PyTorch Native Distributed LLM Pretraining |
+| optional-skills/mlops/training/axolotl/references/api.md | 121144 | 7fce685e5ee5705e | Axolotl - Api |
+| optional-skills/mlops/training/axolotl/references/dataset-formats.md | 46043 | 79b365dbdef0229d | Axolotl - Dataset-Formats |
+| optional-skills/mlops/training/axolotl/references/index.md | 199 | 663ea0eeae52868a | Axolotl Documentation Index |
+| optional-skills/mlops/training/axolotl/references/other.md | 140405 | 5bba1b0b2b7a3dd2 | Axolotl - Other |
+| optional-skills/mlops/training/axolotl/SKILL.md | 4921 | 180458a8fbe7830d | Axolotl Skill |
+| optional-skills/mlops/training/trl-fine-tuning/references/dpo-variants.md | 4297 | c802f74f3f48fcde | DPO Variants |
+| optional-skills/mlops/training/trl-fine-tuning/references/grpo-training.md | 15901 | c1648331f975d69b | GRPO (Group Relative Policy Optimization) — Deep Guide |
+| optional-skills/mlops/training/trl-fine-tuning/references/online-rl.md | 1971 | 35e0ad19a8e6a4bc | Online RL Methods |
+| optional-skills/mlops/training/trl-fine-tuning/references/reward-modeling.md | 2597 | 782edd743d66dec5 | Reward Modeling |
+| optional-skills/mlops/training/trl-fine-tuning/references/sft-training.md | 3237 | 2e42b55d3327caea | SFT Training Guide |
+| optional-skills/mlops/training/trl-fine-tuning/SKILL.md | 12006 | edf51a71f3212edf | TRL - Transformer Reinforcement Learning |
+| optional-skills/mlops/training/unsloth/references/index.md | 98 | e0f799b2c5dea599 | Unsloth Documentation Index |
+| optional-skills/mlops/training/unsloth/references/llms-full.md | 1077225 | f283096d61af8606 | Unsloth Docs |
+| optional-skills/mlops/training/unsloth/references/llms-txt.md | 813089 | 1888f959fc67d572 | Unsloth - Llms-Txt |
+| optional-skills/mlops/training/unsloth/references/llms.md | 12504 | af83bc2f7cbd7246 | Unsloth Documentation |
+| optional-skills/mlops/training/unsloth/SKILL.md | 2298 | b3e1386f66a5c781 | Unsloth Skill |
 | optional-skills/mlops/whisper/references/languages.md | 4786 | 2803cd39805b989c | Whisper Language Support Guide |
-| optional-skills/mlops/whisper/SKILL.md | 7491 | 060e2cc18ff6531d | Whisper - Robust Speech Recognition |
-| optional-skills/productivity/canvas/SKILL.md | 3219 | 9287e2e8a23e12af | Canvas LMS — Course & Assignment Access |
+| optional-skills/mlops/whisper/SKILL.md | 7517 | 2ab396f01b31ed0a | Whisper - Robust Speech Recognition |
+| optional-skills/productivity/canvas/SKILL.md | 3254 | 9eb010985eaf0a54 | Canvas LMS — Course & Assignment Access |
+| optional-skills/productivity/here-now/SKILL.md | 8830 | 63099ac68d040fcc | here.now |
 | optional-skills/productivity/memento-flashcards/SKILL.md | 13186 | 107be2ae586f7eaf | Memento Flashcards — Spaced-Repetition Flashcard Skill |
-| optional-skills/productivity/siyuan/SKILL.md | 9260 | 601b17fd4ac2deef | SiYuan Note API |
-| optional-skills/productivity/telephony/SKILL.md | 12870 | 6676a98210e0596d | Telephony — Numbers, Calls, and Texts without Core Tool Changes |
+| optional-skills/productivity/shop-app/SKILL.md | 14494 | 5347b266fd46c9ac | Shop.app — Personal Shopping Assistant |
+| optional-skills/productivity/shopify/SKILL.md | 15191 | b978e8fa6788d988 | Shopify — Admin & Storefront GraphQL APIs |
+| optional-skills/productivity/siyuan/SKILL.md | 9295 | d0994f28fa53cf8d | SiYuan Note API |
+| optional-skills/productivity/telephony/SKILL.md | 12905 | 2a121c260a1adf1c | Telephony — Numbers, Calls, and Texts without Core Tool Changes |
 | optional-skills/research/bioinformatics/SKILL.md | 13923 | 36ae22f7783a3e17 | Bioinformatics Skills Gateway |
-| optional-skills/research/domain-intel/SKILL.md | 4517 | 9743bf73755341ad | Domain Intelligence — Passive OSINT |
+| optional-skills/research/domain-intel/SKILL.md | 4552 | 0799bf2223148844 | Domain Intelligence — Passive OSINT |
 | optional-skills/research/drug-discovery/references/ADMET_REFERENCE.md | 1920 | 1228fc394f8aac42 | ADMET Reference Guide |
-| optional-skills/research/drug-discovery/SKILL.md | 9261 | 5a75800afd17e498 | Drug Discovery & Pharmaceutical Research |
-| optional-skills/research/duckduckgo-search/SKILL.md | 8412 | 0e79b73bd2c2d98c | DuckDuckGo Search |
-| optional-skills/research/gitnexus-explorer/SKILL.md | 7156 | a9b7bbe89a899a2d | GitNexus Explorer |
-| optional-skills/research/parallel-cli/SKILL.md | 10939 | 5c6f93cdba119490 | Parallel CLI |
+| optional-skills/research/drug-discovery/SKILL.md | 9296 | b7eb32a28367ef3a | Drug Discovery & Pharmaceutical Research |
+| optional-skills/research/duckduckgo-search/SKILL.md | 8447 | 8957fbe7863794d6 | DuckDuckGo Search |
+| optional-skills/research/gitnexus-explorer/SKILL.md | 7191 | 67cf4a63d6960d7a | GitNexus Explorer |
+| optional-skills/research/parallel-cli/SKILL.md | 10974 | 59245b30f3d9426a | Parallel CLI |
 | optional-skills/research/qmd/SKILL.md | 13062 | cebbdbaa558d7d4b | QMD — Query Markup Documents |
-| optional-skills/research/scrapling/SKILL.md | 9032 | 8ebf884f78a1d1c0 | Scrapling |
+| optional-skills/research/scrapling/SKILL.md | 9067 | fdf4c925f55abb0b | Scrapling |
+| optional-skills/research/searxng-search/SKILL.md | 7224 | 3eecf1185abf164e | SearXNG Search |
 | optional-skills/security/1password/references/cli-examples.md | 550 | 723b11df3e98a14a | op CLI examples |
 | optional-skills/security/1password/references/get-started.md | 527 | 6ba0407ae8798745 | 1Password CLI get-started (summary) |
-| optional-skills/security/1password/SKILL.md | 4653 | f01b86f80c2c6406 | 1Password CLI |
+| optional-skills/security/1password/SKILL.md | 4688 | dcc03a0e7fbde885 | 1Password CLI |
 | optional-skills/security/DESCRIPTION.md | 99 | 71373e38f9bc062a | Security |
 | optional-skills/security/oss-forensics/references/evidence-types.md | 5113 | 4a0add8fa614f565 | Evidence Types Reference |
 | optional-skills/security/oss-forensics/references/github-archive-guide.md | 5996 | c1ec63a5d740002c | GitHub Archive Query Guide (BigQuery) |
 | optional-skills/security/oss-forensics/references/investigation-templates.md | 5553 | 16a5e2a149bc60e0 | Investigation Templates |
 | optional-skills/security/oss-forensics/references/recovery-techniques.md | 5767 | 51646115493951b8 | Deleted Content Recovery Techniques |
-| optional-skills/security/oss-forensics/SKILL.md | 19925 | cf30f86bf4ef4805 | OSS Security Forensics Skill |
+| optional-skills/security/oss-forensics/SKILL.md | 19960 | c609d02d9c49f1d4 | OSS Security Forensics Skill |
 | optional-skills/security/oss-forensics/templates/forensic-report.md | 4826 | 657b027da901e807 | Forensic Investigation Report |
 | optional-skills/security/oss-forensics/templates/malicious-package-report.md | 1357 | c6f34c660bc4df26 | Malicious Package Investigation Report |
-| optional-skills/security/sherlock/SKILL.md | 6030 | 558733410481cec2 | Sherlock OSINT Username Search |
+| optional-skills/security/sherlock/SKILL.md | 6065 | e79d38077bff7db2 | Sherlock OSINT Username Search |
 | optional-skills/web-development/DESCRIPTION.md | 356 | c7ae55385e9d9582 | Web Development |
-| optional-skills/web-development/page-agent/SKILL.md | 9126 | 80f5a643f7b71b52 | page-agent |
+| optional-skills/web-development/page-agent/SKILL.md | 9161 | 8474b19f2cf68a39 | page-agent |
 | plugins/disk-cleanup/plugin.yaml | 318 | f875d8665c706fdd |  |
 | plugins/disk-cleanup/README.md | 2170 | 33b625985f2aca81 | disk-cleanup |
 | plugins/example-dashboard/dashboard/manifest.json | 321 | e2e80ddf473b675f |  |
 | plugins/google_meet/plugin.yaml | 710 | 2c3f464d6e4db4b7 |  |
 | plugins/google_meet/README.md | 6617 | a1fa8e4df8074b47 | google_meet plugin |
 | plugins/google_meet/SKILL.md | 7069 | e1f179bed4a0d772 | google_meet |
+| plugins/hermes-achievements/dashboard/manifest.json | 344 | 9043f31295a45493 |  |
+| plugins/hermes-achievements/docs/achievements-performance-implementation-plan.md | 4678 | 88d0dabe1ebfe84b | Hermes Achievements Performance Implementation Plan |
+| plugins/hermes-achievements/docs/achievements-performance-implementation-spec.md | 5717 | 5840729b3975653a | Hermes Achievements Implementation Spec (Detailed) |
+| plugins/hermes-achievements/docs/achievements-performance-spec.md | 5108 | cbdffb5d58be6d06 | Hermes Achievements Performance Spec (Post-Hackathon) |
+| plugins/hermes-achievements/README.md | 4926 | ba9324f2948f9e61 | Hermes Achievements |
 | plugins/image_gen/openai-codex/plugin.yaml | 247 | df5cb472b37eaf1f |  |
 | plugins/image_gen/openai/plugin.yaml | 212 | 8f2bd0290c5a83a1 |  |
 | plugins/image_gen/xai/plugin.yaml | 172 | 234af30afd8c7f29 |  |
+| plugins/kanban/dashboard/manifest.json | 382 | 2c037543d30ddee5 |  |
 | plugins/memory/byterover/plugin.yaml | 280 | 0d4c042a1aaa1703 |  |
 | plugins/memory/byterover/README.md | 934 | 0b896d45687e035b | ByteRover Memory Provider |
 | plugins/memory/hindsight/plugin.yaml | 240 | 702eb827654df823 |  |
@@ -210,26 +266,60 @@ This inventory records all discovered Hermes docs, skill docs, optional skill do
 | plugins/memory/retaindb/README.md | 1032 | 75f3176acd63b55a | RetainDB Memory Provider |
 | plugins/memory/supermemory/plugin.yaml | 201 | 23982d9d8960a808 |  |
 | plugins/memory/supermemory/README.md | 3686 | 6372521fdb09857c | Supermemory Memory Provider |
+| plugins/model-providers/ai-gateway/plugin.yaml | 115 | 27abc9036060a968 |  |
+| plugins/model-providers/alibaba-coding-plan/plugin.yaml | 132 | 672b7972ac1dbafa |  |
+| plugins/model-providers/alibaba/plugin.yaml | 128 | ef778d2319a617c2 |  |
+| plugins/model-providers/anthropic/plugin.yaml | 115 | 4fbaaee941e43854 |  |
+| plugins/model-providers/arcee/plugin.yaml | 101 | 6b43ee22a633966e |  |
+| plugins/model-providers/azure-foundry/plugin.yaml | 117 | 12975461edd5fb98 |  |
+| plugins/model-providers/bedrock/plugin.yaml | 106 | 7dd5b42bb0b7c7c3 |  |
+| plugins/model-providers/copilot-acp/plugin.yaml | 132 | 8fd88e454bfc1ca6 |  |
+| plugins/model-providers/copilot/plugin.yaml | 109 | a2088e3678c6dc86 |  |
+| plugins/model-providers/custom/plugin.yaml | 144 | ae40a8d50bc4948b |  |
+| plugins/model-providers/deepseek/plugin.yaml | 104 | 4f9f0df080363471 |  |
+| plugins/model-providers/gemini/plugin.yaml | 136 | 8457d44e78438813 |  |
+| plugins/model-providers/gmi/plugin.yaml | 100 | 44d0c29de15fdb00 |  |
+| plugins/model-providers/huggingface/plugin.yaml | 130 | 35a1732997d02066 |  |
+| plugins/model-providers/kilocode/plugin.yaml | 105 | 15025d545c72815e |  |
+| plugins/model-providers/kimi-coding/plugin.yaml | 136 | 7409231cc61bdbc6 |  |
+| plugins/model-providers/minimax/plugin.yaml | 136 | 4d7de84b82bb9bda |  |
+| plugins/model-providers/nous/plugin.yaml | 112 | 973e4b2849151da7 |  |
+| plugins/model-providers/nvidia/plugin.yaml | 104 | 5154fe0a7dccc418 |  |
+| plugins/model-providers/ollama-cloud/plugin.yaml | 112 | 92b09d6346454838 |  |
+| plugins/model-providers/openai-codex/plugin.yaml | 128 | d84f6725af76d9a6 |  |
+| plugins/model-providers/opencode-zen/plugin.yaml | 119 | 107f7de50d3c8c0f |  |
+| plugins/model-providers/openrouter/plugin.yaml | 119 | 750ce8f956d22210 |  |
+| plugins/model-providers/qwen-oauth/plugin.yaml | 117 | c0407dd178bd4326 |  |
+| plugins/model-providers/README.md | 2342 | 14481e1693e9db73 | Model Provider Plugins |
+| plugins/model-providers/stepfun/plugin.yaml | 112 | 527e1875123fd578 |  |
+| plugins/model-providers/xai/plugin.yaml | 115 | f3ece9a2c0c58375 |  |
+| plugins/model-providers/xiaomi/plugin.yaml | 105 | 74fc3f227e6bdb25 |  |
+| plugins/model-providers/zai/plugin.yaml | 101 | e92e4459749cf6c9 |  |
 | plugins/observability/langfuse/plugin.yaml | 464 | 168345b45c1432da |  |
 | plugins/observability/langfuse/README.md | 1291 | 6c1889d958722944 | Langfuse Observability Plugin |
+| plugins/platforms/google_chat/plugin.yaml | 1948 | cb640542bcd38385 | ``requires_env`` entries are surfaced in ``hermes config`` UI via the |
+| plugins/platforms/irc/plugin.yaml | 2057 | 7b6562d7c4f80682 | ``requires_env`` entries are surfaced in ``hermes config`` UI via the |
+| plugins/platforms/teams/plugin.yaml | 1855 | db710ae9a048dbc5 | ``requires_env`` entries are surfaced in ``hermes config`` UI via the |
 | plugins/spotify/plugin.yaml | 462 | b893763627501d5c |  |
 | plugins/strike-freedom-cockpit/dashboard/manifest.json | 380 | 2393a1b2f148125d |  |
 | plugins/strike-freedom-cockpit/README.md | 2703 | c502db21ca17604f | Strike Freedom Cockpit — dashboard skin demo |
 | plugins/strike-freedom-cockpit/theme/strike-freedom.yaml | 4651 | 896cf2cf53a237bd | Strike Freedom — Hermes dashboard theme demo |
-| README.md | 11290 | 378f2e4c26c5ce6e | Hermes Agent ☤ |
+| plugins/teams_pipeline/plugin.yaml | 275 | fcee683bb9f637bb |  |
+| README.md | 12802 | 3a3e4d31095f162b | Hermes Agent ☤ |
 | SECURITY.md | 7167 | 81faa3a7365fff52 | Hermes Agent Security Policy |
 | skills/apple/apple-notes/SKILL.md | 2169 | c652e01e47938b8a | Apple Notes |
 | skills/apple/apple-reminders/SKILL.md | 2530 | 7ed9206a4df2739d | Apple Reminders |
-| skills/apple/DESCRIPTION.md | 152 | 0e4d2474859827a5 |  |
+| skills/apple/DESCRIPTION.md | 137 | c9537e578d689502 |  |
 | skills/apple/findmy/SKILL.md | 3709 | 19ec56e3b7f9f0be | Find My (Apple) |
 | skills/apple/imessage/SKILL.md | 2442 | bc68b1648e301409 | iMessage |
-| skills/autonomous-ai-agents/claude-code/SKILL.md | 34253 | 8d72e755bd78cc15 | Claude Code — Hermes Orchestration Guide |
-| skills/autonomous-ai-agents/codex/SKILL.md | 4117 | 7f4495058eed80b6 | Codex CLI |
+| skills/apple/macos-computer-use/SKILL.md | 7309 | 08b4bb4647d983d1 | macOS Computer Use (universal, any-model) |
+| skills/autonomous-ai-agents/claude-code/SKILL.md | 34288 | 4d195cf896e7d1a0 | Claude Code — Hermes Orchestration Guide |
+| skills/autonomous-ai-agents/codex/SKILL.md | 4557 | 55554cc334c04357 | Codex CLI |
 | skills/autonomous-ai-agents/DESCRIPTION.md | 211 | 7f2427c7112d7123 |  |
-| skills/autonomous-ai-agents/hermes-agent/SKILL.md | 30519 | cbc5af9094e0e1b4 | Hermes Agent |
-| skills/autonomous-ai-agents/opencode/SKILL.md | 7224 | 27f87a8e1d592cfe | OpenCode CLI |
-| skills/creative/architecture-diagram/SKILL.md | 5795 | 829ed81dfbe977c3 | Architecture Diagram Skill |
-| skills/creative/ascii-art/SKILL.md | 10521 | a75c1b6e3bb16e7d | ASCII Art Skill |
+| skills/autonomous-ai-agents/hermes-agent/SKILL.md | 45630 | 2001c739d6f2eb7d | Hermes Agent |
+| skills/autonomous-ai-agents/opencode/SKILL.md | 7259 | afb3ea1f1b430070 | OpenCode CLI |
+| skills/creative/architecture-diagram/SKILL.md | 5830 | 0e7e2736aafe052e | Architecture Diagram Skill |
+| skills/creative/ascii-art/SKILL.md | 10556 | b69fdd300045a3e6 | ASCII Art Skill |
 | skills/creative/ascii-video/README.md | 16440 | a182ea6fd86e9a1a | ☤ ASCII Video |
 | skills/creative/ascii-video/references/architecture.md | 33004 | d537a3f6e6263cdd | Architecture Reference |
 | skills/creative/ascii-video/references/composition.md | 34942 | 3bdcb525921a3143 | Composition & Brightness Reference |
@@ -239,7 +329,7 @@ This inventory records all discovered Hermes docs, skill docs, optional skill do
 | skills/creative/ascii-video/references/scenes.md | 37487 | 6c9a0293a5be9612 | Scene System & Creative Composition |
 | skills/creative/ascii-video/references/shaders.md | 50435 | 29cac0af0b4614b3 | Shader Pipeline & Composable Effects |
 | skills/creative/ascii-video/references/troubleshooting.md | 13246 | eb992b11d051ba1e | Troubleshooting Reference |
-| skills/creative/ascii-video/SKILL.md | 14829 | a330b1d35a5650d5 | ASCII Video Production Pipeline |
+| skills/creative/ascii-video/SKILL.md | 14864 | 1d4f84e0eacc0d8a | ASCII Video Production Pipeline |
 | skills/creative/baoyu-comic/PORT_NOTES.md | 5721 | 6af24f784063dad0 | Port Notes — baoyu-comic |
 | skills/creative/baoyu-comic/references/analysis-framework.md | 5481 | 7917f3552fb4f0b8 | Comic Content Analysis Framework |
 | skills/creative/baoyu-comic/references/art-styles/chalk.md | 2790 | 735f5eea5723d1d6 | chalk |
@@ -274,7 +364,7 @@ This inventory records all discovered Hermes docs, skill docs, optional skill do
 | skills/creative/baoyu-comic/references/tones/vintage.md | 2162 | 6cc33000124283d9 | vintage |
 | skills/creative/baoyu-comic/references/tones/warm.md | 1862 | a80705960f18d23f | warm |
 | skills/creative/baoyu-comic/references/workflow.md | 16205 | 424bcbb2ddea8b68 | Complete Workflow |
-| skills/creative/baoyu-comic/SKILL.md | 14586 | ccb91381ff754e12 | Knowledge Comic Creator |
+| skills/creative/baoyu-comic/SKILL.md | 14621 | 39daa86a4c9737a5 | Knowledge Comic Creator |
 | skills/creative/baoyu-infographic/PORT_NOTES.md | 1699 | 5dd3dbe9e9e713af | Port Notes — baoyu-infographic |
 | skills/creative/baoyu-infographic/references/analysis-framework.md | 7490 | 666d5682334ffde1 | Infographic Content Analysis Framework |
 | skills/creative/baoyu-infographic/references/base-prompt.md | 1082 | a0d476aa0042d25d |  |
@@ -321,22 +411,32 @@ This inventory records all discovered Hermes docs, skill docs, optional skill do
 | skills/creative/baoyu-infographic/references/styles/subway-map.md | 591 | a122e7f9f5b990f8 | subway-map |
 | skills/creative/baoyu-infographic/references/styles/technical-schematic.md | 983 | 2b21ce445c6a2b1e | technical-schematic |
 | skills/creative/baoyu-infographic/references/styles/ui-wireframe.md | 596 | 9a27502ab6bba76a | ui-wireframe |
-| skills/creative/baoyu-infographic/SKILL.md | 10399 | e7ff80ee22651917 | Infographic Generator |
-| skills/creative/claude-design/SKILL.md | 19824 | aa54aac5236997ac | Claude Design for CLI/API Agents |
-| skills/creative/comfyui/references/official-cli.md | 8413 | 05d6583604330689 | comfy-cli Command Reference |
-| skills/creative/comfyui/references/rest-api.md | 6404 | c066116d9e0bbc5e | ComfyUI REST API Reference |
-| skills/creative/comfyui/references/workflow-format.md | 6477 | 29b8fec49e272b35 | ComfyUI Workflow JSON Format |
-| skills/creative/comfyui/SKILL.md | 23868 | 2297e9f7fdf5fe6a | ComfyUI |
+| skills/creative/baoyu-infographic/SKILL.md | 10434 | 89e25da6d8ea1cac | Infographic Generator |
+| skills/creative/claude-design/SKILL.md | 19859 | 4c24fb9579a06f16 | Claude Design for CLI/API Agents |
+| skills/creative/comfyui/references/official-cli.md | 7531 | 9d62db1d40af7a46 | comfy-cli Command Reference |
+| skills/creative/comfyui/references/rest-api.md | 10363 | 01077c38f6d5d737 | ComfyUI REST + WebSocket API Reference |
+| skills/creative/comfyui/references/workflow-format.md | 8025 | c5749b962b8e438b | ComfyUI Workflow JSON Format |
+| skills/creative/comfyui/SKILL.md | 23856 | dc23dc22f1d9f0d9 | ComfyUI |
+| skills/creative/comfyui/tests/README.md | 2124 | 88cbd358ddb132c3 | ComfyUI Skill Tests |
+| skills/creative/comfyui/workflows/animatediff_video.json | 2071 | 96742617937e0294 |  |
+| skills/creative/comfyui/workflows/flux_dev_txt2img.json | 2232 | db0afca70c46f552 |  |
+| skills/creative/comfyui/workflows/README.md | 3932 | 2e1cd819ff6da81b | Example Workflows |
+| skills/creative/comfyui/workflows/sd15_txt2img.json | 1474 | db6ef4f9bf3b8e0f |  |
+| skills/creative/comfyui/workflows/sdxl_img2img.json | 1652 | 0b6888ec7e553100 |  |
+| skills/creative/comfyui/workflows/sdxl_inpaint.json | 1873 | c9cd10adb7ce9e3c |  |
+| skills/creative/comfyui/workflows/sdxl_txt2img.json | 1449 | 5266fa4f35fb9a0f |  |
+| skills/creative/comfyui/workflows/upscale_4x.json | 864 | 9f97b0da2826cf2a |  |
+| skills/creative/comfyui/workflows/wan_video_t2v.json | 2189 | 29425bee0ffbb2d5 |  |
 | skills/creative/creative-ideation/references/full-prompt-library.md | 4215 | 2e193b9868a4d7de | Full Prompt Library |
-| skills/creative/creative-ideation/SKILL.md | 6283 | 3fad5810e5c42045 | Creative Ideation |
+| skills/creative/creative-ideation/SKILL.md | 6318 | a0768ddf7685e2a3 | Creative Ideation |
 | skills/creative/DESCRIPTION.md | 116 | e890a87ac49fed98 |  |
-| skills/creative/design-md/SKILL.md | 6988 | 6338f959dd6a2218 | DESIGN.md Skill |
+| skills/creative/design-md/SKILL.md | 7023 | 38ed14bc712a413f | DESIGN.md Skill |
 | skills/creative/design-md/templates/starter.md | 2566 | 587571ab914ebe6c |  |
 | skills/creative/excalidraw/references/colors.md | 1777 | 4546bb6756acb1ea | Excalidraw Color Palette |
 | skills/creative/excalidraw/references/dark-mode.md | 2282 | ef1ceeea938fe62e | Excalidraw Dark Mode Diagrams |
 | skills/creative/excalidraw/references/examples.md | 14226 | 411e4c571135a942 | Excalidraw Diagram Examples |
-| skills/creative/excalidraw/SKILL.md | 7265 | a2c815a81074f5e0 | Excalidraw Diagram Skill |
-| skills/creative/humanizer/SKILL.md | 29990 | 04d0c8c9cd2363dd | Humanizer: Remove AI Writing Patterns |
+| skills/creative/excalidraw/SKILL.md | 7300 | beef7b8ea01e73a3 | Excalidraw Diagram Skill |
+| skills/creative/humanizer/SKILL.md | 30025 | 4f2eece5122e8296 | Humanizer: Remove AI Writing Patterns |
 | skills/creative/manim-video/README.md | 886 | a30f3ec6105d5b23 | Manim Video Skill |
 | skills/creative/manim-video/references/animation-design-thinking.md | 7205 | 87812340f4756f5e | Animation Design Thinking |
 | skills/creative/manim-video/references/animations.md | 8836 | e00bf77a8e17bf45 | Animations Reference |
@@ -352,7 +452,7 @@ This inventory records all discovered Hermes docs, skill docs, optional skill do
 | skills/creative/manim-video/references/troubleshooting.md | 4319 | 7ee9880cf32ab2b4 | Troubleshooting |
 | skills/creative/manim-video/references/updaters-and-trackers.md | 8500 | 96c024dce576750a | Updaters and Value Trackers |
 | skills/creative/manim-video/references/visual-design.md | 4762 | 6703a312d9e35820 | Visual Design Principles |
-| skills/creative/manim-video/SKILL.md | 11988 | 5b9c3c14c4905f9d | Manim Video Production Pipeline |
+| skills/creative/manim-video/SKILL.md | 12023 | 3459a6af999f0c9b | Manim Video Production Pipeline |
 | skills/creative/p5js/README.md | 3316 | 8251be0e41fbe1bd | p5.js Skill |
 | skills/creative/p5js/references/animation.md | 10456 | 7b71c1fd7c7778bf | Animation |
 | skills/creative/p5js/references/color-systems.md | 8647 | 4c210028c4d6e8cf | Color Systems |
@@ -364,11 +464,11 @@ This inventory records all discovered Hermes docs, skill docs, optional skill do
 | skills/creative/p5js/references/typography.md | 6779 | d26c532a850750c6 | Typography |
 | skills/creative/p5js/references/visual-effects.md | 23456 | 644cbaf5f91b44df | Visual Effects |
 | skills/creative/p5js/references/webgl-and-3d.md | 8893 | 86ce498bccba5ce2 | WebGL and 3D |
-| skills/creative/p5js/SKILL.md | 27459 | 201fcdbf0fd1161e | p5.js Production Pipeline |
+| skills/creative/p5js/SKILL.md | 27494 | 6a9722e2633ecdb3 | p5.js Production Pipeline |
 | skills/creative/pixel-art/ATTRIBUTION.md | 2210 | 16e33382764250a5 | Attribution |
 | skills/creative/pixel-art/references/palettes.md | 1711 | ee2f510b1b3a6913 | Named Palettes |
-| skills/creative/pixel-art/SKILL.md | 7546 | 5b29d4a615ecf23a | Pixel Art |
-| skills/creative/popular-web-designs/SKILL.md | 9687 | a18b1ed9d9dc2d0b | Popular Web Designs |
+| skills/creative/pixel-art/SKILL.md | 7581 | 01f351726675bb5e | Pixel Art |
+| skills/creative/popular-web-designs/SKILL.md | 9722 | cd89bdb86008bb30 | Popular Web Designs |
 | skills/creative/popular-web-designs/templates/airbnb.md | 14824 | 4d6277a1e6432047 | Design System: Airbnb |
 | skills/creative/popular-web-designs/templates/airtable.md | 4300 | 9795a57c10e0773d | Design System: Airtable |
 | skills/creative/popular-web-designs/templates/apple.md | 21122 | 9dfce6c8ba40c93b | Design System: Apple |
@@ -424,9 +524,9 @@ This inventory records all discovered Hermes docs, skill docs, optional skill do
 | skills/creative/popular-web-designs/templates/x.ai.md | 17043 | 5454af16b5f3daee | Design System: xAI |
 | skills/creative/popular-web-designs/templates/zapier.md | 19484 | 9aac8e73a4a471fe | Design System: Zapier |
 | skills/creative/pretext/references/patterns.md | 10450 | e8d50e198fefdeb8 | Pretext Patterns |
-| skills/creative/pretext/SKILL.md | 14133 | 1f792db420a1002f | Pretext Creative Demos |
-| skills/creative/sketch/SKILL.md | 9269 | c6281df359af0182 | Sketch |
-| skills/creative/songwriting-and-ai-music/SKILL.md | 10171 | 9f752ea5d522a1d6 | Songwriting & AI Music Generation |
+| skills/creative/pretext/SKILL.md | 14168 | 532570c95d1a0bf6 | Pretext Creative Demos |
+| skills/creative/sketch/SKILL.md | 9304 | c643ff8657341b39 | Sketch |
+| skills/creative/songwriting-and-ai-music/SKILL.md | 10206 | 093dfa88e5b3596a | Songwriting & AI Music Generation |
 | skills/creative/touchdesigner-mcp/references/3d-scene.md | 10305 | f0b17b4383333198 | 3D Scene Reference |
 | skills/creative/touchdesigner-mcp/references/animation.md | 7258 | 9c7482f38e86f80a | Animation Reference |
 | skills/creative/touchdesigner-mcp/references/audio-reactive.md | 5128 | 3ea60c5954b4b1b6 | Audio-Reactive Reference |
@@ -448,64 +548,66 @@ This inventory records all discovered Hermes docs, skill docs, optional skill do
 | skills/creative/touchdesigner-mcp/references/python-api.md | 12533 | f898b84a6c2155c3 | TouchDesigner Python API Reference |
 | skills/creative/touchdesigner-mcp/references/replicator.md | 8232 | b17907d2fb8a5344 | Replicator COMP Reference |
 | skills/creative/touchdesigner-mcp/references/troubleshooting.md | 7442 | c01460dd47d2a59e | TouchDesigner Troubleshooting (twozero MCP) |
-| skills/creative/touchdesigner-mcp/SKILL.md | 15394 | 008ea956f6dfcff2 | TouchDesigner Integration (twozero MCP) |
+| skills/creative/touchdesigner-mcp/SKILL.md | 15429 | 70a4217786c49122 | TouchDesigner Integration (twozero MCP) |
 | skills/data-science/DESCRIPTION.md | 137 | 1311078585c2e122 |  |
-| skills/data-science/jupyter-live-kernel/SKILL.md | 5250 | 84449bd96eedc343 | Jupyter Live Kernel (hamelnb) |
-| skills/devops/webhook-subscriptions/SKILL.md | 6801 | b78f30f13d90934f | Webhook Subscriptions |
+| skills/data-science/jupyter-live-kernel/SKILL.md | 5285 | d93c4b4f50e66c0c | Jupyter Live Kernel (hamelnb) |
+| skills/devops/kanban-orchestrator/SKILL.md | 12114 | 7c6f96f5ed34ef29 | Kanban Orchestrator — Decomposition Playbook |
+| skills/devops/kanban-worker/SKILL.md | 8631 | 9425f2cc6dda6f3a | Kanban Worker — Pitfalls and Examples |
+| skills/devops/webhook-subscriptions/SKILL.md | 6836 | dfb4ddad9b7911db | Webhook Subscriptions |
 | skills/diagramming/DESCRIPTION.md | 159 | 76d976d69859292b |  |
 | skills/dogfood/references/issue-taxonomy.md | 3682 | b90546fab5b59494 | Issue Taxonomy |
-| skills/dogfood/SKILL.md | 6235 | 07142daa2ae1470b | Dogfood: Systematic Web Application QA Testing |
+| skills/dogfood/SKILL.md | 6270 | 36b1a710c61727c2 | Dogfood: Systematic Web Application QA Testing |
 | skills/dogfood/templates/dogfood-report-template.md | 1528 | 6db9127715d3d148 | Dogfood QA Report |
 | skills/domain/DESCRIPTION.md | 1142 | b3a30c554bb5c0f8 |  |
 | skills/email/DESCRIPTION.md | 101 | 2c40e123f597ebbb |  |
-| skills/email/himalaya/references/configuration.md | 4084 | a1838b3f370abef2 | Himalaya Configuration Reference |
+| skills/email/himalaya/references/configuration.md | 5906 | ccd540fa964f8439 | Himalaya Configuration Reference |
 | skills/email/himalaya/references/message-composition.md | 3799 | 84d889972f5f4243 | Message Composition with MML (MIME Meta Language) |
-| skills/email/himalaya/SKILL.md | 5834 | 3a4803a6cbeafe3e | Himalaya Email CLI |
+| skills/email/himalaya/SKILL.md | 6902 | d8830e10696feefd | Himalaya Email CLI |
 | skills/gaming/DESCRIPTION.md | 129 | 67b3008c0945420e |  |
-| skills/gaming/minecraft-modpack-server/SKILL.md | 6533 | 92c7233cc54be701 | Minecraft Modpack Server Setup |
-| skills/gaming/pokemon-player/SKILL.md | 8674 | 9d5680e2a3e95639 | Pokemon Player |
+| skills/gaming/minecraft-modpack-server/SKILL.md | 6559 | 858f64c0e67efb29 | Minecraft Modpack Server Setup |
+| skills/gaming/pokemon-player/SKILL.md | 8709 | fe8da8e6dc5599ef | Pokemon Player |
 | skills/gifs/DESCRIPTION.md | 109 | 5e3ae313ef34319e |  |
-| skills/github/codebase-inspection/SKILL.md | 3593 | c0a0cbcdf183f8b6 | Codebase Inspection with pygount |
+| skills/github/codebase-inspection/SKILL.md | 3628 | 87ddc0578d9bcbc8 | Codebase Inspection with pygount |
 | skills/github/DESCRIPTION.md | 167 | 51c160e236618900 |  |
-| skills/github/github-auth/SKILL.md | 7511 | 77179ef1dcdcfd3c | GitHub Authentication Setup |
+| skills/github/github-auth/SKILL.md | 7546 | 980888a5f4d4a184 | GitHub Authentication Setup |
 | skills/github/github-code-review/references/review-output-template.md | 2465 | 4560662913e8f89d | Review Output Template |
-| skills/github/github-code-review/SKILL.md | 13530 | d043a4ce6a90ce00 | GitHub Code Review |
-| skills/github/github-issues/SKILL.md | 9230 | c634fa92f5891e75 | GitHub Issues Management |
+| skills/github/github-code-review/SKILL.md | 13565 | 3cd38e249223c801 | GitHub Code Review |
+| skills/github/github-issues/SKILL.md | 9265 | 31b932cb6c16e64a | GitHub Issues Management |
 | skills/github/github-issues/templates/bug-report.md | 469 | 4b3144ccf47a85dc |  |
 | skills/github/github-issues/templates/feature-request.md | 598 | 43962f5a398b4bad | Example usage |
 | skills/github/github-pr-workflow/references/ci-troubleshooting.md | 4879 | c72b2301e9b85c54 | CI Troubleshooting Quick Reference |
 | skills/github/github-pr-workflow/references/conventional-commits.md | 2417 | 2d71a3b701b08c2e | Conventional Commits Quick Reference |
-| skills/github/github-pr-workflow/SKILL.md | 9950 | 9d860acf79e3ead3 | GitHub Pull Request Workflow |
+| skills/github/github-pr-workflow/SKILL.md | 9985 | f41117e2498e74d9 | GitHub Pull Request Workflow |
 | skills/github/github-pr-workflow/templates/pr-body-bugfix.md | 513 | e8c31915b87dba04 |  |
 | skills/github/github-pr-workflow/templates/pr-body-feature.md | 580 | 875e815da6e0e3df |  |
 | skills/github/github-repo-management/references/github-api-cheatsheet.md | 6092 | a9081d4a108b67b4 | GitHub REST API Cheatsheet |
-| skills/github/github-repo-management/SKILL.md | 13648 | 5116abc1516cca97 | GitHub Repository Management |
+| skills/github/github-repo-management/SKILL.md | 13683 | 355bcef566988194 | GitHub Repository Management |
 | skills/index-cache/anthropics_skills_skills_.json | 9858 | 52086c6a0693f638 |  |
 | skills/index-cache/claude_marketplace_anthropics_skills.json | 902 | 664f7ee6541fb573 |  |
 | skills/index-cache/lobehub_index.json | 251446 | 6a51d5c10d92eeaa |  |
 | skills/index-cache/openai_skills_skills_.json | 2 | 4f53cda18c2baa0c |  |
 | skills/inference-sh/DESCRIPTION.md | 706 | ac21c24bb4681d20 | inference.sh |
 | skills/mcp/DESCRIPTION.md | 216 | 0c4965634fff4201 |  |
-| skills/mcp/native-mcp/SKILL.md | 12330 | f5d340d56e011a67 | Native MCP Client |
+| skills/mcp/native-mcp/SKILL.md | 12365 | 59d2c150022d7906 | Native MCP Client |
 | skills/media/DESCRIPTION.md | 139 | c27bb2f0f3acd717 |  |
-| skills/media/gif-search/SKILL.md | 2669 | df7f4037197c2251 | GIF Search (Tenor API) |
-| skills/media/heartmula/SKILL.md | 6377 | 0c62d3c104a70e64 | HeartMuLa - Open-Source Music Generation |
-| skills/media/songsee/SKILL.md | 2301 | d5c0f9355154bcb1 | songsee |
-| skills/media/spotify/SKILL.md | 6284 | 43789e51e3ce37a7 | Spotify |
+| skills/media/gif-search/SKILL.md | 2704 | ee2d14e32314e083 | GIF Search (Tenor API) |
+| skills/media/heartmula/SKILL.md | 6412 | d6f8322ba9ab4756 | HeartMuLa - Open-Source Music Generation |
+| skills/media/songsee/SKILL.md | 2336 | d9d8d1394c630bd8 | songsee |
+| skills/media/spotify/SKILL.md | 6319 | 84b4c86e75f08288 | Spotify |
 | skills/media/youtube-content/references/output-formats.md | 1259 | f24e6939b47511a7 | Output Format Examples |
-| skills/media/youtube-content/SKILL.md | 3183 | 590f7358445e804e | YouTube Content Tool |
+| skills/media/youtube-content/SKILL.md | 3218 | f6e573f84f3f62da | YouTube Content Tool |
 | skills/mlops/DESCRIPTION.md | 162 | 2cbbd46162c529fe |  |
 | skills/mlops/evaluation/DESCRIPTION.md | 126 | 5e682e8f8f791d33 |  |
 | skills/mlops/evaluation/lm-evaluation-harness/references/api-evaluation.md | 11114 | 433372d84b8bbd6c | API Evaluation |
 | skills/mlops/evaluation/lm-evaluation-harness/references/benchmark-guide.md | 10769 | 6f3e6daf78cee214 | Benchmark Guide |
 | skills/mlops/evaluation/lm-evaluation-harness/references/custom-tasks.md | 13125 | c6b5591c77c16570 | Custom Tasks |
 | skills/mlops/evaluation/lm-evaluation-harness/references/distributed-eval.md | 11426 | 3ddc4551f25ce0d3 | Distributed Evaluation |
-| skills/mlops/evaluation/lm-evaluation-harness/SKILL.md | 11994 | 83fb318d855e8b24 | lm-evaluation-harness - LLM Benchmarking |
+| skills/mlops/evaluation/lm-evaluation-harness/SKILL.md | 12020 | 5426016d51e3b49e | lm-evaluation-harness - LLM Benchmarking |
 | skills/mlops/evaluation/weights-and-biases/references/artifacts.md | 13425 | 3e4c2ebe70b310e7 | Artifacts & Model Registry Guide |
 | skills/mlops/evaluation/weights-and-biases/references/integrations.md | 16219 | b11f806e19002e58 | Framework Integrations Guide |
 | skills/mlops/evaluation/weights-and-biases/references/sweeps.md | 17675 | c59012acf49ec73b | Comprehensive Hyperparameter Sweeps Guide |
-| skills/mlops/evaluation/weights-and-biases/SKILL.md | 12360 | 45f107b4a4c01b4e | Weights & Biases: ML Experiment Tracking & MLOps |
-| skills/mlops/huggingface-hub/SKILL.md | 3639 | d33563a7e77746c9 | Hugging Face CLI (`hf`) Reference Guide |
+| skills/mlops/evaluation/weights-and-biases/SKILL.md | 12395 | 7cabb8bcc0079737 | Weights & Biases: ML Experiment Tracking & MLOps |
+| skills/mlops/huggingface-hub/SKILL.md | 3674 | 10d5bdf26e08ce47 | Hugging Face CLI (`hf`) Reference Guide |
 | skills/mlops/inference/DESCRIPTION.md | 161 | f409a16dfccb4dca |  |
 | skills/mlops/inference/llama-cpp/references/advanced-usage.md | 10887 | ee7ed3b7c06b393b | GGUF Advanced Usage Guide |
 | skills/mlops/inference/llama-cpp/references/hub-discovery.md | 5082 | b53ab078551d4108 | Hugging Face URL Workflows for llama.cpp |
@@ -513,79 +615,60 @@ This inventory records all discovered Hermes docs, skill docs, optional skill do
 | skills/mlops/inference/llama-cpp/references/quantization.md | 5888 | 6e3039e2230d75d1 | GGUF Quantization Guide |
 | skills/mlops/inference/llama-cpp/references/server.md | 2915 | bd1dadb7e72f6b98 | Server Deployment Guide |
 | skills/mlops/inference/llama-cpp/references/troubleshooting.md | 8904 | a83f9df40a6db785 | GGUF Troubleshooting Guide |
-| skills/mlops/inference/llama-cpp/SKILL.md | 8845 | 06b21e4aadcf5986 | llama.cpp + GGUF |
+| skills/mlops/inference/llama-cpp/SKILL.md | 8880 | 9c1ef45f6197fbc0 | llama.cpp + GGUF |
 | skills/mlops/inference/obliteratus/references/analysis-modules.md | 6270 | 7f8e5320e97739e8 | OBLITERATUS Analysis Modules — Reference |
 | skills/mlops/inference/obliteratus/references/methods-guide.md | 6719 | e87c6e6fb9fdeec9 | OBLITERATUS Methods — Detailed Guide |
-| skills/mlops/inference/obliteratus/SKILL.md | 15438 | 14b07ab8606b89df | OBLITERATUS Skill |
+| skills/mlops/inference/obliteratus/SKILL.md | 15464 | 9fb394a0af2a9733 | OBLITERATUS Skill |
 | skills/mlops/inference/obliteratus/templates/abliteration-config.yaml | 1189 | 11bdb66c6af528b4 | OBLITERATUS Abliteration Config |
 | skills/mlops/inference/obliteratus/templates/analysis-study.yaml | 1368 | ae8cf7580c90d822 | OBLITERATUS Analysis Study Config |
 | skills/mlops/inference/obliteratus/templates/batch-abliteration.yaml | 1201 | f635607584579b31 | OBLITERATUS Batch Abliteration Config |
-| skills/mlops/inference/outlines/references/backends.md | 14407 | b2e1698429b8c0a2 | Backend Configuration Guide |
-| skills/mlops/inference/outlines/references/examples.md | 21231 | 1055815c239a3b9f | Production-Ready Examples |
-| skills/mlops/inference/outlines/references/json_generation.md | 14927 | 5392ed2d69970778 | Comprehensive JSON Generation Guide |
-| skills/mlops/inference/outlines/SKILL.md | 15803 | bfcee60c50d429c2 | Outlines: Structured Text Generation |
 | skills/mlops/inference/vllm/references/optimization.md | 5769 | 0f860d337adb1d07 | Performance Optimization |
 | skills/mlops/inference/vllm/references/quantization.md | 6746 | 5fb30ea9e8fbec4a | Quantization Guide |
 | skills/mlops/inference/vllm/references/server-deployment.md | 5252 | 7db618ec40b865fe | Server Deployment Patterns |
 | skills/mlops/inference/vllm/references/troubleshooting.md | 9037 | 307acd908e606740 | Troubleshooting Guide |
-| skills/mlops/inference/vllm/SKILL.md | 9045 | dbc02611b59f3729 | vLLM - High-Performance LLM Serving |
+| skills/mlops/inference/vllm/SKILL.md | 9071 | ab72192b7aee4e6d | vLLM - High-Performance LLM Serving |
 | skills/mlops/models/audiocraft/references/advanced-usage.md | 16953 | 5efe98c6ebcd0107 | AudioCraft Advanced Usage Guide |
 | skills/mlops/models/audiocraft/references/troubleshooting.md | 11412 | af0c56aca0902aca | AudioCraft Troubleshooting Guide |
-| skills/mlops/models/audiocraft/SKILL.md | 16163 | 7a9e4e55ad62a073 | AudioCraft: Audio Generation |
+| skills/mlops/models/audiocraft/SKILL.md | 16189 | eebe52632e3312a5 | AudioCraft: Audio Generation |
 | skills/mlops/models/DESCRIPTION.md | 253 | 97a8c2c6c7f4dcbb |  |
 | skills/mlops/models/segment-anything/references/advanced-usage.md | 15803 | 73a46290ac698633 | Segment Anything Advanced Usage Guide |
 | skills/mlops/models/segment-anything/references/troubleshooting.md | 11914 | cbab544d97ddc381 | Segment Anything Troubleshooting Guide |
-| skills/mlops/models/segment-anything/SKILL.md | 13337 | a98e8a7c281e30fe | Segment Anything Model (SAM) |
+| skills/mlops/models/segment-anything/SKILL.md | 13372 | 86440d99e8ec3bd7 | Segment Anything Model (SAM) |
 | skills/mlops/research/DESCRIPTION.md | 113 | 50a304dcfae9ec92 |  |
 | skills/mlops/research/dspy/references/examples.md | 18983 | a617b7ed15a81fc4 | DSPy Real-World Examples |
 | skills/mlops/research/dspy/references/modules.md | 12363 | a2a1ba76f0b808c4 | DSPy Modules |
 | skills/mlops/research/dspy/references/optimizers.md | 14933 | ddf19b520df9741b | DSPy Optimizers (Teleprompters) |
-| skills/mlops/research/dspy/SKILL.md | 15185 | c02732551c788751 | DSPy: Declarative Language Model Programming |
-| skills/mlops/training/axolotl/references/api.md | 121144 | 7fce685e5ee5705e | Axolotl - Api |
-| skills/mlops/training/axolotl/references/dataset-formats.md | 46043 | 79b365dbdef0229d | Axolotl - Dataset-Formats |
-| skills/mlops/training/axolotl/references/index.md | 199 | 663ea0eeae52868a | Axolotl Documentation Index |
-| skills/mlops/training/axolotl/references/other.md | 140405 | 5bba1b0b2b7a3dd2 | Axolotl - Other |
-| skills/mlops/training/axolotl/SKILL.md | 4895 | 06150971c4124a5b | Axolotl Skill |
+| skills/mlops/research/dspy/SKILL.md | 15220 | 67410a6b216d79eb | DSPy: Declarative Language Model Programming |
 | skills/mlops/training/DESCRIPTION.md | 150 | 408baf22effe5752 |  |
-| skills/mlops/training/trl-fine-tuning/references/dpo-variants.md | 4297 | c802f74f3f48fcde | DPO Variants |
-| skills/mlops/training/trl-fine-tuning/references/grpo-training.md | 15901 | c1648331f975d69b | GRPO (Group Relative Policy Optimization) — Deep Guide |
-| skills/mlops/training/trl-fine-tuning/references/online-rl.md | 1971 | 35e0ad19a8e6a4bc | Online RL Methods |
-| skills/mlops/training/trl-fine-tuning/references/reward-modeling.md | 2597 | 782edd743d66dec5 | Reward Modeling |
-| skills/mlops/training/trl-fine-tuning/references/sft-training.md | 3237 | 2e42b55d3327caea | SFT Training Guide |
-| skills/mlops/training/trl-fine-tuning/SKILL.md | 11971 | ad0792435a5466ab | TRL - Transformer Reinforcement Learning |
-| skills/mlops/training/unsloth/references/index.md | 98 | e0f799b2c5dea599 | Unsloth Documentation Index |
-| skills/mlops/training/unsloth/references/llms-full.md | 1077225 | f283096d61af8606 | Unsloth Docs |
-| skills/mlops/training/unsloth/references/llms-txt.md | 813089 | 1888f959fc67d572 | Unsloth - Llms-Txt |
-| skills/mlops/training/unsloth/references/llms.md | 12504 | af83bc2f7cbd7246 | Unsloth Documentation |
-| skills/mlops/training/unsloth/SKILL.md | 2272 | 05961478fad35eb9 | Unsloth Skill |
 | skills/mlops/vector-databases/DESCRIPTION.md | 125 | dd8ee2370b6b0139 |  |
 | skills/note-taking/DESCRIPTION.md | 146 | fb28a609372460b2 |  |
-| skills/note-taking/obsidian/SKILL.md | 1264 | 0adb2b36684060f3 | Obsidian Vault |
-| skills/productivity/airtable/SKILL.md | 11267 | efd925c3b9be734d | Airtable — Bases, Tables & Records |
+| skills/note-taking/obsidian/SKILL.md | 2919 | d2d080f82893dac8 | Obsidian Vault |
+| skills/productivity/airtable/SKILL.md | 11302 | 537d440df7f23c58 | Airtable — Bases, Tables & Records |
 | skills/productivity/DESCRIPTION.md | 114 | b5a494a45bfd430b |  |
 | skills/productivity/google-workspace/references/gmail-search-syntax.md | 2150 | 340b78000fba67b9 | Gmail Search Syntax |
-| skills/productivity/google-workspace/SKILL.md | 10545 | f4711ff561de7bb6 | Google Workspace |
-| skills/productivity/linear/SKILL.md | 11195 | ec0e05268872ab03 | Linear — Issue & Project Management |
-| skills/productivity/maps/SKILL.md | 6691 | 9016a0dcce246a02 | Maps Skill |
-| skills/productivity/nano-pdf/SKILL.md | 1379 | 4eedb649dcf48c6a | nano-pdf |
+| skills/productivity/google-workspace/SKILL.md | 13411 | 014a4818ee1b363d | Google Workspace |
+| skills/productivity/linear/SKILL.md | 14782 | e7b6fbb8b55f8490 | Linear — Issue & Project Management |
+| skills/productivity/maps/SKILL.md | 6726 | 8c961ecf662838e3 | Maps Skill |
+| skills/productivity/nano-pdf/SKILL.md | 1414 | 4243b329789c6d7f | nano-pdf |
 | skills/productivity/notion/references/block-types.md | 3021 | 530379beca84804b | Notion Block Types |
-| skills/productivity/notion/SKILL.md | 5201 | e919f897e55e06b5 | Notion API |
+| skills/productivity/notion/SKILL.md | 5236 | 4c6f884920ded295 | Notion API |
 | skills/productivity/ocr-and-documents/DESCRIPTION.md | 147 | 0da2ba89cf066f7e |  |
-| skills/productivity/ocr-and-documents/SKILL.md | 5245 | 53596fe5a2a87898 | PDF & Document Extraction |
+| skills/productivity/ocr-and-documents/SKILL.md | 5280 | 720a1f1a534167ef | PDF & Document Extraction |
 | skills/productivity/powerpoint/editing.md | 6885 | 6cb47c3ab17e60b7 | Editing Presentations |
 | skills/productivity/powerpoint/pptxgenjs.md | 12819 | 9539534d92b71708 | PptxGenJS Tutorial |
-| skills/productivity/powerpoint/SKILL.md | 9263 | 5d80c56d140e7f5c | Powerpoint Skill |
+| skills/productivity/powerpoint/SKILL.md | 9298 | bb2084f5da312eec | Powerpoint Skill |
+| skills/productivity/teams-meeting-pipeline/SKILL.md | 6867 | 472e8772146f571f | Teams Meeting Pipeline |
 | skills/red-teaming/godmode/references/jailbreak-templates.md | 7395 | 4978c900ebd6058e | GODMODE CLASSIC — Jailbreak System Prompt Templates |
 | skills/red-teaming/godmode/references/refusal-detection.md | 6245 | 1347f7cbfe9eac57 | Refusal Detection & Response Scoring |
-| skills/red-teaming/godmode/SKILL.md | 20024 | a24f5b066c6b2e1d | G0DM0D3 Jailbreaking Skill |
+| skills/red-teaming/godmode/SKILL.md | 20059 | 5ab1757d1b638258 | G0DM0D3 Jailbreaking Skill |
 | skills/red-teaming/godmode/templates/prefill-subtle.json | 654 | 1ae0ea27dff040a8 |  |
 | skills/red-teaming/godmode/templates/prefill.json | 907 | 834a066c5fcf3d82 |  |
-| skills/research/arxiv/SKILL.md | 10050 | 1d987541419ab3fb | arXiv Research |
-| skills/research/blogwatcher/SKILL.md | 5076 | 2fa4ea3866b125eb | Blogwatcher |
+| skills/research/arxiv/SKILL.md | 10085 | 2a6073a1ad08823d | arXiv Research |
+| skills/research/blogwatcher/SKILL.md | 5111 | b85be5a9b86b9028 | Blogwatcher |
 | skills/research/DESCRIPTION.md | 179 | a7bc842330a491de |  |
-| skills/research/llm-wiki/SKILL.md | 20078 | bcbff15793322201 | Karpathy's LLM Wiki |
+| skills/research/llm-wiki/SKILL.md | 20113 | eb13a2b8c654eeee | Karpathy's LLM Wiki |
 | skills/research/polymarket/references/api-endpoints.md | 4542 | d000b3c89c51fee8 | Polymarket API Endpoints Reference |
-| skills/research/polymarket/SKILL.md | 2950 | f940c02ae8e112dd | Polymarket — Prediction Market Data |
+| skills/research/polymarket/SKILL.md | 2985 | becfa71e730b482c | Polymarket — Prediction Market Data |
 | skills/research/research-paper-writing/references/autoreason-methodology.md | 19146 | d3a68438f903c0ba | Autoreason: Iterative Refinement Methodology |
 | skills/research/research-paper-writing/references/checklists.md | 13622 | f0be3d5259a7527f | Conference Paper Checklists |
 | skills/research/research-paper-writing/references/citation-workflow.md | 15433 | febafc1818a5bfe8 | Citation Management & Hallucination Prevention |
@@ -602,290 +685,341 @@ This inventory records all discovered Hermes docs, skill docs, optional skill do
 | skills/research/research-paper-writing/templates/colm2025/README.md | 51 | 7c2c585d56548235 | Template |
 | skills/research/research-paper-writing/templates/README.md | 6707 | e65dc1a22cb150da | LaTeX Templates for ML/AI Conferences |
 | skills/smart-home/DESCRIPTION.md | 123 | 34a853f25b3ea6c6 |  |
-| skills/smart-home/openhue/SKILL.md | 2678 | 6e0387e6aafc38cf | OpenHue CLI |
+| skills/smart-home/openhue/SKILL.md | 2713 | 550f94848d10ab82 | OpenHue CLI |
 | skills/social-media/DESCRIPTION.md | 151 | 2ea0d50444337de4 |  |
 | skills/social-media/xurl/SKILL.md | 13993 | 46a50c6f6d3fd233 | xurl — X (Twitter) API via the Official CLI |
-| skills/software-development/debugging-hermes-tui-commands/SKILL.md | 7875 | 8fdd4eccf8292490 | Debugging Hermes TUI Slash Commands |
-| skills/software-development/hermes-agent-skill-authoring/SKILL.md | 7583 | d738cf7a283fb745 | Authoring Hermes-Agent Skills (in-repo) |
-| skills/software-development/node-inspect-debugger/SKILL.md | 10894 | 6d4ba74dafa536ba | Node.js Inspect Debugger |
-| skills/software-development/plan/SKILL.md | 1981 | 3f30ba1c40876673 | Plan Mode |
-| skills/software-development/python-debugpy/SKILL.md | 13146 | 338c7f94a56260a7 | Python Debugger (pdb + debugpy) |
-| skills/software-development/requesting-code-review/SKILL.md | 8448 | ce8c637158a41b46 | Pre-Commit Code Verification |
-| skills/software-development/spike/SKILL.md | 8718 | b9ef7960acedcf5e | Spike |
+| skills/software-development/debugging-hermes-tui-commands/SKILL.md | 7910 | 55d5811c0b2d872d | Debugging Hermes TUI Slash Commands |
+| skills/software-development/hermes-agent-skill-authoring/SKILL.md | 7618 | 4b564cbaf9f6ed6f | Authoring Hermes-Agent Skills (in-repo) |
+| skills/software-development/node-inspect-debugger/SKILL.md | 10929 | f2f72c0c9e67143e | Node.js Inspect Debugger |
+| skills/software-development/plan/SKILL.md | 2016 | 9a4de28156f74cc1 | Plan Mode |
+| skills/software-development/python-debugpy/SKILL.md | 13172 | ce7e38367ea54fb8 | Python Debugger (pdb + debugpy) |
+| skills/software-development/requesting-code-review/SKILL.md | 8483 | 0de2bc3923c28bb2 | Pre-Commit Code Verification |
+| skills/software-development/spike/SKILL.md | 8753 | d301bdb6e90a96d0 | Spike |
 | skills/software-development/subagent-driven-development/references/context-budget-discipline.md | 4209 | 325d4f3b16db3215 | Context Budget Discipline |
 | skills/software-development/subagent-driven-development/references/gates-taxonomy.md | 4668 | 2740dbfb83cb58d2 | Gates Taxonomy |
-| skills/software-development/subagent-driven-development/SKILL.md | 10707 | 8046dea19e200718 | Subagent-Driven Development |
-| skills/software-development/systematic-debugging/SKILL.md | 10445 | ddb1aa401c3c0946 | Systematic Debugging |
-| skills/software-development/test-driven-development/SKILL.md | 9538 | 9e2c26e549e319f9 | Test-Driven Development (TDD) |
-| skills/software-development/writing-plans/SKILL.md | 7194 | 0130cb19af70c640 | Writing Implementation Plans |
-| skills/yuanbao/SKILL.md | 3760 | 09a35b811406e00e | Yuanbao Group Interaction |
+| skills/software-development/subagent-driven-development/SKILL.md | 10742 | 3fe606f9b2f51279 | Subagent-Driven Development |
+| skills/software-development/systematic-debugging/SKILL.md | 10480 | c1d66056ce0b4ec8 | Systematic Debugging |
+| skills/software-development/test-driven-development/SKILL.md | 9573 | 6896c8f090b4bf75 | Test-Driven Development (TDD) |
+| skills/software-development/writing-plans/SKILL.md | 7229 | b930d5746acc1b0c | Writing Implementation Plans |
+| skills/yuanbao/SKILL.md | 3795 | 239e4875f511124f | Yuanbao Group Interaction |
 | website/docs/developer-guide/_category_.json | 189 | 58fd88ab075f78cc |  |
-| website/docs/developer-guide/acp-internals.md | 4620 | 6f7822476a20bcbf | ACP Internals |
-| website/docs/developer-guide/adding-platform-adapters.md | 9457 | 7b367a055d6b8aae | Adding a Platform Adapter |
-| website/docs/developer-guide/adding-providers.md | 13644 | 27c51d052fc598e0 | Adding Providers |
-| website/docs/developer-guide/adding-tools.md | 6082 | 49e327b550c4cb9b | Adding Tools |
-| website/docs/developer-guide/agent-loop.md | 10660 | 7ef12f03eec3fd7c | Agent Loop Internals |
-| website/docs/developer-guide/architecture.md | 16577 | 2d7482d7db9a0640 | Architecture |
-| website/docs/developer-guide/browser-supervisor.md | 10503 | 6cb10749e7e7d554 | Browser CDP Supervisor — Design |
-| website/docs/developer-guide/context-compression-and-caching.md | 14557 | e9b9693d4b767e7b | Context Compression and Caching |
-| website/docs/developer-guide/context-engine-plugin.md | 6921 | 5f5423c80fecca84 | Building a Context Engine Plugin |
-| website/docs/developer-guide/contributing.md | 7376 | 990796dc2045a21b | Contributing |
+| website/docs/developer-guide/acp-internals.md | 4821 | aa14dcb8fc2ba2ad | ACP Internals |
+| website/docs/developer-guide/adding-platform-adapters.md | 21991 | 99ca40995aecf749 | Adding a Platform Adapter |
+| website/docs/developer-guide/adding-providers.md | 16158 | 30f7feef9ec9f701 | Adding Providers |
+| website/docs/developer-guide/adding-tools.md | 6646 | ae06b30e208ba9b9 | Adding Tools |
+| website/docs/developer-guide/agent-loop.md | 10650 | 320487ca2234bdca | Agent Loop Internals |
+| website/docs/developer-guide/architecture.md | 16626 | 3754100223c9cc88 | Architecture |
+| website/docs/developer-guide/browser-supervisor.md | 10456 | a6189f2378643086 | Browser CDP Supervisor — Design |
+| website/docs/developer-guide/context-compression-and-caching.md | 14496 | b77959f58a29d588 | Context Compression and Caching |
+| website/docs/developer-guide/context-engine-plugin.md | 7185 | f66b2ddd513b1f95 | Building a Context Engine Plugin |
+| website/docs/developer-guide/contributing.md | 9083 | bdfaba2f468e4a93 | Contributing |
 | website/docs/developer-guide/creating-skills.md | 15435 | 745a4e3a532d913b | Creating Skills |
-| website/docs/developer-guide/cron-internals.md | 9314 | 516abf2789468e71 | Cron Internals |
-| website/docs/developer-guide/environments.md | 20370 | e934f7b0818e624c | Environments, Benchmarks & Data Generation |
-| website/docs/developer-guide/extending-the-cli.md | 7034 | 242b051fccd8dbb0 | Extending the CLI |
-| website/docs/developer-guide/gateway-internals.md | 12340 | bb122f41857834b1 | Gateway Internals |
+| website/docs/developer-guide/cron-internals.md | 9400 | 12f6a76d6eef6074 | Cron Internals |
+| website/docs/developer-guide/environments.md | 20408 | 1c89a5692f294310 | Environments, Benchmarks & Data Generation |
+| website/docs/developer-guide/extending-the-cli.md | 7172 | 081b9570364ef53b | Extending the CLI |
+| website/docs/developer-guide/gateway-internals.md | 12764 | 6f67e42c483f2aa3 | Gateway Internals |
+| website/docs/developer-guide/image-gen-provider-plugin.md | 11394 | de051eccd2d92bcd | Building an Image Generation Provider Plugin |
 | website/docs/developer-guide/memory-provider-plugin.md | 9161 | 461a404a491796e1 | Building a Memory Provider Plugin |
-| website/docs/developer-guide/prompt-assembly.md | 9065 | 7ae6ad406ef76fc6 | Prompt Assembly |
-| website/docs/developer-guide/provider-runtime.md | 7307 | 0530b9483af7b2b0 | Provider Runtime Resolution |
-| website/docs/developer-guide/session-storage.md | 11676 | 59099542888d25a9 | Session Storage |
-| website/docs/developer-guide/tools-runtime.md | 10117 | 38f53c729e0809d9 | Tools Runtime |
+| website/docs/developer-guide/model-provider-plugin.md | 13849 | f62d5ecf1d67620d | Building a Model Provider Plugin |
+| website/docs/developer-guide/prompt-assembly.md | 10831 | f8163906dd0c1a44 | Prompt Assembly |
+| website/docs/developer-guide/provider-runtime.md | 9033 | b7d8dc4c12dc23e7 | Provider Runtime Resolution |
+| website/docs/developer-guide/session-storage.md | 12403 | bb2f944d4c2839af | Session Storage |
+| website/docs/developer-guide/tools-runtime.md | 10134 | b317812f746a30a1 | Tools Runtime |
 | website/docs/developer-guide/trajectory-format.md | 8286 | a0b0bb2b69643b72 | Trajectory Format |
 | website/docs/getting-started/_category_.json | 168 | d5705a7f661953e2 |  |
-| website/docs/getting-started/installation.md | 3677 | 7860c6192c73d79c | Installation |
-| website/docs/getting-started/learning-path.md | 8686 | b696e4e3654b2fe7 | Learning Path |
-| website/docs/getting-started/nix-setup.md | 38649 | 766d8e4e3e18c933 | Nix & NixOS Setup |
-| website/docs/getting-started/quickstart.md | 12534 | d7adb60477bd1d67 | Quickstart |
-| website/docs/getting-started/termux.md | 6400 | b93285680d8632c3 | Hermes on Android with Termux |
-| website/docs/getting-started/updating.md | 5960 | 2519676e8a1b38fe | Updating & Uninstalling |
+| website/docs/getting-started/installation.md | 7881 | 16bc58e0bdeb24a2 | Installation |
+| website/docs/getting-started/learning-path.md | 8822 | d70ef30830598df5 | Learning Path |
+| website/docs/getting-started/nix-setup.md | 38688 | 2fddee9ef8b495ae | Nix & NixOS Setup |
+| website/docs/getting-started/quickstart.md | 14223 | f5839916ca5d6255 | Quickstart |
+| website/docs/getting-started/termux.md | 6563 | 273e26e3d4412314 | Hermes on Android with Termux |
+| website/docs/getting-started/updating.md | 7459 | 6a6c483bc70430e0 | Updating & Uninstalling |
 | website/docs/guides/_category_.json | 98 | 8116119aa0407b95 |  |
-| website/docs/guides/automate-with-cron.md | 9750 | a296ea0666c65ecf | Automate Anything with Cron |
-| website/docs/guides/automation-templates.md | 19092 | 83d76e55620ddd91 | Automation Templates |
-| website/docs/guides/aws-bedrock.md | 5608 | 288e87283f4c9d30 | AWS Bedrock |
+| website/docs/guides/automate-with-cron.md | 10196 | 9b8e2e3c1b06c19a | Automate Anything with Cron |
+| website/docs/guides/automation-templates.md | 19085 | 2ce2b8e88fad6e9e | Automation Templates |
+| website/docs/guides/aws-bedrock.md | 5931 | 6a0672a56e34f89e | AWS Bedrock |
 | website/docs/guides/azure-foundry.md | 8617 | 191b1380254b3037 | Azure AI Foundry |
-| website/docs/guides/build-a-hermes-plugin.md | 26466 | dadab03ac3fe5972 | Build a Hermes Plugin |
-| website/docs/guides/cron-troubleshooting.md | 9188 | f577eec98b62df4a | Cron Troubleshooting |
+| website/docs/guides/build-a-hermes-plugin.md | 44176 | b2dbc2ecf3fee206 | Build a Hermes Plugin |
+| website/docs/guides/cron-script-only.md | 10913 | 204b93f7a33a6f01 | Script-Only Cron Jobs |
+| website/docs/guides/cron-troubleshooting.md | 9238 | 159c00b6d2eddab4 | Cron Troubleshooting |
 | website/docs/guides/daily-briefing-bot.md | 10297 | a2959866666d6c9f | Tutorial: Build a Daily Briefing Bot |
 | website/docs/guides/delegation-patterns.md | 11181 | 9ef0c440ab1c7b40 | Delegation & Parallel Work |
 | website/docs/guides/github-pr-review-agent.md | 9398 | 4f85a64729017c21 | Tutorial: Build a GitHub PR Review Agent |
+| website/docs/guides/google-gemini.md | 10758 | 9074c7e92fc76a68 | Google Gemini |
 | website/docs/guides/local-llm-on-mac.md | 9168 | be715d74c6421667 | Run Local LLMs on Mac |
+| website/docs/guides/local-ollama-setup.md | 10412 | 83403d3d502124b5 | Run Hermes Locally with Ollama — Zero API Cost |
+| website/docs/guides/microsoft-graph-app-registration.md | 8539 | e7ec03c55afe9eba | Register a Microsoft Graph Application |
 | website/docs/guides/migrate-from-openclaw.md | 15555 | 339991a7e9b1e61b | Migrate from OpenClaw |
-| website/docs/guides/minimax-oauth.md | 7148 | c71a22c0bd589557 | MiniMax OAuth |
-| website/docs/guides/python-library.md | 10161 | b24e5f4b10876cfe | Using Hermes as a Python Library |
+| website/docs/guides/minimax-oauth.md | 7555 | a35dfe60f380948b | MiniMax OAuth |
+| website/docs/guides/operate-teams-meeting-pipeline.md | 8489 | 04a8747f658b7160 | Operate the Teams Meeting Pipeline |
+| website/docs/guides/python-library.md | 10219 | be37041a352a0ad3 | Using Hermes as a Python Library |
 | website/docs/guides/team-telegram-assistant.md | 13656 | ea50ceaffe680a24 | Set Up a Team Telegram Assistant |
-| website/docs/guides/tips.md | 11943 | 24acffb85fddecfb | Tips & Best Practices |
-| website/docs/guides/use-mcp-with-hermes.md | 9731 | 48e17e41f3da0126 | Use MCP with Hermes |
+| website/docs/guides/tips.md | 12082 | 3fd0edd82992467a | Tips & Best Practices |
+| website/docs/guides/use-mcp-with-hermes.md | 12254 | 9d42c35e91a15f12 | Use MCP with Hermes |
 | website/docs/guides/use-soul-with-hermes.md | 6953 | 13ee3c02eed136d7 | Use SOUL.md with Hermes |
 | website/docs/guides/use-voice-mode-with-hermes.md | 9586 | 30314c7b4920d9f5 | Use Voice Mode with Hermes |
 | website/docs/guides/webhook-github-pr-review.md | 15168 | f8ccb76fdedb6a3e | Automated GitHub PR Comments with Webhooks |
 | website/docs/guides/work-with-skills.md | 9005 | a56d3669eed69fee | Working with Skills |
-| website/docs/index.md | 5472 | c2115b3f63da7a90 | Hermes Agent |
-| website/docs/integrations/index.md | 7357 | eab894a85f2e7a80 | Integrations |
-| website/docs/integrations/providers.md | 56673 | 1e728238ea3f87cd | AI Providers |
+| website/docs/index.md | 6657 | 1d99fe5caf0a3e84 | Hermes Agent |
+| website/docs/integrations/index.md | 7509 | db086751a0327f76 | Integrations |
+| website/docs/integrations/providers.md | 63671 | fb88432681e77b9e | AI Providers |
 | website/docs/reference/_category_.json | 192 | 6338c834ad863520 |  |
-| website/docs/reference/cli-commands.md | 38562 | 39f6e1e079302fa1 | CLI Commands Reference |
-| website/docs/reference/environment-variables.md | 39584 | e877d0dd0f7870b6 | Environment Variables Reference |
-| website/docs/reference/faq.md | 31952 | 5bc3a2e87fd37b00 | FAQ & Troubleshooting |
+| website/docs/reference/cli-commands.md | 54824 | e5c248917d60c4f0 | CLI Commands Reference |
+| website/docs/reference/environment-variables.md | 55523 | 462a7c772854c59e | Environment Variables Reference |
+| website/docs/reference/faq.md | 32835 | 3a7f66c14ba68a89 | FAQ & Troubleshooting |
 | website/docs/reference/mcp-config-reference.md | 5789 | f14935503a4704d6 | MCP Config Reference |
 | website/docs/reference/model-catalog.md | 3906 | 4910c5070facb8a5 | Model Catalog |
-| website/docs/reference/optional-skills-catalog.md | 19639 | 267e69637e83e5fe | Optional Skills Catalog |
-| website/docs/reference/profile-commands.md | 7513 | 726ede44125b5d03 | Profile Commands Reference |
-| website/docs/reference/skills-catalog.md | 25515 | 65aab9630d7c7b42 | Bundled Skills Catalog |
-| website/docs/reference/slash-commands.md | 11616 | 11abe09b38f3a44f | Slash Commands Reference |
-| website/docs/reference/tools-reference.md | 16907 | 63b08d01ee609a8a | Built-in Tools Reference |
-| website/docs/reference/toolsets-reference.md | 8514 | b70eea610544b11d | Toolsets Reference |
+| website/docs/reference/optional-skills-catalog.md | 24071 | 52846e82a6ed8f34 | Optional Skills Catalog |
+| website/docs/reference/profile-commands.md | 13805 | 23768f3329995a38 | Profile Commands Reference |
+| website/docs/reference/skills-catalog.md | 18891 | 4991443bd226f1fd | Bundled Skills Catalog |
+| website/docs/reference/slash-commands.md | 17225 | 765a93270cadf519 | Slash Commands Reference |
+| website/docs/reference/tools-reference.md | 22655 | ad79fa0999f2d8ee | Built-in Tools Reference |
+| website/docs/reference/toolsets-reference.md | 10134 | 2b9873969e816731 | Toolsets Reference |
 | website/docs/user-guide/_category_.json | 157 | 0a98c66ca316d777 |  |
-| website/docs/user-guide/checkpoints-and-rollback.md | 7227 | 4c598685b6731fb4 | Checkpoints and `/rollback` |
-| website/docs/user-guide/cli.md | 15935 | cf94ea72f6bf8d35 | CLI Interface |
-| website/docs/user-guide/configuration.md | 77213 | eebbd1106693c546 | Configuration |
-| website/docs/user-guide/docker.md | 12046 | cc44f10e0c01b760 | Hermes Agent — Docker |
+| website/docs/user-guide/checkpoints-and-rollback.md | 9941 | ca5cac11884aa423 | Checkpoints and `/rollback` |
+| website/docs/user-guide/cli.md | 18283 | 12b43298eb2cd292 | CLI Interface |
+| website/docs/user-guide/configuration.md | 89976 | 6cd6d768d011640c | Configuration |
+| website/docs/user-guide/configuring-models.md | 11508 | bf5335392b113942 | Configuring Models |
+| website/docs/user-guide/docker.md | 17719 | 0c3bc1ca7c71a926 | Hermes Agent — Docker |
 | website/docs/user-guide/features/_category_.json | 159 | 00093ec981994547 |  |
-| website/docs/user-guide/features/acp.md | 4123 | 7eaafa85e79a84c4 | ACP Editor Integration |
-| website/docs/user-guide/features/api-server.md | 15942 | d658e590bb071bcc | API Server |
+| website/docs/user-guide/features/acp.md | 4339 | 35769f449df1779d | ACP Editor Integration |
+| website/docs/user-guide/features/api-server.md | 15969 | 866f3f7303dbbf70 | API Server |
 | website/docs/user-guide/features/batch-processing.md | 8680 | 8787ad8a64409538 | Batch Processing |
-| website/docs/user-guide/features/browser.md | 22436 | a36786a3c09077bb | Browser Automation |
-| website/docs/user-guide/features/built-in-plugins.md | 9102 | 63becf4dde66bbb9 | Built-in Plugins |
+| website/docs/user-guide/features/browser.md | 24621 | 20359b56d119c12c | Browser Automation |
+| website/docs/user-guide/features/built-in-plugins.md | 16341 | 5322c59be5ff28a7 | Built-in Plugins |
 | website/docs/user-guide/features/code-execution.md | 10189 | f3d1892a0db7da5a | Code Execution (Programmatic Tool Calling) |
+| website/docs/user-guide/features/computer-use.md | 7079 | af8e36ac874edc8b | Computer Use (macOS) |
 | website/docs/user-guide/features/context-files.md | 9224 | 438cb702c827db08 | Context Files |
 | website/docs/user-guide/features/context-references.md | 5390 | ada9b7f98c0825b8 | Context References |
 | website/docs/user-guide/features/credential-pools.md | 8513 | 9e382fee34386d4f | Credential Pools |
-| website/docs/user-guide/features/cron.md | 13018 | 704878a3bf321f6f | Scheduled Tasks (Cron) |
-| website/docs/user-guide/features/curator.md | 8375 | 5df6e61c5aa0efed | Curator |
-| website/docs/user-guide/features/delegation.md | 12034 | 42707c8e04119e4d | Subagent Delegation |
-| website/docs/user-guide/features/extending-the-dashboard.md | 39359 | 7091490db9488f3e | Extending the Dashboard |
-| website/docs/user-guide/features/fallback-providers.md | 14293 | e01939ebe4beb533 | Fallback Providers |
-| website/docs/user-guide/features/honcho.md | 13425 | ebf250823dd83c99 | Honcho Memory |
-| website/docs/user-guide/features/hooks.md | 48103 | b1a3f1c780156e01 | Event Hooks |
+| website/docs/user-guide/features/cron.md | 21154 | e5849efcd2c41193 | Scheduled Tasks (Cron) |
+| website/docs/user-guide/features/curator.md | 12733 | b20a9599765e10fc | Curator |
+| website/docs/user-guide/features/delegation.md | 13772 | f281060b3b419f43 | Subagent Delegation |
+| website/docs/user-guide/features/extending-the-dashboard.md | 39488 | e28aec8966cabbfe | Extending the Dashboard |
+| website/docs/user-guide/features/fallback-providers.md | 15925 | 4d618127a60128a0 | Fallback Providers |
+| website/docs/user-guide/features/goals.md | 8892 | 12db41ccc82ac9b9 | Persistent Goals (`/goal`) |
+| website/docs/user-guide/features/honcho.md | 14147 | ae7246ef36ad7af1 | Honcho Memory |
+| website/docs/user-guide/features/hooks.md | 53968 | b2b65ee1988c1ef3 | Event Hooks |
 | website/docs/user-guide/features/image-generation.md | 6945 | a7988a7081825366 | Image Generation |
+| website/docs/user-guide/features/kanban-tutorial.md | 18905 | 2eaa79e1f210603e | Kanban tutorial |
+| website/docs/user-guide/features/kanban.md | 54950 | d0b1a5bbcb4cdf3b | Kanban — Multi-Agent Profile Collaboration |
 | website/docs/user-guide/features/mcp.md | 16120 | 5381ee6949158c45 | MCP (Model Context Protocol) |
-| website/docs/user-guide/features/memory-providers.md | 23277 | cedb5dfbca355cb8 | Memory Providers |
+| website/docs/user-guide/features/memory-providers.md | 23443 | fbe06fde298cb34f | Memory Providers |
 | website/docs/user-guide/features/memory.md | 9757 | dfdacda05df6b3c5 | Persistent Memory |
-| website/docs/user-guide/features/overview.md | 6460 | fcf8ff1bb8509371 | Features Overview |
+| website/docs/user-guide/features/overview.md | 6591 | 38b5e3a414dcb592 | Features Overview |
 | website/docs/user-guide/features/personality.md | 8353 | c3a3b70317787a34 | Personality & SOUL.md |
-| website/docs/user-guide/features/plugins.md | 11797 | 3fc5dc894d5a0840 | Plugins |
+| website/docs/user-guide/features/plugins.md | 22201 | 5140273dc5f9e496 | Plugins |
 | website/docs/user-guide/features/provider-routing.md | 5217 | 10fec23b38e030a2 | Provider Routing |
 | website/docs/user-guide/features/rl-training.md | 9139 | 796ed83ec715cd30 | RL Training |
-| website/docs/user-guide/features/skills.md | 23764 | f3ad8e16eba933f5 | Skills System |
-| website/docs/user-guide/features/skins.md | 11435 | 242538dbedcdfd45 | Skins & Themes |
+| website/docs/user-guide/features/skills.md | 27652 | 5bf39551077643d4 | Skills System |
+| website/docs/user-guide/features/skins.md | 11607 | 8990442f020c4756 | Skins & Themes |
 | website/docs/user-guide/features/spotify.md | 13177 | 728a5f560a2500e9 | Spotify |
-| website/docs/user-guide/features/tool-gateway.md | 7584 | cbfa4b13a40a0717 | Nous Tool Gateway |
-| website/docs/user-guide/features/tools.md | 8164 | 659f380f2f638f00 | Tools & Toolsets |
-| website/docs/user-guide/features/tts.md | 8206 | 5e166e479ea36270 | Voice & TTS |
-| website/docs/user-guide/features/vision.md | 8245 | c527377bc403db12 | Vision & Image Paste |
-| website/docs/user-guide/features/voice-mode.md | 18179 | a67e0a47c0d9f001 | Voice Mode |
-| website/docs/user-guide/features/web-dashboard.md | 15553 | 431a2a247bfa9123 | Web Dashboard |
+| website/docs/user-guide/features/tool-gateway.md | 7983 | 3537754f0c766f81 | Nous Tool Gateway |
+| website/docs/user-guide/features/tools.md | 9268 | 7d52f816a250cd05 | Tools & Toolsets |
+| website/docs/user-guide/features/tts.md | 18884 | 31872b93ee8c189f | Voice & TTS |
+| website/docs/user-guide/features/vision.md | 9584 | c3f391e741e63e82 | Vision & Image Paste |
+| website/docs/user-guide/features/voice-mode.md | 18790 | 7b79c2b59a526de3 | Voice Mode |
+| website/docs/user-guide/features/web-dashboard.md | 16181 | fda6705d413cf13a | Web Dashboard |
+| website/docs/user-guide/features/web-search.md | 9715 | 6a7c9496e24f9ae9 | Web Search & Extract |
 | website/docs/user-guide/git-worktrees.md | 5509 | 04151464eb79c386 | Git Worktrees |
 | website/docs/user-guide/messaging/_category_.json | 127 | 313d5ef3d6864f26 |  |
-| website/docs/user-guide/messaging/bluebubbles.md | 5123 | ef1fbf1b626e8d23 | BlueBubbles (iMessage) |
-| website/docs/user-guide/messaging/dingtalk.md | 10749 | 93078a3f024bf9da | DingTalk Setup |
-| website/docs/user-guide/messaging/discord.md | 32511 | f9d42464f2cc32e1 | Discord Setup |
+| website/docs/user-guide/messaging/bluebubbles.md | 5250 | 43eaa39471cb8d1e | BlueBubbles (iMessage) |
+| website/docs/user-guide/messaging/dingtalk.md | 11756 | cae0834790edd14d | DingTalk Setup |
+| website/docs/user-guide/messaging/discord.md | 34020 | e1ae81c08265f37f | Discord Setup |
 | website/docs/user-guide/messaging/email.md | 7484 | 7c9611cb13621120 | Email Setup |
-| website/docs/user-guide/messaging/feishu.md | 22259 | 498566ee4fb6af97 | Feishu / Lark Setup |
+| website/docs/user-guide/messaging/feishu.md | 24533 | 30bc0696e9a95bab | Feishu / Lark Setup |
+| website/docs/user-guide/messaging/google_chat.md | 14016 | c263022d5fab7de2 | Google Chat Setup |
 | website/docs/user-guide/messaging/homeassistant.md | 8598 | c41c4977b493b327 | Home Assistant Integration |
-| website/docs/user-guide/messaging/index.md | 17538 | a4d0a840a8bbc81d | Messaging Gateway |
+| website/docs/user-guide/messaging/index.md | 18477 | 69ddfa0a99202bb8 | Messaging Gateway |
 | website/docs/user-guide/messaging/matrix.md | 25614 | 07ece3d733946d99 | Matrix Setup |
 | website/docs/user-guide/messaging/mattermost.md | 12503 | 39feb7c4892ebe86 | Mattermost Setup |
-| website/docs/user-guide/messaging/open-webui.md | 9772 | f70251dfb46c0ada | Open WebUI Integration |
-| website/docs/user-guide/messaging/qqbot.md | 4517 | 5058a74fbb5499da | QQ Bot |
-| website/docs/user-guide/messaging/signal.md | 8858 | 7f94f42e16250134 | Signal Setup |
-| website/docs/user-guide/messaging/slack.md | 21569 | 745fff7e2cdb2fbd | Slack Setup |
-| website/docs/user-guide/messaging/sms.md | 6532 | 7527a546d410faf1 | SMS Setup (Twilio) |
-| website/docs/user-guide/messaging/telegram.md | 25043 | 8bc3a6940a53fb66 | Telegram Setup |
-| website/docs/user-guide/messaging/webhooks.md | 19937 | 3b212605d03e0316 | Webhooks |
-| website/docs/user-guide/messaging/wecom-callback.md | 5349 | 53667895e055d44f | WeCom Callback (Self-Built App) |
+| website/docs/user-guide/messaging/msgraph-webhook.md | 7465 | 5146e9bf56d6b1a6 | Microsoft Graph Webhook Listener |
+| website/docs/user-guide/messaging/open-webui.md | 14009 | de54f4569c57b933 | Open WebUI Integration |
+| website/docs/user-guide/messaging/qqbot.md | 4643 | 86dff6ca388f09eb | QQ Bot |
+| website/docs/user-guide/messaging/signal.md | 10144 | 94c1ac7dd2dd0bc2 | Signal Setup |
+| website/docs/user-guide/messaging/slack.md | 22354 | 96d049955c1606ee | Slack Setup |
+| website/docs/user-guide/messaging/sms.md | 6534 | 223063b7934a8a03 | SMS Setup (Twilio) |
+| website/docs/user-guide/messaging/teams-meetings.md | 7558 | 9a3d0a7f8b7f3b78 | Microsoft Teams Meetings |
+| website/docs/user-guide/messaging/teams.md | 9328 | 7e029d8ad0ffc1fb | Microsoft Teams Setup |
+| website/docs/user-guide/messaging/telegram.md | 39405 | 6c20924a2bdd803a | Telegram Setup |
+| website/docs/user-guide/messaging/webhooks.md | 20248 | 56faf9320fcab672 | Webhooks |
+| website/docs/user-guide/messaging/wecom-callback.md | 5453 | 63ec97156762ea5c | WeCom Callback (Self-Built App) |
 | website/docs/user-guide/messaging/wecom.md | 12057 | 776afad00fe489e9 | WeCom (Enterprise WeChat) |
 | website/docs/user-guide/messaging/weixin.md | 16320 | 37e3d607f4499521 | Weixin (WeChat) |
 | website/docs/user-guide/messaging/whatsapp.md | 10475 | c227fa3016947b89 | WhatsApp Setup |
-| website/docs/user-guide/messaging/yuanbao.md | 10609 | 9d6505908cb5df3a | Yuanbao |
-| website/docs/user-guide/profiles.md | 8643 | 0c1dd83b93e62f2c | Profiles: Running Multiple Agents |
-| website/docs/user-guide/security.md | 23621 | 4532877fd07f7577 | Security |
-| website/docs/user-guide/sessions.md | 16302 | fa15186abd083687 | Sessions |
-| website/docs/user-guide/skills/bundled/apple/apple-apple-notes.md | 2903 | 5f9c8dc37d9e9d32 | Apple Notes |
-| website/docs/user-guide/skills/bundled/apple/apple-apple-reminders.md | 3198 | 85a1e59b155138a4 | Apple Reminders |
-| website/docs/user-guide/skills/bundled/apple/apple-findmy.md | 4356 | 83b6d5b56c9c9c4d | Findmy |
+| website/docs/user-guide/messaging/yuanbao.md | 10610 | da565bbc82035269 | Yuanbao |
+| website/docs/user-guide/profile-distributions.md | 22036 | 00b68dd6995ce65e | Profile Distributions: Share a Whole Agent |
+| website/docs/user-guide/profiles.md | 9438 | c73f64d97b318fb7 | Profiles: Running Multiple Agents |
+| website/docs/user-guide/security.md | 26242 | af0819ae0d376909 | Security |
+| website/docs/user-guide/sessions.md | 16443 | b4db66bea1c6cf47 | Sessions |
+| website/docs/user-guide/skills/bundled/apple/apple-apple-notes.md | 2843 | a3f2750bbba9cd08 | Apple Notes |
+| website/docs/user-guide/skills/bundled/apple/apple-apple-reminders.md | 3138 | 5bc6ba4e42e542c4 | Apple Reminders |
+| website/docs/user-guide/skills/bundled/apple/apple-findmy.md | 4307 | 017d5447cad6d6d0 | Findmy |
 | website/docs/user-guide/skills/bundled/apple/apple-imessage.md | 3048 | c96027eb127ff636 | Imessage |
-| website/docs/user-guide/skills/bundled/autonomous-ai-agents/autonomous-ai-agents-claude-code.md | 35310 | 298fc2c7b3464db0 | Claude Code |
-| website/docs/user-guide/skills/bundled/autonomous-ai-agents/autonomous-ai-agents-codex.md | 4908 | 6050484518ebfcb8 | Codex |
-| website/docs/user-guide/skills/bundled/autonomous-ai-agents/autonomous-ai-agents-hermes-agent.md | 28863 | 22d1db34a86bae76 | Hermes Agent |
-| website/docs/user-guide/skills/bundled/autonomous-ai-agents/autonomous-ai-agents-opencode.md | 8290 | dcfade8274e5f481 | Opencode |
-| website/docs/user-guide/skills/bundled/creative/creative-architecture-diagram.md | 7342 | f83f2f80614670d3 | Architecture Diagram |
-| website/docs/user-guide/skills/bundled/creative/creative-ascii-art.md | 11329 | c7844e1b3f28d97d | Ascii Art |
-| website/docs/user-guide/skills/bundled/creative/creative-ascii-video.md | 15371 | 420f5840d1f0ac91 | Ascii Video |
-| website/docs/user-guide/skills/bundled/creative/creative-baoyu-comic.md | 16317 | c0345ebcee2681e1 | Baoyu Comic |
-| website/docs/user-guide/skills/bundled/creative/creative-baoyu-infographic.md | 11267 | 8d3ab08d59765de8 | Baoyu Infographic |
-| website/docs/user-guide/skills/bundled/creative/creative-creative-ideation.md | 6792 | c64840a9664e9775 | Ideation |
-| website/docs/user-guide/skills/bundled/creative/creative-design-md.md | 7956 | f42e18d168fdde44 | Design Md |
-| website/docs/user-guide/skills/bundled/creative/creative-excalidraw.md | 7867 | 6e3d770e890d564f | Excalidraw |
-| website/docs/user-guide/skills/bundled/creative/creative-manim-video.md | 12701 | 047969c0656b8cd0 | Manim Video |
-| website/docs/user-guide/skills/bundled/creative/creative-p5js.md | 28229 | 0647d4fac83ebbc2 | P5Js |
-| website/docs/user-guide/skills/bundled/creative/creative-pixel-art.md | 8319 | 40714a83e947c415 | Pixel Art |
-| website/docs/user-guide/skills/bundled/creative/creative-popular-web-designs.md | 9858 | c43170103b681c10 | Popular Web Designs |
-| website/docs/user-guide/skills/bundled/creative/creative-songwriting-and-ai-music.md | 10831 | d2ca21a66a01af6e | Songwriting And Ai Music |
-| website/docs/user-guide/skills/bundled/creative/creative-touchdesigner-mcp.md | 15151 | a96ffc724fd77da6 | Touchdesigner Mcp |
-| website/docs/user-guide/skills/bundled/data-science/data-science-jupyter-live-kernel.md | 6255 | c215217dc938a759 | Jupyter Live Kernel |
-| website/docs/user-guide/skills/bundled/devops/devops-webhook-subscriptions.md | 7647 | 40b43698259f4f9b | Webhook Subscriptions |
-| website/docs/user-guide/skills/bundled/dogfood/dogfood-dogfood.md | 6890 | b00fa72e86d31e34 | Dogfood |
-| website/docs/user-guide/skills/bundled/email/email-himalaya.md | 6507 | 15121a86520e443c | Himalaya |
-| website/docs/user-guide/skills/bundled/gaming/gaming-minecraft-modpack-server.md | 7320 | a0b3bc2832735ec3 | Minecraft Modpack Server |
-| website/docs/user-guide/skills/bundled/gaming/gaming-pokemon-player.md | 9405 | 8599170116c84141 | Pokemon Player |
-| website/docs/user-guide/skills/bundled/github/github-codebase-inspection.md | 4438 | 1e1494a7462dad3c | Codebase Inspection |
-| website/docs/user-guide/skills/bundled/github/github-github-auth.md | 8671 | c7781ae894ac3cb3 | Github Auth |
-| website/docs/user-guide/skills/bundled/github/github-github-code-review.md | 14459 | b591679d0ba5c0db | Github Code Review |
-| website/docs/user-guide/skills/bundled/github/github-github-issues.md | 10119 | e9461552711b44ad | Github Issues |
-| website/docs/user-guide/skills/bundled/github/github-github-pr-workflow.md | 10892 | 45c9387c3b9c9fd6 | Github Pr Workflow |
-| website/docs/user-guide/skills/bundled/github/github-github-repo-management.md | 14667 | 3a0f348e562b9dfb | Github Repo Management |
-| website/docs/user-guide/skills/bundled/mcp/mcp-native-mcp.md | 13270 | b34980068916d108 | Native Mcp |
-| website/docs/user-guide/skills/bundled/media/media-gif-search.md | 3323 | 75642920394ef4fb | Gif Search |
-| website/docs/user-guide/skills/bundled/media/media-heartmula.md | 7093 | 30a9b5f8012887ed | Heartmula |
-| website/docs/user-guide/skills/bundled/media/media-songsee.md | 3054 | cde94ef7ca44ef6e | Songsee |
-| website/docs/user-guide/skills/bundled/media/media-spotify.md | 7112 | 7f4c87d90ce75629 | Spotify |
-| website/docs/user-guide/skills/bundled/media/media-youtube-content.md | 3794 | 52183dc50be63141 | Youtube Content |
-| website/docs/user-guide/skills/bundled/mlops/mlops-evaluation-lm-evaluation-harness.md | 13104 | cba150c6aff3674f | Evaluating Llms Harness |
-| website/docs/user-guide/skills/bundled/mlops/mlops-evaluation-weights-and-biases.md | 13214 | 3c992204e638d89b | Weights And Biases |
-| website/docs/user-guide/skills/bundled/mlops/mlops-huggingface-hub.md | 4410 | 3dfc8faf9c0c36d5 | Huggingface Hub |
-| website/docs/user-guide/skills/bundled/mlops/mlops-inference-llama-cpp.md | 9938 | d16ad62846218a7e | Llama Cpp |
-| website/docs/user-guide/skills/bundled/mlops/mlops-inference-obliteratus.md | 16178 | 0a565355ab6142a7 | Obliteratus |
-| website/docs/user-guide/skills/bundled/mlops/mlops-inference-outlines.md | 16684 | 02f3d09b10e17262 | Outlines |
-| website/docs/user-guide/skills/bundled/mlops/mlops-inference-vllm.md | 10122 | 61f03dfd92d9da18 | Serving Llms Vllm |
-| website/docs/user-guide/skills/bundled/mlops/mlops-models-audiocraft.md | 17180 | 39fc4bea222f5ca0 | Audiocraft Audio Generation |
-| website/docs/user-guide/skills/bundled/mlops/mlops-models-segment-anything.md | 14558 | aa91815c64656f8f | Segment Anything Model |
-| website/docs/user-guide/skills/bundled/mlops/mlops-research-dspy.md | 16009 | 71f5ae020df28f0c | Dspy |
-| website/docs/user-guide/skills/bundled/mlops/mlops-training-axolotl.md | 5506 | 010a65ae0311ae69 | Axolotl |
-| website/docs/user-guide/skills/bundled/mlops/mlops-training-trl-fine-tuning.md | 13691 | 37f4c13568470b83 | Fine Tuning With Trl |
-| website/docs/user-guide/skills/bundled/mlops/mlops-training-unsloth.md | 2998 | c8367e040a06b8c8 | Unsloth |
-| website/docs/user-guide/skills/bundled/note-taking/note-taking-obsidian.md | 1893 | 579ab03717deb246 | Obsidian |
-| website/docs/user-guide/skills/bundled/productivity/productivity-google-workspace.md | 11439 | c22c1e21a29aa260 | Google Workspace |
-| website/docs/user-guide/skills/bundled/productivity/productivity-linear.md | 11911 | 70abf7c351b420c4 | Linear |
-| website/docs/user-guide/skills/bundled/productivity/productivity-maps.md | 7557 | 476aae8b0e23944c | Maps |
-| website/docs/user-guide/skills/bundled/productivity/productivity-nano-pdf.md | 2111 | 76c2b0cd7916a8e0 | Nano Pdf |
-| website/docs/user-guide/skills/bundled/productivity/productivity-notion.md | 5886 | 28d21dbff96665dc | Notion |
-| website/docs/user-guide/skills/bundled/productivity/productivity-ocr-and-documents.md | 6121 | a2e4c91425297acd | Ocr And Documents |
-| website/docs/user-guide/skills/bundled/productivity/productivity-powerpoint.md | 10117 | 828ba11dbc337a95 | Powerpoint |
-| website/docs/user-guide/skills/bundled/red-teaming/red-teaming-godmode.md | 21080 | 1e1084a90aaf9bed | Godmode |
-| website/docs/user-guide/skills/bundled/research/research-arxiv.md | 10977 | bb6ce00ec6daa0e9 | Arxiv |
-| website/docs/user-guide/skills/bundled/research/research-blogwatcher.md | 5749 | 9a4745b266660819 | Blogwatcher |
-| website/docs/user-guide/skills/bundled/research/research-llm-wiki.md | 21004 | c0d36806cf5149bf | Llm Wiki |
-| website/docs/user-guide/skills/bundled/research/research-polymarket.md | 3727 | 8465c4752e6af82f | Polymarket |
-| website/docs/user-guide/skills/bundled/research/research-research-paper-writing.md | 106849 | f44ee74f388eb60d | Research Paper Writing |
-| website/docs/user-guide/skills/bundled/smart-home/smart-home-openhue.md | 3349 | d997c26d6b80954f | Openhue |
-| website/docs/user-guide/skills/bundled/social-media/social-media-xurl.md | 14605 | 157205836119e093 | Xurl |
-| website/docs/user-guide/skills/bundled/software-development/software-development-plan.md | 2980 | 204edeadf906da96 | Plan |
-| website/docs/user-guide/skills/bundled/software-development/software-development-requesting-code-review.md | 9689 | 967c854ff8cb654b | Requesting Code Review |
-| website/docs/user-guide/skills/bundled/software-development/software-development-subagent-driven-development.md | 10861 | a8e91ccebe3fc64a | Subagent Driven Development |
-| website/docs/user-guide/skills/bundled/software-development/software-development-systematic-debugging.md | 11553 | 5cfec1628de613e0 | Systematic Debugging |
-| website/docs/user-guide/skills/bundled/software-development/software-development-test-driven-development.md | 10667 | 9fa9e6bc43ad9cd9 | Test Driven Development |
-| website/docs/user-guide/skills/bundled/software-development/software-development-writing-plans.md | 8299 | 8f3b0d42f4d0975b | Writing Plans |
+| website/docs/user-guide/skills/bundled/apple/apple-macos-computer-use.md | 7974 | 292b8e53a15250c8 | Macos Computer Use |
+| website/docs/user-guide/skills/bundled/autonomous-ai-agents/autonomous-ai-agents-claude-code.md | 35209 | 1791b5fb3c83bc86 | Claude Code |
+| website/docs/user-guide/skills/bundled/autonomous-ai-agents/autonomous-ai-agents-codex.md | 5373 | 82c891f7d34bbb1f | Codex |
+| website/docs/user-guide/skills/bundled/autonomous-ai-agents/autonomous-ai-agents-hermes-agent.md | 46549 | 91e3aa222c68f1fe | Hermes Agent |
+| website/docs/user-guide/skills/bundled/autonomous-ai-agents/autonomous-ai-agents-opencode.md | 8173 | 46b9a7e7bc7efc1e | Opencode |
+| website/docs/user-guide/skills/bundled/creative/creative-architecture-diagram.md | 6634 | 4d3b19a34b441c5a | Architecture Diagram |
+| website/docs/user-guide/skills/bundled/creative/creative-ascii-art.md | 11245 | c542bfedb102fea4 | Ascii Art |
+| website/docs/user-guide/skills/bundled/creative/creative-ascii-video.md | 15510 | 2fee8f6305983c9e | Ascii Video |
+| website/docs/user-guide/skills/bundled/creative/creative-baoyu-comic.md | 16135 | 5dbbf75b92b6dde4 | Baoyu Comic |
+| website/docs/user-guide/skills/bundled/creative/creative-baoyu-infographic.md | 11095 | 29a3990ca739fea2 | Baoyu Infographic |
+| website/docs/user-guide/skills/bundled/creative/creative-claude-design.md | 20808 | ce8a1931f6f40aff | Claude Design |
+| website/docs/user-guide/skills/bundled/creative/creative-comfyui.md | 24199 | 0b313f17bef2d18c | Comfyui |
+| website/docs/user-guide/skills/bundled/creative/creative-creative-ideation.md | 6835 | 3c72088c17051a56 | Ideation |
+| website/docs/user-guide/skills/bundled/creative/creative-design-md.md | 7926 | af8cd2d9c1c1d4b8 | Design Md |
+| website/docs/user-guide/skills/bundled/creative/creative-excalidraw.md | 7900 | 1431ac235e5a9a63 | Excalidraw |
+| website/docs/user-guide/skills/bundled/creative/creative-humanizer.md | 30661 | 84ff3c41550904e5 | Humanizer |
+| website/docs/user-guide/skills/bundled/creative/creative-manim-video.md | 12660 | 2f4fe67d5de8e067 | Manim Video |
+| website/docs/user-guide/skills/bundled/creative/creative-p5js.md | 28218 | 315b801d7cecb444 | P5Js |
+| website/docs/user-guide/skills/bundled/creative/creative-pixel-art.md | 8049 | 57f9c91e6d767a5e | Pixel Art |
+| website/docs/user-guide/skills/bundled/creative/creative-popular-web-designs.md | 10137 | d5632de51a31ecf3 | Popular Web Designs |
+| website/docs/user-guide/skills/bundled/creative/creative-pretext.md | 15127 | 2e02866c104281dd | Pretext |
+| website/docs/user-guide/skills/bundled/creative/creative-sketch.md | 10299 | b8e3083e6f02617f | Sketch |
+| website/docs/user-guide/skills/bundled/creative/creative-songwriting-and-ai-music.md | 10666 | bc9f13cec0ccdb9e | Songwriting And Ai Music |
+| website/docs/user-guide/skills/bundled/creative/creative-touchdesigner-mcp.md | 16332 | 13226eb063b66718 | Touchdesigner Mcp |
+| website/docs/user-guide/skills/bundled/data-science/data-science-jupyter-live-kernel.md | 5926 | 1b359648e51c9c72 | Jupyter Live Kernel |
+| website/docs/user-guide/skills/bundled/devops/devops-kanban-orchestrator.md | 10056 | a31d61bd8ea93edf | Kanban Orchestrator |
+| website/docs/user-guide/skills/bundled/devops/devops-kanban-worker.md | 9355 | 42eb50bd2447445a | Kanban Worker |
+| website/docs/user-guide/skills/bundled/devops/devops-webhook-subscriptions.md | 7486 | afc8f03f2a7978dd | Webhook Subscriptions |
+| website/docs/user-guide/skills/bundled/dogfood/dogfood-dogfood.md | 6926 | 9908a900a9b9c40d | Dogfood |
+| website/docs/user-guide/skills/bundled/email/email-himalaya.md | 7425 | beb554ad2fd062a9 | Himalaya |
+| website/docs/user-guide/skills/bundled/gaming/gaming-minecraft-modpack-server.md | 7172 | 6211e68f790015df | Minecraft Modpack Server |
+| website/docs/user-guide/skills/bundled/gaming/gaming-pokemon-player.md | 9281 | 9ed0d0f501abb1ea | Pokemon Player |
+| website/docs/user-guide/skills/bundled/github/github-codebase-inspection.md | 4330 | 835c10a40d645cd8 | Codebase Inspection |
+| website/docs/user-guide/skills/bundled/github/github-github-auth.md | 8475 | 58eeff1545cc7e6d | Github Auth |
+| website/docs/user-guide/skills/bundled/github/github-github-code-review.md | 14352 | 315bb97070b63fbf | Github Code Review |
+| website/docs/user-guide/skills/bundled/github/github-github-issues.md | 10055 | 908776110a97d3eb | Github Issues |
+| website/docs/user-guide/skills/bundled/github/github-github-pr-workflow.md | 10780 | 9d348e7a95c38742 | Github Pr Workflow |
+| website/docs/user-guide/skills/bundled/github/github-github-repo-management.md | 14549 | 8f462c68c80380af | Github Repo Management |
+| website/docs/user-guide/skills/bundled/mcp/mcp-native-mcp.md | 13057 | 3872294f3ba98f02 | Native Mcp |
+| website/docs/user-guide/skills/bundled/media/media-gif-search.md | 3339 | e997ce2cb8ee5b35 | Gif Search |
+| website/docs/user-guide/skills/bundled/media/media-heartmula.md | 7048 | b456d02e5bb90ca1 | Heartmula |
+| website/docs/user-guide/skills/bundled/media/media-songsee.md | 2882 | 25086cb0d70fdffd | Songsee |
+| website/docs/user-guide/skills/bundled/media/media-spotify.md | 6886 | 898c8694ab37d2f6 | Spotify |
+| website/docs/user-guide/skills/bundled/media/media-youtube-content.md | 3855 | 8fc6ddd088134a89 | Youtube Content |
+| website/docs/user-guide/skills/bundled/mlops/mlops-evaluation-lm-evaluation-harness.md | 13117 | c684c0c40601a134 | Evaluating Llms Harness |
+| website/docs/user-guide/skills/bundled/mlops/mlops-evaluation-weights-and-biases.md | 13094 | 6df5e27c7d7892d7 | Weights And Biases |
+| website/docs/user-guide/skills/bundled/mlops/mlops-huggingface-hub.md | 4296 | facdef2409ed66ab | Huggingface Hub |
+| website/docs/user-guide/skills/bundled/mlops/mlops-inference-llama-cpp.md | 9976 | 5c61ac81d351daf3 | Llama Cpp |
+| website/docs/user-guide/skills/bundled/mlops/mlops-inference-obliteratus.md | 16224 | 5ab1fd2449766ef6 | Obliteratus |
+| website/docs/user-guide/skills/bundled/mlops/mlops-inference-vllm.md | 10093 | a02adf7975af59c7 | Serving Llms Vllm |
+| website/docs/user-guide/skills/bundled/mlops/mlops-models-audiocraft.md | 17118 | e57f4c6b68dbd745 | Audiocraft Audio Generation |
+| website/docs/user-guide/skills/bundled/mlops/mlops-models-segment-anything.md | 14493 | 18ca91c4f921b362 | Segment Anything Model |
+| website/docs/user-guide/skills/bundled/mlops/mlops-research-dspy.md | 15873 | 68f26302272afe96 | Dspy |
+| website/docs/user-guide/skills/bundled/note-taking/note-taking-obsidian.md | 3563 | bc19ae753ee6cc0b | Obsidian |
+| website/docs/user-guide/skills/bundled/productivity/productivity-airtable.md | 11755 | dd6098944d8db8fd | Airtable |
+| website/docs/user-guide/skills/bundled/productivity/productivity-google-workspace.md | 13847 | 6663dfa62c69baa9 | Google Workspace |
+| website/docs/user-guide/skills/bundled/productivity/productivity-linear.md | 15362 | 30cfd5a200a8af61 | Linear |
+| website/docs/user-guide/skills/bundled/productivity/productivity-maps.md | 7280 | b7bbcb5b6bab5108 | Maps |
+| website/docs/user-guide/skills/bundled/productivity/productivity-nano-pdf.md | 2010 | 2d5fff74bfebe576 | Nano Pdf |
+| website/docs/user-guide/skills/bundled/productivity/productivity-notion.md | 5781 | be3c5a00c3c1c95b | Notion |
+| website/docs/user-guide/skills/bundled/productivity/productivity-ocr-and-documents.md | 6015 | 2332ec8e573b3e70 | Ocr And Documents |
+| website/docs/user-guide/skills/bundled/productivity/productivity-powerpoint.md | 10216 | c2fea8f04cbf3f8a | Powerpoint |
+| website/docs/user-guide/skills/bundled/productivity/productivity-teams-meeting-pipeline.md | 7306 | 970784e9eaaec4ef | Teams Meeting Pipeline |
+| website/docs/user-guide/skills/bundled/red-teaming/red-teaming-godmode.md | 20768 | 14a3e1e5b9b38f5f | Godmode |
+| website/docs/user-guide/skills/bundled/research/research-arxiv.md | 10817 | 8f9479dcaaf7d231 | Arxiv |
+| website/docs/user-guide/skills/bundled/research/research-blogwatcher.md | 5656 | 28b8c3cf12ae43b3 | Blogwatcher |
+| website/docs/user-guide/skills/bundled/research/research-llm-wiki.md | 20926 | 33c2cd4457e32cc5 | Llm Wiki |
+| website/docs/user-guide/skills/bundled/research/research-polymarket.md | 3573 | 92118aca93481a44 | Polymarket |
+| website/docs/user-guide/skills/bundled/research/research-research-paper-writing.md | 106713 | c47f154fa4553a75 | Research Paper Writing |
+| website/docs/user-guide/skills/bundled/smart-home/smart-home-openhue.md | 3277 | fa6d927b35d1c6d5 | Openhue |
+| website/docs/user-guide/skills/bundled/social-media/social-media-xurl.md | 14451 | 43f4ef284d9c237a | Xurl |
+| website/docs/user-guide/skills/bundled/software-development/software-development-debugging-hermes-tui-commands.md | 8982 | c59b9c20a934f1a2 | Debugging Hermes Tui Commands |
+| website/docs/user-guide/skills/bundled/software-development/software-development-hermes-agent-skill-authoring.md | 8453 | cda7afd92e2994c8 | Hermes Agent Skill Authoring |
+| website/docs/user-guide/skills/bundled/software-development/software-development-node-inspect-debugger.md | 11833 | b4eff6340c56a207 | Node Inspect Debugger |
+| website/docs/user-guide/skills/bundled/software-development/software-development-plan.md | 2808 | b9fa285f0a93723c | Plan |
+| website/docs/user-guide/skills/bundled/software-development/software-development-python-debugpy.md | 14134 | 9410007a4c7a0b70 | Python Debugpy |
+| website/docs/user-guide/skills/bundled/software-development/software-development-requesting-code-review.md | 9557 | b911561078b4237d | Requesting Code Review |
+| website/docs/user-guide/skills/bundled/software-development/software-development-spike.md | 9811 | 7dec75552e18cbfd | Spike |
+| website/docs/user-guide/skills/bundled/software-development/software-development-subagent-driven-development.md | 11753 | 8193d38d40200e75 | Subagent Driven Development |
+| website/docs/user-guide/skills/bundled/software-development/software-development-systematic-debugging.md | 11480 | 6c63bb819d1cf14d | Systematic Debugging |
+| website/docs/user-guide/skills/bundled/software-development/software-development-test-driven-development.md | 10558 | 8ac2bcd0e2ca85bd | Test Driven Development |
+| website/docs/user-guide/skills/bundled/software-development/software-development-writing-plans.md | 8210 | a820655dd75f3669 | Writing Plans |
+| website/docs/user-guide/skills/bundled/yuanbao/yuanbao-yuanbao.md | 4403 | cb0e5a225020e845 | Yuanbao |
 | website/docs/user-guide/skills/godmode.md | 14029 | dd8e0467b13d8194 | G0DM0D3 — Godmode Jailbreaking Skill |
 | website/docs/user-guide/skills/google-workspace.md | 6417 | ceeb11c8a2140ea1 | Google Workspace Skill |
-| website/docs/user-guide/skills/optional/autonomous-ai-agents/autonomous-ai-agents-blackbox.md | 6366 | 21ce8302a79d05a1 | Blackbox |
-| website/docs/user-guide/skills/optional/autonomous-ai-agents/autonomous-ai-agents-honcho.md | 20307 | 1d7f177bccc91def | Honcho |
-| website/docs/user-guide/skills/optional/blockchain/blockchain-base.md | 8525 | 453ff7243d22fd15 | Base |
-| website/docs/user-guide/skills/optional/blockchain/blockchain-solana.md | 7274 | e5126a027a56fb57 | Solana |
-| website/docs/user-guide/skills/optional/communication/communication-one-three-one-rule.md | 5783 | 3375186ccf6f6acf | One Three One Rule |
-| website/docs/user-guide/skills/optional/creative/creative-blender-mcp.md | 4825 | 308c75762485f529 | Blender Mcp |
-| website/docs/user-guide/skills/optional/creative/creative-concept-diagrams.md | 18137 | 4e2224e93bf177af | Concept Diagrams |
-| website/docs/user-guide/skills/optional/creative/creative-meme-generation.md | 6239 | efe4ddb19dfc11dd | Meme Generation |
-| website/docs/user-guide/skills/optional/devops/devops-cli.md | 5284 | 880e2c28dc8895a9 | Inference Sh Cli |
-| website/docs/user-guide/skills/optional/devops/devops-docker-management.md | 11106 | c900532483d18347 | Docker Management |
-| website/docs/user-guide/skills/optional/dogfood/dogfood-adversarial-ux-test.md | 9951 | 4453a9460172f00f | Adversarial Ux Test |
-| website/docs/user-guide/skills/optional/email/email-agentmail.md | 4792 | 11fc623eee769375 | Agentmail |
-| website/docs/user-guide/skills/optional/health/health-fitness-nutrition.md | 10295 | fa1c885e19631e0c | Fitness Nutrition |
-| website/docs/user-guide/skills/optional/health/health-neuroskill-bci.md | 17400 | 754be47a6e8f2255 | Neuroskill Bci |
-| website/docs/user-guide/skills/optional/mcp/mcp-fastmcp.md | 9096 | 1a01ac1efe95e3fd | Fastmcp |
-| website/docs/user-guide/skills/optional/mcp/mcp-mcporter.md | 3812 | 671fcc7e70160c31 | Mcporter |
-| website/docs/user-guide/skills/optional/migration/migration-openclaw-migration.md | 16745 | d49ec0ce9b9ade4e | Openclaw Migration |
-| website/docs/user-guide/skills/optional/mlops/mlops-accelerate.md | 9319 | 44c585e678d7915a | Huggingface Accelerate |
-| website/docs/user-guide/skills/optional/mlops/mlops-chroma.md | 9871 | 18e5820ff1d9a216 | Chroma |
-| website/docs/user-guide/skills/optional/mlops/mlops-clip.md | 7580 | a2331aaf83b10a29 | Clip |
-| website/docs/user-guide/skills/optional/mlops/mlops-faiss.md | 5823 | fd92b2b119a630a0 | Faiss |
-| website/docs/user-guide/skills/optional/mlops/mlops-flash-attention.md | 11343 | 67b351706f2580c9 | Optimizing Attention Flash |
-| website/docs/user-guide/skills/optional/mlops/mlops-guidance.md | 15284 | 23f3888ca4b278bd | Guidance |
-| website/docs/user-guide/skills/optional/mlops/mlops-hermes-atropos-environments.md | 14353 | 0d0e76d78429bcc0 | Hermes Atropos Environments |
-| website/docs/user-guide/skills/optional/mlops/mlops-huggingface-tokenizers.md | 14863 | bae04ffabb4046f3 | Huggingface Tokenizers |
-| website/docs/user-guide/skills/optional/mlops/mlops-instructor.md | 17612 | 7533cdf9d4ced632 | Instructor |
-| website/docs/user-guide/skills/optional/mlops/mlops-lambda-labs.md | 13113 | 73046aab57e6f05d | Lambda Labs Gpu Cloud |
-| website/docs/user-guide/skills/optional/mlops/mlops-llava.md | 8509 | 466b080b9d018a18 | Llava |
-| website/docs/user-guide/skills/optional/mlops/mlops-modal.md | 9455 | a67d5df7aef7ff54 | Modal Serverless Gpu |
-| website/docs/user-guide/skills/optional/mlops/mlops-nemo-curator.md | 10247 | bae2f18fcaa2c0b2 | Nemo Curator |
-| website/docs/user-guide/skills/optional/mlops/mlops-peft.md | 13164 | b083f8c530460f34 | Peft Fine Tuning |
-| website/docs/user-guide/skills/optional/mlops/mlops-pinecone.md | 8558 | f2316c0158b580c9 | Pinecone |
-| website/docs/user-guide/skills/optional/mlops/mlops-pytorch-fsdp.md | 161166 | 1280f0abc3657296 | Pytorch Fsdp |
-| website/docs/user-guide/skills/optional/mlops/mlops-pytorch-lightning.md | 10198 | 1e39eab5f3bdcd79 | Pytorch Lightning |
-| website/docs/user-guide/skills/optional/mlops/mlops-qdrant.md | 14405 | 902f9d9743ca2823 | Qdrant Vector Search |
-| website/docs/user-guide/skills/optional/mlops/mlops-saelens.md | 13806 | a00ae33920b7cfb7 | Sparse Autoencoder Training |
-| website/docs/user-guide/skills/optional/mlops/mlops-simpo.md | 6884 | 08f42a9251ea079f | Simpo Training |
-| website/docs/user-guide/skills/optional/mlops/mlops-slime.md | 12401 | f51d2dbcb2dc83cb | Slime Rl Training |
-| website/docs/user-guide/skills/optional/mlops/mlops-stable-diffusion.md | 13948 | d0c2d1017e4bc2e7 | Stable Diffusion Image Generation |
-| website/docs/user-guide/skills/optional/mlops/mlops-tensorrt-llm.md | 6115 | 1719a9ad7ab6467a | Tensorrt Llm |
-| website/docs/user-guide/skills/optional/mlops/mlops-torchtitan.md | 10065 | a77e853a4f6ebe3d | Distributed Llm Pretraining Torchtitan |
-| website/docs/user-guide/skills/optional/mlops/mlops-whisper.md | 8181 | 607a8905381f8788 | Whisper |
-| website/docs/user-guide/skills/optional/productivity/productivity-canvas.md | 3931 | c387e45875683072 | Canvas |
+| website/docs/user-guide/skills/optional/autonomous-ai-agents/autonomous-ai-agents-blackbox.md | 6404 | 707727386e6e2be0 | Blackbox |
+| website/docs/user-guide/skills/optional/autonomous-ai-agents/autonomous-ai-agents-honcho.md | 20345 | 63cdb0653d8cc6e4 | Honcho |
+| website/docs/user-guide/skills/optional/blockchain/blockchain-base.md | 8563 | e96eeda945b88f85 | Base |
+| website/docs/user-guide/skills/optional/blockchain/blockchain-solana.md | 7312 | 82c7c76d7c349dbd | Solana |
+| website/docs/user-guide/skills/optional/communication/communication-one-three-one-rule.md | 5821 | 918ddcb16ab7bfbe | One Three One Rule |
+| website/docs/user-guide/skills/optional/creative/creative-blender-mcp.md | 4863 | fef7b3ac2a53be17 | Blender Mcp |
+| website/docs/user-guide/skills/optional/creative/creative-concept-diagrams.md | 18175 | 122a9f89f6f6802c | Concept Diagrams |
+| website/docs/user-guide/skills/optional/creative/creative-hyperframes.md | 16494 | 714e1468f3d268cb | Hyperframes |
+| website/docs/user-guide/skills/optional/creative/creative-kanban-video-orchestrator.md | 13486 | 707f0666ad5bf2d7 | Kanban Video Orchestrator |
+| website/docs/user-guide/skills/optional/creative/creative-meme-generation.md | 6277 | d89898e29c6d07a1 | Meme Generation |
+| website/docs/user-guide/skills/optional/devops/devops-cli.md | 5322 | def25f65c06a1d07 | Inference Sh Cli |
+| website/docs/user-guide/skills/optional/devops/devops-docker-management.md | 11144 | c3bb2c126fc4f233 | Docker Management |
+| website/docs/user-guide/skills/optional/devops/devops-watchers.md | 5095 | 4d7496fc3bfd4f19 | Watchers |
+| website/docs/user-guide/skills/optional/dogfood/dogfood-adversarial-ux-test.md | 9989 | e2c1e9f01781448e | Adversarial Ux Test |
+| website/docs/user-guide/skills/optional/email/email-agentmail.md | 4830 | fd975e24a07c2b69 | Agentmail |
+| website/docs/user-guide/skills/optional/finance/finance-3-statement-model.md | 23007 | e471f700fcb66a05 | 3 Statement Model |
+| website/docs/user-guide/skills/optional/finance/finance-comps-analysis.md | 32167 | 56a535794b7945b1 | Comps Analysis |
+| website/docs/user-guide/skills/optional/finance/finance-dcf-model.md | 50583 | 0662ee3b58a9d046 | Dcf Model |
+| website/docs/user-guide/skills/optional/finance/finance-excel-author.md | 10071 | 44e5958c8245ebc0 | Excel Author |
+| website/docs/user-guide/skills/optional/finance/finance-lbo-model.md | 18049 | c189926b6200cd1d | Lbo Model |
+| website/docs/user-guide/skills/optional/finance/finance-merger-model.md | 6522 | 3bb8cda38a26b6b3 | Merger Model |
+| website/docs/user-guide/skills/optional/finance/finance-pptx-author.md | 7388 | 22eea81602b9b64d | Pptx Author |
+| website/docs/user-guide/skills/optional/health/health-fitness-nutrition.md | 10333 | f49ecedbd4ff0ef8 | Fitness Nutrition |
+| website/docs/user-guide/skills/optional/health/health-neuroskill-bci.md | 17438 | c4cfe1586c0fa41b | Neuroskill Bci |
+| website/docs/user-guide/skills/optional/mcp/mcp-fastmcp.md | 9134 | e0d64c76b80e56ed | Fastmcp |
+| website/docs/user-guide/skills/optional/mcp/mcp-mcporter.md | 3850 | 9d418c222482fbda | Mcporter |
+| website/docs/user-guide/skills/optional/migration/migration-openclaw-migration.md | 16783 | db0c74f64c52ba90 | Openclaw Migration |
+| website/docs/user-guide/skills/optional/mlops/mlops-accelerate.md | 9357 | 0124796ac3dd0182 | Huggingface Accelerate |
+| website/docs/user-guide/skills/optional/mlops/mlops-chroma.md | 9909 | 56688d6b6d6e3e6a | Chroma |
+| website/docs/user-guide/skills/optional/mlops/mlops-clip.md | 7618 | 273d1a8b4198722a | Clip |
+| website/docs/user-guide/skills/optional/mlops/mlops-faiss.md | 5852 | c8a726b900fb6355 | Faiss |
+| website/docs/user-guide/skills/optional/mlops/mlops-flash-attention.md | 10874 | ce3e93e82f082a79 | Optimizing Attention Flash |
+| website/docs/user-guide/skills/optional/mlops/mlops-guidance.md | 15322 | cfc47f8e75e1348a | Guidance |
+| website/docs/user-guide/skills/optional/mlops/mlops-hermes-atropos-environments.md | 14451 | bf0e62d66c711da4 | Hermes Atropos Environments |
+| website/docs/user-guide/skills/optional/mlops/mlops-huggingface-tokenizers.md | 14901 | b1f1d0551d22e8c0 | Huggingface Tokenizers |
+| website/docs/user-guide/skills/optional/mlops/mlops-inference-outlines.md | 16554 | 34f899bc2d0e54e2 | Outlines |
+| website/docs/user-guide/skills/optional/mlops/mlops-instructor.md | 17650 | 0083295b4e5ef02a | Instructor |
+| website/docs/user-guide/skills/optional/mlops/mlops-lambda-labs.md | 13211 | f57ccc7951bcdc30 | Lambda Labs Gpu Cloud |
+| website/docs/user-guide/skills/optional/mlops/mlops-llava.md | 8547 | dbfaf195fe4b0898 | Llava |
+| website/docs/user-guide/skills/optional/mlops/mlops-modal.md | 9493 | a7c939b83d137e51 | Modal Serverless Gpu |
+| website/docs/user-guide/skills/optional/mlops/mlops-nemo-curator.md | 10276 | 216e7309d9719df7 | Nemo Curator |
+| website/docs/user-guide/skills/optional/mlops/mlops-peft.md | 13202 | da081fab3cf9ed64 | Peft Fine Tuning |
+| website/docs/user-guide/skills/optional/mlops/mlops-pinecone.md | 8596 | 9c6e76efb653c466 | Pinecone |
+| website/docs/user-guide/skills/optional/mlops/mlops-pytorch-fsdp.md | 161195 | bbc9da69e45a1f27 | Pytorch Fsdp |
+| website/docs/user-guide/skills/optional/mlops/mlops-pytorch-lightning.md | 10236 | ef41b45da12e0571 | Pytorch Lightning |
+| website/docs/user-guide/skills/optional/mlops/mlops-qdrant.md | 14443 | f275d30090ac18aa | Qdrant Vector Search |
+| website/docs/user-guide/skills/optional/mlops/mlops-saelens.md | 13844 | 8f0aec8f4f998b62 | Sparse Autoencoder Training |
+| website/docs/user-guide/skills/optional/mlops/mlops-simpo.md | 6922 | 163c96193a31a0a0 | Simpo Training |
+| website/docs/user-guide/skills/optional/mlops/mlops-slime.md | 12490 | 1fffaf95c283e351 | Slime Rl Training |
+| website/docs/user-guide/skills/optional/mlops/mlops-stable-diffusion.md | 14046 | 5d7d086d3cf75d16 | Stable Diffusion Image Generation |
+| website/docs/user-guide/skills/optional/mlops/mlops-tensorrt-llm.md | 6144 | d866ea4b186314fb | Tensorrt Llm |
+| website/docs/user-guide/skills/optional/mlops/mlops-torchtitan.md | 10094 | d6ffb3a615cbc169 | Distributed Llm Pretraining Torchtitan |
+| website/docs/user-guide/skills/optional/mlops/mlops-training-axolotl.md | 5628 | 48e37acc77dbc1de | Axolotl |
+| website/docs/user-guide/skills/optional/mlops/mlops-training-trl-fine-tuning.md | 13578 | 0f665647cb432180 | Fine Tuning With Trl |
+| website/docs/user-guide/skills/optional/mlops/mlops-training-unsloth.md | 3012 | a60e50add09ebed9 | Unsloth |
+| website/docs/user-guide/skills/optional/mlops/mlops-whisper.md | 8210 | bcbd1299de512038 | Whisper |
+| website/docs/user-guide/skills/optional/productivity/productivity-canvas.md | 3969 | c997cb7d054637b0 | Canvas |
+| website/docs/user-guide/skills/optional/productivity/productivity-here-now.md | 9397 | fee19b6bc8ee3004 | Here.Now |
 | website/docs/user-guide/skills/optional/productivity/productivity-memento-flashcards.md | 13868 | 1bc456b5f24f5b13 | Memento Flashcards |
-| website/docs/user-guide/skills/optional/productivity/productivity-siyuan.md | 9729 | df6dc8852547d14e | Siyuan |
-| website/docs/user-guide/skills/optional/productivity/productivity-telephony.md | 13767 | 55ffdfac2c4621fb | Telephony |
+| website/docs/user-guide/skills/optional/productivity/productivity-shop-app.md | 15130 | 848f2f416df571b5 | Shop App |
+| website/docs/user-guide/skills/optional/productivity/productivity-shopify.md | 15250 | 7b9fefc136140d62 | Shopify |
+| website/docs/user-guide/skills/optional/productivity/productivity-siyuan.md | 9767 | 56a2fca1bf3f564c | Siyuan |
+| website/docs/user-guide/skills/optional/productivity/productivity-telephony.md | 13805 | 6cddc3891e23b7db | Telephony |
 | website/docs/user-guide/skills/optional/research/research-bioinformatics.md | 14630 | be045237ffccea19 | Bioinformatics |
-| website/docs/user-guide/skills/optional/research/research-domain-intel.md | 5208 | c3dcdea513c1b6f5 | Domain Intel |
-| website/docs/user-guide/skills/optional/research/research-drug-discovery.md | 9935 | a763b76dbb5cee9c | Drug Discovery |
-| website/docs/user-guide/skills/optional/research/research-duckduckgo-search.md | 9180 | 9fe79636eb545eb2 | Duckduckgo Search |
-| website/docs/user-guide/skills/optional/research/research-gitnexus-explorer.md | 7996 | 7c88dfa08b9d1310 | Gitnexus Explorer |
-| website/docs/user-guide/skills/optional/research/research-parallel-cli.md | 11793 | 2279b87943e1dde9 | Parallel Cli |
+| website/docs/user-guide/skills/optional/research/research-domain-intel.md | 5246 | dc144466d5c1da1c | Domain Intel |
+| website/docs/user-guide/skills/optional/research/research-drug-discovery.md | 9973 | 3dbd03326e8c97fb | Drug Discovery |
+| website/docs/user-guide/skills/optional/research/research-duckduckgo-search.md | 9218 | 6c278ce600fee21c | Duckduckgo Search |
+| website/docs/user-guide/skills/optional/research/research-gitnexus-explorer.md | 8034 | 3cc6acbb3810936f | Gitnexus Explorer |
+| website/docs/user-guide/skills/optional/research/research-parallel-cli.md | 11891 | e1f6d1b1d74e2a15 | Parallel Cli |
 | website/docs/user-guide/skills/optional/research/research-qmd.md | 13972 | 3494b90427c8152d | Qmd |
-| website/docs/user-guide/skills/optional/research/research-scrapling.md | 9790 | 6467647070023648 | Scrapling |
-| website/docs/user-guide/skills/optional/security/security-1password.md | 4976 | 538235f75b53a7a4 | 1Password |
-| website/docs/user-guide/skills/optional/security/security-oss-forensics.md | 21596 | 15cf293003708b2a | Oss Forensics |
-| website/docs/user-guide/skills/optional/security/security-sherlock.md | 6651 | 13f5cf883ee73bbc | Sherlock |
-| website/docs/user-guide/skills/optional/web-development/web-development-page-agent.md | 9869 | e1bfafb8e50932a1 | Page Agent |
-| website/docs/user-guide/tui.md | 8863 | 3320f1fdda097a66 | TUI |
+| website/docs/user-guide/skills/optional/research/research-scrapling.md | 9828 | e03561a818e6ac8c | Scrapling |
+| website/docs/user-guide/skills/optional/research/research-searxng-search.md | 8095 | 1fef2a20318620e7 | Searxng Search |
+| website/docs/user-guide/skills/optional/security/security-1password.md | 5014 | a1cdcba219ff37ed | 1Password |
+| website/docs/user-guide/skills/optional/security/security-oss-forensics.md | 21634 | 1b18de331c9308c1 | Oss Forensics |
+| website/docs/user-guide/skills/optional/security/security-sherlock.md | 6689 | ac4222502f512b0f | Sherlock |
+| website/docs/user-guide/skills/optional/web-development/web-development-page-agent.md | 9907 | 75d0062d6ab1dcc3 | Page Agent |
+| website/docs/user-guide/tui.md | 12091 | af9d541b3b99bb7a | TUI |
+| website/docs/user-guide/windows-native.md | 21043 | ff527f4130d81379 | Windows (Native) Guide — Early Beta |
+| website/docs/user-guide/windows-wsl-quickstart.md | 18953 | 84b1ca956ef1da9f | Windows (WSL2) Guide |
+| website/docs/user-stories.mdx | 357 | 7fbebb89ef9a31b5 |  |
 
 ## Evidence Extracts
 

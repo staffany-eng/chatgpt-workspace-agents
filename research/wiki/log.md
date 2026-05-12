@@ -85,3 +85,7 @@ Ingested the Target Market and User Journey Google Slides deck as private Nurtur
 ## [2026-05-12] ingest | NurtureAny Mobile Number Rollout
 
 Ingested the Mobile Number Google Doc as private NurtureAny sales execution hygiene evidence. Extracted the company-controlled mobile-number rollout intent, WhatsApp Business and Eazybe logging requirements, HubSpot conversation-capture expectations, onboarding/offboarding requirements, and `needs-check` rollout caveat.
+
+## [2026-05-13] ingest | Launch Superpower Bot Handoff
+
+Ingested the Launch Superpower Bot handoff and extracted help-article-generator skill package. Preserved the raw handoff, source manifest, and skill files; added a launch app packet for help-article drafting, Google Docs review, Slack approval, and Intercom draft creation while keeping Step 4 and source-code changes explicitly blocked on the external runtime checkout.

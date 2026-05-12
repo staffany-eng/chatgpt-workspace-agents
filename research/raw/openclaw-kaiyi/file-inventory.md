@@ -7,7 +7,7 @@
 - Source path: /Users/leekaiyi/workspace/openclaw-kaiyi
 - Date checked: 2026-04-30
 - Git branch/status: ## codex/kaios-google-tasks-integration...origin/codex/kaios-google-tasks-integration [ahead 18]
-- Indexed file count: 94
+- Indexed file count: 95
 
 ## Raw Content Policy
 
@@ -24,8 +24,8 @@ This inventory records non-secret docs, scripts, tests, and config-shaped files.
 | .claude/settings.json | 52 | 1214 | 33656bde435db369 |
 | .codex/hooks.json | 56 | 1488 | 22837e77d1f19c6b |
 | .github/workflows/verify.yml | 25 | 375 | 299f1c47710bf65d |
-| AGENTS.md | 166 | 7951 | 3187f4211f417c16 |
-| CLAUDE.md | 9 | 209 | 2d9d13beba76c1e5 |
+| AGENTS.md | 206 | 10848 | 8823fbad7d2570df |
+| CLAUDE.md | 11 | 447 | 6d8f4a5e0aa7cb19 |
 | docs/features/agent-hooks.md | 63 | 1663 | a8e6e6874caa5a46 |
 | docs/features/kaios-daily-skill-discovery.md | 59 | 2139 | adb4fbabc2320b45 |
 | docs/features/kaios-heartbeat-chief-of-staff.md | 56 | 2236 | f606962c9cc719c5 |
@@ -71,10 +71,11 @@ This inventory records non-secret docs, scripts, tests, and config-shaped files.
 | workspace-kaios/AGENTS.md | 250 | 9812 | 0e86722da16e53cf |
 | workspace-kaios/HEARTBEAT.md | 15 | 508 | ee6ab721257c9e45 |
 | workspace-kaios/IDENTITY.md | 20 | 484 | 009247c4e1cf2585 |
-| workspace-kaios/LESSONS.md | 95 | 6519 | a8a594c219ea2f78 |
-| workspace-kaios/MEMORY.md | 8 | 367 | d0bff6c8aa771a0e |
+| workspace-kaios/LESSONS.md | 154 | 10678 | ef29257ea49a6276 |
+| workspace-kaios/MEMORY.md | 9 | 591 | 242fdb5bff21e959 |
 | workspace-kaios/memory/2026-03-30.md | 68 | 2153 | 0165e098a7f40ee5 |
-| workspace-kaios/memory/todo.md | 271 | 6064 | 959fdc5bca09851c |
+| workspace-kaios/memory/2026-05-08.md | 14 | 585 | 394b0f39c3437e76 |
+| workspace-kaios/memory/todo.md | 271 | 6275 | b02075d7aec501ee |
 | workspace-kaios/skills/brief/SKILL.md | 30 | 1193 | 9f7fd77275f7fb56 |
 | workspace-kaios/skills/todo/SKILL.md | 56 | 2631 | a0784579c3cfe91b |
 | workspace-kaios/SOUL.md | 46 | 2229 | 348a2036493a6765 |
@@ -90,7 +91,7 @@ This inventory records non-secret docs, scripts, tests, and config-shaped files.
 | workspace-katalyst/AGENTS.md | 125 | 5370 | 95b646ad77ce664d |
 | workspace-katalyst/HEARTBEAT.md | 8 | 193 | 0c9dc20da2ac7db9 |
 | workspace-katalyst/IDENTITY.md | 20 | 492 | d0600aa9345ec8d3 |
-| workspace-katalyst/LESSONS.md | 89 | 5998 | af6c394ea011618f |
+| workspace-katalyst/LESSONS.md | 125 | 8523 | 590686da33a8af78 |
 | workspace-katalyst/MEMORY.md | 5 | 200 | 51baf0f9139db9e3 |
 | workspace-katalyst/memory/2026-03-29.md | 5 | 127 | 0c37619bf01610c3 |
 | workspace-katalyst/memory/2026-03-30.md | 8 | 381 | bc894222762aa0c9 |
@@ -105,7 +106,7 @@ This inventory records non-secret docs, scripts, tests, and config-shaped files.
 | workspace-kea/BOOTSTRAP.md | 56 | 1471 | c6545993b6e07b97 |
 | workspace-kea/HEARTBEAT.md | 8 | 193 | 0c9dc20da2ac7db9 |
 | workspace-kea/IDENTITY.md | 24 | 636 | 1379f924cf4b4d6d |
-| workspace-kea/LESSONS.md | 88 | 5818 | bfa3ada3f243c0b4 |
+| workspace-kea/LESSONS.md | 122 | 7982 | ccd7024a26b8f451 |
 | workspace-kea/skills/create-fr/SKILL.md | 77 | 2462 | 202e54bd640ff31b |
 | workspace-kea/SOUL.md | 46 | 2229 | 348a2036493a6765 |
 | workspace-kea/TOOLS.md | 41 | 860 | 78f3e26b8625ea28 |
