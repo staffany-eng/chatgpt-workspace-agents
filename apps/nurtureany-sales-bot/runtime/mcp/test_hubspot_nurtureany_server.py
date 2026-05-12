@@ -2293,6 +2293,84 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         self.assertEqual(result, sentinel)
         task_search.assert_called_once()
 
+    def test_list_active_deals_missing_next_meeting_uses_direct_deal_path(self):
+        companies = [
+            {
+                "id": "company-1",
+                "properties": {
+                    "name": "Noci Bakehouse",
+                    "company_country": "Singapore",
+                    "hubspot_owner_id": "owner-sales",
+                    "hs_is_target_account": "true",
+                },
+            }
+        ]
+
+        def fake_batch_associations(from_type, to_type, ids, deadline=None):
+            if (from_type, to_type) == ("companies", "deals"):
+                return {"company-1": ["deal-active", "deal-lost"]}
+            if (from_type, to_type) == ("deals", "meetings"):
+                return {"deal-active": [], "deal-lost": ["meeting-1"]}
+            raise AssertionError(f"unexpected association read: {from_type}->{to_type}")
+
+        def fake_batch_read(object_type, ids, properties, deadline=None):
+            if object_type == "deals":
+                return [
+                    {
+                        "id": "deal-active",
+                        "properties": {
+                            "dealname": "Expansion",
+                            "dealstage": "appointmentscheduled",
+                            "hubspot_owner_id": "owner-sales",
+                        },
+                    },
+                    {
+                        "id": "deal-lost",
+                        "properties": {
+                            "dealname": "Old deal",
+                            "dealstage": "closedlost",
+                            "hubspot_owner_id": "owner-sales",
+                        },
+                    },
+                ]
+            if object_type == "meetings":
+                return []
+            raise AssertionError(f"unexpected batch read: {object_type}")
+
+        with patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
+            self.module, "_target_owner_id_for_scope", return_value=("owner-sales", "rep.owner@staffany.com")
+        ), patch.object(
+            self.module,
+            "_company_search",
+            return_value={
+                "results": companies,
+                "total": 1,
+                "requested_limit": 100,
+                "returned_count": 1,
+                "has_more": False,
+                "truncated": False,
+            },
+        ), patch.object(
+            self.module, "_batch_association_ids", side_effect=fake_batch_associations
+        ), patch.object(
+            self.module, "_batch_read", side_effect=fake_batch_read
+        ), patch.object(
+            self.module, "build_friday_sales_review", side_effect=AssertionError("deal hygiene must not use Friday review")
+        ), patch.object(
+            self.module, "audit_priority_account_coverage", side_effect=AssertionError("deal hygiene must not use coverage audit")
+        ):
+            result = self.module.list_active_deals_missing_next_meeting(
+                "kerren.fong@staffany.com",
+                countries=["Singapore"],
+                owner_email="rep.owner@staffany.com",
+            )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["active_deal_count"], 1)
+        self.assertEqual(result["missing_next_meeting_count"], 1)
+        self.assertEqual(result["answer"][0]["deal_id"], "deal-active")
+        self.assertEqual(result["answer"][0]["company_name"], "Noci Bakehouse")
+
     def test_account_week_activity_counts_connected_calls_and_warm_activity_safely(self):
         company = {"id": "123", "properties": {"hubspot_owner_id": "owner-sales"}}
 
@@ -2640,6 +2718,22 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         self.assertEqual(result["tasks_by_company"]["2"], [])
         self.assertEqual(company_1_tasks[0]["associated_via"], [{"object_type": "contact", "object_id": "contact-1"}])
         self.assertFalse(result["truncated"])
+
+    def test_sales_followup_task_index_returns_partial_on_soft_deadline(self):
+        companies = [{"id": "1", "properties": {"hubspot_owner_id": "owner-1"}}]
+
+        with patch.object(self.module, "_batch_read", side_effect=AssertionError("expired deadline should skip task reads")):
+            result = self.module._sales_followup_task_index_for_company_associations(
+                companies,
+                {"1": ["contact-1"]},
+                {"1": ["deal-1"]},
+                deadline=self.module.time.monotonic() - 1,
+            )
+
+        self.assertTrue(result["partial_due_to_soft_timeout"])
+        self.assertTrue(result["truncated"])
+        self.assertEqual(result["tasks_by_company"], {"1": []})
+        self.assertTrue(result["metadata"]["partial_due_to_soft_timeout"])
 
     def test_ae_can_audit_self_but_not_another_owner(self):
         ae_scope = {"kind": "ae", "email": "ae@staffany.com", "countries": ("Singapore",), "owner_id": "owner-ae"}

@@ -41,6 +41,7 @@ Use this reference with `sales-best-practices.md` before changing or answering f
 | `build_manager_chase_plan` | Manager chase | Manager/admin-only copy-ready chase drafts from HubSpot coverage, task/activity evidence, and optional selected Slack blocker summaries; Manager draft only, no rep tags, raw transcripts, sends, or mutation. |
 | `get_account_context` | Account context | HubSpot account truth plus C360 enrichment for verified customers; safe packet by default; access scope, PII/body safety, no mutation. |
 | `build_pre_demo_game_plans` | Pre-demo | Selected scoped accounts only; I-C-BANT and missing-evidence rules; optional Slack source-thread permalink as provenance only; no raw Slack transcript, invented pricing/current tools/case studies, or mutation. |
+| `list_active_deals_missing_next_meeting` | Deal hygiene | Direct path for active deals with no next meeting; uses scoped target accounts, associated deals, and future HubSpot meeting associations; no Friday-review/account-coverage detour. |
 | `list_sales_followup_tasks` | Follow-up | Existing incomplete sales-owned HubSpot tasks only; safe task fields; no duplicate task creation. |
 | `check_account_followup_status` | Follow-up | HubSpot communications, notes, tasks, and meetings determine status; event attribution requires proof; raw bodies hidden. |
 | `check_event_followup_status` | Event follow-up | Luma/Sheet attendance identifies matched accounts; HubSpot verifies event-specific WhatsApp/tasks; raw attendees and bodies hidden. |
@@ -85,3 +86,7 @@ Use this reference with `sales-best-practices.md` before changing or answering f
 ## Companion BigQuery Tools
 
 `staffany_bigquery.list_dataset_ids`, `staffany_bigquery.list_table_ids`, `staffany_bigquery.get_table_info`, and `staffany_bigquery.execute_sql_readonly` are read-only companion tools. Use them only for bounded schema inspection and read-only SQL returned by approved NurtureAny planning tools. Never run DDL, DML, exports, grants, or raw PII dumps.
+
+## Runtime Boundaries
+
+If a broad HubSpot tool returns `partial_due_to_soft_timeout=true`, answer from the partial scope and stop. Do not chain another broad audit to compensate; narrow the next run by owner, country, date, or direct-purpose tool.

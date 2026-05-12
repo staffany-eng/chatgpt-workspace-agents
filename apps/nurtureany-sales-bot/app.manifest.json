@@ -249,6 +249,7 @@
       "build_manager_chase_plan",
       "get_account_context",
       "build_pre_demo_game_plans",
+      "list_active_deals_missing_next_meeting",
       "list_sales_followup_tasks",
       "check_account_followup_status",
       "check_event_followup_status",

@@ -286,6 +286,9 @@ LUMA_MATCH_CANDIDATE_FIELDS = (
 )
 TASK_SEARCH_RESULT_LIMIT = 300
 TASK_SEARCH_AIRTIGHT_RESULT_LIMIT = 10_000
+HUBSPOT_SOFT_TIMEOUT_SECONDS_ENV_VAR = "NURTUREANY_HUBSPOT_SOFT_TIMEOUT_SECONDS"
+HUBSPOT_SOFT_TIMEOUT_SECONDS_DEFAULT = 270
+HUBSPOT_SOFT_TIMEOUT_SECONDS_MAX = 300
 FOLLOWUP_ASSOCIATION_LIMIT = 100
 FOLLOWUP_RETURN_LIMIT = 100
 INBOUND_THREAD_RETURN_LIMIT = 50
@@ -307,6 +310,7 @@ PRIORITY_ACCOUNT_LOCKED_POOL_BASELINE = 150
 PRIORITY_ACCOUNT_WEEKLY_WORKED_TARGET = 120
 MANAGER_CHASE_RETURN_LIMIT = 20
 MANAGER_CHASE_COVERAGE_LIMIT = 150
+ACTIVE_DEAL_HYGIENE_RETURN_LIMIT = 100
 _CASE_STUDY_CATALOG_CACHE: list[dict[str, Any]] | None = None
 CONNECTED_CALL_WEEKLY_TARGET = 40
 CONNECTED_CALL_MIN_DURATION_MS = 120_000
@@ -889,6 +893,33 @@ def _bounded_int(value: Any, default: int, minimum: int = 1, maximum: int = HUBS
     except (TypeError, ValueError):
         number = default
     return max(minimum, min(number, maximum))
+
+
+def _hubspot_soft_timeout_seconds(value: Any = 0) -> int:
+    requested = value or os.environ.get(HUBSPOT_SOFT_TIMEOUT_SECONDS_ENV_VAR)
+    return _bounded_int(
+        requested,
+        default=HUBSPOT_SOFT_TIMEOUT_SECONDS_DEFAULT,
+        minimum=30,
+        maximum=HUBSPOT_SOFT_TIMEOUT_SECONDS_MAX,
+    )
+
+
+def _hubspot_soft_deadline(value: Any = 0) -> float:
+    return time.monotonic() + _hubspot_soft_timeout_seconds(value)
+
+
+def _deadline_exceeded(deadline: float | None) -> bool:
+    return bool(deadline and time.monotonic() >= deadline)
+
+
+def _soft_timeout_metadata(partial: bool, seconds: Any = 0) -> dict[str, Any]:
+    if not partial:
+        return {"partial_due_to_soft_timeout": False}
+    return {
+        "partial_due_to_soft_timeout": True,
+        "soft_timeout_seconds": _hubspot_soft_timeout_seconds(seconds),
+    }
 
 
 def _company_id_from_ref(ref: Any) -> str:
@@ -2717,11 +2748,18 @@ def _association_ids(from_type: str, object_id: str, to_type: str, limit: int = 
     return data["ids"]
 
 
-def _batch_read(object_type: str, ids: list[str], properties: list[str]) -> list[dict[str, Any]]:
+def _batch_read(
+    object_type: str,
+    ids: list[str],
+    properties: list[str],
+    deadline: float | None = None,
+) -> list[dict[str, Any]]:
     if not ids:
         return []
     results: list[dict[str, Any]] = []
     for index in range(0, len(ids), 100):
+        if _deadline_exceeded(deadline):
+            break
         chunk = ids[index : index + 100]
         data = _post(
             f"/crm/v3/objects/{object_type}/batch/read",
@@ -2734,11 +2772,18 @@ def _batch_read(object_type: str, ids: list[str], properties: list[str]) -> list
     return results
 
 
-def _batch_association_ids(from_type: str, to_type: str, ids: list[str]) -> dict[str, list[str]]:
+def _batch_association_ids(
+    from_type: str,
+    to_type: str,
+    ids: list[str],
+    deadline: float | None = None,
+) -> dict[str, list[str]]:
     if not ids:
         return {}
     associations: dict[str, list[str]] = {}
     for index in range(0, len(ids), 100):
+        if _deadline_exceeded(deadline):
+            break
         chunk = ids[index : index + 100]
         data = _post(
             f"/crm/v4/associations/{from_type}/{to_type}/batch/read",
@@ -2756,6 +2801,34 @@ def _batch_association_ids(from_type: str, to_type: str, ids: list[str]) -> dict
                 if to_id and to_id not in associations[from_id]:
                     associations[from_id].append(to_id)
     return associations
+
+
+def _batch_read_until(
+    object_type: str,
+    ids: list[str],
+    properties: list[str],
+    deadline: float | None,
+) -> list[dict[str, Any]]:
+    try:
+        return _batch_read(object_type, ids, properties, deadline=deadline)
+    except TypeError as error:
+        if "deadline" not in str(error):
+            raise
+        return _batch_read(object_type, ids, properties)
+
+
+def _batch_association_ids_until(
+    from_type: str,
+    to_type: str,
+    ids: list[str],
+    deadline: float | None,
+) -> dict[str, list[str]]:
+    try:
+        return _batch_association_ids(from_type, to_type, ids, deadline=deadline)
+    except TypeError as error:
+        if "deadline" not in str(error):
+            raise
+        return _batch_association_ids(from_type, to_type, ids)
 
 
 def _add_task_sources(
@@ -3150,6 +3223,7 @@ def _followup_activity_index_for_companies(
     deal_index: dict[str, list[str]],
     since_dt: datetime,
     until_dt: datetime | None,
+    deadline: float | None = None,
 ) -> dict[str, dict[str, Any]]:
     company_ids = [str(company.get("id") or "") for company in companies if company.get("id")]
     if not company_ids:
@@ -3173,18 +3247,22 @@ def _followup_activity_index_for_companies(
     ]
 
     for hubspot_type, evidence_type, properties in activity_specs:
+        if _deadline_exceeded(deadline):
+            for account_activity in activity_by_company.values():
+                account_activity["activity_truncated"] = True
+            break
         company_activity_sources: dict[str, dict[str, list[dict[str, str]]]] = {}
 
-        for company_id, activity_ids in _batch_association_ids("companies", hubspot_type, company_ids).items():
+        for company_id, activity_ids in _batch_association_ids_until("companies", hubspot_type, company_ids, deadline).items():
             for activity_id in activity_ids:
                 _add_indexed_activity_source(company_activity_sources, company_id, activity_id, "company", company_id)
 
-        for contact_id, activity_ids in _batch_association_ids("contacts", hubspot_type, contact_ids).items():
+        for contact_id, activity_ids in _batch_association_ids_until("contacts", hubspot_type, contact_ids, deadline).items():
             for company_id in contact_to_companies.get(str(contact_id), []):
                 for activity_id in activity_ids:
                     _add_indexed_activity_source(company_activity_sources, company_id, activity_id, "contact", contact_id)
 
-        for deal_id, activity_ids in _batch_association_ids("deals", hubspot_type, deal_ids).items():
+        for deal_id, activity_ids in _batch_association_ids_until("deals", hubspot_type, deal_ids, deadline).items():
             for company_id in deal_to_companies.get(str(deal_id), []):
                 for activity_id in activity_ids:
                     _add_indexed_activity_source(company_activity_sources, company_id, activity_id, "deal", deal_id)
@@ -3205,7 +3283,11 @@ def _followup_activity_index_for_companies(
             for company_id in activity_to_company_sources.get(activity_id, {}):
                 activity_by_company[company_id]["activity_truncated"] = True
 
-        raw_activities = _batch_read(hubspot_type, read_ids, properties)
+        raw_activities = _batch_read_until(hubspot_type, read_ids, properties, deadline)
+        if _deadline_exceeded(deadline) and len(raw_activities) < len(read_ids):
+            for activity_id in read_ids[len(raw_activities) :]:
+                for company_id in activity_to_company_sources.get(activity_id, {}):
+                    activity_by_company[company_id]["activity_truncated"] = True
         for activity in raw_activities:
             activity_id = str(activity.get("id") or "")
             if not activity_id:
@@ -3464,6 +3546,7 @@ def _sales_followup_task_index_for_company_associations(
     contact_index: dict[str, list[str]],
     deal_index: dict[str, list[str]],
     task_limit: int = TASK_SEARCH_AIRTIGHT_RESULT_LIMIT,
+    deadline: float | None = None,
 ) -> dict[str, Any]:
     company_ids = [str(company.get("id") or "") for company in companies if company.get("id")]
     if not company_ids:
@@ -3479,22 +3562,29 @@ def _sales_followup_task_index_for_company_associations(
         if company.get("id")
     }
     company_task_sources: dict[str, dict[str, list[dict[str, str]]]] = {company_id: {} for company_id in company_ids}
+    partial_due_to_deadline = False
 
-    for company_id, task_ids in _batch_association_ids("companies", "tasks", company_ids).items():
+    for company_id, task_ids in _batch_association_ids_until("companies", "tasks", company_ids, deadline).items():
         for task_id in task_ids:
             _add_indexed_activity_source(company_task_sources, company_id, task_id, "company", company_id)
 
     contact_to_companies = _reverse_company_association_index(contact_index)
-    for contact_id, task_ids in _batch_association_ids("contacts", "tasks", list(contact_to_companies.keys())).items():
-        for company_id in contact_to_companies.get(str(contact_id), []):
-            for task_id in task_ids:
-                _add_indexed_activity_source(company_task_sources, company_id, task_id, "contact", contact_id)
+    if _deadline_exceeded(deadline):
+        partial_due_to_deadline = True
+    else:
+        for contact_id, task_ids in _batch_association_ids_until("contacts", "tasks", list(contact_to_companies.keys()), deadline).items():
+            for company_id in contact_to_companies.get(str(contact_id), []):
+                for task_id in task_ids:
+                    _add_indexed_activity_source(company_task_sources, company_id, task_id, "contact", contact_id)
 
     deal_to_companies = _reverse_company_association_index(deal_index)
-    for deal_id, task_ids in _batch_association_ids("deals", "tasks", list(deal_to_companies.keys())).items():
-        for company_id in deal_to_companies.get(str(deal_id), []):
-            for task_id in task_ids:
-                _add_indexed_activity_source(company_task_sources, company_id, task_id, "deal", deal_id)
+    if _deadline_exceeded(deadline):
+        partial_due_to_deadline = True
+    else:
+        for deal_id, task_ids in _batch_association_ids_until("deals", "tasks", list(deal_to_companies.keys()), deadline).items():
+            for company_id in deal_to_companies.get(str(deal_id), []):
+                for task_id in task_ids:
+                    _add_indexed_activity_source(company_task_sources, company_id, task_id, "deal", deal_id)
 
     task_company_sources: dict[str, dict[str, list[dict[str, str]]]] = {}
     for company_id, task_sources in company_task_sources.items():
@@ -3504,8 +3594,9 @@ def _sales_followup_task_index_for_company_associations(
     task_ids = sorted(task_company_sources.keys())
     requested_limit = _bounded_int(task_limit, default=TASK_SEARCH_AIRTIGHT_RESULT_LIMIT, maximum=TASK_SEARCH_AIRTIGHT_RESULT_LIMIT)
     task_read_ids = task_ids[:requested_limit]
-    raw_tasks = _batch_read("tasks", task_read_ids, TASK_PROPERTIES)
-    truncated = len(task_ids) > len(task_read_ids)
+    raw_tasks = [] if _deadline_exceeded(deadline) else _batch_read_until("tasks", task_read_ids, TASK_PROPERTIES, deadline)
+    partial_due_to_deadline = bool(partial_due_to_deadline or _deadline_exceeded(deadline))
+    truncated = bool(len(task_ids) > len(task_read_ids) or partial_due_to_deadline)
     tasks_by_company: dict[str, list[dict[str, Any]]] = {company_id: [] for company_id in company_ids}
 
     for task in raw_tasks:
@@ -3527,8 +3618,14 @@ def _sales_followup_task_index_for_company_associations(
         "returned_count": len(raw_tasks),
         "has_more": truncated,
         "truncated": truncated,
+        **_soft_timeout_metadata(partial_due_to_deadline),
     }
-    return {"tasks_by_company": tasks_by_company, "metadata": metadata, "truncated": truncated}
+    return {
+        "tasks_by_company": tasks_by_company,
+        "metadata": metadata,
+        "truncated": truncated,
+        "partial_due_to_soft_timeout": partial_due_to_deadline,
+    }
 
 
 def _env_csv(name: str) -> set[str]:
@@ -3839,6 +3936,7 @@ def _week_activity_index_for_companies(
     deal_index: dict[str, list[str]],
     since_dt: datetime,
     until_dt: datetime,
+    deadline: float | None = None,
 ) -> dict[str, dict[str, Any]]:
     company_ids = [str(company.get("id") or "") for company in companies if company.get("id")]
     if not company_ids:
@@ -3858,18 +3956,31 @@ def _week_activity_index_for_companies(
     ]
 
     for hubspot_type, evidence_type, properties in activity_specs:
+        if _deadline_exceeded(deadline):
+            for account_activity in activity_by_company.values():
+                account_activity["truncated"] = True
+                account_activity["confidence"] = "needs-check"
+            break
         company_activity_sources: dict[str, dict[str, list[dict[str, str]]]] = {}
 
-        for company_id, activity_ids in _batch_association_ids("companies", hubspot_type, company_ids).items():
+        for company_id, activity_ids in _batch_association_ids_until("companies", hubspot_type, company_ids, deadline).items():
             for activity_id in activity_ids:
                 _add_indexed_activity_source(company_activity_sources, company_id, activity_id, "company", company_id)
 
-        for contact_id, activity_ids in _batch_association_ids("contacts", hubspot_type, contact_ids).items():
+        if _deadline_exceeded(deadline):
+            for account_activity in activity_by_company.values():
+                account_activity["truncated"] = True
+            break
+        for contact_id, activity_ids in _batch_association_ids_until("contacts", hubspot_type, contact_ids, deadline).items():
             for company_id in contact_to_companies.get(str(contact_id), []):
                 for activity_id in activity_ids:
                     _add_indexed_activity_source(company_activity_sources, company_id, activity_id, "contact", contact_id)
 
-        for deal_id, activity_ids in _batch_association_ids("deals", hubspot_type, deal_ids).items():
+        if _deadline_exceeded(deadline):
+            for account_activity in activity_by_company.values():
+                account_activity["truncated"] = True
+            break
+        for deal_id, activity_ids in _batch_association_ids_until("deals", hubspot_type, deal_ids, deadline).items():
             for company_id in deal_to_companies.get(str(deal_id), []):
                 for activity_id in activity_ids:
                     _add_indexed_activity_source(company_activity_sources, company_id, activity_id, "deal", deal_id)
@@ -3884,7 +3995,10 @@ def _week_activity_index_for_companies(
         if not activity_ids:
             continue
 
-        raw_activities = _batch_read(hubspot_type, activity_ids, properties)
+        raw_activities = [] if _deadline_exceeded(deadline) else _batch_read_until(hubspot_type, activity_ids, properties, deadline)
+        if _deadline_exceeded(deadline):
+            for account_activity in activity_by_company.values():
+                account_activity["truncated"] = True
         for activity in raw_activities:
             activity_id = str(activity.get("id") or "")
             if not activity_id:
@@ -4169,7 +4283,10 @@ def _priority_account_coverage(
     limit: int = PRIORITY_ACCOUNT_RETURN_LIMIT,
     manager_only: bool = False,
     include_internal: bool = False,
+    soft_timeout_seconds: int = 0,
+    deadline: float | None = None,
 ) -> dict[str, Any]:
+    deadline = deadline or _hubspot_soft_deadline(soft_timeout_seconds)
     scope = _caller_scope(slack_user_email)
     if scope["kind"] == "blocked":
         return _blocked("Caller identity is not mapped to an allowed scope.", {"caller_email": slack_user_email})
@@ -4191,29 +4308,62 @@ def _priority_account_coverage(
     )
     companies = data.get("results", [])
     company_ids = [str(company.get("id") or "") for company in companies if company.get("id")]
-    contact_index = _batch_association_ids("companies", "contacts", company_ids)
-    contact_detail_index = _safe_contact_index(contact_index)
-    deal_index = _batch_association_ids("companies", "deals", company_ids)
-    activity_index = _week_activity_index_for_companies(companies, contact_index, deal_index, week["start_dt"], week["end_dt"])
+    contact_index = _batch_association_ids_until("companies", "contacts", company_ids, deadline)
+    contact_detail_index = {} if _deadline_exceeded(deadline) else _safe_contact_index(contact_index)
+    deal_index = {} if _deadline_exceeded(deadline) else _batch_association_ids_until("companies", "deals", company_ids, deadline)
+    activity_index = (
+        {}
+        if _deadline_exceeded(deadline)
+        else _week_activity_index_for_companies(companies, contact_index, deal_index, week["start_dt"], week["end_dt"], deadline)
+    )
+    partial_due_to_soft_timeout = _deadline_exceeded(deadline)
+    if partial_due_to_soft_timeout:
+        activity_index = {}
+        for company_id in company_ids:
+            partial_activity = _empty_week_activity()
+            partial_activity["truncated"] = True
+            partial_activity["confidence"] = "needs-check"
+            activity_index[company_id] = partial_activity
 
     by_owner: dict[str, list[dict[str, Any]]] = {}
     for company in companies:
         owner_id = str(company.get("properties", {}).get("hubspot_owner_id") or "")
         by_owner.setdefault(owner_id, []).append(company)
 
-    owner_lookup = _owner_lookup_by_id()
+    owner_lookup = {} if _deadline_exceeded(deadline) else _owner_lookup_by_id()
     stale_cutoff_dt = week["end_dt"] - timedelta(days=STALE_ACCOUNT_DAYS)
     owner_rows = []
-    task_context = _sales_followup_task_index_for_company_associations(
-        companies,
-        contact_index,
-        deal_index,
-        TASK_SEARCH_AIRTIGHT_RESULT_LIMIT,
+    task_context = (
+        {
+            "tasks_by_company": {},
+            "metadata": {
+                "total": 0,
+                "requested_limit": 0,
+                "returned_count": 0,
+                "has_more": True,
+                "truncated": True,
+                **_soft_timeout_metadata(True, soft_timeout_seconds),
+            },
+            "truncated": True,
+            "partial_due_to_soft_timeout": True,
+        }
+        if _deadline_exceeded(deadline)
+        else _sales_followup_task_index_for_company_associations(
+            companies,
+            contact_index,
+            deal_index,
+            TASK_SEARCH_AIRTIGHT_RESULT_LIMIT,
+            deadline,
+        )
     )
+    partial_due_to_soft_timeout = bool(partial_due_to_soft_timeout or task_context.get("partial_due_to_soft_timeout"))
     task_index = task_context.get("tasks_by_company", {})
     task_truncated = bool(task_context.get("truncated"))
     task_indexes_by_owner: dict[str, dict[str, list[dict[str, Any]]]] = {}
     for owner_id, owner_companies in by_owner.items():
+        if _deadline_exceeded(deadline):
+            partial_due_to_soft_timeout = True
+            break
         owner_task_index = {
             str(company.get("id") or ""): task_index.get(str(company.get("id") or ""), [])
             for company in owner_companies
@@ -4240,7 +4390,7 @@ def _priority_account_coverage(
     metadata = _search_metadata(data)
     activity_truncated = any(row.get("activity_truncated") for row in owner_rows)
     weak_evidence = any(row.get("weak_activity_evidence") for row in owner_rows)
-    result_truncated = bool(metadata.get("truncated") or task_truncated or activity_truncated)
+    result_truncated = bool(metadata.get("truncated") or task_truncated or activity_truncated or partial_due_to_soft_timeout)
     scope_response = _scope_response(scope, selected, target_owner_id, target_owner_email)
     scope_response.update(
         {
@@ -4277,6 +4427,7 @@ def _priority_account_coverage(
         "source": "HubSpot target-account companies plus safe calls, meetings, communications, notes, tasks, and associations",
         "scope": scope_response,
         **metadata,
+        **_soft_timeout_metadata(partial_due_to_soft_timeout, soft_timeout_seconds),
         "confidence": "needs-check" if result_truncated or weak_evidence else "verified",
         "caveat": _coverage_caveat(
             {**metadata, "truncated": result_truncated},
@@ -4304,6 +4455,7 @@ def _deal_counts_for_friday(
     company_deal_ids: dict[str, list[str]],
     week: dict[str, Any],
     stage_config: dict[str, Any],
+    deadline: float | None = None,
 ) -> dict[str, Any]:
     deal_ids: list[str] = []
     company_owner_by_deal: dict[str, str] = {}
@@ -4324,7 +4476,9 @@ def _deal_counts_for_friday(
             "caveat": "QO, QO Met, and closed-won stage IDs are not fully configured; hygiene and activity counts are still returned.",
         }
 
-    raw_deals = _batch_read("deals", deal_ids, DEAL_PROPERTIES)
+    partial_due_to_deadline = _deadline_exceeded(deadline)
+    raw_deals = [] if partial_due_to_deadline else _batch_read_until("deals", deal_ids, DEAL_PROPERTIES, deadline)
+    partial_due_to_deadline = bool(partial_due_to_deadline or _deadline_exceeded(deadline))
     by_owner: dict[str, dict[str, Any]] = {}
     totals = {"qos": 0, "qo_met": 0, "deals_closed": 0}
     weak_dates = False
@@ -4365,7 +4519,8 @@ def _deal_counts_for_friday(
         "configured": True,
         "by_owner": by_owner,
         "totals": totals,
-        "confidence": "needs-check" if weak_dates else "verified",
+        **_soft_timeout_metadata(partial_due_to_deadline),
+        "confidence": "needs-check" if weak_dates or partial_due_to_deadline else "verified",
         "caveat": "Deal funnel counts use configured HubSpot pipeline/stage IDs and safe deal dates; no deal bodies or attachments are exported.",
     }
 
@@ -5096,6 +5251,74 @@ def _safe_deal(deal: dict[str, Any]) -> dict[str, Any]:
         "close_date": props.get("closedate") or "",
         "contract_end_date": props.get("contract_end_date") or "",
         "owner_id": props.get("hubspot_owner_id") or "",
+    }
+
+
+def _deal_is_active_for_hygiene(deal: dict[str, Any]) -> bool:
+    props = deal.get("properties", {})
+    stage = _normalized_words(props.get("dealstage"))
+    if not stage:
+        return True
+    closed_markers = ("closed lost", "closedlost", "lost", "closed won", "closedwon", "won")
+    return not any(marker in stage for marker in closed_markers)
+
+
+def _safe_active_deal_hygiene_row(
+    deal: dict[str, Any],
+    company: dict[str, Any],
+    meeting_truncated: bool,
+) -> dict[str, Any]:
+    company_summary = _summarize_company(company)
+    safe_deal = _safe_deal(deal)
+    return {
+        "company_id": company_summary.get("company_id"),
+        "company_name": company_summary.get("name"),
+        "country": company_summary.get("country"),
+        "company_owner_id": company_summary.get("owner_id"),
+        **safe_deal,
+        "next_meeting_status": "not_found" if not meeting_truncated else "needs-check",
+        "confidence": "needs-check" if meeting_truncated else "verified",
+    }
+
+
+def _future_meeting_index_for_deals(
+    deal_ids: list[str],
+    deadline: float | None = None,
+) -> dict[str, Any]:
+    if not deal_ids:
+        return {"future_meeting_at_by_deal": {}, "truncated": False, "partial_due_to_soft_timeout": False}
+
+    deal_meeting_ids = _batch_association_ids_until("deals", "meetings", deal_ids, deadline)
+    partial_due_to_deadline = _deadline_exceeded(deadline)
+    meeting_to_deals: dict[str, list[str]] = {}
+    for deal_id, meeting_ids in deal_meeting_ids.items():
+        for meeting_id in meeting_ids:
+            meeting_to_deals.setdefault(str(meeting_id), []).append(str(deal_id))
+
+    unique_meeting_ids = sorted(meeting_to_deals.keys())
+    read_limit = FOLLOWUP_RETURN_LIMIT * max(1, min(len(deal_ids), 10))
+    read_ids = unique_meeting_ids[:read_limit]
+    truncated = len(unique_meeting_ids) > len(read_ids)
+    raw_meetings = [] if partial_due_to_deadline else _batch_read_until("meetings", read_ids, MEETING_PROPERTIES, deadline)
+    partial_due_to_deadline = bool(partial_due_to_deadline or _deadline_exceeded(deadline))
+
+    now = datetime.now(timezone.utc)
+    future_meeting_at_by_deal: dict[str, str] = {}
+    for meeting in raw_meetings:
+        meeting_id = str(meeting.get("id") or "")
+        timestamp_text = _activity_timestamp(meeting)
+        timestamp = _datetime_value(timestamp_text)
+        if not timestamp or timestamp < now:
+            continue
+        for deal_id in meeting_to_deals.get(meeting_id, []):
+            current = future_meeting_at_by_deal.get(deal_id)
+            if not current or timestamp_text < current:
+                future_meeting_at_by_deal[deal_id] = timestamp_text
+
+    return {
+        "future_meeting_at_by_deal": future_meeting_at_by_deal,
+        "truncated": bool(truncated or partial_due_to_deadline),
+        **_soft_timeout_metadata(partial_due_to_deadline),
     }
 
 
@@ -9982,6 +10205,7 @@ def audit_priority_account_coverage(
     week_start: str = "",
     week_end: str = "",
     limit: int = PRIORITY_ACCOUNT_RETURN_LIMIT,
+    soft_timeout_seconds: int = 0,
 ) -> dict[str, Any]:
     """Audit locked target-account coverage, double tap, stale/dirty accounts, and open follow-up tasks."""
 
@@ -9993,6 +10217,7 @@ def audit_priority_account_coverage(
             week_start=week_start,
             week_end=week_end,
             limit=limit,
+            soft_timeout_seconds=soft_timeout_seconds,
         )
     except ScopeError as error:
         return _blocked(str(error), {"caller_email": slack_user_email, "owner_email": owner_email})
@@ -10111,10 +10336,12 @@ def build_friday_sales_review(
     week_start: str = "",
     week_end: str = "",
     limit: int = PRIORITY_ACCOUNT_RETURN_LIMIT,
+    soft_timeout_seconds: int = 0,
 ) -> dict[str, Any]:
     """Build the manager Friday sales review for the tactical pause operating rhythm."""
 
     try:
+        deadline = _hubspot_soft_deadline(soft_timeout_seconds)
         coverage = _priority_account_coverage(
             slack_user_email=slack_user_email,
             countries=countries,
@@ -10124,6 +10351,8 @@ def build_friday_sales_review(
             limit=limit,
             manager_only=True,
             include_internal=True,
+            soft_timeout_seconds=soft_timeout_seconds,
+            deadline=deadline,
         )
         if coverage.get("confidence") == "blocked":
             return coverage
@@ -10136,6 +10365,7 @@ def build_friday_sales_review(
             internal.get("company_deal_ids", {}),
             internal.get("week", {}),
             stage_config,
+            deadline,
         )
         week = internal.get("week", {})
         owner_ids = sorted(
@@ -10168,7 +10398,10 @@ def build_friday_sales_review(
             "support_needed": _support_needed(coverage, deal_counts),
         }
         confidence = "verified"
-        if coverage.get("confidence") == "needs-check" or deal_counts.get("confidence") == "needs-check":
+        partial_due_to_soft_timeout = bool(
+            coverage.get("partial_due_to_soft_timeout") or deal_counts.get("partial_due_to_soft_timeout")
+        )
+        if coverage.get("confidence") == "needs-check" or deal_counts.get("confidence") == "needs-check" or partial_due_to_soft_timeout:
             confidence = "needs-check"
         return {
             "answer": answer,
@@ -10179,6 +10412,7 @@ def build_friday_sales_review(
             "returned_count": coverage.get("returned_count"),
             "has_more": coverage.get("has_more"),
             "truncated": coverage.get("truncated"),
+            **_soft_timeout_metadata(partial_due_to_soft_timeout, soft_timeout_seconds),
             "confidence": confidence,
             "caveat": (
                 coverage.get("caveat", "")
@@ -10480,6 +10714,105 @@ def build_pre_demo_game_plans(
         return _blocked(str(error), {"caller_email": slack_user_email, "company_ids": company_ids})
     except HubSpotError as error:
         return _blocked(str(error), {"caller_email": slack_user_email, "company_ids": company_ids})
+
+
+@mcp.tool()
+def list_active_deals_missing_next_meeting(
+    slack_user_email: str,
+    countries: list[str] | None = None,
+    owner_email: str | None = None,
+    limit: int = ACTIVE_DEAL_HYGIENE_RETURN_LIMIT,
+    soft_timeout_seconds: int = 0,
+) -> dict[str, Any]:
+    """List active scoped HubSpot target-account deals with no future meeting found."""
+
+    try:
+        deadline = _hubspot_soft_deadline(soft_timeout_seconds)
+        scope = _caller_scope(slack_user_email)
+        if scope["kind"] == "blocked":
+            return _blocked("Caller identity is not mapped to an allowed scope.", {"caller_email": slack_user_email})
+
+        selected = _safe_countries(countries, scope["countries"])
+        if not selected:
+            return _blocked("Requested countries are outside caller scope.", _scope_response(scope, []))
+
+        target_owner_id, target_owner_email = _target_owner_id_for_scope(scope, owner_email)
+        requested_limit = _bounded_int(limit, default=ACTIVE_DEAL_HYGIENE_RETURN_LIMIT, maximum=ACTIVE_DEAL_HYGIENE_RETURN_LIMIT)
+        company_scan_limit = min(PRIORITY_ACCOUNT_RETURN_LIMIT, max(requested_limit * 5, 100))
+        data = _company_search(
+            _target_filters(selected, target_owner_id),
+            company_scan_limit,
+            maximum=PRIORITY_ACCOUNT_RETURN_LIMIT,
+            sorts=[{"propertyName": "hubspot_owner_id", "direction": "ASCENDING"}],
+        )
+        companies = data.get("results", [])
+        company_by_id = {str(company.get("id") or ""): company for company in companies if company.get("id")}
+        company_ids = list(company_by_id.keys())
+        company_deal_ids = _batch_association_ids_until("companies", "deals", company_ids, deadline)
+        partial_due_to_soft_timeout = _deadline_exceeded(deadline)
+
+        deal_to_company_id: dict[str, str] = {}
+        deal_ids: list[str] = []
+        for company_id, associated_deal_ids in company_deal_ids.items():
+            for deal_id in associated_deal_ids:
+                if deal_id in deal_to_company_id:
+                    continue
+                deal_to_company_id[deal_id] = company_id
+                deal_ids.append(deal_id)
+
+        raw_deals = [] if partial_due_to_soft_timeout else _batch_read_until("deals", deal_ids, DEAL_PROPERTIES, deadline)
+        partial_due_to_soft_timeout = bool(partial_due_to_soft_timeout or _deadline_exceeded(deadline))
+        active_deals = [deal for deal in raw_deals if _deal_is_active_for_hygiene(deal)]
+        active_deal_ids = [str(deal.get("id") or "") for deal in active_deals if deal.get("id")]
+        meeting_index = (
+            {"future_meeting_at_by_deal": {}, "truncated": True, "partial_due_to_soft_timeout": True}
+            if partial_due_to_soft_timeout
+            else _future_meeting_index_for_deals(active_deal_ids, deadline)
+        )
+        partial_due_to_soft_timeout = bool(partial_due_to_soft_timeout or meeting_index.get("partial_due_to_soft_timeout"))
+        future_meeting_at_by_deal = meeting_index.get("future_meeting_at_by_deal", {})
+        meeting_truncated = bool(meeting_index.get("truncated"))
+
+        missing_rows: list[dict[str, Any]] = []
+        for deal in active_deals:
+            deal_id = str(deal.get("id") or "")
+            if not deal_id or future_meeting_at_by_deal.get(deal_id):
+                continue
+            company = company_by_id.get(deal_to_company_id.get(deal_id, ""))
+            if not company:
+                continue
+            missing_rows.append(_safe_active_deal_hygiene_row(deal, company, meeting_truncated))
+
+        returned_rows = missing_rows[:requested_limit]
+        metadata = _search_metadata(data)
+        result_truncated = bool(
+            metadata.get("truncated")
+            or len(missing_rows) > requested_limit
+            or meeting_truncated
+            or partial_due_to_soft_timeout
+        )
+        return {
+            "answer": returned_rows,
+            "source": "HubSpot scoped target-account companies, associated deals, and associated future meetings",
+            "scope": _scope_response(scope, selected, target_owner_id, target_owner_email),
+            **metadata,
+            "scanned_company_count": len(companies),
+            "active_deal_count": len(active_deals),
+            "missing_next_meeting_count": len(missing_rows),
+            "returned_count": len(returned_rows),
+            "has_more": result_truncated,
+            "truncated": result_truncated,
+            **_soft_timeout_metadata(partial_due_to_soft_timeout, soft_timeout_seconds),
+            "confidence": "needs-check" if result_truncated else "verified",
+            "caveat": (
+                "Read-only deal hygiene. Active deal filtering excludes obvious closed-won/lost stage names only; "
+                "future meeting evidence comes from HubSpot meeting associations and may need review when truncated."
+            ),
+        }
+    except ScopeError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email, "owner_email": owner_email})
+    except HubSpotError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email})
 
 
 @mcp.tool()
