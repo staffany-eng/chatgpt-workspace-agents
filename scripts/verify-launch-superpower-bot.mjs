@@ -187,7 +187,8 @@ for (const requiredText of [
   "\"parent_type\": \"collection\"",
   "conversations.join",
   "intercom_direct_url",
-  "LAUNCH_STEP3_INTERCOM_APP_ID"
+  "LAUNCH_STEP3_INTERCOM_APP_ID",
+  "omit_top_heading=True"
 ]) {
   if (!e2eRunnerText.includes(requiredText)) fail(`E2E runner missing required text: ${requiredText}`);
 }
