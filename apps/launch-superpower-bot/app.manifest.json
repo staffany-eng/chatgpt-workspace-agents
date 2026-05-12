@@ -18,6 +18,7 @@
     "skill": "skills/help-article-generator/SKILL.md",
     "skill_skeleton": "skills/help-article-generator/references/help-article-skeleton.md",
     "workflow": "runtime/workflow.md",
+    "e2e_runner": "runtime/launchbot_e2e.py",
     "regression_cases": "tests/regression-cases.md"
   },
   "evidence": {
@@ -76,7 +77,11 @@
     "LAUNCH_STEP3_INTERCOM_STAGING_COLLECTION_ID"
   ],
   "optional_env_names": [
-    "LAUNCH_STEP3_INTERCOM_AUTHOR_ID"
+    "LAUNCH_STEP3_INTERCOM_AUTHOR_ID",
+    "LAUNCH_STEP3_INTERCOM_APP_ID",
+    "LAUNCH_GOOGLE_AUTH_JSON",
+    "GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE",
+    "LAUNCH_STEP2_SLACK_CHANNEL_ID"
   ],
   "help_article_contract": {
     "source_of_truth": "code_grounded_behavior",

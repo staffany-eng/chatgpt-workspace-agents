@@ -4,6 +4,8 @@
 
 This packet captures the workflow contract from the 2026-05-11 handoff. The runtime source code under `vk-super-productivity/launch-superpower-bot` is not present in this repo, so code-level fixes must happen in that external checkout.
 
+When the external source checkout is absent, use `runtime/launchbot_e2e.py` as the minimal VM-safe runner for the handoff flow. It generates versioned Step 1 artifacts, creates a Google Doc review draft, posts a bot-owned Slack review message, and creates an Intercom draft article with a direct Intercom app URL when the API response omits a public URL.
+
 ## Step Contract
 
 ### Step 1: Help Article Trigger
@@ -60,6 +62,10 @@ Required runtime environment names:
 Optional runtime environment name:
 
 - `LAUNCH_STEP3_INTERCOM_AUTHOR_ID`
+- `LAUNCH_STEP3_INTERCOM_APP_ID`
+- `LAUNCH_GOOGLE_AUTH_JSON`
+- `GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE`
+- `LAUNCH_STEP2_SLACK_CHANNEL_ID`
 
 Secret values must come from the approved secret store or secure sharing path. Do not commit token values, service-account JSON, OAuth credentials, or `.env` files.
 

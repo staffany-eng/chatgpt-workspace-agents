@@ -27,6 +27,7 @@ Durable app packet for the Launch Superpower workflow described in the 2026-05-1
 | `app.manifest.json` | Machine-readable packet contract. |
 | `skills/help-article-generator/` | Reusable help-article drafting skill upgraded from the handoff. |
 | `runtime/workflow.md` | Step contracts, configuration names, review gates, and known gaps. |
+| `runtime/launchbot_e2e.py` | Minimal VM-safe runner for the handoff flow when the original runtime source is absent. |
 | `tests/regression-cases.md` | Manual/eval regression scenarios for the workflow. |
 
 ## Evidence
@@ -39,6 +40,12 @@ Run from the repo root:
 
 ```bash
 npm run launch-superpower-bot:verify
+```
+
+Run the VM-safe handoff path from the repo root after the required runtime secrets are available:
+
+```bash
+python3 apps/launch-superpower-bot/runtime/launchbot_e2e.py --issue KER-1742 --version v006
 ```
 
 Run the full repo check before merging:

@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join, resolve } from "node:path";
+import { spawnSync } from "node:child_process";
 import {
   assertFile as sharedAssertFile,
   assertManifestPaths,
@@ -104,6 +105,7 @@ const filesToScan = [
   "skills/help-article-generator/SKILL.md",
   "skills/help-article-generator/references/help-article-skeleton.md",
   "runtime/workflow.md",
+  "runtime/launchbot_e2e.py",
   "tests/regression-cases.md"
 ];
 
@@ -149,6 +151,7 @@ if (/<div|<br|align=|style=/.test(skeletonText)) {
 const workflowText = textOf("runtime/workflow.md");
 for (const requiredText of [
   "source code under `vk-super-productivity/launch-superpower-bot` is not present",
+  "runtime/launchbot_e2e.py",
   "Intercom draft articles",
   "bot-owned posting credentials",
   "Do not commit token values",
@@ -172,6 +175,28 @@ if (!existsSync(rawManifestPath)) {
   ]) {
     if (!rawManifestText.includes(requiredText)) fail(`Raw source manifest missing required text: ${requiredText}`);
   }
+}
+
+const e2eRunnerText = textOf("runtime/launchbot_e2e.py");
+for (const requiredText of [
+  "LAUNCH_STEP2_SLACK_BOT_TOKEN",
+  "LAUNCH_STEP3_INTERCOM_ACCESS_TOKEN",
+  "GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE",
+  "Launchbot automation: review draft ready for approval",
+  "\"state\": \"draft\"",
+  "\"parent_type\": \"collection\"",
+  "conversations.join",
+  "intercom_direct_url",
+  "LAUNCH_STEP3_INTERCOM_APP_ID"
+]) {
+  if (!e2eRunnerText.includes(requiredText)) fail(`E2E runner missing required text: ${requiredText}`);
+}
+
+const pyCompile = spawnSync("python3", ["-m", "py_compile", join(appRoot, "runtime", "launchbot_e2e.py")], {
+  encoding: "utf8"
+});
+if (pyCompile.status !== 0) {
+  fail(`E2E runner Python syntax check failed: ${(pyCompile.stderr || pyCompile.stdout || "").trim()}`);
 }
 
 const sourceNotePath = join(repoRoot, "research/wiki/sources/launch-superpower-bot-handoff.md");
