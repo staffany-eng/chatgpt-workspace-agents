@@ -45,9 +45,10 @@ The local stdio MCP adapter lives at `runtime/mcp/luma_nurtureany_server.py`.
 
 - Use for broad event-wide questions where the Luma guest list is smaller than the HubSpot target-account universe.
 - Input: Slack user email, optional event IDs or event search window, optional `event_tags`, optional location, optional country, optional event type, and optional guest cap.
+- Date-only event windows are inclusive by day: `start=YYYY-MM-DD`, `end=YYYY-MM-DD` searches through `23:59:59Z` on the end date so same-day HHH/LL lookups do not miss afternoon events.
 - Output: event metadata, RSVP/checked-in counts, safe email domains, and company-name candidates only. For past events, keys come only from checked-in guests; if `checked_in_count=0`, do not match RSVP/no-show guests as attended.
 - Does not return attendee names, full emails, phone numbers, raw registration answers, or raw guest lists.
-- Follow with `find_target_accounts_by_luma_match_keys`, then `get_luma_event_context` using only those scoped candidate companies.
+- Follow with `find_target_accounts_by_luma_match_keys`, which adds HubSpot owner and customer/prospect/unknown status, then `get_luma_event_context` using only those scoped candidate companies.
 
 Attendance means `checked_in_at` is present. Approved, invited, pending, waitlist, declined, and other RSVP states are not attendance.
 

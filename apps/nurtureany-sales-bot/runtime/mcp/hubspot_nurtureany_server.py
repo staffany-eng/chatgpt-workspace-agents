@@ -279,6 +279,8 @@ LUMA_MATCH_CANDIDATE_FIELDS = (
     "owner_id",
     "owner_email",
     "owner_name",
+    "account_status",
+    "account_status_source",
     "luma_match_reasons",
     "luma_match_key_kinds",
     "luma_match_key_count",
@@ -1551,6 +1553,7 @@ def _add_luma_candidate(
 def _summarize_luma_candidate_company(company: dict[str, Any]) -> dict[str, Any]:
     props = company.get("properties", {})
     owner_id = props.get("hubspot_owner_id") or company.get("owner_id") or company.get("hubspot_owner_id") or ""
+    account_status = _account_status_from_props(props)
     return {
         "company_id": company.get("id") or company.get("company_id") or "",
         "hubspot_scoped": True,
@@ -1561,6 +1564,7 @@ def _summarize_luma_candidate_company(company: dict[str, Any]) -> dict[str, Any]
         "owner_id": owner_id,
         "owner_email": company.get("owner_email") or _owner_email_by_id(owner_id),
         "owner_name": company.get("owner_name") or _owner_name_by_id(owner_id),
+        **account_status,
     }
 
 
@@ -3155,6 +3159,10 @@ def _account_followup_status(
         "company_id": summary.get("company_id"),
         "company_name": summary.get("name"),
         "owner_id": summary.get("owner_id"),
+        "owner_email": summary.get("owner_email"),
+        "owner_name": summary.get("owner_name"),
+        "account_status": summary.get("account_status"),
+        "account_status_source": summary.get("account_status_source"),
         "country": summary.get("country"),
         "followup_status": status,
         "latest_followup_at": sorted_evidence[0]["timestamp"] if sorted_evidence else "",
@@ -3340,6 +3348,10 @@ def _account_followup_status_from_index(company: dict[str, Any], account_activit
         "company_id": summary.get("company_id"),
         "company_name": summary.get("name"),
         "owner_id": summary.get("owner_id"),
+        "owner_email": summary.get("owner_email"),
+        "owner_name": summary.get("owner_name"),
+        "account_status": summary.get("account_status"),
+        "account_status_source": summary.get("account_status_source"),
         "country": summary.get("country"),
         "followup_status": status,
         "latest_followup_at": account_activity.get("latest_followup_at") or "",

@@ -244,7 +244,7 @@ Friday sales review uses the same scoped association discipline, plus HubSpot ca
 `check_event_followup_status`:
 
 - Input: Slack user email, Luma `event_tags`, optional event ID, location, country, event type, search window, owner email, `since_at`, `until_at`, and limit.
-- Output: selected event summary, matched target-account count, status counts, per-account status, latest safe evidence timestamp, owner, activity counts, confidence, and caveat.
+- Output: selected event summary, matched target-account count, status counts, per-account follow-up status, HubSpot owner, customer/prospect/unknown status, latest safe evidence timestamp, activity counts, confidence, and caveat.
 - Resolves Luma checked-in guests, matches them to scoped HubSpot target accounts, and classifies follow-up from associated event-specific Eazybe WhatsApp communications or event-specific tasks.
 - If Luma checked-in attendance is empty for an Indonesia LL/HHH event, Slack workflow may use `read_indonesia_event_registration_attendance` first, then pass attended keys into `find_target_accounts_by_luma_match_keys`, then pass the resolved scoped HubSpot companies into `check_account_followup_status` from the event end time.
 - Generic post-event WhatsApp, candidate attendee matching, truncated reads, owner mismatch, or incomplete Eazybe association returns `needs_check`.
@@ -311,7 +311,7 @@ Friday sales review uses the same scoped association discipline, plus HubSpot ca
 `find_target_accounts_by_luma_match_keys`:
 
 - Input: Slack user email, safe Luma email domains, safe Luma company-name candidates, optional countries, optional owner email filter, and limit.
-- Output: HubSpot-scoped target-account candidates only, with `hubspot_scoped=true`, `scope_source=hubspot_nurtureany`, and Luma match reason metadata.
+- Output: HubSpot-scoped target-account candidates only, with `hubspot_scoped=true`, `scope_source=hubspot_nurtureany`, HubSpot owner, customer/prospect/unknown status, and Luma match reason metadata.
 - Use after `get_luma_event_match_keys` for broad event-wide questions so the bot searches from Luma attendee keys into HubSpot instead of paging every target account.
 - Domain matches are stronger; company-name candidate matches return `Confidence: needs-check`.
 - Must not accept raw attendee exports, full Luma emails, phone numbers, or registration answers.

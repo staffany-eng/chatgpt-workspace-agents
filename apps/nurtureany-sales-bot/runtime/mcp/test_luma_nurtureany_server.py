@@ -91,6 +91,40 @@ class LumaNurtureAnyServerTest(unittest.TestCase):
         self.assertEqual(event["name"], "Bali Beans Dinner")
         self.assertNotIn("description", event)
 
+    def test_date_only_end_includes_full_day(self):
+        calls = []
+
+        def fake_request(path, params=None):
+            calls.append((path, params))
+            return {
+                "entries": [
+                    {
+                        "event": {
+                            "event_id": "evt-hhh",
+                            "name": "StaffAny HR Happy Hour (HHH)",
+                            "start_at": "2026-05-13T08:00:00Z",
+                            "end_at": "2026-05-13T10:00:00Z",
+                            "timezone": "Asia/Singapore",
+                        }
+                    }
+                ],
+                "has_more": False,
+            }
+
+        with patch.dict(os.environ, {"LUMA_API_KEY": "test-key"}), patch.object(
+            self.module, "_request_json", side_effect=fake_request
+        ):
+            result = self.module.list_luma_events(
+                "ae@staffany.com",
+                start="2026-05-13",
+                end="2026-05-13",
+                max_events=10,
+            )
+
+        self.assertEqual(result["answer"][0]["event_id"], "evt-hhh")
+        self.assertEqual(calls[0][1]["after"], "2026-05-13T00:00:00Z")
+        self.assertEqual(calls[0][1]["before"], "2026-05-13T23:59:59Z")
+
     def test_list_luma_events_filters_with_luma_event_tags(self):
         calls = []
 

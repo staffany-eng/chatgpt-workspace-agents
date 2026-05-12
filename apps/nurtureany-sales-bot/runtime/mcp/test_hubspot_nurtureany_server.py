@@ -1933,6 +1933,7 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
                 "hs_is_target_account": "true",
                 "company_country": "Indonesia",
                 "hubspot_owner_id": "owner-sales",
+                "type": "CUSTOMER",
             },
         }
         events = [
@@ -2023,6 +2024,10 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         self.assertEqual(result["answer"]["match_summary"]["attended_guest_count"], 1)
         account = result["answer"]["accounts"][0]
         self.assertEqual(account["followup_status"], "followed_up")
+        self.assertEqual(account["owner_email"], "rep@staffany.com")
+        self.assertEqual(account["owner_name"], "rep@staffany.com")
+        self.assertEqual(account["account_status"], "customer")
+        self.assertEqual(account["account_status_source"], "HubSpot company type=CUSTOMER or lifecyclestage=customer")
         self.assertEqual(account["activity_counts"]["event_specific_whatsapp_communications"], 1)
         self.assertEqual(account["evidence"][0]["event_match"], "strong")
         dumped = json.dumps(result)
@@ -3022,6 +3027,7 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
                             "hs_is_target_account": "true",
                             "company_country": "Singapore",
                             "hubspot_owner_id": "owner-sales",
+                            "type": "CUSTOMER",
                         },
                     },
                     {
@@ -3032,6 +3038,7 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
                             "hs_is_target_account": "true",
                             "company_country": "Singapore",
                             "hubspot_owner_id": "owner-sales",
+                            "lifecyclestage": "opportunity",
                         },
                     },
                 ],
@@ -3044,6 +3051,10 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
 
         with patch.object(self.module, "_caller_scope", return_value={**SCOPE, "kind": "admin", "email": "kaiyi@staffany.com"}), patch.object(
             self.module, "_company_search", side_effect=fake_company_search
+        ), patch.object(
+            self.module,
+            "_owner_by_id",
+            return_value={"id": "owner-sales", "email": "sales.owner@staffany.com", "firstName": "Sales", "lastName": "Owner"},
         ):
             result = self.module.find_target_accounts_by_luma_match_keys(
                 "kaiyi@staffany.com",
@@ -3058,6 +3069,11 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         self.assertEqual(result["answer"][1]["luma_match_reasons"], ["company_name_candidate"])
         self.assertEqual(result["answer"][0]["luma_match_key_kinds"], ["exact_email_domain"])
         self.assertEqual(result["answer"][0]["luma_match_key_count"], 1)
+        self.assertEqual(result["answer"][0]["owner_email"], "sales.owner@staffany.com")
+        self.assertEqual(result["answer"][0]["owner_name"], "Sales Owner")
+        self.assertEqual(result["answer"][0]["account_status"], "customer")
+        self.assertEqual(result["answer"][1]["account_status"], "prospect")
+        self.assertEqual(result["answer"][1]["account_status_source"], "HubSpot company lifecyclestage=opportunity")
         payload = json.dumps(result)
         self.assertNotIn("luma_match_keys", payload)
         self.assertNotIn("current_tools", payload)

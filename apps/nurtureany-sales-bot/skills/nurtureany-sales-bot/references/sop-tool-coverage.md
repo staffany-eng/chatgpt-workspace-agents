@@ -34,7 +34,7 @@ Use this reference with `sales-best-practices.md` before changing or answering f
 | `audit_hubspot_owner_roster` | HubSpot admin | Uses HubSpot owners API and access policy; admin-only scope; no body/PII exports, no mutation. |
 | `list_my_target_accounts` | HubSpot queue | HubSpot target, owner, and country fields; AE-owned scope; completeness metadata; no mutation. |
 | `list_team_target_accounts` | HubSpot queue | Manager/admin country scope; optional owner filter preserves caller identity; completeness metadata; no mutation. |
-| `find_target_accounts_by_luma_match_keys` | Event matching | Safe Luma/Sheet match keys become scoped HubSpot candidate accounts; event attribution remains `needs-check` until HubSpot evidence verifies. |
+| `find_target_accounts_by_luma_match_keys` | Event matching | Safe Luma/Sheet match keys become scoped HubSpot candidate accounts with HubSpot owner and customer/prospect/unknown status; event attribution remains `needs-check` until HubSpot evidence verifies. |
 | `audit_priority_account_coverage` | Friday rhythm | Uses 120/150, double tap, clean lead, 40 connected calls, warm activity, and QO/QO Met quality; safe activity evidence only. |
 | `build_sales_metric_actuals_query` | Revenue actuals | Builds scoped aggregate SQL for QO and revenue actuals; Rev Sheets/Slides are targets/definitions only; execute through `staffany_bigquery.execute_sql_readonly`. |
 | `build_friday_sales_review` | Friday rhythm | Uses sales best practices for hygiene, funnel, coaching, actions, support, and optional warehouse follow-ups; stage config gates QO/QO Met; no raw bodies. |
@@ -44,7 +44,7 @@ Use this reference with `sales-best-practices.md` before changing or answering f
 | `list_active_deals_missing_next_meeting` | Deal hygiene | Direct path for active deals with no next meeting; uses scoped target accounts, associated deals, and future HubSpot meeting associations; no Friday-review/account-coverage detour. |
 | `list_sales_followup_tasks` | Follow-up | Existing incomplete sales-owned HubSpot tasks only; safe task fields; no duplicate task creation. |
 | `check_account_followup_status` | Follow-up | HubSpot communications, notes, tasks, and meetings determine status; event attribution requires proof; raw bodies hidden. |
-| `check_event_followup_status` | Event follow-up | Luma/Sheet attendance identifies matched accounts; HubSpot verifies event-specific WhatsApp/tasks; raw attendees and bodies hidden. |
+| `check_event_followup_status` | Event follow-up | Luma/Sheet attendance identifies matched accounts; HubSpot owner and customer/prospect/unknown status travel with each account; HubSpot verifies event-specific WhatsApp/tasks; raw attendees and bodies hidden. |
 | `build_daily_nurture_plan` | Daily nurture | Jeremy-style 09:00 Asia/Singapore pack; HubSpot target accounts/contacts/roles are source of truth, Sheet material rows are read-only context, 30/150 rotation has no silent replacement, all decision makers/influencers/champions get draft rows. |
 | `record_nurtureany_operation_checkpoint` | Runtime continuity | Profile-runtime ledger checkpoint only; records resumable phase, approval marker presence, idempotency key, and side-effect class without performing any external send or HubSpot mutation. |
 | `read_nurtureany_operation_ledger` | Runtime continuity | Reads compact checkpoint state for restart-safe continuation; read-only resume is allowed, but repeated sends/writes stay blocked unless approval marker and idempotency key are both present. |

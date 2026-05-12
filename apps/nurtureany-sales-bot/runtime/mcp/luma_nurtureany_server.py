@@ -186,11 +186,13 @@ def _error_message(status_code: int, detail: str) -> str:
     return f"Luma API failed: {status_code} {safe[:300]}"
 
 
-def _rfc3339(value: str | None, default: datetime) -> str:
+def _rfc3339(value: str | None, default: datetime, *, end_of_day: bool = False) -> str:
     text = (value or "").strip()
     if not text:
         return default.isoformat().replace("+00:00", "Z")
     if "T" not in text:
+        if end_of_day:
+            return f"{text}T23:59:59Z"
         return f"{text}T00:00:00Z"
     if text.endswith("Z"):
         return text
@@ -449,7 +451,7 @@ def _list_events_raw(
 ) -> tuple[list[dict[str, Any]], bool, bool]:
     now = datetime.now(timezone.utc)
     after = _rfc3339(start, now)
-    before = _rfc3339(end, now + timedelta(days=DEFAULT_LOOKAHEAD_DAYS))
+    before = _rfc3339(end, now + timedelta(days=DEFAULT_LOOKAHEAD_DAYS), end_of_day=True)
     limit = max(1, min(int(max_events or DEFAULT_EVENT_LIMIT), MAX_EVENTS))
     events: list[dict[str, Any]] = []
     cursor = ""
