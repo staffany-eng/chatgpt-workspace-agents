@@ -59,9 +59,9 @@ Use this skill to produce help articles in a repeatable format that is ready for
   - `Managing Brands`
   - `Managing Perks`
   - `FAQ`
-- Include the object model when relevant:
-  - a brand is the business profile
-  - a perk sits under a brand and contains redeemable perk details
+- Include the object model with this exact meaning when relevant:
+  - A brand is the business profile.
+  - A perk sits under a brand and contains redeemable perk details.
 - Include the catalogue visibility rule when relevant: an active brand still does not appear in the mobile catalogue until it has at least one active perk.
 - Add screenshot placeholders at key procedural steps when screenshots are not available yet.
 
@@ -81,7 +81,7 @@ Follow this exact high-level order:
 ### Main body rules
 
 - Do not repeat the title in the article body after the page title.
-- Do not place a visible divider immediately after the title, after the audience block, after the guide outline, or between ordinary sections.
+- Do not place any visible divider lines in source markdown. Never use standalone `---`, repeated underscores, repeated hyphens, or long text lines as separators.
 - Do not use raw HTML in the markdown body. This includes `<div>`, `<br/>`, inline `style`, and `align` attributes.
 - If an article needs a visual divider in Intercom, use Intercom's divider block during final Intercom editing. Do not simulate a divider with underscores, repeated dashes, or long text lines in the source article.
 - Keep visible spacing before every heading and subheading. Add one blank line before each `##` and `###` section.
@@ -149,6 +149,7 @@ Follow this exact high-level order:
    - centered audience block
    - correctly indented nested bullets
    - numbered lists that restart per subsection
+4. Return only the requested article draft or structure. Do not add meta commentary such as "Structure complete" after the article body.
 
 ## Internal Notes Requirement
 
@@ -166,7 +167,7 @@ Always keep these details outside the publishable article body:
 Before finalizing:
 
 - Section order matches contract
-- Divider lines are placed correctly
+- No visible divider lines are present
 - Platform is `Mobile` or `Web`
 - Intro exists (no intro header)
 - No repeated title appears in the article body

@@ -119,7 +119,10 @@ for (const requiredText of [
   "Managing Brands",
   "Managing Perks",
   "Do not use raw HTML",
+  "Do not place any visible divider lines",
   "Do not include the internal appendix",
+  "A brand is the business profile",
+  "A perk sits under a brand",
   "For ClubAny / Club Blue content, set Product to `StaffAny`",
   "numbered steps from `1` for each subsection"
 ]) {
