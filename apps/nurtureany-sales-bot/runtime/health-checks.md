@@ -5,7 +5,10 @@ NurtureAny needs deterministic runtime checks because prompt correctness does no
 ## Expected Checks
 
 - Hermes gateway service for `nurtureanysalesbot` is active.
+- On Linux cloud hosts, gateway health checks `hermes-gateway-nurtureanysalesbot.service` through `systemd --user` instead of grepping old journal/status text.
+- On macOS development hosts, gateway health checks the launchctl label before falling back to `hermes gateway status`.
 - Slack Socket Mode watchdog is installed as no-agent cron and restarts the managed `nurtureanysalesbot` gateway service when the latest stale Socket Mode line is not followed by a fresh session for at least 300 seconds.
+- Cron concurrency is capped with `cron.max_parallel_jobs: 1`.
 - Secret redaction remains enabled.
 - Model route is pinned to native Anthropic Sonnet: `model.provider=anthropic`, `model.default=claude-sonnet-4-6`.
 - Slack gateway can receive mentions and identify caller email.
@@ -33,6 +36,8 @@ NurtureAny needs deterministic runtime checks because prompt correctness does no
 - Indonesia event-registration fallback smoke check confirms `read_indonesia_event_registration_attendance` is available, restricted to `ID REV - LL & HHH EVENTS`, uses `Attend The Event` as manual attendance only when Luma check-in is empty or not used, and never exposes phone numbers, full emails, or raw registration exports.
 - Google Slides deck-access smoke check confirms `read_google_slides_deck` is available, uses the `team@staffany.com` read-only Drive OAuth token, supports native Slides and Drive-hosted `.pptx` text extraction, never retains raw deck bytes, and never asks for "Anyone with the link" public sharing.
 - Daily nurture smoke check confirms `read_nurture_material_registry` and `build_daily_nurture_plan` are available, the 30/150 weekday rotation is deterministic for Jeremy, role gaps are surfaced, and no free-form WhatsApp sends occur.
+- Daily nurture 9am cron persists the run JSON under `NURTUREANY_DAILY_RUNS_DIR` before Slack delivery; the 12pm reminder loads that persisted run and does not recompute the 30/150 account selection.
+- Operation ledger tools `record_nurtureany_operation_checkpoint` and `read_nurtureany_operation_ledger` are available for restart-safe Slack workflow continuation.
 - Eazybe approval-gated smoke check confirms `preview_eazybe_template_messages`, `send_approved_eazybe_messages`, `check_eazybe_send_status`, and `build_daily_nurture_reminder` are available; sends require `approval_marker`, `templateName`, ordered `templateParams`, and phone-number redaction.
 - HubSpot photo scan smoke check accepts Luma event candidates, correlates Drive photo timestamps to Luma event dates, auto-tags `nurture_event` only for one clear event-date match, and keeps HubSpot person/contact association blocked until uploader confirmation.
 - A tiny target-account count query succeeds for each supported country.
@@ -93,6 +98,12 @@ Run the live profile drift audit after syncing repo packet files into the Hermes
 apps/nurtureany-sales-bot/runtime/audit-live-profile.sh
 ```
 
+Run the redacted cloud doctor when the cloud service restarts, cron drifts, or live runtime looks suspicious:
+
+```bash
+apps/nurtureany-sales-bot/runtime/nurtureany-cloud-doctor.sh
+```
+
 ## Cron Pattern
 
 Prefer Hermes `no_agent` cron for operational checks. Healthy runs should consume no model tokens and create no Slack noise.
@@ -106,26 +117,42 @@ rsync -a --delete apps/nurtureany-sales-bot/ ~/.hermes/profiles/nurtureanysalesb
 cp apps/nurtureany-sales-bot/runtime/check-health.sh ~/.hermes/profiles/nurtureanysalesbot/scripts/nurtureanysalesbot-check-health.sh
 cp apps/nurtureany-sales-bot/runtime/audit-live-profile.sh ~/.hermes/profiles/nurtureanysalesbot/scripts/nurtureanysalesbot-audit-live-profile.sh
 cp apps/nurtureany-sales-bot/runtime/check-slack-socket-health.sh ~/.hermes/profiles/nurtureanysalesbot/scripts/nurtureanysalesbot-check-slack-socket-health.sh
+cp apps/nurtureany-sales-bot/runtime/nurtureany-cloud-doctor.sh ~/.hermes/profiles/nurtureanysalesbot/scripts/nurtureanysalesbot-cloud-doctor.sh
 hermes -p nurtureanysalesbot cron create "0 1 * * 1-5" \
   --name "nurtureanysalesbot health check" \
   --script nurtureanysalesbot-check-health.sh \
-  --no-agent
+  --no-agent \
+  --timezone "Asia/Singapore"
 hermes -p nurtureanysalesbot cron create "15 1 * * 1-5" \
   --name "nurtureanysalesbot live profile audit" \
   --script nurtureanysalesbot-audit-live-profile.sh \
-  --no-agent
+  --no-agent \
+  --timezone "Asia/Singapore"
 hermes -p nurtureanysalesbot cron create "*/5 * * * *" \
   --name "nurtureanysalesbot Slack socket watchdog" \
   --script nurtureanysalesbot-check-slack-socket-health.sh \
-  --no-agent
-hermes -p nurtureanysalesbot cron create "0 1 * * 1-5" \
+  --no-agent \
+  --timezone "Asia/Singapore"
+hermes -p nurtureanysalesbot cron create "0 9 * * 1-5" \
   --name "nurtureanysalesbot Jeremy daily nurture pack" \
-  --prompt "Read the NurtureAny material registry, build Jeremy's daily nurture plan for 30 of his protected 150 HubSpot target accounts, and post the 9am Asia/Singapore Slack pack with message IDs for approval-gated Eazybe preview." \
+  --prompt "NurtureAny automation: Read the NurtureAny material registry, build Jeremy's daily nurture plan for 30 of his protected 150 HubSpot target accounts, persist the run JSON under NURTUREANY_DAILY_RUNS_DIR, and return the 9am Asia/Singapore Slack pack with message IDs for approval-gated Eazybe preview. Let the cron system deliver your final response to Slack. Do not call Slack message-send tools." \
   --timezone "Asia/Singapore"
-hermes -p nurtureanysalesbot cron create "0 4 * * 1-5" \
+hermes -p nurtureanysalesbot cron create "0 12 * * 1-5" \
   --name "nurtureanysalesbot Jeremy noon nurture reminder" \
-  --prompt "Check Jeremy's daily nurture run statuses. If any assigned stakeholder message was not Eazybe accepted/queued, later matched in HubSpot WhatsApp, or explicitly skipped, post the Slack reminder tagging Jeremy and his manager." \
+  --prompt "NurtureAny automation: Load the persisted Jeremy daily nurture run from NURTUREANY_DAILY_RUNS_DIR. Do not recompute the 30/150 account selection. Check statuses for assigned stakeholder messages; if any were not Eazybe accepted/queued, later matched in HubSpot WhatsApp, or explicitly skipped, return the Slack reminder tagging Jeremy and his manager. Let the cron system deliver your final response to Slack. Do not call Slack message-send tools." \
   --timezone "Asia/Singapore"
+```
+
+Pause legacy event ROI jobs until they are rewritten for bot-safe delivery:
+
+```bash
+hermes -p nurtureanysalesbot cron pause event-roi-job1-daily-signup-update
+hermes -p nurtureanysalesbot cron pause event-roi-job2-t3-wa-reminder-drafts
+hermes -p nurtureanysalesbot cron pause event-roi-job3-fireside-ping-7pm
+hermes -p nurtureanysalesbot cron pause event-roi-job4-fireside-summary-730pm
+hermes -p nurtureanysalesbot cron pause event-roi-job5-attendance-excel-drafts
+hermes -p nurtureanysalesbot cron pause event-roi-job6-hubspot-task-preview
+hermes -p nurtureanysalesbot cron pause event-roi-job7-roi-report-day3
 ```
 
 ## Failure Behavior

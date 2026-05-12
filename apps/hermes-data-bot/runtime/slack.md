@@ -5,6 +5,9 @@ Hermes Data Bot's first runtime surface is Slack POC usage in `#kaiyi-bot-testin
 ## Required Behavior
 
 - Mention-only in the POC channel.
+- Operational Slack checks for bot/runtime work must use the relevant Slack bot token from the deployed Hermes profile or approved secret store whenever available.
+- Do not use the Slack connector or Kai Yi's user token for Slack inspection when the Hermes bot token exists.
+- User token or Slack UI evidence is allowed only for explicit human-authored smoke tests where a bot token cannot trigger the gateway; keep that evidence separate from bot-token checks.
 - First tool-backed data requests are plan-first.
 - The bot should ask for `run` before the first confirmed plan.
 - Same-thread approval nudges such as bot mention only, `^`, `+1`, `yes`, `ok`, `go`, or `please proceed` count as approval when there is a pending preflight and no substantive plan change.

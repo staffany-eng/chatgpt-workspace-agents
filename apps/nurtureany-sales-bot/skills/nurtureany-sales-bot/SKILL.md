@@ -250,7 +250,9 @@ Preview tool:
 - `plan_event_photo_followup`: after a confirmed photo match, preview the HubSpot note summary, WhatsApp follow-up task, next-business-day 10:00 Asia/Singapore due date, draft WhatsApp copy, and `nurture_person_appearance` plan. No WhatsApp auto-send.
 - `preview_eazybe_template_messages`: preview selected daily nurture message IDs and validate approved Eazybe template payloads without sending.
 - `check_eazybe_send_status`: summarize accepted/queued/sent/delivered/failed/pending Eazybe statuses for a daily nurture run.
-- `build_daily_nurture_reminder`: 12:00 Asia/Singapore Slack reminder payload. It fires for unsent and unskipped stakeholder messages and tags the configured AE and manager in the configured Slack channel.
+- `build_daily_nurture_reminder`: 12:00 Asia/Singapore Slack reminder payload. It loads the persisted 9am run when messages are not supplied, fires for unsent and unskipped stakeholder messages, and tags the configured AE and manager in the configured Slack channel.
+- `record_nurtureany_operation_checkpoint`: persist the operation id, Slack thread, phase, checkpoint, approval marker, idempotency key, side-effect class, and compact error before long reads or side-effect preview/send steps.
+- `read_nurtureany_operation_ledger`: reload the restart-safe checkpoint after a gateway interruption. Rerun read-only work safely; do not repeat external sends or writes unless the returned policy says the approval marker and idempotency key are present.
 
 Mutation tools, planned but disabled in V1 until the write phase and always approval-gated:
 
@@ -280,7 +282,7 @@ Estimate: 2-3 min
 Caveat: Campaign metadata and assets do not prove QO or closed-won attribution; deal outcomes are verified only when HubSpot stage IDs are configured.
 Reply "run" to start, or tell me what to change.
 
-After `run`, execute only the confirmed plan. If the latest `run` follows a gateway interruption, shutdown warning, or has no tool result after that `run` in the current session, run the confirmed tool plan again; do not say "already ran" or reuse a stale account packet. If the user changes owner, country, source class, write intent, or time window before execution, revise the plan and ask for `run` again.
+After `run`, execute only the confirmed plan. Before long read-only calls or side-effect preview/send steps, checkpoint with `record_nurtureany_operation_checkpoint`. If the latest `run` follows a gateway interruption, shutdown warning, or has no tool result after that `run` in the current session, read the checkpoint with `read_nurtureany_operation_ledger` when an operation id is available, rerun read-only work safely, and do not repeat external sends or writes without both an approval marker and idempotency key. If the user changes owner, country, source class, write intent, or time window before execution, revise the plan and ask for `run` again.
 
 If any broad HubSpot MCP tool returns `partial_due_to_soft_timeout=true`, stop and answer from the returned partial evidence instead of chaining another broad HubSpot audit. Keep `Confidence: needs-check` and offer a narrower continuation path.
 

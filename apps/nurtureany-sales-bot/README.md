@@ -71,6 +71,7 @@ T-90 renewal answers must show both buckets: known T-90 accounts where `contract
 | `runtime/check-health.sh` | Silent no-agent health check for live runtime wiring. |
 | `runtime/check-slack-socket-health.sh` | Silent no-agent Slack Socket Mode watchdog for managed gateway restart. |
 | `runtime/audit-live-profile.sh` | Live profile drift audit against the source packet. |
+| `runtime/nurtureany-cloud-doctor.sh` | Redacted cloud doctor for service state, cron state, MCP counts, drift, ledger, and daily-run persistence. |
 | `tests/regression-cases.md` | Manual/eval regression cases for app behavior. |
 
 ## Product Scope
@@ -112,7 +113,7 @@ The full rep roster is runtime-only through `NURTUREANY_ACCESS_POLICY_PATH`; `ru
 5. Copy `runtime/access-policy.template.json` outside the repo, classify real HubSpot owners there, and set `NURTUREANY_ACCESS_POLICY_PATH`.
 6. Copy `skills/nurtureany-sales-bot/` into the profile skills directory.
 7. Set profile `.env` from Secret Manager values only; do not commit or inline model-provider or Lusha credentials.
-8. Configure Slack gateway, HubSpot MCP/API adapter, StaffAny BigQuery MCP, optional near-me adapter with `GOOGLE_PLACES_API_KEY`, `NURTUREANY_KNOWN_AREAS_FILE`, `NURTUREANY_OUTLET_MATCHES_TABLE`, and optional Customer 360 URL template overrides, optional Google Calendar adapter with read-only `team@staffany.com` OAuth files, Google Drive material registry with `NURTUREANY_MATERIAL_REGISTRY_SPREADSHEET_ID`, optional Luma adapter, optional Tavily public research MCP with `TAVILY_API_KEY`, optional Exa MCP with `EXA_API_KEY`, optional Lusha MCP with `LUSHA_API_KEY`, and optional Eazybe MCP with `EAZYBE_API_KEY` plus `EAZYBE_BROADCAST_API_URL`.
+8. Configure Slack gateway, HubSpot MCP/API adapter, StaffAny BigQuery MCP, optional near-me adapter with `GOOGLE_PLACES_API_KEY`, `NURTUREANY_KNOWN_AREAS_FILE`, `NURTUREANY_OUTLET_MATCHES_TABLE`, and optional Customer 360 URL template overrides, optional Google Calendar adapter with read-only `team@staffany.com` OAuth files, Google Drive material registry with `NURTUREANY_MATERIAL_REGISTRY_SPREADSHEET_ID`, optional Luma adapter, optional Tavily public research MCP with `TAVILY_API_KEY`, optional Exa MCP with `EXA_API_KEY`, optional Lusha MCP with `LUSHA_API_KEY`, optional Eazybe MCP with `EAZYBE_API_KEY` plus `EAZYBE_BROADCAST_API_URL`, `NURTUREANY_DAILY_RUNS_DIR`, and `NURTUREANY_OPERATION_LEDGER_DIR`.
 9. Run health checks and regression cases before adding sales channels.
 
 ## Canonical Source Rule

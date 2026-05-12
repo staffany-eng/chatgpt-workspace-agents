@@ -436,6 +436,8 @@ DAILY_NURTURE_DO_NOT_CONTACT_MARKERS = (
 )
 DAILY_NURTURE_ACTIVE_MATERIAL_STATUSES = {"active", "approved", "live"}
 DAILY_NURTURE_RUNS_DIR_ENV = "NURTUREANY_DAILY_RUNS_DIR"
+OPERATION_LEDGER_DIR_ENV = "NURTUREANY_OPERATION_LEDGER_DIR"
+OPERATION_LEDGER_DEFAULT_PROFILE = "nurtureanysalesbot"
 LUMA_BASE_URL = "https://public-api.luma.com"
 LUMA_USER_AGENT = "StaffAny-NurtureAny/1.0 (+https://staffany.com)"
 LUMA_TIMEOUT_SECONDS = 15
@@ -6320,6 +6322,63 @@ def _daily_nurture_runs_dir() -> Path | None:
     return Path(raw).expanduser()
 
 
+def _profile_runtime_dir() -> Path:
+    raw = os.environ.get("HERMES_HOME", "").strip()
+    if raw:
+        return Path(raw).expanduser()
+    return Path.home() / ".hermes" / "profiles" / OPERATION_LEDGER_DEFAULT_PROFILE
+
+
+def _operation_ledger_dir() -> Path:
+    raw = os.environ.get(OPERATION_LEDGER_DIR_ENV, "").strip()
+    if raw:
+        return Path(raw).expanduser()
+    return _profile_runtime_dir() / "operation-ledger"
+
+
+def _safe_file_stem(value: str) -> str:
+    safe_name = re.sub(r"[^A-Za-z0-9_.:-]+", "_", value or "").strip("._")
+    if safe_name:
+        return safe_name[:120]
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()[:16]
+
+
+def _ledger_path(operation_id: str) -> Path:
+    return _operation_ledger_dir() / f"{_safe_file_stem(operation_id)}.json"
+
+
+def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = path.with_suffix(path.suffix + ".tmp")
+    tmp_path.write_text(json.dumps(payload, ensure_ascii=True, indent=2, sort_keys=True), encoding="utf-8")
+    tmp_path.replace(path)
+
+
+def _load_operation_record(operation_id: str) -> dict[str, Any]:
+    path = _ledger_path(operation_id)
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _compact_ledger_record(record: dict[str, Any]) -> dict[str, Any]:
+    history = record.get("history") if isinstance(record.get("history"), list) else []
+    return {
+        "operation_id": record.get("operation_id") or "",
+        "slack_thread": record.get("slack_thread") or "",
+        "phase": record.get("phase") or "",
+        "last_checkpoint": record.get("last_checkpoint") or "",
+        "approval_marker_present": bool(record.get("approval_marker")),
+        "idempotency_key": record.get("idempotency_key") or "",
+        "side_effect": record.get("side_effect") or "none",
+        "compact_error": record.get("compact_error") or "",
+        "updated_at": record.get("updated_at") or "",
+        "history_count": len(history),
+    }
+
+
 def _persist_daily_nurture_run(run_id: str, payload: dict[str, Any]) -> dict[str, str | bool]:
     runs_dir = _daily_nurture_runs_dir()
     if not runs_dir:
@@ -6328,9 +6387,8 @@ def _persist_daily_nurture_run(run_id: str, payload: dict[str, Any]) -> dict[str
     if not safe_name:
         return {"persisted": False, "reason": "missing run_id"}
     try:
-        runs_dir.mkdir(parents=True, exist_ok=True)
         path = runs_dir / f"{safe_name}.json"
-        path.write_text(json.dumps(payload, ensure_ascii=True, indent=2, sort_keys=True), encoding="utf-8")
+        _atomic_write_json(path, payload)
     except OSError as error:
         return {"persisted": False, "reason": f"write failed: {error.__class__.__name__}"}
     return {"persisted": True, "path": str(path)}
@@ -12288,6 +12346,96 @@ def build_daily_nurture_plan(
         return _blocked(str(error), {"caller_email": slack_user_email})
     except ValueError as error:
         return _blocked(str(error), {"caller_email": slack_user_email})
+
+
+@mcp.tool()
+def record_nurtureany_operation_checkpoint(
+    operation_id: str,
+    slack_thread: str,
+    phase: str,
+    checkpoint: str,
+    approval_marker: str = "",
+    idempotency_key: str = "",
+    side_effect: str = "none",
+    compact_error: str = "",
+) -> dict[str, Any]:
+    """Persist a restart-safe workflow checkpoint in the profile runtime ledger."""
+
+    operation_id = str(operation_id or "").strip()
+    if not operation_id:
+        return _blocked("operation_id is required before checkpointing a workflow.", {"ledger": "operation-ledger"})
+    phase = str(phase or "").strip()[:80]
+    checkpoint = str(checkpoint or "").strip()[:1000]
+    side_effect = str(side_effect or "none").strip().lower()
+    if side_effect not in {"none", "preview", "external_send", "hubspot_write", "eazybe_send"}:
+        return _blocked("side_effect must be one of none, preview, external_send, hubspot_write, or eazybe_send.", {"operation_id": operation_id})
+
+    now = datetime.now(timezone.utc).isoformat()
+    record = _load_operation_record(operation_id)
+    history = record.get("history") if isinstance(record.get("history"), list) else []
+    event = {
+        "at": now,
+        "phase": phase,
+        "checkpoint": checkpoint,
+        "side_effect": side_effect,
+        "approval_marker_present": bool(str(approval_marker or "").strip()),
+        "idempotency_key": str(idempotency_key or "").strip(),
+        "compact_error": str(compact_error or "").strip()[:500],
+    }
+    history.append(event)
+    record.update(
+        {
+            "operation_id": operation_id,
+            "slack_thread": str(slack_thread or "").strip()[:300],
+            "phase": phase,
+            "last_checkpoint": checkpoint,
+            "approval_marker": str(approval_marker or "").strip(),
+            "idempotency_key": str(idempotency_key or "").strip(),
+            "side_effect": side_effect,
+            "compact_error": str(compact_error or "").strip()[:500],
+            "updated_at": now,
+            "history": history[-50:],
+        }
+    )
+    try:
+        path = _ledger_path(operation_id)
+        _atomic_write_json(path, record)
+    except OSError as error:
+        return _blocked(f"Operation checkpoint write failed: {error.__class__.__name__}", {"operation_id": operation_id})
+    return {
+        "answer": _compact_ledger_record(record),
+        "source": "NurtureAny profile-runtime operation ledger",
+        "scope": {"operation_id": operation_id, "ledger_dir": str(_operation_ledger_dir()), "external_side_effects_allowed": False},
+        "confidence": "verified",
+        "caveat": "Checkpoint only. Repeated sends or writes still require an approval marker and idempotency key.",
+    }
+
+
+@mcp.tool()
+def read_nurtureany_operation_ledger(operation_id: str) -> dict[str, Any]:
+    """Read a compact restart-continuation checkpoint for a NurtureAny operation."""
+
+    operation_id = str(operation_id or "").strip()
+    if not operation_id:
+        return _blocked("operation_id is required to read the operation ledger.", {"ledger": "operation-ledger"})
+    record = _load_operation_record(operation_id)
+    if not record:
+        return _blocked("No operation ledger record found for this operation_id.", {"operation_id": operation_id})
+    compact = _compact_ledger_record(record)
+    side_effect = compact.get("side_effect")
+    can_repeat_side_effect = bool(record.get("approval_marker")) and bool(record.get("idempotency_key"))
+    return {
+        "answer": {
+            **compact,
+            "can_resume_read_only": True,
+            "can_repeat_side_effect": can_repeat_side_effect,
+            "resume_policy": "Rerun read-only tool calls safely. Do not repeat external sends or writes unless can_repeat_side_effect=true.",
+        },
+        "source": "NurtureAny profile-runtime operation ledger",
+        "scope": {"operation_id": operation_id, "side_effect": side_effect},
+        "confidence": "verified" if side_effect == "none" or can_repeat_side_effect else "needs-check",
+        "caveat": "Missing approval marker or idempotency key blocks repeated external sends/writes.",
+    }
 
 
 @mcp.tool()

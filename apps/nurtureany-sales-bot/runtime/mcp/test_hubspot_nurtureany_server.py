@@ -97,6 +97,45 @@ class FakeHTTPResponse:
         return json.dumps(self.payload).encode("utf-8")
 
 
+class OperationLedgerTest(unittest.TestCase):
+    def setUp(self):
+        self.module = load_hubspot_module()
+
+    def test_operation_checkpoint_persists_and_blocks_side_effect_without_idempotency(self):
+        with tempfile.TemporaryDirectory() as ledger_dir, patch.dict(os.environ, {"NURTUREANY_OPERATION_LEDGER_DIR": ledger_dir}):
+            written = self.module.record_nurtureany_operation_checkpoint(
+                operation_id="thread-123-run",
+                slack_thread="C123:1710000000.000100",
+                phase="before_send",
+                checkpoint="Preview approved; send not repeated yet.",
+                approval_marker="APPROVED",
+                side_effect="eazybe_send",
+            )
+            loaded = self.module.read_nurtureany_operation_ledger("thread-123-run")
+
+        self.assertEqual(written["confidence"], "verified")
+        self.assertEqual(loaded["answer"]["phase"], "before_send")
+        self.assertTrue(loaded["answer"]["can_resume_read_only"])
+        self.assertFalse(loaded["answer"]["can_repeat_side_effect"])
+        self.assertEqual(loaded["confidence"], "needs-check")
+
+    def test_operation_checkpoint_with_idempotency_allows_repeat_side_effect(self):
+        with tempfile.TemporaryDirectory() as ledger_dir, patch.dict(os.environ, {"NURTUREANY_OPERATION_LEDGER_DIR": ledger_dir}):
+            self.module.record_nurtureany_operation_checkpoint(
+                operation_id="thread-123-run",
+                slack_thread="C123:1710000000.000100",
+                phase="send_started",
+                checkpoint="Eazybe send submitted.",
+                approval_marker="APPROVED",
+                idempotency_key="eazybe-run-1-msg-1",
+                side_effect="eazybe_send",
+            )
+            loaded = self.module.read_nurtureany_operation_ledger("thread-123-run")
+
+        self.assertTrue(loaded["answer"]["can_repeat_side_effect"])
+        self.assertEqual(loaded["confidence"], "verified")
+
+
 class HubSpotNurtureAnyServerTest(unittest.TestCase):
     def setUp(self):
         self.module = load_hubspot_module()

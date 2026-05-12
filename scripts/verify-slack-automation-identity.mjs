@@ -10,6 +10,9 @@ const checks = [
     path: join(repoRoot, "AGENTS.md"),
     required: [
       "Do not send visible Slack automation replies using Kai Yi's user token",
+      "When asked to check Slack for bot/runtime work, use the relevant Slack bot token",
+      "Do not use the Slack connector or Kai Yi's user token for Slack inspection when a relevant bot token exists",
+      "Use Kai Yi's user token or the Slack UI only for explicit human-authored smoke tests",
       "Every automation-authored Slack status must identify itself as automation",
       "After any automation bug fix, repair, deploy, or blocked repair, always emit a completion report",
     ],
@@ -18,8 +21,32 @@ const checks = [
     path: join(repoRoot, "apps/hermes-data-bot/AGENTS.md"),
     required: [
       "Do not send visible Slack automation replies using Kai Yi's user token",
+      "When asked to check Slack for Hermes bot/runtime work, use the relevant Slack bot token",
+      "Do not use the Slack connector or Kai Yi's user token for Slack inspection when the Hermes bot token exists",
+      "Use Kai Yi's user token or the Slack UI only for explicit human-authored smoke tests",
       "Every automation-authored Slack status must identify itself as automation",
       "After any automation bug fix, repair, deploy, or blocked repair, always emit a completion report",
+    ],
+  },
+  {
+    path: join(repoRoot, "apps/hermes-data-bot/runtime/slack.md"),
+    required: [
+      "Operational Slack checks for bot/runtime work must use the relevant Slack bot token",
+      "Do not use the Slack connector or Kai Yi's user token for Slack inspection when the Hermes bot token exists",
+      "User token or Slack UI evidence is allowed only for explicit human-authored smoke tests",
+    ],
+  },
+  {
+    path: join(repoRoot, "package.json"),
+    required: [
+      '"hooks:install": "git config core.hooksPath .githooks"',
+      '"slack-automation-identity:verify": "node scripts/verify-slack-automation-identity.mjs"',
+    ],
+  },
+  {
+    path: join(repoRoot, ".githooks/pre-commit"),
+    required: [
+      "npm run slack-automation-identity:verify",
     ],
   },
   {
@@ -70,6 +97,14 @@ const forbiddenPatterns = [
   {
     pattern: /Use Kai Yi's local Slack user token for the test\/status post/i,
     reason: "tests or reports as Kai Yi",
+  },
+  {
+    pattern: /(^|[.\n]\s*[-*]?\s*)(Use|use|Default to|default to|Route through|route through) the Slack connector[^.\n]*(?:check|inspect|read|monitor|diagnostic)/,
+    reason: "routes Slack inspection through the connector instead of the relevant bot token",
+  },
+  {
+    pattern: /(?:check|inspect|read|monitor|diagnostic)[^.\n]*Slack[^.\n]*(?:Kai Yi's user token|SLACK_USER_TOKEN)/i,
+    reason: "routes Slack inspection through Kai Yi's user token instead of the relevant bot token",
   },
 ];
 

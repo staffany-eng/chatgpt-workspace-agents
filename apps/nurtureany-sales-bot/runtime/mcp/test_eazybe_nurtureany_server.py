@@ -1,5 +1,7 @@
 import json
+import os
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -122,6 +124,22 @@ class EazybeNurtureAnyServerTest(unittest.TestCase):
 
         self.assertFalse(result["answer"]["should_send_reminder"])
         self.assertEqual(result["answer"]["unsent_message_ids"], [])
+
+    def test_reminder_loads_persisted_run_when_messages_not_supplied(self):
+        with tempfile.TemporaryDirectory() as runs_dir, patch.dict(os.environ, {"NURTUREANY_DAILY_RUNS_DIR": runs_dir}):
+            payload = {"answer": {"messages": [template_message("msg-1"), template_message("msg-2")]}}
+            Path(runs_dir, "run-1.json").write_text(json.dumps(payload), encoding="utf-8")
+
+            result = self.module.build_daily_nurture_reminder(
+                "run-1",
+                statuses=[{"message_id": "msg-1", "status": "accepted"}],
+                ae_slack_user_id="UAE123",
+                manager_slack_user_id="UMGR123",
+                reminder_channel_id="CNU123",
+            )
+
+        self.assertTrue(result["answer"]["loaded_from_persisted_run"])
+        self.assertEqual(result["answer"]["unsent_message_ids"], ["msg-2"])
 
 
 if __name__ == "__main__":

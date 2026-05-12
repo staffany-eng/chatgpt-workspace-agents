@@ -22,6 +22,8 @@ slack:
   require_mention: true
   reactions: false
   allow_bots: mentions
+cron:
+  max_parallel_jobs: 1
 kanban:
   dispatch_in_gateway: false
 agent:
@@ -124,6 +126,8 @@ nurtureany:
     working_days: "Monday-Friday"
     nine_am_cron_utc: "0 1 * * 1-5"
     noon_reminder_cron_utc: "0 4 * * 1-5"
+    nine_am_cron_local: "0 9 * * 1-5"
+    noon_reminder_cron_local: "0 12 * * 1-5"
     material_registry_spreadsheet_id_env: "NURTUREANY_MATERIAL_REGISTRY_SPREADSHEET_ID"
     daily_runs_dir_env: "NURTUREANY_DAILY_RUNS_DIR"
     sent_definition: "Eazybe accepted/queued approved template OR HubSpot matching WhatsApp communication after run start"
@@ -206,6 +210,8 @@ mcp_servers:
     - scan_drive_event_photos
     - propose_photo_people_matches
     - plan_event_photo_followup
+    - record_nurtureany_operation_checkpoint
+    - read_nurtureany_operation_ledger
     - draft_nurture_message
     - plan_hubspot_writeback
     - build_daily_nurture_plan

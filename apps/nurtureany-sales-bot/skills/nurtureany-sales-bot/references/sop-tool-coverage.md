@@ -46,6 +46,8 @@ Use this reference with `sales-best-practices.md` before changing or answering f
 | `check_account_followup_status` | Follow-up | HubSpot communications, notes, tasks, and meetings determine status; event attribution requires proof; raw bodies hidden. |
 | `check_event_followup_status` | Event follow-up | Luma/Sheet attendance identifies matched accounts; HubSpot verifies event-specific WhatsApp/tasks; raw attendees and bodies hidden. |
 | `build_daily_nurture_plan` | Daily nurture | Jeremy-style 09:00 Asia/Singapore pack; HubSpot target accounts/contacts/roles are source of truth, Sheet material rows are read-only context, 30/150 rotation has no silent replacement, all decision makers/influencers/champions get draft rows. |
+| `record_nurtureany_operation_checkpoint` | Runtime continuity | Profile-runtime ledger checkpoint only; records resumable phase, approval marker presence, idempotency key, and side-effect class without performing any external send or HubSpot mutation. |
+| `read_nurtureany_operation_ledger` | Runtime continuity | Reads compact checkpoint state for restart-safe continuation; read-only resume is allowed, but repeated sends/writes stay blocked unless approval marker and idempotency key are both present. |
 | `score_nurture_accounts` | Queue scoring | HubSpot override fields and clean-lead completeness; access scope and pagination caveats; no mutation. |
 | `find_contact_gaps` | Enrichment gaps | HubSpot decision-maker and buying-role fields; clean-lead completeness; no paid enrichment or raw PII export. |
 | `find_t90_renewal_gaps` | Renewal timing | HubSpot `contract_end_date` is durable timing truth; missing-date bucket is explicit; no raw contacts/task bodies. |

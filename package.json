@@ -5,6 +5,7 @@
   "scripts": {
     "inventory": "bun research/tools/build-source-inventories.ts",
     "audit": "bun research/tools/audit-agent-ingest.ts",
+    "hooks:install": "git config core.hooksPath .githooks",
     "hermes-data-bot:verify": "node scripts/verify-hermes-data-bot.mjs",
     "nurtureany-sales-bot:verify": "node scripts/verify-nurtureany-sales-bot.mjs",
     "slack-automation-identity:verify": "node scripts/verify-slack-automation-identity.mjs",

@@ -461,7 +461,7 @@ def check_eazybe_send_status(
 @mcp.tool()
 def build_daily_nurture_reminder(
     run_id: str,
-    messages: list[dict[str, Any]],
+    messages: list[dict[str, Any]] | None = None,
     statuses: list[dict[str, Any]] | dict[str, Any] | None = None,
     ae_slack_user_id: str = "",
     manager_slack_user_id: str = "",
@@ -469,10 +469,22 @@ def build_daily_nurture_reminder(
 ) -> dict[str, Any]:
     """Build the 12pm Slack reminder payload for unsent/unskipped nurture messages."""
 
-    text, unsent = _build_reminder_text(run_id, messages or [], statuses, ae_slack_user_id, manager_slack_user_id)
+    supplied_messages = [message for message in messages or [] if isinstance(message, dict)]
+    loaded_from_persisted_run = False
+    if not supplied_messages:
+        supplied_messages = _load_run_messages(run_id)
+        loaded_from_persisted_run = bool(supplied_messages)
+    if not supplied_messages:
+        return _blocked(
+            f"No messages supplied and no persisted daily nurture run found for run_id {run_id}.",
+            _scope(run_id, {"reminder_channel_id": reminder_channel_id}),
+        )
+
+    text, unsent = _build_reminder_text(run_id, supplied_messages, statuses, ae_slack_user_id, manager_slack_user_id)
     return {
         "answer": {
             "run_id": run_id,
+            "loaded_from_persisted_run": loaded_from_persisted_run,
             "should_send_reminder": bool(unsent),
             "reminder_channel_id": reminder_channel_id,
             "slack_text": _redact_phone(text),

@@ -25,7 +25,10 @@ For source evidence or repo-wide claims, also read the root `AGENTS.md` files li
 ## Slack Posting Identity
 
 - Do not send visible Slack automation replies using Kai Yi's user token or a connector identity that posts as a human user.
-- User-scoped Slack credentials are allowed only for read-only monitoring or diagnostics.
+- When asked to check Slack for Hermes bot/runtime work, use the relevant Slack bot token from the deployed Hermes profile or approved secret store for read/check operations whenever available.
+- Do not use the Slack connector or Kai Yi's user token for Slack inspection when the Hermes bot token exists.
+- Use Kai Yi's user token or the Slack UI only for explicit human-authored smoke tests where a bot token cannot trigger the Slack gateway; label that evidence as a human-authored smoke, not a bot-token check.
+- User-scoped Slack credentials must not be used for visible Slack posts.
 - Visible operational Slack replies must come from the Hermes bot/app identity. If no bot-owned posting path is available, report the blocked action in Codex with the safe Slack thread link and the exact message that would have been sent.
 - Every automation-authored Slack status must identify itself as automation, for example by starting with `Hermes repair automation:`. It must not read as if Kai Yi personally wrote it.
 - After any automation bug fix, repair, deploy, or blocked repair, always emit a completion report. Prefer the bot-owned Slack path; if unavailable, report in Codex with the safe Slack thread link and exact intended Slack message.

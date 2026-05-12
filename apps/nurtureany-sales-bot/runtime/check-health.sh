@@ -10,7 +10,7 @@ EXPECT_MODEL_AUTH="${EXPECT_MODEL_AUTH:-1}"
 EXPECT_MODEL_PROVIDER="${EXPECT_MODEL_PROVIDER:-anthropic}"
 EXPECT_MODEL_DEFAULT="${EXPECT_MODEL_DEFAULT:-claude-sonnet-4-6}"
 EXPECT_STAFFANY_BIGQUERY_TOOLS="${EXPECT_STAFFANY_BIGQUERY_TOOLS:-4}"
-EXPECT_HUBSPOT_TOOLS="${EXPECT_HUBSPOT_TOOLS:-33}"
+EXPECT_HUBSPOT_TOOLS="${EXPECT_HUBSPOT_TOOLS:-35}"
 EXPECT_GOOGLE_CALENDAR_TOOLS="${EXPECT_GOOGLE_CALENDAR_TOOLS:-2}"
 EXPECT_GOOGLE_DRIVE_TOOLS="${EXPECT_GOOGLE_DRIVE_TOOLS:-5}"
 EXPECT_EAZYBE_TOOLS="${EXPECT_EAZYBE_TOOLS:-4}"
@@ -22,6 +22,8 @@ EXPECT_NEAR_ME_TOOLS="${EXPECT_NEAR_ME_TOOLS:-6}"
 EXPECT_C360_SALES_PACKET="${EXPECT_C360_SALES_PACKET:-1}"
 C360_SALES_PACKET_SMOKE_COMPANY_ID="${C360_SALES_PACKET_SMOKE_COMPANY_ID:-9003704457}"
 C360_SALES_PACKET_SMOKE_COMPANY_NAME="${C360_SALES_PACKET_SMOKE_COMPANY_NAME:-Stripes Australia}"
+GATEWAY_SERVICE_NAME="${NURTUREANY_GATEWAY_SERVICE_NAME:-hermes-gateway-$PROFILE.service}"
+GATEWAY_LAUNCHD_LABEL="${NURTUREANY_GATEWAY_LAUNCHD_LABEL:-ai.hermes.gateway-$PROFILE}"
 
 HERMES_AGENT_DIR="${HERMES_AGENT_DIR:-$HOME/.hermes/hermes-agent}"
 PATH="$HOME/.local/bin:$HERMES_AGENT_DIR:$PATH"
@@ -34,6 +36,37 @@ fail() {
 
 need_command() {
   command -v "$1" >/dev/null 2>&1 || fail "dependency:$1:not-found"
+}
+
+check_gateway_service() {
+  local gateway_out="$tmp_dir/gateway.out"
+  case "$(uname -s)" in
+    Linux)
+      need_command systemctl
+      if systemctl --user is-active --quiet "$GATEWAY_SERVICE_NAME"; then
+        return 0
+      fi
+      systemctl --user show "$GATEWAY_SERVICE_NAME" --property=ActiveState --property=SubState --no-pager >"$gateway_out" 2>&1 || true
+      fail "gateway:not-running"
+      ;;
+    Darwin)
+      need_command launchctl
+      if launchctl print "gui/$(id -u)/$GATEWAY_LAUNCHD_LABEL" >"$gateway_out" 2>&1; then
+        grep -Eq 'state = running|state = active' "$gateway_out" || fail "gateway:not-running"
+        return 0
+      fi
+      hermes -p "$PROFILE" gateway status >"$gateway_out" 2>&1 || fail "gateway:status-failed"
+      if grep -Eq '✗|not loaded|not running' "$gateway_out"; then
+        fail "gateway:not-running"
+      fi
+      ;;
+    *)
+      hermes -p "$PROFILE" gateway status >"$gateway_out" 2>&1 || fail "gateway:status-failed"
+      if grep -Eq '✗|not loaded|not running' "$gateway_out"; then
+        fail "gateway:not-running"
+      fi
+      ;;
+  esac
 }
 
 file_mode() {
@@ -146,6 +179,8 @@ expected_servers = {
         "scan_drive_event_photos",
         "propose_photo_people_matches",
         "plan_event_photo_followup",
+        "record_nurtureany_operation_checkpoint",
+        "read_nurtureany_operation_ledger",
         "draft_nurture_message",
         "plan_hubspot_writeback",
         "build_daily_nurture_plan",
@@ -359,11 +394,7 @@ then
 fi
 
 if [ "$EXPECT_GATEWAY" = "1" ]; then
-  gateway_out="$tmp_dir/gateway.out"
-  hermes -p "$PROFILE" gateway status >"$gateway_out" 2>&1 || fail "gateway:status-failed"
-  if grep -Eq '✗|not loaded|not running|failed' "$gateway_out"; then
-    fail "gateway:not-running"
-  fi
+  check_gateway_service
 fi
 
 if [ "$EXPECT_MODEL_AUTH" = "1" ]; then

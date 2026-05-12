@@ -177,6 +177,8 @@ if (!existsSync(manifestPath)) {
       "read_indonesia_event_registration_attendance",
       "check_eazybe_send_status",
       "build_daily_nurture_reminder",
+      "record_nurtureany_operation_checkpoint",
+      "read_nurtureany_operation_ledger",
       "draft_nurture_message",
       "list_google_calendar_events",
       "audit_google_calendar_meeting_quality",
@@ -399,6 +401,8 @@ if (!existsSync(manifestPath)) {
     if (manifest.daily_nurture?.timezone !== "Asia/Singapore") fail("Manifest daily_nurture timezone must be Asia/Singapore");
     if (manifest.daily_nurture?.nine_am_cron_utc !== "0 1 * * 1-5") fail("Manifest daily_nurture 9am cron must be 01:00 UTC weekdays");
     if (manifest.daily_nurture?.noon_reminder_cron_utc !== "0 4 * * 1-5") fail("Manifest daily_nurture 12pm cron must be 04:00 UTC weekdays");
+    if (manifest.daily_nurture?.nine_am_cron_local !== "0 9 * * 1-5") fail("Manifest daily_nurture 9am local cron must be 09:00 Asia/Singapore weekdays");
+    if (manifest.daily_nurture?.noon_reminder_cron_local !== "0 12 * * 1-5") fail("Manifest daily_nurture 12pm local cron must be 12:00 Asia/Singapore weekdays");
     if (manifest.eazybe?.auth_env_var !== "EAZYBE_API_KEY") fail("Manifest Eazybe missing EAZYBE_API_KEY auth env var");
     if (manifest.eazybe?.base_mode !== "approval_gated_template_send") fail("Manifest Eazybe base_mode must be approval_gated_template_send");
     if (manifest.eazybe?.approved_templates_only !== true) fail("Manifest Eazybe must require approved templates");
@@ -542,6 +546,7 @@ const filesToScan = [
   "runtime/check-health.sh",
   "runtime/check-slack-socket-health.sh",
   "runtime/audit-live-profile.sh",
+  "runtime/nurtureany-cloud-doctor.sh",
   "runtime/jobs/near_me_outlet_match_writer.py",
   "runtime/jobs/test_near_me_outlet_match_writer.py",
   "tests/regression-cases.md"
@@ -557,6 +562,7 @@ if (!configText.includes('provider: "anthropic"')) fail("config.template.yaml mu
 if (!configText.includes('default: "claude-sonnet-4-6"')) fail("config.template.yaml must set model.default to claude-sonnet-4-6");
 if (!configText.includes("interim_assistant_messages: false")) fail("config.template.yaml must disable interim assistant messages");
 if (!configText.includes("reactions: false")) fail("config.template.yaml must disable Slack reactions");
+if (!configText.includes("max_parallel_jobs: 1")) fail("config.template.yaml must cap cron.max_parallel_jobs at 1");
 if (!configText.includes("dispatch_in_gateway: false")) fail("config.template.yaml must disable kanban dispatch in gateway");
 if (configText.includes("OPENAI_API_KEY")) fail("config.template.yaml must not configure OpenAI API key routing");
 if (configText.includes('base_url: "https://api.openai.com/v1"')) fail("config.template.yaml must not configure OpenAI API base_url");
@@ -1403,10 +1409,15 @@ for (const text of [
   "runtime/check-health.sh",
   "runtime/check-slack-socket-health.sh",
   "runtime/audit-live-profile.sh",
+  "runtime/nurtureany-cloud-doctor.sh",
   "nurtureanysalesbot health check",
   "nurtureanysalesbot live profile audit",
   "nurtureanysalesbot Slack socket watchdog",
+  "nurtureanysalesbot Jeremy daily nurture pack",
+  "nurtureanysalesbot Jeremy noon nurture reminder",
+  "NurtureAny automation:",
   "check-slack-socket-health.sh",
+  "nurtureany-cloud-doctor.sh",
   "*/5 * * * *",
   "--no-agent"
 ]) {
@@ -1417,7 +1428,10 @@ const healthScriptText = textOf("runtime/check-health.sh");
 for (const text of [
   "PROFILE=\"${HERMES_PROFILE:-nurtureanysalesbot}\"",
   "export HERMES_HOME=\"$HOME/.hermes/profiles/$PROFILE\"",
-  "EXPECT_HUBSPOT_TOOLS=\"${EXPECT_HUBSPOT_TOOLS:-33}\"",
+  "EXPECT_HUBSPOT_TOOLS=\"${EXPECT_HUBSPOT_TOOLS:-35}\"",
+  "NURTUREANY_GATEWAY_SERVICE_NAME",
+  "systemctl --user is-active --quiet \"$GATEWAY_SERVICE_NAME\"",
+  "GATEWAY_LAUNCHD_LABEL",
   "EXPECT_GOOGLE_DRIVE_TOOLS=\"${EXPECT_GOOGLE_DRIVE_TOOLS:-5}\"",
   "EXPECT_EAZYBE_TOOLS=\"${EXPECT_EAZYBE_TOOLS:-4}\"",
   "EXPECT_LUMA_TOOLS=\"${EXPECT_LUMA_TOOLS:-3}\"",
@@ -1451,14 +1465,44 @@ for (const text of [
   "APP_ROOT=\"$PROFILE_DIR/source/nurtureany-sales-bot\"",
   "profile-drift:soul",
   "profile-drift:nurtureany-sales-bot-skill",
+  "profile-drift:runtime-mcp",
   "profile-drift:slack-socket-watchdog-script",
+  "profile-drift:cloud-doctor-script",
   "profile-boundary:staffany-data-bot-skill-installed",
+  "EXPECTED_DAILY_NURTURE_CRON_NAME",
+  "EXPECTED_DAILY_NURTURE_REMINDER_CRON_NAME",
+  "cron:records-invalid",
   "cron:health-check-missing",
   "cron:audit-missing",
   "cron:slack-socket-watchdog-missing",
   "live-profile:audit-ok"
 ]) {
   if (!auditScriptText.includes(text)) fail(`runtime/audit-live-profile.sh missing required text: ${text}`);
+}
+
+const cloudDoctorScriptPath = join(appRoot, "runtime/nurtureany-cloud-doctor.sh");
+const cloudDoctorScriptText = textOf("runtime/nurtureany-cloud-doctor.sh");
+for (const text of [
+  "nurtureany-cloud-doctor:profile=$PROFILE",
+  "gateway_service:systemd",
+  "gateway_service:launchctl",
+  "mcp:$server:tools=$count",
+  "cron:enabled=",
+  "operation_ledger:",
+  "daily_runs:"
+]) {
+  if (!cloudDoctorScriptText.includes(text)) fail(`runtime/nurtureany-cloud-doctor.sh missing required text: ${text}`);
+}
+
+for (const [label, scriptPath] of [
+  ["health check", join(appRoot, "runtime/check-health.sh")],
+  ["live profile audit", join(appRoot, "runtime/audit-live-profile.sh")],
+  ["cloud doctor", cloudDoctorScriptPath],
+]) {
+  const syntaxCheck = spawnSync("bash", ["-n", scriptPath], { encoding: "utf8" });
+  if (syntaxCheck.status !== 0) {
+    fail(`Shell syntax check failed for ${label}: ${(syntaxCheck.stderr || syntaxCheck.stdout).trim()}`);
+  }
 }
 
 const slackSocketScriptPath = join(appRoot, "runtime/check-slack-socket-health.sh");
