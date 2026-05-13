@@ -13,6 +13,8 @@
 - A single-article legacy manifest should be upgraded into a structured article record without losing article slug, title, markdown, or internal notes.
 - Multiple articles should create and track separate Google Docs and Slack review messages.
 - Slack review messages must be posted by the bot identity when posting is enabled.
+- Launchbot test runs should post to `#launch-bot-testing` (`C0B32M34J3W`) unless the user explicitly names another channel.
+- Slack automation copy should start with `Launchbot automation:` and use a light cowboy voice without weakening the approval instruction.
 
 ## Slack Approval To Intercom Draft
 

@@ -21,7 +21,8 @@ from typing import Any
 from urllib import error, parse, request
 
 
-DEFAULT_CHANNEL_ID = "C01D9TLLLAJ"
+DEFAULT_CHANNEL_ID = "C0B32M34J3W"
+DEFAULT_CHANNEL_NAME = "launch-bot-testing"
 DEFAULT_PARENT_COLLECTION_ID = "19487848"
 DEFAULT_AUTHOR_ID = "3374597"
 DEFAULT_INTERCOM_APP_ID = "y12ertqm"
@@ -302,10 +303,10 @@ def post_slack_review(channel_id: str, title: str, doc_url: str) -> tuple[str, s
     payload = {
         "channel": channel_id,
         "text": (
-            "Launchbot automation: review draft ready for approval.\n"
+            "Launchbot automation: Howdy, partner. Review draft is saddled up for approval.\n"
             f"Article: {title}\n"
             f"Google Doc: {doc_url}\n"
-            "React with :white_check_mark: after review before publishing."
+            "React with :white_check_mark: when it is fit to ride into Intercom draft."
         ),
         "unfurl_links": False,
         "unfurl_media": False,
@@ -374,7 +375,11 @@ def main() -> None:
     parser.add_argument("--version", default="v006")
     parser.add_argument("--summary", default="ClubAny brands, perks, and redemptions")
     parser.add_argument("--output-root", default=os.path.expanduser("~/launchbot-runs"))
-    parser.add_argument("--channel-id", default=os.environ.get("LAUNCH_STEP2_SLACK_CHANNEL_ID", DEFAULT_CHANNEL_ID))
+    parser.add_argument(
+        "--channel-id",
+        default=os.environ.get("LAUNCH_STEP2_SLACK_CHANNEL_ID", DEFAULT_CHANNEL_ID),
+        help=f"Slack channel for Launchbot tests; defaults to #{DEFAULT_CHANNEL_NAME}.",
+    )
     parser.add_argument("--skip-slack", action="store_true")
     parser.add_argument("--skip-google-doc", action="store_true")
     parser.add_argument("--skip-intercom", action="store_true")

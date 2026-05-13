@@ -27,6 +27,8 @@ When the external source checkout is absent, use `runtime/launchbot_e2e.py` as t
 - Legacy single-article manifests must be upgraded into structured article records before promotion.
 - Multiple article outputs must remain separately tracked by slug, Google Doc URL, and Slack message timestamp.
 - Slack review messages require bot-owned posting credentials. Do not use a human user token for visible automation replies.
+- Launchbot tests default to Slack `#launch-bot-testing` (`C0B32M34J3W`). Use a different channel only when the user explicitly asks for it.
+- Slack automation copy should keep the `Launchbot automation:` prefix and use a light cowboy voice, for example `Howdy, partner`, while keeping approval instructions factual.
 
 ### Step 3: Intercom Draft Creation
 
@@ -68,6 +70,8 @@ Optional runtime environment name:
 - `LAUNCH_STEP2_SLACK_CHANNEL_ID`
 
 Secret values must come from the approved secret store or secure sharing path. Do not commit token values, service-account JSON, OAuth credentials, or `.env` files.
+
+Default test channel: `#launch-bot-testing` (`C0B32M34J3W`).
 
 ## Help Article Format Target
 

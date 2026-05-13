@@ -54,6 +54,15 @@ if (!existsSync(manifestPath)) {
     if (manifest.integrations?.slack?.posting_identity !== "bot_owned_only") {
       fail("Manifest Slack posting identity must be bot_owned_only");
     }
+    if (manifest.integrations?.slack?.default_test_channel_name !== "launch-bot-testing") {
+      fail("Manifest Slack default test channel name must be launch-bot-testing");
+    }
+    if (manifest.integrations?.slack?.default_test_channel_id !== "C0B32M34J3W") {
+      fail("Manifest Slack default test channel ID must be C0B32M34J3W");
+    }
+    if (manifest.integrations?.slack?.automation_voice !== "light_cowboy") {
+      fail("Manifest Slack automation voice must be light_cowboy");
+    }
     if (manifest.integrations?.intercom?.publish_mode !== "draft_only") {
       fail("Manifest Intercom publish mode must be draft_only");
     }
@@ -154,6 +163,8 @@ for (const requiredText of [
   "runtime/launchbot_e2e.py",
   "Intercom draft articles",
   "bot-owned posting credentials",
+  "#launch-bot-testing",
+  "light cowboy voice",
   "Do not commit token values",
   "Step 4 launch derivatives are not implemented"
 ]) {
@@ -182,7 +193,10 @@ for (const requiredText of [
   "LAUNCH_STEP2_SLACK_BOT_TOKEN",
   "LAUNCH_STEP3_INTERCOM_ACCESS_TOKEN",
   "GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE",
-  "Launchbot automation: review draft ready for approval",
+  "C0B32M34J3W",
+  "launch-bot-testing",
+  "Launchbot automation: Howdy, partner. Review draft is saddled up for approval",
+  "fit to ride into Intercom draft",
   "\"state\": \"draft\"",
   "\"parent_type\": \"collection\"",
   "conversations.join",
@@ -208,6 +222,24 @@ if (pyCompile.status !== 0) {
 
 const sourceNotePath = join(repoRoot, "research/wiki/sources/launch-superpower-bot-handoff.md");
 if (!existsSync(sourceNotePath)) fail("Missing maintained Launch Superpower Bot source note");
+
+const agentsText = textOf("AGENTS.md");
+for (const requiredText of [
+  "#launch-bot-testing",
+  "C0B32M34J3W",
+  "light cowboy voice",
+  "Launchbot automation:"
+]) {
+  if (!agentsText.includes(requiredText)) fail(`AGENTS missing required text: ${requiredText}`);
+}
+
+const regressionText = textOf("tests/regression-cases.md");
+for (const requiredText of [
+  "#launch-bot-testing",
+  "light cowboy voice"
+]) {
+  if (!regressionText.includes(requiredText)) fail(`Regression cases missing required text: ${requiredText}`);
+}
 
 if (failures.length > 0) {
   console.error("Launch Superpower Bot packet verification failed:");

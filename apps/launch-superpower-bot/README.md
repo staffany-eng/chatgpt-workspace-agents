@@ -10,6 +10,8 @@ Durable app packet for the Launch Superpower workflow described in the 2026-05-1
 - Jira test feature: `KER-1742` / Club Blue / ClubAny brands, perks, and redemptions
 - Latest clean handoff version: `v005`
 - Review surfaces: Google Docs and Slack
+- Default Slack test channel: `#launch-bot-testing` (`C0B32M34J3W`)
+- Slack automation voice: bot-owned, `Launchbot automation:` prefix, light cowboy tone
 - Publish surface: Intercom draft articles only
 
 ## Workflow
@@ -47,6 +49,8 @@ Run the VM-safe handoff path from the repo root after the required runtime secre
 ```bash
 python3 apps/launch-superpower-bot/runtime/launchbot_e2e.py --issue KER-1742 --version v006
 ```
+
+By default, the runner posts review messages to `#launch-bot-testing`.
 
 Run the full repo check before merging:
 
