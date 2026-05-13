@@ -12816,6 +12816,7 @@ def build_singapore_lead_enrichment_plan(
     limit: int | None = None,
     batch_size: int = SINGAPORE_LEAD_ENRICHMENT_DEFAULT_BATCH_SIZE,
     phone_stale_after_days: int = PHONE_VERIFICATION_DEFAULT_STALE_AFTER_DAYS,
+    output_mode: str = "full",
 ) -> dict[str, Any]:
     """Build a review-first SG lead-enrichment plan for HubSpot companies before WhatsApp nurture."""
 
@@ -12844,6 +12845,9 @@ def build_singapore_lead_enrichment_plan(
             default=PHONE_VERIFICATION_DEFAULT_STALE_AFTER_DAYS,
             maximum=3650,
         )
+        requested_output_mode = str(output_mode or "full").strip().lower()
+        if requested_output_mode not in {"full", "compact"}:
+            requested_output_mode = "full"
         target_owner_id, target_owner_email = _target_owner_id_for_scope(scope, owner_email)
         metadata: dict[str, Any]
         skipped_company_ids: list[dict[str, str]] = []
@@ -12923,8 +12927,11 @@ def build_singapore_lead_enrichment_plan(
             :requested_batch_size
         ]
 
+        account_rows = [_singapore_compact_account_row(row) for row in rows] if requested_output_mode == "compact" else rows
         answer = {
-            "accounts": rows,
+            "accounts": account_rows,
+            "output_mode": requested_output_mode,
+            "top_priority_accounts": [_singapore_compact_account_row(row) for row in rows[: min(10, len(rows))]],
             "buckets": buckets,
             "ready_for_whatsapp_batch": {
                 "account_count": len(whatsapp_ready),
@@ -13418,6 +13425,29 @@ def _singapore_bucket_row(row: dict[str, Any]) -> dict[str, Any]:
         "provider_waterfall_next_step": (row.get("provider_waterfall_policy") or {}).get("next_step"),
         "paid_step_allowed": (row.get("provider_waterfall_policy") or {}).get("paid_step_allowed", False),
         "pilot_flags": row.get("pilot_flags", []),
+    }
+
+
+def _singapore_compact_account_row(row: dict[str, Any]) -> dict[str, Any]:
+    phone_summary = row.get("phone_verification_summary") or {}
+    return {
+        "company_id": row.get("company_id"),
+        "name": row.get("name"),
+        "owner_email": row.get("owner_email"),
+        "gap_bucket": row.get("gap_bucket"),
+        "secondary_buckets": row.get("secondary_buckets", []),
+        "associated_contact_count": row.get("associated_contact_count"),
+        "verified_decision_maker_count": row.get("verified_decision_maker_count"),
+        "usable_contact_count": row.get("usable_contact_count"),
+        "verified_phone_count": phone_summary.get("verified_phone_count"),
+        "stale_phone_count": phone_summary.get("stale_phone_count"),
+        "recommended_next_source": row.get("recommended_next_source"),
+        "provider_waterfall_policy": row.get("provider_waterfall_policy"),
+        "hubspot_mismatch_notes": row.get("hubspot_mismatch_notes", [])[:2],
+        "pilot_flags": row.get("pilot_flags", []),
+        "handoff_note": row.get("handoff_note"),
+        "whatsapp_ready": (row.get("whatsapp_readiness") or {}).get("ready", False),
+        "confidence": row.get("confidence"),
     }
 
 

@@ -26,6 +26,8 @@ Use this skill for StaffAny internal sales nurture work. NurtureAny helps AEs an
 
 V1 is review-first. It never auto-sends WhatsApp, email, LinkedIn, Instagram, SMS, or sequence messages.
 
+Hard route for SG lead enrichment: if the prompt asks for Singapore lead enrichment, fixed SG account lists, decision-maker gaps, champion/influencer gaps, callable or verified-phone gaps, Truecaller/manual callability checks, provider waterfall, or pre-WhatsApp readiness, the preflight and post-`run` execution must use `build_singapore_lead_enrichment_plan`. Do not substitute `find_contact_gaps`, `score_nurture_accounts`, `generate_free_search_tasks`, Exa, or Lusha as the main workflow; those are downstream next-source steps only when returned by the orchestrator. For Slack samples, compact asks, smoke tests, or CRO demos, pass `output_mode="compact"` and a bounded `limit` such as 5 or 10. Answer from the compact tool result directly; do not call shell/terminal commands or read `/tmp/hermes-results` files to summarize this workflow.
+
 ## CRO Readiness And Demo Answers
 
 For prompts asking what NurtureAny can do for revenue leaders, keep the answer operational and role-correct:

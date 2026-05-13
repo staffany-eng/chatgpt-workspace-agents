@@ -972,6 +972,69 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         self.assertEqual(result["answer"]["counts"]["ready_for_whatsapp_batch"], 0)
         self.assertEqual(result["answer"]["provider_waterfall_policy"]["cost_mode"], "capped_effective")
 
+    def test_singapore_lead_enrichment_compact_output_keeps_slack_summary_small(self):
+        companies = [
+            {
+                "id": "sg-compact",
+                "properties": {
+                    "name": "Compact Cafe",
+                    "hs_is_target_account": "true",
+                    "company_country": "Singapore",
+                    "hubspot_owner_id": "owner-jeremy",
+                    "hs_num_decision_makers": "0",
+                    "hs_num_contacts_with_buying_roles": "1",
+                },
+            }
+        ]
+        contacts = [
+            {
+                "id": "compact-dm",
+                "properties": {
+                    "firstname": "Cara",
+                    "lastname": "Lim",
+                    "jobtitle": "Director",
+                    "hs_buying_role": "DECISION_MAKER",
+                    "phone": "+6511111111",
+                    "nurtureany_phone_verification_status": "candidate",
+                    "nurtureany_phone_verification_source": "truecaller_manual_lookup",
+                    "notes_last_contacted": "Very long HubSpot note should not appear in compact Slack output.",
+                },
+            }
+        ]
+        with patch.object(self.module, "_caller_scope", return_value={**SCOPE, "countries": ("Singapore",)}), patch.object(
+            self.module,
+            "_company_search",
+            return_value={
+                "results": companies,
+                "total": 1,
+                "requested_limit": 5,
+                "returned_count": 1,
+                "has_more": False,
+                "truncated": False,
+            },
+        ), patch.object(
+            self.module, "_batch_association_ids", return_value={"sg-compact": ["compact-dm"]}
+        ), patch.object(
+            self.module, "_batch_read", return_value=contacts
+        ):
+            result = self.module.build_singapore_lead_enrichment_plan(
+                "kerren.fong@staffany.com",
+                limit=5,
+                output_mode="compact",
+            )
+
+        account = result["answer"]["accounts"][0]
+        rendered = json.dumps(result)
+        self.assertEqual(result["answer"]["output_mode"], "compact")
+        self.assertEqual(result["answer"]["top_priority_accounts"][0]["company_id"], "sg-compact")
+        self.assertEqual(account["company_id"], "sg-compact")
+        self.assertEqual(account["recommended_next_source"], "manual_truecaller_call_outcome")
+        self.assertIn("provider_waterfall_policy", account)
+        self.assertNotIn("people_candidates", account)
+        self.assertNotIn("ranked_people_candidates", account)
+        self.assertNotIn("+6511111111", rendered)
+        self.assertNotIn("Very long HubSpot note", rendered)
+
     def test_singapore_lead_enrichment_allows_explicit_sg_non_target_and_skips_non_sg(self):
         companies = {
             "sg-non-target": {
