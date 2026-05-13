@@ -206,6 +206,7 @@ mcp_servers:
     - build_singapore_lead_enrichment_plan
     - list_active_deals_missing_next_meeting
     - list_sales_followup_tasks
+    - count_owner_whatsapp_sent_today
     - check_account_followup_status
     - check_event_followup_status
     - score_nurture_accounts

@@ -373,7 +373,7 @@ class LumaNurtureAnyServerTest(unittest.TestCase):
                     "event_id": "evt-1",
                     "name": "StaffAny HR Happy Hour",
                     "url": "https://lu.ma/hhh",
-                    "start_at": "2026-06-13T08:00:00Z",
+                    "start_at": "2030-05-13T08:00:00Z",
                 }
             if path == "/v1/event/get-guests":
                 return {

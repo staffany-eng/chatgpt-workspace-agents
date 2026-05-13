@@ -1478,7 +1478,7 @@ const healthScriptText = textOf("runtime/check-health.sh");
 for (const text of [
   "PROFILE=\"${HERMES_PROFILE:-nurtureanysalesbot}\"",
   "export HERMES_HOME=\"$HOME/.hermes/profiles/$PROFILE\"",
-  "EXPECT_HUBSPOT_TOOLS=\"${EXPECT_HUBSPOT_TOOLS:-40}\"",
+  "EXPECT_HUBSPOT_TOOLS=\"${EXPECT_HUBSPOT_TOOLS:-41}\"",
   "NURTUREANY_GATEWAY_SERVICE_NAME",
   "systemctl --user is-active --quiet \"$GATEWAY_SERVICE_NAME\"",
   "GATEWAY_LAUNCHD_LABEL",
