@@ -15,6 +15,7 @@
   "paths": {
     "readme": "README.md",
     "agents": "AGENTS.md",
+    "profile_soul": "profile/SOUL.md",
     "skill": "skills/help-article-generator/SKILL.md",
     "skill_skeleton": "skills/help-article-generator/references/help-article-skeleton.md",
     "workflow": "runtime/workflow.md",
@@ -62,6 +63,7 @@
     "slack": {
       "purpose": "review messages and approval reactions",
       "posting_identity": "bot_owned_only",
+      "capability_answer_scope": "launch_workflow_only",
       "expected_bot_name": "Launch Bot",
       "expected_bot_user_id": "U0ASVD79UT1",
       "expected_bot_id": "B0ATPPEGBCH",
@@ -103,6 +105,22 @@
     "numbered_steps_restart_per_subsection": true,
     "clubany_product_label": "StaffAny",
     "clubany_management_article_default": "combined_brands_and_perks_article"
+  },
+  "capability_answer_contract": {
+    "answer_as_launchbot_only": true,
+    "must_include": [
+      "code-grounded help article drafts",
+      "Google Docs review drafts",
+      "Slack approval routing",
+      "Intercom draft articles"
+    ],
+    "must_not_include_generic_assistant_categories": [
+      "web search",
+      "ML experiments",
+      "creative writing",
+      "smart-home control",
+      "social posting"
+    ]
   },
   "known_gaps": [
     "External source code is not present in this repo.",

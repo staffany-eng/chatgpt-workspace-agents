@@ -129,6 +129,7 @@ const filesToScan = [
   "README.md",
   "AGENTS.md",
   "app.manifest.json",
+  "profile/SOUL.md",
   "skills/help-article-generator/SKILL.md",
   "skills/help-article-generator/references/help-article-skeleton.md",
   "runtime/workflow.md",
@@ -161,6 +162,31 @@ if (/^<div|^<br|^\s*<[^>]+style=|^\s*<[^>]+align=/m.test(skillText)) {
   fail("Skill must not include raw HTML formatting examples");
 }
 
+const soulText = textOf("profile/SOUL.md");
+for (const requiredText of [
+  "You are StaffAny Launchbot in Slack",
+  "turn a shipped Jira feature into reviewable launch assets",
+  "Draft code-grounded StaffAny help articles",
+  "Create Google Docs review drafts and Slack review messages",
+  "Watch for approved Slack review reactions",
+  "Create Intercom draft articles after approval",
+  "You are not a general-purpose computer assistant in Slack",
+  "what can you do",
+  "Launch Superpower Bot packet",
+  "Step 4 launch derivatives are planned only"
+]) {
+  if (!soulText.includes(requiredText)) fail(`Profile SOUL missing required text: ${requiredText}`);
+}
+for (const forbiddenText of [
+  "Control Spotify",
+  "Philips Hue",
+  "Post to X/Twitter",
+  "Run ML experiments",
+  "Write songs"
+]) {
+  if (soulText.includes(forbiddenText)) fail(`Profile SOUL includes generic capability text: ${forbiddenText}`);
+}
+
 const skeletonText = textOf("skills/help-article-generator/references/help-article-skeleton.md");
 if (!skeletonText.includes("**This guide will cover how to:**")) {
   fail("Skeleton missing guide outline line");
@@ -177,6 +203,10 @@ if (/<div|<br|align=|style=/.test(skeletonText)) {
 
 const workflowText = textOf("runtime/workflow.md");
 for (const requiredText of [
+  "Slack Capability Questions",
+  "what can u do",
+  "code-grounded help article drafts",
+  "Do not list generic assistant categories",
   "source code under `vk-super-productivity/launch-superpower-bot` is not present",
   "runtime/launchbot_e2e.py",
   "Intercom draft articles",

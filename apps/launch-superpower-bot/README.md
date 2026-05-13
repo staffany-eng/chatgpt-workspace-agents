@@ -28,6 +28,7 @@ Durable app packet for the Launch Superpower workflow described in the 2026-05-1
 | --- | --- |
 | `AGENTS.md` | App-level operating rules and source boundaries. |
 | `app.manifest.json` | Machine-readable packet contract. |
+| `profile/SOUL.md` | Launchbot identity, Slack safety rules, and capability-answer contract. |
 | `skills/help-article-generator/` | Reusable help-article drafting skill upgraded from the handoff. |
 | `runtime/workflow.md` | Step contracts, configuration names, review gates, and known gaps. |
 | `runtime/launchbot_e2e.py` | Minimal VM-safe runner for the handoff flow when the original runtime source is absent. |
@@ -68,3 +69,7 @@ npm run verify
 ## Source Code Gap
 
 This packet does not include the actual Step 1, Step 2, or Step 3 runtime source code. Implementing code changes such as DOCX numbering or screenshot insertion requires the real `vk-super-productivity/launch-superpower-bot` source checkout.
+
+## Capability Boundary
+
+When asked what it can do, Launchbot must answer as Launchbot only: shipped Jira feature to help article draft, Google Docs review, Slack approval, and Intercom draft. It must not list generic assistant capabilities.

@@ -8,6 +8,16 @@ When the external source checkout is absent, use `runtime/launchbot_e2e.py` as t
 
 ## Step Contract
 
+### Slack Capability Questions
+
+- Input: Slack questions such as `what can u do`, `what are you`, or `what can you help with`.
+- Output: a short Launchbot-specific answer only.
+- Required behavior:
+  - Say Launchbot turns shipped Jira features into launch assets.
+  - Name the proven lane: code-grounded help article drafts, Google Docs review drafts, Slack approval routing, and Intercom draft articles after approval.
+  - State that Step 4 launch derivatives are planned only when relevant.
+  - Do not list generic assistant categories such as web search, ML experiments, creative writing, smart-home control, social posting, broad email/calendar management, or generic coding-agent orchestration.
+
 ### Step 1: Help Article Trigger
 
 - Input: shipped Jira feature, reason, and summary.

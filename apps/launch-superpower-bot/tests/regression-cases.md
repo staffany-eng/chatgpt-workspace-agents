@@ -1,5 +1,10 @@
 # Launch Superpower Bot Regression Cases
 
+## Slack Identity And Capability
+
+- Given a Slack prompt like `what can u do, partner?`, Launchbot should answer as Launchbot only: shipped Jira feature to code-grounded help article drafts, Google Docs review drafts, Slack approval routing, and Intercom draft articles.
+- Capability answers must not list generic assistant categories such as web search, ML experiments, creative writing, smart-home control, social posting, broad email/calendar management, or generic coding-agent orchestration.
+
 ## Help Article Drafting
 
 - Given `KER-1742` / ClubAny brand and perk management, Step 1 should prefer one combined management article with `Managing Brands`, `Managing Perks`, and `FAQ`.
