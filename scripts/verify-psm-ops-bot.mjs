@@ -1,0 +1,233 @@
+import { existsSync, readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import { join, resolve } from "node:path";
+import {
+  assertFile as sharedAssertFile,
+  assertManifestPaths,
+  readJson as sharedReadJson,
+  scanForSecretPatterns as sharedScanForSecretPatterns,
+  textOf
+} from "./lib/app-packet-verify.mjs";
+
+const repoRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
+const appRoot = join(repoRoot, "apps", "psm-ops-bot");
+const manifestPath = join(appRoot, "app.manifest.json");
+const failures = [];
+
+function fail(message) {
+  failures.push(message);
+}
+
+function readJson(path) {
+  return sharedReadJson(path, fail);
+}
+
+function assertFile(relPath) {
+  sharedAssertFile(appRoot, relPath, fail);
+}
+
+function scanForSecretPatterns(relPath) {
+  sharedScanForSecretPatterns(appRoot, relPath, fail);
+}
+
+if (!existsSync(manifestPath)) {
+  fail("Missing apps/psm-ops-bot/app.manifest.json");
+} else {
+  const manifest = readJson(manifestPath);
+  if (manifest) {
+    if (manifest.profile_name !== "psmopsbot") fail("Manifest profile_name must be psmopsbot");
+    if (manifest.secrets_copied !== false) fail("Manifest secrets_copied must be false");
+    if (manifest.rollout_stage !== "Slack pilot in #ps-weeman-bot-test") fail("Manifest rollout_stage must name #ps-weeman-bot-test");
+    if (manifest.cloud?.vm_name !== "hermes-psm-ops-bot-poc") fail("Manifest cloud vm_name must be hermes-psm-ops-bot-poc");
+    assertManifestPaths(appRoot, manifest.paths || {}, fail);
+
+    const expectedJiraTools = [
+      "validate_jira_configuration",
+      "list_my_pco_tasks",
+      "find_ticket_by_slack_thread",
+      "create_ps_wee_intake_ticket",
+      "append_ps_wee_ticket_update",
+      "mark_ps_wee_ticket_ready",
+      "draft_pco_task",
+      "create_approved_pco_task",
+      "transition_pco_task",
+      "add_internal_pco_comment",
+      "set_pco_reminder",
+      "list_due_pco_reminders"
+    ];
+    const actualJiraTools = manifest.mcp?.psm_jira?.expected_tools || [];
+    for (const tool of expectedJiraTools) {
+      if (!actualJiraTools.includes(tool)) fail(`Manifest missing psm_jira tool: ${tool}`);
+    }
+    for (const tool of actualJiraTools) {
+      if (!expectedJiraTools.includes(tool)) fail(`Manifest has unexpected psm_jira tool: ${tool}`);
+    }
+
+    const expectedC360Tools = [
+      "search_c360_customers",
+      "get_c360_account_context",
+      "ask_c360_customer_context"
+    ];
+    const actualC360Tools = manifest.mcp?.psm_c360?.expected_tools || [];
+    for (const tool of expectedC360Tools) {
+      if (!actualC360Tools.includes(tool)) fail(`Manifest missing psm_c360 tool: ${tool}`);
+    }
+    for (const tool of actualC360Tools) {
+      if (!expectedC360Tools.includes(tool)) fail(`Manifest has unexpected psm_c360 tool: ${tool}`);
+    }
+  }
+}
+
+const filesToScan = [
+  "README.md",
+  "AGENTS.md",
+  "app.manifest.json",
+  "profile/SOUL.md",
+  "profile/config.template.yaml",
+  "skills/psm-ops-bot/SKILL.md",
+  "skills/psm-ops-bot/references/jira-field-contract.md",
+  "skills/psm-ops-bot/references/regression-cases.md",
+  "runtime/slack.md",
+  "runtime/jira.md",
+  "runtime/c360.md",
+  "runtime/health-checks.md",
+  "runtime/check-health.sh",
+  "runtime/audit-live-profile.sh",
+  "runtime/mcp/psm_jira_server.py",
+  "runtime/mcp/psm_c360_server.py",
+  "deploy/gce-onboarding-runbook.md",
+  "tests/regression-cases.md"
+];
+
+for (const relPath of filesToScan) {
+  assertFile(relPath);
+  scanForSecretPatterns(relPath);
+}
+
+const configText = textOf(appRoot, "profile/config.template.yaml");
+for (const requiredText of [
+  "psmopsbot",
+  "#ps-weeman-bot-test",
+  'provider: "anthropic"',
+  'default: "claude-sonnet-4-6"',
+  "max_parallel_jobs: 1",
+  "PSM_OPS_JIRA_SERVICE_DESK_ID",
+  "PSM_OPS_JIRA_FIELD_REMINDER_AT",
+  "CUSTOMER360_INTERNAL_API_TOKEN",
+  "create_ps_wee_intake_ticket",
+  "find_ticket_by_slack_thread",
+  "append_ps_wee_ticket_update",
+  "mark_ps_wee_ticket_ready",
+  "psm_jira",
+  "psm_c360"
+]) {
+  if (!configText.includes(requiredText)) fail(`config.template.yaml missing required text: ${requiredText}`);
+}
+
+const soulText = textOf(appRoot, "profile/SOUL.md");
+for (const requiredText of [
+  "Task creation is preview first",
+  "Status transitions, internal comments, and due-date reminder updates may execute directly",
+  "all customers",
+  "Do not use personal `customer360_session` cookies",
+  "PSM Ops automation:"
+]) {
+  if (!soulText.includes(requiredText)) fail(`SOUL.md missing required text: ${requiredText}`);
+}
+
+const skillText = textOf(appRoot, "skills/psm-ops-bot/SKILL.md");
+for (const requiredText of [
+  "PCO is the only task system",
+  "PS WEE",
+  "create_ps_wee_intake_ticket",
+  "Slack thread permalink is the V1 idempotency key",
+  "Task creation must be preview first",
+  "Public customer-visible comments are blocked",
+  "Reminder source of truth is Jira",
+  "Use `search_c360_customers`"
+]) {
+  if (!skillText.includes(requiredText)) fail(`Skill missing required text: ${requiredText}`);
+}
+
+const jiraMcpText = textOf(appRoot, "runtime/mcp/psm_jira_server.py");
+for (const requiredText of [
+  "@mcp.tool()",
+  "validate_jira_configuration",
+  "list_my_pco_tasks",
+  "find_ticket_by_slack_thread",
+  "create_ps_wee_intake_ticket",
+  "append_ps_wee_ticket_update",
+  "mark_ps_wee_ticket_ready",
+  "create_approved_pco_task",
+  "transition_pco_task",
+  "add_internal_pco_comment",
+  "set_pco_reminder",
+  "list_due_pco_reminders",
+  "PSM_OPS_JIRA_FIELD_REMINDER_AT",
+  "Public customer-visible comments are disabled"
+]) {
+  if (!jiraMcpText.includes(requiredText)) fail(`psm_jira_server.py missing required text: ${requiredText}`);
+}
+
+const c360McpText = textOf(appRoot, "runtime/mcp/psm_c360_server.py");
+for (const requiredText of [
+  "search_c360_customers",
+  "get_c360_account_context",
+  "ask_c360_customer_context",
+  "CUSTOMER360_INTERNAL_API_TOKEN",
+  "Authorization"
+]) {
+  if (!c360McpText.includes(requiredText)) fail(`psm_c360_server.py missing required text: ${requiredText}`);
+}
+
+const runbookText = textOf(appRoot, "deploy/gce-onboarding-runbook.md");
+for (const requiredText of [
+  "hermes-psm-ops-bot-poc",
+  "staffany-warehouse",
+  "asia-southeast1",
+  "hermes-gateway-psmopsbot.service",
+  "Secret Manager",
+  "#ps-weeman-bot-test"
+]) {
+  if (!runbookText.includes(requiredText)) fail(`GCE runbook missing required text: ${requiredText}`);
+}
+
+const pyCompile = spawnSync("python3", [
+  "-m",
+  "py_compile",
+  join(appRoot, "runtime/mcp/psm_jira_server.py"),
+  join(appRoot, "runtime/mcp/psm_c360_server.py")
+], {
+  cwd: repoRoot,
+  env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1" },
+  encoding: "utf8"
+});
+if (pyCompile.status !== 0) {
+  fail(`Python MCP compile failed: ${pyCompile.stderr || pyCompile.stdout}`);
+}
+
+const unitCheck = spawnSync("python3", [
+  "-m",
+  "unittest",
+  "discover",
+  "-s",
+  join(appRoot, "runtime/mcp"),
+  "-p",
+  "test_psm_*_server.py"
+], {
+  cwd: repoRoot,
+  env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1" },
+  encoding: "utf8"
+});
+if (unitCheck.status !== 0) {
+  fail(`Python MCP unit tests failed: ${unitCheck.stderr || unitCheck.stdout}`);
+}
+
+if (failures.length > 0) {
+  console.error("PSM Ops Bot packet verification failed:");
+  for (const failure of failures) console.error(`- ${failure}`);
+  process.exit(1);
+}
+
+console.log("PSM Ops Bot packet verification passed.");

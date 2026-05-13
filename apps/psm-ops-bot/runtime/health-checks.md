@@ -1,0 +1,54 @@
+# Health Checks
+
+PSM Ops Bot needs deterministic cloud health checks because prompt correctness does not prove Slack, Jira, C360, cron, or gateway wiring.
+
+## Expected Checks
+
+- Hermes gateway service `hermes-gateway-psmopsbot.service` is active on the GCE host.
+- Secret redaction remains enabled.
+- Model route is pinned to `anthropic` / `claude-sonnet-4-6`.
+- Slack gateway is configured for `#ps-weeman-bot-test`.
+- `psm_jira` MCP lists exactly the expected tools.
+- `psm_c360` MCP lists exactly the expected tools.
+- `validate_jira_configuration` reports thin POC defaults or full configured fields and request types.
+- C360 internal API token is configured.
+- Cron concurrency is capped with `cron.max_parallel_jobs: 1`.
+- Reminder cron is enabled in cloud and uses Jira `duedate` only.
+- Healthy no-agent checks print nothing and exit 0.
+
+## Commands
+
+Run source-packet verification from the repo root:
+
+```bash
+npm run psm-ops-bot:verify
+```
+
+Run live health check on the cloud host:
+
+```bash
+apps/psm-ops-bot/runtime/check-health.sh
+```
+
+Run live profile drift audit after syncing packet files:
+
+```bash
+apps/psm-ops-bot/runtime/audit-live-profile.sh
+```
+
+## Cron Pattern
+
+Install automatic due-date reminders under the cloud profile:
+
+```bash
+hermes -p psmopsbot cron create "0 1 * * *" \
+  --name "psmopsbot due-date reminders" \
+  --prompt "PSM Ops automation: Check Jira PCO tasks due tomorrow, due today, and overdue as of now for #ps-weeman-bot-test. Use list_due_pco_reminders with lead_days=1. Return only safe issue summaries and do not call Slack post APIs directly." \
+  --deliver "slack:#ps-weeman-bot-test"
+```
+
+The GCE host runs UTC, so `0 1 * * *` is 09:00 Asia/Singapore daily.
+
+## Failure Behavior
+
+On failure, print only the failing subsystem and next check. Do not print secrets, env values, raw logs, raw Slack messages, raw Jira comments, raw customer source data, phone numbers, or bulk exports.

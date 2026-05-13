@@ -1,0 +1,88 @@
+{
+  "app_name": "PSM Ops Hermes Bot",
+  "app_slug": "psm-ops-bot",
+  "kind": "hermes-runtime-app",
+  "canonical": true,
+  "runtime": "Hermes Agent",
+  "profile_name": "psmopsbot",
+  "rollout_stage": "Slack pilot in #ps-weeman-bot-test",
+  "model_provider": "anthropic",
+  "model": "claude-sonnet-4-6",
+  "cloud": {
+    "project": "staffany-warehouse",
+    "region": "asia-southeast1",
+    "zone": "asia-southeast1-a",
+    "vm_name": "hermes-psm-ops-bot-poc",
+    "gateway_service": "hermes-gateway-psmopsbot.service"
+  },
+  "paths": {
+    "soul": "profile/SOUL.md",
+    "config_template": "profile/config.template.yaml",
+    "skill": "skills/psm-ops-bot/SKILL.md",
+    "references": [
+      "skills/psm-ops-bot/references/jira-field-contract.md",
+      "skills/psm-ops-bot/references/regression-cases.md"
+    ],
+    "jira_runtime": "runtime/jira.md",
+    "c360_runtime": "runtime/c360.md",
+    "slack_runtime": "runtime/slack.md",
+    "psm_jira_mcp": "runtime/mcp/psm_jira_server.py",
+    "psm_c360_mcp": "runtime/mcp/psm_c360_server.py",
+    "health_checks": "runtime/health-checks.md",
+    "health_check_script": "runtime/check-health.sh",
+    "live_profile_audit_script": "runtime/audit-live-profile.sh",
+    "deploy_runbook": "deploy/gce-onboarding-runbook.md",
+    "regression_cases": "tests/regression-cases.md"
+  },
+  "mcp": {
+    "psm_jira": {
+      "command_env": "PSM_OPS_PYTHON",
+      "expected_tools": [
+        "validate_jira_configuration",
+        "list_my_pco_tasks",
+        "find_ticket_by_slack_thread",
+        "create_ps_wee_intake_ticket",
+        "append_ps_wee_ticket_update",
+        "mark_ps_wee_ticket_ready",
+        "draft_pco_task",
+        "create_approved_pco_task",
+        "transition_pco_task",
+        "add_internal_pco_comment",
+        "set_pco_reminder",
+        "list_due_pco_reminders"
+      ]
+    },
+    "psm_c360": {
+      "command_env": "PSM_OPS_PYTHON",
+      "expected_tools": [
+        "search_c360_customers",
+        "get_c360_account_context",
+        "ask_c360_customer_context"
+      ]
+    }
+  },
+  "jira": {
+    "project_key": "PCO",
+    "source_of_truth": true,
+    "status_names": [
+      "Open",
+      "Waiting Customer",
+      "Waiting Internal",
+      "Scheduled",
+      "Done",
+      "Cancelled"
+    ],
+    "field_config_required": true,
+    "public_comments_default": false
+  },
+  "customer360": {
+    "source_of_truth": true,
+    "all_customer_access_v1": true,
+    "auth_env_var": "CUSTOMER360_INTERNAL_API_TOKEN",
+    "base_url_env_var": "CUSTOMER360_BASE_URL"
+  },
+  "channels": [
+    "Slack #ps-weeman-bot-test"
+  ],
+  "secrets_copied": false
+}

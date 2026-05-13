@@ -1,0 +1,129 @@
+# Non-secret Hermes profile template for PSM Ops Bot.
+# Copy values into ~/.hermes/profiles/psmopsbot/config.yaml on the cloud host
+# and load real secrets/field IDs from Secret Manager or the profile .env.
+
+terminal:
+  cwd: "~/agent-builder/apps/psm-ops-bot"
+
+security:
+  redact_secrets: true
+
+display:
+  personality: "concise"
+  busy_input_mode: "queue"
+  interim_assistant_messages: false
+  platforms:
+    slack:
+      tool_progress: "off"
+      streaming: false
+
+model:
+  default: "claude-sonnet-4-6"
+  provider: "anthropic"
+
+fallback_providers:
+  - provider: "anthropic"
+    model: "claude-haiku-4-5"
+
+agent:
+  api_max_retries: 3
+
+cron:
+  max_parallel_jobs: 1
+
+kanban:
+  dispatch_in_gateway: false
+
+slack:
+  require_mention: true
+  reactions: false
+  # Set SLACK_ALLOWED_CHANNELS to the pilot channel ID on the cloud host.
+  allowed_channels: ""
+
+platforms:
+  slack:
+    gateway_restart_notification: false
+
+psm_ops:
+  jira:
+    mode: "thin_poc"
+    project_key: "PCO"
+    base_url_env: "JIRA_BASE_URL"
+    email_env: "JIRA_EMAIL"
+    api_token_env: "JIRA_API_TOKEN"
+    service_desk_id_env: "PSM_OPS_JIRA_SERVICE_DESK_ID"
+    access_policy_path_env: "PSM_OPS_ACCESS_POLICY_PATH" # optional in thin_poc
+    public_comments_enabled_env: "PSM_OPS_JIRA_PUBLIC_COMMENTS_ENABLED"
+    thin_poc_defaults:
+      service_desk_id: "70"
+      customer_next_action_request_type: "81"
+      onboarding_task_request_type: "82"
+      data_hygiene_request_type: "83"
+      staffany_orgs_field: "customfield_10667"
+      ps_team_field: "customfield_10876"
+      handoff_package: "disabled_until_request_type_exists"
+      reminders: "automatic_from_duedate"
+    request_type_envs:
+      customer_next_action: "PSM_OPS_JIRA_REQUEST_TYPE_CUSTOMER_NEXT_ACTION"
+      onboarding_task: "PSM_OPS_JIRA_REQUEST_TYPE_ONBOARDING_TASK"
+      data_hygiene: "PSM_OPS_JIRA_REQUEST_TYPE_DATA_HYGIENE"
+      handoff_package: "PSM_OPS_JIRA_REQUEST_TYPE_HANDOFF_PACKAGE"
+    fields:
+      customer: "PSM_OPS_JIRA_FIELD_CUSTOMER"
+      staffany_orgs: "PSM_OPS_JIRA_FIELD_STAFFANY_ORGS"
+      owner_psm: "PSM_OPS_JIRA_FIELD_OWNER_PSM"
+      contributor_cse: "PSM_OPS_JIRA_FIELD_CONTRIBUTOR_CSE"
+      action_type: "PSM_OPS_JIRA_FIELD_ACTION_TYPE"
+      risk_reason: "PSM_OPS_JIRA_FIELD_RISK_REASON"
+      source_links: "PSM_OPS_JIRA_FIELD_SOURCE_LINKS"
+      reminder_at: "PSM_OPS_JIRA_FIELD_REMINDER_AT"
+      ps_team: "PSM_OPS_JIRA_FIELD_PS_TEAM"
+    allowed_statuses:
+      - "Open"
+      - "Waiting Customer"
+      - "Waiting Internal"
+      - "Scheduled"
+      - "Done"
+      - "Cancelled"
+  customer360:
+    base_url_env: "CUSTOMER360_BASE_URL"
+    internal_token_env: "CUSTOMER360_INTERNAL_API_TOKEN"
+    all_customer_access_v1: true
+
+mcp_servers:
+  psm_jira:
+    description: "PCO Jira Service Management task adapter for PSM Ops Bot."
+    command: "/Users/leekaiyi/.hermes/hermes-agent/venv/bin/python"
+    args:
+      - "/Users/leekaiyi/workspace/agent builder/apps/psm-ops-bot/runtime/mcp/psm_jira_server.py"
+    timeout: 120
+    tool_allowlist:
+      - "validate_jira_configuration"
+      - "list_my_pco_tasks"
+      - "find_ticket_by_slack_thread"
+      - "create_ps_wee_intake_ticket"
+      - "append_ps_wee_ticket_update"
+      - "mark_ps_wee_ticket_ready"
+      - "draft_pco_task"
+      - "create_approved_pco_task"
+      - "transition_pco_task"
+      - "add_internal_pco_comment"
+      - "set_pco_reminder"
+      - "list_due_pco_reminders"
+  psm_c360:
+    description: "Customer 360 internal API adapter for PSM Ops Bot."
+    command: "/Users/leekaiyi/.hermes/hermes-agent/venv/bin/python"
+    args:
+      - "/Users/leekaiyi/workspace/agent builder/apps/psm-ops-bot/runtime/mcp/psm_c360_server.py"
+    timeout: 120
+    tool_allowlist:
+      - "search_c360_customers"
+      - "get_c360_account_context"
+      - "ask_c360_customer_context"
+
+gateway:
+  slack:
+    enabled: true
+    app_token_env: "SLACK_APP_TOKEN"
+    bot_token_env: "SLACK_BOT_TOKEN"
+    channel: "#ps-weeman-bot-test"
