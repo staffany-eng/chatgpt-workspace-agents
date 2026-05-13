@@ -208,8 +208,9 @@ Friday sales review uses the same scoped association discipline, plus HubSpot ca
 
 `build_ae_coaching_audit`:
 
-- Input: manager/admin identity, week, optional owner/country, and optional `include_call_content`.
+- Input: manager/admin identity, week, optional owner/country, optional local WhatsApp window (`whatsapp_window_start_local`, `whatsapp_window_end_local`), optional `timezone_override_by_owner_email`, and optional `include_call_content`.
 - Output: per-AE weekly checks for 3 QOs set, target-account morning-message coverage, 40 connected calls, and calls above 1 minute that have no appointment evidence. Returns 1:1-sheet-ready preview rows with `will_mutate_google_sheets=false`.
+- Timezone contract: interpret user-specified WhatsApp windows in each rep's local timezone from `NURTUREANY_ACCESS_POLICY_PATH` or explicit override. Return `timezone`, `local_window`, `utc_window`, `first_message_local`, `in_window_message_count`, `late_by_minutes`, and `timezone_source`. Missing timezone is `needs-check`; do not silently fall back to SGT.
 - Runtime guard: default scan is the protected 150-account pool with a soft timeout; if the scan is partial, return `needs-check` rows rather than hanging.
 - Call content is guarded. If transcript/body access is requested, return metadata-only `needs-check`; do not read call bodies, recordings, or transcripts.
 

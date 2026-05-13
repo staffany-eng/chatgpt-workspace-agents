@@ -2057,7 +2057,108 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         self.assertFalse(result["answer"]["will_mutate_google_sheets"])
         self.assertEqual(result["answer"]["ae_weekly_checks"][0]["connected_call_count"], 1)
         self.assertEqual(result["answer"]["one_on_one_sheet_preview_rows"][0]["QO set"], "needs-check")
+        self.assertEqual(result["answer"]["ae_weekly_checks"][0]["timezone_source"], "missing")
+        self.assertEqual(result["answer"]["ae_weekly_checks"][0]["in_window_message_count"], 0)
         self.assertEqual(result["scope"]["owner_scoped_fast_path"], True)
+
+    def test_ae_coaching_audit_owner_fast_path_applies_timezone_override_window(self):
+        company_data = {
+            "results": [{"id": "company-1", "properties": {"name": "Noci", "hubspot_owner_id": "owner-1"}}],
+            "total": 1,
+            "requested_limit": 150,
+            "returned_count": 1,
+            "has_more": False,
+            "truncated": False,
+        }
+        communications = [
+            {
+                "id": "comm-1",
+                "properties": {
+                    "hs_timestamp": "2026-05-13T02:45:00Z",
+                    "hubspot_owner_id": "owner-1",
+                    "hs_communication_channel_type": "WHATS_APP",
+                },
+            }
+        ]
+
+        def object_search(object_type, *_args, **_kwargs):
+            if object_type == "calls":
+                return {"results": [], "total": 0, "requested_limit": 500, "returned_count": 0, "has_more": False, "truncated": False}
+            return {"results": communications, "total": 1, "requested_limit": 500, "returned_count": 1, "has_more": False, "truncated": False}
+
+        with patch.object(
+            self.module,
+            "_caller_scope",
+            return_value={**SCOPE, "kind": "admin", "email": "kaiyi@staffany.com", "countries": self.module.SUPPORTED_COUNTRIES},
+        ), patch.object(
+            self.module, "_target_owner_id_for_scope", return_value=("owner-1", "denny@staffany.com")
+        ), patch.object(self.module, "_owner_lookup_by_id", return_value={"owner-1": {"id": "owner-1", "email": "denny@staffany.com", "firstName": "Denny"}}), patch.object(
+            self.module, "_company_search", return_value=company_data
+        ), patch.object(
+            self.module, "_object_search", side_effect=object_search
+        ), patch.object(
+            self.module, "_friday_review_stage_config", return_value={"configured": False}
+        ):
+            result = self.module.build_ae_coaching_audit(
+                "kaiyi@staffany.com",
+                countries=["Indonesia"],
+                owner_email="denny@staffany.com",
+                week_start="2026-05-13",
+                week_end="2026-05-13",
+                whatsapp_window_start_local="09:30",
+                whatsapp_window_end_local="10:30",
+                timezone_override_by_owner_email={"denny@staffany.com": "Asia/Jakarta"},
+                soft_timeout_seconds=0,
+            )
+
+        row = result["answer"]["ae_weekly_checks"][0]
+        self.assertEqual(row["timezone"], "Asia/Jakarta")
+        self.assertEqual(row["timezone_source"], "override")
+        self.assertEqual(row["local_window"], {"start": "09:30", "end": "10:30", "timezone": "Asia/Jakarta"})
+        self.assertEqual(row["utc_window"]["start"], "2026-05-13T02:30:00Z")
+        self.assertEqual(row["utc_window"]["end"], "2026-05-13T03:30:00Z")
+        self.assertEqual(row["in_window_message_count"], 1)
+        self.assertEqual(row["late_by_minutes"], 0)
+        self.assertIn("2026-05-13T09:45:00+07:00", row["first_message_local"])
+
+    def test_whatsapp_window_metrics_respects_jakarta_and_bali_timezones(self):
+        jakarta_window = self.module._coaching_window_contract(
+            "denny@staffany.com",
+            {"denny@staffany.com": "Asia/Jakarta"},
+            "09:30",
+            "10:30",
+            "2026-05-13",
+        )
+        bali_window = self.module._coaching_window_contract(
+            "stella@staffany.com",
+            {"stella@staffany.com": "Asia/Makassar"},
+            "09:30",
+            "10:30",
+            "2026-05-13",
+        )
+        at_0245 = [{"object_type": "communication", "timestamp": "2026-05-13T02:45:00Z"}]
+        at_0145 = [{"object_type": "communication", "timestamp": "2026-05-13T01:45:00Z"}]
+
+        self.assertEqual(self.module._whatsapp_window_metrics(at_0245, jakarta_window)["in_window_message_count"], 1)
+        self.assertEqual(self.module._whatsapp_window_metrics(at_0245, bali_window)["in_window_message_count"], 0)
+        self.assertEqual(self.module._whatsapp_window_metrics(at_0145, bali_window)["in_window_message_count"], 1)
+        self.assertEqual(self.module._whatsapp_window_metrics(at_0145, jakarta_window)["in_window_message_count"], 0)
+
+    def test_whatsapp_window_missing_timezone_does_not_fallback_to_sgt(self):
+        window = self.module._coaching_window_contract(
+            "unknown@example.com",
+            None,
+            "09:30",
+            "10:30",
+            "2026-05-13",
+        )
+        metrics = self.module._whatsapp_window_metrics(
+            [{"object_type": "communication", "timestamp": "2026-05-13T01:45:00Z"}],
+            window,
+        )
+        self.assertEqual(window["timezone_source"], "missing")
+        self.assertIsNone(window["zone"])
+        self.assertEqual(metrics["in_window_message_count"], 0)
 
     def test_sales_navigator_queue_is_manual_and_scoped(self):
         company = {

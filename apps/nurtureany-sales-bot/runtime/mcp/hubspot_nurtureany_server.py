@@ -21,6 +21,7 @@ import urllib.request
 from datetime import date, datetime, time as datetime_time, timedelta, timezone
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from mcp.server.fastmcp import FastMCP
 
@@ -429,6 +430,9 @@ REVENUE_FUNNEL_ALL_OUTBOUND_MARKERS = ("outbound", "cold call", "cold email", "l
 AE_COACHING_QO_WEEKLY_TARGET = 3
 AE_COACHING_MORNING_START_HOUR = 6
 AE_COACHING_MORNING_END_HOUR = 12
+AE_COACHING_DEFAULT_WINDOW_START = "06:00"
+AE_COACHING_DEFAULT_WINDOW_END = "12:00"
+DAILY_NURTURE_PLAN_TIME_LOCAL = "09:00"
 AE_COACHING_LONG_CALL_MIN_DURATION_MS = 60_000
 AE_COACHING_DEFAULT_LIMIT = PRIORITY_ACCOUNT_LOCKED_POOL_BASELINE
 AE_COACHING_DEFAULT_SOFT_TIMEOUT_SECONDS = 240
@@ -817,6 +821,7 @@ def _access_policy() -> dict[str, Any]:
             sales_reps[canonical_slack_email] = {
                 "hubspot_owner_email": owner_email,
                 "countries": _normalize_countries(_string_list(entry.get("countries"))),
+                "timezone": str(entry.get("timezone") or entry.get("time_zone") or "").strip(),
             }
 
     for key in ("disabled", "unclassified"):
@@ -2364,12 +2369,206 @@ def _revenue_funnel_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def _is_morning_whatsapp(evidence: dict[str, Any]) -> bool:
+def _parse_local_time(value: Any, default: str) -> datetime_time:
+    text = str(value or default).strip().lower().replace(" ", "")
+    text = text.replace(".", "")
+    if not text:
+        text = default
+    suffix = ""
+    if text.endswith(("am", "pm")):
+        suffix = text[-2:]
+        text = text[:-2]
+    if re.fullmatch(r"\d{3,4}", text):
+        hour_text = text[:-2]
+        minute_text = text[-2:]
+    else:
+        parts = text.split(":", 1)
+        hour_text = parts[0]
+        minute_text = parts[1] if len(parts) > 1 else "00"
+    try:
+        hour = int(hour_text)
+        minute = int(minute_text)
+    except ValueError as error:
+        raise ScopeError(f"Invalid WhatsApp local window time: {value}") from error
+    if suffix == "pm" and hour != 12:
+        hour += 12
+    if suffix == "am" and hour == 12:
+        hour = 0
+    if hour < 0 or hour > 23 or minute < 0 or minute > 59:
+        raise ScopeError(f"Invalid WhatsApp local window time: {value}")
+    return datetime_time(hour, minute)
+
+
+def _time_label(value: datetime_time) -> str:
+    return f"{value.hour:02d}:{value.minute:02d}"
+
+
+def _utc_iso(value: datetime) -> str:
+    return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _coaching_timezone_overrides(overrides: dict[str, str] | None) -> dict[str, str]:
+    if not isinstance(overrides, dict):
+        return {}
+    normalized: dict[str, str] = {}
+    for owner_email, timezone_name in overrides.items():
+        email = _normalize_email(str(owner_email or ""))
+        tz_name = str(timezone_name or "").strip()
+        if email and tz_name:
+            normalized[email] = tz_name
+    return normalized
+
+
+def _policy_timezone_for_owner_email(owner_email: str) -> str:
+    normalized_owner_email = _normalize_email(owner_email)
+    if not normalized_owner_email:
+        return ""
+    try:
+        policy = _access_policy()
+    except AccessPolicyError:
+        return ""
+    for rep in policy.get("sales_reps", {}).values():
+        if _normalize_email(rep.get("hubspot_owner_email") or "") == normalized_owner_email:
+            return str(rep.get("timezone") or "").strip()
+    return ""
+
+
+def _coaching_timezone_for_owner(
+    owner_email: str,
+    timezone_override_by_owner_email: dict[str, str] | None = None,
+) -> tuple[str, str]:
+    normalized_owner_email = _normalize_email(owner_email)
+    overrides = _coaching_timezone_overrides(timezone_override_by_owner_email)
+    if normalized_owner_email in overrides:
+        return overrides[normalized_owner_email], "override"
+    policy_timezone = _policy_timezone_for_owner_email(normalized_owner_email)
+    if policy_timezone:
+        return policy_timezone, "access_policy"
+    return "", "missing"
+
+
+def _zoneinfo_or_none(timezone_name: str) -> ZoneInfo | None:
+    if not timezone_name:
+        return None
+    try:
+        return ZoneInfo(timezone_name)
+    except ZoneInfoNotFoundError:
+        return None
+
+
+def _window_bounds_for_timestamp(
+    timestamp: datetime,
+    zone: ZoneInfo,
+    start_time: datetime_time,
+    end_time: datetime_time,
+) -> tuple[datetime, datetime]:
+    local = timestamp.astimezone(zone)
+    start_local = datetime.combine(local.date(), start_time, tzinfo=zone)
+    end_local = datetime.combine(local.date(), end_time, tzinfo=zone)
+    if end_local <= start_local:
+        if local < end_local:
+            start_local -= timedelta(days=1)
+        else:
+            end_local += timedelta(days=1)
+    return start_local, end_local
+
+
+def _coaching_window_contract(
+    owner_email: str,
+    timezone_override_by_owner_email: dict[str, str] | None,
+    whatsapp_window_start_local: str,
+    whatsapp_window_end_local: str,
+    reference_date: str = "",
+) -> dict[str, Any]:
+    start_time = _parse_local_time(whatsapp_window_start_local, AE_COACHING_DEFAULT_WINDOW_START)
+    end_time = _parse_local_time(whatsapp_window_end_local, AE_COACHING_DEFAULT_WINDOW_END)
+    timezone_name, timezone_source = _coaching_timezone_for_owner(owner_email, timezone_override_by_owner_email)
+    zone = _zoneinfo_or_none(timezone_name)
+    parsed_reference_date = _date_value(reference_date) or datetime.now(timezone.utc).date()
+    local_window = {
+        "start": _time_label(start_time),
+        "end": _time_label(end_time),
+        "timezone": timezone_name,
+    }
+    utc_window: dict[str, str] | None = None
+    if zone:
+        start_local = datetime.combine(parsed_reference_date, start_time, tzinfo=zone)
+        end_local = datetime.combine(parsed_reference_date, end_time, tzinfo=zone)
+        if end_local <= start_local:
+            end_local += timedelta(days=1)
+        utc_window = {"start": _utc_iso(start_local), "end": _utc_iso(end_local)}
+    elif timezone_name:
+        timezone_source = "invalid"
+    return {
+        "timezone": timezone_name,
+        "timezone_source": timezone_source,
+        "zone": zone,
+        "start_time": start_time,
+        "end_time": end_time,
+        "local_window": local_window,
+        "utc_window": utc_window,
+        "daily_nurture_plan_time_local": DAILY_NURTURE_PLAN_TIME_LOCAL,
+    }
+
+
+def _coaching_window_label(window: dict[str, Any]) -> str:
+    local_window = window.get("local_window") or {}
+    timezone_name = local_window.get("timezone") or "timezone-missing"
+    return f"{local_window.get('start')}-{local_window.get('end')} {timezone_name}"
+
+
+def _whatsapp_window_metrics(evidence_items: list[dict[str, Any]], window: dict[str, Any]) -> dict[str, Any]:
+    zone = window.get("zone")
+    timestamps: list[datetime] = []
+    for evidence in evidence_items:
+        if evidence.get("object_type") != "communication":
+            continue
+        timestamp = _datetime_value(str(evidence.get("timestamp") or ""))
+        if timestamp:
+            timestamps.append(timestamp)
+    timestamps.sort()
+    if not zone:
+        return {
+            "first_message_local": None,
+            "in_window_message_count": 0,
+            "late_by_minutes": None,
+        }
+
+    start_time = window["start_time"]
+    end_time = window["end_time"]
+    in_window_count = 0
+    first_after_window: tuple[datetime, datetime] | None = None
+    for timestamp in timestamps:
+        start_local, end_local = _window_bounds_for_timestamp(timestamp, zone, start_time, end_time)
+        local = timestamp.astimezone(zone)
+        if start_local <= local <= end_local:
+            in_window_count += 1
+        elif local > end_local and first_after_window is None:
+            first_after_window = (local, end_local)
+    first_message_local = timestamps[0].astimezone(zone).isoformat() if timestamps else None
+    late_by_minutes = 0 if in_window_count > 0 else None
+    if in_window_count == 0 and first_after_window is not None:
+        late_by_minutes = max(0, int((first_after_window[0] - first_after_window[1]).total_seconds() // 60))
+    return {
+        "first_message_local": first_message_local,
+        "in_window_message_count": in_window_count,
+        "late_by_minutes": late_by_minutes,
+    }
+
+
+def _is_morning_whatsapp(evidence: dict[str, Any], window: dict[str, Any] | None = None) -> bool:
     if evidence.get("object_type") != "communication":
         return False
     timestamp = _datetime_value(str(evidence.get("timestamp") or ""))
     if not timestamp:
         return False
+    if window:
+        zone = window.get("zone")
+        if not zone:
+            return False
+        start_local, end_local = _window_bounds_for_timestamp(timestamp, zone, window["start_time"], window["end_time"])
+        local = timestamp.astimezone(zone)
+        return start_local <= local <= end_local
     local = timestamp.astimezone(SINGAPORE_TIMEZONE)
     return AE_COACHING_MORNING_START_HOUR <= local.hour < AE_COACHING_MORNING_END_HOUR
 
@@ -11483,6 +11682,9 @@ def _ae_owner_fast_coaching_audit(
     include_call_content: bool,
     limit: int,
     soft_timeout_seconds: int,
+    whatsapp_window_start_local: str,
+    whatsapp_window_end_local: str,
+    timezone_override_by_owner_email: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     scope = _caller_scope(slack_user_email)
     if scope["kind"] == "blocked":
@@ -11506,6 +11708,14 @@ def _ae_owner_fast_coaching_audit(
     owner_display = _owner_display(target_owner_id or "", owner_lookup)
     if target_owner_email and not owner_display.get("owner_email"):
         owner_display["owner_email"] = target_owner_email
+    row_owner_email = owner_display.get("owner_email") or target_owner_email or owner_email
+    window = _coaching_window_contract(
+        row_owner_email,
+        timezone_override_by_owner_email,
+        whatsapp_window_start_local,
+        whatsapp_window_end_local,
+        week["week_start"],
+    )
 
     time_filters = [
         {"propertyName": "hubspot_owner_id", "operator": "EQ", "value": target_owner_id},
@@ -11530,13 +11740,14 @@ def _ae_owner_fast_coaching_audit(
         )
 
     communication_data = _object_search("communications", time_filters, COMMUNICATION_PROPERTIES, limit=500, maximum=500)
-    morning_message_count = 0
+    communication_evidence = []
     for communication in communication_data.get("results", []):
         if not _is_whatsapp_communication(communication):
             continue
         props = communication.get("properties", {})
-        if _is_morning_whatsapp({"object_type": "communication", "timestamp": props.get("hs_timestamp") or ""}):
-            morning_message_count += 1
+        communication_evidence.append({"object_type": "communication", "timestamp": props.get("hs_timestamp") or ""})
+    window_metrics = _whatsapp_window_metrics(communication_evidence, window)
+    morning_message_count = window_metrics["in_window_message_count"]
 
     stage_config = _friday_review_stage_config()
     qo_set = None
@@ -11556,6 +11767,8 @@ def _ae_owner_fast_coaching_audit(
         focus.append("QO set below 3/week or stage config needs-check")
     if connected_call_count < CONNECTED_CALL_WEEKLY_TARGET:
         focus.append("connected calls below 40/week")
+    if window["timezone_source"] in {"missing", "invalid"}:
+        focus.append("rep timezone missing or invalid; local WhatsApp window audit needs-check")
     if morning_message_count < min(AE_COACHING_DEFAULT_LIMIT, len(companies)):
         focus.append("morning target-account message coverage needs-check")
     if long_call_candidates:
@@ -11563,7 +11776,7 @@ def _ae_owner_fast_coaching_audit(
 
     row = {
         "ae_owner_id": target_owner_id,
-        "ae_email": owner_display.get("owner_email") or target_owner_email or owner_email,
+        "ae_email": row_owner_email,
         "ae_name": owner_display.get("owner_name") or "",
         "week_start": week["week_start"],
         "week_end": week["week_end"],
@@ -11572,7 +11785,15 @@ def _ae_owner_fast_coaching_audit(
         "qo_target_hit": bool(qo_set is not None and qo_set >= AE_COACHING_QO_WEEKLY_TARGET),
         "morning_message_account_count": "needs-check",
         "morning_whatsapp_metadata_count": morning_message_count,
-        "morning_message_window": "06:00-12:00 Asia/Singapore",
+        "morning_message_window": _coaching_window_label(window),
+        "timezone": window["timezone"],
+        "local_window": window["local_window"],
+        "utc_window": window["utc_window"],
+        "first_message_local": window_metrics["first_message_local"],
+        "in_window_message_count": window_metrics["in_window_message_count"],
+        "late_by_minutes": window_metrics["late_by_minutes"],
+        "timezone_source": window["timezone_source"],
+        "daily_nurture_plan_time_local": window["daily_nurture_plan_time_local"],
         "target_account_weekly_coverage": f"needs-check; locked pool {len(companies)}/{AE_COACHING_DEFAULT_LIMIT}",
         "connected_call_count": connected_call_count,
         "connected_call_target": CONNECTED_CALL_WEEKLY_TARGET,
@@ -11586,6 +11807,10 @@ def _ae_owner_fast_coaching_audit(
         "Week": f"{row['week_start']} to {row['week_end']}",
         "QO set": row["qo_set"] if row["qo_set"] is not None else "needs-check",
         "Morning 150 coverage": f"needs-check ({morning_message_count} morning WhatsApp metadata)",
+        "WhatsApp local window": row["morning_message_window"],
+        "First WhatsApp local": row["first_message_local"] or "none",
+        "In-window WhatsApp": row["in_window_message_count"],
+        "Late by minutes": row["late_by_minutes"] if row["late_by_minutes"] is not None else "needs-check",
         "Connected calls": row["connected_call_count"],
         ">=60s calls no appointment": len(long_call_candidates),
         "Coaching focus": "; ".join(row["coaching_focus"]),
@@ -11603,6 +11828,8 @@ def _ae_owner_fast_coaching_audit(
             "week_start": week["week_start"],
             "week_end": week["week_end"],
             "timezone": week["timezone"],
+            "whatsapp_local_window": window["local_window"],
+            "whatsapp_utc_window": window["utc_window"],
             "owner_scoped_fast_path": True,
         },
         "total": 1,
@@ -11625,6 +11852,9 @@ def build_ae_coaching_audit(
     week_start: str = "",
     week_end: str = "",
     include_call_content: bool = False,
+    whatsapp_window_start_local: str = AE_COACHING_DEFAULT_WINDOW_START,
+    whatsapp_window_end_local: str = AE_COACHING_DEFAULT_WINDOW_END,
+    timezone_override_by_owner_email: dict[str, str] | None = None,
     limit: int = AE_COACHING_DEFAULT_LIMIT,
     soft_timeout_seconds: int = AE_COACHING_DEFAULT_SOFT_TIMEOUT_SECONDS,
 ) -> dict[str, Any]:
@@ -11645,6 +11875,9 @@ def build_ae_coaching_audit(
                 include_call_content,
                 effective_limit,
                 effective_soft_timeout_seconds,
+                whatsapp_window_start_local,
+                whatsapp_window_end_local,
+                timezone_override_by_owner_email,
             )
         coverage = _priority_account_coverage(
             slack_user_email=slack_user_email,
@@ -11681,18 +11914,33 @@ def build_ae_coaching_audit(
             owner_deals = deal_counts.get("by_owner", {}).get(owner_id, {})
             qo_set = owner_deals.get("qos") if deal_counts.get("configured") else None
             owner_companies = companies_by_owner.get(owner_id, [])
+            row_owner_email = owner_row.get("owner_email") or _owner_email_by_id(owner_id)
+            window = _coaching_window_contract(
+                row_owner_email,
+                timezone_override_by_owner_email,
+                whatsapp_window_start_local,
+                whatsapp_window_end_local,
+                coverage.get("scope", {}).get("week_start") or "",
+            )
             morning_account_count = 0
+            owner_communication_evidence: list[dict[str, Any]] = []
             for company in owner_companies:
                 company_id = str(company.get("id") or "")
                 evidence = activity_index.get(company_id, {}).get("evidence", [])
-                if any(_is_morning_whatsapp(item) for item in evidence):
+                owner_communication_evidence.extend(
+                    item for item in evidence if item.get("object_type") == "communication"
+                )
+                if any(_is_morning_whatsapp(item, window) for item in evidence):
                     morning_account_count += 1
+            window_metrics = _whatsapp_window_metrics(owner_communication_evidence, window)
             call_candidates = _long_call_candidates_without_appointment(owner_id, owner_companies, activity_index)
             focus = []
             if qo_set is None or qo_set < AE_COACHING_QO_WEEKLY_TARGET:
                 focus.append("QO set below 3/week or stage config needs-check")
             if owner_row.get("connected_call_count", 0) < CONNECTED_CALL_WEEKLY_TARGET:
                 focus.append("connected calls below 40/week")
+            if window["timezone_source"] in {"missing", "invalid"}:
+                focus.append("rep timezone missing or invalid; local WhatsApp window audit needs-check")
             if morning_account_count < owner_row.get("weekly_account_target", 0):
                 focus.append("morning target-account message coverage gap")
             if call_candidates:
@@ -11707,7 +11955,15 @@ def build_ae_coaching_audit(
                 "qo_weekly_target": AE_COACHING_QO_WEEKLY_TARGET,
                 "qo_target_hit": bool(qo_set is not None and qo_set >= AE_COACHING_QO_WEEKLY_TARGET),
                 "morning_message_account_count": morning_account_count,
-                "morning_message_window": "06:00-12:00 Asia/Singapore",
+                "morning_message_window": _coaching_window_label(window),
+                "timezone": window["timezone"],
+                "local_window": window["local_window"],
+                "utc_window": window["utc_window"],
+                "first_message_local": window_metrics["first_message_local"],
+                "in_window_message_count": window_metrics["in_window_message_count"],
+                "late_by_minutes": window_metrics["late_by_minutes"],
+                "timezone_source": window["timezone_source"],
+                "daily_nurture_plan_time_local": window["daily_nurture_plan_time_local"],
                 "target_account_weekly_coverage": owner_row.get("120_150_accounts_worked"),
                 "connected_call_count": owner_row.get("connected_call_count", 0),
                 "connected_call_target": CONNECTED_CALL_WEEKLY_TARGET,
@@ -11723,6 +11979,10 @@ def build_ae_coaching_audit(
                     "Week": f"{row['week_start']} to {row['week_end']}",
                     "QO set": row["qo_set"] if row["qo_set"] is not None else "needs-check",
                     "Morning 150 coverage": row["morning_message_account_count"],
+                    "WhatsApp local window": row["morning_message_window"],
+                    "First WhatsApp local": row["first_message_local"] or "none",
+                    "In-window WhatsApp": row["in_window_message_count"],
+                    "Late by minutes": row["late_by_minutes"] if row["late_by_minutes"] is not None else "needs-check",
                     "Connected calls": row["connected_call_count"],
                     ">=60s calls no appointment": len(call_candidates),
                     "Coaching focus": "; ".join(row["coaching_focus"]),
@@ -11735,6 +11995,9 @@ def build_ae_coaching_audit(
         ]
         if not deal_counts.get("configured"):
             caveats.append("QO set count needs configured HubSpot QO/QO Met stage IDs.")
+        timezone_needs_check = any(row.get("timezone_source") in {"missing", "invalid"} for row in rows)
+        if timezone_needs_check:
+            caveats.append("One or more reps are missing a valid timezone; local WhatsApp timing remains needs-check.")
         return {
             "answer": {
                 "ae_weekly_checks": rows,
@@ -11742,13 +12005,26 @@ def build_ae_coaching_audit(
                 "will_mutate_google_sheets": False,
             },
             "source": "HubSpot target-account coverage, deals, calls, meetings, and WhatsApp communication metadata",
-            "scope": coverage.get("scope", {}),
+            "scope": {
+                **coverage.get("scope", {}),
+                "whatsapp_window_start_local": _time_label(
+                    _parse_local_time(whatsapp_window_start_local, AE_COACHING_DEFAULT_WINDOW_START)
+                ),
+                "whatsapp_window_end_local": _time_label(
+                    _parse_local_time(whatsapp_window_end_local, AE_COACHING_DEFAULT_WINDOW_END)
+                ),
+            },
             "total": len(rows),
             "requested_limit": coverage.get("requested_limit"),
             "returned_count": len(rows),
             "has_more": coverage.get("has_more"),
             "truncated": coverage.get("truncated"),
-            "confidence": "needs-check" if include_call_content or coverage.get("confidence") == "needs-check" or not deal_counts.get("configured") else "verified",
+            "confidence": "needs-check"
+            if include_call_content
+            or coverage.get("confidence") == "needs-check"
+            or not deal_counts.get("configured")
+            or timezone_needs_check
+            else "verified",
             "caveat": " ".join(caveats),
         }
     except ScopeError as error:

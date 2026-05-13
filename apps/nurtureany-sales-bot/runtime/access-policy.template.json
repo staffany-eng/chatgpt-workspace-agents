@@ -42,12 +42,28 @@
       "slack_email": "example.sg.rep@example.invalid",
       "hubspot_owner_email": "example.sg.owner@example.invalid",
       "countries": ["Singapore"],
+      "timezone": "Asia/Singapore",
       "active": true
     },
     {
       "slack_email": "example.my.rep@example.invalid",
       "hubspot_owner_email": "example.my.owner@example.invalid",
       "countries": ["Malaysia"],
+      "timezone": "Asia/Kuala_Lumpur",
+      "active": true
+    },
+    {
+      "slack_email": "example.id.jakarta.rep@example.invalid",
+      "hubspot_owner_email": "example.id.jakarta.owner@example.invalid",
+      "countries": ["Indonesia"],
+      "timezone": "Asia/Jakarta",
+      "active": true
+    },
+    {
+      "slack_email": "example.id.bali.rep@example.invalid",
+      "hubspot_owner_email": "example.id.bali.owner@example.invalid",
+      "countries": ["Indonesia"],
+      "timezone": "Asia/Makassar",
       "active": true
     }
   ],

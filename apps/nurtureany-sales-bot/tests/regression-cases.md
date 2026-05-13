@@ -893,6 +893,23 @@ Expected behavior:
 - Does not mutate Google Sheets.
 - Does not read call bodies, transcripts, recordings, phone numbers, or raw communications.
 
+### Indonesia WhatsApp KNS Timing Audit
+
+Prompt:
+
+```text
+@NurtureAny can you help me audit for the indonesia sales reps did we use the kns framework for the WhatsApp messages for their target account between 930-1030am
+```
+
+Expected behavior:
+
+- First response is plan-only and asks for `run`.
+- After `run`, calls `build_ae_coaching_audit` with `countries=["Indonesia"]`, `whatsapp_window_start_local="09:30"`, and `whatsapp_window_end_local="10:30"`.
+- Interprets the window in each rep's access-policy timezone: Jakarta reps use `Asia/Jakarta`; Bali reps use `Asia/Makassar`.
+- Returns `timezone`, `local_window`, `utc_window`, `first_message_local`, `in_window_message_count`, `late_by_minutes`, and `timezone_source` per rep.
+- Keeps K/N/S body quality as `needs-check` unless safe template/body evidence is available.
+- Does not answer with SGT-only manual remapping, raw WhatsApp bodies, or action-needed acceptance reminders.
+
 ### Sales Navigator Handoff Queue
 
 Prompt:
