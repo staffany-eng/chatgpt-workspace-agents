@@ -54,6 +54,18 @@ if (!existsSync(manifestPath)) {
     if (manifest.integrations?.slack?.posting_identity !== "bot_owned_only") {
       fail("Manifest Slack posting identity must be bot_owned_only");
     }
+    if (manifest.integrations?.slack?.expected_bot_name !== "Launch Bot") {
+      fail("Manifest Slack expected bot name must be Launch Bot");
+    }
+    if (manifest.integrations?.slack?.expected_bot_user_id !== "U0ASVD79UT1") {
+      fail("Manifest Slack expected bot user ID must be U0ASVD79UT1");
+    }
+    if (manifest.integrations?.slack?.expected_bot_id !== "B0ATPPEGBCH") {
+      fail("Manifest Slack expected bot ID must be B0ATPPEGBCH");
+    }
+    if (!manifest.integrations?.slack?.wrong_profile_guard?.includes("@codexlaunchbot")) {
+      fail("Manifest Slack wrong profile guard must name @codexlaunchbot");
+    }
     if (manifest.integrations?.slack?.default_test_channel_name !== "launch-bot-testing") {
       fail("Manifest Slack default test channel name must be launch-bot-testing");
     }
@@ -77,6 +89,12 @@ if (!existsSync(manifestPath)) {
     ];
     for (const name of requiredEnvNames) {
       if (!manifest.required_env_names?.includes(name)) fail(`Manifest missing env name: ${name}`);
+    }
+    for (const name of [
+      "LAUNCH_STEP3_SLACK_APPROVAL_REACTION",
+      "LAUNCH_STEP3_SLACK_AUTHORIZED_REVIEWER_IDS"
+    ]) {
+      if (!manifest.optional_env_names?.includes(name)) fail(`Manifest missing optional env name: ${name}`);
     }
 
     const contract = manifest.help_article_contract || {};
@@ -163,6 +181,9 @@ for (const requiredText of [
   "runtime/launchbot_e2e.py",
   "Intercom draft articles",
   "bot-owned posting credentials",
+  "@Launch Bot",
+  "U0ASVD79UT1",
+  "B0ATPPEGBCH",
   "#launch-bot-testing",
   "light cowboy voice",
   "Do not commit token values",
@@ -191,15 +212,26 @@ if (!existsSync(rawManifestPath)) {
 const e2eRunnerText = textOf("runtime/launchbot_e2e.py");
 for (const requiredText of [
   "LAUNCH_STEP2_SLACK_BOT_TOKEN",
+  "LAUNCH_STEP3_SLACK_BOT_TOKEN",
   "LAUNCH_STEP3_INTERCOM_ACCESS_TOKEN",
+  "LAUNCH_STEP3_SLACK_AUTHORIZED_REVIEWER_IDS",
   "GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE",
   "C0B32M34J3W",
   "launch-bot-testing",
+  "EXPECTED_SLACK_BOT_USER_ID",
+  "EXPECTED_SLACK_BOT_ID",
+  "slack:wrong-bot-profile",
   "Launchbot automation: Howdy, partner. Review draft is saddled up for approval",
+  "Approved review is now drafted in Intercom",
+  "--approval-only",
+  "approval_user_ids",
+  "approval:no-authorized-reviewer",
   "fit to ride into Intercom draft",
   "\"state\": \"draft\"",
   "\"parent_type\": \"collection\"",
   "conversations.join",
+  "conversations.history",
+  "thread_ts",
   "intercom_direct_url",
   "LAUNCH_STEP3_INTERCOM_APP_ID",
   "omit_top_heading=True"
@@ -227,6 +259,9 @@ const agentsText = textOf("AGENTS.md");
 for (const requiredText of [
   "#launch-bot-testing",
   "C0B32M34J3W",
+  "@Launch Bot",
+  "U0ASVD79UT1",
+  "B0ATPPEGBCH",
   "light cowboy voice",
   "Launchbot automation:"
 ]) {
@@ -236,6 +271,9 @@ for (const requiredText of [
 const regressionText = textOf("tests/regression-cases.md");
 for (const requiredText of [
   "#launch-bot-testing",
+  "@Launch Bot",
+  "U0ASVD79UT1",
+  "B0ATPPEGBCH",
   "light cowboy voice"
 ]) {
   if (!regressionText.includes(requiredText)) fail(`Regression cases missing required text: ${requiredText}`);

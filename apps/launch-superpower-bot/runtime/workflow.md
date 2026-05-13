@@ -4,7 +4,7 @@
 
 This packet captures the workflow contract from the 2026-05-11 handoff. The runtime source code under `vk-super-productivity/launch-superpower-bot` is not present in this repo, so code-level fixes must happen in that external checkout.
 
-When the external source checkout is absent, use `runtime/launchbot_e2e.py` as the minimal VM-safe runner for the handoff flow. It generates versioned Step 1 artifacts, creates a Google Doc review draft, posts a bot-owned Slack review message, and creates an Intercom draft article with a direct Intercom app URL when the API response omits a public URL.
+When the external source checkout is absent, use `runtime/launchbot_e2e.py` as the minimal VM-safe runner for the handoff flow. It generates versioned Step 1 artifacts, creates a Google Doc review draft, posts a bot-owned Slack review message, processes an existing approved Slack reaction with `--approval-only`, and creates an Intercom draft article with a direct Intercom app URL when the API response omits a public URL.
 
 ## Step Contract
 
@@ -27,6 +27,7 @@ When the external source checkout is absent, use `runtime/launchbot_e2e.py` as t
 - Legacy single-article manifests must be upgraded into structured article records before promotion.
 - Multiple article outputs must remain separately tracked by slug, Google Doc URL, and Slack message timestamp.
 - Slack review messages require bot-owned posting credentials. Do not use a human user token for visible automation replies.
+- Launchbot Slack tests must use the `@Launch Bot` app profile (`user_id=U0ASVD79UT1`, `bot_id=B0ATPPEGBCH`). Do not use `@codexlaunchbot` / Kea Reloaded for Launchbot tests.
 - Launchbot tests default to Slack `#launch-bot-testing` (`C0B32M34J3W`). Use a different channel only when the user explicitly asks for it.
 - Slack automation copy should keep the `Launchbot automation:` prefix and use a light cowboy voice, for example `Howdy, partner`, while keeping approval instructions factual.
 
@@ -37,6 +38,7 @@ When the external source checkout is absent, use `runtime/launchbot_e2e.py` as t
 - Approval behavior:
   - Use the Slack approval reaction configured by the runtime source.
   - Ignore unauthorized reviewers.
+  - In the VM-safe runner, `--approval-only` reads the stored Step 2 Slack timestamp, verifies a non-bot approval reaction, optionally filters against `LAUNCH_STEP3_SLACK_AUTHORIZED_REVIEWER_IDS`, creates the Intercom draft, and posts a bot-owned thread reply.
   - If Slack cannot replay an old reaction after webhook changes, remove and re-add the reaction.
 - Intercom behavior:
   - Treat successful draft creation as success even if the API response has no URL.
@@ -68,6 +70,8 @@ Optional runtime environment name:
 - `LAUNCH_GOOGLE_AUTH_JSON`
 - `GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE`
 - `LAUNCH_STEP2_SLACK_CHANNEL_ID`
+- `LAUNCH_STEP3_SLACK_APPROVAL_REACTION`
+- `LAUNCH_STEP3_SLACK_AUTHORIZED_REVIEWER_IDS`
 
 Secret values must come from the approved secret store or secure sharing path. Do not commit token values, service-account JSON, OAuth credentials, or `.env` files.
 
