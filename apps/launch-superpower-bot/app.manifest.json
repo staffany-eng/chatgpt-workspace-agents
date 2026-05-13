@@ -1,0 +1,110 @@
+{
+  "app_name": "Launch Superpower Bot",
+  "app_slug": "launch-superpower-bot",
+  "kind": "launch-workflow-app-packet",
+  "canonical": true,
+  "runtime": "Local workflow scripts plus Slack review webhook",
+  "source_status": "packet_from_2026_05_11_handoff_source_code_not_present",
+  "rollout_stage": "handoff packet trial",
+  "test_feature": {
+    "jira_issue": "KER-1742",
+    "ticket_name": "Club Blue",
+    "feature": "ClubAny brands, perks, and redemptions",
+    "latest_clean_version": "v005"
+  },
+  "paths": {
+    "readme": "README.md",
+    "agents": "AGENTS.md",
+    "skill": "skills/help-article-generator/SKILL.md",
+    "skill_skeleton": "skills/help-article-generator/references/help-article-skeleton.md",
+    "workflow": "runtime/workflow.md",
+    "e2e_runner": "runtime/launchbot_e2e.py",
+    "regression_cases": "tests/regression-cases.md"
+  },
+  "evidence": {
+    "raw_manifest": "research/raw/launch-superpower-bot/2026-05-11-handoff/source-manifest.md",
+    "raw_handoff": "research/raw/launch-superpower-bot/2026-05-11-handoff/handoff.md",
+    "source_note": "research/wiki/sources/launch-superpower-bot-handoff.md"
+  },
+  "workflow_steps": [
+    {
+      "step": 1,
+      "name": "help_article_trigger",
+      "status": "implemented_in_external_source",
+      "output": "code-grounded help article drafts and manifest"
+    },
+    {
+      "step": 2,
+      "name": "google_docs_approval",
+      "status": "implemented_in_external_source",
+      "output": "per-article Google Docs and Slack review messages"
+    },
+    {
+      "step": 3,
+      "name": "intercom_publish",
+      "status": "implemented_in_external_source",
+      "output": "Intercom draft articles after Slack approval reaction"
+    },
+    {
+      "step": 4,
+      "name": "launch_derivatives",
+      "status": "planned_stub",
+      "output": "Released posts, WhatsApp drafts, and newsletter drafts"
+    }
+  ],
+  "integrations": {
+    "jira": {
+      "purpose": "feature source and issue key"
+    },
+    "google_docs": {
+      "purpose": "review document surface"
+    },
+    "slack": {
+      "purpose": "review messages and approval reactions",
+      "posting_identity": "bot_owned_only",
+      "default_test_channel_name": "launch-bot-testing",
+      "default_test_channel_id": "C0B32M34J3W",
+      "automation_voice": "light_cowboy"
+    },
+    "intercom": {
+      "purpose": "draft article creation",
+      "publish_mode": "draft_only"
+    }
+  },
+  "required_env_names": [
+    "LAUNCH_STEP2_SLACK_BOT_TOKEN",
+    "LAUNCH_STEP3_SLACK_SIGNING_SECRET",
+    "LAUNCH_STEP3_SLACK_BOT_TOKEN",
+    "LAUNCH_STEP3_GOOGLE_SERVICE_ACCOUNT_JSON",
+    "LAUNCH_STEP3_INTERCOM_ACCESS_TOKEN",
+    "LAUNCH_STEP3_INTERCOM_STAGING_COLLECTION_ID"
+  ],
+  "optional_env_names": [
+    "LAUNCH_STEP3_INTERCOM_AUTHOR_ID",
+    "LAUNCH_STEP3_INTERCOM_APP_ID",
+    "LAUNCH_GOOGLE_AUTH_JSON",
+    "GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE",
+    "LAUNCH_STEP2_SLACK_CHANNEL_ID"
+  ],
+  "help_article_contract": {
+    "source_of_truth": "code_grounded_behavior",
+    "publishable_body_excludes_internal_appendix": true,
+    "raw_html_in_markdown_body": false,
+    "text_dividers_in_markdown_body": false,
+    "repeated_title_in_body": false,
+    "audience_block_centered": true,
+    "outline_list": "numbered",
+    "numbered_steps_restart_per_subsection": true,
+    "clubany_product_label": "StaffAny",
+    "clubany_management_article_default": "combined_brands_and_perks_article"
+  },
+  "known_gaps": [
+    "External source code is not present in this repo.",
+    "ClubAny content planner still needs to prefer one combined management article by default.",
+    "DOCX renderer still needs real Word numbering definitions.",
+    "Screenshot capture or screenshot placeholders are not automated yet.",
+    "Visual DOCX render QA depends on a working document renderer.",
+    "Step 4 launch derivatives are still planned only."
+  ],
+  "secrets_copied": false
+}
