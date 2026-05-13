@@ -1333,9 +1333,20 @@ for (const text of [
   "Anyone with the link",
   "read_indonesia_event_registration_attendance",
   "Attend The Event",
-  "date and event ID"
+  "date and event ID",
+  "Do not run a post-answer acceptance workflow",
+  "bare same-thread acknowledgements like `ok`, `done`, `yes`, and `thanks`"
 ]) {
   if (!slackText.includes(text)) fail(`runtime/slack.md missing required text: ${text}`);
+}
+
+const nurtureSkillText = textOf("skills/nurtureany-sales-bot/SKILL.md");
+for (const text of [
+  "Do not run a post-answer acceptance workflow",
+  "do not mark the thread as action needed",
+  "send reminders waiting for explicit acceptance"
+]) {
+  if (!nurtureSkillText.includes(text)) fail(`skills/nurtureany-sales-bot/SKILL.md missing required text: ${text}`);
 }
 
 const healthText = textOf("runtime/health-checks.md");
