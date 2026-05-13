@@ -349,6 +349,7 @@
       "prepare_near_me_seed_review_candidates",
       "merge_near_me_sources",
       "research_public_company_signals",
+      "find_brand_parent_candidates",
       "search_exa_people_candidates",
       "search_lusha_decision_maker_candidates",
       "get_lusha_credit_usage"
@@ -566,8 +567,10 @@
       "country"
     ],
     "requires_scoped_hubspot_companies": true,
+    "brand_parent_identity_lookup_requires_hubspot_rescope": true,
     "allowed_tools": [
-      "research_public_company_signals"
+      "research_public_company_signals",
+      "find_brand_parent_candidates"
     ],
     "news_scout_skill": "skills/target-account-news-scout/SKILL.md",
     "news_scout_scope": "requires NurtureAny-scoped HubSpot company before public research",

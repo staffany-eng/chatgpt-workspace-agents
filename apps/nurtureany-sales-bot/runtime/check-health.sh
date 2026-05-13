@@ -17,7 +17,7 @@ EXPECT_EAZYBE_TOOLS="${EXPECT_EAZYBE_TOOLS:-4}"
 EXPECT_LUMA_TOOLS="${EXPECT_LUMA_TOOLS:-3}"
 EXPECT_LUSHA_TOOLS="${EXPECT_LUSHA_TOOLS:-3}"
 EXPECT_EXA_TOOLS="${EXPECT_EXA_TOOLS:-1}"
-EXPECT_PUBLIC_RESEARCH_TOOLS="${EXPECT_PUBLIC_RESEARCH_TOOLS:-1}"
+EXPECT_PUBLIC_RESEARCH_TOOLS="${EXPECT_PUBLIC_RESEARCH_TOOLS:-2}"
 EXPECT_NEAR_ME_TOOLS="${EXPECT_NEAR_ME_TOOLS:-6}"
 EXPECT_C360_SALES_PACKET="${EXPECT_C360_SALES_PACKET:-1}"
 C360_SALES_PACKET_SMOKE_COMPANY_ID="${C360_SALES_PACKET_SMOKE_COMPANY_ID:-9003704457}"
@@ -252,7 +252,7 @@ expected_servers = {
         "build_daily_nurture_reminder",
     ],
     "luma_nurtureany": ["list_luma_events", "get_luma_event_match_keys", "get_luma_event_context"],
-    "public_research_nurtureany": ["research_public_company_signals"],
+    "public_research_nurtureany": ["research_public_company_signals", "find_brand_parent_candidates"],
     "lusha_nurtureany": ["search_lusha_decision_maker_candidates", "reveal_lusha_contact_details", "get_lusha_credit_usage"],
     "exa_nurtureany": ["search_exa_people_candidates"],
     "near_me_nurtureany": [

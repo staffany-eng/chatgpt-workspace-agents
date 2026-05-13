@@ -16,13 +16,13 @@ metadata:
 
 Use this skill when the input is a named NurtureAny target account or scoped HubSpot company and the goal is to turn recent public signals into outreach.
 
-NurtureAny-specific rule: HubSpot scope comes first. On Slack, a first request that needs HubSpot, Tavily/public research, Slack lookup, or any other app-backed source must use the NurtureAny run gate before tools. After `run`, resolve the account from the caller's allowed HubSpot scope, then call the approved public-research path. Do not research arbitrary company-name-only inputs outside the caller's NurtureAny scope.
+NurtureAny-specific rule: HubSpot scope comes first. On Slack, a first request that needs HubSpot, Tavily/public research, Slack lookup, or any other app-backed source must use the NurtureAny run gate before tools. After `run`, resolve the account from the caller's allowed HubSpot scope, then call the approved public-research path. If a brand/outlet name does not resolve as a scoped HubSpot target account, run the brand-parent identity fallback before blocking: use `find_brand_parent_candidates` only to discover possible parent/group names, then re-query scoped HubSpot target accounts with those candidates. Continue public news research only when the parent/group resolves inside caller scope. Do not research arbitrary company-name-only inputs outside the caller's NurtureAny scope.
 
 First Slack response format must be the standard NurtureAny five-line preflight only:
 
 ```text
 Interpreted question: <target-account news request>
-Plan: I will resolve <account> against your scoped HubSpot target accounts, then use target-account-news-scout and approved public research to find recent public signals and draft a manual-review <channel> opener.
+Plan: I will resolve <account> against your scoped HubSpot target accounts, use a brand-parent fallback if the brand name is not found, then use target-account-news-scout and approved public research to find recent public signals and draft a manual-review <channel> opener.
 Estimate: 2-3 min
 Caveat: Public news is an outreach angle only; it does not override HubSpot account truth and no outreach will be sent.
 Reply "run" to start, or tell me what to change.
@@ -59,7 +59,7 @@ The ideal input bundle is:
 - `persona` such as `CEO`, `HR`, or `decision-maker`
 - `channel` such as `whatsapp`, `email`, or `linkedin-message`
 
-If only the account name is provided in Slack, first resolve it against the caller's scoped HubSpot target accounts after `run`. If multiple scoped companies match, stop and ask the user to pick a company ID. If no scoped HubSpot company matches, return `Confidence: blocked` instead of doing broad web research.
+If only the account name is provided in Slack, first resolve it against the caller's scoped HubSpot target accounts after `run`. If multiple scoped companies match, stop and ask the user to pick a company ID. If no scoped HubSpot company matches, run `find_brand_parent_candidates` for parent/group identity evidence, then re-query scoped HubSpot target accounts with each returned `suggested_hubspot_queries` value. If exactly one parent/group target account resolves, proceed using that scoped account and say the brand was resolved through parent/group evidence. If candidates are ambiguous, ask the user to pick a scoped company ID. If no parent/group candidate resolves inside scope, return `Confidence: blocked` instead of doing broad news research.
 
 ## Workflow
 
@@ -68,6 +68,7 @@ If only the account name is provided in Slack, first resolve it against the call
 - Use NurtureAny account scope before public research.
 - Confirm the official website/domain from HubSpot when available.
 - Use industry, geography, and domain as tie-breakers.
+- For brand/outlet names, do not stop after one account-name miss. Try parent/group identity lookup (`find_brand_parent_candidates`), then re-query HubSpot with returned parent/group candidate names. Example: `Eat 3 Bowls` may resolve through `The Better Kompany Pte Ltd` when the brand itself is not Jeff's scoped target account.
 - If the account cannot be resolved confidently inside caller scope, stop and say so.
 
 ### 2. Search Public Signals
@@ -129,4 +130,5 @@ Use the markdown output in [references/output-contract.md](references/output-con
 - If no credible recent news is found, say that clearly and provide a softer fallback angle.
 - If sources conflict, note the conflict and prefer the official source.
 - If the company name is ambiguous inside caller scope, stop after identity resolution and ask for the scoped company ID.
+- If brand-parent identity lookup finds parent/group names but none are scoped HubSpot target accounts for the caller/owner, stop with `Confidence: blocked`; do not continue to news research from the unscoped brand.
 - If public research credentials or tooling are unavailable, return `Confidence: blocked` with the failing prerequisite.

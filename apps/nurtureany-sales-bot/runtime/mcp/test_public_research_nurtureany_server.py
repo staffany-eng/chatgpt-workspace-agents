@@ -56,6 +56,48 @@ class PublicResearchNurtureAnyServerTest(unittest.TestCase):
         self.assertIn("requires scoped HubSpot company inputs", result["answer"])
         self.assertEqual(result["cost_report"]["actual_cost_usd"], 0)
 
+    def test_brand_parent_lookup_allows_identity_search_before_hubspot_rescope(self):
+        calls = []
+
+        def fake_request(endpoint, token, body):
+            calls.append((endpoint, body))
+            self.assertEqual(endpoint, "/search")
+            return {
+                "results": [
+                    {
+                        "title": "Supply Chain Administrator | The Better Kompany Pte Ltd",
+                        "url": "https://sg.jobstreet.com/job/87884312",
+                        "content": "The Better Kompany is a fast-growing F&B group behind brands including Eat 3 Bowls and Super Sushi.",
+                        "score": 0.9,
+                    },
+                    {
+                        "title": "e2i Job Listing",
+                        "url": "https://event.e2i.com.sg/job-detail/8520/1288",
+                        "content": "Company Name | The Better Kompany. F&B Crew (Eat 3 Bowls Kiosk).",
+                        "score": 0.8,
+                    },
+                ]
+            }
+
+        with patch.dict(os.environ, {"TAVILY_API_KEY": "test-key"}), patch.object(
+            self.research_module, "_request_json", side_effect=fake_request
+        ):
+            result = self.module.find_brand_parent_candidates(
+                "jeffrey@staffany.com",
+                "Eat 3 Bowl",
+                country="Singapore",
+                max_results_per_query=5,
+            )
+
+        self.assertEqual(result["confidence"], "needs-check")
+        self.assertFalse(result["will_mutate_hubspot"])
+        self.assertTrue(all(endpoint == "/search" for endpoint, _body in calls))
+        candidates = result["answer"]["parent_candidates"]
+        self.assertTrue(candidates)
+        self.assertIn("Better Kompany", " ".join(candidates[0]["suggested_hubspot_queries"]))
+        self.assertIn("Re-query", result["answer"]["hubspot_next_step"])
+        self.assertIn("HubSpot", result["scope"]["safety"])
+
     def test_dict_wrapped_companies_do_not_crash_before_key_check(self):
         with patch.dict(os.environ, {}, clear=True), patch.object(
             self.research_module, "_request_json", side_effect=AssertionError("should not call Tavily")

@@ -190,6 +190,21 @@ Expected behavior:
 - Returns a short manual-review WhatsApp draft with source links, `cost_report`, `will_mutate_hubspot=false`, source, scope, confidence, and caveat.
 - Does not scrape LinkedIn/Instagram/TikTok/Facebook/Google Maps/gated pages, expose unnecessary PII, mutate HubSpot, or send the message.
 
+Prompt:
+
+```text
+@NurtureAny help me scout any news for Eat 3 Bowl Singapore?
+```
+
+Expected behavior:
+
+- First response is plan-only.
+- After `run`, direct scoped HubSpot lookup for `Eat 3 Bowl` runs first.
+- If the brand/outlet name is not a scoped target account, calls `find_brand_parent_candidates` for identity evidence only.
+- Re-queries scoped HubSpot target accounts with parent/group candidates such as `The Better Kompany Pte Ltd` and `Better Kompany`.
+- If `The Better Kompany Pte Ltd (Super Sushi)` resolves as Jeff's scoped target account, public news research uses that scoped HubSpot company identity and the answer says the brand was resolved through parent/group evidence.
+- Does not research or draft from unscoped `Eat 3 Bowls` records.
+
 ## Campaign Social Effectiveness Style
 
 Prompt:

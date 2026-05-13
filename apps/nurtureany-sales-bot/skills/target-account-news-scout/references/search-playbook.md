@@ -11,6 +11,18 @@ Use this file when the agent needs query patterns, source priorities, and releva
 
 HubSpot remains the account-scope source of truth. Public sources provide outreach angles only; they do not override HubSpot ownership, target-account membership, current tools, contact coverage, renewal timing, follow-up activity, or customer/prospect status.
 
+## Brand Or Outlet Name Fallback
+
+If the supplied name looks like a brand, outlet, restaurant, or kiosk and direct scoped HubSpot target-account search returns no match, run identity lookup before blocking:
+
+1. Call `find_brand_parent_candidates` with the supplied brand/outlet name and country.
+2. Treat its output as parent/group candidates only, not as account scope and not as an outreach signal.
+3. Re-query scoped HubSpot target accounts with each returned `suggested_hubspot_queries` value.
+4. Continue news research only after exactly one parent/group candidate resolves to a scoped HubSpot target account.
+5. If none resolve, block with `Confidence: blocked`. If multiple resolve, ask the user to pick a scoped company ID.
+
+Regression example: `Eat 3 Bowls` can resolve through public parent/group evidence to `The Better Kompany Pte Ltd`, then to Jeff's scoped HubSpot target account `The Better Kompany Pte Ltd (Super Sushi)`.
+
 ## Base Queries
 
 Start with the smallest set that can identify the right company:

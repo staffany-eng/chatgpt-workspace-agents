@@ -15,7 +15,9 @@ from mcp.server.fastmcp import FastMCP
 from nurtureany_common.public_research import MAX_RESEARCH_COMPANIES
 from nurtureany_common.public_research import SCOPE_SOURCE
 from nurtureany_common.public_research import TavilyError
+from nurtureany_common.public_research import brand_parent_lookup_cost_report
 from nurtureany_common.public_research import clean_company_input
+from nurtureany_common.public_research import find_brand_parent_candidates as _find_brand_parent_candidates
 from nurtureany_common.public_research import company_input_items
 from nurtureany_common.public_research import research_cost_report
 from nurtureany_common.public_research import research_public_company_signals as _research_public_company_signals
@@ -50,6 +52,19 @@ def _scope(slack_user_email: str, companies: Any, research_mode: str) -> dict[st
     }
 
 
+def _brand_scope(slack_user_email: str, brand_name: str, country: str) -> dict[str, Any]:
+    return {
+        "caller_email": (slack_user_email or "").strip().lower(),
+        "brand_name": str(brand_name or "").strip(),
+        "country": str(country or "Singapore").strip() or "Singapore",
+        "scope_source": "brand_parent_identity_lookup",
+        "safety": (
+            "Brand-parent lookup is identity resolution only. "
+            "The bot must re-query scoped HubSpot target accounts before public news research."
+        ),
+    }
+
+
 def _blocked(message: str, scope: dict[str, Any], mode: str) -> dict[str, Any]:
     return blocked_response(
         message,
@@ -59,6 +74,19 @@ def _blocked(message: str, scope: dict[str, Any], mode: str) -> dict[str, Any]:
         company_signals=[],
         source_evidence=[],
         game_plan_inputs=[],
+        manual_check_items=[],
+        missing_evidence=[message],
+        will_mutate_hubspot=False,
+    )
+
+
+def _brand_blocked(message: str, scope: dict[str, Any], query_count: int = 0) -> dict[str, Any]:
+    return blocked_response(
+        message,
+        "Tavily brand-parent identity lookup",
+        scope,
+        cost_report=brand_parent_lookup_cost_report(scope.get("brand_name", ""), scope.get("country", "Singapore"), query_count, message),
+        source_evidence=[],
         manual_check_items=[],
         missing_evidence=[message],
         will_mutate_hubspot=False,
@@ -108,6 +136,43 @@ def research_public_company_signals(
         "requested_company_count": len(company_items),
         "returned_company_count": len(result.get("answer", [])),
         "truncated": len(company_items) > MAX_RESEARCH_COMPANIES,
+    }
+
+
+@mcp.tool()
+def find_brand_parent_candidates(
+    slack_user_email: str,
+    brand_name: str,
+    country: str = "Singapore",
+    max_results_per_query: int | None = None,
+) -> dict[str, Any]:
+    """Find public parent/group names for an unresolved brand before HubSpot re-query.
+
+    This tool is identity lookup only. It does not make the brand scoped and does
+    not authorize public news research. Re-query HubSpot target accounts with
+    the returned parent/group candidates before continuing.
+    """
+
+    scope = _brand_scope(slack_user_email, brand_name, country)
+    cleaned_brand = str(brand_name or "").strip()
+    if not cleaned_brand:
+        return _brand_blocked("brand_name is required for brand-parent identity lookup.", scope)
+
+    try:
+        token = _token()
+    except TavilyError as error:
+        return _brand_blocked(str(error), scope)
+
+    try:
+        result = _find_brand_parent_candidates(cleaned_brand, token, country, max_results_per_query)
+    except TavilyError as error:
+        return _brand_blocked(str(error), scope)
+
+    return {
+        **result,
+        "source": "Tavily Search public brand-parent identity lookup",
+        "scope": scope,
+        "will_mutate_hubspot": False,
     }
 
 

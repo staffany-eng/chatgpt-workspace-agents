@@ -27,6 +27,8 @@ TAVILY_USER_AGENT = "StaffAny-NurtureAny/1.0 public-company-research"
 TAVILY_TIMEOUT_SECONDS = 20
 SCOPE_SOURCE = "hubspot_nurtureany"
 MAX_RESEARCH_COMPANIES = 5
+MAX_BRAND_PARENT_SEARCH_RESULTS = 5
+MAX_BRAND_PARENT_CANDIDATES = 5
 PUBLIC_EVIDENCE_ITEM_LIMIT = 20
 PUBLIC_FETCH_TIMEOUT_SECONDS = 5
 PUBLIC_FETCH_MAX_BYTES = 30_000
@@ -261,6 +263,130 @@ def company_queries(company: dict[str, str], mode: str) -> list[str]:
     return [re.sub(r"\s+", " ", query).strip() for query in base if query.strip()][: MODE_CONFIGS[_research_mode(mode)]["query_count"]]
 
 
+def brand_parent_queries(brand_name: str, country: str) -> list[str]:
+    brand = _short_text(str(brand_name or "").strip(), 120)
+    market = _short_text(str(country or "Singapore").strip(), 80) or "Singapore"
+    base = [
+        f'"{brand}" "{market}" owner group parent company',
+        f'"{brand}" "{market}" "our brands"',
+        f'"{brand}" "{market}" "behind" "brand"',
+        f'"{brand}" "{market}" "Company Name"',
+    ]
+    return [re.sub(r"\s+", " ", query).strip() for query in base if brand and query.strip()]
+
+
+def brand_parent_lookup_cost_report(brand_name: str, country: str, query_count: int, caveat: str = "") -> dict[str, Any]:
+    by_lookup = [
+        {
+            "input_brand": _short_text(str(brand_name or "").strip(), 120),
+            "country": _short_text(str(country or "Singapore").strip(), 80) or "Singapore",
+            "search_request_count": query_count,
+            "extract_url_count": 0,
+            "estimated_credits": query_count,
+            "credit_cap_for_mode": query_count,
+        }
+    ] if query_count else []
+    return research_cost_report(
+        by_lookup,
+        caveat or "Estimated from Tavily Search credit rules; no Tavily Extract call is used for brand-parent identity lookup.",
+        "light",
+    )
+
+
+def find_brand_parent_candidates(
+    brand_name: str,
+    token: str,
+    country: str = "Singapore",
+    max_results_per_query: int | None = None,
+) -> dict[str, Any]:
+    """Find public parent/group name candidates for an unresolved brand.
+
+    This is an identity-resolution helper only. It does not produce outreach
+    research and does not grant account scope. Callers must re-query HubSpot
+    with the returned parent/group names and continue only after a scoped
+    target account is found.
+    """
+
+    brand = _short_text(str(brand_name or "").strip(), 120)
+    market = _short_text(str(country or "Singapore").strip(), 80) or "Singapore"
+    queries = brand_parent_queries(brand, market)
+    source_evidence: list[dict[str, Any]] = []
+    candidate_by_key: dict[str, dict[str, Any]] = {}
+
+    for query in queries:
+        response = _request_json("/search", token, search_payload(query, "light", max_results_per_query or MAX_BRAND_PARENT_SEARCH_RESULTS))
+        for raw_result in response.get("results") or []:
+            result = _normalize_brand_parent_search_result(raw_result, query)
+            if not _brand_mentioned(result, brand):
+                continue
+            source_evidence.append(result)
+            for candidate in _parent_candidates_from_result(result, brand):
+                key = _parent_candidate_key(candidate)
+                if not key:
+                    continue
+                item = candidate_by_key.setdefault(
+                    key,
+                    {
+                        "name": candidate,
+                        "confidence": "needs-check",
+                        "suggested_hubspot_queries": _suggested_parent_queries(candidate),
+                        "evidence": [],
+                    },
+                )
+                if len(item["evidence"]) < 3:
+                    item["evidence"].append(
+                        {
+                            "source_url": result["source_url"],
+                            "title": result["title"],
+                            "snippet": result["snippet"],
+                            "query": result["query"],
+                            "source_type": result["source_type"],
+                        }
+                    )
+
+    candidates = sorted(
+        candidate_by_key.values(),
+        key=lambda item: (-len(item["evidence"]), _normalize_relevance_text(item["name"])),
+    )[:MAX_BRAND_PARENT_CANDIDATES]
+    missing_evidence = [] if candidates else [f"No public parent/group candidate found for {brand} in {market}."]
+    return {
+        "answer": {
+            "brand_name": brand,
+            "country": market,
+            "parent_candidates": candidates,
+            "candidate_count": len(candidates),
+            "hubspot_next_step": (
+                "Re-query the caller's scoped HubSpot target accounts with each suggested_hubspot_queries value. "
+                "Continue public news research only after one candidate resolves to a scoped target account."
+            ),
+        },
+        "source_evidence": source_evidence[:PUBLIC_EVIDENCE_ITEM_LIMIT],
+        "manual_check_items": [
+            {
+                "source_type": item["source_type"],
+                "source_url": item["source_url"],
+                "title": item["title"],
+                "reason": "Brand-parent identity evidence; verify against scoped HubSpot before outreach research.",
+            }
+            for item in source_evidence[:10]
+            if item["source_type"] not in FETCHABLE_PUBLIC_SOURCE_TYPES
+        ],
+        "missing_evidence": missing_evidence,
+        "cost_report": brand_parent_lookup_cost_report(
+            brand,
+            market,
+            len(queries),
+            "Estimated from Tavily Search credit rules; no Tavily Extract call is used for brand-parent identity lookup.",
+        ),
+        "confidence": "needs-check" if candidates else "blocked",
+        "caveat": (
+            "Brand-parent lookup is identity resolution only. Public evidence does not override HubSpot; "
+            "HubSpot target-account scope must be re-checked before news research or drafting."
+        ),
+        "will_mutate_hubspot": False,
+    }
+
+
 def research_public_company_signals(
     companies: Any,
     token: str,
@@ -401,6 +527,141 @@ def _normalize_search_result(result: dict[str, Any], company: dict[str, str], qu
     normalized["company_relevance"] = relevance
     normalized["relevance_reason"] = reason
     return normalized
+
+
+def _normalize_brand_parent_search_result(result: dict[str, Any], query: str) -> dict[str, Any]:
+    source_url = str(result.get("url") or "").strip()
+    return {
+        "source_url": source_url,
+        "source_type": source_type_for_url(source_url, ""),
+        "title": _short_text(str(result.get("title") or ""), 180),
+        "snippet": _short_text(str(result.get("content") or result.get("snippet") or result.get("description") or ""), SNIPPET_CHAR_LIMIT),
+        "query": query,
+        "tavily_score": result.get("score"),
+        "requires_manual_review": source_type_for_url(source_url, "") not in FETCHABLE_PUBLIC_SOURCE_TYPES or _is_manual_only_host(source_url),
+    }
+
+
+def _brand_mentioned(result: dict[str, Any], brand_name: str) -> bool:
+    brand_text = _normalize_relevance_text(brand_name)
+    if not brand_text:
+        return False
+    haystack = _normalize_relevance_text(
+        " ".join(
+            str(part or "")
+            for part in [
+                result.get("title"),
+                result.get("snippet"),
+                result.get("source_url"),
+            ]
+        )
+    )
+    if brand_text in haystack:
+        return True
+    brand_tokens = _company_name_tokens(brand_name)
+    matched = [token for token in brand_tokens if token in haystack]
+    return len(matched) >= min(2, len(brand_tokens)) if brand_tokens else False
+
+
+_PARENT_ENTITY_RE = r"[A-Z0-9][A-Za-z0-9&'().,/ -]{2,100}?(?:Pte\.?\s*Ltd\.?|Private\s+Limited|Sdn\.?\s*Bhd\.?|Group|Holdings?|Kompany|Company)"
+
+
+def _parent_candidates_from_result(result: dict[str, Any], brand_name: str) -> list[str]:
+    title = str(result.get("title") or "")
+    snippet = str(result.get("snippet") or "")
+    text = html.unescape(f"{title}. {snippet}")
+    brand_pattern = re.escape(str(brand_name or "").strip())
+    candidates: list[str] = []
+
+    company_label = re.search(r"(?:Company|Employer|Hiring\s+company)\s*[:|]\s*(?P<name>[^|.\n]{2,110})", text, flags=re.I)
+    if company_label:
+        _append_candidate(candidates, company_label.group("name"))
+
+    patterns = [
+        rf"(?P<name>{_PARENT_ENTITY_RE})[^.\n]{{0,180}}(?:our\s+brands?|brands?\s*(?:include|including|like|behind)|behind)[^.\n]{{0,180}}{brand_pattern}",
+        rf"{brand_pattern}[^.\n]{{0,180}}(?:owned\s+by|under|part\s+of|from|by|behind)[^.\n]{{0,40}}(?P<name>{_PARENT_ENTITY_RE})",
+        rf"(?P<name>{_PARENT_ENTITY_RE})[^.\n]{{0,180}}(?:team\s+behind|behind\s+one|behind\s+some)[^.\n]{{0,180}}{brand_pattern}",
+    ]
+    for pattern in patterns:
+        for match in re.finditer(pattern, text, flags=re.I):
+            _append_candidate(candidates, match.group("name"))
+
+    normalized_text = _normalize_relevance_text(text)
+    if "brand" in normalized_text and _brand_mentioned(result, brand_name):
+        title_head = re.split(r"\s+[|-]\s+", title, maxsplit=1)[0]
+        if re.search(_PARENT_ENTITY_RE, title_head, flags=re.I):
+            _append_candidate(candidates, title_head)
+        host_candidate = _candidate_from_host(result.get("source_url", ""))
+        if host_candidate:
+            _append_candidate(candidates, host_candidate)
+
+    return candidates[:MAX_BRAND_PARENT_CANDIDATES]
+
+
+def _append_candidate(candidates: list[str], value: str) -> None:
+    candidate = _clean_parent_candidate(value)
+    if not candidate:
+        return
+    key = _parent_candidate_key(candidate)
+    if key and all(_parent_candidate_key(existing) != key for existing in candidates):
+        candidates.append(candidate)
+
+
+def _clean_parent_candidate(value: str) -> str:
+    text = html.unescape(str(value or ""))
+    text = re.sub(r"\s+", " ", text)
+    text = re.sub(r"^(?:Company|Employer|Hiring company)\s*[:|]\s*", "", text, flags=re.I)
+    text = text.strip(" -:|,.;")
+    text = re.sub(r"\s+(?:in|at)\s+\d{3,}.*$", "", text, flags=re.I)
+    text = re.sub(r"\s+-\s+.*$", "", text)
+    text = re.sub(r"\s+\|\s+.*$", "", text)
+    if not text or len(text) < 3:
+        return ""
+    return _short_text(text, 120)
+
+
+def _candidate_from_host(url: str) -> str:
+    host = _host(url)
+    if not host:
+        return ""
+    stem = host.split(".")[0]
+    if stem.startswith("www"):
+        parts = host.split(".")
+        stem = parts[1] if len(parts) > 1 else stem
+    if not stem or stem in {"facebook", "linkedin", "instagram", "tiktok", "google"}:
+        return ""
+    spaced = re.sub(r"(?i)^the", "The ", stem)
+    spaced = re.sub(r"(?i)(kompany|company|group|holdings?)$", r" \1", spaced)
+    spaced = re.sub(r"[-_]+", " ", spaced)
+    if len(spaced.split()) == 1 and len(spaced) > 14:
+        return ""
+    return " ".join(part.capitalize() if part.lower() not in {"pte", "ltd"} else part.upper() for part in spaced.split())
+
+
+def _parent_candidate_key(value: str) -> str:
+    text = _normalize_relevance_text(value)
+    text = re.sub(r"\b(?:pte|ltd|private|limited|sdn|bhd|company|co)\b", " ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text.replace(" ", "")
+
+
+def _suggested_parent_queries(candidate: str) -> list[str]:
+    cleaned = _clean_parent_candidate(candidate)
+    if not cleaned:
+        return []
+    variants = [cleaned]
+    without_legal = re.sub(
+        r"\b(?:pte\.?\s*ltd\.?|private\s+limited|sdn\.?\s*bhd\.?|ltd\.?|limited)\b\.?",
+        "",
+        cleaned,
+        flags=re.I,
+    )
+    without_legal = re.sub(r"\s+", " ", without_legal).strip(" -:|,.;")
+    without_leading_the = re.sub(r"^the\s+", "", without_legal, flags=re.I).strip()
+    for variant in [without_legal, without_leading_the]:
+        if variant and all(_normalize_relevance_text(variant) != _normalize_relevance_text(existing) for existing in variants):
+            variants.append(variant)
+    return variants[:3]
 
 
 def _dedupe_results(results: list[dict[str, Any]]) -> list[dict[str, Any]]:

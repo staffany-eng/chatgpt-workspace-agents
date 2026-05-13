@@ -70,7 +70,8 @@ NurtureAny needs deterministic runtime checks because prompt correctness does no
 - Luma guest-context smoke check requires scoped HubSpot company IDs, caps guest reads, returns `has_more`/`truncated`, treats attendance as `checked_in_at` present, and does not expose raw attendee exports, phone numbers, full emails, registration answers, or mutation tools.
 - Exa MCP lists only `search_exa_people_candidates` when Exa is enabled.
 - Exa smoke check returns `cost_report`, requires scoped HubSpot company IDs, uses `category: "people"`, and does not fetch profile contents or expose email/phone.
-- Public research MCP lists only `research_public_company_signals` when Tavily is enabled.
+- Public research MCP lists only `research_public_company_signals` and `find_brand_parent_candidates` when Tavily is enabled.
+- Target-account news brand fallback smoke check confirms unresolved brand/outlet names can call `find_brand_parent_candidates`, then must re-query scoped HubSpot target accounts before `research_public_company_signals`; `Eat 3 Bowls` should resolve via `The Better Kompany Pte Ltd` when that parent is in caller scope.
 - Target Account News Scout skill is installed in the live profile and uses scoped HubSpot company identity before public research.
 - Public research smoke blocks missing `TAVILY_API_KEY` before HTTP, requires scoped HubSpot company IDs, returns `cost_report`, and never mutates HubSpot.
 - Lusha MCP lists only `search_lusha_decision_maker_candidates`, `reveal_lusha_contact_details`, and `get_lusha_credit_usage` when Lusha is enabled.

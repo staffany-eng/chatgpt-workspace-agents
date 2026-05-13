@@ -253,6 +253,23 @@ Expected behavior:
 - Returns a short manual-review WhatsApp draft with source links, `cost_report`, `will_mutate_hubspot=false`, source, scope, confidence, and caveat.
 - Does not scrape LinkedIn/Instagram/TikTok/Facebook/Google Maps/gated pages, expose unnecessary PII, mutate HubSpot, or send the message.
 
+Prompt:
+
+```text
+@NurtureAny help me scout any news for Eat 3 Bowl Singapore?
+```
+
+Expected behavior:
+
+- First Slack response is plan-only because HubSpot scope and public research are app-backed.
+- After `run`, tries direct scoped HubSpot target-account lookup for `Eat 3 Bowl`.
+- If direct lookup does not return a scoped target account, calls `find_brand_parent_candidates` for parent/group identity evidence only.
+- Re-queries scoped HubSpot target accounts with returned parent/group candidates such as `The Better Kompany Pte Ltd` / `Better Kompany`.
+- If `The Better Kompany Pte Ltd (Super Sushi)` resolves as Jeff's scoped target account, continues public research using that scoped HubSpot company identity.
+- Says the brand was resolved through parent/group evidence.
+- Does not continue news research from unscoped `Eat 3 Bowls` customer/non-target records.
+- If no parent/group candidate resolves inside scope, returns `Confidence: blocked`.
+
 ## Sales Follow-Up Task Read Signal
 
 Prompt:

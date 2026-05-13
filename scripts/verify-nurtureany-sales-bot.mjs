@@ -198,6 +198,7 @@ if (!existsSync(manifestPath)) {
       "build_near_me_c360_customer_query",
       "prepare_near_me_seed_review_candidates",
       "merge_near_me_sources",
+      "find_brand_parent_candidates",
       "search_exa_people_candidates",
       "search_lusha_decision_maker_candidates",
       "get_lusha_credit_usage"
@@ -282,6 +283,12 @@ if (!existsSync(manifestPath)) {
     }
     if (!manifest.public_research?.allowed_tools?.includes("research_public_company_signals")) {
       fail("Manifest public_research missing research_public_company_signals");
+    }
+    if (!manifest.public_research?.allowed_tools?.includes("find_brand_parent_candidates")) {
+      fail("Manifest public_research missing find_brand_parent_candidates");
+    }
+    if (manifest.public_research?.brand_parent_identity_lookup_requires_hubspot_rescope !== true) {
+      fail("Manifest public_research brand parent lookup must require HubSpot rescope");
     }
     if (manifest.photo_matching?.drive_folder_id !== "1qXlFnr5TKFtsYNWk7ZywBBctDaae3RY-") {
       fail("Manifest photo_matching drive_folder_id must be the all-random folder");
@@ -715,6 +722,7 @@ for (const text of [
   "TAVILY_API_KEY",
   "runtime/mcp/public_research_nurtureany_server.py",
   "research_public_company_signals",
+  "find_brand_parent_candidates",
   "tavily_research_api: false",
   "exa_nurtureany",
   "EXA_API_KEY",
@@ -1097,6 +1105,7 @@ const publicResearchText = textOf("runtime/public-research.md");
 for (const text of [
   "TAVILY_API_KEY",
   "research_public_company_signals",
+  "find_brand_parent_candidates",
   "POST /search",
   "POST /extract",
   "POST /research",
@@ -1106,6 +1115,7 @@ for (const text of [
   "cost_report",
   "will_mutate_hubspot=false",
   "scope_source=hubspot_nurtureany",
+  "identity-resolution fallback",
   "manual-check only",
   "recommended_next_tool=search_exa_people_candidates"
 ]) {
@@ -1117,6 +1127,7 @@ for (const text of [
   "TAVILY_API_KEY",
   "MAX_RESEARCH_COMPANIES",
   "research_public_company_signals",
+  "find_brand_parent_candidates",
   "Tavily public company research",
   "scoped HubSpot",
   "cost_report",
@@ -1130,8 +1141,10 @@ const publicResearchCommonText = textOf("runtime/mcp/nurtureany_common/public_re
 for (const text of [
   "TAVILY_BASE_URL = \"https://api.tavily.com\"",
   "MAX_RESEARCH_COMPANIES = 5",
+  "MAX_BRAND_PARENT_CANDIDATES = 5",
   "MODE_CONFIGS",
   "research_public_company_signals",
+  "find_brand_parent_candidates",
   "company_signals",
   "source_evidence",
   "game_plan_inputs",
@@ -1507,7 +1520,7 @@ for (const text of [
   "EXPECT_GOOGLE_DRIVE_TOOLS=\"${EXPECT_GOOGLE_DRIVE_TOOLS:-5}\"",
   "EXPECT_EAZYBE_TOOLS=\"${EXPECT_EAZYBE_TOOLS:-4}\"",
   "EXPECT_LUMA_TOOLS=\"${EXPECT_LUMA_TOOLS:-3}\"",
-  "EXPECT_PUBLIC_RESEARCH_TOOLS=\"${EXPECT_PUBLIC_RESEARCH_TOOLS:-1}\"",
+  "EXPECT_PUBLIC_RESEARCH_TOOLS=\"${EXPECT_PUBLIC_RESEARCH_TOOLS:-2}\"",
   "EXPECT_NEAR_ME_TOOLS=\"${EXPECT_NEAR_ME_TOOLS:-6}\"",
   "EXPECT_C360_SALES_PACKET=\"${EXPECT_C360_SALES_PACKET:-1}\"",
   "C360_SALES_PACKET_SMOKE_COMPANY_ID=\"${C360_SALES_PACKET_SMOKE_COMPANY_ID:-9003704457}\"",

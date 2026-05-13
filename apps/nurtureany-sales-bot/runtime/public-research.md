@@ -17,6 +17,7 @@ The stdio MCP adapter lives at `runtime/mcp/public_research_nurtureany_server.py
 It exposes only:
 
 - `research_public_company_signals`
+- `find_brand_parent_candidates`
 
 The shared engine lives at `runtime/mcp/nurtureany_common/public_research.py` so HubSpot evidence review and pre-demo game plans can reuse the same URL policy, source classification, signal extraction, snippet caps, and cost reporting.
 
@@ -32,6 +33,16 @@ The shared engine lives at `runtime/mcp/nurtureany_common/public_research.py` so
 - Accepts up to 5 companies per call.
 - Returns `company_signals`, `source_evidence`, `game_plan_inputs`, `manual_check_items`, `missing_evidence`, `cost_report`, `confidence`, `caveat`, and `will_mutate_hubspot=false`.
 - May return `recommended_next_tool=search_exa_people_candidates` when public evidence lacks decision-maker hints.
+
+`find_brand_parent_candidates`:
+
+- Calls Tavily `POST /search` only.
+- Is allowed only as an identity-resolution fallback after a brand/outlet name failed direct scoped HubSpot target-account lookup.
+- Accepts `brand_name`, `country`, and caller email; it does not accept private HubSpot rows, contacts, notes, tasks, Slack transcripts, or PII.
+- Returns possible parent/group names, source evidence, `suggested_hubspot_queries`, `cost_report`, and `will_mutate_hubspot=false`.
+- Does not grant scope and does not produce outreach research. The agent must re-query scoped HubSpot target accounts with returned parent/group candidates before calling `research_public_company_signals`.
+- If no returned parent/group candidate resolves to a scoped HubSpot target account, the target-account news flow must stop with `Confidence: blocked`.
+- Regression example: `Eat 3 Bowls` can resolve through parent/group evidence to `The Better Kompany Pte Ltd`, then to Jeff's scoped HubSpot target account `The Better Kompany Pte Ltd (Super Sushi)`.
 
 Never send private HubSpot notes, task bodies, contact emails, phone numbers, Slack transcripts, raw CRM rows, or unscoped enrichment dumps to Tavily.
 

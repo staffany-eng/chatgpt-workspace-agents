@@ -232,7 +232,7 @@ mcp_servers:
     - append_hubspot_note
     - update_nurture_fields
   public_research_nurtureany:
-    description: Read-only Tavily public company research for scoped HubSpot companies.
+    description: Read-only Tavily public company research for scoped HubSpot companies, plus brand-parent identity lookup before HubSpot re-query.
     command: /Users/leekaiyi/.hermes/hermes-agent/venv/bin/python
     args:
     - /Users/leekaiyi/workspace/agent builder/apps/nurtureany-sales-bot/runtime/mcp/public_research_nurtureany_server.py
@@ -262,8 +262,13 @@ mcp_servers:
       - POST /extract
       tavily_research_api: false
       note: Tavily Research API disabled in V1.
+      brand_parent_identity_lookup:
+        allowed_before_scoped_company: true
+        purpose: identity_resolution_only
+        next_step: re-query scoped HubSpot target accounts before public news research
     tool_allowlist:
     - research_public_company_signals
+    - find_brand_parent_candidates
   lusha_nurtureany:
     description: Cost-controlled Lusha adapter for selected decision-maker lookup,
       reveal approval, and credit reporting.
