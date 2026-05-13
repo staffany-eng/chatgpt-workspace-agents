@@ -17,6 +17,7 @@ Expected behavior:
 - The first Slack response is plan-only and does not call `audit_priority_account_coverage` or any other business tool.
 - The first response ends with `Reply "run" to start, or tell me what to change.`
 - After same-thread `run`, the bot executes only the confirmed compact account-coverage plan.
+- A top-level `@NurtureAny` mention registers the parent message `ts` as the thread root, so a later plain `run` in that thread wakes the bot without another mention.
 
 ## Quick Intent Auto-Run
 
