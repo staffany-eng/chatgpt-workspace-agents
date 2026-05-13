@@ -15,6 +15,7 @@ THRESHOLD_SECONDS="${NURTUREANY_SLACK_SOCKET_THRESHOLD_SECONDS:-300}"
 COOLDOWN_SECONDS="${NURTUREANY_SLACK_SOCKET_RESTART_COOLDOWN_SECONDS:-300}"
 RESTART_CMD="${NURTUREANY_SLACK_SOCKET_RESTART_CMD:-systemctl --user restart hermes-gateway-$PROFILE.service}"
 DRY_RUN="${NURTUREANY_SLACK_SOCKET_DRY_RUN:-0}"
+LOG_TZ="${NURTUREANY_SLACK_SOCKET_LOG_TZ:-Asia/Singapore}"
 
 fail() {
   printf '%s\n' "$1" >&2
@@ -24,7 +25,7 @@ fail() {
 timestamp_epoch() {
   local raw="$1"
   local normalized="${raw%%,*}"
-  date -d "$normalized" '+%s' 2>/dev/null || date -j -f '%Y-%m-%d %H:%M:%S' "$normalized" '+%s' 2>/dev/null
+  TZ="$LOG_TZ" date -d "$normalized" '+%s' 2>/dev/null || TZ="$LOG_TZ" date -j -f '%Y-%m-%d %H:%M:%S' "$normalized" '+%s' 2>/dev/null
 }
 
 last_matching_timestamp() {

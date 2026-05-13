@@ -672,7 +672,8 @@ def _guest_match_keys(guests: list[dict[str, Any]]) -> dict[str, list[str]]:
 
 
 def _event_is_past(event: dict[str, Any]) -> bool:
-    raw_value = str(event.get("end_at") or event.get("start_at") or "").strip()
+    raw_end_at = str(event.get("end_at") or "").strip()
+    raw_value = raw_end_at or str(event.get("start_at") or "").strip()
     if not raw_value:
         return False
     try:
@@ -681,7 +682,10 @@ def _event_is_past(event: dict[str, Any]) -> bool:
         return False
     if event_dt.tzinfo is None:
         event_dt = event_dt.replace(tzinfo=timezone.utc)
-    return event_dt.astimezone(timezone.utc) < datetime.now(timezone.utc)
+    now = datetime.now(timezone.utc)
+    if raw_end_at:
+        return event_dt.astimezone(timezone.utc) < now
+    return event_dt.astimezone(timezone.utc).date() < now.date()
 
 
 def _name_match(company_name: str, guest_text: str) -> bool:

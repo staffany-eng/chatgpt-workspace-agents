@@ -10,6 +10,7 @@ NurtureAny needs deterministic runtime checks because prompt correctness does no
 - Slack Socket Mode watchdog is installed as no-agent cron and restarts the managed `nurtureanysalesbot` gateway service when the latest stale Socket Mode line is not followed by a fresh session for at least 300 seconds.
 - Cron concurrency is capped with `cron.max_parallel_jobs: 1`.
 - Secret redaction remains enabled.
+- Production dotenv hydration can use Secret Manager secret `projects/1093387803298/secrets/nurtureany-sales-bot-prod-env` in project `staffany-warehouse`; health, doctor, and audit output must verify key presence by name only and must not print values.
 - Model route is pinned to native Anthropic Sonnet: `model.provider=anthropic`, `model.default=claude-sonnet-4-6`.
 - Slack gateway can receive mentions and identify caller email.
 - Slack gateway `SLACK_ALLOWED_USERS` matches the active, resolved Slack users from `NURTUREANY_ACCESS_POLICY_PATH`; policy aliases that do not resolve in Slack are ignored, but missing or extra resolved user IDs fail health.

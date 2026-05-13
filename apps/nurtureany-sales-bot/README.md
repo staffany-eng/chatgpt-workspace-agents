@@ -106,6 +106,36 @@ Slack user email is identity only. Access is granted by explicit NurtureAny poli
 
 The full rep roster is runtime-only through `NURTUREANY_ACCESS_POLICY_PATH`; `runtime/access-policy.template.json` contains fake example reps only. Known Slack or Google email variants must be declared with `alias_for` or top-level `aliases`, then canonicalized before role lookup. Permissions are not inferred from Slack titles, channel membership, display names, or a bare HubSpot owner lookup.
 
+## Runtime Secrets
+
+Production dotenv hydration uses one Secret Manager secret:
+
+```text
+projects/1093387803298/secrets/nurtureany-sales-bot-prod-env
+```
+
+The secret is in project `staffany-warehouse`, uses dotenv format, and is labeled `app=nurtureany-sales-bot`, `env=prod`, `format=dotenv`. It contains NurtureAny runtime keys only; do not copy secret values into this repo.
+
+To grant a teammate access, bind the one secret:
+
+```bash
+gcloud secrets add-iam-policy-binding nurtureany-sales-bot-prod-env \
+  --project=staffany-warehouse \
+  --member='user:TEAMMATE_EMAIL' \
+  --role='roles/secretmanager.secretAccessor'
+```
+
+To hydrate a local Hermes profile from prod secrets:
+
+```bash
+mkdir -p ~/.hermes/profiles/nurtureanysalesbot
+gcloud secrets versions access latest \
+  --project=staffany-warehouse \
+  --secret=nurtureany-sales-bot-prod-env \
+  > ~/.hermes/profiles/nurtureanysalesbot/.env
+chmod 600 ~/.hermes/profiles/nurtureanysalesbot/.env
+```
+
 ## Restore Order
 
 1. Install Hermes and verify `hermes doctor`.
@@ -114,7 +144,7 @@ The full rep roster is runtime-only through `NURTUREANY_ACCESS_POLICY_PATH`; `ru
 4. Use `profile/config.template.yaml` as the non-secret config guide.
 5. Copy `runtime/access-policy.template.json` outside the repo, classify real HubSpot owners there, and set `NURTUREANY_ACCESS_POLICY_PATH`.
 6. Copy `skills/nurtureany-sales-bot/` into the profile skills directory.
-7. Set profile `.env` from Secret Manager values only; do not commit or inline model-provider or Lusha credentials.
+7. Set profile `.env` from Secret Manager only, normally `staffany-warehouse/nurtureany-sales-bot-prod-env`; do not commit or inline model-provider, Slack, HubSpot, Luma, Lusha, Exa, Tavily, BigQuery, Google Places, or C360 credentials.
 8. Configure Slack gateway, HubSpot MCP/API adapter, StaffAny BigQuery MCP, optional near-me adapter with `GOOGLE_PLACES_API_KEY`, `NURTUREANY_KNOWN_AREAS_FILE`, `NURTUREANY_OUTLET_MATCHES_TABLE`, and optional Customer 360 URL template overrides, optional Google Calendar adapter with read-only `team@staffany.com` OAuth files, Google Drive material registry with `NURTUREANY_MATERIAL_REGISTRY_SPREADSHEET_ID`, optional Luma adapter, optional Tavily public research MCP with `TAVILY_API_KEY`, optional Exa MCP with `EXA_API_KEY`, optional Lusha MCP with `LUSHA_API_KEY`, optional Eazybe MCP with `EAZYBE_API_KEY` plus `EAZYBE_BROADCAST_API_URL`, `NURTUREANY_DAILY_RUNS_DIR`, and `NURTUREANY_OPERATION_LEDGER_DIR`.
 9. Run health checks and regression cases before adding sales channels.
 

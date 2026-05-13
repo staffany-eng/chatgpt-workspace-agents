@@ -2,6 +2,10 @@ terminal:
   cwd: ~/agent-builder/apps/nurtureany-sales-bot
 security:
   redact_secrets: true
+# Production dotenv source of truth:
+#   gcloud secrets versions access latest --project=staffany-warehouse --secret=nurtureany-sales-bot-prod-env
+# The secret is dotenv-formatted and must be written only to the live profile
+# .env, never committed into this repo.
 display:
   busy_input_mode: queue
   interim_assistant_messages: false
