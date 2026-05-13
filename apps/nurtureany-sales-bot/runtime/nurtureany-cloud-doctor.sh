@@ -5,6 +5,8 @@ PROFILE="${HERMES_PROFILE:-nurtureanysalesbot}"
 PROFILE_DIR="${HERMES_PROFILE_DIR:-$HOME/.hermes/profiles/$PROFILE}"
 GATEWAY_SERVICE_NAME="${NURTUREANY_GATEWAY_SERVICE_NAME:-hermes-gateway-$PROFILE.service}"
 GATEWAY_LAUNCHD_LABEL="${NURTUREANY_GATEWAY_LAUNCHD_LABEL:-ai.hermes.gateway-$PROFILE}"
+NURTUREANY_DUPLICATE_PROFILE="${NURTUREANY_DUPLICATE_PROFILE:-nae2e}"
+NURTUREANY_DUPLICATE_LAUNCHD_LABEL="${NURTUREANY_DUPLICATE_LAUNCHD_LABEL:-ai.hermes.gateway-$NURTUREANY_DUPLICATE_PROFILE}"
 HERMES_AGENT_DIR="${HERMES_AGENT_DIR:-$HOME/.hermes/hermes-agent}"
 PATH="$HOME/.local/bin:$HERMES_AGENT_DIR:$PATH"
 export PATH
@@ -20,6 +22,25 @@ status_value() {
   else
     printf 'unknown'
   fi
+}
+
+process_commands() {
+  if [ "$(uname -s)" = "Darwin" ]; then
+    ps -axo command= 2>/dev/null || true
+  else
+    ps -eo command= 2>/dev/null || true
+  fi
+}
+
+count_gateway_processes() {
+  local profile="$1"
+  process_commands | awk -v profile="$profile" '
+    index($0, "hermes_cli.main") &&
+    index($0, "--profile " profile " gateway run") {
+      count += 1
+    }
+    END { print count + 0 }
+  '
 }
 
 line "nurtureany-cloud-doctor:profile=$PROFILE"
@@ -59,6 +80,17 @@ if command -v pgrep >/dev/null 2>&1; then
   fi
 else
   line "gateway_pids:pgrep-not-found"
+fi
+
+nurtureany_gateway_count="$(count_gateway_processes "nurtureanysalesbot")"
+duplicate_gateway_count="$(count_gateway_processes "$NURTUREANY_DUPLICATE_PROFILE")"
+line "gateway_duplicate_check:nurtureanysalesbot_processes=$nurtureany_gateway_count:$NURTUREANY_DUPLICATE_PROFILE=$duplicate_gateway_count"
+if [ "$(uname -s)" = "Darwin" ] && command -v launchctl >/dev/null 2>&1; then
+  if launchctl print "gui/$(id -u)/$NURTUREANY_DUPLICATE_LAUNCHD_LABEL" >/dev/null 2>&1; then
+    line "gateway_duplicate_launchd:$NURTUREANY_DUPLICATE_LAUNCHD_LABEL:loaded"
+  else
+    line "gateway_duplicate_launchd:$NURTUREANY_DUPLICATE_LAUNCHD_LABEL:not-loaded"
+  fi
 fi
 
 if command -v hermes >/dev/null 2>&1; then

@@ -24,6 +24,9 @@ C360_SALES_PACKET_SMOKE_COMPANY_ID="${C360_SALES_PACKET_SMOKE_COMPANY_ID:-900370
 C360_SALES_PACKET_SMOKE_COMPANY_NAME="${C360_SALES_PACKET_SMOKE_COMPANY_NAME:-Stripes Australia}"
 GATEWAY_SERVICE_NAME="${NURTUREANY_GATEWAY_SERVICE_NAME:-hermes-gateway-$PROFILE.service}"
 GATEWAY_LAUNCHD_LABEL="${NURTUREANY_GATEWAY_LAUNCHD_LABEL:-ai.hermes.gateway-$PROFILE}"
+EXPECT_SOLE_NURTUREANY_GATEWAY="${EXPECT_SOLE_NURTUREANY_GATEWAY:-1}"
+NURTUREANY_DUPLICATE_PROFILE="${NURTUREANY_DUPLICATE_PROFILE:-nae2e}"
+NURTUREANY_DUPLICATE_LAUNCHD_LABEL="${NURTUREANY_DUPLICATE_LAUNCHD_LABEL:-ai.hermes.gateway-$NURTUREANY_DUPLICATE_PROFILE}"
 
 HERMES_AGENT_DIR="${HERMES_AGENT_DIR:-$HOME/.hermes/hermes-agent}"
 PATH="$HOME/.local/bin:$HERMES_AGENT_DIR:$PATH"
@@ -67,6 +70,49 @@ check_gateway_service() {
       fi
       ;;
   esac
+}
+
+process_commands() {
+  if [ "$(uname -s)" = "Darwin" ]; then
+    ps -axo command= 2>/dev/null || true
+  else
+    ps -eo command= 2>/dev/null || true
+  fi
+}
+
+count_gateway_processes() {
+  local profile="$1"
+  process_commands | awk -v profile="$profile" '
+    index($0, "hermes_cli.main") &&
+    index($0, "--profile " profile " gateway run") {
+      count += 1
+    }
+    END { print count + 0 }
+  '
+}
+
+check_single_nurtureany_gateway() {
+  [ "$EXPECT_SOLE_NURTUREANY_GATEWAY" = "1" ] || return 0
+
+  local duplicate_count
+  duplicate_count="$(count_gateway_processes "$NURTUREANY_DUPLICATE_PROFILE")"
+  if [ "$duplicate_count" -gt 0 ]; then
+    fail "gateway:duplicate-profile-running:$NURTUREANY_DUPLICATE_PROFILE"
+  fi
+
+  if [ "$(uname -s)" = "Darwin" ] && command -v launchctl >/dev/null 2>&1; then
+    if launchctl print "gui/$(id -u)/$NURTUREANY_DUPLICATE_LAUNCHD_LABEL" >/dev/null 2>&1; then
+      fail "gateway:duplicate-launchd-loaded:$NURTUREANY_DUPLICATE_LAUNCHD_LABEL"
+    fi
+  fi
+
+  if [ "$PROFILE" = "nurtureanysalesbot" ]; then
+    local nurtureany_count
+    nurtureany_count="$(count_gateway_processes "nurtureanysalesbot")"
+    if [ "$nurtureany_count" -gt 1 ]; then
+      fail "gateway:multiple-nurtureany-processes:$nurtureany_count"
+    fi
+  fi
 }
 
 file_mode() {
@@ -401,6 +447,7 @@ fi
 
 if [ "$EXPECT_GATEWAY" = "1" ]; then
   check_gateway_service
+  check_single_nurtureany_gateway
 fi
 
 if [ "$EXPECT_MODEL_AUTH" = "1" ]; then
