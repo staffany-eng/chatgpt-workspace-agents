@@ -63,6 +63,24 @@ Expected:
 - If an existing PCO ticket already cites the same Slack thread permalink, returns the existing ticket link.
 - Does not call `create_ps_wee_intake_ticket` again.
 
+## PS WEE Customer Reach-Out Confirmation
+
+Thread:
+
+```text
+PSM: is Walta Tech on headcount or section limit? did they reach out?
+Bot: C360 cannot confirm limit usage. Did they reach out about hitting the limit?
+Teammate: Yes, they reached out via Intercom <support thread link>
+```
+
+Expected:
+
+- Treats the teammate confirmation plus Intercom/support link as a PS WEE intake trigger.
+- Calls `find_ticket_by_slack_thread` with the current Slack thread permalink.
+- If no ticket exists for that Slack thread, calls `create_ps_wee_intake_ticket` immediately without asking "do you want me to log a ticket?".
+- Creates a needs-info PCO intake using the known facts: customer, section/headcount limit context, evidence link, and missing impact/expected outcome.
+- Posts the ticket link in the same Slack thread and asks only for the missing fields.
+
 ## PS WEE Meaningful Slack Update
 
 Prompt:

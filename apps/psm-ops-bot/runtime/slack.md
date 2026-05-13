@@ -13,6 +13,7 @@ The Slack surface is mention-required usage in public/open StaffAny Slack channe
 - Suppress gateway lifecycle notices in the pilot channel with `platforms.slack.gateway_restart_notification=false`.
 - Task creation is preview first. Same-thread `create`, `approve create`, or `create this` approves the previously shown draft.
 - PS WEE ticketing requests are ticket-first. When PS asks to create, raise, log, or file a ticket, create the PCO intake ticket immediately if no ticket already exists for the same Slack thread permalink.
+- A confirmed customer reach-out in a PS WEE/customer-ops thread is ticket-first even if nobody says "create ticket". Examples: "did they reach out?" followed by "yes, via Intercom", a support-thread permalink, an admin screenshot showing a limit hit, or a teammate confirming impact. Create or return the same-thread PCO intake ticket first, then ask for missing details.
 - Post the created or existing ticket link in the same Slack thread, then ask for missing info there.
 - Sync meaningful follow-up discussion as structured internal Jira comments only. Do not sync every Slack reply and do not paste raw Slack transcripts into Jira.
 - Status transitions, internal comments, and reminders may execute directly when the issue key and action are clear.
