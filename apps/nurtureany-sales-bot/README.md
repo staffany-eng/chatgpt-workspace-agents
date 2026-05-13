@@ -52,6 +52,7 @@ T-90 renewal answers must show both buckets: known T-90 accounts where `contract
 | `profile/SOUL.md` | Source-controlled copy of the profile soul prompt. |
 | `profile/config.template.yaml` | Non-secret profile config template and access policy. |
 | `skills/nurtureany-sales-bot/` | Hermes skill and progressive-disclosure references. |
+| `skills/target-account-news-scout/` | Add-on skill for scoped target-account news signals and manual-review outreach drafts. |
 | `runtime/slack.md` | Slack gateway behavior, commands, and run gate. |
 | `runtime/hubspot.md` | HubSpot API contract, fields, and write approval rules. |
 | `runtime/data/case-studies.json` | Approved public StaffAny case-study catalog for pre-demo name-drop matching. |
@@ -83,6 +84,7 @@ NurtureAny helps AEs and sales managers work the HubSpot target-account list:
 - Managers ask for team queues, missing direct contacts, renewal risk, post-demo nurture, overdue nurture work, existing sales follow-up tasks, and event follow-up status.
 - Direct QO count or pace prompts use `build_sales_metric_actuals_query` and StaffAny BigQuery actuals from `fct_sales_points.qo_set`; Friday review stays HubSpot hygiene first and may add warehouse QO actuals as a second source.
 - The bot ranks accounts, identifies enrichment gaps, builds the SG lead-enrichment pre-work plan before WhatsApp nurturing, answers known-area near-me customer/prospect walk-in prompts, adds C360 revenue/calendar/event context when relevant, scans Drive/Slack event photos into a source-pointer people layer, generates free public search tasks, reviews public evidence, runs Tavily public company/job-board research only when explicitly requested, searches Exa for public people candidates when approved, searches Lusha for selected decision-maker candidates when approved, treats Prospeo as a future paid-provider pilot candidate, drafts nurture messages, and previews HubSpot write-backs.
+- The Target Account News Scout skill can turn scoped HubSpot target accounts into recent public-news angles and send-ready manual-review drafts. It must resolve the account inside NurtureAny scope before public research and never auto-sends outreach.
 - The SG lead-enrichment workflow uses `build_singapore_lead_enrichment_plan` for fixed AE account lists or selected SG HubSpot companies. It closes associated-contact, verified decision-maker, champion/influencer, usable-contact, and verified-phone gaps; returns provider-waterfall policy and writeback previews only; optimizes for capped-effective cost per usable AE handoff; treats Truecaller as manual lookup/callability evidence; and does not auto-send WhatsApp.
 - The daily Jeremy pilot uses `build_daily_nurture_plan` at 09:00 Asia/Singapore to select 30 of his protected 150 HubSpot target accounts by deterministic Monday-Friday bucket, expands all decision makers / influencers / champions, matches Sheet/case-study material, and returns Eazybe-template-ready WhatsApp previews.
 - At 12:00 Asia/Singapore, `build_daily_nurture_reminder` tags the configured AE and manager in the configured Slack channel when assigned stakeholder messages are not sent or explicitly skipped.
@@ -143,7 +145,7 @@ chmod 600 ~/.hermes/profiles/nurtureanysalesbot/.env
 3. Copy `profile/SOUL.md` into the profile's `SOUL.md`.
 4. Use `profile/config.template.yaml` as the non-secret config guide.
 5. Copy `runtime/access-policy.template.json` outside the repo, classify real HubSpot owners there, and set `NURTUREANY_ACCESS_POLICY_PATH`.
-6. Copy `skills/nurtureany-sales-bot/` into the profile skills directory.
+6. Copy NurtureAny skill directories under `skills/` into the profile skills directory.
 7. Set profile `.env` from Secret Manager only, normally `staffany-warehouse/nurtureany-sales-bot-prod-env`; do not commit or inline model-provider, Slack, HubSpot, Luma, Lusha, Exa, Tavily, BigQuery, Google Places, or C360 credentials.
 8. Configure Slack gateway, HubSpot MCP/API adapter, StaffAny BigQuery MCP, optional near-me adapter with `GOOGLE_PLACES_API_KEY`, `NURTUREANY_KNOWN_AREAS_FILE`, `NURTUREANY_OUTLET_MATCHES_TABLE`, and optional Customer 360 URL template overrides, optional Google Calendar adapter with read-only `team@staffany.com` OAuth files, Google Drive material registry with `NURTUREANY_MATERIAL_REGISTRY_SPREADSHEET_ID`, optional Luma adapter, optional Tavily public research MCP with `TAVILY_API_KEY`, optional Exa MCP with `EXA_API_KEY`, optional Lusha MCP with `LUSHA_API_KEY`, optional Eazybe MCP with `EAZYBE_API_KEY` plus `EAZYBE_BROADCAST_API_URL`, `NURTUREANY_DAILY_RUNS_DIR`, and `NURTUREANY_OPERATION_LEDGER_DIR`.
 9. Run health checks and regression cases before adding sales channels.

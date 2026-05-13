@@ -43,6 +43,7 @@ need_command python3
 
 cmp -s "$APP_ROOT/profile/SOUL.md" "$PROFILE_DIR/SOUL.md" || fail "profile-drift:soul"
 diff -qr "$APP_ROOT/skills/nurtureany-sales-bot" "$PROFILE_DIR/skills/nurtureany-sales-bot" >/dev/null || fail "profile-drift:nurtureany-sales-bot-skill"
+diff -qr "$APP_ROOT/skills/target-account-news-scout" "$PROFILE_DIR/skills/target-account-news-scout" >/dev/null || fail "profile-drift:target-account-news-scout-skill"
 python3 - "$APP_ROOT/runtime/mcp" "$PROFILE_DIR/source/nurtureany-sales-bot/runtime/mcp" <<'PY' || fail "profile-drift:runtime-mcp"
 import hashlib
 import sys

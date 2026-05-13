@@ -49,6 +49,9 @@ cp apps/nurtureany-sales-bot/profile/SOUL.md \
 rsync -a --delete apps/nurtureany-sales-bot/skills/nurtureany-sales-bot/ \
   ~/.hermes/profiles/nurtureanysalesbot/skills/nurtureany-sales-bot/
 
+rsync -a --delete apps/nurtureany-sales-bot/skills/target-account-news-scout/ \
+  ~/.hermes/profiles/nurtureanysalesbot/skills/target-account-news-scout/
+
 cp apps/nurtureany-sales-bot/runtime/check-health.sh \
   ~/.hermes/profiles/nurtureanysalesbot/scripts/nurtureanysalesbot-check-health.sh
 cp apps/nurtureany-sales-bot/runtime/audit-live-profile.sh \
@@ -75,7 +78,7 @@ systemctl --user status hermes-gateway-nurtureanysalesbot.service --no-pager
 ## What Deploy Syncs
 
 - `profile/SOUL.md` to the live profile `SOUL.md`
-- `skills/nurtureany-sales-bot/` to the live profile skill directory
+- `skills/nurtureany-sales-bot/` and `skills/target-account-news-scout/` to the live profile skill directory
 - the app packet to `~/.hermes/profiles/nurtureanysalesbot/source/nurtureany-sales-bot/`
 - runtime health/audit/watchdog/cloud-doctor scripts to the live profile `scripts/`
 

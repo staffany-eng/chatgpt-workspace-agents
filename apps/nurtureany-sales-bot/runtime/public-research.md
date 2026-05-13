@@ -4,6 +4,8 @@ Public research is the reusable NurtureAny company-signal layer for game plans, 
 
 HubSpot remains the source of truth for account scope, owner, status, current tools, contract dates, contacts, tasks, notes, and follow-up. Tavily output is review-only public evidence.
 
+The `target-account-news-scout` skill uses this same public-research layer for recent news and brand signals. It must receive NurtureAny-scoped HubSpot company identity first, use safe company fields only, report cost, and return manual-review outreach drafts only.
+
 ## Credentials
 
 Use `TAVILY_API_KEY` from the live profile `.env` or Secret Manager. Do not commit the key, paste it into Slack, or store it in packet files.

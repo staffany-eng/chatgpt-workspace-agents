@@ -172,6 +172,24 @@ Expected behavior:
 - Includes company website, careers, public job boards, general web, LinkedIn manual search, Google Maps manual check, Instagram/TikTok manual check, Facebook manual check, and review-site options when relevant.
 - Does not call paid APIs, scrape social/gated sites, reveal PII, mutate HubSpot, or send external messages.
 
+## Target Account News Scout
+
+Prompt:
+
+```text
+@NurtureAny find a recent news angle for Noci Bakehouse and draft a WhatsApp opener
+```
+
+Expected behavior:
+
+- First response is plan-only because HubSpot scope and public research are app-backed.
+- After `run`, resolves Noci Bakehouse inside the caller's scoped HubSpot target accounts before public research.
+- Uses `target-account-news-scout` and scoped company identity only.
+- Searches recent public signals through the approved public-research path, preferring official company, partner, or reputable news sources.
+- Classifies the best signal as funding, leadership, hiring, product, brand-buzz, or news.
+- Returns a short manual-review WhatsApp draft with source links, `cost_report`, `will_mutate_hubspot=false`, source, scope, confidence, and caveat.
+- Does not scrape LinkedIn/Instagram/TikTok/Facebook/Google Maps/gated pages, expose unnecessary PII, mutate HubSpot, or send the message.
+
 ## Campaign Social Effectiveness Style
 
 Prompt:

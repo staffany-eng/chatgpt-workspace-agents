@@ -11,6 +11,12 @@
     "soul": "profile/SOUL.md",
     "config_template": "profile/config.template.yaml",
     "skill": "skills/nurtureany-sales-bot/SKILL.md",
+    "target_account_news_scout_skill": "skills/target-account-news-scout/SKILL.md",
+    "target_account_news_scout_references": [
+      "skills/target-account-news-scout/references/search-playbook.md",
+      "skills/target-account-news-scout/references/output-contract.md"
+    ],
+    "target_account_news_scout_agent": "skills/target-account-news-scout/agents/openai.yaml",
     "references": [
       "skills/nurtureany-sales-bot/references/hubspot-fields.md",
       "skills/nurtureany-sales-bot/references/sales-best-practices.md",
@@ -563,6 +569,9 @@
     "allowed_tools": [
       "research_public_company_signals"
     ],
+    "news_scout_skill": "skills/target-account-news-scout/SKILL.md",
+    "news_scout_scope": "requires NurtureAny-scoped HubSpot company before public research",
+    "news_scout_delivery": "manual-review draft only",
     "social_gated_urls": "manual_check_only",
     "hubspot_writeback": "none"
   },

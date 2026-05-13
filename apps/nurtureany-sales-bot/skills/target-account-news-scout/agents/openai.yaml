@@ -1,0 +1,4 @@
+interface:
+  display_name: "Target Account News Scout"
+  short_description: "Find timely account news and draft manual-review outreach"
+  default_prompt: "Use $target-account-news-scout after NurtureAny HubSpot scope is confirmed to research a target account, summarize the best recent public news angle, and draft a send-ready manual-review message."
