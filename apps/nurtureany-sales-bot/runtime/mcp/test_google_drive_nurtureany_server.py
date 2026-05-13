@@ -161,6 +161,86 @@ class GoogleDriveNurtureAnyServerTest(unittest.TestCase):
         self.assertEqual(calls[0][0], "sheet-123")
         self.assertIn("/values/", calls[1][1])
 
+    def test_read_nurture_material_registry_accepts_kns_golden_dataset_schema(self):
+        def fake_sheets(spreadsheet_id, path, params, access_token):
+            if path == "":
+                return {
+                    "properties": {"title": "NurtureAny KNS Materials Golden Dataset"},
+                    "sheets": [{"properties": {"title": "Materials", "sheetId": 1}}],
+                }
+            return {
+                "values": [
+                    [
+                        "material_id",
+                        "status",
+                        "title",
+                        "kns_pillar",
+                        "pillar_summary",
+                        "buyer_value",
+                        "ae_use_case",
+                        "whatsapp_script",
+                        "message_hook",
+                        "match_country",
+                        "match_industry",
+                        "match_concept",
+                        "match_persona",
+                        "source_evidence_url",
+                        "asset_url",
+                        "talk_track",
+                        "valid_from",
+                        "valid_until",
+                        "owner",
+                    ],
+                    [
+                        "case-study:bmc-populus-staffany-scheduling",
+                        "approved",
+                        "BMC: Populus",
+                        "Knowledge",
+                        "Public BMC operator example.",
+                        "Scheduling dropped from hours to minutes.",
+                        "knowledge_touch, pre_demo",
+                        "Hi {{first_name}}, thought of {{company_name}}...",
+                        "Populus: StaffAny cut scheduling from about 2 hours to around 10 minutes.",
+                        "Singapore",
+                        "F&B - cafe/restaurant",
+                        "fnb, cafe, scheduling",
+                        "decision_maker, operations",
+                        "research/raw/online/populus.md:201 00:03:11",
+                        "https://www.youtube.com/watch?v=vN3T0oL_X8I",
+                        "Use as an analogy only.",
+                        "2026-05-13",
+                        "",
+                        "repo_case_study_catalog",
+                    ],
+                ]
+            }
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            token_file = Path(tmpdir) / "token.json"
+            token_file.write_text('{"token":"access-token","scopes":["https://www.googleapis.com/auth/drive.readonly"]}')
+            with patch.dict(
+                os.environ,
+                {
+                    "GOOGLE_DRIVE_TOKEN_FILE": str(token_file),
+                    "GOOGLE_DRIVE_ACCOUNT_EMAIL": "team@staffany.com",
+                    "NURTUREANY_MATERIAL_REGISTRY_SPREADSHEET_ID": "sheet-123",
+                },
+            ), patch.object(self.module, "_request_sheets_json", side_effect=fake_sheets):
+                result = self.module.read_nurture_material_registry("ae@staffany.com", tabs=["Materials"])
+
+        row = result["answer"]["rows"][0]
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(row["category"], "case_study")
+        self.assertEqual(row["url"], "https://www.youtube.com/watch?v=vN3T0oL_X8I")
+        self.assertEqual(row["country_scope"], "Singapore")
+        self.assertEqual(row["industry_tags"], "F&B - cafe/restaurant")
+        self.assertEqual(row["concept_tags"], "fnb, cafe, scheduling")
+        self.assertEqual(row["persona_tags"], "decision_maker, operations")
+        self.assertEqual(row["template_name"], "nurture_material_share_v1")
+        self.assertIn("material_url", row["template_params_schema"])
+        self.assertEqual(row["kns_pillar"], "Knowledge")
+        self.assertEqual(row["talk_track"], "Use as an analogy only.")
+
     def test_blocks_token_missing_drive_scope(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             token_file = Path(tmpdir) / "token.json"

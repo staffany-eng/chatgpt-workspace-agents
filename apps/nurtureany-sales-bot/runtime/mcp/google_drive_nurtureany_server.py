@@ -90,6 +90,26 @@ MATERIAL_REGISTRY_FIELDS = (
     "message_hook",
     "owner",
 )
+MATERIAL_REGISTRY_REQUIRED_FIELDS = ("material_id", "status", "title", "message_hook", "owner")
+MATERIAL_REGISTRY_FIELD_ALIASES = {
+    "url": ("url", "asset_url", "source_evidence_url"),
+    "country_scope": ("country_scope", "match_country"),
+    "industry_tags": ("industry_tags", "match_industry"),
+    "concept_tags": ("concept_tags", "match_concept"),
+    "persona_tags": ("persona_tags", "match_persona"),
+}
+MATERIAL_REGISTRY_EXTRA_FIELDS = (
+    "kns_pillar",
+    "pillar_summary",
+    "buyer_value",
+    "ae_use_case",
+    "whatsapp_script",
+    "source_evidence_url",
+    "asset_url",
+    "talk_track",
+)
+MATERIAL_REGISTRY_DEFAULT_TEMPLATE_NAME = "nurture_material_share_v1"
+MATERIAL_REGISTRY_DEFAULT_TEMPLATE_SCHEMA = "first_name,company_name,message_hook,material_url"
 MAX_MATERIAL_REGISTRY_ROWS_PER_TAB = 500
 ANTHROPIC_API_KEY_ENV = "ANTHROPIC_API_KEY"
 DEFAULT_VISION_MODEL = "claude-sonnet-4-6"
@@ -628,6 +648,8 @@ def _material_registry_contract() -> dict[str, Any]:
         "spreadsheet_id_env_var": MATERIAL_REGISTRY_SPREADSHEET_ID_ENV,
         "tabs": list(MATERIAL_REGISTRY_TABS),
         "minimum_fields": list(MATERIAL_REGISTRY_FIELDS),
+        "required_fields": list(MATERIAL_REGISTRY_REQUIRED_FIELDS),
+        "accepted_aliases": MATERIAL_REGISTRY_FIELD_ALIASES,
         "read_only": True,
     }
 
@@ -636,6 +658,16 @@ def _material_field_map(headers: list[Any]) -> dict[str, int | None]:
     normalized = [_normalize_header(header) for header in headers]
     mapping: dict[str, int | None] = {}
     for field in MATERIAL_REGISTRY_FIELDS:
+        aliases = MATERIAL_REGISTRY_FIELD_ALIASES.get(field, (field,))
+        mapping[field] = None
+        for alias in aliases:
+            key = _normalize_header(alias)
+            try:
+                mapping[field] = normalized.index(key)
+                break
+            except ValueError:
+                continue
+    for field in MATERIAL_REGISTRY_EXTRA_FIELDS:
         key = _normalize_header(field)
         try:
             mapping[field] = normalized.index(key)
@@ -649,6 +681,16 @@ def _safe_material_registry_row(row: list[Any], row_number: int, columns: dict[s
         field: _cell(row, columns.get(field))[:1000]
         for field in MATERIAL_REGISTRY_FIELDS
     }
+    if not safe["category"]:
+        safe["category"] = "case_study" if safe["material_id"].startswith("case-study:") else "kns_material"
+    if not safe["template_name"]:
+        safe["template_name"] = MATERIAL_REGISTRY_DEFAULT_TEMPLATE_NAME
+    if not safe["template_params_schema"]:
+        safe["template_params_schema"] = MATERIAL_REGISTRY_DEFAULT_TEMPLATE_SCHEMA
+    for field in MATERIAL_REGISTRY_EXTRA_FIELDS:
+        value = _cell(row, columns.get(field))[:1000]
+        if value:
+            safe[field] = value
     safe["source_tab"] = tab_name
     safe["row_number"] = row_number
     return safe
@@ -1186,7 +1228,7 @@ def read_nurture_material_registry(
             continue
         headers = values[0] if isinstance(values[0], list) else []
         columns = _material_field_map(headers)
-        missing_fields = [field for field in MATERIAL_REGISTRY_FIELDS if columns.get(field) is None]
+        missing_fields = [field for field in MATERIAL_REGISTRY_REQUIRED_FIELDS if columns.get(field) is None]
         if missing_fields:
             invalid_tabs.append({"tab": tab_name, "reason": "missing fields", "missing_fields": missing_fields})
             continue
