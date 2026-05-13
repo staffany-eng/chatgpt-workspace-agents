@@ -36,7 +36,7 @@ slack:
 mcp_servers:
   staffany_bigquery:
     url: "https://bq-mcp-proxy-1093387803298.asia-southeast1.run.app/mcp"
-    auth:
+    auth_metadata:
       type: "bearer_env"
       env: "MCP_STAFFANY_BIGQUERY_API_KEY"
     tool_allowlist:
@@ -51,4 +51,4 @@ gateway:
     app_token_env: "SLACK_APP_TOKEN"
     bot_token_env: "SLACK_BOT_TOKEN"
     allowed_users_env: "SLACK_ALLOWED_USERS"
-    channel: "#kaiyi-bot-testing"
+    channel: "#da-ta-hermz-testing"

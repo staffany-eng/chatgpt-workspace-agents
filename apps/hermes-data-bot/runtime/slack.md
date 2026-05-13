@@ -1,6 +1,6 @@
 # Slack Runtime
 
-Hermes Data Bot's first runtime surface is Slack POC usage in `#kaiyi-bot-testing`.
+Hermes Data Bot's first runtime surface is Slack POC usage in `#da-ta-hermz-testing`.
 
 ## Required Behavior
 

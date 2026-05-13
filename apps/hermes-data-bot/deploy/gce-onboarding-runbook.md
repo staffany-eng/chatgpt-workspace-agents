@@ -11,7 +11,7 @@ This runbook sets up the Hermes runtime StaffAny Data Bot on company infra. For 
 - Disk: 20-30GB balanced persistent disk
 - OS: Debian or Ubuntu LTS
 - Runtime profile: `staffanydatabot`
-- Slack rollout: `#kaiyi-bot-testing`, mention-only
+- Slack rollout: `#da-ta-hermz-testing` (`C0AU19E6T0C`), mention-only
 
 ## Current Multi-Bot VM Topology
 
@@ -312,12 +312,12 @@ hermes -p staffanydatabot cron create "0 1 * * 1" \
   "$(cat apps/hermes-data-bot/runtime/prompts/high-priority-feature-usage-digest.md)" \
   --name "staffanydatabot high-priority release feature usage digest" \
   --skill staffany-data-bot \
-  --deliver "slack:#kaiyi-bot-testing" \
+  --deliver "slack:C0AU19E6T0C" \
   --workdir "$(pwd)/apps/hermes-data-bot"
 hermes -p staffanydatabot cron list
 ```
 
-The command above assumes a UTC deployment host. If `hermes cron list` shows next-run timestamps in `+08:00`, use `0 9 * * 1` instead. If Hermes requires a Slack channel ID instead of `#kaiyi-bot-testing`, use the channel ID in the `--deliver` value and keep the cron name unchanged.
+The command above assumes a UTC deployment host. If `hermes cron list` shows next-run timestamps in `+08:00`, use `0 9 * * 1` instead. Use channel ID `C0AU19E6T0C` in the `--deliver` value and keep the cron name unchanged.
 
 ## Honcho Memory
 

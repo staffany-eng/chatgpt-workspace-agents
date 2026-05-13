@@ -6,7 +6,7 @@ This repo now treats StaffAny Hermes Data Bot as the first app proper.
 
 - Canonical app packet: `apps/hermes-data-bot/`
 - Runtime: Hermes Agent profile `staffanydatabot`
-- First surface: Slack POC in `#kaiyi-bot-testing`
+- First surface: Slack POC in `#da-ta-hermz-testing`
 - Data access: StaffAny BigQuery MCP proxy with a read-only tool allowlist
 - Current GCP VM topology, including LaunchBot on `hermes-data-bot-poc`: `apps/hermes-data-bot/deploy/gcp-vm-topology.md`
 
@@ -25,6 +25,17 @@ Use the app packet as the source of truth for durable Hermes Data Bot behavior. 
 | `skills/` | mixed | Repo-local planning/support skills; workspace-agent skills are legacy unless explicitly used. |
 | `docs/` | repo docs | Product compass, documentation guide, and deprecation notes. |
 | `infra/` | supporting | Infrastructure experiments and restore notes. |
+| `ops/hermes/` | operations | Hermes profile registry, channel map, and caretaker watchdog. |
+
+## Slack Test Channels
+
+The live smoke-test channel map lives in `ops/hermes/channels.md`.
+
+- Da Ta Hermz: `#da-ta-hermz-testing` (`C0AU19E6T0C`)
+- NurtureAny: `#nurtureany-testing` (`C0B2UGK4DB6`)
+- Launchbot: `#launch-bot-testing` (`C0B32M34J3W`)
+
+`ps wee manager` / sales-manager workflow tests use NurtureAny in `#nurtureany-testing`.
 
 ## Verification
 

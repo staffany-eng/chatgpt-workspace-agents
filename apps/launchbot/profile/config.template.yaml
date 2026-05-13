@@ -1,0 +1,33 @@
+terminal:
+  cwd: ~/agent-builder/apps/launchbot
+security:
+  redact_secrets: true
+display:
+  busy_input_mode: queue
+  interim_assistant_messages: false
+  streaming: false
+  tool_progress: "off"
+  platforms:
+    slack:
+      streaming: false
+      tool_progress: "off"
+slack:
+  require_mention: true
+  allowed_channels: "C0B32M34J3W"
+  reactions: false
+cron:
+  max_parallel_jobs: 1
+kanban:
+  dispatch_in_gateway: false
+model:
+  default: "claude-sonnet-4-6"
+  provider: "anthropic"
+gateway:
+  slack:
+    enabled: true
+    app_token_env: "SLACK_APP_TOKEN"
+    bot_token_env: "SLACK_BOT_TOKEN"
+    allowed_users_env: "SLACK_ALLOWED_USERS"
+    channel: "#launch-bot-testing"
+SLACK_HOME_CHANNEL: "C0B32M34J3W"
+SLACK_HOME_CHANNEL_NAME: "launch-bot-testing"

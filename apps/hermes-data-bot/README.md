@@ -6,7 +6,7 @@ Canonical app packet for StaffAny's Hermes runtime data bot.
 
 - Runtime: Hermes Agent
 - Profile: `staffanydatabot`
-- First surface: Slack POC in `#kaiyi-bot-testing`
+- First surface: Slack POC in `#da-ta-hermz-testing`
 - Model: Anthropic provider, `claude-sonnet-4-6`, configured in the live profile
 - BigQuery access: StaffAny BigQuery MCP proxy, read-only allowlist
 - Source packet: this directory

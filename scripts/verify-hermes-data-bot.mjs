@@ -203,7 +203,8 @@ const digestRuntimeText = existsSync(join(appRoot, "runtime", "high-priority-fea
   : "";
 for (const requiredText of [
   "0 1 * * 1",
-  "#kaiyi-bot-testing",
+  "#da-ta-hermz-testing",
+  "C0AU19E6T0C",
   "staffanydatabot high-priority release feature usage digest",
   "Confidence: <verified | needs-check | blocked>"
 ]) {

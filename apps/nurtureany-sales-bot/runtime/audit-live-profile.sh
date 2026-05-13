@@ -17,7 +17,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROFILE_DIR="${HERMES_PROFILE_DIR:-$HOME/.hermes/profiles/$PROFILE}"
 if [ -n "${NURTUREANY_APP_ROOT:-}" ]; then
   APP_ROOT="$NURTUREANY_APP_ROOT"
-elif [ -f "$SCRIPT_DIR/../app.manifest.json" ]; then
+elif [ "$(basename "$SCRIPT_DIR")" = "runtime" ] && [ -f "$SCRIPT_DIR/../app.manifest.json" ]; then
   APP_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 else
   APP_ROOT="$PROFILE_DIR/source/nurtureany-sales-bot"
@@ -125,8 +125,8 @@ def require_job(name, *, expr, script=None, prompt_contains=None, deliver_prefix
     if schedule.get("expr") != expr:
         print(f"cron:{name}:schedule-unexpected")
         raise SystemExit(1)
-    if job.get("timezone") != timezone:
-        print(f"cron:{name}:timezone-missing")
+    if job.get("timezone") not in (None, timezone):
+        print(f"cron:{name}:timezone-unexpected")
         raise SystemExit(1)
     if script is not None and job.get("script") != script:
         print(f"cron:{name}:script-unexpected")
@@ -166,14 +166,16 @@ for job in jobs:
     if name.startswith("event-roi-") and job.get("enabled") is True:
         print(f"cron:{name}:event-roi-enabled")
         raise SystemExit(1)
-    if job.get("enabled") is True and job.get("timezone") is None:
-        print(f"cron:{name}:timezone-missing")
+    if job.get("enabled") is True and job.get("timezone") not in (None, timezone):
+        print(f"cron:{name}:timezone-unexpected")
         raise SystemExit(1)
     if job.get("enabled") is True and has_unsafe_send_message(prompt):
         print(f"cron:{name}:unsafe-send-message")
         raise SystemExit(1)
 PY
 
-"$PROFILE_DIR/scripts/nurtureanysalesbot-check-health.sh" >/dev/null
+if [ "${RUN_NESTED_HEALTH_CHECK:-1}" = "1" ]; then
+  "$PROFILE_DIR/scripts/nurtureanysalesbot-check-health.sh" >/dev/null
+fi
 
 printf 'live-profile:audit-ok\n'

@@ -140,32 +140,28 @@ cp apps/nurtureany-sales-bot/runtime/nurtureany-cloud-doctor.sh ~/.hermes/profil
 hermes -p nurtureanysalesbot cron create "0 1 * * 1-5" \
   --name "nurtureanysalesbot health check" \
   --script nurtureanysalesbot-check-health.sh \
-  --no-agent \
-  --timezone "Asia/Singapore"
+  --no-agent
 hermes -p nurtureanysalesbot cron create "15 1 * * 1-5" \
   --name "nurtureanysalesbot live profile audit" \
   --script nurtureanysalesbot-audit-live-profile.sh \
-  --no-agent \
-  --timezone "Asia/Singapore"
+  --no-agent
 hermes -p nurtureanysalesbot cron create "*/15 * * * *" \
   --name "nurtureanysalesbot local cloud heartbeat" \
   --script nurtureanysalesbot-check-cloud-heartbeat.sh \
-  --no-agent \
-  --timezone "Asia/Singapore"
+  --no-agent
 hermes -p nurtureanysalesbot cron create "*/5 * * * *" \
   --name "nurtureanysalesbot Slack socket watchdog" \
   --script nurtureanysalesbot-check-slack-socket-health.sh \
-  --no-agent \
-  --timezone "Asia/Singapore"
+  --no-agent
 hermes -p nurtureanysalesbot cron create "0 9 * * 1-5" \
   --name "nurtureanysalesbot Jeremy daily nurture pack" \
-  --prompt "NurtureAny automation: Read the NurtureAny material registry, build Jeremy's daily nurture plan for 30 of his protected 150 HubSpot target accounts, persist the run JSON under NURTUREANY_DAILY_RUNS_DIR, and return the 9am Asia/Singapore Slack pack with message IDs for approval-gated Eazybe preview. Let the cron system deliver your final response to Slack. Do not call Slack message-send tools." \
-  --timezone "Asia/Singapore"
+  --prompt "NurtureAny automation: Read the NurtureAny material registry, build Jeremy's daily nurture plan for 30 of his protected 150 HubSpot target accounts, persist the run JSON under NURTUREANY_DAILY_RUNS_DIR, and return the 9am Asia/Singapore Slack pack with message IDs for approval-gated Eazybe preview. Let the cron system deliver your final response to Slack. Do not call Slack message-send tools."
 hermes -p nurtureanysalesbot cron create "0 12 * * 1-5" \
   --name "nurtureanysalesbot Jeremy noon nurture reminder" \
-  --prompt "NurtureAny automation: Load the persisted Jeremy daily nurture run from NURTUREANY_DAILY_RUNS_DIR. Do not recompute the 30/150 account selection. Check statuses for assigned stakeholder messages; if any were not Eazybe accepted/queued, later matched in HubSpot WhatsApp, or explicitly skipped, return the Slack reminder tagging Jeremy and his manager. Let the cron system deliver your final response to Slack. Do not call Slack message-send tools." \
-  --timezone "Asia/Singapore"
+  --prompt "NurtureAny automation: Load the persisted Jeremy daily nurture run from NURTUREANY_DAILY_RUNS_DIR. Do not recompute the 30/150 account selection. Check statuses for assigned stakeholder messages; if any were not Eazybe accepted/queued, later matched in HubSpot WhatsApp, or explicitly skipped, return the Slack reminder tagging Jeremy and his manager. Let the cron system deliver your final response to Slack. Do not call Slack message-send tools."
 ```
+
+The current Hermes CLI uses the deployment host timezone for cron scheduling and does not expose a `--timezone` flag.
 
 Pause legacy event ROI jobs until they are rewritten for bot-safe delivery:
 

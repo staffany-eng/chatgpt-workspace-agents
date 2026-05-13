@@ -235,6 +235,7 @@ if (!existsSync(manifestPath)) {
       "build_near_me_c360_customer_query",
       "prepare_near_me_seed_review_candidates",
       "merge_near_me_sources",
+      "research_public_company_signals",
       "find_brand_parent_candidates",
       "search_exa_people_candidates",
       "search_lusha_decision_maker_candidates",

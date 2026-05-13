@@ -209,7 +209,7 @@ mcp_servers:
     command: /Users/leekaiyi/.hermes/hermes-agent/venv/bin/python
     args:
     - /Users/leekaiyi/workspace/agent builder/apps/nurtureany-sales-bot/runtime/mcp/slack_nurtureany_server.py
-    auth:
+    auth_metadata:
       type: bot_token_env
       env: SLACK_BOT_TOKEN
       configured_channel_ids_env: NURTUREANY_SLACK_INTENT_CHANNEL_IDS
@@ -231,7 +231,7 @@ mcp_servers:
     command: /Users/leekaiyi/.hermes/hermes-agent/venv/bin/python
     args:
     - /Users/leekaiyi/workspace/agent builder/apps/nurtureany-sales-bot/runtime/mcp/hubspot_nurtureany_server.py
-    auth:
+    auth_metadata:
       type: bearer_env
       env: HUBSPOT_PRIVATE_APP_TOKEN
       note: check_event_followup_status also reads LUMA_API_KEY from the profile environment
@@ -296,7 +296,7 @@ mcp_servers:
     command: /Users/leekaiyi/.hermes/hermes-agent/venv/bin/python
     args:
     - /Users/leekaiyi/workspace/agent builder/apps/nurtureany-sales-bot/runtime/mcp/public_research_nurtureany_server.py
-    auth:
+    auth_metadata:
       type: api_key_env
       env: TAVILY_API_KEY
     cost_policy:
@@ -335,7 +335,7 @@ mcp_servers:
     command: /Users/leekaiyi/.hermes/hermes-agent/venv/bin/python
     args:
     - /Users/leekaiyi/workspace/agent builder/apps/nurtureany-sales-bot/runtime/mcp/lusha_nurtureany_server.py
-    auth:
+    auth_metadata:
       type: api_key_env
       env: LUSHA_API_KEY
     cost_policy:
@@ -358,7 +358,7 @@ mcp_servers:
     command: /Users/leekaiyi/.hermes/hermes-agent/venv/bin/python
     args:
     - /Users/leekaiyi/workspace/agent builder/apps/nurtureany-sales-bot/runtime/mcp/exa_nurtureany_server.py
-    auth:
+    auth_metadata:
       type: api_key_env
       env: EXA_API_KEY
     cost_policy:
@@ -377,7 +377,7 @@ mcp_servers:
     description: Read-only C360 enrichment source for MRR, renewal timing, account
       owner, and PSM context.
     url: https://bq-mcp-proxy-1093387803298.asia-southeast1.run.app/mcp
-    auth:
+    auth_metadata:
       type: bearer_env
       env: MCP_STAFFANY_BIGQUERY_API_KEY
     tool_allowlist:
@@ -391,7 +391,7 @@ mcp_servers:
     command: /Users/leekaiyi/.hermes/hermes-agent/venv/bin/python
     args:
     - /Users/leekaiyi/workspace/agent builder/apps/nurtureany-sales-bot/runtime/mcp/near_me_nurtureany_server.py
-    auth:
+    auth_metadata:
       google_places:
         type: api_key_env
         env: GOOGLE_PLACES_API_KEY
@@ -453,7 +453,7 @@ mcp_servers:
     command: /Users/leekaiyi/.hermes/hermes-agent/venv/bin/python
     args:
     - /Users/leekaiyi/workspace/agent builder/apps/nurtureany-sales-bot/runtime/mcp/google_calendar_nurtureany_server.py
-    auth:
+    auth_metadata:
       type: oauth_token_file
       account: team@staffany.com
       token_file_env: GOOGLE_CALENDAR_TOKEN_FILE
@@ -480,7 +480,7 @@ mcp_servers:
     command: /Users/leekaiyi/.hermes/hermes-agent/venv/bin/python
     args:
     - /Users/leekaiyi/workspace/agent builder/apps/nurtureany-sales-bot/runtime/mcp/google_drive_nurtureany_server.py
-    auth:
+    auth_metadata:
       type: oauth_token_file
       account: team@staffany.com
       token_file_env: GOOGLE_DRIVE_TOKEN_FILE
@@ -534,7 +534,7 @@ mcp_servers:
     command: /Users/leekaiyi/.hermes/hermes-agent/venv/bin/python
     args:
     - /Users/leekaiyi/workspace/agent builder/apps/nurtureany-sales-bot/runtime/mcp/luma_nurtureany_server.py
-    auth:
+    auth_metadata:
       type: api_key_env
       env: LUMA_API_KEY
       header: x-luma-api-key
@@ -580,7 +580,7 @@ mcp_servers:
     command: /Users/leekaiyi/.hermes/hermes-agent/venv/bin/python
     args:
     - /Users/leekaiyi/workspace/agent builder/apps/nurtureany-sales-bot/runtime/mcp/eazybe_nurtureany_server.py
-    auth:
+    auth_metadata:
       type: api_key_env
       env: EAZYBE_API_KEY
       broadcast_api_url_env: EAZYBE_BROADCAST_API_URL

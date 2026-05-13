@@ -11,7 +11,7 @@ Jira is a release and priority source. BigQuery remains the usage source. Do not
 - Known candidate Jira project: `KER` (Kaiyi's Excel Replacement).
 - Confirmed launch-priority value: `P1 - High Reach Retention and Growth`.
 - Trackable feature rows: Club Blue is tracked with the current `kraken_prod.engagement_reward_redemption` proxy source; Avatar standardization remains blocked after metric-source review.
-- Weekly digest target: Slack `#kaiyi-bot-testing`, Mondays 9am SGT.
+- Weekly digest target: Slack `#da-ta-hermz-testing` (`C0AU19E6T0C`), Mondays 9am SGT.
 
 ## Priority Mapping
 

@@ -1,0 +1,134 @@
+profiles:
+  - name: staffanydatabot
+    display_name: Da Ta Hermz
+    canonical_profile: staffanydatabot
+    live_profile: staffanydatabot
+    status: production_poc
+    owner: revops
+    app_packet: apps/hermes-data-bot
+    deploy_host: local-macos
+    profile_dir: ${HOME}/.hermes/profiles/staffanydatabot
+    service:
+      launchd_label: ai.hermes.gateway-staffanydatabot
+      systemd_unit: hermes-gateway-staffanydatabot.service
+    slack:
+      bot_name: da-ta-hermz
+      home_channel_id: C0AU19E6T0C
+      home_channel_name: da-ta-hermz-testing
+      allowed_channel_ids: [C0AU19E6T0C]
+      report_prefix: "Hermes repair automation:"
+    required_mcp:
+      staffany_bigquery: 4
+    expected_crons:
+      - name: staffanydatabot health check
+        schedule: "0 1 * * 1-5"
+        mode: no-agent
+      - name: staffanydatabot high-priority release feature usage digest
+        schedule: "0 9 * * 1"
+        mode: agent
+    checks:
+      health_command: apps/hermes-data-bot/runtime/check-health.sh
+      audit_command: apps/hermes-data-bot/runtime/audit-live-profile.sh
+    recovery:
+      restart_gateway: managed_only
+      stale_socket_seconds: 300
+      stale_session_minutes: 30
+      profile_sync: manual_review
+      pause_unsafe_crons: true
+      post_slack_report: true
+
+  - name: nurtureanysalesbot
+    display_name: NurtureAny
+    canonical_profile: nurtureanysalesbot
+    live_profile: nae2e
+    aliases: [nae2e]
+    workflow_aliases: [ps wee manager, sales-manager workflows, manager chase]
+    status: production_poc
+    owner: revops
+    app_packet: apps/nurtureany-sales-bot
+    deploy_host: nurtureany-sales-bot-prod
+    profile_dir: ${HOME}/.hermes/profiles/nurtureanysalesbot
+    live_profile_dir: ${HOME}/.hermes/profiles/nae2e
+    service:
+      launchd_label: ai.hermes.gateway-nae2e
+      systemd_unit: hermes-gateway-nurtureanysalesbot.service
+    slack:
+      bot_name: nurtureany
+      home_channel_id: C0B2UGK4DB6
+      home_channel_name: nurtureany-testing
+      allowed_channel_ids: [C0B2UGK4DB6]
+      blocked_until_member_channel_ids: [C06CD9B6LDU, C06V8DS1B7B]
+      report_prefix: "NurtureAny automation:"
+    required_mcp:
+      staffany_bigquery: 4
+      hubspot_nurtureany: 41
+      google_calendar_nurtureany: 2
+      google_drive_nurtureany: 5
+      eazybe_nurtureany: 4
+      luma_nurtureany: 3
+      public_research_nurtureany: 2
+      lusha_nurtureany: 3
+      exa_nurtureany: 1
+      near_me_nurtureany: 6
+    expected_crons:
+      - name: nurtureanysalesbot health check
+        schedule: "0 1 * * 1-5"
+        mode: no-agent
+      - name: nurtureanysalesbot live profile audit
+        schedule: "15 1 * * 1-5"
+        mode: no-agent
+      - name: nurtureanysalesbot Slack socket watchdog
+        schedule: "*/5 * * * *"
+        mode: no-agent
+      - name: nurtureanysalesbot Jeremy daily nurture pack
+        schedule: "0 9 * * 1-5"
+        mode: agent
+      - name: nurtureanysalesbot Jeremy noon nurture reminder
+        schedule: "0 12 * * 1-5"
+        mode: agent
+    unsafe_cron_name_prefixes: [event-roi-]
+    checks:
+      health_command: apps/nurtureany-sales-bot/runtime/check-health.sh
+      audit_command: RUN_NESTED_HEALTH_CHECK=0 apps/nurtureany-sales-bot/runtime/audit-live-profile.sh
+    recovery:
+      restart_gateway: managed_only
+      stale_socket_seconds: 300
+      stale_session_minutes: 30
+      profile_sync: canonical_rsync
+      create_profile_alias: true
+      pause_unsafe_crons: true
+      post_slack_report: true
+
+  - name: launchbot
+    display_name: Launchbot
+    canonical_profile: launchbot
+    live_profile: launchbot
+    status: experimental
+    owner: revops
+    app_packet: apps/launchbot
+    deploy_host: local-macos
+    profile_dir: ${HOME}/.hermes/profiles/launchbot
+    service:
+      launchd_label: ai.hermes.gateway-launchbot
+      systemd_unit: hermes-gateway-launchbot.service
+    slack:
+      bot_name: launchbot
+      home_channel_id: C0B32M34J3W
+      home_channel_name: launch-bot-testing
+      allowed_channel_ids: [C0B32M34J3W]
+      report_prefix: "Hermes repair automation:"
+    required_mcp: {}
+    expected_crons:
+      - name: launchbot health check
+        schedule: "*/5 * * * *"
+        mode: no-agent
+    checks:
+      health_command: apps/launchbot/runtime/check-health.sh
+      audit_command: apps/launchbot/runtime/audit-live-profile.sh
+    recovery:
+      restart_gateway: managed_only
+      stale_socket_seconds: 300
+      stale_session_minutes: 30
+      profile_sync: canonical_rsync
+      pause_unsafe_crons: true
+      post_slack_report: true

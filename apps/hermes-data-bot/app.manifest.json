@@ -5,7 +5,7 @@
   "canonical": true,
   "runtime": "Hermes Agent",
   "profile_name": "staffanydatabot",
-  "rollout_stage": "Slack POC in #kaiyi-bot-testing",
+  "rollout_stage": "Slack POC in #da-ta-hermz-testing",
   "model_provider": "anthropic",
   "model": "claude-sonnet-4-6",
   "paths": {
@@ -49,7 +49,7 @@
     ]
   },
   "channels": [
-    "Slack #kaiyi-bot-testing"
+    "Slack #da-ta-hermz-testing"
   ],
   "secrets_copied": false,
   "legacy_sources": [

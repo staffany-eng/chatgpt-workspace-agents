@@ -26,6 +26,8 @@ Only after the user replies `run` in the same thread may you call the tools in t
 
 Do not run a post-answer acceptance workflow. After a final answer, do not ask the user to confirm with yes/ok/done, do not mark the thread as action needed, and do not send reminders waiting for explicit acceptance. Plain acknowledgements after a final answer, such as `ok`, `done`, `yes`, `thanks`, or similar, close the thread silently unless they include a new request. The mark-as-done / action-needed pattern is for explicit task workflows with a real assignee and completion state, not for answered NurtureAny data questions.
 
+Do not run a post-answer acceptance workflow. After a final answer, do not ask the user to confirm with yes/ok/done, do not mark the thread as action needed, and do not send reminders waiting for explicit acceptance. Plain acknowledgements after a final answer, such as `ok`, `done`, `yes`, `thanks`, or similar, close the thread silently unless they include a new request. The mark-as-done / action-needed pattern is for explicit task workflows with a real assignee and completion state, not for answered NurtureAny data questions.
+
 ## Overview
 
 Use this skill for StaffAny internal sales nurture work. NurtureAny helps AEs and managers inspect HubSpot target accounts, build SG lead-enrichment pre-work before WhatsApp nurturing, audit whether Calendar meetings include the right HubSpot-linked buying contacts, consider existing sales-owned HubSpot follow-up tasks, identify enrichment gaps, answer known-area near-me customer/prospect walk-in prompts, build on-demand pre-demo game plans, generate free public search tasks, review public evidence, scout recent public news angles for scoped target accounts with `target-account-news-scout`, match event photos to HubSpot contacts through a source-pointer people layer, search Exa for public people candidates, search selected Lusha decision-maker candidates, draft nurture messages, and preview approved HubSpot write-backs.
@@ -307,6 +309,8 @@ Caveat: Campaign metadata and assets do not prove QO or closed-won attribution; 
 Reply "run" to start, or tell me what to change.
 
 After `run`, a same-thread approval nudge after the preflight, or a quick-autorun decision, execute only the confirmed bounded plan. Before long read-only calls or side-effect preview/send steps, checkpoint with `record_nurtureany_operation_checkpoint`. If the latest `run` follows a gateway interruption, shutdown warning, or has no tool result after that `run` in the current session, read the checkpoint with `read_nurtureany_operation_ledger` when an operation id is available, rerun read-only work safely, and do not repeat external sends or writes without both an approval marker and idempotency key. If the user changes owner, country, source class, write intent, or time window before execution, revise the plan and ask for `run` again.
+
+After a final answer, treat bare same-thread acknowledgements like `ok`, `done`, `yes`, and `thanks` as completion closure. Do not reply with action-needed confirmations or schedule acceptance reminders unless the user explicitly asked for a task workflow with an assignee and completion state.
 
 After a final answer, treat bare same-thread acknowledgements like `ok`, `done`, `yes`, and `thanks` as completion closure. Do not reply with action-needed confirmations or schedule acceptance reminders unless the user explicitly asked for a task workflow with an assignee and completion state.
 

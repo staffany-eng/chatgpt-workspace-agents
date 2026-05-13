@@ -7,7 +7,7 @@ Hermes Data Bot sends a weekly digest for Jira-confirmed high-priority release f
 - Cadence: every Monday 9am SGT.
 - Cron expression on the current SGT-local profile: `0 9 * * 1`.
 - If the deployment host/profile runs Hermes in UTC, use `0 1 * * 1` instead.
-- Delivery: Slack `#kaiyi-bot-testing`.
+- Delivery: Slack `#da-ta-hermz-testing` (`C0AU19E6T0C`).
 - Cron name: `staffanydatabot high-priority release feature usage digest`.
 
 ## Preconditions
@@ -45,12 +45,12 @@ hermes -p staffanydatabot cron create "0 9 * * 1" \
   "$(cat apps/hermes-data-bot/runtime/prompts/high-priority-feature-usage-digest.md)" \
   --name "staffanydatabot high-priority release feature usage digest" \
   --skill staffany-data-bot \
-  --deliver "slack:#kaiyi-bot-testing" \
+  --deliver "slack:C0AU19E6T0C" \
   --workdir "$(pwd)/apps/hermes-data-bot"
 hermes -p staffanydatabot cron list
 ```
 
-If the installed Hermes version requires a Slack channel ID instead of `#kaiyi-bot-testing`, use the channel ID in the `--deliver` target and keep the digest name unchanged.
+Use channel ID `C0AU19E6T0C` for the digest delivery target and keep the cron name unchanged.
 
 ## Result Contract
 

@@ -12,8 +12,14 @@ EXPECT_DIGEST_CRON="${EXPECT_DIGEST_CRON:-0}"
 EXPECTED_MCP_TOOLS="${EXPECTED_MCP_TOOLS:-4}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-APP_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 PROFILE_DIR="${HERMES_PROFILE_DIR:-$HOME/.hermes/profiles/$PROFILE}"
+if [ -n "${HERMES_DATA_BOT_APP_ROOT:-}" ]; then
+  APP_ROOT="$HERMES_DATA_BOT_APP_ROOT"
+elif [ "$(basename "$SCRIPT_DIR")" = "runtime" ] && [ -f "$SCRIPT_DIR/../app.manifest.json" ]; then
+  APP_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+else
+  APP_ROOT="$PROFILE_DIR/source/hermes-data-bot"
+fi
 HERMES_AGENT_DIR="${HERMES_AGENT_DIR:-$HOME/.hermes/hermes-agent}"
 
 PATH="$HOME/.local/bin:$HERMES_AGENT_DIR:$PATH"
