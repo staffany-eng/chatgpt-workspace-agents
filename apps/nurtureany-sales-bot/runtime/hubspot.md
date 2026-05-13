@@ -76,6 +76,7 @@ It exposes these tools:
 - `build_singapore_lead_enrichment_plan`
 - `build_daily_nurture_plan`
 - `list_sales_followup_tasks`
+- `count_owner_whatsapp_sent_today`
 - `check_account_followup_status`
 - `check_event_followup_status`
 - `build_daily_nurture_plan`
@@ -272,6 +273,13 @@ Friday sales review uses the same scoped association discipline, plus HubSpot ca
 - Input: Slack user email, optional company IDs, optional countries, optional owner email filter, optional due window.
 - Output: existing incomplete sales-owned HubSpot follow-up tasks with safe task fields only.
 - Must not create tasks, mutate HubSpot, trigger write-back preview, or recommend duplicate task creation when an open sales-owned task already exists.
+
+`count_owner_whatsapp_sent_today`:
+
+- Input: Slack user email, one owner email for manager/admin scope, optional countries, optional Asia/Singapore date, and limit.
+- Output: communications-only count of HubSpot WhatsApp metadata for the selected owner's scoped target accounts on that date.
+- Use this direct fast path for prompts like "how many WhatsApp messages did Jeremy send today" instead of Friday review or priority-account coverage.
+- Must not expose raw WhatsApp bodies, phone numbers, notes, tasks, meetings, or mutate HubSpot.
 
 `check_account_followup_status`:
 

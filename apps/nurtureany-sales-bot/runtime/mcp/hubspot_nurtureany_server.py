@@ -4227,6 +4227,18 @@ def _week_window(week_start: str = "", week_end: str = "") -> dict[str, Any]:
     }
 
 
+def _singapore_day_window(value: str = "") -> dict[str, Any]:
+    local_date = _date_value(value) or datetime.now(timezone.utc).astimezone(SINGAPORE_TIMEZONE).date()
+    start_local = datetime.combine(local_date, datetime_time(0, 0, 0), tzinfo=SINGAPORE_TIMEZONE)
+    end_local = datetime.combine(local_date, datetime_time(23, 59, 59), tzinfo=SINGAPORE_TIMEZONE)
+    return {
+        "date": local_date.isoformat(),
+        "start_dt": start_local.astimezone(timezone.utc),
+        "end_dt": end_local.astimezone(timezone.utc),
+        "timezone": "Asia/Singapore",
+    }
+
+
 def _safe_activity_label(value: Any, limit: int = 120) -> str:
     text = re.sub(r"(?<!\d)\+?\d[\d\s().-]{6,}\d(?!\d)", "[phone omitted]", str(value or ""))
     return _short_text(text, limit)
@@ -12457,6 +12469,141 @@ def list_sales_followup_tasks(
             "confidence": "needs-check" if task_truncated else "verified",
             "caveat": (
                 "Existing incomplete sales-owned HubSpot tasks only. Safe task summaries omit task body and do not create or mutate tasks."
+            ),
+        }
+    except ScopeError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email, "owner_email": owner_email})
+    except HubSpotError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email})
+
+
+@mcp.tool()
+def count_owner_whatsapp_sent_today(
+    slack_user_email: str,
+    owner_email: str = "",
+    for_date: str = "",
+    countries: list[str] | None = None,
+    limit: int = 500,
+) -> dict[str, Any]:
+    """Count today's HubSpot WhatsApp communications for one owner's scoped target accounts."""
+
+    try:
+        scope = _caller_scope(slack_user_email)
+        if scope["kind"] == "blocked":
+            return _blocked("Caller identity is not mapped to an allowed scope.", {"caller_email": slack_user_email})
+
+        selected_countries = _safe_countries(countries, scope["countries"])
+        if not selected_countries:
+            return _blocked("Requested countries are outside caller scope.", _scope_response(scope, []))
+
+        target_owner_id, target_owner_email = _target_owner_id_for_scope(scope, owner_email or None)
+        if not target_owner_id:
+            return _blocked(
+                "Provide owner_email for manager/admin WhatsApp sent-today checks.",
+                _scope_response(scope, selected_countries),
+            )
+
+        day = _singapore_day_window(for_date)
+        requested_limit = _bounded_int(limit, default=500, maximum=1000)
+        communication_filters = [
+            {"propertyName": "hubspot_owner_id", "operator": "EQ", "value": target_owner_id},
+            {"propertyName": "hs_timestamp", "operator": "GTE", "value": day["start_dt"].isoformat().replace("+00:00", "Z")},
+            {"propertyName": "hs_timestamp", "operator": "LTE", "value": day["end_dt"].isoformat().replace("+00:00", "Z")},
+        ]
+        communication_data = _object_search(
+            "communications",
+            communication_filters,
+            COMMUNICATION_PROPERTIES,
+            limit=requested_limit,
+            maximum=1000,
+            sorts=[{"propertyName": "hs_timestamp", "direction": "DESCENDING"}],
+        )
+        owner_whatsapp_messages = [
+            communication for communication in communication_data.get("results", []) if _is_whatsapp_communication(communication)
+        ]
+        owner_whatsapp_ids = [str(communication.get("id") or "") for communication in owner_whatsapp_messages if communication.get("id")]
+
+        company_data = _company_search(
+            _target_filters(selected_countries, target_owner_id),
+            requested_limit,
+            maximum=HUBSPOT_SEARCH_TOTAL_LIMIT,
+            sorts=[{"propertyName": "name", "direction": "ASCENDING"}],
+        )
+        companies = company_data.get("results", [])
+        company_ids = [str(company.get("id") or "") for company in companies if company.get("id")]
+        contact_index = _batch_association_ids("companies", "contacts", company_ids)
+        deal_index = _batch_association_ids("companies", "deals", company_ids)
+        selected_company_ids = set(company_ids)
+        contact_to_companies = _reverse_company_association_index(contact_index)
+        deal_to_companies = _reverse_company_association_index(deal_index)
+        comm_company_index = _batch_association_ids("communications", "companies", owner_whatsapp_ids)
+        comm_contact_index = _batch_association_ids("communications", "contacts", owner_whatsapp_ids)
+        comm_deal_index = _batch_association_ids("communications", "deals", owner_whatsapp_ids)
+
+        target_linked_messages: list[dict[str, Any]] = []
+        target_company_ids_with_whatsapp: set[str] = set()
+        for communication in owner_whatsapp_messages:
+            communication_id = str(communication.get("id") or "")
+            if not communication_id:
+                continue
+            associated_target_company_ids: set[str] = set()
+            sources: list[dict[str, str]] = []
+            for company_id in comm_company_index.get(communication_id, []):
+                if company_id in selected_company_ids:
+                    associated_target_company_ids.add(company_id)
+                    sources.append({"object_type": "company", "object_id": company_id})
+            for contact_id in comm_contact_index.get(communication_id, []):
+                for company_id in contact_to_companies.get(str(contact_id), []):
+                    associated_target_company_ids.add(company_id)
+                    sources.append({"object_type": "contact", "object_id": str(contact_id)})
+            for deal_id in comm_deal_index.get(communication_id, []):
+                for company_id in deal_to_companies.get(str(deal_id), []):
+                    associated_target_company_ids.add(company_id)
+                    sources.append({"object_type": "deal", "object_id": str(deal_id)})
+            if not associated_target_company_ids:
+                continue
+            target_company_ids_with_whatsapp.update(associated_target_company_ids)
+            target_linked_messages.append(_safe_followup_evidence("communication", communication, {communication_id: sources}))
+
+        target_linked_messages = _sort_followup_evidence(target_linked_messages)
+        owner_messages = _sort_followup_evidence(
+            [_safe_followup_evidence("communication", communication, {str(communication.get("id") or ""): []}) for communication in owner_whatsapp_messages]
+        )
+        latest_sent_at = owner_messages[0]["timestamp"] if owner_messages else ""
+        truncated = bool(company_data.get("truncated") or communication_data.get("truncated"))
+        return {
+            "answer": {
+                "owner_email": target_owner_email or owner_email or scope.get("email"),
+                "owner_id": target_owner_id,
+                "date": day["date"],
+                "timezone": day["timezone"],
+                "whatsapp_sent_count": len(owner_messages),
+                "target_account_whatsapp_sent_count": len(target_linked_messages),
+                "target_account_count_scanned": len(companies),
+                "target_account_count_with_whatsapp": len(target_company_ids_with_whatsapp),
+                "latest_sent_at": latest_sent_at,
+                "sample_evidence": owner_messages[:10],
+                "target_account_sample_evidence": target_linked_messages[:10],
+                "will_mutate_hubspot": False,
+            },
+            "source": "HubSpot owner-level WhatsApp communications metadata, with scoped target-account association mapping",
+            "scope": {
+                **_scope_response(scope, selected_countries, target_owner_id, target_owner_email),
+                "for_date": day["date"],
+                "timezone": day["timezone"],
+                "start_at": day["start_dt"].isoformat(),
+                "end_at": day["end_dt"].isoformat(),
+                "fast_path": "owner_day_communications_first",
+            },
+            "total": communication_data.get("total"),
+            "requested_limit": requested_limit,
+            "returned_count": len(owner_whatsapp_messages),
+            "has_more": truncated,
+            "truncated": truncated,
+            "confidence": "needs-check" if truncated else "verified",
+            "caveat": (
+                "Fast path counts owner-level HubSpot WhatsApp communications metadata for the selected day, then separately maps "
+                "which records are associated to scoped target accounts. It skips calls, tasks, notes, meetings, Friday review scoring, and raw WhatsApp bodies."
             ),
         }
     except ScopeError as error:
