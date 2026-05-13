@@ -600,7 +600,7 @@ const configText = textOf("profile/config.template.yaml");
 if (!configText.includes('provider: "anthropic"')) fail("config.template.yaml must set model.provider to anthropic");
 if (!configText.includes('default: "claude-sonnet-4-6"')) fail("config.template.yaml must set model.default to claude-sonnet-4-6");
 if (!configText.includes("interim_assistant_messages: false")) fail("config.template.yaml must disable interim assistant messages");
-if (!configText.includes("reactions: false")) fail("config.template.yaml must disable Slack reactions");
+if (!configText.includes("reactions: true")) fail("config.template.yaml must enable Slack reactions");
 if (!configText.includes("max_parallel_jobs: 1")) fail("config.template.yaml must cap cron.max_parallel_jobs at 1");
 if (!configText.includes("dispatch_in_gateway: false")) fail("config.template.yaml must disable kanban dispatch in gateway");
 if (configText.includes("OPENAI_API_KEY")) fail("config.template.yaml must not configure OpenAI API key routing");

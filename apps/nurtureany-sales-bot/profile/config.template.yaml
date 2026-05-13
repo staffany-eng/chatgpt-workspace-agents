@@ -20,7 +20,7 @@ display:
       tool_progress: 'off'
 slack:
   require_mention: true
-  reactions: false
+  reactions: true
   allow_bots: mentions
 cron:
   max_parallel_jobs: 1

@@ -126,8 +126,8 @@ if resolve_display_setting(config, "slack", "streaming") is not False:
     print("slack-display:streaming-not-disabled")
     raise SystemExit(1)
 
-if ((config.get("slack") or {}).get("reactions")) is not False:
-    print("slack:reactions-not-disabled")
+if ((config.get("slack") or {}).get("reactions")) is not True:
+    print("slack:reactions-not-enabled")
     raise SystemExit(1)
 if ((config.get("kanban") or {}).get("dispatch_in_gateway")) is not False:
     print("kanban:dispatch-in-gateway-not-disabled")
