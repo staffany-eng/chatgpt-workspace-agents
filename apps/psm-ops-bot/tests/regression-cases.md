@@ -28,6 +28,19 @@
 - Includes the Slack thread permalink in Jira.
 - Posts the ticket link in-thread and asks for missing info.
 
+## PS WEE Customer Reach-Out Confirmation
+
+Thread:
+
+`@PSM Ops is Walta Tech on headcount or section limit? did they reach out?`
+`Yes, they reached out via Intercom <support thread link>`
+
+- Treats the support confirmation as a ticket-first PS WEE intake trigger.
+- Calls `find_ticket_by_slack_thread`.
+- Creates the PCO needs-info intake immediately with `create_ps_wee_intake_ticket` when no same-thread ticket exists.
+- Includes the Slack thread permalink and support evidence link in Jira.
+- Does not ask "do you want me to log a ticket?" before creating the intake.
+
 ## PS WEE Slack Follow-Up Sync
 
 `@PSM Ops impact is payroll blocked for May payroll, affected outlet is central kitchen`
