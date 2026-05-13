@@ -17,6 +17,7 @@ For Hermes Data Bot app work, also read:
 - `apps/hermes-data-bot/README.md`
 - `apps/hermes-data-bot/AGENTS.md`
 - `apps/hermes-data-bot/app.manifest.json`
+- `apps/hermes-data-bot/deploy/gcp-vm-topology.md`
 
 ## Research Workflow
 

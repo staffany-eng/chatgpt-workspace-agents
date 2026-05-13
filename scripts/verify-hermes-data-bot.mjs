@@ -81,6 +81,7 @@ const filesToScan = [
   "runtime/audit-live-profile.sh",
   "runtime/backup-honcho.sh",
   "runtime/review-honcho-memory.sh",
+  "deploy/gcp-vm-topology.md",
   "deploy/gce-onboarding-runbook.md",
   "tests/regression-cases.md"
 ];
@@ -107,6 +108,39 @@ if (!configText.includes("reactions: false")) fail("config.template.yaml must di
 if (configText.includes('all@staffany')) fail('config.template.yaml must not reference known-bad all@staffany model alias');
 if (configText.includes("OPENAI_API_KEY")) fail("config.template.yaml must not configure OpenAI API key routing");
 if (configText.includes('base_url: "https://api.openai.com/v1"')) fail("config.template.yaml must not configure OpenAI API base_url");
+
+const topologyText = existsSync(join(appRoot, "deploy", "gcp-vm-topology.md"))
+  ? readFileSync(join(appRoot, "deploy", "gcp-vm-topology.md"), "utf8")
+  : "";
+for (const requiredText of [
+  "hermes-data-bot-poc",
+  "hermes-gateway-launchbot.service",
+  "launchbot",
+  "#launch-bot-testing",
+  "C0B32M34J3W",
+  "U0ASVD79UT1",
+  "B0ATPPEGBCH",
+  "hermes-gateway-staffanydatabot.service",
+  "hermes-psm-ops-bot-poc",
+  "hermes-gateway-psmopsbot.service",
+  "nurtureany-sales-bot-prod",
+  "hermes-gateway-nurtureanysalesbot.service",
+  "profile directory is not deployment proof",
+  "Do not create a separate LaunchBot VM unless"
+]) {
+  if (!topologyText.includes(requiredText)) fail(`GCP VM topology doc missing required text: ${requiredText}`);
+}
+
+const deployRunbookText = existsSync(join(appRoot, "deploy", "gce-onboarding-runbook.md"))
+  ? readFileSync(join(appRoot, "deploy", "gce-onboarding-runbook.md"), "utf8")
+  : "";
+for (const requiredText of [
+  "deploy/gcp-vm-topology.md",
+  "hermes-gateway-launchbot.service",
+  "Deployment means the matching `hermes-gateway-<profile>.service` is active"
+]) {
+  if (!deployRunbookText.includes(requiredText)) fail(`GCE onboarding runbook missing topology text: ${requiredText}`);
+}
 
 const skillText = existsSync(join(appRoot, "skills", "staffany-data-bot", "SKILL.md"))
   ? readFileSync(join(appRoot, "skills", "staffany-data-bot", "SKILL.md"), "utf8")

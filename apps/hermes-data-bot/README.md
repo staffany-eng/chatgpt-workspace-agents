@@ -13,6 +13,15 @@ Canonical app packet for StaffAny's Hermes runtime data bot.
 - Live runtime state: `~/.hermes/profiles/staffanydatabot/`
 - Slack scope policy: `groups:read` is intentionally not required for the POC.
 
+## Current GCP Topology
+
+See `deploy/gcp-vm-topology.md` before changing deployed bot placement or answering where a bot runs. Current live topology includes:
+
+- `staffanydatabot` on `hermes-data-bot-poc`
+- `launchbot` on `hermes-data-bot-poc`
+- `psmopsbot` on `hermes-psm-ops-bot-poc`
+- `nurtureanysalesbot` on `nurtureany-sales-bot-prod`
+
 ## Packet Contents
 
 | Path | Purpose |
@@ -27,6 +36,7 @@ Canonical app packet for StaffAny's Hermes runtime data bot.
 | `runtime/slack.md` | Slack gateway behavior, scopes, and run gate. |
 | `runtime/update-slack-allowlist.sh` | Safe live-profile helper for adding Slack POC users. |
 | `runtime/health-checks.md` | No-agent operational checks and expected silence. |
+| `deploy/gcp-vm-topology.md` | Current GCP VM/profile/service ownership, including LaunchBot. |
 | `deploy/gce-onboarding-runbook.md` | GCE restore and bootstrap runbook. |
 | `tests/regression-cases.md` | Manual/eval regression cases for app behavior. |
 

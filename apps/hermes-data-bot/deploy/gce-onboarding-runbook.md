@@ -1,6 +1,6 @@
 # GCE Onboarding Runbook
 
-This runbook sets up the Hermes runtime StaffAny Data Bot on company infra.
+This runbook sets up the Hermes runtime StaffAny Data Bot on company infra. For the full current multi-bot VM map, read `deploy/gcp-vm-topology.md` first.
 
 ## Target
 
@@ -12,6 +12,17 @@ This runbook sets up the Hermes runtime StaffAny Data Bot on company infra.
 - OS: Debian or Ubuntu LTS
 - Runtime profile: `staffanydatabot`
 - Slack rollout: `#kaiyi-bot-testing`, mention-only
+
+## Current Multi-Bot VM Topology
+
+The current GCP ownership map is maintained in `deploy/gcp-vm-topology.md`.
+
+As of the latest verified topology, `hermes-data-bot-poc` hosts two active user-systemd gateway services:
+
+- `hermes-gateway-staffanydatabot.service` for `staffanydatabot`
+- `hermes-gateway-launchbot.service` for `launchbot`
+
+Do not infer deployment from profile folders alone. Deployment means the matching `hermes-gateway-<profile>.service` is active or intentionally installed on that VM.
 
 ## Current POC Resources
 

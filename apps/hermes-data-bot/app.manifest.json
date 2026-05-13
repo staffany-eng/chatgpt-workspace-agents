@@ -32,6 +32,7 @@
     "live_profile_audit_script": "runtime/audit-live-profile.sh",
     "honcho_backup_script": "runtime/backup-honcho.sh",
     "honcho_memory_review_script": "runtime/review-honcho-memory.sh",
+    "gcp_vm_topology": "deploy/gcp-vm-topology.md",
     "deploy_runbook": "deploy/gce-onboarding-runbook.md",
     "regression_cases": "tests/regression-cases.md"
   },

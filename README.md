@@ -8,6 +8,7 @@ This repo now treats StaffAny Hermes Data Bot as the first app proper.
 - Runtime: Hermes Agent profile `staffanydatabot`
 - First surface: Slack POC in `#kaiyi-bot-testing`
 - Data access: StaffAny BigQuery MCP proxy with a read-only tool allowlist
+- Current GCP VM topology, including LaunchBot on `hermes-data-bot-poc`: `apps/hermes-data-bot/deploy/gcp-vm-topology.md`
 
 Use the app packet as the source of truth for durable Hermes Data Bot behavior. The live Hermes profile can learn or drift during operations, but durable changes should be promoted back into this repo after review.
 
