@@ -58,6 +58,14 @@
 - Calls `add_internal_pco_comment`.
 - Uses internal comment mode.
 
+## Assign Issue
+
+`@PSM Ops assign PCO-135 to @Alya`
+
+- Calls `set_pco_assignee`.
+- Resolves `@Alya` through Slack/Jira identity before assignment.
+- Does not change Jira `PS Team`.
+
 ## Reminder
 
 `@PSM Ops remind me tomorrow 9am on PCO-123`

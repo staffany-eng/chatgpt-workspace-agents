@@ -98,6 +98,7 @@ The access policy file maps Slack email to Jira account ID:
 - `create_approved_pco_task`: mutation; requires approval marker.
 - `transition_pco_task`: mutation; only configured target statuses.
 - `add_internal_pco_comment`: mutation; internal comments only unless explicitly enabled.
+- `set_pco_assignee`: mutation; assigns an existing PCO issue to a Jira user resolved from a Slack mention, email, or exact name. This does not change `PS Team`.
 - `set_pco_ps_team`: mutation; updates only the configured Jira `PS Team` field. Treat "cs duty" as `CS Duty`, not a person assignee.
 - `set_pco_reminder`: mutation; updates Jira `duedate`, which drives automatic reminders.
 - `list_due_pco_reminders`: safe read for cron and user checks; user-scoped checks filter by Jira `PS Team`.

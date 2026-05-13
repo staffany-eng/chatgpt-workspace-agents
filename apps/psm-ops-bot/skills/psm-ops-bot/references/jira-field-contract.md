@@ -45,6 +45,12 @@ Do not discover or guess these at answer time. `validate_jira_configuration` mus
 - `Eng duty` means Jira `PS Team = Eng Duty`.
 - These are PS Team values, not Jira person assignees. Do not ask who is on duty when the user asked for `CS duty`.
 
+## Jira Assignee
+
+- Jira assignee is still available for explicit person-assignment requests such as `assign PCO-135 to @Alya`.
+- Use `set_pco_assignee` for existing issues. Resolve the target through Slack profile data or Jira user search, then call Jira Cloud's issue assignee API.
+- Do not use assignee for "my tasks", reminders, or duty routing; those remain scoped by Jira `PS Team`.
+
 ## Statuses
 
 Allowed target statuses:

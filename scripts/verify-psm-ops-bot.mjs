@@ -55,6 +55,7 @@ if (!existsSync(manifestPath)) {
       "create_approved_pco_task",
       "transition_pco_task",
       "add_internal_pco_comment",
+      "set_pco_assignee",
       "set_pco_ps_team",
       "set_pco_reminder",
       "list_due_pco_reminders"
@@ -133,7 +134,7 @@ for (const requiredText of [
 const soulText = textOf(appRoot, "profile/SOUL.md");
 for (const requiredText of [
   "Task creation is preview first",
-  "Status transitions, internal comments, and due-date reminder updates may execute directly",
+  "Status transitions, Jira assignee updates, internal comments, and due-date reminder updates may execute directly",
   "PS Team = CS Duty",
   "Slack profile email/name",
   "all customers",
@@ -151,6 +152,7 @@ for (const requiredText of [
   "Slack thread permalink is the V1 idempotency key",
   "Task creation must be preview first",
   "Caller task ownership is Jira `PS Team`",
+  "set_pco_assignee",
   "set_pco_ps_team",
   "Public customer-visible comments are blocked",
   "Reminder source of truth is Jira",
@@ -171,6 +173,7 @@ for (const requiredText of [
   "create_approved_pco_task",
   "transition_pco_task",
   "add_internal_pco_comment",
+  "set_pco_assignee",
   "set_pco_ps_team",
   "set_pco_reminder",
   "list_due_pco_reminders",

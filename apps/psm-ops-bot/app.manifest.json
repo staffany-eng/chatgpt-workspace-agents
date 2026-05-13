@@ -48,6 +48,7 @@
         "create_approved_pco_task",
         "transition_pco_task",
         "add_internal_pco_comment",
+        "set_pco_assignee",
         "set_pco_ps_team",
         "set_pco_reminder",
         "list_due_pco_reminders"

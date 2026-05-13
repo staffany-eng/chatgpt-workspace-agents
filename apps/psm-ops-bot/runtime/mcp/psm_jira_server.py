@@ -422,6 +422,8 @@ def _slack_user_identity_keys(user: dict[str, Any]) -> set[str]:
 
 def _resolve_slack_user(value: str) -> dict[str, Any] | None:
     raw = value or ""
+    mention = re.search(r"<@([A-Z0-9]+)>", raw)
+    user_id = mention.group(1) if mention else raw.strip()
     email = _normalize_slack_email(raw)
     input_keys = {
         _identity_key(raw),
@@ -435,6 +437,10 @@ def _resolve_slack_user(value: str) -> dict[str, Any] | None:
         users = _slack_users()
     except JiraError:
         return None
+    if user_id:
+        for user in users:
+            if str(user.get("id") or "").strip() == user_id:
+                return user
     exact_email = email if "@" in email else ""
     if exact_email:
         for user in users:
@@ -586,6 +592,51 @@ def _jira_user_by_email(email: str) -> dict[str, Any]:
         "jira_account_id": str(selected["accountId"]),
         "display_name": selected.get("displayName") or email,
     }
+
+
+def _jira_assignable_user_for_issue(issue_key: str, assignee: str) -> dict[str, Any]:
+    raw = (assignee or "").strip()
+    key = (issue_key or "").strip().upper()
+    if not key:
+        raise JiraError("Issue key is required.")
+    if not raw:
+        raise JiraError("Assignee is required.")
+    slack_user = _resolve_slack_user(raw)
+    profile = slack_user.get("profile") if isinstance(slack_user, dict) else {}
+    query_values = [
+        _slack_user_email(slack_user) if slack_user else "",
+        _normalize_slack_email(raw) if "@" in _normalize_slack_email(raw) else "",
+        str(profile.get("real_name") or "").strip() if isinstance(profile, dict) else "",
+        str(slack_user.get("real_name") or "").strip() if isinstance(slack_user, dict) else "",
+        str(profile.get("display_name") or "").strip() if isinstance(profile, dict) else "",
+        raw,
+    ]
+    seen: set[str] = set()
+    for query_value in [value for value in query_values if value]:
+        normalized_query = _identity_key(query_value)
+        if normalized_query in seen:
+            continue
+        seen.add(normalized_query)
+        query = urllib.parse.urlencode({"issueKey": key, "query": query_value, "maxResults": "10"})
+        payload = _request_json("GET", f"/rest/api/3/user/assignable/search?{query}")
+        users = [user for user in payload if isinstance(user, dict) and user.get("active", True)] if isinstance(payload, list) else []
+        exact = [
+            user
+            for user in users
+            if _identity_key(str(user.get("displayName") or "")) == normalized_query
+            or _identity_key(str(user.get("emailAddress") or "")) == normalized_query
+            or _email_local_key(str(user.get("emailAddress") or "")) == normalized_query
+        ]
+        selected = exact[0] if len(exact) == 1 else users[0] if len(users) == 1 else None
+        if selected and selected.get("accountId"):
+            return {
+                "slack_email": str(selected.get("emailAddress") or "").strip().lower(),
+                "jira_account_id": str(selected["accountId"]),
+                "display_name": selected.get("displayName") or query_value,
+            }
+        if len(users) > 1:
+            raise JiraError(f"No unique assignable Jira user found for assignee {raw} on {key}.")
+    raise JiraError(f"No assignable Jira user found for assignee {raw} on {key}.")
 
 
 def _quote_jql(value: str) -> str:
@@ -1126,6 +1177,40 @@ def _assign_issue(issue_key: str, account_id: str) -> None:
         "PUT",
         f"/rest/api/3/issue/{urllib.parse.quote(issue_key)}/assignee",
         {"accountId": account_id},
+    )
+
+
+@mcp.tool()
+def set_pco_assignee(
+    issue_key: str,
+    assignee: str,
+    slack_user_email: str = "",
+    comment: str = "",
+) -> dict[str, Any]:
+    """Assign a PCO issue to an active Jira user resolved from Slack mention, email, or exact name."""
+
+    key = (issue_key or "").strip().upper()
+    target = (assignee or "").strip()
+    scope = {"issue_key": key, "assignee": target, "caller": (slack_user_email or "").strip().lower()}
+    if not key:
+        return _blocked("Issue key is required.", scope)
+    if not target:
+        return _blocked("Assignee is required.", scope)
+    try:
+        jira_user = _jira_assignable_user_for_issue(key, target)
+        _assign_issue(key, jira_user["jira_account_id"])
+        if comment:
+            add_internal_pco_comment(key, f"Assignee updated to {jira_user['display_name']}. Context: {comment}", slack_user_email)
+    except JiraError as error:
+        return _blocked(str(error), scope)
+    return _verified(
+        {
+            "issue_key": key,
+            "assignee": jira_user["display_name"],
+            "jira_account_id": jira_user["jira_account_id"],
+        },
+        {**scope, "assignee": jira_user["display_name"]},
+        "Jira assignee was updated. My-task ownership and reminders still use Jira PS Team.",
     )
 
 

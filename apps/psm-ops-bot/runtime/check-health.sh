@@ -29,7 +29,7 @@ if command -v hermes >/dev/null 2>&1; then
   for server in psm_jira psm_c360; do
     out="$(hermes -p "$PROFILE" mcp test "$server" 2>&1 || true)"
     case "$server" in
-      psm_jira) expected=13 ;;
+      psm_jira) expected=14 ;;
       psm_c360) expected=3 ;;
     esac
     count="$(printf '%s\n' "$out" | sed -nE 's/.*Tools discovered: ([0-9]+).*/\1/p' | tail -1)"

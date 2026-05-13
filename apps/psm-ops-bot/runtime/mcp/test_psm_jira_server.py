@@ -214,6 +214,63 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertEqual(calls[1][1], "/rest/api/3/issue/PCO-134")
         self.assertEqual(calls[1][2]["fields"]["customfield_10876"], {"id": "12025"})
 
+    def test_set_pco_assignee_resolves_slack_mention_to_jira_account(self):
+        calls = []
+
+        def fake_slack_users():
+            return [
+                {
+                    "id": "U0AMZ85LNAF",
+                    "name": "alya",
+                    "real_name": "Atalya Ong",
+                    "profile": {"email": "atalya@staffany.com", "real_name": "Atalya Ong", "display_name": "Alya"},
+                }
+            ]
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if path.startswith("/rest/api/3/user/assignable/search?"):
+                return [
+                    {
+                        "accountId": "acct-alya",
+                        "displayName": "Atalya Ong",
+                        "emailAddress": "atalya@staffany.com",
+                        "active": True,
+                    }
+                ]
+            return {}
+
+        self.module._slack_users = fake_slack_users
+        self.module._request_json = fake_request
+
+        result = self.module.set_pco_assignee("PCO-135", "<@U0AMZ85LNAF>", "psm@staffany.com")
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["answer"]["assignee"], "Atalya Ong")
+        self.assertIn("/rest/api/3/user/assignable/search?", calls[0][1])
+        self.assertIn("issueKey=PCO-135", calls[0][1])
+        self.assertIn("query=atalya%40staffany.com", calls[0][1])
+        self.assertEqual(calls[1][0], "PUT")
+        self.assertEqual(calls[1][1], "/rest/api/3/issue/PCO-135/assignee")
+        self.assertEqual(calls[1][2], {"accountId": "acct-alya"})
+
+    def test_set_pco_assignee_blocks_ambiguous_name(self):
+        def fake_request(method, path, body=None):
+            if path.startswith("/rest/api/3/user/assignable/search?"):
+                return [
+                    {"accountId": "acct-1", "displayName": "Alya One", "active": True},
+                    {"accountId": "acct-2", "displayName": "Alya Two", "active": True},
+                ]
+            return {}
+
+        self.module._request_json = fake_request
+        self.module._slack_users = lambda: []
+
+        result = self.module.set_pco_assignee("PCO-135", "Alya", "psm@staffany.com")
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("No unique assignable Jira user", result["caveat"])
+
     def test_create_requires_approval_marker(self):
         result = self.module.create_approved_pco_task(
             {"customer": "Fei Siong", "summary": "Task", "due_date": "2026-05-15"},
@@ -593,7 +650,7 @@ class PsmJiraServerTest(unittest.TestCase):
                 "PSM_OPS_JIRA_EMAIL_ALIASES": "kai.yi@staffany.com=kaiyi@staffany.com",
             },
             clear=False,
-        ):
+        ), patch.object(self.module, "_slack_users", return_value=[]):
             def fake_request(method, path, body=None):
                 calls.append((method, path, body))
                 if path.startswith("/rest/api/3/user/search?"):

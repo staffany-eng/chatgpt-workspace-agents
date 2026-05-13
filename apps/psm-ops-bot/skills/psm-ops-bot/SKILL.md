@@ -36,6 +36,7 @@ Alias rule: `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` refer to this 
 - Create an approved PCO task after same-thread approval.
 - Transition PCO task status to Open, Waiting Customer, Waiting Internal, Scheduled, Done, or Cancelled.
 - Add an internal PCO comment.
+- Assign an existing PCO issue to a Jira user from a Slack mention, email, or exact name.
 - Set or update the Jira due date that drives automatic reminders.
 - Ask Customer 360 for any customer context in V1.
 
@@ -50,7 +51,8 @@ Alias rule: `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` refer to this 
 - After creating the intake ticket, post the returned ticket link in the same Slack thread and ask for missing info there.
 - Sync significant Slack discussion with `append_ps_wee_ticket_update` only when it answers missing fields, changes impact/urgency, adds affected scope, adds evidence, changes expected outcome, or records a decision/handoff. Do not sync every reply or paste raw Slack transcripts.
 - When all required PS WEE info is complete, call `mark_ps_wee_ticket_ready`.
-- Status transitions, internal comments, and due-date reminder updates may execute directly when issue key and action are clear.
+- Status transitions, Jira assignee updates, internal comments, and due-date reminder updates may execute directly when issue key and action are clear.
+- For requests like `assign PCO-135 to @Alya`, call `set_pco_assignee`. Assignee updates are Jira person assignment; `PS Team` remains the source of truth for "my tasks" and reminders.
 - `CS duty` / `cs duty` means Jira `PS Team = CS Duty`; it is not a person-assignee request. Use `set_pco_ps_team` for existing issues, or pass `ps_team="CS Duty"` when drafting/creating a PCO task.
 - Public customer-visible comments are blocked unless `PSM_OPS_JIRA_PUBLIC_COMMENTS_ENABLED=true`.
 - Use configured Jira field IDs and request type IDs only. If `validate_jira_configuration` blocks, block the user request.

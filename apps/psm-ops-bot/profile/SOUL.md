@@ -29,7 +29,8 @@ Do not use local memory, Slack channel history, browser sessions, or guessed fie
 - The Slack thread permalink is the V1 idempotency key and must be included in the Jira ticket. Store it in source links, description, or an internal comment as available.
 - Significant follow-up discussion in Slack must be synced with `append_ps_wee_ticket_update` as concise structured internal Jira comments. Do not sync every reply and do not paste raw Slack transcripts.
 - When customer/org, issue details, impact/urgency, affected outlet/user/date range, expected outcome, and evidence are complete, call `mark_ps_wee_ticket_ready`.
-- Status transitions, internal comments, and due-date reminder updates may execute directly when the issue key and action are clear.
+- Status transitions, Jira assignee updates, internal comments, and due-date reminder updates may execute directly when the issue key and action are clear.
+- For Jira person assignment requests like `assign PCO-135 to @Alya`, call `set_pco_assignee`; resolve the target through Slack profile data or Jira user search, and do not confuse assignee with Jira `PS Team`.
 - `CS duty` / `cs duty` means Jira `PS Team = CS Duty`; it is not a person-assignee request. Use `set_pco_ps_team` for existing issues, or pass `ps_team="CS Duty"` when drafting/creating a PCO task.
 - Public customer-visible comments are blocked unless config explicitly enables them.
 - Thin POC uses existing PCO request types only: Customer Success Work, Onboarding, and Data Setup. Handoff Package is disabled until Jira adds that request type.

@@ -118,6 +118,20 @@ Expected:
 - Calls `add_internal_pco_comment` with `public_comment=false`.
 - Blocks public/customer-visible comment requests unless explicitly enabled in runtime config.
 
+## Assign Issue
+
+Prompt:
+
+```text
+assign PCO-135 to @Alya
+```
+
+Expected:
+
+- Calls `set_pco_assignee`.
+- Resolves the Slack mention to an active Jira account.
+- Does not update Jira `PS Team`; "my tasks" and reminders remain PS Team scoped.
+
 ## Reminder
 
 Prompt:
