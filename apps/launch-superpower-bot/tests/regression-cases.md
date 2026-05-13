@@ -13,6 +13,7 @@
 - A single-article legacy manifest should be upgraded into a structured article record without losing article slug, title, markdown, or internal notes.
 - Multiple articles should create and track separate Google Docs and Slack review messages.
 - Slack review messages must be posted by the bot identity when posting is enabled.
+- Slack review messages must use the `@Launch Bot` profile (`user_id=U0ASVD79UT1`, `bot_id=B0ATPPEGBCH`), not `@codexlaunchbot` / Kea Reloaded.
 - Launchbot test runs should post to `#launch-bot-testing` (`C0B32M34J3W`) unless the user explicitly names another channel.
 - Slack automation copy should start with `Launchbot automation:` and use a light cowboy voice without weakening the approval instruction.
 
@@ -20,7 +21,8 @@
 
 - A configured approval reaction from an authorized reviewer should create one Intercom draft for the matching article slug.
 - Unauthorized reviewer reactions should be ignored.
-- The bot should post a progress reply before draft creation and a final reply with the draft link or draft ID after creation.
+- The VM-safe approval path should accept a human ✅ reaction on the correct `@Launch Bot` review message, create one Intercom draft, and post a bot-owned thread reply with the draft link or draft ID.
+- The bot should post a progress reply before draft creation when the external source listener is present and a final reply with the draft link or draft ID after creation.
 - Successful Intercom draft responses without a returned URL should still be accepted when an article ID is present.
 
 ## Intercom HTML Normalization

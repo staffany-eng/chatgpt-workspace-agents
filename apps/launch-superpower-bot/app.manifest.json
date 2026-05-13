@@ -62,6 +62,10 @@
     "slack": {
       "purpose": "review messages and approval reactions",
       "posting_identity": "bot_owned_only",
+      "expected_bot_name": "Launch Bot",
+      "expected_bot_user_id": "U0ASVD79UT1",
+      "expected_bot_id": "B0ATPPEGBCH",
+      "wrong_profile_guard": "Do not use @codexlaunchbot / Kea Reloaded for Launchbot tests.",
       "default_test_channel_name": "launch-bot-testing",
       "default_test_channel_id": "C0B32M34J3W",
       "automation_voice": "light_cowboy"
@@ -84,7 +88,9 @@
     "LAUNCH_STEP3_INTERCOM_APP_ID",
     "LAUNCH_GOOGLE_AUTH_JSON",
     "GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE",
-    "LAUNCH_STEP2_SLACK_CHANNEL_ID"
+    "LAUNCH_STEP2_SLACK_CHANNEL_ID",
+    "LAUNCH_STEP3_SLACK_APPROVAL_REACTION",
+    "LAUNCH_STEP3_SLACK_AUTHORIZED_REVIEWER_IDS"
   ],
   "help_article_contract": {
     "source_of_truth": "code_grounded_behavior",

@@ -25,6 +25,7 @@ For repo-wide evidence or research claims, also follow the root `AGENTS.md`.
 
 - Draft and review first; Intercom output is draft creation, not public publishing.
 - Slack review and reaction handling must use a bot-owned token. Do not post visible automation replies using Kai Yi's user token or a Slack connector identity that posts as a human user.
+- Launchbot Slack tests must use the `@Launch Bot` app profile (`user_id=U0ASVD79UT1`, `bot_id=B0ATPPEGBCH`). Do not use `@codexlaunchbot` / Kea Reloaded for Launchbot tests.
 - Launchbot tests must use Slack `#launch-bot-testing` (`C0B32M34J3W`) unless the user explicitly names another channel.
 - Visible Launchbot Slack automation messages must start with `Launchbot automation:` and use a light cowboy voice, for example `Howdy, partner`, without changing the factual help article body into parody.
 - Google Docs and Intercom credentials must stay runtime-only.

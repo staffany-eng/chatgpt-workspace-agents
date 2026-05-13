@@ -26,6 +26,8 @@ DEFAULT_CHANNEL_NAME = "launch-bot-testing"
 DEFAULT_PARENT_COLLECTION_ID = "19487848"
 DEFAULT_AUTHOR_ID = "3374597"
 DEFAULT_INTERCOM_APP_ID = "y12ertqm"
+EXPECTED_SLACK_BOT_USER_ID = "U0ASVD79UT1"
+EXPECTED_SLACK_BOT_ID = "B0ATPPEGBCH"
 
 
 def fail(message: str) -> None:
@@ -66,6 +68,53 @@ def api_json(
     except error.URLError as exc:
         fail(f"url-error:{method}:{url}:{exc.reason}")
     raise AssertionError("unreachable")
+
+
+def slack_bot_token() -> str:
+    return env_value(
+        "LAUNCH_STEP3_SLACK_BOT_TOKEN",
+        "LAUNCH_STEP2_SLACK_BOT_TOKEN",
+        "SLACK_BOT_TOKEN",
+    )
+
+
+def slack_api(
+    method_name: str,
+    *,
+    payload: dict[str, Any] | None = None,
+    params: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    url = f"https://slack.com/api/{method_name}"
+    if params:
+        query = parse.urlencode({key: str(value) for key, value in params.items()})
+        url = f"{url}?{query}"
+    return api_json(
+        "POST" if payload is not None else "GET",
+        url,
+        headers={"Authorization": f"Bearer {slack_bot_token()}"},
+        payload=payload,
+    )
+
+
+def slack_auth_test() -> dict[str, Any]:
+    response = slack_api("auth.test")
+    if not response.get("ok"):
+        fail(f"slack:auth-test-failed:{response.get('error')}")
+    return response
+
+
+def ensure_launch_bot_identity() -> dict[str, Any]:
+    response = slack_auth_test()
+    if (
+        response.get("user_id") != EXPECTED_SLACK_BOT_USER_ID
+        or response.get("bot_id") != EXPECTED_SLACK_BOT_ID
+    ):
+        fail(
+            "slack:wrong-bot-profile:"
+            f"expected=@Launch Bot/{EXPECTED_SLACK_BOT_USER_ID}/{EXPECTED_SLACK_BOT_ID}:"
+            f"actual={response.get('user')}:{response.get('user_id')}:{response.get('bot_id')}"
+        )
+    return response
 
 
 def google_access_token() -> str:
@@ -299,7 +348,7 @@ def create_google_doc(title: str, markdown: str) -> str:
 
 
 def post_slack_review(channel_id: str, title: str, doc_url: str) -> tuple[str, str]:
-    token = env_value("LAUNCH_STEP2_SLACK_BOT_TOKEN", "SLACK_BOT_TOKEN")
+    ensure_launch_bot_identity()
     payload = {
         "channel": channel_id,
         "text": (
@@ -311,29 +360,112 @@ def post_slack_review(channel_id: str, title: str, doc_url: str) -> tuple[str, s
         "unfurl_links": False,
         "unfurl_media": False,
     }
-    response = api_json(
-        "POST",
-        "https://slack.com/api/chat.postMessage",
-        headers={"Authorization": f"Bearer {token}"},
-        payload=payload,
-    )
+    response = slack_api("chat.postMessage", payload=payload)
     if response.get("error") == "not_in_channel":
-        join_response = api_json(
-            "POST",
-            "https://slack.com/api/conversations.join",
-            headers={"Authorization": f"Bearer {token}"},
-            payload={"channel": channel_id},
-        )
+        join_response = slack_api("conversations.join", payload={"channel": channel_id})
         if join_response.get("ok"):
-            response = api_json(
-                "POST",
-                "https://slack.com/api/chat.postMessage",
-                headers={"Authorization": f"Bearer {token}"},
-                payload=payload,
-            )
+            response = slack_api("chat.postMessage", payload=payload)
     if not response.get("ok"):
         fail(f"slack:post-failed:{response.get('error')}")
     return response["channel"], response["ts"]
+
+
+def post_slack_thread_reply(channel_id: str, thread_ts: str, text: str) -> tuple[str, str]:
+    response = slack_api(
+        "chat.postMessage",
+        payload={
+            "channel": channel_id,
+            "thread_ts": thread_ts,
+            "text": text,
+            "unfurl_links": False,
+            "unfurl_media": False,
+        },
+    )
+    if not response.get("ok"):
+        fail(f"slack:thread-reply-failed:{response.get('error')}")
+    return response["channel"], response["ts"]
+
+
+def fetch_slack_message(channel_id: str, message_ts: str) -> dict[str, Any]:
+    response = slack_api(
+        "conversations.history",
+        params={
+            "channel": channel_id,
+            "latest": message_ts,
+            "inclusive": "true",
+            "limit": "1",
+        },
+    )
+    if not response.get("ok"):
+        fail(f"slack:history-failed:{response.get('error')}")
+    for message in response.get("messages", []):
+        if message.get("ts") == message_ts:
+            return message
+    fail(f"slack:message-not-found:{channel_id}:{message_ts}")
+
+
+def csv_set(value: str) -> set[str]:
+    return {part.strip() for part in value.split(",") if part.strip()}
+
+
+def approval_user_ids(
+    message: dict[str, Any],
+    *,
+    reaction_name: str,
+    bot_user_id: str,
+    authorized_user_ids: set[str],
+) -> list[str]:
+    reaction = next(
+        (item for item in message.get("reactions", []) if item.get("name") == reaction_name),
+        None,
+    )
+    if not reaction:
+        fail(f"approval:missing-{reaction_name}")
+    approving_users = [
+        user_id
+        for user_id in reaction.get("users", [])
+        if user_id and user_id != bot_user_id
+    ]
+    if authorized_user_ids:
+        approving_users = [user_id for user_id in approving_users if user_id in authorized_user_ids]
+    if not approving_users:
+        fail("approval:no-authorized-reviewer")
+    return approving_users
+
+
+def load_existing_article(output_root: Path, issue: str, version: str) -> tuple[dict[str, Any], dict[str, Any], str]:
+    step1_manifest_path = (
+        output_root
+        / "step-1-help-article-trigger"
+        / "issues"
+        / issue
+        / "versions"
+        / version
+        / "manifest.json"
+    )
+    step2_manifest_path = (
+        output_root
+        / "step-2-google-docs-approval"
+        / "issues"
+        / issue
+        / "versions"
+        / version
+        / "manifest.json"
+    )
+    if not step1_manifest_path.exists():
+        fail(f"approval:missing-step1-manifest:{step1_manifest_path}")
+    if not step2_manifest_path.exists():
+        fail(f"approval:missing-step2-manifest:{step2_manifest_path}")
+    step1_manifest = json.loads(step1_manifest_path.read_text(encoding="utf-8"))
+    step2_manifest = json.loads(step2_manifest_path.read_text(encoding="utf-8"))
+    articles = step1_manifest.get("articles") or []
+    if not articles:
+        fail("approval:step1-manifest-has-no-articles")
+    article = articles[0]
+    markdown_path = Path(article.get("markdown_path", ""))
+    if not markdown_path.exists():
+        fail(f"approval:missing-markdown:{markdown_path}")
+    return article, step2_manifest, markdown_path.read_text(encoding="utf-8")
 
 
 def intercom_direct_url(article_id: Any) -> str:
@@ -369,6 +501,77 @@ def create_intercom_draft(title: str, markdown: str) -> dict[str, Any]:
     return article
 
 
+def run_approval_only(args: argparse.Namespace) -> None:
+    output_root = Path(args.output_root)
+    article, step2_manifest, markdown = load_existing_article(output_root, args.issue, args.version)
+    title = article["title"]
+    slack_channel = step2_manifest.get("slack_channel") or args.channel_id
+    slack_ts = args.slack_ts or step2_manifest.get("slack_ts")
+    if not slack_channel:
+        fail("approval:missing-slack-channel")
+    if not slack_ts:
+        fail("approval:missing-slack-ts")
+
+    auth = ensure_launch_bot_identity()
+    bot_user_id = auth.get("user_id", "")
+    if not bot_user_id:
+        fail("slack:auth-test-missing-user-id")
+    message = fetch_slack_message(slack_channel, slack_ts)
+    approving_users = approval_user_ids(
+        message,
+        reaction_name=args.approval_reaction,
+        bot_user_id=bot_user_id,
+        authorized_user_ids=csv_set(args.authorized_reviewer_ids),
+    )
+
+    intercom_article = create_intercom_draft(title, markdown)
+    direct_url = intercom_direct_url(intercom_article.get("id"))
+    visible_url = intercom_article.get("url") or direct_url or str(intercom_article.get("id") or "")
+    reply_text = (
+        "Launchbot automation: Howdy, partner. Approved review is now drafted in Intercom"
+        f": {visible_url}"
+    )
+    reply_channel, reply_ts = post_slack_thread_reply(slack_channel, slack_ts, reply_text)
+
+    step3_dir = output_root / "step-3-intercom-publish" / "issues" / args.issue / "versions" / args.version
+    step3_dir.mkdir(parents=True, exist_ok=True)
+    step3_manifest = {
+        "issue": args.issue,
+        "version": args.version,
+        "article_slug": article["slug"],
+        "approval_reaction": args.approval_reaction,
+        "approval_user_ids": approving_users,
+        "approved_slack_channel": slack_channel,
+        "approved_slack_ts": slack_ts,
+        "approval_message_bot_user_id": bot_user_id,
+        "slack_thread_reply_channel": reply_channel,
+        "slack_thread_reply_ts": reply_ts,
+        "intercom_article_id": intercom_article.get("id"),
+        "intercom_url": intercom_article.get("url"),
+        "intercom_direct_url": direct_url,
+        "intercom_state": intercom_article.get("state"),
+        "intercom_parent_id": intercom_article.get("parent_id"),
+    }
+    (step3_dir / "manifest.json").write_text(json.dumps(step3_manifest, indent=2) + "\n", encoding="utf-8")
+
+    result = {
+        "status": "ok",
+        "mode": "approval-only",
+        "issue": args.issue,
+        "version": args.version,
+        "slack_channel": slack_channel,
+        "slack_ts": slack_ts,
+        "approval_reaction": args.approval_reaction,
+        "approval_user_ids": approving_users,
+        "slack_thread_reply_ts": reply_ts,
+        "intercom_article_id": intercom_article.get("id"),
+        "intercom_url": intercom_article.get("url"),
+        "intercom_direct_url": direct_url,
+        "intercom_state": intercom_article.get("state"),
+    }
+    print(json.dumps(result, indent=2))
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--issue", default="KER-1742")
@@ -383,7 +586,30 @@ def main() -> None:
     parser.add_argument("--skip-slack", action="store_true")
     parser.add_argument("--skip-google-doc", action="store_true")
     parser.add_argument("--skip-intercom", action="store_true")
+    parser.add_argument(
+        "--approval-only",
+        action="store_true",
+        help="Process an existing Slack approval reaction and create the Intercom draft.",
+    )
+    parser.add_argument(
+        "--approval-reaction",
+        default=os.environ.get("LAUNCH_STEP3_SLACK_APPROVAL_REACTION", "white_check_mark"),
+    )
+    parser.add_argument(
+        "--authorized-reviewer-ids",
+        default=os.environ.get("LAUNCH_STEP3_SLACK_AUTHORIZED_REVIEWER_IDS", ""),
+        help="Optional comma-separated Slack user IDs allowed to approve.",
+    )
+    parser.add_argument(
+        "--slack-ts",
+        default="",
+        help="Optional Slack message timestamp override for approval-only mode.",
+    )
     args = parser.parse_args()
+
+    if args.approval_only:
+        run_approval_only(args)
+        return
 
     output_root = Path(args.output_root)
     markdown = article_markdown(args.issue, args.version)
