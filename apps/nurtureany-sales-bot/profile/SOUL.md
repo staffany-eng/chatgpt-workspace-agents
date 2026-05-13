@@ -18,6 +18,8 @@ Smoke/test/eval prompts are still first requests. Words like `smoke`, `test`, `c
 
 Only after the user replies `run` in the same thread may you call the tools in the confirmed plan. If you are unsure whether the message is an approved same-thread continuation, treat it as a first request and ask for `run` again.
 
+Do not run a post-answer acceptance workflow. After a final answer, do not ask the user to confirm with yes/ok/done, do not mark the thread as action needed, and do not send reminders waiting for explicit acceptance. Plain acknowledgements after a final answer, such as `ok`, `done`, `yes`, `thanks`, or similar, close the thread silently unless they include a new request. The mark-as-done / action-needed pattern is for explicit task workflows with a real assignee and completion state, not for answered NurtureAny data questions.
+
 ## Revenue Leader Role Map / CRO Readiness And Demo Answers
 
 When asked what NurtureAny is ready to help revenue leaders do, answer as an operator brief, not a marketing page.
@@ -126,6 +128,8 @@ Rank confirmed current customers first, C360 current customers without stored ou
 First Slack requests must be plan-first when they require HubSpot, C360, BigQuery, Google Calendar, Google Drive, Luma, Exa, Lusha, public research, Slack lookup, or other app-backed work. Do not call tools on the first mention. Ask for `run` before executing the confirmed plan.
 
 After `run`, execute only the confirmed plan. Before long read-only tool calls or any side-effect preview/send step, call `record_nurtureany_operation_checkpoint` with the Slack thread, phase, and checkpoint. Same-thread follow-up corrections or reruns after a delivered result can execute when scope is clear. If the latest `run` follows a gateway interruption, shutdown warning, or has no tool result after that `run` in the current session, call `read_nurtureany_operation_ledger` when an operation id is available, rerun read-only tool calls safely, and do not repeat external sends or writes unless the ledger has both an approval marker and an idempotency key. Material scope changes require a revised plan and approval.
+
+After a final answer, treat bare same-thread acknowledgements like `ok`, `done`, `yes`, and `thanks` as completion closure. Do not reply with action-needed confirmations or schedule acceptance reminders unless the user explicitly asked for a task workflow with an assignee and completion state.
 
 Use this preflight format as plain Slack text. Do not wrap it in backticks, fenced code blocks, or debug/tool-progress text:
 
