@@ -13387,7 +13387,7 @@ def build_singapore_lead_enrichment_plan(
                 "phone_statuses": sorted(PHONE_VERIFICATION_STATUSES),
                 "phone_sources": sorted(PHONE_VERIFICATION_SOURCES),
                 "truecaller_v1_policy": "Manual lookup/callability evidence only; no automated reverse lookup, scraping, or bulk enrichment.",
-                "prospeo_v1_1_policy": "Prospeo is a measured paid-provider pilot candidate only; no adapter, no auto-write, no bulk export, and no raw phone in Slack summaries.",
+                "prospeo_v1_1_policy": "Prospeo is a measured paid-provider pilot candidate only; no adapter, no auto-write, no bulk export, and no raw phone in default Slack summaries.",
             },
             "source_ladder": list(SINGAPORE_LEAD_ENRICHMENT_SOURCE_LADDER),
             "counts": {
@@ -13416,7 +13416,7 @@ def build_singapore_lead_enrichment_plan(
             "confidence": "needs-check" if result_truncated or any(row.get("gap_bucket") != "nurture_ready" for row in rows) else "verified",
             "caveat": _coverage_caveat(
                 metadata,
-                "Plan is read-only. It returns HubSpot writeback previews and WhatsApp talking points only; no HubSpot mutation, paid Lusha/Prospeo reveal, Truecaller automation, WhatsApp send, or raw phone number exposure was performed.",
+                "Plan is read-only. It returns HubSpot writeback previews and WhatsApp talking points only; no HubSpot mutation, paid Lusha/Prospeo reveal, Truecaller automation, WhatsApp send, or raw HubSpot phone exposure was performed.",
             ),
         }
     except ScopeError as error:
@@ -13542,7 +13542,7 @@ def _singapore_global_provider_waterfall_policy() -> dict[str, Any]:
                 "explicit approval marker before reveal",
                 "cost or credit report",
                 "selected contacts only",
-                "no raw phone numbers in Slack summaries",
+                "no raw phone in default Slack summaries",
             ],
             "prospeo_status": "V1.1 provider candidate; no MCP adapter is enabled in this change.",
         },
@@ -13802,7 +13802,7 @@ def _singapore_writeback_preview(
         actions.append(
             {
                 "object_type": "contact",
-                "condition": "Only after manual lookup/call outcome is complete; raw phone numbers stay out of Slack.",
+                "condition": "Only after manual lookup/call outcome is complete; raw HubSpot phone fields stay out of this SG-plan Slack output.",
                 "properties": {
                     "nurtureany_phone_verification_status": "called_connected | wrong_number | unreachable | no_answer | do_not_contact",
                     "nurtureany_phone_verified_at": "YYYY-MM-DD",

@@ -83,6 +83,7 @@ Selected contact PII is allowed in internal Slack threads after explicit reveal 
 - Search responses show availability flags only.
 - Reveals show email and/or phone only for selected contacts.
 - Phone reveal requires `reveal_phones=true`.
+- When `reveal_phones=true`, the internal Slack answer may show the selected raw phone number returned by Lusha. Do not downgrade approved selected reveal output to a generic phone availability flag.
 - Bulk email, phone, or contact exports remain out of scope.
 - Never paste Lusha API keys, raw connector credentials, or unselected contact data into Slack.
 
@@ -100,7 +101,7 @@ No actual HubSpot mutation is allowed in V1.
 
 ## Prospeo Pilot Boundary
 
-Prospeo is a V1.1 paid-provider candidate, not an active runtime tool in this packet. Any Prospeo adapter must match the Lusha guardrails before use: scoped HubSpot company IDs, explicit approval marker before reveal, cost/credit reporting, selected contacts only, no bulk export, no raw phone in Slack summaries, and no HubSpot mutation.
+Prospeo is a V1.1 paid-provider candidate, not an active runtime tool in this packet. Any Prospeo adapter must match the Lusha guardrails before use: scoped HubSpot company IDs, explicit approval marker before reveal, cost/credit reporting, selected contacts only, no bulk export, no raw phone in default Slack summaries, and no HubSpot mutation.
 
 ## Timeout And Failure Handling
 

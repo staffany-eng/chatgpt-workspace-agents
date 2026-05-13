@@ -632,6 +632,8 @@ Expected behavior:
 - Search and reveal require scoped HubSpot company IDs before any paid/API call.
 - Reveal caps at 3 selected contacts.
 - Reveal defaults to email only and never includes phone numbers unless `reveal_phones=true`.
+- If the user explicitly approves selected phone reveal with `approval_marker` and `reveal_phones=true`, the final internal Slack answer may show the selected raw phone number(s) returned by Lusha.
+- Do not answer personal/mobile-number requests with a blanket "raw phone numbers will not be shown"; explain the default redaction and the approval-gated selected Lusha reveal path.
 - Reveal includes `credit_report` and HubSpot preview actions only; it does not mutate HubSpot.
 
 ## Revenue Planning Target Vs Actual

@@ -555,6 +555,7 @@ Expected behavior:
 - Reveal requires selected `contactId` values and an `approval_marker`.
 - Reveal requires scoped HubSpot company IDs from the prior search.
 - Reveal caps at 3 contacts, defaults to email only, and never reveals phones unless `reveal_phones=true`.
+- If explicitly approved with `approval_marker` and `reveal_phones=true`, final internal Slack output may show the selected raw phone number(s) returned by Lusha.
 - Reveal returns selected PII only for selected contacts, `credit_report`, and a HubSpot preview seed with no mutation.
 
 ## Exa People Candidate Search

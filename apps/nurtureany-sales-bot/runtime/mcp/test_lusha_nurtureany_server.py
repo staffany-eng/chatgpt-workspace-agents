@@ -160,7 +160,23 @@ class LushaNurtureAnyServerTest(unittest.TestCase):
         self.assertIn("revealed by approval on", result["answer"]["hubspot_preview_actions"][0]["note_summary"])
 
     def test_reveal_estimates_phone_credits_only_when_phone_flag_is_true(self):
-        response = {"requestId": "req-123", "contacts": []}
+        response = {
+            "requestId": "req-123",
+            "contacts": [
+                {
+                    "id": "contact-1",
+                    "isSuccess": True,
+                    "data": {
+                        "firstName": "Ada",
+                        "lastName": "Ng",
+                        "fullName": "Ada Ng",
+                        "jobTitle": "Owner",
+                        "companyName": "Acme Cafe",
+                        "phoneNumbers": [{"number": "+6512345678", "phoneType": "mobile"}],
+                    },
+                }
+            ],
+        }
         with patch.dict(os.environ, {"LUSHA_API_KEY": "test-key"}), patch.object(
             self.module, "_usage_snapshot", side_effect=[({"total_used": 0}, "fresh"), ({"total_used": 0}, "fresh")]
         ), patch.object(self.module, "_request_json", return_value=(response, {})):
@@ -175,6 +191,7 @@ class LushaNurtureAnyServerTest(unittest.TestCase):
             )
 
         self.assertEqual(result["credit_report"]["estimated_credits"], 12)
+        self.assertEqual(result["answer"]["contacts"][0]["phones"][0]["number"], "+6512345678")
 
     def test_missing_key_returns_blocked_without_calling_lusha(self):
         with patch.dict(os.environ, {}, clear=True), patch.object(

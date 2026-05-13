@@ -265,9 +265,9 @@ Friday sales review uses the same scoped association discipline, plus HubSpot ca
 - Minimum readiness requires one associated contact, one verified decision maker, and one verified phone. Preferred pilot readiness also seeks a champion/influencer or operating contact and at least 3 usable contacts where possible.
 - The source ladder is HubSpot, HubSpot notes/tasks/history, Tavily public company/job-board research, Exa people candidate discovery, Lusha + Prospeo controlled parallel pilot, approved reveal, manual Truecaller/call outcome, then HubSpot preview.
 - Provider waterfall policy uses `cost_mode=capped_effective`: run paid providers only for real gaps, stop after minimum readiness, track successful provider/source/confidence, and measure cost per usable AE handoff.
-- Prospeo is a V1.1 provider candidate beside Lusha for a measured pilot. It must use scoped HubSpot company IDs, explicit approval before reveal, cost/credit reporting, selected contacts only, no bulk export, no raw phone in Slack summaries, and no auto-write.
+- Prospeo is a V1.1 provider candidate beside Lusha for a measured pilot. It must use scoped HubSpot company IDs, explicit approval before reveal, cost/credit reporting, selected contacts only, no bulk export, no raw phone in default Slack summaries, and no auto-write.
 - Truecaller is manual V1 evidence only: no automated reverse lookup, scraping, or bulk enrichment. `truecaller_manual_lookup` does not verify a phone unless `nurtureany_phone_verification_status=called_connected`.
-- Must not mutate HubSpot, reveal paid contact details, expose raw phone numbers, call Lusha/Prospeo reveal, call Truecaller automatically, send WhatsApp, or change account ownership.
+- Must not mutate HubSpot, reveal paid contact details, expose raw HubSpot phone fields, call Lusha/Prospeo reveal from the SG plan, call Truecaller automatically, send WhatsApp, or change account ownership. Personal/mobile-number reveal must use the separate approval-gated Lusha reveal path with `approval_marker` and `reveal_phones=true`.
 
 `list_sales_followup_tasks`:
 

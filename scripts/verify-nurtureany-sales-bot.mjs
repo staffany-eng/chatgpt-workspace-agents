@@ -904,6 +904,8 @@ for (const text of [
   "event attribution",
   "disabled in V1",
   "approval_marker",
+  "selected Lusha reveal",
+  "raw phone number",
   "revealEmails",
   "revealPhones"
 ]) {
