@@ -29,7 +29,7 @@ if command -v hermes >/dev/null 2>&1; then
   for server in psm_jira psm_c360; do
     out="$(hermes -p "$PROFILE" mcp test "$server" 2>&1 || true)"
     case "$server" in
-      psm_jira) expected=12 ;;
+      psm_jira) expected=13 ;;
       psm_c360) expected=3 ;;
     esac
     count="$(printf '%s\n' "$out" | sed -nE 's/.*Tools discovered: ([0-9]+).*/\1/p' | tail -1)"
@@ -43,7 +43,10 @@ config_path="$(hermes -p "$PROFILE" config path 2>/dev/null || true)"
 if [ -n "$config_path" ] && [ -r "$config_path" ]; then
   grep -Eq 'provider: *"?anthropic"?' "$config_path" || fail "model:provider-not-anthropic"
   grep -q 'claude-sonnet-4-6' "$config_path" || fail "model:default-not-claude-sonnet-4-6"
-  grep -q 'channel: *"#ps-weeman-bot-test"' "$config_path" || fail "slack:pilot-channel-not-configured"
+  grep -q 'require_mention: *true' "$config_path" || fail "slack:require-mention-not-enabled"
+  if [ -n "${SLACK_ALLOWED_CHANNELS:-}" ]; then
+    fail "slack:allowed-channels-should-be-empty-for-open-channel-mode"
+  fi
   grep -q 'max_parallel_jobs: *1' "$config_path" || fail "cron:max_parallel_jobs-not-1"
 fi
 

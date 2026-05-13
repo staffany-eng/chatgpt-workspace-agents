@@ -7,7 +7,7 @@ PSM Ops Bot needs deterministic cloud health checks because prompt correctness d
 - Hermes gateway service `hermes-gateway-psmopsbot.service` is active on the GCE host.
 - Secret redaction remains enabled.
 - Model route is pinned to `anthropic` / `claude-sonnet-4-6`.
-- Slack gateway is configured for `#ps-weeman-bot-test`.
+- Slack gateway is mention-required and not restricted to a single public/open channel.
 - `psm_jira` MCP lists exactly the expected tools.
 - `psm_c360` MCP lists exactly the expected tools.
 - `validate_jira_configuration` reports thin POC defaults or full configured fields and request types.
@@ -43,7 +43,7 @@ Install automatic due-date reminders under the cloud profile:
 ```bash
 hermes -p psmopsbot cron create "0 1 * * *" \
   --name "psmopsbot due-date reminders" \
-  --prompt "PSM Ops automation: Check Jira PCO tasks due tomorrow, due today, and overdue as of now for #ps-weeman-bot-test. Use list_due_pco_reminders with lead_days=1. Return only safe issue summaries and do not call Slack post APIs directly." \
+  --prompt "PSM Ops automation: Check Jira PCO tasks due tomorrow, due today, and overdue as of now. Use list_due_pco_reminders with lead_days=1. Return only safe issue summaries and do not call Slack post APIs directly." \
   --deliver "slack:#ps-weeman-bot-test"
 ```
 

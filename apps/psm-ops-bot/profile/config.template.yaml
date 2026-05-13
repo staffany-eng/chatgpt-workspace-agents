@@ -37,7 +37,8 @@ kanban:
 slack:
   require_mention: true
   reactions: false
-  # Set SLACK_ALLOWED_CHANNELS to the pilot channel ID on the cloud host.
+  # Leave SLACK_ALLOWED_CHANNELS empty for public/open-channel usage.
+  # Keep require_mention=true so the bot only replies when mentioned.
   allowed_channels: ""
 
 platforms:
@@ -108,6 +109,7 @@ mcp_servers:
       - "create_approved_pco_task"
       - "transition_pco_task"
       - "add_internal_pco_comment"
+      - "set_pco_ps_team"
       - "set_pco_reminder"
       - "list_due_pco_reminders"
   psm_c360:

@@ -5,7 +5,7 @@
   "canonical": true,
   "runtime": "Hermes Agent",
   "profile_name": "psmopsbot",
-  "rollout_stage": "Slack pilot in #ps-weeman-bot-test",
+  "rollout_stage": "Slack open-channel enabled",
   "model_provider": "anthropic",
   "model": "claude-sonnet-4-6",
   "cloud": {
@@ -48,6 +48,7 @@
         "create_approved_pco_task",
         "transition_pco_task",
         "add_internal_pco_comment",
+        "set_pco_ps_team",
         "set_pco_reminder",
         "list_due_pco_reminders"
       ]
@@ -82,7 +83,7 @@
     "base_url_env_var": "CUSTOMER360_BASE_URL"
   },
   "channels": [
-    "Slack #ps-weeman-bot-test"
+    "Slack public/open channels with mention-required gateway"
   ],
   "secrets_copied": false
 }

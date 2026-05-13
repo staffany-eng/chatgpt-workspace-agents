@@ -1,12 +1,12 @@
 # Slack Runtime
 
-The first surface is the Slack pilot channel `#ps-weeman-bot-test`.
+The Slack surface is mention-required usage in public/open StaffAny Slack channels.
 
 `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` are aliases for this same PSM Ops Bot Slack surface.
 
 ## Required Behavior
 
-- Mention-only in the pilot channel.
+- Mention-only in public/open channels.
 - Use the PSM Ops bot identity for all visible replies.
 - Do not send Slack replies as Kai Yi or through a human user token.
 - Keep Slack output quiet: no streaming drafts, no tool progress, no status reactions.
@@ -46,18 +46,18 @@ Caveat: Reply "create" to create this task.
 
 Use the minimum Hermes Slack gateway scopes required for app mentions and caller identity. Do not request broad private-channel enumeration for V1.
 
-## Pilot Channel
+## Channel Access
 
-Runtime config must set:
+Runtime config must allow open-channel usage:
 
 ```yaml
 slack:
   require_mention: true
-  allowed_channels: "<pilot channel ID>"
+  allowed_channels: ""
 
 gateway:
   slack:
     channel: "#ps-weeman-bot-test"
 ```
 
-For the current pilot workspace, `#ps-weeman-bot-test` resolves to channel ID `C0B2VT50YT1`. Keep `SLACK_ALLOW_ALL_USERS=true` only together with `SLACK_ALLOWED_CHANNELS=C0B2VT50YT1` until the explicit access policy is added.
+Do not set `SLACK_ALLOWED_CHANNELS` for this app when it is expected to answer in any public/open channel. Keep `require_mention=true`; private channels still require explicit membership and approved Slack scopes.

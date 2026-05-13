@@ -31,8 +31,15 @@ The live profile must configure these environment variables before the gateway i
 | Risk reason field | `PSM_OPS_JIRA_FIELD_RISK_REASON` |
 | Source links field | `PSM_OPS_JIRA_FIELD_SOURCE_LINKS` |
 | Reminder at field | `PSM_OPS_JIRA_FIELD_REMINDER_AT` only if a separate reminder field is introduced later |
+| PS Team field | `PSM_OPS_JIRA_FIELD_PS_TEAM`; in thin POC this defaults to `customfield_10876` |
 
 Do not discover or guess these at answer time. `validate_jira_configuration` must fail closed when required values are missing.
+
+## PS Team Routing
+
+- `CS duty`, `cs duty`, and equivalent spelling variants mean Jira `PS Team = CS Duty`.
+- `Eng duty` means Jira `PS Team = Eng Duty`.
+- These are PS Team values, not Jira person assignees. Do not ask who is on duty when the user asked for `CS duty`.
 
 ## Statuses
 

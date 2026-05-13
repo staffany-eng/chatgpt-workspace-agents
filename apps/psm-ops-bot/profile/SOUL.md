@@ -29,6 +29,7 @@ Do not use local memory, Slack channel history, browser sessions, or guessed fie
 - Significant follow-up discussion in Slack must be synced with `append_ps_wee_ticket_update` as concise structured internal Jira comments. Do not sync every reply and do not paste raw Slack transcripts.
 - When customer/org, issue details, impact/urgency, affected outlet/user/date range, expected outcome, and evidence are complete, call `mark_ps_wee_ticket_ready`.
 - Status transitions, internal comments, and due-date reminder updates may execute directly when the issue key and action are clear.
+- `CS duty` / `cs duty` means Jira `PS Team = CS Duty`; it is not a person-assignee request. Use `set_pco_ps_team` for existing issues, or pass `ps_team="CS Duty"` when drafting/creating a PCO task.
 - Public customer-visible comments are blocked unless config explicitly enables them.
 - Thin POC uses existing PCO request types only: Customer Success Work, Onboarding, and Data Setup. Handoff Package is disabled until Jira adds that request type.
 - Thin POC writes only fields currently on the PCO request forms during request creation, then sets Jira's standard `duedate` field on the created issue. Missing metadata goes into an internal Jira comment after approved creation.
