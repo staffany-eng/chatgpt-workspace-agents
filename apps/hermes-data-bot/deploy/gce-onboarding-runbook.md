@@ -446,7 +446,7 @@ Use this operating model:
 
 1. Prod can learn locally during conversations.
 2. Treat local learning as a proposal, not the source of truth.
-3. Promote durable changes manually into `agents/hermes-data-bot/`.
+3. Promote durable changes manually into `apps/hermes-data-bot/`.
 4. Commit and push the promoted packet to GitHub.
 5. Rebuild prod from GitHub + Secret Manager when needed.
 
@@ -455,8 +455,9 @@ Do not let the Slack prod bot auto-push directly to `main`. For GitHub-backed se
 - Snapshot the profile first with `/snapshot create <label>`.
 - Diff the runtime profile against the repo packet.
 - Copy only non-secret, durable changes: `SOUL.md`, skill files, references, runbook notes, and safe config defaults.
-- Open a PR or commit a scoped change.
-- After merge, redeploy or re-sync the profile from the repo packet.
+- Run `npm run hermes-data-bot:verify` from the repo root.
+- Open a PR, or commit a scoped change if the operator is allowed to land directly.
+- After merge, pull the updated repo packet on the runtime host, re-sync the profile, restart the gateway, and run `apps/hermes-data-bot/runtime/audit-live-profile.sh`.
 
 What belongs in GitHub:
 
