@@ -53,6 +53,7 @@
     "lusha_mcp": "runtime/mcp/lusha_nurtureany_server.py",
     "health_checks": "runtime/health-checks.md",
     "health_check_script": "runtime/check-health.sh",
+    "cloud_heartbeat_script": "runtime/check-cloud-heartbeat.sh",
     "slack_socket_watchdog_script": "runtime/check-slack-socket-health.sh",
     "live_profile_audit": "runtime/audit-live-profile.sh",
     "cloud_doctor": "runtime/nurtureany-cloud-doctor.sh",

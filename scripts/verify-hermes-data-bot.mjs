@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { join, resolve } from "node:path";
 import {
@@ -78,6 +79,7 @@ const filesToScan = [
   "runtime/slack.md",
   "runtime/health-checks.md",
   "runtime/check-health.sh",
+  "runtime/check-cloud-heartbeat.sh",
   "runtime/audit-live-profile.sh",
   "runtime/backup-honcho.sh",
   "runtime/review-honcho-memory.sh",
@@ -218,6 +220,37 @@ for (const requiredText of [
   "Confidence: blocked"
 ]) {
   if (!digestPromptText.includes(requiredText)) fail(`feature usage digest prompt missing required text: ${requiredText}`);
+}
+
+const cloudHeartbeatText = existsSync(join(appRoot, "runtime", "check-cloud-heartbeat.sh"))
+  ? readFileSync(join(appRoot, "runtime", "check-cloud-heartbeat.sh"), "utf8")
+  : "";
+for (const requiredText of [
+  "hermes-gateway-staffanydatabot.service",
+  "hermes-gateway-launchbot.service",
+  "staffanydatabot local cloud heartbeat",
+  "staffanydatabot Honcho backup",
+  "EXPECTED_ENABLED_CRON_COUNT",
+  "Asia/Singapore",
+  "systemctl --user is-active",
+  "systemctl --user is-enabled"
+]) {
+  if (!cloudHeartbeatText.includes(requiredText)) fail(`cloud heartbeat script missing required text: ${requiredText}`);
+}
+
+const shellCheck = spawnSync("bash", [
+  "-n",
+  join(appRoot, "runtime", "check-health.sh"),
+  join(appRoot, "runtime", "check-cloud-heartbeat.sh"),
+  join(appRoot, "runtime", "audit-live-profile.sh"),
+  join(appRoot, "runtime", "backup-honcho.sh"),
+  join(appRoot, "runtime", "review-honcho-memory.sh")
+], {
+  cwd: repoRoot,
+  encoding: "utf8"
+});
+if (shellCheck.status !== 0) {
+  fail(`Shell syntax check failed: ${shellCheck.stderr || shellCheck.stdout}`);
 }
 
 if (failures.length > 0) {

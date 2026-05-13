@@ -36,6 +36,7 @@ See `deploy/gcp-vm-topology.md` before changing deployed bot placement or answer
 | `runtime/slack.md` | Slack gateway behavior, scopes, and run gate. |
 | `runtime/update-slack-allowlist.sh` | Safe live-profile helper for adding Slack POC users. |
 | `runtime/health-checks.md` | No-agent operational checks and expected silence. |
+| `runtime/check-cloud-heartbeat.sh` | VM-local no-agent heartbeat for StaffAny Data Bot, LaunchBot, and cron metadata. |
 | `deploy/gcp-vm-topology.md` | Current GCP VM/profile/service ownership, including LaunchBot. |
 | `deploy/gce-onboarding-runbook.md` | GCE restore and bootstrap runbook. |
 | `tests/regression-cases.md` | Manual/eval regression cases for app behavior. |

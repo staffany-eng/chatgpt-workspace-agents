@@ -5,6 +5,7 @@ Hermes Data Bot needs deterministic runtime health checks because prompt correct
 ## Expected Checks
 
 - Hermes gateway service for `staffanydatabot` is active.
+- Cloud host user services `hermes-gateway-staffanydatabot.service` and `hermes-gateway-launchbot.service` are active and enabled.
 - Secret redaction remains enabled.
 - Model route is the intentional Anthropic route: `model.provider=anthropic`, `model.default=claude-sonnet-4-6`.
 - Slack gateway has effective `files:read` scope.
@@ -21,6 +22,7 @@ Hermes Data Bot needs deterministic runtime health checks because prompt correct
 - Honcho API health returns OK when external memory is enabled.
 - `hermes -p staffanydatabot memory status` reports `Provider: honcho` and `Status: available` when Honcho is expected to be active.
 - Healthy checks print nothing and exit 0.
+- VM-local cloud heartbeat cron is enabled every 15 minutes with local delivery disabled.
 - Optional deployment audit can check the high-priority feature usage digest cron after it is enabled.
 
 ## Script
@@ -30,6 +32,14 @@ Use the packet script for no-agent health checks:
 ```bash
 apps/hermes-data-bot/runtime/check-health.sh
 ```
+
+Use the VM-local heartbeat script for centralized cloud runtime monitoring from the host itself:
+
+```bash
+apps/hermes-data-bot/runtime/check-cloud-heartbeat.sh
+```
+
+It checks `hermes-gateway-staffanydatabot.service`, `hermes-gateway-launchbot.service`, and profile cron metadata only. It does not invoke Slack, Jira, BigQuery, Honcho, or model calls.
 
 Default checks:
 
@@ -70,6 +80,12 @@ hermes -p staffanydatabot cron create "0 1 * * 1-5" \
   --name "staffanydatabot health check" \
   --script staffanydatabot-check-health.sh \
   --no-agent
+
+cp apps/hermes-data-bot/runtime/check-cloud-heartbeat.sh ~/.hermes/profiles/staffanydatabot/scripts/staffanydatabot-check-cloud-heartbeat.sh
+hermes -p staffanydatabot cron create "*/15 * * * *" \
+  --name "staffanydatabot local cloud heartbeat" \
+  --script staffanydatabot-check-cloud-heartbeat.sh \
+  --no-agent
 ```
 
 Current deployed pattern from research evidence:
@@ -89,6 +105,7 @@ apps/hermes-data-bot/runtime/audit-live-profile.sh
 ```
 
 It checks the live `SOUL.md`, StaffAny skill folder, health-check script sync, Anthropic model route, Slack quiet settings, secret redaction, BigQuery MCP allowlist, installed health cron, and MCP tool count.
+It also checks the VM-local cloud heartbeat script and cron when installed.
 
 After enabling the weekly high-priority feature usage digest, audit it with:
 

@@ -29,6 +29,7 @@
     "slack_allowlist_update_script": "runtime/update-slack-allowlist.sh",
     "health_checks": "runtime/health-checks.md",
     "health_check_script": "runtime/check-health.sh",
+    "cloud_heartbeat_script": "runtime/check-cloud-heartbeat.sh",
     "live_profile_audit_script": "runtime/audit-live-profile.sh",
     "honcho_backup_script": "runtime/backup-honcho.sh",
     "honcho_memory_review_script": "runtime/review-honcho-memory.sh",

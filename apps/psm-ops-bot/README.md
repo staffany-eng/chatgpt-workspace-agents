@@ -30,6 +30,7 @@ Alias note: `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` refer to this 
 | `runtime/slack.md` | Slack gateway behavior and output contracts. |
 | `runtime/health-checks.md` | Health, drift, and cron verification. |
 | `runtime/check-health.sh` | No-agent live health check. |
+| `runtime/check-cloud-heartbeat.sh` | VM-local no-agent heartbeat for gateway and cron metadata. |
 | `runtime/audit-live-profile.sh` | Source-packet drift audit. |
 | `deploy/gce-onboarding-runbook.md` | Cloud deployment runbook. |
 | `tests/regression-cases.md` | Manual/eval regression cases. |

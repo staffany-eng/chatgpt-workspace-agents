@@ -6,6 +6,7 @@ EXPECTED_MODEL_PROVIDER="${EXPECTED_MODEL_PROVIDER:-anthropic}"
 EXPECTED_MODEL_DEFAULT="${EXPECTED_MODEL_DEFAULT:-claude-sonnet-4-6}"
 EXPECTED_PERSONALITY="${EXPECTED_PERSONALITY:-concise}"
 EXPECTED_HEALTH_CRON_NAME="${EXPECTED_HEALTH_CRON_NAME:-staffanydatabot health check}"
+EXPECTED_CLOUD_HEARTBEAT_CRON_NAME="${EXPECTED_CLOUD_HEARTBEAT_CRON_NAME:-staffanydatabot local cloud heartbeat}"
 EXPECTED_DIGEST_CRON_NAME="${EXPECTED_DIGEST_CRON_NAME:-staffanydatabot high-priority release feature usage digest}"
 EXPECT_DIGEST_CRON="${EXPECT_DIGEST_CRON:-0}"
 EXPECTED_MCP_TOOLS="${EXPECTED_MCP_TOOLS:-4}"
@@ -37,6 +38,7 @@ config_path="$(hermes -p "$PROFILE" config path 2>/dev/null)" || fail "hermes:co
 cmp -s "$APP_ROOT/profile/SOUL.md" "$PROFILE_DIR/SOUL.md" || fail "profile-drift:soul"
 diff -qr "$APP_ROOT/skills/staffany-data-bot" "$PROFILE_DIR/skills/staffany-data-bot" >/dev/null || fail "profile-drift:staffany-data-bot-skill"
 cmp -s "$APP_ROOT/runtime/check-health.sh" "$PROFILE_DIR/scripts/staffanydatabot-check-health.sh" || fail "profile-drift:health-script"
+cmp -s "$APP_ROOT/runtime/check-cloud-heartbeat.sh" "$PROFILE_DIR/scripts/staffanydatabot-check-cloud-heartbeat.sh" || fail "profile-drift:cloud-heartbeat-script"
 
 hermes_python="$HERMES_AGENT_DIR/venv/bin/python"
 [ -x "$hermes_python" ] || fail "hermes:python-not-found"
@@ -116,6 +118,7 @@ fi
 
 cron_out="$(hermes -p "$PROFILE" cron list 2>&1)" || fail "cron:list-failed"
 printf '%s\n' "$cron_out" | grep -Fq "$EXPECTED_HEALTH_CRON_NAME" || fail "cron:health-check-missing"
+printf '%s\n' "$cron_out" | grep -Fq "$EXPECTED_CLOUD_HEARTBEAT_CRON_NAME" || fail "cron:cloud-heartbeat-missing"
 if [ "$EXPECT_DIGEST_CRON" = "1" ]; then
   printf '%s\n' "$cron_out" | grep -Fq "$EXPECTED_DIGEST_CRON_NAME" || fail "cron:feature-usage-digest-missing"
 fi

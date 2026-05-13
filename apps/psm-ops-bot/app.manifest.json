@@ -30,6 +30,7 @@
     "psm_c360_mcp": "runtime/mcp/psm_c360_server.py",
     "health_checks": "runtime/health-checks.md",
     "health_check_script": "runtime/check-health.sh",
+    "cloud_heartbeat_script": "runtime/check-cloud-heartbeat.sh",
     "live_profile_audit_script": "runtime/audit-live-profile.sh",
     "deploy_runbook": "deploy/gce-onboarding-runbook.md",
     "regression_cases": "tests/regression-cases.md"

@@ -8,6 +8,7 @@ fi
 EXPECTED_HEALTH_CRON_NAME="${EXPECTED_HEALTH_CRON_NAME:-nurtureanysalesbot health check}"
 EXPECTED_AUDIT_CRON_NAME="${EXPECTED_AUDIT_CRON_NAME:-nurtureanysalesbot live profile audit}"
 EXPECTED_SLACK_SOCKET_WATCHDOG_CRON_NAME="${EXPECTED_SLACK_SOCKET_WATCHDOG_CRON_NAME:-nurtureanysalesbot Slack socket watchdog}"
+EXPECTED_CLOUD_HEARTBEAT_CRON_NAME="${EXPECTED_CLOUD_HEARTBEAT_CRON_NAME:-nurtureanysalesbot local cloud heartbeat}"
 EXPECTED_DAILY_NURTURE_CRON_NAME="${EXPECTED_DAILY_NURTURE_CRON_NAME:-nurtureanysalesbot Jeremy daily nurture pack}"
 EXPECTED_DAILY_NURTURE_REMINDER_CRON_NAME="${EXPECTED_DAILY_NURTURE_REMINDER_CRON_NAME:-nurtureanysalesbot Jeremy noon nurture reminder}"
 EXPECTED_CRON_TIMEZONE="${EXPECTED_CRON_TIMEZONE:-Asia/Singapore}"
@@ -80,6 +81,7 @@ for rel in sorted(set(source_files) | set(runtime_files)):
 print(f"profile-drift:runtime-mcp:ok:{len(source_files)}")
 PY
 cmp -s "$APP_ROOT/runtime/check-health.sh" "$PROFILE_DIR/scripts/nurtureanysalesbot-check-health.sh" || fail "profile-drift:health-script"
+cmp -s "$APP_ROOT/runtime/check-cloud-heartbeat.sh" "$PROFILE_DIR/scripts/nurtureanysalesbot-check-cloud-heartbeat.sh" || fail "profile-drift:cloud-heartbeat-script"
 cmp -s "$APP_ROOT/runtime/audit-live-profile.sh" "$PROFILE_DIR/scripts/nurtureanysalesbot-audit-live-profile.sh" || fail "profile-drift:audit-script"
 cmp -s "$APP_ROOT/runtime/check-slack-socket-health.sh" "$PROFILE_DIR/scripts/nurtureanysalesbot-check-slack-socket-health.sh" || fail "profile-drift:slack-socket-watchdog-script"
 if [ -e "$PROFILE_DIR/scripts/nurtureanysalesbot-cloud-doctor.sh" ]; then
@@ -93,15 +95,16 @@ fi
 cron_out="$(hermes -p "$PROFILE" cron list 2>&1)" || fail "cron:list-failed"
 printf '%s\n' "$cron_out" | grep -Fq "$EXPECTED_HEALTH_CRON_NAME" || fail "cron:health-check-missing"
 printf '%s\n' "$cron_out" | grep -Fq "$EXPECTED_AUDIT_CRON_NAME" || fail "cron:audit-missing"
+printf '%s\n' "$cron_out" | grep -Fq "$EXPECTED_CLOUD_HEARTBEAT_CRON_NAME" || fail "cron:cloud-heartbeat-missing"
 printf '%s\n' "$cron_out" | grep -Fq "$EXPECTED_SLACK_SOCKET_WATCHDOG_CRON_NAME" || fail "cron:slack-socket-watchdog-missing"
 
 cron_jobs_path="$PROFILE_DIR/cron/jobs.json"
 [ -r "$cron_jobs_path" ] || fail "cron:jobs-json-unreadable"
-python3 - "$cron_jobs_path" "$EXPECTED_HEALTH_CRON_NAME" "$EXPECTED_AUDIT_CRON_NAME" "$EXPECTED_SLACK_SOCKET_WATCHDOG_CRON_NAME" "$EXPECTED_DAILY_NURTURE_CRON_NAME" "$EXPECTED_DAILY_NURTURE_REMINDER_CRON_NAME" "$EXPECTED_CRON_TIMEZONE" > /dev/null <<'PY' || fail "cron:records-invalid"
+python3 - "$cron_jobs_path" "$EXPECTED_HEALTH_CRON_NAME" "$EXPECTED_AUDIT_CRON_NAME" "$EXPECTED_SLACK_SOCKET_WATCHDOG_CRON_NAME" "$EXPECTED_CLOUD_HEARTBEAT_CRON_NAME" "$EXPECTED_DAILY_NURTURE_CRON_NAME" "$EXPECTED_DAILY_NURTURE_REMINDER_CRON_NAME" "$EXPECTED_CRON_TIMEZONE" > /dev/null <<'PY' || fail "cron:records-invalid"
 import json
 import sys
 
-jobs_path, health_name, audit_name, watchdog_name, daily_name, reminder_name, timezone = sys.argv[1:8]
+jobs_path, health_name, audit_name, watchdog_name, heartbeat_name, daily_name, reminder_name, timezone = sys.argv[1:9]
 payload = json.loads(open(jobs_path, "r", encoding="utf-8").read())
 jobs = payload.get("jobs") if isinstance(payload, dict) else payload
 if not isinstance(jobs, list):
@@ -143,6 +146,7 @@ def require_job(name, *, expr, script=None, prompt_contains=None, deliver_prefix
 require_job(health_name, expr="0 1 * * 1-5", script="nurtureanysalesbot-check-health.sh")
 require_job(audit_name, expr="15 1 * * 1-5", script="nurtureanysalesbot-audit-live-profile.sh")
 require_job(watchdog_name, expr="*/5 * * * *", script="nurtureanysalesbot-check-slack-socket-health.sh")
+require_job(heartbeat_name, expr="*/15 * * * *", script="nurtureanysalesbot-check-cloud-heartbeat.sh")
 require_job(
     daily_name,
     expr="0 9 * * 1-5",

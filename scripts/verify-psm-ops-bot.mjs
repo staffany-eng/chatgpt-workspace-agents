@@ -97,6 +97,7 @@ const filesToScan = [
   "runtime/c360.md",
   "runtime/health-checks.md",
   "runtime/check-health.sh",
+  "runtime/check-cloud-heartbeat.sh",
   "runtime/audit-live-profile.sh",
   "runtime/mcp/psm_jira_server.py",
   "runtime/mcp/psm_c360_server.py",
@@ -208,6 +209,32 @@ for (const requiredText of [
   "public/open channels"
 ]) {
   if (!runbookText.includes(requiredText)) fail(`GCE runbook missing required text: ${requiredText}`);
+}
+
+const heartbeatText = textOf(appRoot, "runtime/check-cloud-heartbeat.sh");
+for (const requiredText of [
+  "hermes-gateway-psmopsbot.service",
+  "psmopsbot due-date reminders",
+  "psmopsbot local cloud heartbeat",
+  "EXPECTED_ENABLED_CRON_COUNT",
+  "Asia/Singapore",
+  "systemctl --user is-active",
+  "systemctl --user is-enabled"
+]) {
+  if (!heartbeatText.includes(requiredText)) fail(`Cloud heartbeat script missing required text: ${requiredText}`);
+}
+
+const shellCheck = spawnSync("bash", [
+  "-n",
+  join(appRoot, "runtime", "check-health.sh"),
+  join(appRoot, "runtime", "check-cloud-heartbeat.sh"),
+  join(appRoot, "runtime", "audit-live-profile.sh")
+], {
+  cwd: repoRoot,
+  encoding: "utf8"
+});
+if (shellCheck.status !== 0) {
+  fail(`Shell syntax check failed: ${shellCheck.stderr || shellCheck.stdout}`);
 }
 
 const pyCompile = spawnSync("python3", [

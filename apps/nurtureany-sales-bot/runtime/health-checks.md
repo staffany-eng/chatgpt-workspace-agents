@@ -8,6 +8,7 @@ NurtureAny needs deterministic runtime checks because prompt correctness does no
 - On Linux cloud hosts, gateway health checks `hermes-gateway-nurtureanysalesbot.service` through `systemd --user` instead of grepping old journal/status text.
 - On macOS development hosts, gateway health checks the launchctl label before falling back to `hermes gateway status`.
 - Slack Socket Mode watchdog is installed as no-agent cron and restarts the managed `nurtureanysalesbot` gateway service when the latest stale Socket Mode line is not followed by a fresh session for at least 300 seconds.
+- Local cloud heartbeat is installed as no-agent cron on `nurtureany-sales-bot-prod`. It checks only the local VM: user-systemd gateway state, expected Hermes cron records, paused legacy event-ROI jobs, unsafe-send absence, and redacted cloud-doctor MCP counts. Healthy runs print nothing.
 - Cron concurrency is capped with `cron.max_parallel_jobs: 1`.
 - Secret redaction remains enabled.
 - Production dotenv hydration can use Secret Manager secret `projects/1093387803298/secrets/nurtureany-sales-bot-prod-env` in project `staffany-warehouse`; health, doctor, and audit output must verify key presence by name only and must not print values.
@@ -115,6 +116,12 @@ Run the redacted cloud doctor when the cloud service restarts, cron drifts, or l
 apps/nurtureany-sales-bot/runtime/nurtureany-cloud-doctor.sh
 ```
 
+Run the silent local cloud heartbeat after cron or cloud-doctor changes:
+
+```bash
+apps/nurtureany-sales-bot/runtime/check-cloud-heartbeat.sh
+```
+
 ## Cron Pattern
 
 Prefer Hermes `no_agent` cron for operational checks. Healthy runs should consume no model tokens and create no Slack noise.
@@ -126,6 +133,7 @@ mkdir -p ~/.hermes/profiles/nurtureanysalesbot/scripts
 mkdir -p ~/.hermes/profiles/nurtureanysalesbot/source
 rsync -a --delete apps/nurtureany-sales-bot/ ~/.hermes/profiles/nurtureanysalesbot/source/nurtureany-sales-bot/
 cp apps/nurtureany-sales-bot/runtime/check-health.sh ~/.hermes/profiles/nurtureanysalesbot/scripts/nurtureanysalesbot-check-health.sh
+cp apps/nurtureany-sales-bot/runtime/check-cloud-heartbeat.sh ~/.hermes/profiles/nurtureanysalesbot/scripts/nurtureanysalesbot-check-cloud-heartbeat.sh
 cp apps/nurtureany-sales-bot/runtime/audit-live-profile.sh ~/.hermes/profiles/nurtureanysalesbot/scripts/nurtureanysalesbot-audit-live-profile.sh
 cp apps/nurtureany-sales-bot/runtime/check-slack-socket-health.sh ~/.hermes/profiles/nurtureanysalesbot/scripts/nurtureanysalesbot-check-slack-socket-health.sh
 cp apps/nurtureany-sales-bot/runtime/nurtureany-cloud-doctor.sh ~/.hermes/profiles/nurtureanysalesbot/scripts/nurtureanysalesbot-cloud-doctor.sh
@@ -137,6 +145,11 @@ hermes -p nurtureanysalesbot cron create "0 1 * * 1-5" \
 hermes -p nurtureanysalesbot cron create "15 1 * * 1-5" \
   --name "nurtureanysalesbot live profile audit" \
   --script nurtureanysalesbot-audit-live-profile.sh \
+  --no-agent \
+  --timezone "Asia/Singapore"
+hermes -p nurtureanysalesbot cron create "*/15 * * * *" \
+  --name "nurtureanysalesbot local cloud heartbeat" \
+  --script nurtureanysalesbot-check-cloud-heartbeat.sh \
   --no-agent \
   --timezone "Asia/Singapore"
 hermes -p nurtureanysalesbot cron create "*/5 * * * *" \

@@ -635,6 +635,7 @@ const filesToScan = [
   "runtime/mcp/test_lusha_nurtureany_server.py",
   "runtime/health-checks.md",
   "runtime/check-health.sh",
+  "runtime/check-cloud-heartbeat.sh",
   "runtime/check-slack-socket-health.sh",
   "runtime/audit-live-profile.sh",
   "runtime/nurtureany-cloud-doctor.sh",
@@ -1604,15 +1605,18 @@ for (const text of [
 
 for (const text of [
   "runtime/check-health.sh",
+  "runtime/check-cloud-heartbeat.sh",
   "runtime/check-slack-socket-health.sh",
   "runtime/audit-live-profile.sh",
   "runtime/nurtureany-cloud-doctor.sh",
   "nurtureanysalesbot health check",
   "nurtureanysalesbot live profile audit",
+  "nurtureanysalesbot local cloud heartbeat",
   "nurtureanysalesbot Slack socket watchdog",
   "nurtureanysalesbot Jeremy daily nurture pack",
   "nurtureanysalesbot Jeremy noon nurture reminder",
   "NurtureAny automation:",
+  "check-cloud-heartbeat.sh",
   "check-slack-socket-health.sh",
   "nurtureany-cloud-doctor.sh",
   "*/5 * * * *",
@@ -1667,6 +1671,27 @@ for (const text of [
   if (!healthScriptText.includes(text)) fail(`runtime/check-health.sh missing required text: ${text}`);
 }
 
+const cloudHeartbeatScriptPath = join(appRoot, "runtime/check-cloud-heartbeat.sh");
+const cloudHeartbeatScriptText = textOf("runtime/check-cloud-heartbeat.sh");
+for (const text of [
+  "PROFILE=\"${HERMES_PROFILE:-nurtureanysalesbot}\"",
+  "systemctl --user is-active --quiet \"$GATEWAY_SERVICE_NAME\"",
+  "systemctl --user is-enabled \"$GATEWAY_SERVICE_NAME\"",
+  "EXPECTED_CLOUD_HEARTBEAT_CRON_NAME",
+  "nurtureanysalesbot local cloud heartbeat",
+  "EXPECT_ENABLED_CRON_COUNT=\"${EXPECT_ENABLED_CRON_COUNT:-6}\"",
+  "EXPECT_HUBSPOT_TOOLS=\"${EXPECT_HUBSPOT_TOOLS:-41}\"",
+  "nurtureanysalesbot-check-cloud-heartbeat.sh",
+  "cron:enabled-count-unexpected",
+  "event-roi-enabled",
+  "unsafe-send-message",
+  "nurtureanysalesbot-cloud-doctor.sh",
+  "cloud-doctor:cron-unhealthy",
+  "mcp:hubspot_nurtureany:tools=$EXPECT_HUBSPOT_TOOLS"
+]) {
+  if (!cloudHeartbeatScriptText.includes(text)) fail(`runtime/check-cloud-heartbeat.sh missing required text: ${text}`);
+}
+
 const auditScriptText = textOf("runtime/audit-live-profile.sh");
 for (const text of [
   "PROFILE=\"${HERMES_PROFILE:-nurtureanysalesbot}\"",
@@ -1676,6 +1701,7 @@ for (const text of [
   "profile-drift:soul",
   "profile-drift:nurtureany-sales-bot-skill",
   "profile-drift:runtime-mcp",
+  "profile-drift:cloud-heartbeat-script",
   "profile-drift:slack-socket-watchdog-script",
   "profile-drift:cloud-doctor-script",
   "profile-boundary:staffany-data-bot-skill-installed",
@@ -1684,6 +1710,7 @@ for (const text of [
   "cron:records-invalid",
   "cron:health-check-missing",
   "cron:audit-missing",
+  "cron:cloud-heartbeat-missing",
   "cron:slack-socket-watchdog-missing",
   "live-profile:audit-ok"
 ]) {
@@ -1708,6 +1735,7 @@ for (const text of [
 
 for (const [label, scriptPath] of [
   ["health check", join(appRoot, "runtime/check-health.sh")],
+  ["cloud heartbeat", cloudHeartbeatScriptPath],
   ["live profile audit", join(appRoot, "runtime/audit-live-profile.sh")],
   ["cloud doctor", cloudDoctorScriptPath],
 ]) {
