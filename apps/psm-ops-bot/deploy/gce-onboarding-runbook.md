@@ -10,7 +10,7 @@ This runbook deploys PSM Ops Bot on company cloud infrastructure. Do not run the
 - VM: `hermes-psm-ops-bot-poc`
 - Profile: `psmopsbot`
 - Gateway service: `hermes-gateway-psmopsbot.service`
-- Slack channel: `#ps-weeman-bot-test`
+- Slack channel mode: public/open channels, mention required
 
 ## Secrets
 
@@ -23,7 +23,7 @@ Store these in Secret Manager and load them into the profile `.env` on the cloud
 - `customer-360-internal-api-token`
 - `hermes-data-bot-anthropic-api-key`
 
-Thin POC does not require `SLACK_ALLOWED_USERS` or a PSM Ops access-policy file. The bot resolves the caller by Slack email through Jira user search. Keep the Slack gateway surface limited to `#ps-weeman-bot-test`.
+Thin POC does not require `SLACK_ALLOWED_USERS`, `SLACK_ALLOWED_CHANNELS`, or a PSM Ops access-policy file. The bot resolves the caller by Slack email through Jira user search. Keep `slack.require_mention=true` so public/open-channel usage does not become free-response mode.
 
 Thin POC Jira IDs must also be present in the profile `.env`:
 
@@ -114,7 +114,7 @@ Install automatic due-date reminders on the cloud host only:
 ```bash
 hermes -p psmopsbot cron create "0 1 * * *" \
   --name "psmopsbot due-date reminders" \
-  --prompt "PSM Ops automation: Check Jira PCO tasks due tomorrow, due today, and overdue as of now for #ps-weeman-bot-test. Use list_due_pco_reminders with lead_days=1. Return only safe issue summaries and do not call Slack post APIs directly." \
+  --prompt "PSM Ops automation: Check Jira PCO tasks due tomorrow, due today, and overdue as of now. Use list_due_pco_reminders with lead_days=1. Return only safe issue summaries and do not call Slack post APIs directly." \
   --deliver "slack:#ps-weeman-bot-test"
 ```
 
@@ -130,7 +130,7 @@ apps/psm-ops-bot/runtime/audit-live-profile.sh
 
 Cloud smoke:
 
-1. Mention the bot in `#ps-weeman-bot-test` and list own tasks.
+1. Mention the bot in `#ps-weeman-bot-test` and one additional public/open channel, then list own tasks.
 2. Draft and approve-create one PCO test task.
 3. Transition it to Scheduled.
 4. Add an internal comment.

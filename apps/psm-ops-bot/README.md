@@ -8,7 +8,7 @@ Alias note: `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` refer to this 
 
 - Runtime: Hermes Agent
 - Profile: `psmopsbot`
-- First surface: Slack pilot channel `#ps-weeman-bot-test`
+- Slack surface: mention-required usage in public/open StaffAny Slack channels
 - Model: Anthropic provider, `claude-sonnet-4-6`
 - Jira scope: dedicated PCO Jira Service Management project only
 - Customer context scope: Customer 360 internal API, all customers in V1

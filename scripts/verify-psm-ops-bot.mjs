@@ -38,7 +38,7 @@ if (!existsSync(manifestPath)) {
   if (manifest) {
     if (manifest.profile_name !== "psmopsbot") fail("Manifest profile_name must be psmopsbot");
     if (manifest.secrets_copied !== false) fail("Manifest secrets_copied must be false");
-    if (manifest.rollout_stage !== "Slack pilot in #ps-weeman-bot-test") fail("Manifest rollout_stage must name #ps-weeman-bot-test");
+    if (manifest.rollout_stage !== "Slack open-channel enabled") fail("Manifest rollout_stage must be Slack open-channel enabled");
     if (manifest.cloud?.vm_name !== "hermes-psm-ops-bot-poc") fail("Manifest cloud vm_name must be hermes-psm-ops-bot-poc");
     assertManifestPaths(appRoot, manifest.paths || {}, fail);
 
@@ -53,6 +53,7 @@ if (!existsSync(manifestPath)) {
       "create_approved_pco_task",
       "transition_pco_task",
       "add_internal_pco_comment",
+      "set_pco_ps_team",
       "set_pco_reminder",
       "list_due_pco_reminders"
     ];
@@ -108,7 +109,7 @@ for (const relPath of filesToScan) {
 const configText = textOf(appRoot, "profile/config.template.yaml");
 for (const requiredText of [
   "psmopsbot",
-  "#ps-weeman-bot-test",
+  "SLACK_ALLOWED_CHANNELS empty",
   'provider: "anthropic"',
   'default: "claude-sonnet-4-6"',
   "max_parallel_jobs: 1",
@@ -119,6 +120,7 @@ for (const requiredText of [
   "find_ticket_by_slack_thread",
   "append_ps_wee_ticket_update",
   "mark_ps_wee_ticket_ready",
+  "set_pco_ps_team",
   "psm_jira",
   "psm_c360"
 ]) {
@@ -129,6 +131,7 @@ const soulText = textOf(appRoot, "profile/SOUL.md");
 for (const requiredText of [
   "Task creation is preview first",
   "Status transitions, internal comments, and due-date reminder updates may execute directly",
+  "PS Team = CS Duty",
   "all customers",
   "Do not use personal `customer360_session` cookies",
   "PSM Ops automation:"
@@ -143,6 +146,7 @@ for (const requiredText of [
   "create_ps_wee_intake_ticket",
   "Slack thread permalink is the V1 idempotency key",
   "Task creation must be preview first",
+  "set_pco_ps_team",
   "Public customer-visible comments are blocked",
   "Reminder source of truth is Jira",
   "Use `search_c360_customers`"
@@ -162,6 +166,7 @@ for (const requiredText of [
   "create_approved_pco_task",
   "transition_pco_task",
   "add_internal_pco_comment",
+  "set_pco_ps_team",
   "set_pco_reminder",
   "list_due_pco_reminders",
   "PSM_OPS_JIRA_FIELD_REMINDER_AT",
@@ -188,7 +193,7 @@ for (const requiredText of [
   "asia-southeast1",
   "hermes-gateway-psmopsbot.service",
   "Secret Manager",
-  "#ps-weeman-bot-test"
+  "public/open channels"
 ]) {
   if (!runbookText.includes(requiredText)) fail(`GCE runbook missing required text: ${requiredText}`);
 }

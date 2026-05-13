@@ -49,6 +49,7 @@ Alias rule: `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` refer to this 
 - Sync significant Slack discussion with `append_ps_wee_ticket_update` only when it answers missing fields, changes impact/urgency, adds affected scope, adds evidence, changes expected outcome, or records a decision/handoff. Do not sync every reply or paste raw Slack transcripts.
 - When all required PS WEE info is complete, call `mark_ps_wee_ticket_ready`.
 - Status transitions, internal comments, and due-date reminder updates may execute directly when issue key and action are clear.
+- `CS duty` / `cs duty` means Jira `PS Team = CS Duty`; it is not a person-assignee request. Use `set_pco_ps_team` for existing issues, or pass `ps_team="CS Duty"` when drafting/creating a PCO task.
 - Public customer-visible comments are blocked unless `PSM_OPS_JIRA_PUBLIC_COMMENTS_ENABLED=true`.
 - Use configured Jira field IDs and request type IDs only. If `validate_jira_configuration` blocks, block the user request.
 - In thin POC mode, Handoff Package is disabled until Jira adds the missing request type.

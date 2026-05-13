@@ -72,6 +72,7 @@ class PsmJiraServerTest(unittest.TestCase):
                 "PSM_OPS_JIRA_FIELD_RISK_REASON": "customfield_10106",
                 "PSM_OPS_JIRA_FIELD_SOURCE_LINKS": "customfield_10107",
                 "PSM_OPS_JIRA_FIELD_REMINDER_AT": "customfield_10108",
+                "PSM_OPS_JIRA_FIELD_PS_TEAM": "customfield_10876",
             },
             clear=False,
         )
@@ -132,6 +133,82 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertTrue(draft["approval_required"])
         self.assertEqual(draft["owner_jira_account_id"], "acct-123")
         self.assertEqual(draft["request_type_id"], "101")
+
+    def test_draft_infers_cs_duty_as_ps_team_not_assignee(self):
+        def fake_request(method, path, body=None):
+            self.assertEqual(method, "GET")
+            return {"issues": []}
+
+        self.module._request_json = fake_request
+
+        result = self.module.draft_pco_task(
+            slack_user_email="psm@staffany.com",
+            customer="House of Pok",
+            summary="March and April payroll import for cs duty",
+            due_date="2026-05-25",
+            request_type_key="data_hygiene",
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        draft = result["answer"]["draft"]
+        self.assertEqual(draft["ps_team"], "CS Duty")
+        self.assertEqual(draft["owner_jira_account_id"], "acct-123")
+
+    def test_request_values_resolve_ps_team_option_value(self):
+        calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, body))
+            self.assertEqual(method, "GET")
+            self.assertIn("/field", path)
+            return {
+                "requestTypeFields": [
+                    {
+                        "fieldId": "customfield_10876",
+                        "name": "PS Team",
+                        "validValues": [{"value": "12025", "label": "CS Duty"}],
+                    }
+                ]
+            }
+
+        self.module._request_json = fake_request
+
+        values = self.module._request_field_values(
+            {
+                "summary": "Payroll import",
+                "ps_team": "cs duty",
+                "request_type_id": "103",
+            }
+        )
+
+        self.assertEqual(values["customfield_10876"], "12025")
+
+    def test_set_pco_ps_team_maps_cs_duty_to_jira_option(self):
+        calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if path.endswith("/field"):
+                return {
+                    "requestTypeFields": [
+                        {
+                            "fieldId": "customfield_10876",
+                            "name": "PS Team",
+                            "validValues": [{"value": "12025", "label": "CS Duty"}],
+                        }
+                    ]
+                }
+            return {}
+
+        self.module._request_json = fake_request
+
+        result = self.module.set_pco_ps_team("PCO-134", "cs duty", "psm@staffany.com")
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["answer"]["ps_team"], "CS Duty")
+        self.assertEqual(calls[1][0], "PUT")
+        self.assertEqual(calls[1][1], "/rest/api/3/issue/PCO-134")
+        self.assertEqual(calls[1][2]["fields"]["customfield_10876"], {"id": "12025"})
 
     def test_create_requires_approval_marker(self):
         result = self.module.create_approved_pco_task(

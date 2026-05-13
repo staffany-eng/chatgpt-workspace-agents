@@ -78,6 +78,21 @@ FIELD_ENVS = {
     "reminder_at": "PSM_OPS_JIRA_FIELD_REMINDER_AT",
 }
 
+PS_TEAM_ALIASES = {
+    "cs": "CS Duty",
+    "cs duty": "CS Duty",
+    "cs-duty": "CS Duty",
+    "cs_duty": "CS Duty",
+    "csduty": "CS Duty",
+    "customer success duty": "CS Duty",
+    "eng": "Eng Duty",
+    "eng duty": "Eng Duty",
+    "eng-duty": "Eng Duty",
+    "eng_duty": "Eng Duty",
+    "engduty": "Eng Duty",
+    "engineering duty": "Eng Duty",
+}
+
 SAFE_FIELDS = [
     "summary",
     "status",
@@ -185,6 +200,73 @@ def _optional_field_id(key: str) -> str:
 
 def _ps_team_field_id() -> str:
     return _env("PSM_OPS_JIRA_FIELD_PS_TEAM") or THIN_POC_FIELD_IDS["ps_team"]
+
+
+def _normalize_label(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", (value or "").strip().lower()).strip()
+
+
+def _normalize_ps_team(value: str) -> str:
+    raw = (value or "").strip()
+    if not raw:
+        return ""
+    normalized = _normalize_label(raw)
+    if normalized in PS_TEAM_ALIASES:
+        return PS_TEAM_ALIASES[normalized]
+    return raw
+
+
+def _infer_ps_team_from_text(*values: str) -> str:
+    haystack = _normalize_label(" ".join(str(value or "") for value in values))
+    if re.search(r"\bcs duty\b", haystack):
+        return "CS Duty"
+    if re.search(r"\beng duty\b", haystack):
+        return "Eng Duty"
+    return ""
+
+
+def _ps_team_valid_values(request_type_id: str = "") -> list[dict[str, Any]]:
+    try:
+        rid = request_type_id or _request_type_id("data_hygiene")
+        payload = _request_json(
+            "GET",
+            f"/rest/servicedeskapi/servicedesk/{urllib.parse.quote(_service_desk_id())}"
+            f"/requesttype/{urllib.parse.quote(rid)}/field",
+        )
+    except JiraError:
+        return []
+    fields = payload.get("requestTypeFields", []) if isinstance(payload, dict) else []
+    for field in fields:
+        if not isinstance(field, dict):
+            continue
+        if field.get("fieldId") == _ps_team_field_id() or _normalize_label(str(field.get("name") or "")) == "ps team":
+            values = field.get("validValues") or []
+            return [value for value in values if isinstance(value, dict)]
+    return []
+
+
+def _ps_team_request_value(label: str, request_type_id: str = "") -> Any:
+    normalized = _normalize_ps_team(label)
+    if not normalized:
+        return ""
+    normalized_key = _normalize_label(normalized)
+    for option in _ps_team_valid_values(request_type_id):
+        if _normalize_label(str(option.get("label") or "")) == normalized_key:
+            return option.get("value") or option.get("id") or normalized
+    return normalized
+
+
+def _ps_team_issue_value(label: str) -> Any:
+    normalized = _normalize_ps_team(label)
+    if not normalized:
+        return ""
+    normalized_key = _normalize_label(normalized)
+    for option in _ps_team_valid_values():
+        if _normalize_label(str(option.get("label") or "")) == normalized_key:
+            option_id = str(option.get("value") or option.get("id") or "").strip()
+            if option_id:
+                return {"id": option_id}
+    return {"value": normalized}
 
 
 def _configured_fields() -> dict[str, str]:
@@ -379,7 +461,7 @@ def _request_field_values(draft: dict[str, Any]) -> dict[str, Any]:
         if draft.get("staffany_orgs"):
             values[_field_id("staffany_orgs")] = ", ".join(draft.get("staffany_orgs") or [])
         if draft.get("ps_team"):
-            values[_ps_team_field_id()] = draft["ps_team"]
+            values[_ps_team_field_id()] = _ps_team_request_value(str(draft["ps_team"]), str(draft.get("request_type_id") or ""))
         return values
 
     fields = _field_ids()
@@ -398,6 +480,8 @@ def _request_field_values(draft: dict[str, Any]) -> dict[str, Any]:
     }
     if draft.get("priority"):
         values["priority"] = {"name": draft["priority"]}
+    if draft.get("ps_team"):
+        values[_ps_team_field_id()] = _ps_team_request_value(str(draft["ps_team"]), str(draft.get("request_type_id") or ""))
     for field_id, value in mappings.items():
         if value:
             values[field_id] = value
@@ -543,6 +627,7 @@ def draft_pco_task(
     source_links: list[str] | None = None,
     staffany_orgs: list[str] | None = None,
     contributor_cse: str = "",
+    ps_team: str = "",
     request_type_key: str = "customer_next_action",
 ) -> dict[str, Any]:
     """Build a Jira-ready PCO task draft without creating it."""
@@ -558,6 +643,7 @@ def draft_pco_task(
     if not customer or not summary:
         return _blocked("Customer and summary are required for a PCO task draft.", scope)
 
+    normalized_ps_team = _normalize_ps_team(ps_team) or _infer_ps_team_from_text(summary, action_type, risk_reason, customer)
     draft = {
         "customer": customer.strip(),
         "summary": summary.strip(),
@@ -570,6 +656,7 @@ def draft_pco_task(
         "owner_psm": caller["display_name"],
         "owner_jira_account_id": caller["jira_account_id"],
         "contributor_cse": contributor_cse.strip(),
+        "ps_team": normalized_ps_team,
         "request_type_key": request_type_key,
         "request_type_id": request_type_id,
         "approval_required": True,
@@ -694,7 +781,7 @@ def create_ps_wee_intake_ticket(
     priority: str = "Medium",
     due_date: str = "",
     request_type_key: str = "customer_next_action",
-    ps_team: str = "PS WEE",
+    ps_team: str = "",
 ) -> dict[str, Any]:
     """Create an immediate PCO intake ticket for PS WEE/PSM Manager Ops requests."""
 
@@ -741,6 +828,13 @@ def create_ps_wee_intake_ticket(
     missing = [str(item).strip() for item in (missing_info or default_missing) if str(item).strip()]
     source_links = [source]
     source_links.extend(str(link).strip() for link in (evidence_links or []) if str(link).strip())
+    normalized_ps_team = _normalize_ps_team(ps_team) or _infer_ps_team_from_text(
+        normalized_issue,
+        known_details,
+        affected_scope,
+        expected_outcome,
+        normalized_customer,
+    )
     draft = {
         "customer": normalized_customer,
         "summary": f"[Needs info] {normalized_customer} - {normalized_issue}",
@@ -750,7 +844,7 @@ def create_ps_wee_intake_ticket(
         "risk_reason": "Needs info from Slack thread",
         "source_links": source_links,
         "staffany_orgs": [],
-        "ps_team": (ps_team or "PS WEE").strip(),
+        "ps_team": normalized_ps_team,
         "owner_psm": caller["display_name"],
         "owner_jira_account_id": caller.get("jira_account_id", ""),
         "contributor_cse": "",
@@ -823,6 +917,40 @@ def _assign_issue(issue_key: str, account_id: str) -> None:
         "PUT",
         f"/rest/api/3/issue/{urllib.parse.quote(issue_key)}/assignee",
         {"accountId": account_id},
+    )
+
+
+@mcp.tool()
+def set_pco_ps_team(
+    issue_key: str,
+    ps_team: str,
+    slack_user_email: str = "",
+    comment: str = "",
+) -> dict[str, Any]:
+    """Set the PCO PS Team field, e.g. map 'cs duty' to the Jira option 'CS Duty'."""
+
+    key = (issue_key or "").strip().upper()
+    normalized = _normalize_ps_team(ps_team) or _infer_ps_team_from_text(ps_team, comment)
+    scope = {"issue_key": key, "ps_team": normalized, "caller": (slack_user_email or "").strip().lower()}
+    if not key:
+        return _blocked("Issue key is required.", scope)
+    if not normalized:
+        return _blocked("PS Team is required.", scope)
+    try:
+        issue_value = _ps_team_issue_value(normalized)
+        _request_json(
+            "PUT",
+            f"/rest/api/3/issue/{urllib.parse.quote(key)}",
+            {"fields": {_ps_team_field_id(): issue_value}},
+        )
+        if comment:
+            add_internal_pco_comment(key, f"PS Team updated to {normalized}. Context: {comment}")
+    except JiraError as error:
+        return _blocked(str(error), scope)
+    return _verified(
+        {"issue_key": key, "ps_team": normalized},
+        scope,
+        "PS Team was updated on the Jira issue.",
     )
 
 
