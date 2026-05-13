@@ -7,6 +7,8 @@ NurtureAny's first runtime surface is Slack mention usage in sales pilot channel
 - Mention-only in configured channels for V1.
 - First tool-backed requests are plan-first.
 - The bot asks for `run` before the first confirmed execution.
+- Same-thread `run` replies after a bot plan must route without re-mentioning the bot. The gateway should treat a thread whose parent message mentioned `@NurtureAny` as a mentioned thread even after restart or cache loss.
+- Slack status reactions are enabled for NurtureAny so users can see processing start while long tool-backed work is running.
 - Local source-packet hydration is allowed and required before the first preflight when the prompt involves NurtureAny sales workflow terms, drafting, pre-demo, demo, post-demo, event follow-up, Friday review, coaching, inbound/routing, AI/data readiness, or operating rhythm. The run gate blocks HubSpot, C360, BigQuery, Google Calendar, Google Drive, Luma, Exa, Lusha, public research, Slack lookup, and other app-backed or external sources before `run`; it must not block local skill/reference loading.
 - If local NurtureAny references define a term, the preflight must use that definition instead of asking the user. `KNS`, `K/N/S`, and `K N S` mean `Knowledge, Network, Support`; only caveat that an external slide/doc may refine the wording after `run`.
 - If a request includes a Google Slides URL or asks to use a deck, first response is still plan-only and must name `read_google_slides_deck` as the first source check after `run`. Do not plan from the URL alone. If deck access is blocked, ask for viewer access to `team@staffany.com` or an approved StaffAny group; do not ask for "Anyone with the link" public sharing.
