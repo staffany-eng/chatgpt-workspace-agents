@@ -103,6 +103,8 @@ nurtureany:
     - appreciation afternoon
     - sports
     hubspot_funnel_stage_env:
+      revenue_new_business_pipeline_ids: NURTUREANY_REVENUE_NEW_BUSINESS_PIPELINE_IDS
+      revenue_renewal_pipeline_ids: NURTUREANY_REVENUE_RENEWAL_PIPELINE_IDS
       qo_pipeline_ids: NURTUREANY_QO_PIPELINE_IDS
       qo_stage_ids: NURTUREANY_QO_STAGE_IDS
       qo_met_stage_ids: NURTUREANY_QO_MET_STAGE_IDS
