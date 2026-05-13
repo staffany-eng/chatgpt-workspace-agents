@@ -1,6 +1,6 @@
 # Exa Runtime
 
-Exa is an optional people-discovery source for NurtureAny decision-maker lookup. It sits between manual/free public evidence and Lusha reveal: Exa can find likely public people-profile candidates, while Lusha remains the approval-gated source for selected email or phone reveal.
+Exa is an optional people-discovery source for NurtureAny decision-maker lookup. It sits after Tavily/manual public company and job-board evidence, and before selected contact-data providers: Exa can find likely public people-profile candidates, while Lusha remains the approval-gated source for selected email or phone reveal and Prospeo remains a V1.1 pilot candidate only.
 
 HubSpot remains the source of truth for accounts, ownership, existing contacts, and write-back approval.
 
@@ -29,6 +29,7 @@ The adapter sends an explicit `StaffAny-NurtureAny/1.0` User-Agent header so Exa
 - Sends `category: "people"`, `type: "auto"`, `numResults <= 5`, and `userLocation` mapped from company country (`SG`, `MY`, or `ID`).
 - Accepts up to 5 companies per call.
 - Defaults to 5 candidates per company and caps at 5.
+- Default title targets include owner/founder/CEO/MD/director/GM coverage plus SG operating roles: HR manager, people manager, operations manager, finance manager, and payroll manager.
 - Returns query, Exa request ID, candidate title, URL, source domain, source type, inferred name/title, decision-maker title match, and `cost_report`.
 - Does not send `contents`, `includeDomains`, `excludeDomains`, crawl-date filters, or LinkedIn-specific fetch parameters.
 - Does not reveal email addresses or phone numbers.
@@ -70,7 +71,7 @@ Recommended flow:
 1. Use HubSpot to identify accounts with missing decision-maker coverage.
 2. Pass only the scoped HubSpot company records returned by NurtureAny into Exa.
 3. Ask the user to select one or more candidates.
-4. Use Lusha targeted reveal only after explicit approval, scoped HubSpot company IDs, and cost estimate.
+4. Use Lusha targeted reveal, or a future Prospeo pilot after adapter approval, only after explicit approval, scoped HubSpot company IDs, and cost estimate.
 5. Use `plan_hubspot_writeback` only to prepare a preview.
 
 No Exa output mutates HubSpot directly.

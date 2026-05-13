@@ -67,13 +67,14 @@ When NurtureAny is asked what data sources it used, answer definitively from thi
 - Region scope: HubSpot company property `company_country`.
 - Renewal timing / T-90 windows: HubSpot company property `contract_end_date`; explicit date-window requests must pass `start_date` and `end_date`.
 - Current tools: HubSpot company property `current_tools`.
+- Phone verification: HubSpot contact properties `nurtureany_phone_verification_status`, `nurtureany_phone_verified_at`, `nurtureany_phone_verified_by`, `nurtureany_phone_verification_source`, and `nurtureany_phone_verification_notes`.
 - Customer/prospect status: HubSpot company property `type`, then `lifecyclestage`, then `prospecting_account`; C360 current-customer evidence may strengthen customer status when explicitly used.
 - Sales follow-up status: HubSpot WhatsApp `communications`, notes, completed tasks, and existing incomplete tasks associated to the scoped company/contact/deal.
 - Friday connected calls: HubSpot `calls` associated to scoped accounts through company/contact/deal where `hs_call_status=COMPLETED` and `hs_call_duration>=120000`.
 - Friday warm activity proof: HubSpot `meetings` associated to scoped accounts through company/contact/deal where `hs_meeting_outcome=COMPLETED` and `hs_meeting_title` or `hs_activity_type` matches a configured warm activity label.
 - Manager chase drafts: HubSpot priority-account coverage, safe sales-owned tasks, and safe activity summary fields are truth; selected Slack context is only a short summary/permalink for wording.
 
-`current_tool_renewal_date`, C360, Google Calendar, Luma, Exa, Lusha, Slack, and public evidence are enrichment or context sources only. They must not override HubSpot target-account membership, ownership, `contract_end_date`, or `current_tools`.
+`current_tool_renewal_date`, C360, Google Calendar, Luma, Tavily public research, Exa, Lusha, Prospeo pilot evidence, Slack, and public evidence are enrichment or context sources only. They must not override HubSpot target-account membership, ownership, `contract_end_date`, `current_tools`, verified decision-maker fields, or phone-verification fields.
 
 For Calendar follow-up coverage, first resolve the HubSpot company owner to owner name/email through HubSpot owners API. Then scan that AE's calendar ID, for example `jeremy.wong@staffany.com`, using the read-only `team@staffany.com` OAuth account. If the AE calendar is not accessible to `team@staffany.com`, return blocked/needs-check calendar coverage; do not say "no calendar follow-up" from the team primary calendar alone.
 
@@ -146,9 +147,21 @@ Do not expose `hs_call_body`, call recordings, meeting bodies, meeting descripti
 | Last name | `lastname` | Draft personalization when safe. |
 | Job title | `jobtitle` | Persona signal and role-only decision-maker candidate signal. It does not satisfy audited clean-account coverage by itself. |
 | Job role | `job_role` | Persona signal and role-only decision-maker candidate signal. It does not satisfy audited clean-account coverage by itself. |
+| Phone | `phone` | Existing phone candidate field. Do not expose raw values in Slack-facing output. |
+| Mobile phone | `mobilephone` | Existing mobile candidate field. Do not expose raw values in Slack-facing output. |
 | Buying role | `hs_buying_role` | Auditable decision-maker field. Value `DECISION_MAKER` counts as verified direct coverage. |
+| Email opt-out | `hs_email_optout` | Do-not-contact guardrail. |
 | Contact owner | `hubspot_owner_id` | Secondary ownership/context only. |
 | Last modified | `lastmodifieddate` | Contact freshness signal. |
+| NurtureAny persona | `nurtureany_persona` | Optional persona/handoff classification. |
+| NurtureAny channel fit | `nurtureany_channel_fit` | Optional channel-fit classification. |
+| NurtureAny contact confidence | `nurtureany_contact_confidence` | High/Medium/Low/needs-check research confidence. |
+| NurtureAny last verified at | `nurtureany_last_verified_at` | General contact verification freshness signal. |
+| Phone verification status | `nurtureany_phone_verification_status` | One of `not_checked`, `candidate`, `called_connected`, `wrong_number`, `unreachable`, `no_answer`, `do_not_contact`, or `stale`. Only `called_connected` counts as verified callable coverage. |
+| Phone verified at | `nurtureany_phone_verified_at` | Verification date used for staleness checks, default stale after 90 days. |
+| Phone verified by | `nurtureany_phone_verified_by` | AE/operator who verified the number. |
+| Phone verification source | `nurtureany_phone_verification_source` | One of `hubspot_existing`, `manual_call`, `lusha_reveal`, `truecaller_manual_lookup`, `apollo_manual`, or `prospeo_manual`. |
+| Phone verification notes | `nurtureany_phone_verification_notes` | Short safe note. Do not store raw phone numbers in Slack-facing summaries. |
 
 Slack evidence treats Boss, Founder, Owner, HR Director, and Ops Director as decision-maker examples for candidate review. HR Executive alone should not count as decision-maker coverage. Title-only matches are `needs-check` candidates until HubSpot buying role is set.
 
@@ -172,5 +185,10 @@ Create or update these contact properties during the write-back phase:
 - `nurtureany_channel_fit`
 - `nurtureany_contact_confidence`
 - `nurtureany_last_verified_at`
+- `nurtureany_phone_verification_status`
+- `nurtureany_phone_verified_at`
+- `nurtureany_phone_verified_by`
+- `nurtureany_phone_verification_source`
+- `nurtureany_phone_verification_notes`
 
 All write-back must be previewed first and explicitly approved.

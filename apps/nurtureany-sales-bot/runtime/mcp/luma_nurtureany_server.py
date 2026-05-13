@@ -191,9 +191,8 @@ def _rfc3339(value: str | None, default: datetime, *, end_of_day: bool = False) 
     if not text:
         return default.isoformat().replace("+00:00", "Z")
     if "T" not in text:
-        if end_of_day:
-            return f"{text}T23:59:59Z"
-        return f"{text}T00:00:00Z"
+        suffix = "23:59:59" if end_of_day else "00:00:00"
+        return f"{text}T{suffix}Z"
     if text.endswith("Z"):
         return text
     tail = text[10:]
@@ -823,7 +822,7 @@ def list_luma_events(
         {
             "query": query,
             "after": _rfc3339(start, now),
-            "before": _rfc3339(end, now + timedelta(days=DEFAULT_LOOKAHEAD_DAYS)),
+            "before": _rfc3339(end, now + timedelta(days=DEFAULT_LOOKAHEAD_DAYS), end_of_day=True),
             "requested_limit": limit,
             "event_tag_filters": _event_tag_filters(event_tags, country, event_type, location),
             "location_filter": filters["location"] or location,

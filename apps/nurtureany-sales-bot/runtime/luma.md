@@ -29,6 +29,7 @@ The local stdio MCP adapter lives at `runtime/mcp/luma_nurtureany_server.py`.
 - Input: Slack user email, optional query, optional start/end, optional max events, optional `event_tags`, optional location, optional country, and optional event type.
 - Output: safe event id, name, date/time, timezone, URL, Luma tags, normalized location tags, normalized country tags, normalized event type tags, and tag match source only.
 - Caps events at 50, defaults to 20, and returns `has_more` plus `truncated`.
+- Date-only windows are inclusive by end date: `end=YYYY-MM-DD` is sent to Luma as `YYYY-MM-DDT23:59:59Z`, not midnight at the start of that day.
 - Uses exact Luma event tags first when `event_tags` is supplied. If Luma omits tags from `list-events`, the adapter fetches event detail; if tags are still unavailable, it falls back to event name/timezone metadata with `Confidence: needs-check`.
 
 `get_luma_event_context`:

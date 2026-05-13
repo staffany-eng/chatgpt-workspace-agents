@@ -98,6 +98,8 @@ CONTACT_PROPERTIES = [
     "lastname",
     "jobtitle",
     "job_role",
+    "phone",
+    "mobilephone",
     "hs_buying_role",
     "hs_email_optout",
     "hubspot_owner_id",
@@ -106,6 +108,11 @@ CONTACT_PROPERTIES = [
     "nurtureany_channel_fit",
     "nurtureany_contact_confidence",
     "nurtureany_last_verified_at",
+    "nurtureany_phone_verification_status",
+    "nurtureany_phone_verified_at",
+    "nurtureany_phone_verified_by",
+    "nurtureany_phone_verification_source",
+    "nurtureany_phone_verification_notes",
 ]
 
 DEAL_PROPERTIES = [
@@ -258,7 +265,86 @@ PUBLIC_EVIDENCE_ITEM_LIMIT = _public_research.PUBLIC_EVIDENCE_ITEM_LIMIT
 PUBLIC_TASK_ACCOUNT_LIMIT = 25
 PRE_DEMO_GAME_PLAN_ACCOUNT_LIMIT = 5
 CASE_STUDY_MATCH_LIMIT = 3
+CASE_STUDY_MIN_MATCH_SCORE = 8
 CASE_STUDY_CATALOG_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "case-studies.json")
+SINGAPORE_LEAD_ENRICHMENT_DEFAULT_LIMIT = 30
+SINGAPORE_LEAD_ENRICHMENT_MAX_LIMIT = 250
+SINGAPORE_LEAD_ENRICHMENT_DEFAULT_BATCH_SIZE = 30
+SINGAPORE_LEAD_ENRICHMENT_COUNTRY = "Singapore"
+PHONE_VERIFICATION_DEFAULT_STALE_AFTER_DAYS = 90
+PHONE_VERIFICATION_STATUSES = {
+    "not_checked",
+    "candidate",
+    "called_connected",
+    "wrong_number",
+    "unreachable",
+    "no_answer",
+    "do_not_contact",
+    "stale",
+}
+PHONE_VERIFICATION_VERIFIED_STATUSES = {"called_connected"}
+PHONE_VERIFICATION_SOURCES = {
+    "hubspot_existing",
+    "manual_call",
+    "lusha_reveal",
+    "truecaller_manual_lookup",
+    "apollo_manual",
+    "prospeo_manual",
+}
+SINGAPORE_LEAD_ENRICHMENT_BUCKETS = (
+    "nurture_ready",
+    "missing_associated_contact",
+    "missing_decision_maker",
+    "missing_verified_phone",
+    "hubspot_rollup_mismatch",
+    "needs_paid_reveal",
+    "needs_manual_truecaller_check",
+    "ready_for_whatsapp_batch",
+)
+SINGAPORE_LEAD_ENRICHMENT_SOURCE_LADDER = (
+    "hubspot",
+    "hubspot_notes_tasks_history",
+    "tavily_public_company_job_board_research",
+    "exa_people_candidate_discovery",
+    "lusha_prospeo_parallel_search_pilot",
+    "approved_lusha_or_prospeo_reveal",
+    "manual_truecaller_call_outcome",
+    "hubspot_writeback_preview",
+)
+SINGAPORE_LEAD_ENRICHMENT_PROVIDER_JOBS = (
+    {
+        "provider": "tavily_public_research",
+        "job": "public company, company-site, careers, and SG job-board signal research",
+        "cost_policy": "use before paid contact reveal; requires scoped HubSpot company input and cost_report",
+    },
+    {
+        "provider": "exa_people_search",
+        "job": "public people/profile candidate discovery",
+        "cost_policy": "use after public company research when decision-maker or champion candidates are still missing",
+    },
+    {
+        "provider": "lusha",
+        "job": "selected contact lookup or reveal",
+        "cost_policy": "pilot only for real gaps; approval marker and credit_report required before reveal",
+    },
+    {
+        "provider": "prospeo",
+        "job": "parallel paid-provider candidate for email/mobile yield comparison",
+        "cost_policy": "V1.1 candidate only; no adapter, no auto-write, and same approval/cost guardrails as Lusha",
+    },
+    {
+        "provider": "truecaller",
+        "job": "manual callability lookup and call outcome evidence",
+        "cost_policy": "manual only; never automated reverse lookup, scraping, or bulk enrichment",
+    },
+)
+SINGAPORE_LEAD_ENRICHMENT_PILOT_METRICS = (
+    "cost_per_account_moved_out_of_gap_bucket",
+    "cost_per_usable_contact",
+    "cost_per_verified_or_callable_phone",
+    "ae_validation_valid_wrong_person_left_company_no_response",
+    "activities_to_qo_follow_through",
+)
 HUBSPOT_SEARCH_PAGE_LIMIT = 100
 HUBSPOT_SEARCH_RESULT_LIMIT = 1000
 HUBSPOT_SEARCH_TOTAL_LIMIT = 10_000
@@ -313,7 +399,54 @@ PRIORITY_ACCOUNT_WEEKLY_WORKED_TARGET = 120
 MANAGER_CHASE_RETURN_LIMIT = 20
 MANAGER_CHASE_COVERAGE_LIMIT = 150
 ACTIVE_DEAL_HYGIENE_RETURN_LIMIT = 100
+REVENUE_FUNNEL_RETURN_LIMIT = 250
+REVENUE_FUNNEL_DEAL_SCAN_LIMIT = 1000
+REVENUE_FUNNEL_NEW_BUSINESS_PIPELINE_IDS_ENV_VAR = "NURTUREANY_REVENUE_NEW_BUSINESS_PIPELINE_IDS"
+REVENUE_FUNNEL_RENEWAL_PIPELINE_IDS_ENV_VAR = "NURTUREANY_REVENUE_RENEWAL_PIPELINE_IDS"
+REVENUE_FUNNEL_CHANNEL_PROPERTIES = (
+    "appointment_set_channel",
+    "appointment_setter_channel",
+    "appointment_source",
+    "sales_channel",
+    "lead_source",
+    "hs_analytics_source",
+    "hs_analytics_source_data_1",
+    "hs_latest_source",
+    "hs_latest_source_data_1",
+)
+REVENUE_FUNNEL_BUSINESS_TYPE_PROPERTIES = (
+    "dealtype",
+    "deal_type",
+    "business_type",
+    "new_existing_business",
+    "new_or_existing_business",
+)
+REVENUE_FUNNEL_DEAL_PROPERTIES = sorted(
+    set(DEAL_PROPERTIES + list(REVENUE_FUNNEL_CHANNEL_PROPERTIES) + list(REVENUE_FUNNEL_BUSINESS_TYPE_PROPERTIES))
+)
+REVENUE_FUNNEL_SALES_OUTBOUND_VALUES = {"sales outbound"}
+REVENUE_FUNNEL_ALL_OUTBOUND_MARKERS = ("outbound", "cold call", "cold email", "linkedin", "whatsapp outbound")
+AE_COACHING_QO_WEEKLY_TARGET = 3
+AE_COACHING_MORNING_START_HOUR = 6
+AE_COACHING_MORNING_END_HOUR = 12
+AE_COACHING_LONG_CALL_MIN_DURATION_MS = 60_000
+AE_COACHING_DEFAULT_LIMIT = PRIORITY_ACCOUNT_LOCKED_POOL_BASELINE
+AE_COACHING_DEFAULT_SOFT_TIMEOUT_SECONDS = 240
+SALES_NAVIGATOR_ROLE_PRIORITY = (
+    ("DECISION_MAKER", 100),
+    ("founder", 95),
+    ("owner", 90),
+    ("chief", 88),
+    ("director", 84),
+    ("head of hr", 82),
+    ("hr manager", 76),
+    ("ops manager", 72),
+    ("operations manager", 72),
+    ("hr executive", 55),
+)
+FNB_RETAIL_MARKERS = ("food", "beverage", "restaurant", "f&b", "fnb", "retail", "cafe", "bakery", "hospitality")
 _CASE_STUDY_CATALOG_CACHE: list[dict[str, Any]] | None = None
+_DEAL_PROPERTY_NAMES_CACHE: set[str] | None = None
 CONNECTED_CALL_WEEKLY_TARGET = 40
 CONNECTED_CALL_MIN_DURATION_MS = 120_000
 STALE_ACCOUNT_DAYS = 18
@@ -1344,8 +1477,123 @@ def _company_search(
     }
 
 
-def _hubspot_date_filter_value(value: date) -> str:
-    return str(int(datetime.combine(value, datetime.min.time(), tzinfo=timezone.utc).timestamp() * 1000))
+def _deal_property_names() -> set[str]:
+    global _DEAL_PROPERTY_NAMES_CACHE
+    if _DEAL_PROPERTY_NAMES_CACHE is not None:
+        return _DEAL_PROPERTY_NAMES_CACHE
+    try:
+        data = _get("/crm/v3/properties/deals")
+        _DEAL_PROPERTY_NAMES_CACHE = {
+            str(item.get("name") or "").strip()
+            for item in data.get("results", [])
+            if str(item.get("name") or "").strip()
+        }
+    except HubSpotError:
+        _DEAL_PROPERTY_NAMES_CACHE = set(DEAL_PROPERTIES)
+    return _DEAL_PROPERTY_NAMES_CACHE
+
+
+def _available_deal_properties(properties: list[str] | tuple[str, ...]) -> list[str]:
+    available = _deal_property_names()
+    selected = [name for name in properties if name in available]
+    for name in DEAL_PROPERTIES:
+        if name not in selected:
+            selected.append(name)
+    return selected
+
+
+def _deal_search(
+    filters: list[dict[str, Any]],
+    limit: int = 100,
+    maximum: int = REVENUE_FUNNEL_DEAL_SCAN_LIMIT,
+    properties: list[str] | None = None,
+    sorts: list[dict[str, str]] | None = None,
+) -> dict[str, Any]:
+    requested_limit = _bounded_int(limit, default=100, maximum=maximum)
+    results: list[dict[str, Any]] = []
+    total: int | None = None
+    next_after = ""
+    read_properties = _available_deal_properties(properties or REVENUE_FUNNEL_DEAL_PROPERTIES)
+
+    while len(results) < requested_limit:
+        page_limit = min(HUBSPOT_SEARCH_PAGE_LIMIT, requested_limit - len(results))
+        body: dict[str, Any] = {
+            "filterGroups": [{"filters": filters}],
+            "properties": read_properties,
+            "limit": page_limit,
+            "sorts": sorts or [{"propertyName": "createdate", "direction": "ASCENDING"}],
+        }
+        if next_after:
+            body["after"] = next_after
+        page = _post("/crm/v3/objects/deals/search", body)
+        if total is None and page.get("total") is not None:
+            total = _int_value(page.get("total"))
+        page_results = page.get("results", [])
+        results.extend(page_results)
+        next_after = str(page.get("paging", {}).get("next", {}).get("after") or "")
+        if not page_results or not next_after:
+            break
+
+    returned_count = len(results)
+    has_more = bool(next_after) or (total is not None and returned_count < total)
+    return {
+        "results": results,
+        "total": total,
+        "requested_limit": requested_limit,
+        "returned_count": returned_count,
+        "has_more": has_more,
+        "truncated": has_more,
+        "properties": read_properties,
+    }
+
+
+def _object_search(
+    object_type: str,
+    filters: list[dict[str, Any]],
+    properties: list[str],
+    limit: int = 100,
+    maximum: int = 500,
+    sorts: list[dict[str, str]] | None = None,
+) -> dict[str, Any]:
+    requested_limit = _bounded_int(limit, default=100, maximum=maximum)
+    results: list[dict[str, Any]] = []
+    total: int | None = None
+    next_after = ""
+
+    while len(results) < requested_limit:
+        page_limit = min(HUBSPOT_SEARCH_PAGE_LIMIT, requested_limit - len(results))
+        body: dict[str, Any] = {
+            "filterGroups": [{"filters": filters}],
+            "properties": properties,
+            "limit": page_limit,
+            "sorts": sorts or [{"propertyName": "hs_timestamp", "direction": "ASCENDING"}],
+        }
+        if next_after:
+            body["after"] = next_after
+        page = _post(f"/crm/v3/objects/{object_type}/search", body)
+        if total is None and page.get("total") is not None:
+            total = _int_value(page.get("total"))
+        page_results = page.get("results", [])
+        results.extend(page_results)
+        next_after = str(page.get("paging", {}).get("next", {}).get("after") or "")
+        if not page_results or not next_after:
+            break
+
+    returned_count = len(results)
+    has_more = bool(next_after) or (total is not None and returned_count < total)
+    return {
+        "results": results,
+        "total": total,
+        "requested_limit": requested_limit,
+        "returned_count": returned_count,
+        "has_more": has_more,
+        "truncated": has_more,
+    }
+
+
+def _hubspot_date_filter_value(value: date, end_of_day: bool = False) -> str:
+    day_time = datetime.max.time() if end_of_day else datetime.min.time()
+    return str(int(datetime.combine(value, day_time, tzinfo=timezone.utc).timestamp() * 1000))
 
 
 def _company_search_by_renewal_window(
@@ -1883,6 +2131,292 @@ def _metric_query_package(
         "snapshot_month": snapshot_month,
         "scope": scope_response,
     }
+
+
+def _period_range(start_date: str, end_date: str, field_name: str = "start_date") -> tuple[date, date]:
+    start = _date_value(start_date)
+    end = _date_value(end_date)
+    if not start or not end:
+        raise ScopeError(f"{field_name} and end_date must be ISO dates.")
+    if start > end:
+        raise ScopeError("start_date must be on or before end_date.")
+    return start, end
+
+
+def _deal_prop(deal: dict[str, Any], names: tuple[str, ...] | list[str]) -> str:
+    props = deal.get("properties", {})
+    for name in names:
+        value = props.get(name)
+        if value not in (None, ""):
+            return str(value)
+    return ""
+
+
+def _deal_created_date(deal: dict[str, Any]) -> date | None:
+    return _date_value(str(deal.get("properties", {}).get("createdate") or ""))
+
+
+def _deal_amount(deal: dict[str, Any]) -> float:
+    return _number_value(deal.get("properties", {}).get("amount"))
+
+
+def _manual_correction_index(manual_corrections: list[dict[str, Any]] | None) -> dict[str, dict[str, Any]]:
+    corrections: dict[str, dict[str, Any]] = {}
+    for item in manual_corrections or []:
+        if not isinstance(item, dict):
+            continue
+        deal_id = str(item.get("deal_id") or "").strip()
+        if deal_id:
+            corrections[deal_id] = item
+    return corrections
+
+
+def _normal_bool(value: Any, default: bool) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in {"1", "true", "yes", "y", "hit"}
+
+
+def _selected_revenue_channels(appointment_set_channel: str, include_all_outbound: bool) -> set[str]:
+    normalized = _normalized_words(appointment_set_channel)
+    if include_all_outbound or normalized in {"all outbound", "outbound", "all_outbound"}:
+        return {"all_outbound"}
+    if not normalized or normalized in {"sales outbound", "sales_outbound"}:
+        return set(REVENUE_FUNNEL_SALES_OUTBOUND_VALUES)
+    return {normalized}
+
+
+def _deal_channel_matches(deal: dict[str, Any], selected_channels: set[str]) -> tuple[bool, str, str]:
+    channel = _deal_prop(deal, REVENUE_FUNNEL_CHANNEL_PROPERTIES)
+    normalized = _normalized_words(channel)
+    if not selected_channels:
+        return True, channel, ""
+    if not normalized:
+        return False, channel, "missing appointment-set channel property"
+    if "all_outbound" in selected_channels:
+        return any(marker in normalized for marker in REVENUE_FUNNEL_ALL_OUTBOUND_MARKERS), channel, ""
+    return normalized in selected_channels, channel, ""
+
+
+def _deal_is_renewal(deal: dict[str, Any]) -> bool:
+    props = deal.get("properties", {})
+    pipeline = str(props.get("pipeline") or "")
+    if pipeline and pipeline in _env_csv(REVENUE_FUNNEL_RENEWAL_PIPELINE_IDS_ENV_VAR):
+        return True
+    text = _normalized_words(
+        " ".join(
+            [
+                str(props.get("dealname") or ""),
+                _deal_prop(deal, REVENUE_FUNNEL_BUSINESS_TYPE_PROPERTIES),
+            ]
+        )
+    )
+    return any(marker in text for marker in ("renewal", "renew", "upsell renewal"))
+
+
+def _deal_is_new_business(deal: dict[str, Any]) -> tuple[bool, str]:
+    props = deal.get("properties", {})
+    pipeline = str(props.get("pipeline") or "")
+    new_business_pipelines = _env_csv(REVENUE_FUNNEL_NEW_BUSINESS_PIPELINE_IDS_ENV_VAR)
+    if new_business_pipelines:
+        return pipeline in new_business_pipelines, ""
+    business_type = _normalized_words(_deal_prop(deal, REVENUE_FUNNEL_BUSINESS_TYPE_PROPERTIES))
+    if business_type:
+        return "new" in business_type and "renew" not in business_type, ""
+    return not _deal_is_renewal(deal), "new-business pipeline env missing; used renewal exclusion only"
+
+
+def _company_headcount(company: dict[str, Any] | None) -> int:
+    if not company:
+        return 0
+    return _int_value(company.get("properties", {}).get("numberofemployees"))
+
+
+def _headcount_range_bounds(headcount_range: str, headcount_min: int, headcount_max: int) -> tuple[int, int]:
+    text = str(headcount_range or "").strip().lower()
+    if text in {">20", "20+", "gt20", "above20", "over20"}:
+        return 21, 0
+    if text in {"20-50", "20 to 50"}:
+        return 20, 50
+    if text in {"50+", ">50", "above50", "over50"}:
+        return 51, 0
+    if "-" in text:
+        left, right = text.split("-", 1)
+        return _int_value(left), _int_value(right)
+    return _int_value(headcount_min), _int_value(headcount_max)
+
+
+def _headcount_matches(company: dict[str, Any] | None, headcount_range: str, headcount_min: int, headcount_max: int) -> tuple[bool, str]:
+    lower, upper = _headcount_range_bounds(headcount_range, headcount_min, headcount_max)
+    if lower <= 0 and upper <= 0:
+        return True, ""
+    headcount = _company_headcount(company)
+    if headcount <= 0:
+        return False, "missing company headcount"
+    if lower > 0 and headcount < lower:
+        return False, ""
+    if upper > 0 and headcount > upper:
+        return False, ""
+    return True, ""
+
+
+def _industry_matches(company: dict[str, Any] | None, industries: list[str] | None) -> bool:
+    selected = [_normalized_words(industry) for industry in (industries or []) if _normalized_words(industry)]
+    if not selected:
+        return True
+    text = _normalized_words((company or {}).get("properties", {}).get("industry") or "")
+    return bool(text and any(industry in text or text in industry for industry in selected))
+
+
+def _deal_counted_as_qo(deal: dict[str, Any], stage_config: dict[str, Any], correction: dict[str, Any] | None = None) -> bool:
+    if correction and "count_as_qo" in correction:
+        return _normal_bool(correction.get("count_as_qo"), False)
+    stage = str(deal.get("properties", {}).get("dealstage") or "")
+    return bool(
+        stage
+        and (
+            stage in stage_config.get("qo_stage_ids", set())
+            or stage in stage_config.get("qo_met_stage_ids", set())
+            or stage in stage_config.get("closed_won_stage_ids", set())
+        )
+    )
+
+
+def _deal_counted_as_qo_met(deal: dict[str, Any], stage_config: dict[str, Any], correction: dict[str, Any] | None = None) -> bool:
+    if correction and "count_as_qo_met" in correction:
+        return _normal_bool(correction.get("count_as_qo_met"), False)
+    stage = str(deal.get("properties", {}).get("dealstage") or "")
+    return bool(stage and (stage in stage_config.get("qo_met_stage_ids", set()) or stage in stage_config.get("closed_won_stage_ids", set())))
+
+
+def _deal_counted_as_signed(deal: dict[str, Any], stage_config: dict[str, Any], correction: dict[str, Any] | None = None) -> bool:
+    if correction and "count_as_signed" in correction:
+        return _normal_bool(correction.get("count_as_signed"), False)
+    stage = str(deal.get("properties", {}).get("dealstage") or "")
+    return bool(stage and stage in stage_config.get("closed_won_stage_ids", set()))
+
+
+def _days_to_signed(deal: dict[str, Any]) -> int | None:
+    created = _date_value(str(deal.get("properties", {}).get("createdate") or ""))
+    closed = _date_value(str(deal.get("properties", {}).get("closedate") or ""))
+    if not created or not closed or closed < created:
+        return None
+    return (closed - created).days
+
+
+def _pct(numerator: int, denominator: int) -> float | None:
+    if denominator <= 0:
+        return None
+    return round((numerator / denominator) * 100, 1)
+
+
+def _safe_revenue_deal_audit_row(
+    deal: dict[str, Any],
+    company: dict[str, Any] | None,
+    stage_config: dict[str, Any],
+    correction: dict[str, Any] | None,
+    channel: str,
+    caveats: list[str],
+) -> dict[str, Any]:
+    props = deal.get("properties", {})
+    company_props = (company or {}).get("properties", {})
+    signed_amount = correction.get("signed_amount") if correction and correction.get("signed_amount") not in (None, "") else _deal_amount(deal)
+    return {
+        "deal_id": str(deal.get("id") or ""),
+        "deal_name": _safe_activity_label(props.get("dealname"), 120),
+        "createdate": props.get("createdate") or "",
+        "closedate": props.get("closedate") or "",
+        "pipeline": props.get("pipeline") or "",
+        "dealstage": props.get("dealstage") or "",
+        "owner_id": props.get("hubspot_owner_id") or "",
+        "company_id": str((company or {}).get("id") or ""),
+        "company_name": company_props.get("name") or "",
+        "country": company_props.get("company_country") or "",
+        "headcount": company_props.get("numberofemployees") or "",
+        "industry": company_props.get("industry") or "",
+        "appointment_set_channel": channel,
+        "count_as_qo": _deal_counted_as_qo(deal, stage_config, correction),
+        "count_as_qo_met": _deal_counted_as_qo_met(deal, stage_config, correction),
+        "count_as_signed": _deal_counted_as_signed(deal, stage_config, correction),
+        "signed_amount": signed_amount if _deal_counted_as_signed(deal, stage_config, correction) else 0,
+        "manual_correction_applied": bool(correction),
+        "caveats": caveats,
+    }
+
+
+def _revenue_funnel_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    created = len(rows)
+    qos = sum(1 for row in rows if row.get("count_as_qo"))
+    qo_met = sum(1 for row in rows if row.get("count_as_qo_met"))
+    signed = sum(1 for row in rows if row.get("count_as_signed"))
+    signed_amount = round(sum(_number_value(row.get("signed_amount")) for row in rows), 2)
+    return {
+        "created_deal_count": created,
+        "qo_count": qos,
+        "qo_met_count": qo_met,
+        "signed_deal_count": signed,
+        "created_to_qo_pct": _pct(qos, created),
+        "qo_to_qo_met_pct": _pct(qo_met, qos),
+        "qo_to_signed_pct": _pct(signed, qos),
+        "signed_amount": signed_amount,
+    }
+
+
+def _is_morning_whatsapp(evidence: dict[str, Any]) -> bool:
+    if evidence.get("object_type") != "communication":
+        return False
+    timestamp = _datetime_value(str(evidence.get("timestamp") or ""))
+    if not timestamp:
+        return False
+    local = timestamp.astimezone(SINGAPORE_TIMEZONE)
+    return AE_COACHING_MORNING_START_HOUR <= local.hour < AE_COACHING_MORNING_END_HOUR
+
+
+def _long_call_candidates_without_appointment(owner_id: str, companies: list[dict[str, Any]], activity_index: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
+    company_by_id = {str(company.get("id") or ""): company for company in companies}
+    candidates: list[dict[str, Any]] = []
+    for company_id, account_activity in activity_index.items():
+        evidence = account_activity.get("evidence", [])
+        has_completed_meeting = any(item.get("object_type") == "meeting" for item in evidence)
+        for item in evidence:
+            if item.get("object_type") != "call":
+                continue
+            if owner_id and str(item.get("owner_id") or "") != str(owner_id):
+                continue
+            duration_ms = _int_value(item.get("duration_seconds")) * 1000
+            if duration_ms < AE_COACHING_LONG_CALL_MIN_DURATION_MS or has_completed_meeting:
+                continue
+            company = company_by_id.get(str(company_id), {})
+            props = company.get("properties", {})
+            candidates.append(
+                {
+                    "company_id": str(company_id),
+                    "company_name": props.get("name") or "",
+                    "call_id": item.get("object_id"),
+                    "call_at": item.get("timestamp"),
+                    "duration_seconds": item.get("duration_seconds"),
+                    "status": "needs-check",
+                    "reason": "call over 60s with no completed appointment/meeting evidence on this account in the audited week",
+                    "call_content_status": "metadata-only",
+                }
+            )
+    return candidates[:FRIDAY_REVIEW_DETAIL_LIMIT]
+
+
+def _contact_role_priority(contact: dict[str, Any]) -> tuple[int, str]:
+    text = _normalized_words(" ".join([str(contact.get("persona") or ""), str(contact.get("buying_role") or "")]))
+    for marker, score in SALES_NAVIGATOR_ROLE_PRIORITY:
+        if _normalized_words(marker) in text:
+            return score, marker
+    return 0, ""
+
+
+def _fnb_retail_company(company: dict[str, Any]) -> bool:
+    props = company.get("properties", {})
+    text = _normalized_words(" ".join([str(props.get("industry") or ""), str(props.get("name") or "")]))
+    return any(marker in text for marker in FNB_RETAIL_MARKERS)
 
 
 def _account_status_from_props(props: dict[str, Any]) -> dict[str, str]:
@@ -4453,6 +4987,7 @@ def _priority_account_coverage(
             "companies": companies,
             "company_contact_ids": contact_index,
             "company_deal_ids": deal_index,
+            "activity_index": activity_index,
             "task_indexes_by_owner": task_indexes_by_owner,
             "week": week,
         }
@@ -5213,7 +5748,45 @@ def _summarize_company_with_contacts(
     return summary
 
 
-def _safe_contact(contact: dict[str, Any]) -> dict[str, Any]:
+def _phone_verification_status(props: dict[str, Any], stale_after_days: int = PHONE_VERIFICATION_DEFAULT_STALE_AFTER_DAYS) -> dict[str, Any]:
+    raw_status = str(props.get("nurtureany_phone_verification_status") or "").strip().lower()
+    raw_source = str(props.get("nurtureany_phone_verification_source") or "").strip().lower()
+    verified_at = str(props.get("nurtureany_phone_verified_at") or "").strip()
+    has_phone_candidate = bool(
+        str(props.get("phone") or "").strip()
+        or str(props.get("mobilephone") or "").strip()
+        or raw_source in PHONE_VERIFICATION_SOURCES
+        or raw_status in PHONE_VERIFICATION_STATUSES - {"not_checked"}
+    )
+    status = raw_status if raw_status in PHONE_VERIFICATION_STATUSES else ("candidate" if has_phone_candidate else "not_checked")
+    source = raw_source if raw_source in PHONE_VERIFICATION_SOURCES else ""
+    verified_date = _date_value(verified_at)
+    stale_after = max(1, _bounded_int(stale_after_days, default=PHONE_VERIFICATION_DEFAULT_STALE_AFTER_DAYS, maximum=3650))
+    stale_cutoff = datetime.now(timezone.utc).date() - timedelta(days=stale_after)
+    is_stale = bool(status in PHONE_VERIFICATION_VERIFIED_STATUSES and verified_date and verified_date < stale_cutoff)
+    effective_status = "stale" if is_stale else status
+    is_verified = effective_status in PHONE_VERIFICATION_VERIFIED_STATUSES
+    notes = _safe_activity_label(props.get("nurtureany_phone_verification_notes") or "", 180)
+    verified_by = _safe_activity_label(props.get("nurtureany_phone_verified_by") or "", 80)
+    return {
+        "status": effective_status,
+        "raw_status": raw_status,
+        "source": source,
+        "verified_at": verified_at,
+        "verified_by": verified_by,
+        "notes": notes,
+        "has_phone_candidate": has_phone_candidate,
+        "is_verified": is_verified,
+        "is_stale": is_stale,
+        "stale_after_days": stale_after,
+        "confidence": "verified" if is_verified else "needs-check",
+    }
+
+
+def _safe_contact(
+    contact: dict[str, Any],
+    phone_stale_after_days: int = PHONE_VERIFICATION_DEFAULT_STALE_AFTER_DAYS,
+) -> dict[str, Any]:
     props = contact.get("properties", {})
     first = props.get("firstname") or ""
     last = props.get("lastname") or ""
@@ -5228,6 +5801,7 @@ def _safe_contact(contact: dict[str, Any]) -> dict[str, Any]:
     )
     email_optout = str(props.get("hs_email_optout") or "").strip().lower() in {"true", "1", "yes"}
     do_not_contact = email_optout or any(marker in block_text for marker in DAILY_NURTURE_DO_NOT_CONTACT_MARKERS)
+    phone_status = _phone_verification_status(props, phone_stale_after_days)
     return {
         "contact_id": contact.get("id"),
         "display_name": " ".join(part for part in [first, last[:1] + "." if last else ""] if part).strip(),
@@ -5244,6 +5818,14 @@ def _safe_contact(contact: dict[str, Any]) -> dict[str, Any]:
         "do_not_contact_basis": "HubSpot hs_email_optout, contact name, or NurtureAny contact field marker"
         if do_not_contact
         else "",
+        "phone_available": phone_status["has_phone_candidate"],
+        "phone_verification_status": phone_status["status"],
+        "phone_verification_source": phone_status["source"],
+        "phone_verified_at": phone_status["verified_at"],
+        "phone_verified_by": phone_status["verified_by"],
+        "phone_verification_notes": phone_status["notes"],
+        "is_phone_verified": phone_status["is_verified"],
+        "phone_verification_confidence": phone_status["confidence"],
     }
 
 
@@ -5253,6 +5835,145 @@ def _role_is_decision_maker(role: str) -> bool:
         return False
     markers = ("founder", "owner", "director", "ceo", "chief", "boss")
     return any(marker in text for marker in markers)
+
+
+def _contact_sort_label(contact: dict[str, Any]) -> str:
+    return " ".join(
+        str(contact.get(key) or "")
+        for key in ("display_name", "persona", "buying_role", "channel_fit", "contact_confidence")
+    ).strip()
+
+
+def _contact_title_text(contact: dict[str, Any]) -> str:
+    return str(contact.get("persona") or "").strip()
+
+
+def _contact_confidence_rank(contact: dict[str, Any]) -> int:
+    confidence = str(contact.get("contact_confidence") or "").strip().lower()
+    if confidence == "high":
+        return 0
+    if confidence == "medium":
+        return 1
+    if contact.get("is_verified_decision_maker"):
+        return 1
+    if contact.get("is_role_inferred_decision_maker"):
+        return 2
+    if confidence == "low":
+        return 4
+    return 3
+
+
+def _operating_contact_priority(contact: dict[str, Any]) -> tuple[int, str]:
+    text = _normalized_words(_contact_sort_label(contact))
+    role = str(contact.get("buying_role") or "").strip().upper()
+    if "CHAMPION" in role:
+        return (0, "champion")
+    if "INFLUENCER" in role:
+        return (1, "influencer")
+    if ("hr" in text or "people" in text) and ("director" in text or "manager" in text or "head" in text):
+        return (2, "hr_people")
+    if ("ops" in text or "operations" in text) and ("director" in text or "manager" in text or "head" in text):
+        return (3, "operations")
+    if "area manager" in text:
+        return (4, "area_manager")
+    if "outlet manager" in text:
+        return (5, "outlet_manager")
+    if any(marker in text for marker in ("finance manager", "payroll manager", "admin manager")):
+        return (6, "finance_payroll_admin")
+    return (99, "")
+
+
+def _is_champion_or_influencer_candidate(contact: dict[str, Any]) -> bool:
+    rank, _label = _operating_contact_priority(contact)
+    return rank < 99
+
+
+def _usable_contact_count(contacts: list[dict[str, Any]]) -> int:
+    usable = 0
+    for contact in contacts:
+        if contact.get("do_not_contact"):
+            continue
+        if contact.get("display_name") and (
+            contact.get("is_phone_verified")
+            or contact.get("phone_available")
+            or contact.get("channel_fit")
+            or contact.get("buying_role")
+            or contact.get("persona")
+        ):
+            usable += 1
+    return usable
+
+
+def _rank_singapore_people_candidates(contacts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    ranked = []
+    for contact in contacts:
+        priority, persona_type = _operating_contact_priority(contact)
+        candidate = {
+            "contact_id": contact.get("contact_id"),
+            "display_name": contact.get("display_name"),
+            "persona": contact.get("persona"),
+            "buying_role": contact.get("buying_role"),
+            "persona_type": "decision_maker"
+            if contact.get("is_verified_decision_maker") or contact.get("is_role_inferred_decision_maker")
+            else persona_type or "associated_contact",
+            "decision_maker_status": "verified"
+            if contact.get("is_verified_decision_maker")
+            else "needs-check"
+            if contact.get("is_role_inferred_decision_maker")
+            else "",
+            "phone_verification_status": contact.get("phone_verification_status"),
+            "phone_verification_source": contact.get("phone_verification_source"),
+            "phone_verified_at": contact.get("phone_verified_at"),
+            "phone_available": bool(contact.get("phone_available")),
+            "is_phone_verified": bool(contact.get("is_phone_verified")),
+            "contact_confidence": contact.get("contact_confidence") or "needs-check",
+            "source": "HubSpot associated contact fields",
+            "ae_validation_status": "not_attempted",
+        }
+        ranked.append(
+            {
+                **candidate,
+                "_sort": (
+                    0 if contact.get("is_verified_decision_maker") else 1 if contact.get("is_role_inferred_decision_maker") else 2,
+                    priority,
+                    _contact_confidence_rank(contact),
+                    str(contact.get("display_name") or ""),
+                ),
+            }
+        )
+    ranked.sort(key=lambda item: item["_sort"])
+    for item in ranked:
+        item.pop("_sort", None)
+    return ranked
+
+
+def _singapore_stakeholder_slots(contacts: list[dict[str, Any]]) -> dict[str, Any]:
+    ranked = _rank_singapore_people_candidates(contacts)
+    decision_maker = next((item for item in ranked if item.get("decision_maker_status") == "verified"), None)
+    if decision_maker is None:
+        decision_maker = next((item for item in ranked if item.get("decision_maker_status") == "needs-check"), None)
+    operating_candidates = [
+        item
+        for item in ranked
+        if item.get("persona_type") in {"champion", "influencer", "hr_people", "operations", "area_manager", "outlet_manager", "finance_payroll_admin"}
+    ]
+    operating_contact = None
+    if operating_candidates:
+        if decision_maker:
+            operating_contact = next(
+                (item for item in operating_candidates if item.get("contact_id") != decision_maker.get("contact_id")),
+                operating_candidates[0],
+            )
+        else:
+            operating_contact = operating_candidates[0]
+    return {
+        "decision_maker": decision_maker,
+        "operating_contact": operating_contact,
+        "champion_influencer": operating_contact,
+        "distinct_contact_slots": bool(
+            decision_maker and operating_contact and decision_maker.get("contact_id") != operating_contact.get("contact_id")
+        ),
+    }
 
 
 def _safe_deal(deal: dict[str, Any]) -> dict[str, Any]:
@@ -5634,6 +6355,9 @@ def _coverage(props: dict[str, Any], contacts: list[dict[str, Any]]) -> dict[str
     verified_decision_makers = [contact for contact in contacts if contact.get("is_verified_decision_maker")]
     role_inferred_decision_makers = [contact for contact in contacts if contact.get("is_role_inferred_decision_maker")]
     channel_known = [contact for contact in contacts if contact.get("channel_fit")]
+    phone_candidates = [contact for contact in contacts if contact.get("phone_available")]
+    verified_phone_contacts = [contact for contact in contacts if contact.get("is_phone_verified")]
+    stale_phone_contacts = [contact for contact in contacts if contact.get("phone_verification_status") == "stale"]
     return {
         "contact_count": len(contacts),
         "associated_contact_count": len(contacts),
@@ -5646,11 +6370,15 @@ def _coverage(props: dict[str, Any], contacts: list[dict[str, Any]]) -> dict[str
         "role_inferred_decision_maker_count": len(role_inferred_decision_makers),
         "role_inferred_decision_maker_candidate_count": decision_coverage["role_inferred_decision_maker_candidate_count"],
         "channel_fit_known_count": len(channel_known),
+        "phone_candidate_count": len(phone_candidates),
+        "verified_phone_count": len(verified_phone_contacts),
+        "stale_phone_count": len(stale_phone_contacts),
+        "usable_contact_count": _usable_contact_count(contacts),
         "decision_maker_coverage": decision_coverage,
         "sources": _decision_maker_count_source(props),
         "summary": (
             "nurture-ready"
-            if contacts and decision_coverage["verified_decision_maker_count"] and channel_known
+            if contacts and decision_coverage["verified_decision_maker_count"] and channel_known and verified_phone_contacts
             else "minimum coverage" if contacts and decision_coverage["verified_decision_maker_count"] else "needs enrichment"
         ),
     }
@@ -5841,7 +6569,7 @@ def _pre_demo_case_study_matches(context: dict[str, Any]) -> list[dict[str, Any]
         if case.get("approved_for_name_drops") is not True:
             continue
         score, reasons = _case_study_score(case, context)
-        if score <= 0:
+        if score < CASE_STUDY_MIN_MATCH_SCORE:
             continue
         matches.append(
             {
@@ -5856,6 +6584,67 @@ def _pre_demo_case_study_matches(context: dict[str, Any]) -> list[dict[str, Any]
         )
     matches.sort(key=lambda match: (-_int_value(match.get("match_score")), str(match.get("customer") or "")))
     return matches[:CASE_STUDY_MATCH_LIMIT]
+
+
+def _case_study_sales_moment_allowed(case: dict[str, Any], sales_moment: str) -> bool:
+    if not sales_moment:
+        return True
+    moments = {str(moment or "").strip().lower() for moment in case.get("best_use_sales_moments", [])}
+    return sales_moment.strip().lower() in moments
+
+
+def _case_study_evidence_refs(case: dict[str, Any]) -> list[dict[str, Any]]:
+    refs: list[dict[str, Any]] = []
+    for ref in case.get("evidence_refs", []):
+        if not isinstance(ref, dict):
+            continue
+        refs.append(
+            {
+                "timestamp": ref.get("timestamp") or "",
+                "claim": ref.get("claim") or "",
+                "source_path": ref.get("source_path") or "",
+                "line": ref.get("line"),
+            }
+        )
+    return refs
+
+
+def _sales_case_study_matches(context: dict[str, Any], sales_moment: str = "", limit: int = CASE_STUDY_MATCH_LIMIT) -> list[dict[str, Any]]:
+    requested_limit = _bounded_int(limit, default=CASE_STUDY_MATCH_LIMIT, maximum=10)
+    matches: list[dict[str, Any]] = []
+    for case in _load_case_study_catalog():
+        if case.get("approved_for_name_drops") is not True:
+            continue
+        if not _case_study_sales_moment_allowed(case, sales_moment):
+            continue
+        score, reasons = _case_study_score(case, context)
+        if score < CASE_STUDY_MIN_MATCH_SCORE:
+            continue
+        full_video_review = case.get("full_video_review") if isinstance(case.get("full_video_review"), dict) else {}
+        matches.append(
+            {
+                "id": case.get("id"),
+                "customer": case.get("customer"),
+                "country": case.get("country"),
+                "market": case.get("market"),
+                "industry": case.get("industry"),
+                "size": case.get("size"),
+                "summary": case.get("name_drop"),
+                "pain": case.get("pain"),
+                "outcome": case.get("outcome"),
+                "source_url": case.get("primary_url"),
+                "source_type": case.get("source_type") or "published_customer_story",
+                "approval_basis": case.get("approval_basis"),
+                "best_use_sales_moments": case.get("best_use_sales_moments", []),
+                "do_not_claim": case.get("do_not_claim", []),
+                "full_video_review": full_video_review,
+                "evidence_refs": _case_study_evidence_refs(case),
+                "match_score": score,
+                "match_reasons": reasons,
+            }
+        )
+    matches.sort(key=lambda match: (-_int_value(match.get("match_score")), str(match.get("customer") or "")))
+    return matches[:requested_limit]
 
 
 def _daily_nurture_for_date(value: str = "") -> date:
@@ -7220,14 +8009,16 @@ def _photo_matching_hints(
     if selected_country:
         _dedup_append(hints["countries"], selected_country)
     event_context = luma_event_context if isinstance(luma_event_context, dict) else {}
-    if event_context.get("event_name"):
+    use_luma_hints = event_context.get("auto_event_tag_status") == "verified"
+    if use_luma_hints and event_context.get("event_name"):
         _dedup_append(hints["event_names"], event_context.get("event_name"))
-    if event_context.get("country"):
+    if use_luma_hints and event_context.get("country"):
         _dedup_append(hints["countries"], event_context.get("country"))
     selected_event = event_context.get("selected_event") if isinstance(event_context.get("selected_event"), dict) else {}
-    for key in ("tags", "location_tags", "event_type_tags"):
-        for item in _as_hint_items(selected_event.get(key)):
-            _dedup_append(hints["text_evidence"], item, 120)
+    if use_luma_hints:
+        for key in ("tags", "location_tags", "event_type_tags"):
+            for item in _as_hint_items(selected_event.get(key)):
+                _dedup_append(hints["text_evidence"], item, 120)
 
     context = _short_text(context_text or "", 1000)
     if context:
@@ -7365,7 +8156,8 @@ def _photo_custom_object_plan(
 ) -> dict[str, Any]:
     event_context = luma_event_context if isinstance(luma_event_context, dict) else {}
     selected_event = event_context.get("selected_event") if isinstance(event_context.get("selected_event"), dict) else {}
-    event_label = _short_text(event_name or event_context.get("event_name") or "unclassified event photo", 120)
+    verified_luma_event_name = event_context.get("event_name") if event_context.get("auto_event_tag_status") == "verified" else ""
+    event_label = _short_text(event_name or verified_luma_event_name or "unclassified event photo", 120)
     return {
         "objects": PHOTO_CUSTOM_OBJECT_TYPES,
         "nurture_event": {
@@ -7414,7 +8206,11 @@ def _photo_confirmation_request(
     label = _photo_label(source_pointer)
     recipient = f"<@{user_id}>" if user_id else (uploader_name or "the uploader")
     event_context = luma_event_context if isinstance(luma_event_context, dict) else {}
-    event_suffix = f" for {event_context.get('event_name')}" if event_context.get("event_name") else ""
+    event_suffix = (
+        f" for {event_context.get('event_name')}"
+        if event_context.get("event_name") and event_context.get("auto_event_tag_status") == "verified"
+        else ""
+    )
     if has_candidates:
         prompt = (
             f"{recipient} can you confirm the HubSpot contact/company for {label}{event_suffix}? "
@@ -7566,7 +8362,7 @@ def _photo_luma_event_candidates(source_pointer: dict[str, Any], luma_events: An
     return sorted(candidates, key=lambda item: (item["confidence_score"], item.get("start_at", "")), reverse=True)[:limit]
 
 
-def _photo_luma_event_context(source_pointer: dict[str, Any], luma_events: Any) -> dict[str, Any]:
+def _photo_luma_event_context(source_pointer: dict[str, Any], luma_events: Any, auto_tag: bool = False) -> dict[str, Any]:
     candidates = _photo_luma_event_candidates(source_pointer, luma_events)
     if not candidates:
         return {
@@ -7576,10 +8372,11 @@ def _photo_luma_event_context(source_pointer: dict[str, Any], luma_events: Any) 
         }
     top = candidates[0]
     close = [candidate for candidate in candidates if top["confidence_score"] - candidate["confidence_score"] <= 5]
-    status = "verified" if top["confidence_score"] >= 90 and len(close) == 1 else "needs-check"
+    status = "verified" if auto_tag and top["confidence_score"] >= 90 and len(close) == 1 else "needs-check"
     return {
         "source": "luma_event_date",
         "auto_event_tag_status": status,
+        "auto_tag_enabled": bool(auto_tag),
         "event_name": top.get("name") or "",
         "country": top.get("country") or "",
         "selected_event": top,
@@ -10498,6 +11295,591 @@ def build_friday_sales_review(
 
 
 @mcp.tool()
+def build_hubspot_revenue_funnel_metrics(
+    slack_user_email: str,
+    start_date: str,
+    end_date: str,
+    countries: list[str] | None = None,
+    owner_email: str | None = None,
+    hubspot_team: str = "",
+    business_type: str = "new_business",
+    headcount_range: str = "",
+    headcount_min: int = 0,
+    headcount_max: int = 0,
+    industries: list[str] | None = None,
+    appointment_set_channel: str = "Sales Outbound",
+    include_all_outbound: bool = False,
+    manual_corrections: list[dict[str, Any]] | None = None,
+    limit: int = REVENUE_FUNNEL_RETURN_LIMIT,
+) -> dict[str, Any]:
+    """Build read-only HubSpot created-cohort revenue funnel metrics with deal audit rows."""
+
+    try:
+        scope = _caller_scope(slack_user_email)
+        if scope["kind"] == "blocked":
+            return _blocked("Caller identity is not mapped to an allowed scope.", {"caller_email": slack_user_email})
+        selected = _safe_countries(countries, scope["countries"])
+        if not selected:
+            return _blocked("Requested countries are outside caller scope.", _scope_response(scope, []))
+        start, end = _period_range(start_date, end_date)
+        target_owner_id, target_owner_email = _target_owner_id_for_scope(scope, owner_email)
+        requested_limit = _bounded_int(limit, default=REVENUE_FUNNEL_RETURN_LIMIT, maximum=REVENUE_FUNNEL_DEAL_SCAN_LIMIT)
+        stage_config = _friday_review_stage_config()
+        selected_channels = _selected_revenue_channels(appointment_set_channel, include_all_outbound)
+        corrections = _manual_correction_index(manual_corrections)
+
+        filters = [
+            {"propertyName": "createdate", "operator": "GTE", "value": _hubspot_date_filter_value(start)},
+            {"propertyName": "createdate", "operator": "LTE", "value": _hubspot_date_filter_value(end, end_of_day=True)},
+        ]
+        if target_owner_id:
+            filters.append({"propertyName": "hubspot_owner_id", "operator": "EQ", "value": target_owner_id})
+        new_business_pipelines = _env_csv(REVENUE_FUNNEL_NEW_BUSINESS_PIPELINE_IDS_ENV_VAR)
+        if business_type.strip().lower().replace("-", "_").replace(" ", "_") in {"new_business", "new"} and new_business_pipelines:
+            filters.append({"propertyName": "pipeline", "operator": "IN", "values": sorted(new_business_pipelines)})
+
+        deal_data = _deal_search(filters, requested_limit, maximum=REVENUE_FUNNEL_DEAL_SCAN_LIMIT)
+        raw_deals = deal_data.get("results", [])
+        deal_ids = [str(deal.get("id") or "") for deal in raw_deals if deal.get("id")]
+        deal_company_ids = _batch_association_ids("deals", "companies", deal_ids)
+        company_ids = sorted({company_id for ids in deal_company_ids.values() for company_id in ids})
+        companies = _batch_read("companies", company_ids, COMPANY_PROPERTIES)
+        company_by_id = {str(company.get("id") or ""): company for company in companies}
+        caveats: list[str] = []
+        audit_rows: list[dict[str, Any]] = []
+        excluded_counts = {
+            "country": 0,
+            "headcount": 0,
+            "industry": 0,
+            "channel": 0,
+            "renewal": 0,
+            "business_type": 0,
+            "missing_company": 0,
+        }
+
+        if hubspot_team:
+            caveats.append("hubspot_team filter is recorded in scope but not applied in V1 because HubSpot owner team metadata is not exposed consistently.")
+        if not stage_config.get("configured"):
+            caveats.append("QO, QO Met, and signed-deal counting need configured HubSpot stage IDs.")
+
+        for deal in raw_deals:
+            deal_id = str(deal.get("id") or "")
+            company = None
+            for company_id in deal_company_ids.get(deal_id, []):
+                candidate = company_by_id.get(str(company_id))
+                if candidate:
+                    company = candidate
+                    break
+            company_props = (company or {}).get("properties", {})
+            if company is None:
+                excluded_counts["missing_company"] += 1
+                continue
+            if company_props.get("company_country") not in selected:
+                excluded_counts["country"] += 1
+                continue
+            headcount_ok, headcount_caveat = _headcount_matches(company, headcount_range, headcount_min, headcount_max)
+            if not headcount_ok:
+                excluded_counts["headcount"] += 1
+                if headcount_caveat and headcount_caveat not in caveats:
+                    caveats.append(headcount_caveat)
+                continue
+            if not _industry_matches(company, industries):
+                excluded_counts["industry"] += 1
+                continue
+            channel_ok, channel, channel_caveat = _deal_channel_matches(deal, selected_channels)
+            if not channel_ok:
+                excluded_counts["channel"] += 1
+                if channel_caveat and channel_caveat not in caveats:
+                    caveats.append(channel_caveat)
+                continue
+            if _deal_is_renewal(deal):
+                excluded_counts["renewal"] += 1
+                continue
+            if business_type.strip().lower().replace("-", "_").replace(" ", "_") in {"new_business", "new"}:
+                new_business, new_business_caveat = _deal_is_new_business(deal)
+                if new_business_caveat and new_business_caveat not in caveats:
+                    caveats.append(new_business_caveat)
+                if not new_business:
+                    excluded_counts["business_type"] += 1
+                    continue
+
+            row_caveats = []
+            if deal_id in corrections:
+                row_caveats.append("manual correction applied in this analysis only; HubSpot was not edited")
+            audit_rows.append(
+                _safe_revenue_deal_audit_row(
+                    deal,
+                    company,
+                    stage_config,
+                    corrections.get(deal_id),
+                    channel,
+                    row_caveats,
+                )
+            )
+
+        summary = _revenue_funnel_summary(audit_rows)
+        signed_days = [_days_to_signed(deal) for deal in raw_deals if _days_to_signed(deal) is not None]
+        summary["avg_days_to_signed"] = round(sum(signed_days) / len(signed_days), 1) if signed_days else None
+        summary["manual_correction_count"] = len(corrections)
+        return {
+            "answer": {
+                "summary": summary,
+                "deal_audit_rows": audit_rows[:REVENUE_FUNNEL_RETURN_LIMIT],
+                "excluded_counts": excluded_counts,
+                "rules_applied": {
+                    "cohort": "HubSpot deal createdate between start_date and end_date",
+                    "sales_outbound": "appointment-set channel must be Sales Outbound unless include_all_outbound=true",
+                    "all_outbound": "all outbound uses outbound/cold-call/cold-email/LinkedIn/WhatsApp-outbound channel markers",
+                    "headcount": "HubSpot company numberofemployees; >20 means at least 21 employees",
+                    "new_business": "configured new-business pipeline IDs when present, otherwise renewal exclusion",
+                    "renewal_exclusion": "configured renewal pipelines plus renewal markers in deal name/type",
+                    "signed_deal": "configured closed-won stage IDs or manual correction",
+                    "manual_corrections": "analysis-only overrides; no HubSpot mutation",
+                },
+            },
+            "source": "HubSpot deals created-date cohort plus associated HubSpot companies; read-only",
+            "scope": {
+                **_scope_response(scope, selected, target_owner_id, target_owner_email),
+                "start_date": start.isoformat(),
+                "end_date": end.isoformat(),
+                "hubspot_team": hubspot_team,
+                "business_type": business_type,
+                "headcount_range": headcount_range,
+                "headcount_min": headcount_min,
+                "headcount_max": headcount_max,
+                "industries": industries or [],
+                "appointment_set_channel": appointment_set_channel,
+                "include_all_outbound": include_all_outbound,
+            },
+            **_search_metadata(deal_data),
+            "will_mutate_hubspot": False,
+            "confidence": "needs-check" if caveats or deal_data.get("truncated") else "verified",
+            "caveat": " ".join(caveats) or "Read-only funnel metrics. No HubSpot edits, raw rows, communication bodies, or PII exports.",
+        }
+    except ScopeError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email, "owner_email": owner_email})
+    except HubSpotError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email})
+
+
+def _ae_owner_fast_coaching_audit(
+    slack_user_email: str,
+    countries: list[str] | None,
+    owner_email: str,
+    week_start: str,
+    week_end: str,
+    include_call_content: bool,
+    limit: int,
+    soft_timeout_seconds: int,
+) -> dict[str, Any]:
+    scope = _caller_scope(slack_user_email)
+    if scope["kind"] == "blocked":
+        return _blocked("Caller identity is not mapped to an allowed scope.", {"caller_email": slack_user_email})
+    if scope["kind"] not in {"admin", "manager"}:
+        return _blocked("AE coaching audit is manager/admin only by default.", _scope_response(scope, list(scope.get("countries", ()))))
+    selected = _safe_countries(countries, scope["countries"])
+    if not selected:
+        return _blocked("Requested countries are outside caller scope.", _scope_response(scope, []))
+
+    target_owner_id, target_owner_email = _target_owner_id_for_scope(scope, owner_email)
+    week = _week_window(week_start, week_end)
+    company_data = _company_search(
+        _target_filters(selected, target_owner_id),
+        limit,
+        maximum=AE_COACHING_DEFAULT_LIMIT,
+        sorts=[{"propertyName": "hubspot_owner_id", "direction": "ASCENDING"}],
+    )
+    companies = company_data.get("results", [])
+    owner_lookup = _owner_lookup_by_id()
+    owner_display = _owner_display(target_owner_id or "", owner_lookup)
+    if target_owner_email and not owner_display.get("owner_email"):
+        owner_display["owner_email"] = target_owner_email
+
+    time_filters = [
+        {"propertyName": "hubspot_owner_id", "operator": "EQ", "value": target_owner_id},
+        {"propertyName": "hs_timestamp", "operator": "GTE", "value": _task_datetime_filter_value(week["week_start"])},
+        {"propertyName": "hs_timestamp", "operator": "LTE", "value": _task_datetime_filter_value(week["week_end"], True)},
+    ]
+    call_data = _object_search("calls", time_filters, CALL_PROPERTIES, limit=500, maximum=500)
+    calls = call_data.get("results", [])
+    connected_call_count = sum(1 for call in calls if _is_connected_call(call))
+    long_call_candidates = []
+    for call in calls:
+        if not _is_completed_call(call) or _call_duration_ms(call) < AE_COACHING_LONG_CALL_MIN_DURATION_MS:
+            continue
+        props = call.get("properties", {})
+        long_call_candidates.append(
+            {
+                "call_id": str(call.get("id") or ""),
+                "timestamp": props.get("hs_timestamp") or props.get("hs_lastmodifieddate") or "",
+                "duration_seconds": round(_call_duration_ms(call) / 1000),
+                "appointment_evidence_status": "needs-check",
+            }
+        )
+
+    communication_data = _object_search("communications", time_filters, COMMUNICATION_PROPERTIES, limit=500, maximum=500)
+    morning_message_count = 0
+    for communication in communication_data.get("results", []):
+        if not _is_whatsapp_communication(communication):
+            continue
+        props = communication.get("properties", {})
+        if _is_morning_whatsapp({"object_type": "communication", "timestamp": props.get("hs_timestamp") or ""}):
+            morning_message_count += 1
+
+    stage_config = _friday_review_stage_config()
+    qo_set = None
+    if stage_config.get("configured"):
+        qo_filters = [
+            {"propertyName": "hubspot_owner_id", "operator": "EQ", "value": target_owner_id},
+            {"propertyName": "createdate", "operator": "GTE", "value": _hubspot_date_filter_value(_date_value(week["week_start"]) or date.today())},
+            {"propertyName": "createdate", "operator": "LTE", "value": _hubspot_date_filter_value(_date_value(week["week_end"]) or date.today(), True)},
+            {"propertyName": "dealstage", "operator": "IN", "values": sorted(stage_config["qo_stage_ids"])},
+        ]
+        if stage_config["pipeline_ids"]:
+            qo_filters.append({"propertyName": "pipeline", "operator": "IN", "values": sorted(stage_config["pipeline_ids"])})
+        qo_set = len(_deal_search(qo_filters, limit=500, maximum=500, properties=DEAL_PROPERTIES).get("results", []))
+
+    focus = []
+    if qo_set is None or qo_set < AE_COACHING_QO_WEEKLY_TARGET:
+        focus.append("QO set below 3/week or stage config needs-check")
+    if connected_call_count < CONNECTED_CALL_WEEKLY_TARGET:
+        focus.append("connected calls below 40/week")
+    if morning_message_count < min(AE_COACHING_DEFAULT_LIMIT, len(companies)):
+        focus.append("morning target-account message coverage needs-check")
+    if long_call_candidates:
+        focus.append("calls over 60s need appointment-evidence review")
+
+    row = {
+        "ae_owner_id": target_owner_id,
+        "ae_email": owner_display.get("owner_email") or target_owner_email or owner_email,
+        "ae_name": owner_display.get("owner_name") or "",
+        "week_start": week["week_start"],
+        "week_end": week["week_end"],
+        "qo_set": qo_set,
+        "qo_weekly_target": AE_COACHING_QO_WEEKLY_TARGET,
+        "qo_target_hit": bool(qo_set is not None and qo_set >= AE_COACHING_QO_WEEKLY_TARGET),
+        "morning_message_account_count": "needs-check",
+        "morning_whatsapp_metadata_count": morning_message_count,
+        "morning_message_window": "06:00-12:00 Asia/Singapore",
+        "target_account_weekly_coverage": f"needs-check; locked pool {len(companies)}/{AE_COACHING_DEFAULT_LIMIT}",
+        "connected_call_count": connected_call_count,
+        "connected_call_target": CONNECTED_CALL_WEEKLY_TARGET,
+        "connected_call_hit": connected_call_count >= CONNECTED_CALL_WEEKLY_TARGET,
+        "long_call_without_appointment_candidates": long_call_candidates[:10],
+        "call_content_status": "metadata-only needs-check" if include_call_content else "metadata-only",
+        "coaching_focus": focus or ["operating rhythm on track"],
+    }
+    preview = {
+        "AE": row["ae_email"] or row["ae_owner_id"],
+        "Week": f"{row['week_start']} to {row['week_end']}",
+        "QO set": row["qo_set"] if row["qo_set"] is not None else "needs-check",
+        "Morning 150 coverage": f"needs-check ({morning_message_count} morning WhatsApp metadata)",
+        "Connected calls": row["connected_call_count"],
+        ">=60s calls no appointment": len(long_call_candidates),
+        "Coaching focus": "; ".join(row["coaching_focus"]),
+    }
+    truncated = bool(company_data.get("truncated") or call_data.get("truncated") or communication_data.get("truncated"))
+    return {
+        "answer": {
+            "ae_weekly_checks": [row],
+            "one_on_one_sheet_preview_rows": [preview],
+            "will_mutate_google_sheets": False,
+        },
+        "source": "HubSpot target-account companies plus owner-level call and WhatsApp communication metadata",
+        "scope": {
+            **_scope_response(scope, selected, target_owner_id, target_owner_email),
+            "week_start": week["week_start"],
+            "week_end": week["week_end"],
+            "timezone": week["timezone"],
+            "owner_scoped_fast_path": True,
+        },
+        "total": 1,
+        "requested_limit": limit,
+        "returned_count": 1,
+        "has_more": truncated,
+        "truncated": truncated,
+        "partial_due_to_soft_timeout": False,
+        "soft_timeout_seconds": soft_timeout_seconds,
+        "confidence": "needs-check",
+        "caveat": "Owner-scoped fast path. It avoids account-association fanout by using owner-level activity metadata, so morning target-account coverage and appointment evidence remain needs-check. No call bodies, transcripts, recordings, Sheets writes, or HubSpot mutation.",
+    }
+
+
+@mcp.tool()
+def build_ae_coaching_audit(
+    slack_user_email: str,
+    countries: list[str] | None = None,
+    owner_email: str | None = None,
+    week_start: str = "",
+    week_end: str = "",
+    include_call_content: bool = False,
+    limit: int = AE_COACHING_DEFAULT_LIMIT,
+    soft_timeout_seconds: int = AE_COACHING_DEFAULT_SOFT_TIMEOUT_SECONDS,
+) -> dict[str, Any]:
+    """Build metadata-only AE weekly coaching rows without mutating Sheets."""
+
+    try:
+        effective_limit = _bounded_int(limit, default=AE_COACHING_DEFAULT_LIMIT, maximum=AE_COACHING_DEFAULT_LIMIT)
+        effective_soft_timeout_seconds = _hubspot_soft_timeout_seconds(
+            soft_timeout_seconds or AE_COACHING_DEFAULT_SOFT_TIMEOUT_SECONDS
+        )
+        if owner_email:
+            return _ae_owner_fast_coaching_audit(
+                slack_user_email,
+                countries,
+                owner_email,
+                week_start,
+                week_end,
+                include_call_content,
+                effective_limit,
+                effective_soft_timeout_seconds,
+            )
+        coverage = _priority_account_coverage(
+            slack_user_email=slack_user_email,
+            countries=countries,
+            owner_email=owner_email,
+            week_start=week_start,
+            week_end=week_end,
+            limit=effective_limit,
+            manager_only=True,
+            include_internal=True,
+            soft_timeout_seconds=effective_soft_timeout_seconds,
+        )
+        if coverage.get("confidence") == "blocked":
+            return coverage
+        internal = coverage.pop("_internal", {})
+        stage_config = _friday_review_stage_config()
+        deal_counts = _deal_counts_for_friday(
+            internal.get("companies", []),
+            internal.get("company_deal_ids", {}),
+            internal.get("week", {}),
+            stage_config,
+        )
+        activity_index = internal.get("activity_index", {})
+        companies = internal.get("companies", [])
+        companies_by_owner: dict[str, list[dict[str, Any]]] = {}
+        for company in companies:
+            owner_id = str(company.get("properties", {}).get("hubspot_owner_id") or "")
+            companies_by_owner.setdefault(owner_id, []).append(company)
+
+        rows = []
+        one_on_one_rows = []
+        for owner_row in coverage.get("answer", {}).get("owners", []):
+            owner_id = str(owner_row.get("owner_id") or "")
+            owner_deals = deal_counts.get("by_owner", {}).get(owner_id, {})
+            qo_set = owner_deals.get("qos") if deal_counts.get("configured") else None
+            owner_companies = companies_by_owner.get(owner_id, [])
+            morning_account_count = 0
+            for company in owner_companies:
+                company_id = str(company.get("id") or "")
+                evidence = activity_index.get(company_id, {}).get("evidence", [])
+                if any(_is_morning_whatsapp(item) for item in evidence):
+                    morning_account_count += 1
+            call_candidates = _long_call_candidates_without_appointment(owner_id, owner_companies, activity_index)
+            focus = []
+            if qo_set is None or qo_set < AE_COACHING_QO_WEEKLY_TARGET:
+                focus.append("QO set below 3/week or stage config needs-check")
+            if owner_row.get("connected_call_count", 0) < CONNECTED_CALL_WEEKLY_TARGET:
+                focus.append("connected calls below 40/week")
+            if morning_account_count < owner_row.get("weekly_account_target", 0):
+                focus.append("morning target-account message coverage gap")
+            if call_candidates:
+                focus.append("calls over 60s without appointment evidence")
+            row = {
+                "ae_owner_id": owner_id,
+                "ae_email": owner_row.get("owner_email") or "",
+                "ae_name": owner_row.get("owner_name") or "",
+                "week_start": coverage.get("scope", {}).get("week_start"),
+                "week_end": coverage.get("scope", {}).get("week_end"),
+                "qo_set": qo_set,
+                "qo_weekly_target": AE_COACHING_QO_WEEKLY_TARGET,
+                "qo_target_hit": bool(qo_set is not None and qo_set >= AE_COACHING_QO_WEEKLY_TARGET),
+                "morning_message_account_count": morning_account_count,
+                "morning_message_window": "06:00-12:00 Asia/Singapore",
+                "target_account_weekly_coverage": owner_row.get("120_150_accounts_worked"),
+                "connected_call_count": owner_row.get("connected_call_count", 0),
+                "connected_call_target": CONNECTED_CALL_WEEKLY_TARGET,
+                "connected_call_hit": owner_row.get("connected_call_count", 0) >= CONNECTED_CALL_WEEKLY_TARGET,
+                "long_call_without_appointment_candidates": call_candidates,
+                "call_content_status": "metadata-only needs-check" if include_call_content else "metadata-only",
+                "coaching_focus": focus or ["operating rhythm on track"],
+            }
+            rows.append(row)
+            one_on_one_rows.append(
+                {
+                    "AE": row["ae_email"] or row["ae_owner_id"],
+                    "Week": f"{row['week_start']} to {row['week_end']}",
+                    "QO set": row["qo_set"] if row["qo_set"] is not None else "needs-check",
+                    "Morning 150 coverage": row["morning_message_account_count"],
+                    "Connected calls": row["connected_call_count"],
+                    ">=60s calls no appointment": len(call_candidates),
+                    "Coaching focus": "; ".join(row["coaching_focus"]),
+                }
+            )
+
+        caveats = [
+            "No Google Sheet mutation; rows are preview-only.",
+            "Call content/transcripts/bodies are not read. Metadata-only candidates are needs-check until manager reviews call notes or recordings in approved systems.",
+        ]
+        if not deal_counts.get("configured"):
+            caveats.append("QO set count needs configured HubSpot QO/QO Met stage IDs.")
+        return {
+            "answer": {
+                "ae_weekly_checks": rows,
+                "one_on_one_sheet_preview_rows": one_on_one_rows,
+                "will_mutate_google_sheets": False,
+            },
+            "source": "HubSpot target-account coverage, deals, calls, meetings, and WhatsApp communication metadata",
+            "scope": coverage.get("scope", {}),
+            "total": len(rows),
+            "requested_limit": coverage.get("requested_limit"),
+            "returned_count": len(rows),
+            "has_more": coverage.get("has_more"),
+            "truncated": coverage.get("truncated"),
+            "confidence": "needs-check" if include_call_content or coverage.get("confidence") == "needs-check" or not deal_counts.get("configured") else "verified",
+            "caveat": " ".join(caveats),
+        }
+    except ScopeError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email, "owner_email": owner_email})
+    except HubSpotError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email})
+
+
+@mcp.tool()
+def prepare_sales_navigator_decision_maker_queue(
+    slack_user_email: str,
+    mode: str,
+    countries: list[str] | None = None,
+    owner_email: str | None = None,
+    company_ids: list[str] | None = None,
+    event_name: str = "",
+    limit: int = 10,
+) -> dict[str, Any]:
+    """Prepare a safe manual Sales Navigator decision-maker handoff queue."""
+
+    normalized_mode = str(mode or "").strip().lower()
+    if normalized_mode not in {"pre_demo_150", "post_event_top10"}:
+        return _blocked("mode must be pre_demo_150 or post_event_top10.", {"caller_email": slack_user_email, "mode": mode})
+    try:
+        scope = _caller_scope(slack_user_email)
+        if scope["kind"] == "blocked":
+            return _blocked("Caller identity is not mapped to an allowed scope.", {"caller_email": slack_user_email})
+        selected = _safe_countries(countries, scope["countries"])
+        if not selected:
+            return _blocked("Requested countries are outside caller scope.", _scope_response(scope, []))
+        target_owner_id, target_owner_email = _target_owner_id_for_scope(scope, owner_email)
+        requested_limit = 10 if normalized_mode == "post_event_top10" else _bounded_int(limit, default=25, maximum=150)
+
+        companies: list[dict[str, Any]] = []
+        if company_ids:
+            for company_id in company_ids[:150]:
+                company = _assert_company_access(str(company_id), scope)
+                if company.get("properties", {}).get("company_country") in selected:
+                    companies.append(company)
+        elif normalized_mode == "post_event_top10":
+            return _blocked(
+                "post_event_top10 requires attendee-linked scoped HubSpot company_ids from Luma/Sheet/event context.",
+                _scope_response(scope, selected, target_owner_id, target_owner_email),
+            )
+        else:
+            data = _company_search(
+                _target_filters(selected, target_owner_id),
+                requested_limit,
+                maximum=150,
+                sorts=[{"propertyName": "notes_last_updated", "direction": "DESCENDING"}],
+            )
+            companies = data.get("results", [])
+
+        if normalized_mode == "post_event_top10":
+            companies = [company for company in companies if _fnb_retail_company(company)]
+
+        queue = []
+        for company in companies:
+            if len(queue) >= requested_limit:
+                break
+            company_id = str(company.get("id") or "")
+            contact_ids = _association_ids("companies", company_id, "contacts", 50)
+            contacts = [_safe_contact(contact) for contact in _batch_read("contacts", contact_ids, CONTACT_PROPERTIES)]
+            ranked_contacts = []
+            for contact in contacts:
+                score, reason = _contact_role_priority(contact)
+                if score <= 0:
+                    continue
+                ranked_contacts.append((score, reason, contact))
+            ranked_contacts.sort(key=lambda item: (-item[0], str(item[2].get("display_name") or "")))
+            props = company.get("properties", {})
+            if ranked_contacts:
+                for score, reason, contact in ranked_contacts[:3]:
+                    queue.append(
+                        {
+                            "company_id": company_id,
+                            "company_name": props.get("name") or "",
+                            "country": props.get("company_country") or "",
+                            "industry": props.get("industry") or "",
+                            "owner_id": props.get("hubspot_owner_id") or "",
+                            "contact_id": contact.get("contact_id"),
+                            "display_name": contact.get("display_name") or "HubSpot contact",
+                            "persona": contact.get("persona") or "",
+                            "buying_role": contact.get("buying_role") or "",
+                            "priority_score": score,
+                            "priority_reason": reason,
+                            "handoff_action": "Manually review this person/company in Sales Navigator; do not automate LinkedIn browsing.",
+                            "next_enrichment": "Use search_exa_people_candidates or selected Lusha lookup only after scoped approval if HubSpot coverage is insufficient.",
+                        }
+                    )
+                    if len(queue) >= requested_limit:
+                        break
+            else:
+                queue.append(
+                    {
+                        "company_id": company_id,
+                        "company_name": props.get("name") or "",
+                        "country": props.get("company_country") or "",
+                        "industry": props.get("industry") or "",
+                        "owner_id": props.get("hubspot_owner_id") or "",
+                        "contact_id": "",
+                        "display_name": "decision-maker candidate needed",
+                        "persona": "",
+                        "buying_role": "",
+                        "priority_score": 10,
+                        "priority_reason": "no HubSpot role candidate found",
+                        "handoff_action": "Use Sales Navigator manually to identify likely HR/Ops/Owner stakeholders.",
+                        "next_enrichment": "Approved Exa People Search first; Lusha only for selected candidates with credit report.",
+                    }
+                )
+
+        return {
+            "answer": {
+                "mode": normalized_mode,
+                "event_name": event_name,
+                "queue": queue[:requested_limit],
+                "linkedin_scraping": False,
+                "sales_navigator_browser_actions": False,
+                "exa_cost_report": {"status": "not_called", "reason": "handoff queue only; use approved Exa tool for public candidate discovery"},
+                "lusha_credit_report": {"status": "not_called", "reason": "handoff queue only; use approved Lusha tool for selected lookup/reveal"},
+            },
+            "source": "HubSpot scoped companies and contacts; Sales Navigator is manual handoff only",
+            "scope": {
+                **_scope_response(scope, selected, target_owner_id, target_owner_email),
+                "mode": normalized_mode,
+                "input_company_count": len(company_ids or []),
+            },
+            "total": len(queue[:requested_limit]),
+            "requested_limit": requested_limit,
+            "returned_count": len(queue[:requested_limit]),
+            "has_more": len(queue) > requested_limit,
+            "truncated": len(queue) > requested_limit,
+            "will_mutate_hubspot": False,
+            "confidence": "needs-check" if not queue or len(queue) > requested_limit else "verified",
+            "caveat": "No LinkedIn scraping, no automated Sales Navigator browser action, no contact PII reveal, and no HubSpot mutation. Exa/Lusha are separate approved cost/credit-reporting flows.",
+        }
+    except ScopeError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email, "owner_email": owner_email})
+    except HubSpotError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email})
+
+
+@mcp.tool()
 def build_manager_chase_plan(
     slack_user_email: str,
     countries: list[str] | None = None,
@@ -10784,6 +12166,108 @@ def build_pre_demo_game_plans(
         return _blocked(str(error), {"caller_email": slack_user_email, "company_ids": company_ids})
     except HubSpotError as error:
         return _blocked(str(error), {"caller_email": slack_user_email, "company_ids": company_ids})
+
+
+@mcp.tool()
+def find_sales_case_studies(
+    slack_user_email: str,
+    company_ids: list[str] | None = None,
+    sales_moment: str = "pre_demo",
+    query: str = "",
+    limit: int = CASE_STUDY_MATCH_LIMIT,
+) -> dict[str, Any]:
+    """Find approved case-study matches for scoped HubSpot accounts or a supplied brainstorm query."""
+
+    try:
+        scope = _caller_scope(slack_user_email)
+        if scope["kind"] == "blocked":
+            return _blocked("Caller identity is not mapped to an allowed scope.", {"caller_email": slack_user_email})
+
+        allowed_moments = {"knowledge_touch", "pre_demo", "demo", "post_demo_followup"}
+        normalized_moment = str(sales_moment or "").strip().lower()
+        if normalized_moment and normalized_moment not in allowed_moments:
+            return _blocked(
+                "sales_moment must be one of knowledge_touch, pre_demo, demo, or post_demo_followup.",
+                {"sales_moment": sales_moment},
+            )
+
+        requested_limit = _bounded_int(limit, default=CASE_STUDY_MATCH_LIMIT, maximum=10)
+        requested_company_ids = [str(company_id or "").strip() for company_id in (company_ids or []) if str(company_id or "").strip()]
+        contexts: list[dict[str, Any]] = []
+        countries: list[str] = []
+        scoped_companies: list[dict[str, Any]] = []
+
+        for company_id in requested_company_ids[:PRE_DEMO_GAME_PLAN_ACCOUNT_LIMIT]:
+            context = _company_context(company_id, scope)
+            if context is None:
+                raise ScopeError("One or more requested companies are outside caller scope or are not HubSpot target accounts.")
+            company = context.get("company", {})
+            country = company.get("country")
+            if country and country not in countries:
+                countries.append(country)
+            scoped_companies.append(
+                {
+                    "company_id": company.get("company_id"),
+                    "name": company.get("name"),
+                    "country": company.get("country"),
+                    "industry": company.get("industry"),
+                    "current_tools": company.get("current_tools"),
+                }
+            )
+            contexts.append(context)
+
+        if query.strip():
+            contexts.append(
+                {
+                    "company": {
+                        "name": query.strip(),
+                        "country": "",
+                        "industry": query.strip(),
+                        "current_tools": query.strip(),
+                        "account_status": "brainstorm",
+                    }
+                }
+            )
+
+        if not contexts:
+            return _blocked(
+                "Provide scoped HubSpot company_ids or a query before finding sales case studies.",
+                {"caller_email": slack_user_email},
+            )
+
+        by_id: dict[str, dict[str, Any]] = {}
+        for context in contexts:
+            for match in _sales_case_study_matches(context, normalized_moment, requested_limit):
+                match_id = str(match.get("id") or match.get("customer") or "")
+                existing = by_id.get(match_id)
+                if existing is None or _int_value(match.get("match_score")) > _int_value(existing.get("match_score")):
+                    by_id[match_id] = match
+
+        matches = sorted(by_id.values(), key=lambda match: (-_int_value(match.get("match_score")), str(match.get("customer") or "")))[:requested_limit]
+        missing_evidence = [] if matches else ["case-study match needed"]
+        return {
+            "answer": {
+                "case_study_matches": matches,
+                "relevant_name_drops": [match.get("summary") for match in matches] if matches else ["case-study match needed"],
+                "scoped_companies": scoped_companies,
+                "sales_moment": normalized_moment or "any",
+            },
+            "source": "NurtureAny approved case-study catalog, including full-video-reviewed BMC podcast cards with bmc_podcast_full_video_review approval basis",
+            "scope": _scope_response(scope, countries or list(scope.get("countries", ()))),
+            "requested_limit": requested_limit,
+            "returned_count": len(matches),
+            "missing_evidence": missing_evidence,
+            "confidence": "verified" if matches else "needs-check",
+            "will_mutate_hubspot": False,
+            "caveat": (
+                "Read-only enrichment. HubSpot remains the source of truth for account facts; podcast cards are case-study analogies only. "
+                "No strong match returns `case-study match needed`."
+            ),
+        }
+    except ScopeError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email, "company_ids": company_ids or []})
+    except HubSpotError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email, "company_ids": company_ids or []})
 
 
 @mcp.tool()
@@ -11322,6 +12806,647 @@ def score_nurture_accounts(
         return _blocked(str(error), {"caller_email": slack_user_email, "owner_email": owner_email})
     except HubSpotError as error:
         return _blocked(str(error), {"caller_email": slack_user_email})
+
+
+@mcp.tool()
+def build_singapore_lead_enrichment_plan(
+    slack_user_email: str,
+    owner_email: str | None = None,
+    company_ids: list[str] | None = None,
+    limit: int | None = None,
+    batch_size: int = SINGAPORE_LEAD_ENRICHMENT_DEFAULT_BATCH_SIZE,
+    phone_stale_after_days: int = PHONE_VERIFICATION_DEFAULT_STALE_AFTER_DAYS,
+) -> dict[str, Any]:
+    """Build a review-first SG lead-enrichment plan for HubSpot companies before WhatsApp nurture."""
+
+    try:
+        scope = _caller_scope(slack_user_email)
+        if scope["kind"] == "blocked":
+            return _blocked("Caller identity is not mapped to an allowed scope.", {"caller_email": slack_user_email})
+        if SINGAPORE_LEAD_ENRICHMENT_COUNTRY not in scope.get("countries", ()):
+            return _blocked(
+                "Singapore lead enrichment requires Singapore scope.",
+                _scope_response(scope, []),
+            )
+
+        requested_limit = _bounded_int(
+            limit,
+            default=SINGAPORE_LEAD_ENRICHMENT_DEFAULT_LIMIT,
+            maximum=SINGAPORE_LEAD_ENRICHMENT_MAX_LIMIT,
+        )
+        requested_batch_size = _bounded_int(
+            batch_size,
+            default=SINGAPORE_LEAD_ENRICHMENT_DEFAULT_BATCH_SIZE,
+            maximum=SINGAPORE_LEAD_ENRICHMENT_DEFAULT_BATCH_SIZE,
+        )
+        requested_stale_days = _bounded_int(
+            phone_stale_after_days,
+            default=PHONE_VERIFICATION_DEFAULT_STALE_AFTER_DAYS,
+            maximum=3650,
+        )
+        target_owner_id, target_owner_email = _target_owner_id_for_scope(scope, owner_email)
+        metadata: dict[str, Any]
+        skipped_company_ids: list[dict[str, str]] = []
+
+        if company_ids:
+            input_ids = [str(company_id or "").strip() for company_id in company_ids if str(company_id or "").strip()]
+            selected_companies = []
+            for company_id in input_ids[:requested_limit]:
+                company = _get_company(company_id)
+                access_reason = _singapore_lead_enrichment_access_reason(company, scope, target_owner_id)
+                if access_reason:
+                    skipped_company_ids.append({"company_id": company_id, "reason": access_reason})
+                    continue
+                selected_companies.append(company)
+            metadata = {
+                "total": len(input_ids),
+                "requested_limit": requested_limit,
+                "returned_count": len(selected_companies),
+                "has_more": len(input_ids) > requested_limit,
+                "truncated": len(input_ids) > requested_limit,
+                "skipped_company_ids": skipped_company_ids,
+                "explicit_company_ids": True,
+            }
+        else:
+            data = _company_search(
+                _target_filters([SINGAPORE_LEAD_ENRICHMENT_COUNTRY], target_owner_id),
+                requested_limit,
+                maximum=SINGAPORE_LEAD_ENRICHMENT_MAX_LIMIT,
+            )
+            selected_companies = data.get("results", [])
+            metadata = {**_search_metadata(data), "explicit_company_ids": False}
+
+        company_ids_for_contacts = [str(company.get("id") or "") for company in selected_companies if company.get("id")]
+        contact_index = _batch_association_ids("companies", "contacts", company_ids_for_contacts)
+        raw_contacts_by_id = {
+            str(contact.get("id") or ""): contact
+            for contact in _batch_read(
+                "contacts",
+                sorted({contact_id for ids in contact_index.values() for contact_id in ids}),
+                CONTACT_PROPERTIES,
+            )
+            if contact.get("id")
+        }
+
+        rows = []
+        for company in selected_companies:
+            company_id = str(company.get("id") or "")
+            safe_contacts = [
+                _safe_contact(raw_contacts_by_id[contact_id], requested_stale_days)
+                for contact_id in contact_index.get(company_id, [])
+                if contact_id in raw_contacts_by_id
+            ]
+            rows.append(_singapore_lead_enrichment_row(company, safe_contacts, len(contact_index.get(company_id, [])), requested_stale_days))
+
+        rows.sort(
+            key=lambda row: (
+                SINGAPORE_LEAD_ENRICHMENT_BUCKETS.index(row["gap_bucket"])
+                if row.get("gap_bucket") in SINGAPORE_LEAD_ENRICHMENT_BUCKETS
+                else 99,
+                -row.get("priority_score", 0),
+                str(row.get("name") or ""),
+            )
+        )
+        buckets = {bucket: [] for bucket in SINGAPORE_LEAD_ENRICHMENT_BUCKETS}
+        for row in rows:
+            bucket_row = _singapore_bucket_row(row)
+            buckets.setdefault(row["gap_bucket"], []).append(bucket_row)
+            for secondary_bucket in row.get("secondary_buckets", []):
+                buckets.setdefault(secondary_bucket, []).append(bucket_row)
+
+        whatsapp_ready = [
+            _singapore_whatsapp_batch_row(row)
+            for row in rows
+            if row.get("gap_bucket") == "nurture_ready" and not row.get("do_not_contact")
+        ][:requested_batch_size]
+        buckets["ready_for_whatsapp_batch"] = [_singapore_bucket_row(row) for row in rows if row.get("gap_bucket") == "nurture_ready"][
+            :requested_batch_size
+        ]
+
+        answer = {
+            "accounts": rows,
+            "buckets": buckets,
+            "ready_for_whatsapp_batch": {
+                "account_count": len(whatsapp_ready),
+                "batch_size": requested_batch_size,
+                "draft_only": True,
+                "no_auto_send": True,
+                "kns_framework": "Knowledge / Network / Support",
+                "accounts": whatsapp_ready,
+            },
+            "pilot_contract": {
+                "ownership_policy": "Fixed AE account ownership is unchanged; owner_email scopes the plan but never reassigns accounts.",
+                "pilot_size": "Start with 20-30 priority accounts before scaling.",
+                "cost_mode": "capped_effective",
+                "cost_mode_policy": "Optimize for cost per usable AE handoff, not lowest cash spend. Paid steps run only when a real coverage gap remains.",
+                "khai_role": "Research, classify persona, verify company/title/duplicate/source, and hand off High/Medium confidence contacts.",
+                "ae_role": "Use the contact, validate commercial relevance through outreach, and update validation status within 3 working days.",
+                "ae_validation_options": ["valid", "wrong_person", "left_company", "no_response", "not_attempted"],
+                "definition_of_done_where_possible": [
+                    "1 verified decision maker",
+                    "1 champion/influencer or operating contact",
+                    "at least 3 usable contacts",
+                    "persona type captured",
+                    "source captured",
+                    "confidence level captured",
+                    "AE next action clear",
+                ],
+            },
+            "provider_waterfall_policy": _singapore_global_provider_waterfall_policy(),
+            "field_contract": {
+                "phone_statuses": sorted(PHONE_VERIFICATION_STATUSES),
+                "phone_sources": sorted(PHONE_VERIFICATION_SOURCES),
+                "truecaller_v1_policy": "Manual lookup/callability evidence only; no automated reverse lookup, scraping, or bulk enrichment.",
+                "prospeo_v1_1_policy": "Prospeo is a measured paid-provider pilot candidate only; no adapter, no auto-write, no bulk export, and no raw phone in Slack summaries.",
+            },
+            "source_ladder": list(SINGAPORE_LEAD_ENRICHMENT_SOURCE_LADDER),
+            "counts": {
+                "account_count": len(rows),
+                "nurture_ready": len(buckets["nurture_ready"]),
+                "missing_associated_contact": len(buckets["missing_associated_contact"]),
+                "missing_decision_maker": len(buckets["missing_decision_maker"]),
+                "missing_verified_phone": len(buckets["missing_verified_phone"]),
+                "hubspot_rollup_mismatch": len(buckets["hubspot_rollup_mismatch"]),
+                "needs_paid_reveal": len(buckets["needs_paid_reveal"]),
+                "needs_manual_truecaller_check": len(buckets["needs_manual_truecaller_check"]),
+                "ready_for_whatsapp_batch": len(whatsapp_ready),
+            },
+        }
+        result_truncated = bool(metadata.get("truncated"))
+        return {
+            "answer": answer,
+            "source": "HubSpot Singapore companies, associated contact buying roles, NurtureAny phone-verification fields, and review-first enrichment ladder",
+            "scope": _scope_response(
+                scope,
+                [SINGAPORE_LEAD_ENRICHMENT_COUNTRY],
+                target_owner_id,
+                target_owner_email,
+            ),
+            **metadata,
+            "confidence": "needs-check" if result_truncated or any(row.get("gap_bucket") != "nurture_ready" for row in rows) else "verified",
+            "caveat": _coverage_caveat(
+                metadata,
+                "Plan is read-only. It returns HubSpot writeback previews and WhatsApp talking points only; no HubSpot mutation, paid Lusha/Prospeo reveal, Truecaller automation, WhatsApp send, or raw phone number exposure was performed.",
+            ),
+        }
+    except ScopeError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email, "owner_email": owner_email})
+    except HubSpotError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email, "owner_email": owner_email, "company_ids": company_ids or []})
+
+
+def _singapore_lead_enrichment_access_reason(
+    company: dict[str, Any],
+    scope: dict[str, Any],
+    target_owner_id: str | None = None,
+) -> str:
+    props = company.get("properties", {})
+    if props.get("company_country") != SINGAPORE_LEAD_ENRICHMENT_COUNTRY:
+        return "not_singapore_company"
+    if SINGAPORE_LEAD_ENRICHMENT_COUNTRY not in scope.get("countries", ()):
+        return "caller_missing_singapore_scope"
+    company_owner_id = str(props.get("hubspot_owner_id") or "")
+    if target_owner_id and company_owner_id != str(target_owner_id):
+        return "outside_selected_owner_scope"
+    if scope.get("kind") in {"admin", "manager"}:
+        return ""
+    if scope.get("kind") == "ae" and company_owner_id == str(scope.get("owner_id") or ""):
+        return ""
+    return "outside_caller_owner_scope"
+
+
+def _singapore_lead_enrichment_row(
+    company: dict[str, Any],
+    safe_contacts: list[dict[str, Any]],
+    associated_contact_count: int,
+    phone_stale_after_days: int,
+) -> dict[str, Any]:
+    props = company.get("properties", {})
+    company_summary = _summarize_company_with_contacts(company, safe_contacts, associated_contact_count)
+    coverage = _coverage(props, safe_contacts)
+    phone_summary = _singapore_phone_summary(safe_contacts, phone_stale_after_days)
+    slots = _singapore_stakeholder_slots(safe_contacts)
+    mismatch_notes = _singapore_rollup_mismatch_notes(company_summary, safe_contacts, phone_summary)
+    gap_bucket, secondary_buckets = _singapore_gap_bucket(company_summary, coverage, phone_summary, mismatch_notes)
+    recommended_next_source = _singapore_recommended_next_source(gap_bucket, company_summary, coverage, phone_summary, slots)
+    pilot_flags = _singapore_pilot_flags(coverage, slots)
+    provider_policy = _singapore_row_provider_waterfall_policy(
+        gap_bucket,
+        recommended_next_source,
+        company_summary,
+        coverage,
+        phone_summary,
+        secondary_buckets,
+    )
+    row = {
+        "company_id": company_summary.get("company_id"),
+        "hubspot_scoped": True,
+        "scope_source": SCOPE_SOURCE,
+        "name": company_summary.get("name"),
+        "domain": company_summary.get("domain"),
+        "country": company_summary.get("country"),
+        "owner_id": company_summary.get("owner_id"),
+        "owner_email": company_summary.get("owner_email"),
+        "owner_name": company_summary.get("owner_name"),
+        "is_target_account": str(props.get("hs_is_target_account") or "").strip().lower() == "true",
+        "account_status": company_summary.get("account_status"),
+        "industry": company_summary.get("industry"),
+        "headcount": company_summary.get("headcount"),
+        "current_tools": company_summary.get("current_tools"),
+        "associated_contact_count": associated_contact_count,
+        "verified_decision_maker_count": coverage.get("verified_decision_maker_count"),
+        "role_inferred_decision_maker_candidate_count": coverage.get("role_inferred_decision_maker_candidate_count"),
+        "usable_contact_count": coverage.get("usable_contact_count"),
+        "minimum_ready_state": {
+            "has_associated_contact": associated_contact_count >= 1,
+            "has_verified_decision_maker": coverage.get("verified_decision_maker_count", 0) >= 1,
+            "has_verified_phone": phone_summary.get("verified_phone_count", 0) >= 1,
+        },
+        "preferred_sg_ready_state": {
+            "has_distinct_decision_maker_and_operating_contact": slots.get("distinct_contact_slots"),
+            "has_champion_influencer_or_operating_contact": bool(slots.get("champion_influencer")),
+            "has_three_usable_contacts_where_possible": coverage.get("usable_contact_count", 0) >= 3,
+        },
+        "stakeholder_slots": slots,
+        "ranked_people_candidates": _rank_singapore_people_candidates(safe_contacts),
+        "phone_verification_summary": phone_summary,
+        "hubspot_mismatch_notes": mismatch_notes,
+        "pilot_flags": pilot_flags,
+        "gap_bucket": gap_bucket,
+        "secondary_buckets": secondary_buckets,
+        "recommended_next_source": recommended_next_source,
+        "provider_waterfall_policy": provider_policy,
+        "recommended_next_action": _singapore_next_action(gap_bucket, recommended_next_source, pilot_flags),
+        "hubspot_writeback_preview": _singapore_writeback_preview(company_summary, slots, phone_summary, gap_bucket),
+        "handoff_note": _singapore_handoff_note(company_summary, gap_bucket, recommended_next_source, pilot_flags),
+        "whatsapp_readiness": {
+            "ready": gap_bucket == "nurture_ready",
+            "draft_only": True,
+            "no_auto_send": True,
+        },
+        "confidence": "needs-check" if gap_bucket != "nurture_ready" or pilot_flags else "verified",
+        **_score_company(company_summary),
+    }
+    return row
+
+
+def _singapore_global_provider_waterfall_policy() -> dict[str, Any]:
+    return {
+        "cost_mode": "capped_effective",
+        "optimization_target": "lowest reasonable cost per usable AE outcome, not lowest possible spend",
+        "pilot_budget_default": "under_100_usd_monthly_unless_changed",
+        "run_rules": [
+            "Use HubSpot and existing activity/history before any external provider.",
+            "Use Tavily public research for company, careers, and SG job-board signals before paid contact reveal.",
+            "Use Exa for public people candidates when stakeholder coverage is still missing.",
+            "Use Lusha and Prospeo in a controlled parallel pilot only when a real paid contact-data gap remains.",
+            "Stop once minimum readiness is met: associated contact, verified decision maker, and fresh called_connected phone verification.",
+            "Provider candidates never count as verified decision makers or verified phones until HubSpot/call verification rules pass.",
+        ],
+        "provider_jobs": list(SINGAPORE_LEAD_ENRICHMENT_PROVIDER_JOBS),
+        "paid_parallel_test": {
+            "providers": ["lusha", "prospeo"],
+            "status": "pilot_contract_only",
+            "requires": [
+                "scoped HubSpot company IDs",
+                "explicit approval marker before reveal",
+                "cost or credit report",
+                "selected contacts only",
+                "no raw phone numbers in Slack summaries",
+            ],
+            "prospeo_status": "V1.1 provider candidate; no MCP adapter is enabled in this change.",
+        },
+        "metrics_to_track": list(SINGAPORE_LEAD_ENRICHMENT_PILOT_METRICS),
+        "unbrowse_policy": "Out of scope for this workflow because the safety model avoids automated gated, social, or shadow-API access for prospect enrichment.",
+    }
+
+
+def _singapore_row_provider_waterfall_policy(
+    gap_bucket: str,
+    recommended_next_source: str,
+    company_summary: dict[str, Any],
+    coverage: dict[str, Any],
+    phone_summary: dict[str, Any],
+    secondary_buckets: list[str],
+) -> dict[str, Any]:
+    paid_step_allowed = recommended_next_source == "lusha_prospeo_parallel_search_pilot" or "needs_paid_reveal" in secondary_buckets
+    minimum_ready = (
+        coverage.get("associated_contact_count", 0) >= 1
+        and coverage.get("verified_decision_maker_count", 0) >= 1
+        and phone_summary.get("verified_phone_count", 0) >= 1
+    )
+    return {
+        "cost_mode": "capped_effective",
+        "next_step": recommended_next_source,
+        "why": _singapore_provider_policy_reason(
+            gap_bucket,
+            recommended_next_source,
+            company_summary,
+            coverage,
+            phone_summary,
+        ),
+        "run_condition_met": not minimum_ready,
+        "paid_step_allowed": paid_step_allowed,
+        "paid_parallel_test": {
+            "eligible": paid_step_allowed,
+            "providers": ["lusha", "prospeo"] if paid_step_allowed else [],
+            "guardrail": "Run only with approval, cost/credit reporting, selected contacts, and no raw-phone Slack summary.",
+        },
+        "stop_condition": "Stop paid provider work once minimum readiness is met or once AE marks the handoff not useful.",
+        "verification_rule": "Provider output remains candidate evidence; verified decision maker requires hs_buying_role=DECISION_MAKER and verified phone requires called_connected within freshness window.",
+        "metrics_to_track": list(SINGAPORE_LEAD_ENRICHMENT_PILOT_METRICS),
+    }
+
+
+def _singapore_provider_policy_reason(
+    gap_bucket: str,
+    recommended_next_source: str,
+    company_summary: dict[str, Any],
+    coverage: dict[str, Any],
+    phone_summary: dict[str, Any],
+) -> str:
+    if recommended_next_source == "hubspot_field_diagnostic":
+        return "HubSpot fields disagree; fixing the source-of-truth record is cheaper and more accurate than prospecting more."
+    if recommended_next_source == "tavily_public_company_job_board_research":
+        return "The account lacks usable associated-contact coverage; use low-cost public company and job-board evidence before people/contact providers."
+    if recommended_next_source == "exa_people_candidate_discovery":
+        return "The account has some contact/account context but still lacks a verified decision maker; search public people candidates before contact reveal."
+    if recommended_next_source == "manual_truecaller_call_outcome":
+        return "A callable candidate or stale phone exists; manual callability check and call outcome are needed before spending reveal credits."
+    if recommended_next_source == "lusha_prospeo_parallel_search_pilot":
+        return "The account has a verified decision-maker path but lacks fresh callable phone coverage; compare paid providers only for this real gap."
+    if recommended_next_source == "whatsapp_batch_draft":
+        return "Minimum readiness is met; no paid enrichment is needed before draft-only nurture talking points."
+    if company_summary.get("associated_contact_count", 0) < 1 or coverage.get("associated_contact_count", 0) < 1:
+        return "No associated contact coverage is visible."
+    if phone_summary.get("verified_phone_count", 0) < 1:
+        return "Phone verification coverage is missing."
+    return f"Next source follows SG enrichment gap bucket {gap_bucket}."
+
+
+def _singapore_phone_summary(contacts: list[dict[str, Any]], phone_stale_after_days: int) -> dict[str, Any]:
+    verified = [contact for contact in contacts if contact.get("is_phone_verified")]
+    candidates = [contact for contact in contacts if contact.get("phone_available")]
+    stale = [contact for contact in contacts if contact.get("phone_verification_status") == "stale"]
+    truecaller_manual = [
+        contact
+        for contact in contacts
+        if contact.get("phone_verification_source") == "truecaller_manual_lookup"
+        and not contact.get("is_phone_verified")
+    ]
+    status_counts: dict[str, int] = {}
+    for contact in contacts:
+        status = str(contact.get("phone_verification_status") or "not_checked")
+        status_counts[status] = status_counts.get(status, 0) + 1
+    return {
+        "verified_phone_count": len(verified),
+        "phone_candidate_count": len(candidates),
+        "stale_phone_count": len(stale),
+        "manual_truecaller_needs_call_count": len(truecaller_manual),
+        "status_counts": status_counts,
+        "phone_stale_after_days": phone_stale_after_days,
+        "redaction_policy": "Raw phone numbers are omitted from Slack-facing output.",
+        "truecaller_policy": "truecaller_manual_lookup is candidate evidence only unless paired with called_connected phone verification status.",
+    }
+
+
+def _singapore_rollup_mismatch_notes(
+    company_summary: dict[str, Any],
+    contacts: list[dict[str, Any]],
+    phone_summary: dict[str, Any],
+) -> list[dict[str, str]]:
+    coverage = company_summary.get("decision_maker_coverage") or {}
+    notes = []
+    if coverage.get("decision_maker_count_from_hubspot_property", 0) > 0 and not any(
+        contact.get("is_verified_decision_maker") for contact in contacts
+    ):
+        notes.append(
+            {
+                "reason": "company_rollup_has_decision_maker_but_associated_contacts_missing_decision_maker_role",
+                "field_level_reason": "HubSpot company hs_num_decision_makers > 0 but returned associated contacts do not include hs_buying_role=DECISION_MAKER.",
+                "rep_action": "Fix the associated contact buying-role field if the DM exists; otherwise treat the company rollup as stale and keep prospecting.",
+            }
+        )
+    for issue in coverage.get("issues", []):
+        if issue == "company_rollup_has_decision_maker_but_no_associated_contact_returned":
+            notes.append(
+                {
+                    "reason": issue,
+                    "field_level_reason": "HubSpot company hs_num_decision_makers > 0 but no associated contacts were returned with hs_buying_role=DECISION_MAKER.",
+                    "rep_action": "Fix HubSpot association/buying role if the DM exists; keep prospecting if the rollup is stale.",
+                }
+            )
+        elif issue == "buying_role_contacts_exist_but_none_are_decision_maker":
+            notes.append(
+                {
+                    "reason": issue,
+                    "field_level_reason": "HubSpot company hs_num_contacts_with_buying_roles > 0 but returned associated contacts do not include hs_buying_role=DECISION_MAKER.",
+                    "rep_action": "Check whether persona/champion/influencer was tagged instead of the actual decision-maker field.",
+                }
+            )
+    if contacts and phone_summary.get("verified_phone_count", 0) < 1:
+        notes.append(
+            {
+                "reason": "associated_contacts_exist_but_no_verified_phone_status",
+                "field_level_reason": "Associated contacts exist, but none have nurtureany_phone_verification_status=called_connected within the freshness window.",
+                "rep_action": "Verify by call/manual lookup and update NurtureAny phone verification fields after outreach.",
+            }
+        )
+    for contact in contacts:
+        if (
+            contact.get("phone_verification_source") == "truecaller_manual_lookup"
+            and contact.get("phone_verification_status") != "called_connected"
+        ):
+            notes.append(
+                {
+                    "reason": "truecaller_manual_lookup_not_verified_call",
+                    "field_level_reason": "nurtureany_phone_verification_source=truecaller_manual_lookup without nurtureany_phone_verification_status=called_connected.",
+                    "rep_action": "Treat as callable candidate only until an actual call outcome or approved verification note confirms it.",
+                }
+            )
+            break
+    return notes
+
+
+def _singapore_gap_bucket(
+    company_summary: dict[str, Any],
+    coverage: dict[str, Any],
+    phone_summary: dict[str, Any],
+    mismatch_notes: list[dict[str, str]],
+) -> tuple[str, list[str]]:
+    secondary: list[str] = []
+    if any(
+        note.get("reason")
+        in {
+            "company_rollup_has_decision_maker_but_no_associated_contact_returned",
+            "company_rollup_has_decision_maker_but_associated_contacts_missing_decision_maker_role",
+            "buying_role_contacts_exist_but_none_are_decision_maker",
+        }
+        for note in mismatch_notes
+    ):
+        return "hubspot_rollup_mismatch", secondary
+    if coverage.get("associated_contact_count", 0) < 1:
+        return "missing_associated_contact", secondary
+    if coverage.get("verified_decision_maker_count", 0) < 1:
+        return "missing_decision_maker", secondary
+    if phone_summary.get("verified_phone_count", 0) < 1:
+        if phone_summary.get("stale_phone_count", 0):
+            return "missing_verified_phone", secondary
+        if phone_summary.get("manual_truecaller_needs_call_count", 0) or phone_summary.get("phone_candidate_count", 0):
+            return "needs_manual_truecaller_check", secondary
+        if company_summary.get("associated_contact_count", 0) >= 1:
+            secondary.append("needs_paid_reveal")
+        return "missing_verified_phone", secondary
+    return "nurture_ready", secondary
+
+
+def _singapore_recommended_next_source(
+    gap_bucket: str,
+    company_summary: dict[str, Any],
+    coverage: dict[str, Any],
+    phone_summary: dict[str, Any],
+    slots: dict[str, Any],
+) -> str:
+    if gap_bucket == "hubspot_rollup_mismatch":
+        return "hubspot_field_diagnostic"
+    if gap_bucket == "missing_associated_contact":
+        return "tavily_public_company_job_board_research"
+    if gap_bucket == "missing_decision_maker":
+        return "exa_people_candidate_discovery"
+    if gap_bucket == "needs_manual_truecaller_check":
+        return "manual_truecaller_call_outcome"
+    if gap_bucket == "missing_verified_phone":
+        if phone_summary.get("stale_phone_count", 0) or phone_summary.get("phone_candidate_count", 0):
+            return "manual_truecaller_call_outcome"
+        return "lusha_prospeo_parallel_search_pilot" if coverage.get("associated_contact_count", 0) else "tavily_public_company_job_board_research"
+    if gap_bucket == "nurture_ready":
+        return "whatsapp_batch_draft"
+    return "hubspot"
+
+
+def _singapore_pilot_flags(coverage: dict[str, Any], slots: dict[str, Any]) -> list[str]:
+    flags = []
+    if not slots.get("champion_influencer"):
+        flags.append("missing_champion_influencer_or_operating_contact")
+    if coverage.get("usable_contact_count", 0) < 3:
+        flags.append("below_three_usable_contacts_where_possible")
+    return flags
+
+
+def _singapore_next_action(gap_bucket: str, recommended_next_source: str, pilot_flags: list[str]) -> str:
+    if gap_bucket == "hubspot_rollup_mismatch":
+        return "Fix the exact HubSpot field mismatch before prospecting more contacts."
+    if gap_bucket == "missing_associated_contact":
+        return "Run Tavily/public company and SG job-board research first; then classify High/Medium/Low before any HubSpot writeback."
+    if gap_bucket == "missing_decision_maker":
+        return "Use Exa people candidates and gatekeeper calls to verify the boss/owner/director decision maker; title inference stays needs-check."
+    if gap_bucket == "needs_manual_truecaller_check":
+        return "Manual Truecaller/callability check and actual call outcome before marking phone verified."
+    if gap_bucket == "missing_verified_phone":
+        if recommended_next_source == "lusha_prospeo_parallel_search_pilot":
+            return "Run a controlled Lusha + Prospeo paid-provider pilot only with approval, then verify by actual call outcome."
+        return "Find or reveal a callable number only with approval, then verify by actual call outcome."
+    if pilot_flags:
+        return "Ready for nurture minimums; still improve pilot coverage flags before scaling if time allows."
+    return "Ready for WhatsApp talking-point drafting; no send without approval."
+
+
+def _singapore_writeback_preview(
+    company_summary: dict[str, Any],
+    slots: dict[str, Any],
+    phone_summary: dict[str, Any],
+    gap_bucket: str,
+) -> dict[str, Any]:
+    actions = []
+    decision_maker = slots.get("decision_maker") or {}
+    if decision_maker and decision_maker.get("decision_maker_status") == "needs-check":
+        actions.append(
+            {
+                "object_type": "contact",
+                "contact_id": decision_maker.get("contact_id"),
+                "condition": "Only after call verification confirms decision authority.",
+                "properties": {"hs_buying_role": "DECISION_MAKER"},
+            }
+        )
+    if gap_bucket in {"needs_manual_truecaller_check", "missing_verified_phone"}:
+        actions.append(
+            {
+                "object_type": "contact",
+                "condition": "Only after manual lookup/call outcome is complete; raw phone numbers stay out of Slack.",
+                "properties": {
+                    "nurtureany_phone_verification_status": "called_connected | wrong_number | unreachable | no_answer | do_not_contact",
+                    "nurtureany_phone_verified_at": "YYYY-MM-DD",
+                    "nurtureany_phone_verified_by": "AE email",
+                    "nurtureany_phone_verification_source": "manual_call | truecaller_manual_lookup | lusha_reveal | apollo_manual | prospeo_manual",
+                    "nurtureany_phone_verification_notes": "short safe note, no raw number",
+                },
+            }
+        )
+    return {
+        "will_mutate_hubspot": False,
+        "company_id": company_summary.get("company_id"),
+        "actions": actions,
+        "phone_summary": phone_summary,
+    }
+
+
+def _singapore_handoff_note(
+    company_summary: dict[str, Any],
+    gap_bucket: str,
+    recommended_next_source: str,
+    pilot_flags: list[str],
+) -> str:
+    flags = f" Pilot flags: {', '.join(pilot_flags)}." if pilot_flags else ""
+    return _short_text(
+        f"{company_summary.get('name')}: {gap_bucket}; next source {recommended_next_source}. "
+        "Khai researches/classifies; AE validates through outreach within 3 working days."
+        f"{flags}",
+        320,
+    )
+
+
+def _singapore_bucket_row(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "company_id": row.get("company_id"),
+        "name": row.get("name"),
+        "owner_email": row.get("owner_email"),
+        "gap_bucket": row.get("gap_bucket"),
+        "recommended_next_source": row.get("recommended_next_source"),
+        "associated_contact_count": row.get("associated_contact_count"),
+        "verified_decision_maker_count": row.get("verified_decision_maker_count"),
+        "verified_phone_count": row.get("phone_verification_summary", {}).get("verified_phone_count"),
+        "provider_waterfall_next_step": (row.get("provider_waterfall_policy") or {}).get("next_step"),
+        "paid_step_allowed": (row.get("provider_waterfall_policy") or {}).get("paid_step_allowed", False),
+        "pilot_flags": row.get("pilot_flags", []),
+    }
+
+
+def _singapore_whatsapp_batch_row(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "company_id": row.get("company_id"),
+        "name": row.get("name"),
+        "owner_email": row.get("owner_email"),
+        "draft_only": True,
+        "no_auto_send": True,
+        "talking_points": [
+            {
+                "kns": "Knowledge",
+                "angle": "salary benchmarking and labour-market context for F&B/retail teams",
+                "question": "Worth comparing how your team is thinking about wage pressure this month?",
+            },
+            {
+                "kns": "Network",
+                "angle": "HR/operator community and Malaysia launch/networking context",
+                "question": "Would it be useful if I connect you with what nearby operators are trying?",
+            },
+            {
+                "kns": "Support",
+                "angle": "approved StaffAny customer proof or case-study match when available",
+                "question": "Want me to share the closest approved example before we chat?",
+            },
+        ],
+        "name_drop_policy": "Use find_sales_case_studies or approved material registry before naming a customer; otherwise keep the angle generic.",
+    }
 
 
 @mcp.tool()
@@ -11892,6 +14017,7 @@ def scan_drive_event_photos(
     event_name: str = "",
     context_text: str = "",
     luma_events: list[dict[str, Any]] | None = None,
+    luma_event_auto_tag: bool = False,
 ) -> dict[str, Any]:
     """Normalize recent Drive all-random photo metadata into photo-match work items."""
 
@@ -11914,8 +14040,10 @@ def scan_drive_event_photos(
                 continue
             source_pointer = _photo_source_pointer("drive", metadata)
             photo_key = _photo_key(source_pointer)
-            luma_event_context = _photo_luma_event_context(source_pointer, luma_events)
-            resolved_event_name = event_name or luma_event_context.get("event_name") or ""
+            luma_event_context = _photo_luma_event_context(source_pointer, luma_events, auto_tag=bool(luma_event_auto_tag))
+            resolved_event_name = event_name or (
+                luma_event_context.get("event_name") if luma_event_context.get("auto_event_tag_status") == "verified" else ""
+            ) or ""
             confirmation_request = _photo_confirmation_request(source_pointer, luma_event_context=luma_event_context)
             photos.append(
                 {
@@ -11953,8 +14081,9 @@ def scan_drive_event_photos(
                 "skipped_non_image_count": skipped_non_images,
                 "luma_event_date_correlation": {
                     "enabled": isinstance(luma_events, list),
+                    "auto_tag_enabled": bool(luma_event_auto_tag),
                     "candidate_event_count": len(luma_events or []) if isinstance(luma_events, list) else 0,
-                    "auto_event_tag_only": True,
+                    "auto_event_tag_only": bool(luma_event_auto_tag),
                     "person_auto_tag": False,
                 },
                 "confirmation_policy": "Ask the Slack uploader to identify or confirm every matched person before any HubSpot association.",
@@ -11996,6 +14125,7 @@ def propose_photo_people_matches(
     country: str = "",
     limit: int = PHOTO_MATCH_LIMIT,
     luma_event_candidates: list[dict[str, Any]] | None = None,
+    luma_event_auto_tag: bool = False,
 ) -> dict[str, Any]:
     """Propose HubSpot contact/company matches for one Slack or Drive event photo."""
 
@@ -12012,9 +14142,13 @@ def propose_photo_people_matches(
         source_pointer = _photo_source_pointer(source, photo_metadata)
         photo_key = _photo_key(source_pointer)
         metadata_events = photo_metadata.get("luma_event_candidates") or photo_metadata.get("luma_events") or luma_event_candidates
-        luma_event_context = _photo_luma_event_context(source_pointer, metadata_events)
-        resolved_event_name = event_name or luma_event_context.get("event_name") or ""
-        resolved_country = country or luma_event_context.get("country") or ""
+        luma_event_context = _photo_luma_event_context(source_pointer, metadata_events, auto_tag=bool(luma_event_auto_tag))
+        resolved_event_name = event_name or (
+            luma_event_context.get("event_name") if luma_event_context.get("auto_event_tag_status") == "verified" else ""
+        ) or ""
+        resolved_country = country or (
+            luma_event_context.get("country") if luma_event_context.get("auto_event_tag_status") == "verified" else ""
+        ) or ""
         hints = _photo_matching_hints(
             context_text,
             vision_clues,

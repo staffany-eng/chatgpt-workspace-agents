@@ -790,3 +790,72 @@ Expected behavior:
 - Returns `cost_report`, `will_mutate_hubspot=false`, `manual_check_items`, and `missing_evidence`.
 - LinkedIn, Instagram, TikTok, Facebook, Google Maps, and gated/social URLs remain manual-check only.
 - If decision-maker coverage is missing, recommends `search_exa_people_candidates` instead of inventing contacts.
+
+### HubSpot Revenue Funnel
+
+Prompt:
+
+```text
+@NurtureAny show SG Sales Outbound new-business funnel for May by created-date cohort, >20 headcount, with deal audit rows
+```
+
+Expected behavior:
+
+- First response is plan-only and asks for `run`.
+- After `run`, calls `build_hubspot_revenue_funnel_metrics`.
+- Uses HubSpot deal createdate cohort and associated company filters.
+- Applies Sales Outbound, new-business, renewal exclusion, headcount, signed-stage, and manual-correction caveats.
+- Returns summary metrics plus deal-level audit rows.
+- Does not edit HubSpot or call BigQuery.
+
+### AE Coaching Audit
+
+Prompt:
+
+```text
+@NurtureAny audit SG AE coaching this week: 3 QOs, morning 150 coverage, 40 connected calls, and long calls with no appointment
+```
+
+Expected behavior:
+
+- First response is plan-only and asks for `run`.
+- After `run`, calls `build_ae_coaching_audit`.
+- Returns 1:1-sheet-ready preview rows only.
+- Does not mutate Google Sheets.
+- Does not read call bodies, transcripts, recordings, phone numbers, or raw communications.
+
+### Sales Navigator Handoff Queue
+
+Prompt:
+
+```text
+@NurtureAny prepare Sales Navigator pre_demo_150 decision maker queue for SG
+```
+
+Expected behavior:
+
+- First response is plan-only and asks for `run`.
+- After `run`, calls `prepare_sales_navigator_decision_maker_queue` with `mode=pre_demo_150`.
+- Returns manual decision-maker handoff rows from scoped HubSpot companies/contacts.
+- Includes Exa cost status and Lusha credit status as not-called or separately-approved next steps.
+- Does not scrape LinkedIn, automate Sales Navigator browser actions, reveal PII, or mutate HubSpot.
+
+### Singapore Lead Enrichment
+
+Prompt:
+
+```text
+@NurtureAny build Singapore lead enrichment plan for Jeremy's fixed account list
+```
+
+Expected behavior:
+
+- First response is plan-only and asks for `run`.
+- After `run`, calls `build_singapore_lead_enrichment_plan` with `owner_email=jeremy.wong@staffany.com`.
+- Returns buckets for associated-contact, verified decision-maker, verified-phone, HubSpot mismatch, manual Truecaller, paid reveal, nurture-ready, and WhatsApp-batch readiness.
+- Returns `provider_waterfall_policy` using capped-effective cost mode and the ladder HubSpot -> HubSpot notes/tasks/history -> Tavily public company/job-board research -> Exa people candidates -> controlled Lusha + Prospeo paid-provider pilot -> approved reveal -> manual Truecaller/call outcome -> HubSpot preview.
+- Recommends Tavily before Exa for accounts with no associated contact, Exa for people-candidate discovery when decision-maker coverage is missing, and Lusha + Prospeo only for real paid contact-data gaps.
+- Title-only owner/founder/director/CEO/GM candidates are `needs-check` and do not satisfy verified decision-maker coverage by themselves.
+- `truecaller_manual_lookup` stays candidate evidence unless paired with `nurtureany_phone_verification_status=called_connected`.
+- Returns field-level HubSpot mismatch reasons when rollups and associated contacts disagree.
+- Returns KNS talking points only; no HubSpot mutation, Lusha/Prospeo reveal, automated Truecaller lookup, raw phone-number export, or WhatsApp send.

@@ -95,7 +95,7 @@ class LumaNurtureAnyServerTest(unittest.TestCase):
         calls = []
 
         def fake_request(path, params=None):
-            calls.append((path, params))
+            calls.append((path, params or {}))
             return {
                 "entries": [
                     {

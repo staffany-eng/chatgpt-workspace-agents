@@ -153,10 +153,15 @@ if (!existsSync(manifestPath)) {
       "audit_hubspot_owner_roster",
       "audit_priority_account_coverage",
       "build_sales_metric_actuals_query",
+      "build_hubspot_revenue_funnel_metrics",
+      "build_ae_coaching_audit",
+      "prepare_sales_navigator_decision_maker_queue",
       "build_friday_sales_review",
       "build_manager_chase_plan",
       "get_account_context",
       "build_pre_demo_game_plans",
+      "find_sales_case_studies",
+      "build_singapore_lead_enrichment_plan",
       "list_active_deals_missing_next_meeting",
       "list_sales_followup_tasks",
       "check_account_followup_status",
@@ -491,6 +496,40 @@ if (!existsSync(manifestPath)) {
   }
 }
 
+const caseStudyCatalog = readJson(join(appRoot, "runtime", "data", "case-studies.json"));
+if (caseStudyCatalog) {
+  const cases = Array.isArray(caseStudyCatalog.cases) ? caseStudyCatalog.cases : [];
+  const bmcCases = cases.filter((item) => item?.source_type === "bmc_podcast");
+  if (bmcCases.length !== 21) fail(`BMC podcast catalog must contain 21 approved cards; found ${bmcCases.length}`);
+  for (const item of bmcCases) {
+    const label = item?.id || item?.customer || "unknown BMC case";
+    const review = item?.full_video_review || {};
+    const refs = Array.isArray(item?.evidence_refs) ? item.evidence_refs : [];
+    const moments = Array.isArray(item?.best_use_sales_moments) ? item.best_use_sales_moments : [];
+    if (item?.approved_for_name_drops !== true) fail(`${label} must be approved_for_name_drops=true`);
+    if (item?.approval_basis !== "bmc_podcast_full_video_review") fail(`${label} must use bmc_podcast_full_video_review approval basis`);
+    if (review.primary_spoken_source !== "youtube_auto_caption") fail(`${label} must use YouTube captions as the primary spoken source`);
+    if (review.reviewer_status !== "full_transcript_reviewed") fail(`${label} must be full_transcript_reviewed`);
+    if (review.full_transcript_available !== true) fail(`${label} must have full transcript coverage`);
+    if (!Number.isFinite(Number(review.transcript_word_count)) || Number(review.transcript_word_count) <= 0) {
+      fail(`${label} must record positive transcript_word_count`);
+    }
+    if (!review.first_timestamp || !review.last_timestamp) fail(`${label} must record first and last transcript timestamps`);
+    if (Array.isArray(review.gaps) && review.gaps.length > 0) fail(`${label} must not have transcript gaps for AE-approved use`);
+    for (const moment of ["knowledge_touch", "pre_demo", "demo", "post_demo_followup"]) {
+      if (!moments.includes(moment)) fail(`${label} missing sales moment: ${moment}`);
+    }
+    if (!Array.isArray(item?.do_not_claim) || item.do_not_claim.length === 0) fail(`${label} must include do_not_claim caveats`);
+    if (refs.length === 0) fail(`${label} must include timestamped evidence refs`);
+    for (const ref of refs) {
+      if (!/^([0-9]{2}:){2}[0-9]{2}/.test(String(ref?.timestamp || ""))) fail(`${label} evidence ref missing timestamp`);
+      if (!String(ref?.source_path || "").startsWith("research/raw/online/")) fail(`${label} evidence ref must point to Midas raw transcript path`);
+      if (!Number.isFinite(Number(ref?.line)) || Number(ref?.line) <= 0) fail(`${label} evidence ref must include source line`);
+      if (!String(ref?.claim || "").trim()) fail(`${label} evidence ref must include claim`);
+    }
+  }
+}
+
 const filesToScan = [
   "AGENTS.md",
   "README.md",
@@ -580,10 +619,13 @@ for (const text of [
   "unclassified_hubspot_owners",
   "list_my_target_accounts",
   "list_team_target_accounts",
-  "audit_hubspot_owner_roster",
-  "audit_priority_account_coverage",
-  "build_sales_metric_actuals_query",
-  "build_friday_sales_review",
+      "audit_hubspot_owner_roster",
+      "audit_priority_account_coverage",
+      "build_sales_metric_actuals_query",
+      "build_hubspot_revenue_funnel_metrics",
+      "build_ae_coaching_audit",
+      "prepare_sales_navigator_decision_maker_queue",
+      "build_friday_sales_review",
   "build_manager_chase_plan",
   "list_active_deals_missing_next_meeting",
   "NURTUREANY_QO_PIPELINE_IDS",
@@ -786,6 +828,7 @@ for (const text of [
   "40_connected_calls",
   "NURTUREANY_QO_PIPELINE_IDS",
   "build_pre_demo_game_plans",
+  "find_sales_case_studies",
   "exact company names",
   "ambiguous matches",
   "pricing needed",
@@ -1011,6 +1054,8 @@ for (const text of [
   "SOCIAL_BROADCAST",
   "MARKETING_ATTRIBUTION_SEARCH_PROPERTIES",
   "CASE_STUDY_CATALOG_PATH",
+  "find_sales_case_studies",
+  "bmc_podcast_full_video_review",
   "case_study_matches",
   "HubSpot Conversations",
   "PODCAST_EPISODE",
@@ -1428,7 +1473,7 @@ const healthScriptText = textOf("runtime/check-health.sh");
 for (const text of [
   "PROFILE=\"${HERMES_PROFILE:-nurtureanysalesbot}\"",
   "export HERMES_HOME=\"$HOME/.hermes/profiles/$PROFILE\"",
-  "EXPECT_HUBSPOT_TOOLS=\"${EXPECT_HUBSPOT_TOOLS:-35}\"",
+  "EXPECT_HUBSPOT_TOOLS=\"${EXPECT_HUBSPOT_TOOLS:-40}\"",
   "NURTUREANY_GATEWAY_SERVICE_NAME",
   "systemctl --user is-active --quiet \"$GATEWAY_SERVICE_NAME\"",
   "GATEWAY_LAUNCHD_LABEL",

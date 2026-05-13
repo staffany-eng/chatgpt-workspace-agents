@@ -30,6 +30,10 @@ NurtureAny's first runtime surface is Slack mention usage in sales pilot channel
 - Tavily public research requests must be explicitly scoped to HubSpot companies, show the selected `research_mode`, and include `cost_report` plus `will_mutate_hubspot=false` after execution.
 - Campaign-effectiveness questions such as `did the Salary Benchmark campaign lead to QO or closed-won` must plan for HubSpot campaign lookup, campaign assets, `get_marketing_campaign_attribution`, and configured HubSpot deal-stage checks. Do not answer from campaign metadata alone, and do not use generic QO totals as campaign attribution.
 - Direct QO count or pace requests such as `what's my QO this month` should plan HubSpot owner/team scope plus C360 BigQuery actuals via `build_sales_metric_actuals_query`; they are not Friday review prompts unless the user asks for Friday, tactical-pause, hygiene, or coaching context.
+- HubSpot revenue-funnel prompts should plan `build_hubspot_revenue_funnel_metrics` with created-date cohort, owner/country/team filters, Sales Outbound/all-outbound choice, New/Existing Business, headcount, industry, signed-deal rules, and manual-correction caveats.
+- AE coaching audit prompts should plan `build_ae_coaching_audit`; the final must return 1:1-sheet preview rows only and say no Sheet mutation or call-content read occurred.
+- Sales Navigator prompts should plan `prepare_sales_navigator_decision_maker_queue`; the final must state it is a manual handoff queue with no LinkedIn scraping or automated Sales Navigator browser action.
+- SG lead-enrichment prompts should plan `build_singapore_lead_enrichment_plan`. Use it for fixed AE account lists, any selected Singapore HubSpot company, weak contact coverage, missing decision maker, missing champion/influencer, missing verified phone, Truecaller/manual callability checks, or pre-WhatsApp readiness. First response remains plan-only. After `run`, report bucket counts, priority accounts, next source, provider-waterfall policy, field-level HubSpot mismatch notes, handoff notes, and draft-only KNS WhatsApp readiness. The source ladder is HubSpot -> HubSpot notes/tasks/history -> Tavily public company/job-board research -> Exa people candidates -> controlled Lusha + Prospeo paid-provider pilot -> approved reveal -> manual Truecaller/call outcome -> HubSpot preview. Do not expose raw phone numbers, call Lusha/Prospeo reveal, run automated Truecaller lookup, mutate HubSpot, or send WhatsApp.
 - Campaign-effectiveness questions that ask whether a campaign led to QO, QO Met, closed-won, pipeline, or revenue must plan by name for `list_marketing_campaigns`, `get_campaign_assets`, and `get_marketing_campaign_attribution`. On the first Slack mention, this is plan-only: do not call HubSpot, C360, BigQuery, or any other data-source tool before `run`. Do not answer from campaign metadata, social metrics, or generic QO totals.
 - After `get_marketing_campaign_attribution`, read `answer.outcome_summary` first. Report QO, QO Met, and closed-won counts from that summary before any detailed contact/company samples; if the result is `needs-check`, still show the visible counts as partial instead of saying deal outcomes were not read.
 - Campaign/social answers must use checked/not-checked wording. A social-only run must include the exact sentence "QO / closed-won attribution was not checked in this run", not say that no QO/conversion evidence exists.
@@ -54,7 +58,7 @@ NurtureAny's first runtime surface is Slack mention usage in sales pilot channel
 - For photo match requests, read the current Slack message/thread, attachment metadata, uploader, channel, timestamp, permalink, and short text hints. Download the Slack image only transiently using `files:read`, run LLM vision/OCR for clues, then discard the raw image.
 - Use `propose_photo_people_matches` for the people layer and require uploader/human confirmation before HubSpot association or follow-up preview.
 - After confirmation, use `plan_event_photo_followup` to preview the HubSpot note and WhatsApp follow-up task. No WhatsApp auto-send in V1.
-- For `@NurtureAny scan recent photos`, call `list_drive_folder_images` for the Google Drive `all-random` folder `1qXlFnr5TKFtsYNWk7ZywBBctDaae3RY-`, display Slack-export uploaders by Slack display name when available, call `list_luma_events` for the Drive photo date window, then `scan_drive_event_photos` with the Luma events, then `extract_drive_image_clues` in bounded batches before `propose_photo_people_matches`; Luma date matching may auto-tag the event context only, never the HubSpot person/contact; ask the original uploader to identify or confirm every person, grouping prompts by uploader when possible; do not scan local machine photo folders. If Drive auth/tooling or vision extraction is missing, return `Confidence: blocked` for that missing prerequisite. If Luma is unavailable, continue with Drive/OCR and mark event correlation as `needs-check`.
+- For `@NurtureAny scan recent photos`, call `list_drive_folder_images` for the Google Drive `all-random` folder `1qXlFnr5TKFtsYNWk7ZywBBctDaae3RY-`, display Slack-export uploaders by Slack display name when available, call `list_luma_events` for the Drive photo date window, then `scan_drive_event_photos` with the Luma events, then `extract_drive_image_clues` in bounded batches before `propose_photo_people_matches`; set `luma_event_auto_tag=true` only when the user explicitly scoped the scan to a selected event or exact event tags such as tomorrow's HHH. Generic scans and account-visit photos must keep same-date Luma matches as `needs-check` candidates so Loco-style visits are not mis-tagged; Luma date matching may auto-tag the event context only, never the HubSpot person/contact; ask the original uploader to identify or confirm every person, grouping prompts by uploader when possible; do not scan local machine photo folders. If Drive auth/tooling or vision extraction is missing, return `Confidence: blocked` for that missing prerequisite. If Luma is unavailable, continue with Drive/OCR and mark event correlation as `needs-check`.
 
 ## Commands
 
@@ -66,6 +70,8 @@ AE commands:
 - `@NurtureAny build today's daily nurture plan`
 - `@NurtureAny preview Eazybe messages msg-1 msg-2`
 - `@NurtureAny accounts missing direct contact`
+- `@NurtureAny build SG lead enrichment for my accounts`
+- `@NurtureAny which SG accounts still need decision maker, champion, and verified phone before WhatsApp`
 - `@NurtureAny build game plan for company 123456789`
 - `@NurtureAny build game plan for Noci Bakehouse`
 - `@NurtureAny does Tang Tea House have the right people on the meeting?`
@@ -91,6 +97,7 @@ Manager commands:
 - `@NurtureAny build pre-demo game plans for these 3 HubSpot company links`
 - `@NurtureAny build pre-demo game plans for Noci Bakehouse, Bali Beans, and Kopi House`
 - `@NurtureAny build manager chase drafts for Jeremy from this thread`
+- `@NurtureAny build Singapore lead enrichment plan for Jeremy's fixed account list`
 
 ## Scope Routing
 

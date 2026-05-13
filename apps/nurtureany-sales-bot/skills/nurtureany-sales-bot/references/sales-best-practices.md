@@ -65,6 +65,20 @@ Clean lead checklist:
 - contract end date
 - at least one associated contact
 - verified decision maker coverage from HubSpot buying role, with owner/founder/director/CEO/boss titles treated as review candidates until audited
+- verified callable phone coverage when the next motion is call/WhatsApp; Truecaller manual lookup is candidate evidence only until actual call outcome or approved verification note is captured
+
+SG lead-enrichment pilot checklist:
+
+- Keep fixed AE account ownership unchanged.
+- Start with 20-30 priority accounts before scaling.
+- Target weak accounts first: 1-2 contacts/numbers, no clear decision maker, no clear champion/influencer, or ICP/high-potential accounts where better coverage can improve outreach.
+- Aim for 1 verified decision maker, 1 champion/influencer or operating contact, and at least 3 usable contacts where possible.
+- Optimize for cost per usable AE handoff, not lowest possible provider spend. Use free/public sources first, but allow a capped paid test when it is the fastest path to a verified decision maker, champion/influencer, or callable phone.
+- Use the provider waterfall in order: HubSpot evidence, HubSpot notes/tasks/history, Tavily public company/job-board research, Exa people candidates, controlled Lusha + Prospeo paid-provider pilot, approved reveal, manual Truecaller/call outcome, then HubSpot preview.
+- Stop paid provider work once minimum readiness is met, and track successful provider/source/confidence, cost per usable contact, cost per verified/callable phone, AE validation result, and Activities to QO follow-through.
+- Khai owns research/classification/handoff: company match, title relevance, duplicate status, source, and High/Medium/Low confidence.
+- AE should not redo the research; AE validates through outreach and updates validation status within 3 working days.
+- ACRA can support director/entity verification, not phone-number enrichment.
 
 QO checklist:
 
@@ -75,6 +89,8 @@ QO checklist:
 - QO Met can be verified from actual meeting evidence or configured deal stage movement
 
 Direct QO count or pace prompts should call `build_sales_metric_actuals_query` for `fct_sales_points.qo_set`; Friday review remains the tactical hygiene/coaching flow.
+
+HubSpot revenue-funnel prompts should use a created-date deal cohort, not Rev planning targets. Sales Outbound is the default channel slice; all outbound must be explicit. New-business analysis should prefer configured new-business pipelines, exclude renewals, and show the deal audit rows behind conversion rates.
 
 Use greater than 75% QO-to-QO-Met as the quality guardrail. If QOs are high but QO Met is weak, call out qualification quality rather than celebrating volume.
 
@@ -194,6 +210,7 @@ Capture the real blocker, who or what StaffAny lost to, and when to reconnect. K
 
 - Use the 2026 rubric layer for CCC, CBANT, pre-demo nurturing, combined demo, and post-demo follow-up coaching.
 - Score coaching behavior as 0/1/2 when a rubric-style answer is requested: missed, partial, strong.
+- AE coaching audits should check 3 QOs set, target-account morning-message coverage, 40 connected calls, and calls above 1 minute that did not produce appointment evidence. Call content stays guarded unless a separate approved source permits it.
 - Any weak score needs a specific evidence note, not a vague judgment.
 - Onboarding/ramp guidance can reference the 8-week validation path, structured tests, and month-four ramp expectation.
 - Treat 450 cap-point rows as onboarding/ramp context only; do not use them to override the current Tactical Pause operating rhythm.

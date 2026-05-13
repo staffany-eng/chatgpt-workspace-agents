@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-05-11",
-  "source_note": "research/wiki/sources/staffany-public-customer-case-studies.md",
+  "generated_at": "2026-05-13T00:00:00+08:00",
+  "source_note": "research/wiki/sources/staffany-public-customer-case-studies.md plus research/wiki/sources/bmc-podcast-case-study-source-set.md",
   "cases": [
     {
       "id": "coffee-break",
@@ -743,6 +743,1612 @@
       "pain": "Scheduling and payroll for 220 staff across outlets took days using manual methods.",
       "outcome": "Manual scheduling/payroll work became a faster, more efficient HR process across Braud locations.",
       "name_drop": "Braud Group (ID bakery/cafe, 3 outlets/220 staff): scheduling/payroll went from days of manual work to faster HR ops."
+    },
+    {
+      "id": "bmc-ah-hua-kelong-scaled",
+      "customer": "BMC: Ah Hua Kelong / Scaled",
+      "approved_for_name_drops": true,
+      "approval_basis": "bmc_podcast_full_video_review",
+      "source_type": "bmc_podcast",
+      "country": "Singapore",
+      "market": "SG",
+      "industry": "F&B - seafood/local produce restaurant",
+      "size": "multiple concepts: farm, restaurant, pilot kitchen, fish-soup stall tests",
+      "primary_url": "https://www.youtube.com/watch?v=68liEzyKGbE",
+      "alt_urls": [],
+      "match_tags": [
+        "fnb",
+        "restaurant",
+        "seafood",
+        "local-produce",
+        "service",
+        "labour-cost",
+        "overtime",
+        "staffany",
+        "clock-in",
+        "timesheets",
+        "food-cost"
+      ],
+      "pain": "Concept-specific staffing, food cost, rent, manpower, and OT visibility cannot be managed by one flat labour benchmark.",
+      "outcome": "StaffAny is cited for easier clock-in/out, pay visibility, and OT overshoot control.",
+      "name_drop": "Ah Hua Kelong / Scaled: concept-specific labour targets plus StaffAny clock-in/out, pay, and OT visibility.",
+      "best_use_sales_moments": [
+        "knowledge_touch",
+        "pre_demo",
+        "demo",
+        "post_demo_followup"
+      ],
+      "do_not_claim": [
+        "Do not claim this operator is a StaffAny customer unless the cited episode explicitly supports it.",
+        "Do not use podcast evidence to override HubSpot owner, target-account status, current tools, contract date, customer/prospect status, or follow-up status.",
+        "Do not force this analogy when prospect segment or pain is weak; return case-study match needed."
+      ],
+      "full_video_review": {
+        "primary_spoken_source": "youtube_auto_caption",
+        "caption_language": "en-orig",
+        "caption_source": "automatic captions",
+        "reviewer_status": "full_transcript_reviewed",
+        "reviewed_at": "2026-05-13",
+        "reviewed_by": "Codex using Midas maintained raw transcript and source-note corpus",
+        "full_transcript_available": true,
+        "transcript_word_count": 6567,
+        "caption_snippet_count": 846,
+        "first_timestamp": "00:00:00.160",
+        "last_timestamp": "00:31:59.159",
+        "gaps": []
+      },
+      "evidence_refs": [
+        {
+          "ref_id": "e1",
+          "source_path": "research/raw/online/2026-04-26-brick-mortar-cloud-ah-hua-kelong-kai.md",
+          "line": 75,
+          "timestamp": "00:00:59",
+          "claim": "local fish farmer/local produce origin"
+        },
+        {
+          "ref_id": "e2",
+          "source_path": "research/raw/online/2026-04-26-brick-mortar-cloud-ah-hua-kelong-kai.md",
+          "line": 1100,
+          "timestamp": "00:20:11",
+          "claim": "no golden staffing rule"
+        },
+        {
+          "ref_id": "e3",
+          "source_path": "research/raw/online/2026-04-26-brick-mortar-cloud-ah-hua-kelong-kai.md",
+          "line": 1401,
+          "timestamp": "00:25:54",
+          "claim": "StaffAny clock-in/pay/OT visibility"
+        }
+      ]
+    },
+    {
+      "id": "bmc-black-hole-group-systems",
+      "customer": "BMC: Black Hole Group",
+      "approved_for_name_drops": true,
+      "approval_basis": "bmc_podcast_full_video_review",
+      "source_type": "bmc_podcast",
+      "country": "Singapore",
+      "market": "SG",
+      "industry": "F&B - multi-outlet central production",
+      "size": "multiple outlets with bakery/pasta production and logistics",
+      "primary_url": "https://www.youtube.com/watch?v=6sz2W-qvpBQ",
+      "alt_urls": [],
+      "match_tags": [
+        "fnb",
+        "restaurant",
+        "multi-outlet",
+        "central-kitchen",
+        "production",
+        "delivery",
+        "pos",
+        "systems",
+        "logistics"
+      ],
+      "pain": "Covid delivery pivots and multi-outlet growth strain disconnected systems and production logistics.",
+      "outcome": "The story supports cleaner system integration and central production thinking before scale gets messy.",
+      "name_drop": "Black Hole Group: delivery pivot, central production, logistics, and POS/system consolidation as the group scaled.",
+      "best_use_sales_moments": [
+        "knowledge_touch",
+        "pre_demo",
+        "demo",
+        "post_demo_followup"
+      ],
+      "do_not_claim": [
+        "Do not claim this operator is a StaffAny customer unless the cited episode explicitly supports it.",
+        "Do not use podcast evidence to override HubSpot owner, target-account status, current tools, contract date, customer/prospect status, or follow-up status.",
+        "Do not force this analogy when prospect segment or pain is weak; return case-study match needed."
+      ],
+      "full_video_review": {
+        "primary_spoken_source": "youtube_auto_caption",
+        "caption_language": "en-orig",
+        "caption_source": "automatic captions",
+        "reviewer_status": "full_transcript_reviewed",
+        "reviewed_at": "2026-05-13",
+        "reviewed_by": "Codex using Midas maintained raw transcript and source-note corpus",
+        "full_transcript_available": true,
+        "transcript_word_count": 5511,
+        "caption_snippet_count": 724,
+        "first_timestamp": "00:00:02.520",
+        "last_timestamp": "00:28:34.240",
+        "gaps": []
+      },
+      "evidence_refs": [
+        {
+          "ref_id": "e1",
+          "source_path": "research/raw/online/2026-04-26-brick-mortar-cloud-black-hole-group-sufi.md",
+          "line": 53,
+          "timestamp": "00:00:25",
+          "claim": "episode/operator context"
+        },
+        {
+          "ref_id": "e2",
+          "source_path": "research/raw/online/2026-04-26-brick-mortar-cloud-black-hole-group-sufi.md",
+          "line": 91,
+          "timestamp": "00:01:15",
+          "claim": "early business story"
+        },
+        {
+          "ref_id": "e3",
+          "source_path": "research/raw/online/2026-04-26-brick-mortar-cloud-black-hole-group-sufi.md",
+          "line": 157,
+          "timestamp": "00:02:36",
+          "claim": "growth/pivot context"
+        }
+      ]
+    },
+    {
+      "id": "bmc-champion-bolo-bun-kpis",
+      "customer": "BMC: Champion Bolo Bun",
+      "approved_for_name_drops": true,
+      "approval_basis": "bmc_podcast_full_video_review",
+      "source_type": "bmc_podcast",
+      "country": "Singapore",
+      "market": "SG",
+      "industry": "F&B - bakery/retail",
+      "size": "high-traffic bakery brand",
+      "primary_url": "https://www.youtube.com/watch?v=vNO6kEM5aF8",
+      "alt_urls": [],
+      "match_tags": [
+        "fnb",
+        "bakery",
+        "retail",
+        "quality",
+        "membership",
+        "retention",
+        "turnover",
+        "incentive",
+        "appraisal",
+        "kpi",
+        "budget"
+      ],
+      "pain": "Viral demand does not remove staff turnover, incentive, appraisal, KPI, and quality discipline needs.",
+      "outcome": "Use as a bakery/retail proof point for quality retention plus team performance controls.",
+      "name_drop": "Champion Bolo Bun: viral queues still needed quality, incentives, appraisals, KPIs, and budget tracking.",
+      "best_use_sales_moments": [
+        "knowledge_touch",
+        "pre_demo",
+        "demo",
+        "post_demo_followup"
+      ],
+      "do_not_claim": [
+        "Do not claim this operator is a StaffAny customer unless the cited episode explicitly supports it.",
+        "Do not use podcast evidence to override HubSpot owner, target-account status, current tools, contract date, customer/prospect status, or follow-up status.",
+        "Do not force this analogy when prospect segment or pain is weak; return case-study match needed."
+      ],
+      "full_video_review": {
+        "primary_spoken_source": "youtube_auto_caption",
+        "caption_language": "en-orig",
+        "caption_source": "automatic captions",
+        "reviewer_status": "full_transcript_reviewed",
+        "reviewed_at": "2026-05-13",
+        "reviewed_by": "Codex using Midas maintained raw transcript and source-note corpus",
+        "full_transcript_available": true,
+        "transcript_word_count": 6963,
+        "caption_snippet_count": 997,
+        "first_timestamp": "00:00:00.000",
+        "last_timestamp": "00:36:43.640",
+        "gaps": []
+      },
+      "evidence_refs": [
+        {
+          "ref_id": "e1",
+          "source_path": "research/raw/online/2026-04-26-brick-mortar-cloud-champion-bolo-bun-loh-yi.md",
+          "line": 71,
+          "timestamp": "00:00:44",
+          "claim": "brand/operator context"
+        },
+        {
+          "ref_id": "e2",
+          "source_path": "research/raw/online/2026-04-26-brick-mortar-cloud-champion-bolo-bun-loh-yi.md",
+          "line": 91,
+          "timestamp": "00:01:08",
+          "claim": "early business story"
+        },
+        {
+          "ref_id": "e3",
+          "source_path": "research/raw/online/2026-04-26-brick-mortar-cloud-champion-bolo-bun-loh-yi.md",
+          "line": 231,
+          "timestamp": "00:03:45",
+          "claim": "growth/quality context"
+        }
+      ]
+    },
+    {
+      "id": "bmc-good-luck-beerhouse-part-time",
+      "customer": "BMC: Good Luck Beerhouse",
+      "approved_for_name_drops": true,
+      "approval_basis": "bmc_podcast_full_video_review",
+      "source_type": "bmc_podcast",
+      "country": "Singapore",
+      "market": "SG",
+      "industry": "F&B - bar/hospitality",
+      "size": "bar/beerhouse with weekend peaks",
+      "primary_url": "https://www.youtube.com/watch?v=snj3Q21vppQ",
+      "alt_urls": [],
+      "match_tags": [
+        "fnb",
+        "bar",
+        "hospitality",
+        "part-time",
+        "labour-cost",
+        "manpower",
+        "culture",
+        "incentive",
+        "weekend",
+        "procurement"
+      ],
+      "pain": "Part-time and weekend labour creates cost, motivation, performance, and culture problems.",
+      "outcome": "Use for bar/hospitality teams balancing procurement, transient part-timers, and incentive design.",
+      "name_drop": "Good Luck Beerhouse: part-time labour and weekend incentives had to be managed alongside food, labour, and rent costs.",
+      "best_use_sales_moments": [
+        "knowledge_touch",
+        "pre_demo",
+        "demo",
+        "post_demo_followup"
+      ],
+      "do_not_claim": [
+        "Do not claim this operator is a StaffAny customer unless the cited episode explicitly supports it.",
+        "Do not use podcast evidence to override HubSpot owner, target-account status, current tools, contract date, customer/prospect status, or follow-up status.",
+        "Do not force this analogy when prospect segment or pain is weak; return case-study match needed."
+      ],
+      "full_video_review": {
+        "primary_spoken_source": "youtube_auto_caption",
+        "caption_language": "en-orig",
+        "caption_source": "automatic captions",
+        "reviewer_status": "full_transcript_reviewed",
+        "reviewed_at": "2026-05-13",
+        "reviewed_by": "Codex using Midas maintained raw transcript and source-note corpus",
+        "full_transcript_available": true,
+        "transcript_word_count": 5867,
+        "caption_snippet_count": 770,
+        "first_timestamp": "00:00:00.120",
+        "last_timestamp": "00:32:55.120",
+        "gaps": []
+      },
+      "evidence_refs": [
+        {
+          "ref_id": "e1",
+          "source_path": "research/raw/online/2026-04-26-brick-mortar-cloud-good-luck-beerhouse-kevin.md",
+          "line": 75,
+          "timestamp": "00:00:57",
+          "claim": "operator context"
+        },
+        {
+          "ref_id": "e2",
+          "source_path": "research/raw/online/2026-04-26-brick-mortar-cloud-good-luck-beerhouse-kevin.md",
+          "line": 169,
+          "timestamp": "00:03:05",
+          "claim": "business background"
+        },
+        {
+          "ref_id": "e3",
+          "source_path": "research/raw/online/2026-04-26-brick-mortar-cloud-good-luck-beerhouse-kevin.md",
+          "line": 345,
+          "timestamp": "00:07:04",
+          "claim": "operating-cost context"
+        }
+      ]
+    },
+    {
+      "id": "bmc-greendot-transparency",
+      "customer": "BMC: Greendot",
+      "approved_for_name_drops": true,
+      "approval_basis": "bmc_podcast_full_video_review",
+      "source_type": "bmc_podcast",
+      "country": "Singapore",
+      "market": "SG",
+      "industry": "F&B - vegetarian/QSR multi-outlet",
+      "size": "13 outlets plus Greendot Plus format",
+      "primary_url": "https://www.youtube.com/watch?v=dWJI65RCkto",
+      "alt_urls": [],
+      "match_tags": [
+        "fnb",
+        "qsr",
+        "multi-outlet",
+        "manpower-cost",
+        "labour-cost",
+        "rent",
+        "food-cost",
+        "incentive",
+        "sales",
+        "employer-branding"
+      ],
+      "pain": "Rising manpower cost requires outlet-level sales, rent, food-cost, labour-cost, and incentive transparency.",
+      "outcome": "Use as a multi-outlet F&B proof point for visibility and staff accountability.",
+      "name_drop": "Greendot: outlet sales, rent, food cost, labour cost, and incentives were made visible to teams.",
+      "best_use_sales_moments": [
+        "knowledge_touch",
+        "pre_demo",
+        "demo",
+        "post_demo_followup"
+      ],
+      "do_not_claim": [
+        "Do not claim this operator is a StaffAny customer unless the cited episode explicitly supports it.",
+        "Do not use podcast evidence to override HubSpot owner, target-account status, current tools, contract date, customer/prospect status, or follow-up status.",
+        "Do not force this analogy when prospect segment or pain is weak; return case-study match needed."
+      ],
+      "full_video_review": {
+        "primary_spoken_source": "youtube_auto_caption",
+        "caption_language": "en-orig",
+        "caption_source": "automatic captions",
+        "reviewer_status": "full_transcript_reviewed",
+        "reviewed_at": "2026-05-13",
+        "reviewed_by": "Codex using Midas maintained raw transcript and source-note corpus",
+        "full_transcript_available": true,
+        "transcript_word_count": 5420,
+        "caption_snippet_count": 705,
+        "first_timestamp": "00:00:00.080",
+        "last_timestamp": "00:28:07.249",
+        "gaps": []
+      },
+      "evidence_refs": [
+        {
+          "ref_id": "e1",
+          "source_path": "research/raw/online/2026-04-26-brick-mortar-cloud-greendot-yong-hong.md",
+          "line": 59,
+          "timestamp": "00:00:31",
+          "claim": "operator context"
+        },
+        {
+          "ref_id": "e2",
+          "source_path": "research/raw/online/2026-04-26-brick-mortar-cloud-greendot-yong-hong.md",
+          "line": 99,
+          "timestamp": "00:01:25",
+          "claim": "growth/background"
+        },
+        {
+          "ref_id": "e3",
+          "source_path": "research/raw/online/2026-04-26-brick-mortar-cloud-greendot-yong-hong.md",
+          "line": 133,
+          "timestamp": "00:02:10",
+          "claim": "outlet context"
+        }
+      ]
+    },
+    {
+      "id": "bmc-gyg-sales-per-labour-hour",
+      "customer": "BMC: GYG Singapore",
+      "approved_for_name_drops": true,
+      "approval_basis": "bmc_podcast_full_video_review",
+      "source_type": "bmc_podcast",
+      "country": "Singapore",
+      "market": "SG",
+      "industry": "F&B - QSR chain",
+      "size": "Singapore expansion around 4-5 outlets per year",
+      "primary_url": "https://www.youtube.com/watch?v=u8peMrrBKtI",
+      "alt_urls": [],
+      "match_tags": [
+        "fnb",
+        "qsr",
+        "restaurant",
+        "multi-outlet",
+        "large-team",
+        "sales-per-labour-hour",
+        "labour-hour",
+        "manager",
+        "audit",
+        "quality",
+        "tech",
+        "expansion"
+      ],
+      "pain": "Scaling QSR needs productivity metrics, manager leverage, audits, and quality consistency.",
+      "outcome": "Use for mature operators who care about sales per labour hour, not just roster completion.",
+      "name_drop": "GYG Singapore: sales per labour hour was treated as the gold-standard productivity metric for a scaling QSR operator.",
+      "best_use_sales_moments": [
+        "knowledge_touch",
+        "pre_demo",
+        "demo",
+        "post_demo_followup"
+      ],
+      "do_not_claim": [
+        "Do not claim this operator is a StaffAny customer unless the cited episode explicitly supports it.",
+        "Do not use podcast evidence to override HubSpot owner, target-account status, current tools, contract date, customer/prospect status, or follow-up status.",
+        "Do not force this analogy when prospect segment or pain is weak; return case-study match needed."
+      ],
+      "full_video_review": {
+        "primary_spoken_source": "youtube_auto_caption",
+        "caption_language": "en-orig",
+        "caption_source": "automatic captions",
+        "reviewer_status": "full_transcript_reviewed",
+        "reviewed_at": "2026-05-13",
+        "reviewed_by": "Codex using Midas maintained raw transcript and source-note corpus",
+        "full_transcript_available": true,
+        "transcript_word_count": 12060,
+        "caption_snippet_count": 1775,
+        "first_timestamp": "00:00:11.360",
+        "last_timestamp": "01:00:10.520",
+        "gaps": []
+      },
+      "evidence_refs": [
+        {
+          "ref_id": "e1",
+          "source_path": "research/raw/online/2026-04-26-brick-mortar-cloud-gyg-josh-bell.md",
+          "line": 67,
+          "timestamp": "00:00:49",
+          "claim": "brand/operator context"
+        },
+        {
+          "ref_id": "e2",
+          "source_path": "research/raw/online/2026-04-26-brick-mortar-cloud-gyg-josh-bell.md",
+          "line": 257,
+          "timestamp": "00:04:19",
+          "claim": "expansion context"
+        },
+        {
+          "ref_id": "e3",
+          "source_path": "research/raw/online/2026-04-26-brick-mortar-cloud-gyg-josh-bell.md",
+          "line": 345,
+          "timestamp": "00:05:48",
+          "claim": "operating model context"
+        }
+      ]
+    },
+    {
+      "id": "bmc-hae-claypot-systems",
+      "customer": "BMC: Hae Claypot",
+      "approved_for_name_drops": true,
+      "approval_basis": "bmc_podcast_full_video_review",
+      "source_type": "bmc_podcast",
+      "country": "Singapore",
+      "market": "SG",
+      "industry": "F&B - hawker-style multi-brand",
+      "size": "23 outlets across 6 brands; prior overexpansion to 46 outlets",
+      "primary_url": "https://www.youtube.com/watch?v=RP5SYGlHU8g",
+      "alt_urls": [],
+      "match_tags": [
+        "fnb",
+        "hawker",
+        "multi-brand",
+        "multi-outlet",
+        "central-kitchen",
+        "overexpansion",
+        "systems",
+        "staffing",
+        "territory",
+        "cannibalization"
+      ],
+      "pain": "Fast outlet expansion fails when systems, staffing, territory planning, and foundations lag behind.",
+      "outcome": "Use as a cautionary expansion story for multi-outlet F&B prospects.",
+      "name_drop": "Hae Claypot: expansion worked only when systems, staffing, central kitchen, and territory planning caught up.",
+      "best_use_sales_moments": [
+        "knowledge_touch",
+        "pre_demo",
+        "demo",
+        "post_demo_followup"
+      ],
+      "do_not_claim": [
+        "Do not claim this operator is a StaffAny customer unless the cited episode explicitly supports it.",
+        "Do not use podcast evidence to override HubSpot owner, target-account status, current tools, contract date, customer/prospect status, or follow-up status.",
+        "Do not force this analogy when prospect segment or pain is weak; return case-study match needed."
+      ],
+      "full_video_review": {
+        "primary_spoken_source": "youtube_auto_caption",
+        "caption_language": "en-orig",
+        "caption_source": "automatic captions",
+        "reviewer_status": "full_transcript_reviewed",
+        "reviewed_at": "2026-05-13",
+        "reviewed_by": "Codex using Midas maintained raw transcript and source-note corpus",
+        "full_transcript_available": true,
+        "transcript_word_count": 9497,
+        "caption_snippet_count": 1364,
+        "first_timestamp": "00:00:11.280",
+        "last_timestamp": "00:44:14.119",
+        "gaps": []
+      },
+      "evidence_refs": [
+        {
+          "ref_id": "e1",
+          "source_path": "research/raw/online/2026-04-26-brick-mortar-cloud-hae-claypot-tommy-pang.md",
+          "line": 61,
+          "timestamp": "00:00:37",
+          "claim": "operator context"
+        },
+        {
+          "ref_id": "e2",
+          "source_path": "research/raw/online/2026-04-26-brick-mortar-cloud-hae-claypot-tommy-pang.md",
+          "line": 669,
+          "timestamp": "00:11:14",
+          "claim": "outlet/scale context"
+        },
+        {
+          "ref_id": "e3",
+          "source_path": "research/raw/online/2026-04-26-brick-mortar-cloud-hae-claypot-tommy-pang.md",
+          "line": 767,
+          "timestamp": "00:12:51",
+          "claim": "systems/expansion context"
+        }
+      ]
+    },
+    {
+      "id": "bmc-hopscotch-outlet-demand",
+      "customer": "BMC: Hopscotch",
+      "approved_for_name_drops": true,
+      "approval_basis": "bmc_podcast_full_video_review",
+      "source_type": "bmc_podcast",
+      "country": "Singapore",
+      "market": "SG",
+      "industry": "F&B - cocktail bar/events",
+      "size": "events bartending evolved into cocktail bar concepts",
+      "primary_url": "https://www.youtube.com/watch?v=s8d4AWgna7o",
+      "alt_urls": [],
+      "match_tags": [
+        "fnb",
+        "bar",
+        "cocktail",
+        "events",
+        "hospitality",
+        "outlet-demand",
+        "manager",
+        "renovation",
+        "locality",
+        "service"
+      ],
+      "pain": "Different outlet/locality demand mixes need manager ownership and context-aware staffing.",
+      "outcome": "Use for bars or experience-led venues where staffing follows concept and locality.",
+      "name_drop": "Hopscotch: outlet demand differs by locality, so managers need ownership of execution and staffing context.",
+      "best_use_sales_moments": [
+        "knowledge_touch",
+        "pre_demo",
+        "demo",
+        "post_demo_followup"
+      ],
+      "do_not_claim": [
+        "Do not claim this operator is a StaffAny customer unless the cited episode explicitly supports it.",
+        "Do not use podcast evidence to override HubSpot owner, target-account status, current tools, contract date, customer/prospect status, or follow-up status.",
+        "Do not force this analogy when prospect segment or pain is weak; return case-study match needed."
+      ],
+      "full_video_review": {
+        "primary_spoken_source": "youtube_auto_caption",
+        "caption_language": "en-orig",
+        "caption_source": "automatic captions",
+        "reviewer_status": "full_transcript_reviewed",
+        "reviewed_at": "2026-05-13",
+        "reviewed_by": "Codex using Midas maintained raw transcript and source-note corpus",
+        "full_transcript_available": true,
+        "transcript_word_count": 9150,
+        "caption_snippet_count": 1450,
+        "first_timestamp": "00:00:00.160",
+        "last_timestamp": "00:42:39.000",
+        "gaps": []
+      },
+      "evidence_refs": [
+        {
+          "ref_id": "e1",
+          "source_path": "research/raw/online/2026-04-26-brick-mortar-cloud-hopscotch-roger-yip.md",
+          "line": 61,
+          "timestamp": "00:00:35",
+          "claim": "operator/concept context"
+        },
+        {
+          "ref_id": "e2",
+          "source_path": "research/raw/online/2026-04-26-brick-mortar-cloud-hopscotch-roger-yip.md",
+          "line": 149,
+          "timestamp": "00:01:53",
+          "claim": "events-to-bar background"
+        },
+        {
+          "ref_id": "e3",
+          "source_path": "research/raw/online/2026-04-26-brick-mortar-cloud-hopscotch-roger-yip.md",
+          "line": 211,
+          "timestamp": "00:02:49",
+          "claim": "concept context"
+        }
+      ]
+    },
+    {
+      "id": "bmc-kitchen-haus-central-kitchen",
+      "customer": "BMC: Kitchen Haus",
+      "approved_for_name_drops": true,
+      "approval_basis": "bmc_podcast_full_video_review",
+      "source_type": "bmc_podcast",
+      "country": "Singapore",
+      "market": "SG",
+      "industry": "F&B - catering/OEM central kitchen",
+      "size": "catering, OEM, and central kitchen operations",
+      "primary_url": "https://www.youtube.com/watch?v=LxxNp_WDWIM",
+      "alt_urls": [],
+      "match_tags": [
+        "fnb",
+        "central-kitchen",
+        "catering",
+        "oem",
+        "production",
+        "manpower",
+        "automation",
+        "consistency",
+        "process"
+      ],
+      "pain": "Production and catering complexity turns manpower into a consistency and repeatability problem.",
+      "outcome": "Use for catering/central-kitchen prospects where automation and process control matter.",
+      "name_drop": "Kitchen Haus: manpower and consistency pushed central-kitchen process and automation thinking.",
+      "best_use_sales_moments": [
+        "knowledge_touch",
+        "pre_demo",
+        "demo",
+        "post_demo_followup"
+      ],
+      "do_not_claim": [
+        "Do not claim this operator is a StaffAny customer unless the cited episode explicitly supports it.",
+        "Do not use podcast evidence to override HubSpot owner, target-account status, current tools, contract date, customer/prospect status, or follow-up status.",
+        "Do not force this analogy when prospect segment or pain is weak; return case-study match needed."
+      ],
+      "full_video_review": {
+        "primary_spoken_source": "youtube_auto_caption",
+        "caption_language": "en-orig",
+        "caption_source": "automatic captions",
+        "reviewer_status": "full_transcript_reviewed",
+        "reviewed_at": "2026-05-13",
+        "reviewed_by": "Codex using Midas maintained raw transcript and source-note corpus",
+        "full_transcript_available": true,
+        "transcript_word_count": 5538,
+        "caption_snippet_count": 724,
+        "first_timestamp": "00:00:02.480",
+        "last_timestamp": "00:26:34.819",
+        "gaps": []
+      },
+      "evidence_refs": [
+        {
+          "ref_id": "e1",
+          "source_path": "research/raw/online/2026-04-26-brick-mortar-cloud-kitchen-haus-patrick-chan.md",
+          "line": 55,
+          "timestamp": "00:00:25",
+          "claim": "operator context"
+        },
+        {
+          "ref_id": "e2",
+          "source_path": "research/raw/online/2026-04-26-brick-mortar-cloud-kitchen-haus-patrick-chan.md",
+          "line": 89,
+          "timestamp": "00:01:03",
+          "claim": "business model context"
+        },
+        {
+          "ref_id": "e3",
+          "source_path": "research/raw/online/2026-04-26-brick-mortar-cloud-kitchen-haus-patrick-chan.md",
+          "line": 141,
+          "timestamp": "00:02:00",
+          "claim": "central kitchen context"
+        }
+      ]
+    },
+    {
+      "id": "bmc-lau-wang-location-incentives",
+      "customer": "BMC: Lau Wang",
+      "approved_for_name_drops": true,
+      "approval_basis": "bmc_podcast_full_video_review",
+      "source_type": "bmc_podcast",
+      "country": "Singapore",
+      "market": "SG",
+      "industry": "F&B - claypot multi-outlet",
+      "size": "6 Claypot Delights plus Claypot Legacy after Serangoon reset",
+      "primary_url": "https://www.youtube.com/watch?v=9i3WLCJUdwE",
+      "alt_urls": [],
+      "match_tags": [
+        "fnb",
+        "claypot",
+        "multi-outlet",
+        "location",
+        "lease",
+        "central-kitchen",
+        "incentive",
+        "loyalty",
+        "feedback",
+        "lower-manpower"
+      ],
+      "pain": "Location and lease uncertainty force format decisions and lower-manpower operating models.",
+      "outcome": "Use for location-sensitive multi-outlet F&B accounts.",
+      "name_drop": "Lau Wang: central kitchen, incentives, loyalty, and feedback helped shape a lower-manpower outlet format after location risk.",
+      "best_use_sales_moments": [
+        "knowledge_touch",
+        "pre_demo",
+        "demo",
+        "post_demo_followup"
+      ],
+      "do_not_claim": [
+        "Do not claim this operator is a StaffAny customer unless the cited episode explicitly supports it.",
+        "Do not use podcast evidence to override HubSpot owner, target-account status, current tools, contract date, customer/prospect status, or follow-up status.",
+        "Do not force this analogy when prospect segment or pain is weak; return case-study match needed."
+      ],
+      "full_video_review": {
+        "primary_spoken_source": "youtube_auto_caption",
+        "caption_language": "en-orig",
+        "caption_source": "automatic captions",
+        "reviewer_status": "full_transcript_reviewed",
+        "reviewed_at": "2026-05-13",
+        "reviewed_by": "Codex using Midas maintained raw transcript and source-note corpus",
+        "full_transcript_available": true,
+        "transcript_word_count": 6865,
+        "caption_snippet_count": 898,
+        "first_timestamp": "00:00:00.020",
+        "last_timestamp": "00:30:08.279",
+        "gaps": []
+      },
+      "evidence_refs": [
+        {
+          "ref_id": "e1",
+          "source_path": "research/raw/online/2026-04-26-brick-mortar-cloud-lau-wang-mark-low.md",
+          "line": 53,
+          "timestamp": "00:00:28",
+          "claim": "operator context"
+        },
+        {
+          "ref_id": "e2",
+          "source_path": "research/raw/online/2026-04-26-brick-mortar-cloud-lau-wang-mark-low.md",
+          "line": 97,
+          "timestamp": "00:01:15",
+          "claim": "business background"
+        },
+        {
+          "ref_id": "e3",
+          "source_path": "research/raw/online/2026-04-26-brick-mortar-cloud-lau-wang-mark-low.md",
+          "line": 151,
+          "timestamp": "00:02:06",
+          "claim": "location/outlet context"
+        }
+      ]
+    },
+    {
+      "id": "bmc-mama-diam-staffany-hr-payroll",
+      "customer": "BMC: Mama Diam / Synthesis",
+      "approved_for_name_drops": true,
+      "approval_basis": "bmc_podcast_full_video_review",
+      "source_type": "bmc_podcast",
+      "country": "Singapore",
+      "market": "SG",
+      "industry": "F&B - multi-concept restaurant group",
+      "size": "around 55 staff with no dedicated HR before StaffAny",
+      "primary_url": "https://www.youtube.com/watch?v=42Y7_mMOqLM",
+      "alt_urls": [],
+      "match_tags": [
+        "fnb",
+        "restaurant",
+        "hr",
+        "payroll",
+        "excel",
+        "timesheet",
+        "overtime",
+        "ot",
+        "claims",
+        "mc",
+        "staffany",
+        "kpi"
+      ],
+      "pain": "Excel-heavy HR admin across time, OT, MC, claims, payroll, and payslips is brittle without HR headcount.",
+      "outcome": "Use as a direct HR/payroll admin proof point for moving from Excel to StaffAny.",
+      "name_drop": "Mama Diam / Synthesis: moved from Excel-heavy HR, OT, claims, and payroll admin into StaffAny HR and payroll.",
+      "best_use_sales_moments": [
+        "knowledge_touch",
+        "pre_demo",
+        "demo",
+        "post_demo_followup"
+      ],
+      "do_not_claim": [
+        "Do not claim this operator is a StaffAny customer unless the cited episode explicitly supports it.",
+        "Do not use podcast evidence to override HubSpot owner, target-account status, current tools, contract date, customer/prospect status, or follow-up status.",
+        "Do not force this analogy when prospect segment or pain is weak; return case-study match needed."
+      ],
+      "full_video_review": {
+        "primary_spoken_source": "youtube_auto_caption",
+        "caption_language": "en-orig",
+        "caption_source": "automatic captions",
+        "reviewer_status": "full_transcript_reviewed",
+        "reviewed_at": "2026-05-13",
+        "reviewed_by": "Codex using Midas maintained raw transcript and source-note corpus",
+        "full_transcript_available": true,
+        "transcript_word_count": 5787,
+        "caption_snippet_count": 782,
+        "first_timestamp": "00:00:02.760",
+        "last_timestamp": "00:29:32.600",
+        "gaps": []
+      },
+      "evidence_refs": [
+        {
+          "ref_id": "e1",
+          "source_path": "research/raw/online/2026-04-26-brick-mortar-cloud-mama-diam-synthesis-sebastian-ang.md",
+          "line": 49,
+          "timestamp": "00:00:22",
+          "claim": "operator context"
+        },
+        {
+          "ref_id": "e2",
+          "source_path": "research/raw/online/2026-04-26-brick-mortar-cloud-mama-diam-synthesis-sebastian-ang.md",
+          "line": 73,
+          "timestamp": "00:00:50",
+          "claim": "business background"
+        },
+        {
+          "ref_id": "e3",
+          "source_path": "research/raw/online/2026-04-26-brick-mortar-cloud-mama-diam-synthesis-sebastian-ang.md",
+          "line": 129,
+          "timestamp": "00:02:01",
+          "claim": "admin context"
+        }
+      ]
+    },
+    {
+      "id": "bmc-manna-pot-flex-labour",
+      "customer": "BMC: Manna Pot",
+      "approved_for_name_drops": true,
+      "approval_basis": "bmc_podcast_full_video_review",
+      "source_type": "bmc_podcast",
+      "country": "Singapore",
+      "market": "SG",
+      "industry": "F&B - catering/events/outlets",
+      "size": "catering, outlets, and one-stop service operations",
+      "primary_url": "https://www.youtube.com/watch?v=JFvCOYSJiYs",
+      "alt_urls": [],
+      "match_tags": [
+        "fnb",
+        "catering",
+        "events",
+        "retention",
+        "department",
+        "process",
+        "kpi",
+        "forecast",
+        "food-cost",
+        "part-time",
+        "flexible-labour"
+      ],
+      "pain": "Uneven catering/event demand needs forecasting, flexible labour, and departmental accountability.",
+      "outcome": "Use for operators with variable demand and part-timer planning.",
+      "name_drop": "Manna Pot: forecasting, departmental KPIs, and flexible part-timers helped manage uneven catering and outlet demand.",
+      "best_use_sales_moments": [
+        "knowledge_touch",
+        "pre_demo",
+        "demo",
+        "post_demo_followup"
+      ],
+      "do_not_claim": [
+        "Do not claim this operator is a StaffAny customer unless the cited episode explicitly supports it.",
+        "Do not use podcast evidence to override HubSpot owner, target-account status, current tools, contract date, customer/prospect status, or follow-up status.",
+        "Do not force this analogy when prospect segment or pain is weak; return case-study match needed."
+      ],
+      "full_video_review": {
+        "primary_spoken_source": "youtube_auto_caption",
+        "caption_language": "en-orig",
+        "caption_source": "automatic captions",
+        "reviewer_status": "full_transcript_reviewed",
+        "reviewed_at": "2026-05-13",
+        "reviewed_by": "Codex using Midas maintained raw transcript and source-note corpus",
+        "full_transcript_available": true,
+        "transcript_word_count": 4737,
+        "caption_snippet_count": 641,
+        "first_timestamp": "00:00:00.080",
+        "last_timestamp": "00:23:34.349",
+        "gaps": []
+      },
+      "evidence_refs": [
+        {
+          "ref_id": "e1",
+          "source_path": "research/raw/online/2026-04-26-brick-mortar-cloud-manna-pot-belicia.md",
+          "line": 67,
+          "timestamp": "00:00:40",
+          "claim": "operator context"
+        },
+        {
+          "ref_id": "e2",
+          "source_path": "research/raw/online/2026-04-26-brick-mortar-cloud-manna-pot-belicia.md",
+          "line": 83,
+          "timestamp": "00:01:00",
+          "claim": "business background"
+        },
+        {
+          "ref_id": "e3",
+          "source_path": "research/raw/online/2026-04-26-brick-mortar-cloud-manna-pot-belicia.md",
+          "line": 107,
+          "timestamp": "00:01:29",
+          "claim": "service/catering context"
+        }
+      ]
+    },
+    {
+      "id": "bmc-nasi-lemak-taliwang-scale",
+      "customer": "BMC: Nasi Lemak Ayam Taliwang",
+      "approved_for_name_drops": true,
+      "approval_basis": "bmc_podcast_full_video_review",
+      "source_type": "bmc_podcast",
+      "country": "Singapore",
+      "market": "SG",
+      "industry": "F&B - hawker-style multi-outlet",
+      "size": "20+ stores after House of Brands support",
+      "primary_url": "https://www.youtube.com/watch?v=lZ7MlYZFkNU",
+      "alt_urls": [],
+      "match_tags": [
+        "fnb",
+        "hawker",
+        "multi-outlet",
+        "central-kitchen",
+        "quality",
+        "owner-presence",
+        "social-mission",
+        "r&d"
+      ],
+      "pain": "Small-format multi-outlet growth needs central support, quality discipline, and owner presence.",
+      "outcome": "Use for hawker-style or small-format chains.",
+      "name_drop": "Nasi Lemak Ayam Taliwang: 20+ stores needed central-kitchen support, quality discipline, and owner presence.",
+      "best_use_sales_moments": [
+        "knowledge_touch",
+        "pre_demo",
+        "demo",
+        "post_demo_followup"
+      ],
+      "do_not_claim": [
+        "Do not claim this operator is a StaffAny customer unless the cited episode explicitly supports it.",
+        "Do not use podcast evidence to override HubSpot owner, target-account status, current tools, contract date, customer/prospect status, or follow-up status.",
+        "Do not force this analogy when prospect segment or pain is weak; return case-study match needed."
+      ],
+      "full_video_review": {
+        "primary_spoken_source": "youtube_auto_caption",
+        "caption_language": "en-orig",
+        "caption_source": "automatic captions",
+        "reviewer_status": "full_transcript_reviewed",
+        "reviewed_at": "2026-05-13",
+        "reviewed_by": "Codex using Midas maintained raw transcript and source-note corpus",
+        "full_transcript_available": true,
+        "transcript_word_count": 5039,
+        "caption_snippet_count": 672,
+        "first_timestamp": "00:00:02.280",
+        "last_timestamp": "00:27:44.360",
+        "gaps": []
+      },
+      "evidence_refs": [
+        {
+          "ref_id": "e1",
+          "source_path": "research/raw/online/2026-04-26-brick-mortar-cloud-nasi-lemak-ayam-taliwang-noorman.md",
+          "line": 65,
+          "timestamp": "00:00:50",
+          "claim": "operator context"
+        },
+        {
+          "ref_id": "e2",
+          "source_path": "research/raw/online/2026-04-26-brick-mortar-cloud-nasi-lemak-ayam-taliwang-noorman.md",
+          "line": 113,
+          "timestamp": "00:01:52",
+          "claim": "business background"
+        },
+        {
+          "ref_id": "e3",
+          "source_path": "research/raw/online/2026-04-26-brick-mortar-cloud-nasi-lemak-ayam-taliwang-noorman.md",
+          "line": 135,
+          "timestamp": "00:02:23",
+          "claim": "growth context"
+        }
+      ]
+    },
+    {
+      "id": "bmc-oue-shared-services",
+      "customer": "BMC: OUE Restaurants",
+      "approved_for_name_drops": true,
+      "approval_basis": "bmc_podcast_full_video_review",
+      "source_type": "bmc_podcast",
+      "country": "Singapore",
+      "market": "SG",
+      "industry": "F&B - enterprise restaurant group",
+      "size": "30+ outlets and roughly 400-500 full-time employees",
+      "primary_url": "https://www.youtube.com/watch?v=io8rTI6DwsI",
+      "alt_urls": [],
+      "match_tags": [
+        "fnb",
+        "restaurant-group",
+        "hospitality",
+        "multi-brand",
+        "enterprise",
+        "large-team",
+        "shared-services",
+        "hr",
+        "finance",
+        "productivity",
+        "automation",
+        "crm",
+        "qr"
+      ],
+      "pain": "Large multi-brand groups need brand GM ownership, shared services, commercial numeracy, and productivity automation.",
+      "outcome": "Use for group-level workforce and shared-services buyers.",
+      "name_drop": "OUE Restaurants: 30+ outlets and 400-500 FTE managed through brand GMs, shared services, commercial numeracy, and automation.",
+      "best_use_sales_moments": [
+        "knowledge_touch",
+        "pre_demo",
+        "demo",
+        "post_demo_followup"
+      ],
+      "do_not_claim": [
+        "Do not claim this operator is a StaffAny customer unless the cited episode explicitly supports it.",
+        "Do not use podcast evidence to override HubSpot owner, target-account status, current tools, contract date, customer/prospect status, or follow-up status.",
+        "Do not force this analogy when prospect segment or pain is weak; return case-study match needed."
+      ],
+      "full_video_review": {
+        "primary_spoken_source": "youtube_auto_caption",
+        "caption_language": "en-orig",
+        "caption_source": "automatic captions",
+        "reviewer_status": "full_transcript_reviewed",
+        "reviewed_at": "2026-05-13",
+        "reviewed_by": "Codex using Midas maintained raw transcript and source-note corpus",
+        "full_transcript_available": true,
+        "transcript_word_count": 8590,
+        "caption_snippet_count": 1160,
+        "first_timestamp": "00:00:00",
+        "last_timestamp": "00:44:31",
+        "gaps": []
+      },
+      "evidence_refs": [
+        {
+          "ref_id": "e1",
+          "source_path": "research/raw/online/2026-04-26-brick-mortar-cloud-oue-restaurants.md",
+          "line": 344,
+          "timestamp": "00:06:58",
+          "claim": "scale/workforce context"
+        },
+        {
+          "ref_id": "e2",
+          "source_path": "research/raw/online/2026-04-26-brick-mortar-cloud-oue-restaurants.md",
+          "line": 351,
+          "timestamp": "00:07:16",
+          "claim": "diversity/workforce context"
+        },
+        {
+          "ref_id": "e3",
+          "source_path": "research/raw/online/2026-04-26-brick-mortar-cloud-oue-restaurants.md",
+          "line": 374,
+          "timestamp": "00:08:08",
+          "claim": "leadership context"
+        }
+      ]
+    },
+    {
+      "id": "bmc-plain-vanilla-labour-caps",
+      "customer": "BMC: Plain Vanilla",
+      "approved_for_name_drops": true,
+      "approval_basis": "bmc_podcast_full_video_review",
+      "source_type": "bmc_podcast",
+      "country": "Singapore",
+      "market": "SG",
+      "industry": "F&B - bakery/cafe central kitchen",
+      "size": "6 outlets plus central kitchen and online bakery",
+      "primary_url": "https://www.youtube.com/watch?v=dqouZSe7Ato",
+      "alt_urls": [],
+      "match_tags": [
+        "fnb",
+        "bakery",
+        "cafe",
+        "central-kitchen",
+        "labour-hour",
+        "manhour",
+        "p&l",
+        "cogs",
+        "delivery",
+        "loyalty",
+        "weekday",
+        "weekend"
+      ],
+      "pain": "Cafe/bakery operations need labour-hour caps, central kitchen context, own-channel delivery, loyalty guardrails, and P&L tracking.",
+      "outcome": "Use for cafe/bakery operators balancing outlets, production, and labour planning.",
+      "name_drop": "Plain Vanilla: 6 outlets plus central kitchen used P&L and manhour tracking with weekday/weekend staff-hour caps.",
+      "best_use_sales_moments": [
+        "knowledge_touch",
+        "pre_demo",
+        "demo",
+        "post_demo_followup"
+      ],
+      "do_not_claim": [
+        "Do not claim this operator is a StaffAny customer unless the cited episode explicitly supports it.",
+        "Do not use podcast evidence to override HubSpot owner, target-account status, current tools, contract date, customer/prospect status, or follow-up status.",
+        "Do not force this analogy when prospect segment or pain is weak; return case-study match needed."
+      ],
+      "full_video_review": {
+        "primary_spoken_source": "youtube_auto_caption",
+        "caption_language": "en-orig",
+        "caption_source": "automatic captions",
+        "reviewer_status": "full_transcript_reviewed",
+        "reviewed_at": "2026-05-13",
+        "reviewed_by": "Codex using Midas maintained raw transcript and source-note corpus",
+        "full_transcript_available": true,
+        "transcript_word_count": 9567,
+        "caption_snippet_count": 1333,
+        "first_timestamp": "00:00:00.020",
+        "last_timestamp": "00:42:44.839",
+        "gaps": []
+      },
+      "evidence_refs": [
+        {
+          "ref_id": "e1",
+          "source_path": "research/raw/online/2026-04-26-brick-mortar-cloud-plain-vanilla-vanessa-kenchington.md",
+          "line": 65,
+          "timestamp": "00:00:39",
+          "claim": "operator context"
+        },
+        {
+          "ref_id": "e2",
+          "source_path": "research/raw/online/2026-04-26-brick-mortar-cloud-plain-vanilla-vanessa-kenchington.md",
+          "line": 325,
+          "timestamp": "00:04:53",
+          "claim": "outlet/central-kitchen scale"
+        },
+        {
+          "ref_id": "e3",
+          "source_path": "research/raw/online/2026-04-26-brick-mortar-cloud-plain-vanilla-vanessa-kenchington.md",
+          "line": 325,
+          "timestamp": "00:04:53",
+          "claim": "online bakery model"
+        }
+      ]
+    },
+    {
+      "id": "bmc-populus-staffany-scheduling",
+      "customer": "BMC: Populus",
+      "approved_for_name_drops": true,
+      "approval_basis": "bmc_podcast_full_video_review",
+      "source_type": "bmc_podcast",
+      "country": "Singapore",
+      "market": "SG",
+      "industry": "F&B - cafe/restaurant",
+      "size": "cafe/restaurant under rent, manpower, and ingredient pressure",
+      "primary_url": "https://www.youtube.com/watch?v=vN3T0oL_X8I",
+      "alt_urls": [],
+      "match_tags": [
+        "fnb",
+        "cafe",
+        "restaurant",
+        "staffany",
+        "scheduling",
+        "schedule",
+        "qr-ordering",
+        "manpower",
+        "rent",
+        "ingredient-cost"
+      ],
+      "pain": "Manual scheduling and rising cost pressure reduce time for higher-value operator work.",
+      "outcome": "StaffAny is cited for reducing scheduling from around two hours to around ten minutes.",
+      "name_drop": "Populus: StaffAny cut scheduling from about 2 hours to around 10 minutes, while QR ordering helped with manpower pressure.",
+      "best_use_sales_moments": [
+        "knowledge_touch",
+        "pre_demo",
+        "demo",
+        "post_demo_followup"
+      ],
+      "do_not_claim": [
+        "Do not claim this operator is a StaffAny customer unless the cited episode explicitly supports it.",
+        "Do not use podcast evidence to override HubSpot owner, target-account status, current tools, contract date, customer/prospect status, or follow-up status.",
+        "Do not force this analogy when prospect segment or pain is weak; return case-study match needed."
+      ],
+      "full_video_review": {
+        "primary_spoken_source": "youtube_auto_caption",
+        "caption_language": "en-orig",
+        "caption_source": "automatic captions",
+        "reviewer_status": "full_transcript_reviewed",
+        "reviewed_at": "2026-05-13",
+        "reviewed_by": "Codex using Midas maintained raw transcript and source-note corpus",
+        "full_transcript_available": true,
+        "transcript_word_count": 3859,
+        "caption_snippet_count": 514,
+        "first_timestamp": "00:00:00.399",
+        "last_timestamp": "00:18:53.360",
+        "gaps": []
+      },
+      "evidence_refs": [
+        {
+          "ref_id": "e1",
+          "source_path": "research/raw/online/2026-04-26-brick-mortar-cloud-populus-yi-yang.md",
+          "line": 61,
+          "timestamp": "00:00:36",
+          "claim": "operator context"
+        },
+        {
+          "ref_id": "e2",
+          "source_path": "research/raw/online/2026-04-26-brick-mortar-cloud-populus-yi-yang.md",
+          "line": 165,
+          "timestamp": "00:02:30",
+          "claim": "business background"
+        },
+        {
+          "ref_id": "e3",
+          "source_path": "research/raw/online/2026-04-26-brick-mortar-cloud-populus-yi-yang.md",
+          "line": 201,
+          "timestamp": "00:03:11",
+          "claim": "scheduling/manpower context"
+        }
+      ]
+    },
+    {
+      "id": "bmc-serangoon-bbq-curry-data",
+      "customer": "BMC: Serangoon BBQ & Curry",
+      "approved_for_name_drops": true,
+      "approval_basis": "bmc_podcast_full_video_review",
+      "source_type": "bmc_podcast",
+      "country": "Singapore",
+      "market": "SG",
+      "industry": "F&B - hawker-style restaurant",
+      "size": "food concept working on standardisation and data-driven customer engagement",
+      "primary_url": "https://www.youtube.com/watch?v=1Rzc5rrASBg",
+      "alt_urls": [],
+      "match_tags": [
+        "fnb",
+        "hawker",
+        "restaurant",
+        "recipe",
+        "standardization",
+        "kiosk",
+        "kpi",
+        "spreadsheet",
+        "pos",
+        "crm",
+        "customer-data"
+      ],
+      "pain": "Recipe/process standardisation and KPI/POS/CRM data have to come before smarter automation.",
+      "outcome": "Use for data-readiness conversations and personalised-deal/CRM interest.",
+      "name_drop": "Serangoon BBQ & Curry: recipe standardization, KPIs, POS/CRM, and customer data came before smarter personalization.",
+      "best_use_sales_moments": [
+        "knowledge_touch",
+        "pre_demo",
+        "demo",
+        "post_demo_followup"
+      ],
+      "do_not_claim": [
+        "Do not claim this operator is a StaffAny customer unless the cited episode explicitly supports it.",
+        "Do not use podcast evidence to override HubSpot owner, target-account status, current tools, contract date, customer/prospect status, or follow-up status.",
+        "Do not force this analogy when prospect segment or pain is weak; return case-study match needed."
+      ],
+      "full_video_review": {
+        "primary_spoken_source": "youtube_auto_caption",
+        "caption_language": "en-orig",
+        "caption_source": "automatic captions",
+        "reviewer_status": "full_transcript_reviewed",
+        "reviewed_at": "2026-05-13",
+        "reviewed_by": "Codex using Midas maintained raw transcript and source-note corpus",
+        "full_transcript_available": true,
+        "transcript_word_count": 7572,
+        "caption_snippet_count": 1057,
+        "first_timestamp": "00:00:00.160",
+        "last_timestamp": "00:36:39.800",
+        "gaps": []
+      },
+      "evidence_refs": [
+        {
+          "ref_id": "e1",
+          "source_path": "research/raw/online/2026-04-26-brick-mortar-cloud-serangoon-bbq-curry-eugene-tan.md",
+          "line": 55,
+          "timestamp": "00:00:31",
+          "claim": "operator context"
+        },
+        {
+          "ref_id": "e2",
+          "source_path": "research/raw/online/2026-04-26-brick-mortar-cloud-serangoon-bbq-curry-eugene-tan.md",
+          "line": 73,
+          "timestamp": "00:00:50",
+          "claim": "business background"
+        },
+        {
+          "ref_id": "e3",
+          "source_path": "research/raw/online/2026-04-26-brick-mortar-cloud-serangoon-bbq-curry-eugene-tan.md",
+          "line": 113,
+          "timestamp": "00:01:37",
+          "claim": "process/data context"
+        }
+      ]
+    },
+    {
+      "id": "bmc-seven-cafes-profit-workflow",
+      "customer": "BMC: Seven Cafes",
+      "approved_for_name_drops": true,
+      "approval_basis": "bmc_podcast_full_video_review",
+      "source_type": "bmc_podcast",
+      "country": "Singapore",
+      "market": "SG",
+      "industry": "F&B - cafe/bakery multi-outlet",
+      "size": "7 cafes with different concepts by locality",
+      "primary_url": "https://www.youtube.com/watch?v=EugnZXA3ycc",
+      "alt_urls": [],
+      "match_tags": [
+        "fnb",
+        "cafe",
+        "bakery",
+        "multi-outlet",
+        "queue",
+        "profit",
+        "locality",
+        "workflow",
+        "lease",
+        "rent",
+        "staffing"
+      ],
+      "pain": "Queues are not automatically profit; locality, lease, workflow, and staffing still drive the model.",
+      "outcome": "Use for cafe groups balancing concept fit and operational consolidation.",
+      "name_drop": "Seven Cafes: queues were not enough; locality, workflow consolidation, lease decisions, and staffing still drove the operating model.",
+      "best_use_sales_moments": [
+        "knowledge_touch",
+        "pre_demo",
+        "demo",
+        "post_demo_followup"
+      ],
+      "do_not_claim": [
+        "Do not claim this operator is a StaffAny customer unless the cited episode explicitly supports it.",
+        "Do not use podcast evidence to override HubSpot owner, target-account status, current tools, contract date, customer/prospect status, or follow-up status.",
+        "Do not force this analogy when prospect segment or pain is weak; return case-study match needed."
+      ],
+      "full_video_review": {
+        "primary_spoken_source": "youtube_auto_caption",
+        "caption_language": "en-orig",
+        "caption_source": "automatic captions",
+        "reviewer_status": "full_transcript_reviewed",
+        "reviewed_at": "2026-05-13",
+        "reviewed_by": "Codex using Midas maintained raw transcript and source-note corpus",
+        "full_transcript_available": true,
+        "transcript_word_count": 8207,
+        "caption_snippet_count": 1262,
+        "first_timestamp": "00:00:00.080",
+        "last_timestamp": "00:40:10.839",
+        "gaps": []
+      },
+      "evidence_refs": [
+        {
+          "ref_id": "e1",
+          "source_path": "research/raw/online/2026-04-26-brick-mortar-cloud-seven-cafes-shirlynn-daphne.md",
+          "line": 33,
+          "timestamp": "00:00:00",
+          "claim": "opening context"
+        },
+        {
+          "ref_id": "e2",
+          "source_path": "research/raw/online/2026-04-26-brick-mortar-cloud-seven-cafes-shirlynn-daphne.md",
+          "line": 71,
+          "timestamp": "00:00:44",
+          "claim": "operator/cafe context"
+        },
+        {
+          "ref_id": "e3",
+          "source_path": "research/raw/online/2026-04-26-brick-mortar-cloud-seven-cafes-shirlynn-daphne.md",
+          "line": 93,
+          "timestamp": "00:01:14",
+          "claim": "business background"
+        }
+      ]
+    },
+    {
+      "id": "bmc-sjs-central-kitchen-scale",
+      "customer": "BMC: SJS Group / Papi's Tacos",
+      "approved_for_name_drops": true,
+      "approval_basis": "bmc_podcast_full_video_review",
+      "source_type": "bmc_podcast",
+      "country": "Singapore",
+      "market": "SG",
+      "industry": "F&B - casual dining restaurant group",
+      "size": "4 outlets with overseas expansion considerations",
+      "primary_url": "https://www.youtube.com/watch?v=bJRDkpz1iFU",
+      "alt_urls": [],
+      "match_tags": [
+        "fnb",
+        "restaurant-group",
+        "casual-dining",
+        "multi-outlet",
+        "central-kitchen",
+        "scale",
+        "labour-cost",
+        "retention",
+        "qr-ordering",
+        "service"
+      ],
+      "pain": "Central kitchen and QR automation only make sense when outlet scale and service expectations support them.",
+      "outcome": "Use for operators considering central kitchen or QR ordering before scale is ready.",
+      "name_drop": "SJS Group: central kitchen and QR ordering were judged against outlet scale, labour cost, retention, and service expectations.",
+      "best_use_sales_moments": [
+        "knowledge_touch",
+        "pre_demo",
+        "demo",
+        "post_demo_followup"
+      ],
+      "do_not_claim": [
+        "Do not claim this operator is a StaffAny customer unless the cited episode explicitly supports it.",
+        "Do not use podcast evidence to override HubSpot owner, target-account status, current tools, contract date, customer/prospect status, or follow-up status.",
+        "Do not force this analogy when prospect segment or pain is weak; return case-study match needed."
+      ],
+      "full_video_review": {
+        "primary_spoken_source": "youtube_auto_caption",
+        "caption_language": "en-orig",
+        "caption_source": "automatic captions",
+        "reviewer_status": "full_transcript_reviewed",
+        "reviewed_at": "2026-05-13",
+        "reviewed_by": "Codex using Midas maintained raw transcript and source-note corpus",
+        "full_transcript_available": true,
+        "transcript_word_count": 5836,
+        "caption_snippet_count": 860,
+        "first_timestamp": "00:00:00.020",
+        "last_timestamp": "00:29:37.720",
+        "gaps": []
+      },
+      "evidence_refs": [
+        {
+          "ref_id": "e1",
+          "source_path": "research/raw/online/2026-04-26-brick-mortar-cloud-sjs-group-sarissa.md",
+          "line": 43,
+          "timestamp": "00:00:20",
+          "claim": "operator context"
+        },
+        {
+          "ref_id": "e2",
+          "source_path": "research/raw/online/2026-04-26-brick-mortar-cloud-sjs-group-sarissa.md",
+          "line": 63,
+          "timestamp": "00:00:39",
+          "claim": "business background"
+        },
+        {
+          "ref_id": "e3",
+          "source_path": "research/raw/online/2026-04-26-brick-mortar-cloud-sjs-group-sarissa.md",
+          "line": 163,
+          "timestamp": "00:02:28",
+          "claim": "outlet/scale context"
+        }
+      ]
+    },
+    {
+      "id": "bmc-springleaf-prata-qc",
+      "customer": "BMC: Springleaf Prata",
+      "approved_for_name_drops": true,
+      "approval_basis": "bmc_podcast_full_video_review",
+      "source_type": "bmc_podcast",
+      "country": "Singapore",
+      "market": "SG",
+      "industry": "F&B - Indian restaurant multi-outlet",
+      "size": "14 outlets with skilled senior staff deployed to new outlets",
+      "primary_url": "https://www.youtube.com/watch?v=mXpckzkW9s8",
+      "alt_urls": [],
+      "match_tags": [
+        "fnb",
+        "restaurant",
+        "multi-outlet",
+        "manpower",
+        "automation",
+        "qc",
+        "quality-control",
+        "cctv",
+        "senior-staff",
+        "profit-share"
+      ],
+      "pain": "Skilled labour, QC, and automation must scale together as outlets expand.",
+      "outcome": "Use for multi-outlet workforce control and consistency conversations.",
+      "name_drop": "Springleaf Prata: 14 outlets used QC, skilled senior staff, automation, and manpower planning to keep consistency while expanding.",
+      "best_use_sales_moments": [
+        "knowledge_touch",
+        "pre_demo",
+        "demo",
+        "post_demo_followup"
+      ],
+      "do_not_claim": [
+        "Do not claim this operator is a StaffAny customer unless the cited episode explicitly supports it.",
+        "Do not use podcast evidence to override HubSpot owner, target-account status, current tools, contract date, customer/prospect status, or follow-up status.",
+        "Do not force this analogy when prospect segment or pain is weak; return case-study match needed."
+      ],
+      "full_video_review": {
+        "primary_spoken_source": "youtube_auto_caption",
+        "caption_language": "en-orig",
+        "caption_source": "automatic captions",
+        "reviewer_status": "full_transcript_reviewed",
+        "reviewed_at": "2026-05-13",
+        "reviewed_by": "Codex using Midas maintained raw transcript and source-note corpus",
+        "full_transcript_available": true,
+        "transcript_word_count": 7810,
+        "caption_snippet_count": 1204,
+        "first_timestamp": "00:00:00.160",
+        "last_timestamp": "00:42:24.920",
+        "gaps": []
+      },
+      "evidence_refs": [
+        {
+          "ref_id": "e1",
+          "source_path": "research/raw/online/2026-04-26-brick-mortar-cloud-springleaf-prata-guna.md",
+          "line": 63,
+          "timestamp": "00:00:39",
+          "claim": "operator context"
+        },
+        {
+          "ref_id": "e2",
+          "source_path": "research/raw/online/2026-04-26-brick-mortar-cloud-springleaf-prata-guna.md",
+          "line": 193,
+          "timestamp": "00:03:09",
+          "claim": "scale/background context"
+        },
+        {
+          "ref_id": "e3",
+          "source_path": "research/raw/online/2026-04-26-brick-mortar-cloud-springleaf-prata-guna.md",
+          "line": 229,
+          "timestamp": "00:03:53",
+          "claim": "outlet/operations context"
+        }
+      ]
+    },
+    {
+      "id": "bmc-yew-kee-sop-kpis",
+      "customer": "BMC: Yew Kee Group",
+      "approved_for_name_drops": true,
+      "approval_basis": "bmc_podcast_full_video_review",
+      "source_type": "bmc_podcast",
+      "country": "Singapore",
+      "market": "SG",
+      "industry": "F&B - multi-brand central kitchen",
+      "size": "multi-brand group with central kitchen and store-level KPI cadence",
+      "primary_url": "https://www.youtube.com/watch?v=Zjv3OjBCSFA",
+      "alt_urls": [],
+      "match_tags": [
+        "fnb",
+        "multi-brand",
+        "central-kitchen",
+        "sop",
+        "kpi",
+        "sales-cost",
+        "food-cost",
+        "salary-cost",
+        "department-cadence",
+        "night-production"
+      ],
+      "pain": "Structured multi-brand operations need CEO cadence, SOPs, and store KPI visibility by brand.",
+      "outcome": "Use for KPI-mature multi-brand operators.",
+      "name_drop": "Yew Kee: multi-brand operations relied on CEO cadence, SOPs, central-kitchen production, and store KPIs for sales, food, and salary cost.",
+      "best_use_sales_moments": [
+        "knowledge_touch",
+        "pre_demo",
+        "demo",
+        "post_demo_followup"
+      ],
+      "do_not_claim": [
+        "Do not claim this operator is a StaffAny customer unless the cited episode explicitly supports it.",
+        "Do not use podcast evidence to override HubSpot owner, target-account status, current tools, contract date, customer/prospect status, or follow-up status.",
+        "Do not force this analogy when prospect segment or pain is weak; return case-study match needed."
+      ],
+      "full_video_review": {
+        "primary_spoken_source": "youtube_auto_caption",
+        "caption_language": "en-orig",
+        "caption_source": "automatic captions",
+        "reviewer_status": "full_transcript_reviewed",
+        "reviewed_at": "2026-05-13",
+        "reviewed_by": "Codex using Midas maintained raw transcript and source-note corpus",
+        "full_transcript_available": true,
+        "transcript_word_count": 3387,
+        "caption_snippet_count": 445,
+        "first_timestamp": "00:00:00.080",
+        "last_timestamp": "00:17:05.480",
+        "gaps": []
+      },
+      "evidence_refs": [
+        {
+          "ref_id": "e1",
+          "source_path": "research/raw/online/2026-04-26-brick-mortar-cloud-yew-kee-qin-quan.md",
+          "line": 61,
+          "timestamp": "00:00:31",
+          "claim": "operator context"
+        },
+        {
+          "ref_id": "e2",
+          "source_path": "research/raw/online/2026-04-26-brick-mortar-cloud-yew-kee-qin-quan.md",
+          "line": 97,
+          "timestamp": "00:01:11",
+          "claim": "business background"
+        },
+        {
+          "ref_id": "e3",
+          "source_path": "research/raw/online/2026-04-26-brick-mortar-cloud-yew-kee-qin-quan.md",
+          "line": 145,
+          "timestamp": "00:02:18",
+          "claim": "operational cadence context"
+        }
+      ]
     }
   ]
 }

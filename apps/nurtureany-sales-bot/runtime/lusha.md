@@ -1,6 +1,6 @@
 # Lusha Runtime
 
-Lusha is an optional, cost-controlled enrichment source for NurtureAny decision-maker discovery. HubSpot remains the source of truth for accounts, ownership, existing contacts, and write-back approval.
+Lusha is an optional, cost-controlled enrichment source for NurtureAny decision-maker discovery. In the SG lead-enrichment pilot, it is the active selected-contact provider; Prospeo may be compared beside it later only after an approved adapter, approval gate, and cost-reporting contract exist. HubSpot remains the source of truth for accounts, ownership, existing contacts, and write-back approval.
 
 ## Credentials
 
@@ -30,6 +30,7 @@ The adapter sends an explicit `StaffAny-NurtureAny/1.0` User-Agent header so Lus
 - Requires NurtureAny scoped HubSpot company inputs with `company_id` and `scope_source=hubspot_nurtureany` or `hubspot_scoped=true`; arbitrary company-name-only inputs are blocked before any Lusha API call.
 - Accepts up to 5 companies per call.
 - Defaults to 5 candidates per company and caps at 5.
+- Default title targets include owner/founder/CEO/MD/director/GM coverage plus SG operating roles: HR manager, people manager, operations manager, finance manager, and payroll manager.
 - Returns name, title, company match, `requestId`, `contactId`, LinkedIn/social presence, and email/phone availability flags.
 - Does not reveal email addresses or phone numbers.
 
@@ -96,6 +97,10 @@ After selected reveal, pass `hubspot_preview_actions` into `plan_hubspot_writeba
 - keep `will_mutate_hubspot=false` in V1.
 
 No actual HubSpot mutation is allowed in V1.
+
+## Prospeo Pilot Boundary
+
+Prospeo is a V1.1 paid-provider candidate, not an active runtime tool in this packet. Any Prospeo adapter must match the Lusha guardrails before use: scoped HubSpot company IDs, explicit approval marker before reveal, cost/credit reporting, selected contacts only, no bulk export, no raw phone in Slack summaries, and no HubSpot mutation.
 
 ## Timeout And Failure Handling
 

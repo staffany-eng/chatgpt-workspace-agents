@@ -886,6 +886,404 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         self.assertIn("associated contact", missing)
         self.assertNotIn("decision maker", missing)
 
+    def test_singapore_lead_enrichment_flags_rollup_mismatch_and_phone_gap(self):
+        companies = [
+            {
+                "id": "sg-1",
+                "properties": {
+                    "name": "Rollup Cafe",
+                    "hs_is_target_account": "true",
+                    "company_country": "Singapore",
+                    "hubspot_owner_id": "owner-jeremy",
+                    "hs_num_decision_makers": "1",
+                    "hs_num_contacts_with_buying_roles": "1",
+                },
+            },
+            {
+                "id": "sg-2",
+                "properties": {
+                    "name": "Callable Diner",
+                    "hs_is_target_account": "true",
+                    "company_country": "Singapore",
+                    "hubspot_owner_id": "owner-jeremy",
+                    "hs_num_decision_makers": "0",
+                    "hs_num_contacts_with_buying_roles": "1",
+                },
+            },
+        ]
+        contacts = [
+            {
+                "id": "c-1",
+                "properties": {
+                    "firstname": "Hana",
+                    "lastname": "Tan",
+                    "jobtitle": "HR Manager",
+                    "hs_buying_role": "INFLUENCER",
+                    "phone": "+6512345678",
+                    "nurtureany_phone_verification_status": "called_connected",
+                    "nurtureany_phone_verification_source": "manual_call",
+                },
+            },
+            {
+                "id": "c-2",
+                "properties": {
+                    "firstname": "Dion",
+                    "lastname": "Lee",
+                    "jobtitle": "Director",
+                    "hs_buying_role": "DECISION_MAKER",
+                    "phone": "+6599999999",
+                    "nurtureany_phone_verification_status": "candidate",
+                    "nurtureany_phone_verification_source": "truecaller_manual_lookup",
+                },
+            },
+        ]
+        with patch.object(self.module, "_caller_scope", return_value={**SCOPE, "countries": ("Singapore", "Malaysia")}), patch.object(
+            self.module,
+            "_company_search",
+            return_value={
+                "results": companies,
+                "total": 2,
+                "requested_limit": 30,
+                "returned_count": 2,
+                "has_more": False,
+                "truncated": False,
+            },
+        ), patch.object(
+            self.module, "_batch_association_ids", return_value={"sg-1": ["c-1"], "sg-2": ["c-2"]}
+        ), patch.object(
+            self.module, "_batch_read", return_value=contacts
+        ), patch.object(
+            self.module, "_owner_email_by_id", return_value="jeremy.wong@staffany.com"
+        ), patch.object(
+            self.module, "_owner_name_by_id", return_value="Jeremy Wong"
+        ):
+            result = self.module.build_singapore_lead_enrichment_plan("kerren.fong@staffany.com")
+
+        rendered = json.dumps(result)
+        self.assertNotIn("+6512345678", rendered)
+        self.assertNotIn("+6599999999", rendered)
+        self.assertEqual(result["answer"]["accounts"][0]["gap_bucket"], "hubspot_rollup_mismatch")
+        self.assertIn("hs_num_decision_makers", result["answer"]["accounts"][0]["hubspot_mismatch_notes"][0]["field_level_reason"])
+        self.assertEqual(result["answer"]["buckets"]["needs_manual_truecaller_check"][0]["company_id"], "sg-2")
+        self.assertEqual(
+            result["answer"]["buckets"]["needs_manual_truecaller_check"][0]["provider_waterfall_next_step"],
+            "manual_truecaller_call_outcome",
+        )
+        self.assertEqual(result["answer"]["counts"]["ready_for_whatsapp_batch"], 0)
+        self.assertEqual(result["answer"]["provider_waterfall_policy"]["cost_mode"], "capped_effective")
+
+    def test_singapore_lead_enrichment_allows_explicit_sg_non_target_and_skips_non_sg(self):
+        companies = {
+            "sg-non-target": {
+                "id": "sg-non-target",
+                "properties": {
+                    "name": "Selected SG Customer",
+                    "hs_is_target_account": "false",
+                    "company_country": "Singapore",
+                    "hubspot_owner_id": "owner-jeremy",
+                },
+            },
+            "my-target": {
+                "id": "my-target",
+                "properties": {
+                    "name": "KL Cafe",
+                    "hs_is_target_account": "true",
+                    "company_country": "Malaysia",
+                    "hubspot_owner_id": "owner-jeremy",
+                },
+            },
+        }
+
+        with patch.object(self.module, "_caller_scope", return_value={**SCOPE, "countries": ("Singapore", "Malaysia")}), patch.object(
+            self.module, "_get_company", side_effect=lambda company_id: companies[company_id]
+        ), patch.object(
+            self.module, "_batch_association_ids", return_value={"sg-non-target": []}
+        ), patch.object(
+            self.module, "_batch_read", return_value=[]
+        ), patch.object(
+            self.module, "_owner_email_by_id", return_value="jeremy.wong@staffany.com"
+        ), patch.object(
+            self.module, "_owner_name_by_id", return_value="Jeremy Wong"
+        ):
+            result = self.module.build_singapore_lead_enrichment_plan(
+                "kerren.fong@staffany.com",
+                company_ids=["sg-non-target", "my-target"],
+            )
+
+        self.assertEqual(result["answer"]["accounts"][0]["company_id"], "sg-non-target")
+        self.assertFalse(result["answer"]["accounts"][0]["is_target_account"])
+        self.assertEqual(result["skipped_company_ids"], [{"company_id": "my-target", "reason": "not_singapore_company"}])
+
+    def test_singapore_lead_enrichment_title_only_candidate_needs_check(self):
+        company = {
+            "id": "sg-3",
+            "properties": {
+                "name": "Owner Bistro",
+                "hs_is_target_account": "true",
+                "company_country": "Singapore",
+                "hubspot_owner_id": "owner-jeremy",
+                "hs_num_decision_makers": "0",
+                "hs_num_contacts_with_buying_roles": "0",
+            },
+        }
+        contact = {
+            "id": "owner-1",
+            "properties": {
+                "firstname": "Owen",
+                "lastname": "Lim",
+                "jobtitle": "Owner",
+                "hs_buying_role": "",
+                "phone": "+6511111111",
+                "nurtureany_phone_verification_status": "called_connected",
+                "nurtureany_phone_verification_source": "manual_call",
+            },
+        }
+
+        with patch.object(self.module, "_caller_scope", return_value={**SCOPE, "countries": ("Singapore",)}), patch.object(
+            self.module,
+            "_company_search",
+            return_value={
+                "results": [company],
+                "total": 1,
+                "requested_limit": 30,
+                "returned_count": 1,
+                "has_more": False,
+                "truncated": False,
+            },
+        ), patch.object(
+            self.module, "_batch_association_ids", return_value={"sg-3": ["owner-1"]}
+        ), patch.object(
+            self.module, "_batch_read", return_value=[contact]
+        ):
+            result = self.module.build_singapore_lead_enrichment_plan("kerren.fong@staffany.com")
+
+        account = result["answer"]["accounts"][0]
+        self.assertEqual(account["gap_bucket"], "missing_decision_maker")
+        self.assertEqual(account["recommended_next_source"], "exa_people_candidate_discovery")
+        self.assertFalse(account["provider_waterfall_policy"]["paid_step_allowed"])
+        self.assertEqual(account["verified_decision_maker_count"], 0)
+        self.assertEqual(account["ranked_people_candidates"][0]["decision_maker_status"], "needs-check")
+
+    def test_singapore_lead_enrichment_stale_phone_and_whatsapp_draft_only(self):
+        stale_company = {
+            "id": "sg-stale",
+            "properties": {
+                "name": "Stale Phone Cafe",
+                "hs_is_target_account": "true",
+                "company_country": "Singapore",
+                "hubspot_owner_id": "owner-jeremy",
+                "hs_num_decision_makers": "0",
+                "hs_num_contacts_with_buying_roles": "1",
+            },
+        }
+        ready_company = {
+            "id": "sg-ready",
+            "properties": {
+                "name": "Ready Ramen",
+                "hs_is_target_account": "true",
+                "company_country": "Singapore",
+                "hubspot_owner_id": "owner-jeremy",
+                "hs_num_decision_makers": "0",
+                "hs_num_contacts_with_buying_roles": "1",
+            },
+        }
+        contacts = [
+            {
+                "id": "stale-dm",
+                "properties": {
+                    "firstname": "Stella",
+                    "lastname": "Ng",
+                    "jobtitle": "Director",
+                    "hs_buying_role": "DECISION_MAKER",
+                    "phone": "+6522222222",
+                    "nurtureany_phone_verification_status": "called_connected",
+                    "nurtureany_phone_verified_at": "2000-01-01",
+                    "nurtureany_phone_verification_source": "manual_call",
+                },
+            },
+            {
+                "id": "ready-dm",
+                "properties": {
+                    "firstname": "Rae",
+                    "lastname": "Ho",
+                    "jobtitle": "Director",
+                    "hs_buying_role": "DECISION_MAKER",
+                    "phone": "+6533333333",
+                    "nurtureany_phone_verification_status": "called_connected",
+                    "nurtureany_phone_verification_source": "manual_call",
+                },
+            },
+            {
+                "id": "ready-hr",
+                "properties": {
+                    "firstname": "Helen",
+                    "lastname": "Chua",
+                    "jobtitle": "HR Manager",
+                    "hs_buying_role": "INFLUENCER",
+                },
+            },
+        ]
+
+        with patch.object(self.module, "_caller_scope", return_value={**SCOPE, "countries": ("Singapore",)}), patch.object(
+            self.module,
+            "_company_search",
+            return_value={
+                "results": [stale_company, ready_company],
+                "total": 2,
+                "requested_limit": 30,
+                "returned_count": 2,
+                "has_more": False,
+                "truncated": False,
+            },
+        ), patch.object(
+            self.module,
+            "_batch_association_ids",
+            return_value={"sg-stale": ["stale-dm"], "sg-ready": ["ready-dm", "ready-hr"]},
+        ), patch.object(
+            self.module, "_batch_read", return_value=contacts
+        ):
+            result = self.module.build_singapore_lead_enrichment_plan("kerren.fong@staffany.com", batch_size=30)
+
+        by_id = {row["company_id"]: row for row in result["answer"]["accounts"]}
+        self.assertEqual(by_id["sg-stale"]["gap_bucket"], "missing_verified_phone")
+        self.assertEqual(by_id["sg-stale"]["phone_verification_summary"]["stale_phone_count"], 1)
+        self.assertEqual(by_id["sg-stale"]["recommended_next_source"], "manual_truecaller_call_outcome")
+        self.assertEqual(by_id["sg-ready"]["gap_bucket"], "nurture_ready")
+        self.assertEqual(by_id["sg-ready"]["recommended_next_source"], "whatsapp_batch_draft")
+        self.assertFalse(by_id["sg-ready"]["provider_waterfall_policy"]["paid_step_allowed"])
+        whatsapp = result["answer"]["ready_for_whatsapp_batch"]
+        self.assertTrue(whatsapp["draft_only"])
+        self.assertTrue(whatsapp["no_auto_send"])
+        self.assertEqual(whatsapp["accounts"][0]["company_id"], "sg-ready")
+        self.assertIn("Knowledge / Network / Support", whatsapp["kns_framework"])
+
+    def test_singapore_lead_enrichment_provider_waterfall_policy_cost_effective(self):
+        companies = [
+            {
+                "id": "sg-no-contact",
+                "properties": {
+                    "name": "No Contact Cafe",
+                    "hs_is_target_account": "true",
+                    "company_country": "Singapore",
+                    "hubspot_owner_id": "owner-jeremy",
+                    "hs_num_decision_makers": "0",
+                    "hs_num_contacts_with_buying_roles": "0",
+                },
+            },
+            {
+                "id": "sg-title-only",
+                "properties": {
+                    "name": "Title Only Bistro",
+                    "hs_is_target_account": "true",
+                    "company_country": "Singapore",
+                    "hubspot_owner_id": "owner-jeremy",
+                    "hs_num_decision_makers": "0",
+                    "hs_num_contacts_with_buying_roles": "0",
+                },
+            },
+            {
+                "id": "sg-paid-gap",
+                "properties": {
+                    "name": "Paid Gap Kitchen",
+                    "hs_is_target_account": "true",
+                    "company_country": "Singapore",
+                    "hubspot_owner_id": "owner-jeremy",
+                    "hs_num_decision_makers": "0",
+                    "hs_num_contacts_with_buying_roles": "1",
+                },
+            },
+            {
+                "id": "sg-prospeo-candidate",
+                "properties": {
+                    "name": "Prospeo Candidate Grill",
+                    "hs_is_target_account": "true",
+                    "company_country": "Singapore",
+                    "hubspot_owner_id": "owner-jeremy",
+                    "hs_num_decision_makers": "0",
+                    "hs_num_contacts_with_buying_roles": "1",
+                },
+            },
+        ]
+        contacts = [
+            {
+                "id": "title-owner",
+                "properties": {
+                    "firstname": "Tara",
+                    "lastname": "Ong",
+                    "jobtitle": "Owner",
+                    "hs_buying_role": "",
+                    "phone": "+6544444444",
+                    "nurtureany_phone_verification_status": "called_connected",
+                    "nurtureany_phone_verification_source": "manual_call",
+                },
+            },
+            {
+                "id": "paid-dm",
+                "properties": {
+                    "firstname": "Paula",
+                    "lastname": "Lim",
+                    "jobtitle": "Director",
+                    "hs_buying_role": "DECISION_MAKER",
+                },
+            },
+            {
+                "id": "prospeo-dm",
+                "properties": {
+                    "firstname": "Priya",
+                    "lastname": "Rao",
+                    "jobtitle": "Managing Director",
+                    "hs_buying_role": "DECISION_MAKER",
+                    "phone": "+6555555555",
+                    "nurtureany_phone_verification_status": "candidate",
+                    "nurtureany_phone_verification_source": "prospeo_manual",
+                },
+            },
+        ]
+
+        with patch.object(self.module, "_caller_scope", return_value={**SCOPE, "countries": ("Singapore",)}), patch.object(
+            self.module,
+            "_company_search",
+            return_value={
+                "results": companies,
+                "total": 4,
+                "requested_limit": 30,
+                "returned_count": 4,
+                "has_more": False,
+                "truncated": False,
+            },
+        ), patch.object(
+            self.module,
+            "_batch_association_ids",
+            return_value={
+                "sg-no-contact": [],
+                "sg-title-only": ["title-owner"],
+                "sg-paid-gap": ["paid-dm"],
+                "sg-prospeo-candidate": ["prospeo-dm"],
+            },
+        ), patch.object(
+            self.module, "_batch_read", return_value=contacts
+        ):
+            result = self.module.build_singapore_lead_enrichment_plan("kerren.fong@staffany.com")
+
+        by_id = {row["company_id"]: row for row in result["answer"]["accounts"]}
+        self.assertEqual(by_id["sg-no-contact"]["recommended_next_source"], "tavily_public_company_job_board_research")
+        self.assertFalse(by_id["sg-no-contact"]["provider_waterfall_policy"]["paid_step_allowed"])
+
+        self.assertEqual(by_id["sg-title-only"]["recommended_next_source"], "exa_people_candidate_discovery")
+        self.assertFalse(by_id["sg-title-only"]["provider_waterfall_policy"]["paid_step_allowed"])
+
+        paid_gap = by_id["sg-paid-gap"]
+        self.assertEqual(paid_gap["gap_bucket"], "missing_verified_phone")
+        self.assertIn("needs_paid_reveal", paid_gap["secondary_buckets"])
+        self.assertEqual(paid_gap["recommended_next_source"], "lusha_prospeo_parallel_search_pilot")
+        self.assertTrue(paid_gap["provider_waterfall_policy"]["paid_step_allowed"])
+        self.assertEqual(paid_gap["provider_waterfall_policy"]["paid_parallel_test"]["providers"], ["lusha", "prospeo"])
+
+        prospeo_candidate = by_id["sg-prospeo-candidate"]
+        self.assertEqual(prospeo_candidate["gap_bucket"], "needs_manual_truecaller_check")
+        self.assertEqual(prospeo_candidate["phone_verification_summary"]["verified_phone_count"], 0)
+        self.assertEqual(prospeo_candidate["recommended_next_source"], "manual_truecaller_call_outcome")
+
     def test_score_uses_target_owner_email_without_overwriting_caller_identity(self):
         with patch.object(self.module, "_caller_scope", return_value={**SCOPE, "kind": "admin", "email": "kaiyi@staffany.com"}), patch.object(
             self.module, "_owner_by_email", return_value={"id": "owner-jeremy"}
@@ -1324,6 +1722,232 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
             result["answer"]["clarification_options"],
             ["signed_converted_arr", "paid_converted_arr", "new_mrr_movement_arr"],
         )
+
+    def test_hubspot_revenue_funnel_applies_created_cohort_and_outbound_rules(self):
+        deals = [
+            {
+                "id": "deal-1",
+                "properties": {
+                    "dealname": "Noci new business",
+                    "createdate": "2026-05-03T01:00:00Z",
+                    "pipeline": "new-pipe",
+                    "dealstage": "qo-stage",
+                    "amount": "1000",
+                    "appointment_set_channel": "Sales Outbound",
+                },
+            },
+            {
+                "id": "deal-2",
+                "properties": {
+                    "dealname": "Retail signed",
+                    "createdate": "2026-05-04T01:00:00Z",
+                    "closedate": "2026-05-08T01:00:00Z",
+                    "pipeline": "new-pipe",
+                    "dealstage": "closed-won",
+                    "amount": "3000",
+                    "appointment_set_channel": "Sales Outbound",
+                },
+            },
+            {
+                "id": "deal-renewal",
+                "properties": {
+                    "dealname": "Renewal",
+                    "createdate": "2026-05-05T01:00:00Z",
+                    "pipeline": "renewal-pipe",
+                    "dealstage": "closed-won",
+                    "amount": "9000",
+                    "appointment_set_channel": "Sales Outbound",
+                },
+            },
+        ]
+        companies = [
+            {"id": "company-1", "properties": {"name": "Noci", "company_country": "Singapore", "numberofemployees": "30", "industry": "Food & Beverage"}},
+            {"id": "company-2", "properties": {"name": "Retail Co", "company_country": "Singapore", "numberofemployees": "80", "industry": "Retail"}},
+            {"id": "company-3", "properties": {"name": "Old Co", "company_country": "Singapore", "numberofemployees": "80", "industry": "Retail"}},
+        ]
+        with patch.dict(
+            os.environ,
+            {
+                self.module.REVENUE_FUNNEL_NEW_BUSINESS_PIPELINE_IDS_ENV_VAR: "new-pipe",
+                self.module.REVENUE_FUNNEL_RENEWAL_PIPELINE_IDS_ENV_VAR: "renewal-pipe",
+                self.module.QO_PIPELINE_IDS_ENV_VAR: "new-pipe",
+                self.module.QO_STAGE_IDS_ENV_VAR: "qo-stage",
+                self.module.QO_MET_STAGE_IDS_ENV_VAR: "qo-met",
+                self.module.CLOSED_WON_STAGE_IDS_ENV_VAR: "closed-won",
+            },
+        ), patch.object(self.module, "_caller_scope", return_value={**SCOPE, "kind": "admin", "email": "kaiyi@staffany.com"}), patch.object(
+            self.module, "_deal_search", return_value={"results": deals, "total": 3, "requested_limit": 250, "returned_count": 3, "has_more": False, "truncated": False}
+        ), patch.object(
+            self.module,
+            "_batch_association_ids",
+            return_value={"deal-1": ["company-1"], "deal-2": ["company-2"], "deal-renewal": ["company-3"]},
+        ), patch.object(self.module, "_batch_read", return_value=companies):
+            result = self.module.build_hubspot_revenue_funnel_metrics(
+                "kaiyi@staffany.com",
+                start_date="2026-05-01",
+                end_date="2026-05-31",
+                countries=["Singapore"],
+                headcount_range=">20",
+            )
+
+        self.assertEqual(result["answer"]["summary"]["created_deal_count"], 2)
+        self.assertEqual(result["answer"]["summary"]["qo_count"], 2)
+        self.assertEqual(result["answer"]["summary"]["signed_deal_count"], 1)
+        self.assertEqual(result["answer"]["excluded_counts"]["renewal"], 1)
+        self.assertFalse(result["will_mutate_hubspot"])
+
+    def test_ae_coaching_audit_returns_metadata_only_sheet_preview(self):
+        companies = [{"id": "company-1", "properties": {"name": "Noci", "hubspot_owner_id": "owner-1"}}]
+        activity_index = {
+            "company-1": {
+                "evidence": [
+                    {"object_type": "communication", "timestamp": "2026-05-05T01:30:00Z"},
+                    {"object_type": "call", "object_id": "call-1", "owner_id": "owner-1", "timestamp": "2026-05-05T03:00:00Z", "duration_seconds": 90},
+                ]
+            }
+        }
+        coverage = {
+            "answer": {
+                "owners": [
+                    {
+                        "owner_id": "owner-1",
+                        "owner_email": "ae@example.com",
+                        "owner_name": "AE",
+                        "weekly_account_target": 1,
+                        "120_150_accounts_worked": "1/1 worked; target 1/150",
+                        "connected_call_count": 12,
+                    }
+                ]
+            },
+            "_internal": {
+                "companies": companies,
+                "company_deal_ids": {},
+                "activity_index": activity_index,
+                "week": {"week_start": "2026-05-04", "week_end": "2026-05-10"},
+            },
+            "scope": {"caller_email": "kerren.fong@staffany.com", "countries": ["Singapore"], "week_start": "2026-05-04", "week_end": "2026-05-10"},
+            "requested_limit": 1000,
+            "has_more": False,
+            "truncated": False,
+            "confidence": "verified",
+        }
+        deal_counts = {"configured": True, "by_owner": {"owner-1": {"qos": 2}}, "totals": {}}
+        with patch.object(self.module, "_priority_account_coverage", return_value=coverage) as coverage_mock, patch.object(
+            self.module, "_deal_counts_for_friday", return_value=deal_counts
+        ):
+            result = self.module.build_ae_coaching_audit(
+                "kerren.fong@staffany.com",
+                include_call_content=True,
+                limit=1000,
+                soft_timeout_seconds=0,
+            )
+
+        coverage_kwargs = coverage_mock.call_args.kwargs
+        self.assertEqual(coverage_kwargs["limit"], self.module.AE_COACHING_DEFAULT_LIMIT)
+        self.assertEqual(coverage_kwargs["soft_timeout_seconds"], self.module.AE_COACHING_DEFAULT_SOFT_TIMEOUT_SECONDS)
+        self.assertFalse(result["answer"]["will_mutate_google_sheets"])
+        self.assertEqual(result["answer"]["one_on_one_sheet_preview_rows"][0]["QO set"], 2)
+        self.assertEqual(result["answer"]["ae_weekly_checks"][0]["call_content_status"], "metadata-only needs-check")
+        self.assertEqual(len(result["answer"]["ae_weekly_checks"][0]["long_call_without_appointment_candidates"]), 1)
+
+    def test_ae_coaching_audit_owner_fast_path_returns_preview_without_fanout(self):
+        company_data = {
+            "results": [{"id": "company-1", "properties": {"name": "Noci", "hubspot_owner_id": "owner-1"}}],
+            "total": 1,
+            "requested_limit": 150,
+            "returned_count": 1,
+            "has_more": False,
+            "truncated": False,
+        }
+        calls = [
+            {
+                "id": "call-1",
+                "properties": {
+                    "hs_timestamp": "2026-05-05T03:00:00Z",
+                    "hubspot_owner_id": "owner-1",
+                    "hs_call_status": "COMPLETED",
+                    "hs_call_duration": "130000",
+                },
+            }
+        ]
+        communications = [
+            {
+                "id": "comm-1",
+                "properties": {
+                    "hs_timestamp": "2026-05-05T01:30:00Z",
+                    "hubspot_owner_id": "owner-1",
+                    "hs_communication_channel_type": "WHATS_APP",
+                },
+            }
+        ]
+
+        def object_search(object_type, *_args, **_kwargs):
+            if object_type == "calls":
+                return {"results": calls, "total": 1, "requested_limit": 500, "returned_count": 1, "has_more": False, "truncated": False}
+            return {"results": communications, "total": 1, "requested_limit": 500, "returned_count": 1, "has_more": False, "truncated": False}
+
+        with patch.object(self.module, "_caller_scope", return_value={**SCOPE, "kind": "admin", "email": "kaiyi@staffany.com"}), patch.object(
+            self.module, "_target_owner_id_for_scope", return_value=("owner-1", "ae@example.com")
+        ), patch.object(self.module, "_owner_lookup_by_id", return_value={"owner-1": {"id": "owner-1", "email": "ae@example.com", "firstName": "AE"}}), patch.object(
+            self.module, "_company_search", return_value=company_data
+        ) as company_search_mock, patch.object(
+            self.module, "_object_search", side_effect=object_search
+        ), patch.object(
+            self.module, "_friday_review_stage_config", return_value={"configured": False}
+        ), patch.object(
+            self.module, "_priority_account_coverage"
+        ) as coverage_mock:
+            result = self.module.build_ae_coaching_audit(
+                "kaiyi@staffany.com",
+                countries=["Singapore"],
+                owner_email="ae@example.com",
+                week_start="2026-05-04",
+                week_end="2026-05-10",
+                limit=1000,
+                soft_timeout_seconds=0,
+            )
+
+        coverage_mock.assert_not_called()
+        self.assertEqual(company_search_mock.call_args.args[1], self.module.AE_COACHING_DEFAULT_LIMIT)
+        self.assertFalse(result["answer"]["will_mutate_google_sheets"])
+        self.assertEqual(result["answer"]["ae_weekly_checks"][0]["connected_call_count"], 1)
+        self.assertEqual(result["answer"]["one_on_one_sheet_preview_rows"][0]["QO set"], "needs-check")
+        self.assertEqual(result["scope"]["owner_scoped_fast_path"], True)
+
+    def test_sales_navigator_queue_is_manual_and_scoped(self):
+        company = {
+            "id": "company-1",
+            "properties": {
+                "name": "Noci",
+                "company_country": "Singapore",
+                "industry": "Restaurant",
+                "hubspot_owner_id": "owner-1",
+                "hs_is_target_account": "true",
+            },
+        }
+        contact = {
+            "id": "contact-1",
+            "properties": {
+                "firstname": "Ana",
+                "lastname": "Tan",
+                "jobtitle": "HR Director",
+                "hs_buying_role": "",
+            },
+        }
+        with patch.object(self.module, "_caller_scope", return_value={**SCOPE, "kind": "admin", "email": "kaiyi@staffany.com"}), patch.object(
+            self.module, "_assert_company_access", return_value=company
+        ), patch.object(self.module, "_association_ids", return_value=["contact-1"]), patch.object(self.module, "_batch_read", return_value=[contact]):
+            result = self.module.prepare_sales_navigator_decision_maker_queue(
+                "kaiyi@staffany.com",
+                mode="post_event_top10",
+                company_ids=["company-1"],
+                countries=["Singapore"],
+            )
+
+        self.assertFalse(result["answer"]["linkedin_scraping"])
+        self.assertFalse(result["answer"]["sales_navigator_browser_actions"])
+        self.assertEqual(result["answer"]["queue"][0]["priority_reason"], "director")
+        self.assertEqual(result["answer"]["exa_cost_report"]["status"], "not_called")
 
     def test_friday_review_returns_hygiene_plus_warehouse_qo_followup_query(self):
         companies = [
@@ -3067,6 +3691,9 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         self.assertEqual(result["confidence"], "needs-check")
         self.assertEqual(result["answer"][0]["luma_match_reasons"], ["exact_email_domain"])
         self.assertEqual(result["answer"][1]["luma_match_reasons"], ["company_name_candidate"])
+        self.assertEqual(result["answer"][0]["account_status"], "customer")
+        self.assertEqual(result["answer"][1]["account_status"], "prospect")
+        self.assertIn("account_status_source", result["answer"][0])
         self.assertEqual(result["answer"][0]["luma_match_key_kinds"], ["exact_email_domain"])
         self.assertEqual(result["answer"][0]["luma_match_key_count"], 1)
         self.assertEqual(result["answer"][0]["owner_email"], "sales.owner@staffany.com")
@@ -3629,7 +4256,12 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         ]
 
         with patch.object(self.module, "_caller_scope", return_value=SCOPE):
-            result = self.module.scan_drive_event_photos("kerren.fong@staffany.com", drive_files, luma_events=luma_events)
+            result = self.module.scan_drive_event_photos(
+                "kerren.fong@staffany.com",
+                drive_files,
+                luma_events=luma_events,
+                luma_event_auto_tag=True,
+            )
 
         photo = result["answer"]["photos"][0]
         event_context = photo["luma_event_context"]
@@ -3640,6 +4272,38 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         self.assertIn("Singapore HR Happy Hour", photo["confirmation_request"]["prompt"])
         self.assertTrue(result["answer"]["luma_event_date_correlation"]["auto_event_tag_only"])
         self.assertFalse(result["answer"]["luma_event_date_correlation"]["person_auto_tag"])
+
+    def test_scan_drive_event_photos_keeps_broad_luma_date_match_as_candidate_only(self):
+        drive_files = [
+            {
+                "id": "drive-file-1",
+                "name": "2026-05-13T06:40:07.000Z-U03T4AQR9RS-loco-visit.jpg",
+                "mimeType": "image/jpeg",
+                "slack_uploader_name": "Jan-E",
+            }
+        ]
+        luma_events = [
+            {
+                "event_id": "evt-unrelated",
+                "name": "Singapore HR Happy Hour",
+                "start_at": "2026-05-13T10:00:00Z",
+                "timezone": "Asia/Singapore",
+                "url": "https://lu.ma/evt-unrelated",
+                "tags": ["Singapore", "HR Happy Hour"],
+                "location_tags": ["Singapore"],
+                "country_tags": ["Singapore"],
+                "event_type_tags": ["HR Happy Hour"],
+            }
+        ]
+
+        with patch.object(self.module, "_caller_scope", return_value=SCOPE):
+            result = self.module.scan_drive_event_photos("kerren.fong@staffany.com", drive_files, luma_events=luma_events)
+
+        photo = result["answer"]["photos"][0]
+        self.assertEqual(photo["luma_event_context"]["auto_event_tag_status"], "needs-check")
+        self.assertEqual(photo["hubspot_custom_object_plan"]["nurture_event"]["event_name"], "unclassified event photo")
+        self.assertNotIn("Singapore HR Happy Hour", photo["confirmation_request"]["prompt"])
+        self.assertFalse(result["answer"]["luma_event_date_correlation"]["auto_event_tag_only"])
 
     def test_propose_photo_people_matches_uses_context_hints_and_scoped_candidates(self):
         company = {
@@ -3821,6 +4485,59 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         self.assertEqual(len(first["case_study_matches"]), 3)
         self.assertIn("lead source", first["missing_evidence"])
         self.assertIn("social/gated research stays manual-check", result["caveat"])
+
+    def test_bmc_case_studies_require_full_video_review_metadata(self):
+        cases = self.module._load_case_study_catalog()
+        bmc_cases = [case for case in cases if case.get("source_type") == "bmc_podcast"]
+
+        self.assertEqual(len(bmc_cases), 21)
+        for case in bmc_cases:
+            review = case.get("full_video_review") or {}
+            evidence_refs = case.get("evidence_refs") or []
+            self.assertTrue(case.get("approved_for_name_drops"))
+            self.assertEqual(case.get("approval_basis"), "bmc_podcast_full_video_review")
+            self.assertEqual(review.get("primary_spoken_source"), "youtube_auto_caption")
+            self.assertTrue(review.get("full_transcript_available"))
+            self.assertEqual(review.get("reviewer_status"), "full_transcript_reviewed")
+            self.assertGreater(review.get("transcript_word_count") or 0, 0)
+            self.assertTrue(review.get("first_timestamp"))
+            self.assertTrue(review.get("last_timestamp"))
+            self.assertEqual(review.get("gaps") or [], [])
+            self.assertTrue(case.get("do_not_claim"))
+            self.assertTrue(evidence_refs)
+            for ref in evidence_refs:
+                self.assertRegex(ref.get("timestamp") or "", r"^\d{2}:\d{2}:\d{2}")
+                self.assertTrue((ref.get("source_path") or "").startswith("research/raw/online/"))
+                self.assertGreater(ref.get("line") or 0, 0)
+
+    def test_find_sales_case_studies_returns_bmc_matches_for_brainstorm_query(self):
+        with patch.object(self.module, "_caller_scope", return_value=SCOPE):
+            result = self.module.find_sales_case_studies(
+                "kerren.fong@staffany.com",
+                sales_moment="demo",
+                query="F&B central kitchen franchise SOP quality control payroll scheduling",
+                limit=10,
+            )
+
+        matches = result["answer"]["case_study_matches"]
+        self.assertFalse(result["will_mutate_hubspot"])
+        self.assertNotIn("case-study match needed", result["answer"]["relevant_name_drops"])
+        self.assertTrue(any(match.get("source_type") == "bmc_podcast" for match in matches))
+        bmc_match = next(match for match in matches if match.get("source_type") == "bmc_podcast")
+        self.assertEqual(bmc_match["full_video_review"]["reviewer_status"], "full_transcript_reviewed")
+        self.assertTrue(bmc_match["evidence_refs"])
+
+    def test_find_sales_case_studies_returns_needed_when_no_good_match(self):
+        with patch.object(self.module, "_caller_scope", return_value=SCOPE):
+            result = self.module.find_sales_case_studies(
+                "kerren.fong@staffany.com",
+                sales_moment="pre_demo",
+                query="enterprise fintech core banking AML reconciliation",
+            )
+
+        self.assertEqual(result["answer"]["case_study_matches"], [])
+        self.assertEqual(result["answer"]["relevant_name_drops"], ["case-study match needed"])
+        self.assertEqual(result["missing_evidence"], ["case-study match needed"])
 
     def test_build_pre_demo_game_plans_public_research_default_off(self):
         context = company_context("123")

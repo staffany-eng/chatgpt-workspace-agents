@@ -1,6 +1,6 @@
 # Public Research Runtime
 
-Public research is the reusable NurtureAny company-signal layer for game plans, enrichment review, and future nurture drafting.
+Public research is the reusable NurtureAny company-signal layer for game plans, enrichment review, SG lead-enrichment company/job-board discovery, and future nurture drafting.
 
 HubSpot remains the source of truth for account scope, owner, status, current tools, contract dates, contacts, tasks, notes, and follow-up. Tavily output is review-only public evidence.
 
@@ -73,6 +73,7 @@ Manual-check sources must not be scraped, browser-automated, accessed with cooki
 - `build_pre_demo_game_plans` keeps public research off by default. When `include_public_research=true`, it enriches only the Research / stalking signal section and adds the returned cost report.
 - `review_public_enrichment_evidence` uses the shared public-research normalization and signal extraction helpers for user-provided snippets and safe public URLs.
 - Exa remains the people-candidate discovery path. Public research can recommend Exa, but it does not reveal contact PII or replace HubSpot decision-maker coverage.
+- For SG lead enrichment, Tavily public research should be the company/job-board step before Exa people candidates and before any Lusha/Prospeo paid-provider pilot.
 
 ## Failure Handling
 

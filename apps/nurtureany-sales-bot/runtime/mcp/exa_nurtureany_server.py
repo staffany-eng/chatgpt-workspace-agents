@@ -29,7 +29,7 @@ EXA_USER_AGENT = "StaffAny-NurtureAny/1.0 (+https://staffany.com)"
 EXA_TIMEOUT_SECONDS = 15
 MAX_SEARCH_COMPANIES = 5
 MAX_CANDIDATES_PER_COMPANY = 5
-MAX_TARGET_TITLES = 12
+MAX_TARGET_TITLES = 20
 SCOPE_SOURCE = "hubspot_nurtureany"
 
 COUNTRY_TO_USER_LOCATION = {
@@ -50,6 +50,11 @@ DEFAULT_DECISION_MAKER_TITLES = [
     "operations director",
     "hr director",
     "people director",
+    "hr manager",
+    "people manager",
+    "operations manager",
+    "finance manager",
+    "payroll manager",
 ]
 
 

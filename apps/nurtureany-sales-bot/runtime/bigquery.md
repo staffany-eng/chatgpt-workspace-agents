@@ -43,6 +43,7 @@ Use `skills/nurtureany-sales-bot/references/rev-planning-and-metrics.md` before 
 
 - QO actuals should use `fct_sales_points.qo_set` after schema inspection.
 - Direct QO count or pace prompts should resolve owner/team/date scope, call `hubspot_nurtureany.build_sales_metric_actuals_query` first, then run the returned SQL through `staffany_bigquery.execute_sql_readonly`. Do not route direct QO prompts through Friday review.
+- HubSpot revenue-funnel prompts are not BigQuery actuals. Use `hubspot_nurtureany.build_hubspot_revenue_funnel_metrics` for created-date deal cohort conversion metrics, then label the source as HubSpot deals/companies.
 - `new ARR` is ambiguous. Ask whether the user wants signed converted ARR, paid converted ARR, or new MRR movement annualized.
 - Signed and paid converted ARR come from `fct_deal_metrics_with_pilot_conversion`.
 - New ARR movement and net ARR movement come from `fct_mrr_movements`; annualize MRR movement only when the queried source value is MRR.

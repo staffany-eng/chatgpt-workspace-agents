@@ -48,6 +48,11 @@ DECISION_MAKER_TITLES = [
     "operations director",
     "hr director",
     "people director",
+    "hr manager",
+    "people manager",
+    "operations manager",
+    "finance manager",
+    "payroll manager",
 ]
 
 

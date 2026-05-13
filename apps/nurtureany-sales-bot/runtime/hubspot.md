@@ -12,8 +12,9 @@ Field-level durable sources:
 - Customer/prospect status: company `type`, then `lifecyclestage`, then `prospecting_account`; C360 current-customer evidence may strengthen customer status when explicitly used.
 - Current-customer account-background packets: C360 sales packet is StaffAny product/Payroll truth. If C360 is unavailable, return `Confidence: needs-check` and do not infer Payroll status from stale HubSpot `current_tools` / `contract_end_date`.
 - Decision-maker coverage: company `hs_num_decision_makers` plus contact `hs_buying_role=DECISION_MAKER` are verified HubSpot decision-maker sources. `hs_num_contacts_with_buying_roles` is reported separately as buying-role hygiene, but it does not satisfy decision-maker coverage by itself. NurtureAny does not read Eazybe directly for these counts.
+- Phone verification: contact `nurtureany_phone_verification_status`, `nurtureany_phone_verified_at`, `nurtureany_phone_verified_by`, `nurtureany_phone_verification_source`, and `nurtureany_phone_verification_notes`. Valid phone verification requires `called_connected`; `truecaller_manual_lookup` is manual candidate evidence only unless paired with a connected-call outcome.
 
-`current_tool_renewal_date` is secondary context only. C360, Google Calendar, Luma, the Indonesia event registration Sheet fallback, Tavily public research, Exa, Lusha, Slack, and public evidence enrich the answer but do not override the durable HubSpot fields above.
+`current_tool_renewal_date` is secondary context only. C360, Google Calendar, Luma, the Indonesia event registration Sheet fallback, Tavily public research, Exa, Lusha, Prospeo, Slack, and public evidence enrich the answer but do not override the durable HubSpot fields above. Prospeo has no active adapter in V1; it is a measured V1.1 paid-provider pilot candidate only.
 
 Do not call contract timing a StaffAny renewal unless customer status is verified. For prospects or unknowns, use incumbent-tool contract timing or migration/procurement timing.
 
@@ -64,10 +65,15 @@ It exposes these tools:
 - `audit_hubspot_owner_roster`
 - `audit_priority_account_coverage`
 - `build_sales_metric_actuals_query`
+- `build_hubspot_revenue_funnel_metrics`
+- `build_ae_coaching_audit`
+- `prepare_sales_navigator_decision_maker_queue`
 - `build_friday_sales_review`
 - `build_manager_chase_plan`
 - `get_account_context`
 - `build_pre_demo_game_plans`
+- `find_sales_case_studies`
+- `build_singapore_lead_enrichment_plan`
 - `build_daily_nurture_plan`
 - `list_sales_followup_tasks`
 - `check_account_followup_status`
@@ -192,6 +198,26 @@ Friday sales review uses the same scoped association discipline, plus HubSpot ca
 - `new ARR` is ambiguous and must ask the user to choose signed converted ARR, paid converted ARR, or New MRR movement ARR before returning SQL.
 - Keep BigQuery auth and read-only enforcement in the StaffAny BigQuery MCP proxy. NurtureAny builds SQL only.
 
+`build_hubspot_revenue_funnel_metrics`:
+
+- Input: manager/admin or AE identity, created-date `start_date` and `end_date`, optional owner/country/team, New/Existing Business, headcount, industry, appointment-set channel, all-outbound toggle, and analysis-only manual corrections.
+- Output: summary metrics plus safe deal-level audit rows. It uses HubSpot deal createdate as the cohort and associated HubSpot companies for country, headcount, and industry filters.
+- Rules: Sales Outbound by default; all outbound only when requested; headcount `>20` means at least 21 employees; new-business pipeline IDs are preferred when configured; renewals are excluded; signed deals come from configured closed-won stages or explicit manual corrections.
+- Must not mutate HubSpot or expose raw rows, raw communication bodies, phone numbers, or unnecessary PII.
+
+`build_ae_coaching_audit`:
+
+- Input: manager/admin identity, week, optional owner/country, and optional `include_call_content`.
+- Output: per-AE weekly checks for 3 QOs set, target-account morning-message coverage, 40 connected calls, and calls above 1 minute that have no appointment evidence. Returns 1:1-sheet-ready preview rows with `will_mutate_google_sheets=false`.
+- Runtime guard: default scan is the protected 150-account pool with a soft timeout; if the scan is partial, return `needs-check` rows rather than hanging.
+- Call content is guarded. If transcript/body access is requested, return metadata-only `needs-check`; do not read call bodies, recordings, or transcripts.
+
+`prepare_sales_navigator_decision_maker_queue`:
+
+- Input: `pre_demo_150` or `post_event_top10`, scoped countries/owner, and optional attendee-linked HubSpot company IDs for event mode.
+- Output: manual Sales Navigator handoff rows from HubSpot companies/contacts, role priority, and safe next enrichment guidance.
+- Must not scrape LinkedIn, automate Sales Navigator browser actions, reveal PII, or mutate HubSpot. Exa and Lusha are separate approved cost/credit-reporting flows.
+
 `build_friday_sales_review`:
 
 - Input: manager/admin Slack user email, optional countries, optional owner email filter, optional week start/end, optional limit.
@@ -221,12 +247,25 @@ Friday sales review uses the same scoped association discipline, plus HubSpot ca
 
 - Input: Slack user email and selected HubSpot company IDs, company links, or exact company names, capped at 5 accounts per run.
 - Output: Slack-first pre-demo game plans with Static Information, Research / stalking signal, Hypothesized interest, Alternatives, What to show to win, 3 name drops, Game Plan A, Game Plan B, IC-BANT prompts, Missing evidence, source, scope, confidence, and caveat.
-- Case-study source: `runtime/data/case-studies.json`, generated from the approved public StaffAny customer-story catalog. Matching uses country, industry, size, current-tool pain, and workflow tags.
+- Case-study source: `runtime/data/case-studies.json`, generated from the approved public StaffAny customer-story catalog plus full-video-reviewed BMC podcast cards. Matching uses country, industry, size, current-tool pain, and workflow tags.
+- BMC podcast cards are AE-safe only when the card records video ID, source URL, transcript word count, first/last timestamp, no transcript gaps, `full_transcript_reviewed` status, do-not-claim caveats, and timestamped evidence refs. Use `find_sales_case_studies` for read-only scoped account or brainstorm lookup.
 - Must resolve company names only inside the caller's scoped HubSpot target accounts. Exact one-match results can run; ambiguous names must return scoped candidate company IDs and ask the user to pick; no broad account default.
 - On post-approval `run`, pass the selected IDs, links, or raw exact names directly into this tool. Do not call `list_team_target_accounts`, `score_nurture_accounts`, or `find_contact_gaps` as a pre-resolver for game-plan requests; this tool owns scoped name resolution, including compact-name matching such as `Tung Lok` to `Tunglok`.
 - Must output `pricing needed` and `case-study match needed` when pricing or approved case studies are missing.
 - Must not use Slack-only/WIP case-study mentions as approved name drops.
 - Must not fetch social/gated sources, expose raw task bodies, reveal unnecessary PII, mutate HubSpot, or send external messages.
+
+`build_singapore_lead_enrichment_plan`:
+
+- Input: `slack_user_email`, optional `owner_email`, optional `company_ids`, optional `limit`, optional `batch_size`, and optional `phone_stale_after_days`.
+- Default pool: Singapore HubSpot target accounts (`company_country=Singapore`, `hs_is_target_account=true`) with optional fixed-AE owner filter. Explicit `company_ids` can include scoped non-target SG HubSpot companies.
+- Output: account-level enrichment rows, top-level buckets, stakeholder slots, ranked people candidates, phone-verification summary, HubSpot mismatch notes, pilot flags, recommended next source/action, provider-waterfall policy, handoff note, writeback preview, and draft-only WhatsApp readiness.
+- Minimum readiness requires one associated contact, one verified decision maker, and one verified phone. Preferred pilot readiness also seeks a champion/influencer or operating contact and at least 3 usable contacts where possible.
+- The source ladder is HubSpot, HubSpot notes/tasks/history, Tavily public company/job-board research, Exa people candidate discovery, Lusha + Prospeo controlled parallel pilot, approved reveal, manual Truecaller/call outcome, then HubSpot preview.
+- Provider waterfall policy uses `cost_mode=capped_effective`: run paid providers only for real gaps, stop after minimum readiness, track successful provider/source/confidence, and measure cost per usable AE handoff.
+- Prospeo is a V1.1 provider candidate beside Lusha for a measured pilot. It must use scoped HubSpot company IDs, explicit approval before reveal, cost/credit reporting, selected contacts only, no bulk export, no raw phone in Slack summaries, and no auto-write.
+- Truecaller is manual V1 evidence only: no automated reverse lookup, scraping, or bulk enrichment. `truecaller_manual_lookup` does not verify a phone unless `nurtureany_phone_verification_status=called_connected`.
+- Must not mutate HubSpot, reveal paid contact details, expose raw phone numbers, call Lusha/Prospeo reveal, call Truecaller automatically, send WhatsApp, or change account ownership.
 
 `list_sales_followup_tasks`:
 
@@ -291,7 +330,8 @@ Friday sales review uses the same scoped association discipline, plus HubSpot ca
 
 - Input: caller Slack email plus Drive file metadata from folder `1qXlFnr5TKFtsYNWk7ZywBBctDaae3RY-` (`all-random`), optional Luma event list from the Drive photo date window, optional event/context text.
 - Output: photo work items with deterministic `photo_key`, Drive source pointer, parsed Slack-export timestamp/uploader hints, Luma event-date correlation, per-photo uploader confirmation requests, grouped uploader confirmation batches, and a preview of `nurture_event` / `nurture_event_photo` / `nurture_person_appearance` records.
-- Luma date matching may auto-tag `nurture_event` only when one clear event-date candidate exists; it must not auto-link a HubSpot contact/person.
+- Luma date matching may auto-tag `nurture_event` only when one clear event-date candidate exists and the caller explicitly scoped the scan to a selected event or exact event tags by setting `luma_event_auto_tag=true`. Generic scans and account visits keep same-date Luma matches as `needs-check` candidates to avoid false event tags.
+- Luma date matching must not auto-link a HubSpot contact/person.
 - Must not download or store raw images in HubSpot. The Drive runtime may download images transiently for LLM vision/OCR, then pass extracted clues to `propose_photo_people_matches`.
 
 `extract_drive_image_clues`:
@@ -311,7 +351,7 @@ Friday sales review uses the same scoped association discipline, plus HubSpot ca
 `find_target_accounts_by_luma_match_keys`:
 
 - Input: Slack user email, safe Luma email domains, safe Luma company-name candidates, optional countries, optional owner email filter, and limit.
-- Output: HubSpot-scoped target-account candidates only, with `hubspot_scoped=true`, `scope_source=hubspot_nurtureany`, HubSpot owner, customer/prospect/unknown status, and Luma match reason metadata.
+- Output: HubSpot-scoped target-account candidates only, with `hubspot_scoped=true`, `scope_source=hubspot_nurtureany`, HubSpot `account_status` / `account_status_source`, owner fields, and Luma match reason metadata.
 - Use after `get_luma_event_match_keys` for broad event-wide questions so the bot searches from Luma attendee keys into HubSpot instead of paging every target account.
 - Domain matches are stronger; company-name candidate matches return `Confidence: needs-check`.
 - Must not accept raw attendee exports, full Luma emails, phone numbers, or registration answers.
