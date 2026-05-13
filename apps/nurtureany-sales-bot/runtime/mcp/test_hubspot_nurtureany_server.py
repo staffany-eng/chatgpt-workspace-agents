@@ -136,6 +136,88 @@ class OperationLedgerTest(unittest.TestCase):
         self.assertEqual(loaded["confidence"], "verified")
 
 
+class OwnerWhatsAppSentTodayTest(unittest.TestCase):
+    def setUp(self):
+        self.module = load_hubspot_module()
+
+    def test_counts_owner_whatsapp_today_with_communications_only_fast_path(self):
+        companies = [
+            {"id": "company-1", "properties": {"name": "Bubble Tea Lab", "company_country": "Singapore", "hubspot_owner_id": "owner-jeremy"}},
+            {"id": "company-2", "properties": {"name": "Noci Bakehouse", "company_country": "Singapore", "hubspot_owner_id": "owner-jeremy"}},
+        ]
+
+        communication_rows = [
+            {
+                "id": "comm-1",
+                "properties": {
+                    "hs_timestamp": "2026-05-13T02:00:00Z",
+                    "hubspot_owner_id": "owner-jeremy",
+                    "hs_communication_channel_type": "WHATS_APP",
+                    "hs_communication_logged_from": "Eazybe",
+                },
+            },
+            {
+                "id": "comm-2",
+                "properties": {
+                    "hs_timestamp": "2026-05-13T03:00:00Z",
+                    "hubspot_owner_id": "owner-jeremy",
+                    "hs_communication_channel_type": "WHATSAPP",
+                    "hs_communication_logged_from": "CRM",
+                },
+            },
+            {
+                "id": "comm-email",
+                "properties": {
+                    "hs_timestamp": "2026-05-13T05:00:00Z",
+                    "hubspot_owner_id": "owner-jeremy",
+                    "hs_communication_channel_type": "EMAIL",
+                },
+            },
+        ]
+
+        def fake_object_search(object_type, filters, properties, limit=100, maximum=500, sorts=None):
+            self.assertEqual(object_type, "communications")
+            self.assertNotIn("hs_communication_body", properties)
+            return {"results": communication_rows, "total": 3, "returned_count": 3, "has_more": False, "truncated": False}
+
+        def fake_batch_association_ids(from_type, to_type, ids):
+            if from_type == "companies" and to_type == "contacts":
+                return {"company-1": ["contact-1"], "company-2": ["contact-2"]}
+            if from_type == "companies" and to_type == "deals":
+                return {"company-1": [], "company-2": ["deal-2"]}
+            if from_type == "communications" and to_type == "companies":
+                return {"comm-1": ["company-1"], "comm-2": ["company-2"], "comm-email": []}
+            if from_type == "communications" and to_type == "contacts":
+                return {"comm-1": ["contact-1"], "comm-2": []}
+            if from_type == "communications" and to_type == "deals":
+                return {"comm-email": ["deal-2"]}
+            return {}
+
+        with patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
+            self.module, "_owner_by_email", return_value={"id": "owner-jeremy", "email": "jeremy.wong@staffany.com"}
+        ), patch.object(self.module, "_object_search", side_effect=fake_object_search), patch.object(
+            self.module, "_batch_read", side_effect=AssertionError("fast path should not batch-read historical communications")
+        ), patch.object(
+            self.module,
+            "_company_search",
+            return_value={"results": companies, "total": 2, "returned_count": 2, "has_more": False, "truncated": False},
+        ), patch.object(self.module, "_batch_association_ids", side_effect=fake_batch_association_ids):
+            result = self.module.count_owner_whatsapp_sent_today(
+                "kerren.fong@staffany.com",
+                owner_email="jeremy.wong@staffany.com",
+                for_date="2026-05-13",
+                countries=["Singapore"],
+            )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["answer"]["whatsapp_sent_count"], 2)
+        self.assertEqual(result["answer"]["target_account_whatsapp_sent_count"], 2)
+        self.assertEqual(result["answer"]["target_account_count_scanned"], 2)
+        self.assertEqual(result["answer"]["target_account_count_with_whatsapp"], 2)
+        self.assertEqual(result["scope"]["fast_path"], "owner_day_communications_first")
+        self.assertEqual({row["object_id"] for row in result["answer"]["sample_evidence"]}, {"comm-1", "comm-2"})
+
+
 class HubSpotNurtureAnyServerTest(unittest.TestCase):
     def setUp(self):
         self.module = load_hubspot_module()
