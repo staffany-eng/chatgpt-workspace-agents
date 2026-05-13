@@ -44,7 +44,7 @@ Caveat: Reply "create" to create this task.
 
 ## Slack Scopes
 
-Use the minimum Hermes Slack gateway scopes required for app mentions and caller identity. Do not request broad private-channel enumeration for V1.
+Use the minimum Hermes Slack gateway scopes required for app mentions and caller identity. The PSM Jira MCP needs `users:read` and `users:read.email` so it can fetch Slack users, canonicalize profile email/name, and match the caller to Jira `PS Team`. Do not request broad private-channel enumeration for V1.
 
 ## Channel Access
 

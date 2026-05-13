@@ -37,6 +37,10 @@ Do not discover or guess these at answer time. `validate_jira_configuration` mus
 
 ## PS Team Routing
 
+- Jira `PS Team` is the task-owner source of truth for "my tasks" and scoped reminders.
+- Thin POC fetches Slack users, canonicalizes profile email/name, and auto-matches the caller to the configured `PS Team` option.
+- Do not trust model-guessed email spelling; use Slack profile data before matching Jira.
+- If no `PS Team` option matches the caller, fail closed with `Confidence: blocked`.
 - `CS duty`, `cs duty`, and equivalent spelling variants mean Jira `PS Team = CS Duty`.
 - `Eng duty` means Jira `PS Team = Eng Duty`.
 - These are PS Team values, not Jira person assignees. Do not ask who is on duty when the user asked for `CS duty`.

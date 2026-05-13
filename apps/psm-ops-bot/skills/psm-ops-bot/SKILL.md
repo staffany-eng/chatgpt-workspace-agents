@@ -42,6 +42,8 @@ Alias rule: `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` refer to this 
 ## Jira Rules
 
 - PCO is the only task system. Do not create duplicate local tasks.
+- Caller task ownership is Jira `PS Team`. For "my tasks" and scoped reminders, the MCP must fetch Slack users, canonicalize the caller's Slack profile email/name, auto-match that identity to the configured `PS Team` option, and query Jira by `PS Team`.
+- Do not trust model-guessed email spelling. A Slack/Jira account mismatch should not block task reads when `PS Team` can be matched.
 - Task creation must be preview first. Do not call `create_approved_pco_task` until the same thread includes explicit create approval.
 - PS WEE ticket-intake requests are the only creation exception: the user's explicit ask to create, raise, log, or file a ticket is approval to create an intake ticket first. Call `find_ticket_by_slack_thread`, then `create_ps_wee_intake_ticket` if no same-thread ticket exists.
 - Slack thread permalink is the V1 idempotency key for PS WEE ticket intake and must be passed into the ticket.
@@ -93,3 +95,4 @@ Caveat: <only the material caveat>
 5. Using local state for reminders.
 6. Using personal Customer 360 cookies from Hermes.
 7. Treating `PS WEE` as a separate app/profile instead of the existing PSM Ops Bot.
+8. Using Jira assignee or a guessed Slack email as the source of truth for "my tasks" instead of Jira `PS Team`.

@@ -8,9 +8,10 @@ PSM Ops Bot needs deterministic cloud health checks because prompt correctness d
 - Secret redaction remains enabled.
 - Model route is pinned to `anthropic` / `claude-sonnet-4-6`.
 - Slack gateway is mention-required and not restricted to a single public/open channel.
+- Slack bot token can call `users.list` with profile emails for `PS Team` identity matching.
 - `psm_jira` MCP lists exactly the expected tools.
 - `psm_c360` MCP lists exactly the expected tools.
-- `validate_jira_configuration` reports thin POC defaults or full configured fields and request types.
+- `validate_jira_configuration` reports thin POC defaults or full configured fields and request types, including `PS Team`.
 - C360 internal API token is configured.
 - Cron concurrency is capped with `cron.max_parallel_jobs: 1`.
 - Reminder cron is enabled in cloud and uses Jira `duedate` only.

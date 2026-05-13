@@ -54,11 +54,40 @@ for key in \
   JIRA_BASE_URL \
   JIRA_EMAIL \
   JIRA_API_TOKEN \
+  SLACK_BOT_TOKEN \
   PSM_OPS_JIRA_SERVICE_DESK_ID \
   CUSTOMER360_INTERNAL_API_TOKEN; do
   value="${!key:-}"
   [ -n "$value" ] || fail "env:$key:missing"
 done
+
+python3 - <<'PY'
+import json
+import os
+import sys
+import urllib.parse
+import urllib.request
+
+token = os.environ.get("SLACK_BOT_TOKEN", "").strip()
+query = urllib.parse.urlencode({"limit": "20"})
+request = urllib.request.Request(
+    f"https://slack.com/api/users.list?{query}",
+    headers={"Authorization": f"Bearer {token}"},
+)
+try:
+    with urllib.request.urlopen(request, timeout=20) as response:
+        payload = json.loads(response.read().decode("utf-8"))
+except Exception:
+    print("slack:users-list-unavailable")
+    sys.exit(1)
+if not payload.get("ok"):
+    print(f"slack:users-list:{payload.get('error', 'unknown_error')}")
+    sys.exit(1)
+members = payload.get("members") or []
+if not any(((member.get("profile") or {}).get("email")) for member in members if isinstance(member, dict)):
+    print("slack:users-list-email-scope-missing")
+    sys.exit(1)
+PY
 
 if [ "${PSM_OPS_JIRA_MODE:-}" != "thin_poc" ]; then
   for key in \

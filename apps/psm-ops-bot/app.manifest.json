@@ -65,6 +65,9 @@
   "jira": {
     "project_key": "PCO",
     "source_of_truth": true,
+    "task_owner_field": "PS Team",
+    "task_owner_field_id": "customfield_10876",
+    "slack_identity_strategy": "users.list profile email/name automatch to PS Team",
     "status_names": [
       "Open",
       "Waiting Customer",

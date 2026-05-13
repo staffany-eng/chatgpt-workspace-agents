@@ -24,7 +24,8 @@ For repo-wide source claims, also follow the root `AGENTS.md`.
 - Jira PCO is the task source of truth.
 - Customer 360 is the customer context source of truth.
 - The bot may use all Customer 360 customers in V1.
-- "My tasks" and direct task actions are scoped by Slack email to configured Jira account ID.
+- "My tasks" and reminder filters are scoped by Jira `PS Team`, not Jira assignee.
+- Caller identity must be canonicalized from Slack user data. Fetch Slack users and auto-match profile email/name to the Jira `PS Team` option; do not trust guessed email spelling from the model.
 - Runtime config and secrets live in Secret Manager or the live profile `.env`; never this repo.
 
 ## Slack Posting Identity

@@ -34,10 +34,13 @@ Required env vars in thin POC:
 - `JIRA_EMAIL`
 - `JIRA_API_TOKEN`
 - `CUSTOMER360_INTERNAL_API_TOKEN`
+- `SLACK_BOT_TOKEN` for Slack `users.list` identity matching
 
-The bot resolves the caller from Slack email through Jira user search. It does not require `SLACK_ALLOWED_USERS` or `PSM_OPS_ACCESS_POLICY_PATH` in thin POC.
+The bot resolves the caller by fetching Slack users, canonicalizing the caller's Slack profile email/name, and matching that identity to the Jira `PS Team` option. It must not trust model-guessed email spelling. For example, `kai.yi@staffany.com` can be canonicalized to the Slack profile email `kaiyi@staffany.com`, then matched to the `PS Team` option `Kai Yi`.
 
-Task creation sends only fields that exist on today's PCO request forms. Due date is then written to Jira's standard `duedate` field after the request is created. Customer, priority, action type, risk reason, source links, and owner metadata are written as an internal Jira comment after approved creation.
+Task ownership and "my tasks" filters use Jira `PS Team`, not Jira assignee. Jira user search is optional in thin POC and is used only for best-effort assignment/API attribution when available. It does not require `SLACK_ALLOWED_USERS` or `PSM_OPS_ACCESS_POLICY_PATH` in thin POC.
+
+Task creation sends only fields that exist on today's PCO request forms, including `PS Team` when matched or explicitly provided. Due date is then written to Jira's standard `duedate` field after the request is created. Customer, priority, action type, risk reason, source links, and owner metadata are written as an internal Jira comment after approved creation.
 
 Automatic reminders use `duedate <= tomorrow` and `statusCategory != Done`. This means each task appears one day before it is due, on the due date, and every day after until it is marked Done. `set_pco_reminder` updates the issue due date because due date is the reminder source of truth in thin POC.
 
@@ -75,6 +78,7 @@ The access policy file maps Slack email to Jira account ID:
     {
       "slack_email": "psm@example.com",
       "jira_account_id": "account-id",
+      "ps_team": "PS Team option value",
       "display_name": "PSM Name",
       "active": true
     }
@@ -85,7 +89,7 @@ The access policy file maps Slack email to Jira account ID:
 ## Tool Rules
 
 - `validate_jira_configuration`: run in health checks and before broad enablement.
-- `list_my_pco_tasks`: safe read, caller-scoped.
+- `list_my_pco_tasks`: safe read, caller-scoped by Jira `PS Team`.
 - `find_ticket_by_slack_thread`: safe read; use the Slack thread permalink as the PS WEE idempotency key.
 - `create_ps_wee_intake_ticket`: mutation; creates an immediate needs-info intake ticket for explicit PS WEE ticketing requests without preview approval.
 - `append_ps_wee_ticket_update`: mutation; adds a concise structured internal comment for meaningful Slack follow-up discussion.
@@ -96,7 +100,7 @@ The access policy file maps Slack email to Jira account ID:
 - `add_internal_pco_comment`: mutation; internal comments only unless explicitly enabled.
 - `set_pco_ps_team`: mutation; updates only the configured Jira `PS Team` field. Treat "cs duty" as `CS Duty`, not a person assignee.
 - `set_pco_reminder`: mutation; updates Jira `duedate`, which drives automatic reminders.
-- `list_due_pco_reminders`: safe read for cron and user checks.
+- `list_due_pco_reminders`: safe read for cron and user checks; user-scoped checks filter by Jira `PS Team`.
 
 ## Failure Behavior
 

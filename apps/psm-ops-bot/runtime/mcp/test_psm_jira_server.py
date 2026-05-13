@@ -44,6 +44,8 @@ class PsmJiraServerTest(unittest.TestCase):
                             "slack_email": "psm@staffany.com",
                             "jira_account_id": "acct-123",
                             "display_name": "Ada PSM",
+                            "ps_team": "Ada PSM",
+                            "ps_team_option_id": "team-ada",
                             "active": True,
                         }
                     ]
@@ -79,7 +81,7 @@ class PsmJiraServerTest(unittest.TestCase):
         self.env.start()
         self.addCleanup(self.env.stop)
 
-    def test_list_my_tasks_is_assignee_scoped_and_safe(self):
+    def test_list_my_tasks_is_ps_team_scoped_and_safe(self):
         calls = []
 
         def fake_request(method, path, body=None):
@@ -94,6 +96,7 @@ class PsmJiraServerTest(unittest.TestCase):
                             "status": {"name": "Open"},
                             "priority": {"name": "High"},
                             "assignee": {"displayName": "Ada PSM"},
+                            "customfield_10876": {"value": "Ada PSM", "id": "team-ada"},
                             "duedate": "2026-05-15",
                             "updated": "2026-05-12T00:00:00.000+0000",
                             "issuetype": {"name": "Customer Next Action"},
@@ -108,9 +111,10 @@ class PsmJiraServerTest(unittest.TestCase):
         result = self.module.list_my_pco_tasks("psm@staffany.com", "overdue")
 
         self.assertEqual(result["confidence"], "verified")
-        self.assertIn("assignee+%3D+%22acct-123%22", calls[0][1])
+        self.assertIn("cf%5B10876%5D+%3D+%22Ada+PSM%22", calls[0][1])
         self.assertIn("duedate+%3C+now%28%29", calls[0][1])
         self.assertEqual(result["answer"][0]["issue_key"], "PCO-1")
+        self.assertEqual(result["answer"][0]["ps_team"], "Ada PSM")
         self.assertNotIn("description", result["answer"][0])
 
     def test_draft_requires_no_mutation_and_returns_duplicate_candidates(self):
@@ -540,7 +544,7 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertEqual(result["answer"]["fields"]["staffany_orgs"], "customfield_10667")
         self.assertEqual(result["answer"]["fields"]["ps_team"], "customfield_10876")
 
-    def test_thin_poc_list_uses_jira_user_search_without_policy(self):
+    def test_thin_poc_list_uses_ps_team_without_policy(self):
         calls = []
         with patch.dict(
             os.environ,
@@ -557,11 +561,15 @@ class PsmJiraServerTest(unittest.TestCase):
                     return [
                         {
                             "accountId": "acct-from-jira",
-                            "displayName": "Jira PSM",
+                            "displayName": "Ada PSM",
                             "emailAddress": "psm@staffany.com",
                             "active": True,
                         }
                     ]
+                if path == "/rest/api/3/field/customfield_10876/context":
+                    return {"values": [{"id": "context-1"}]}
+                if path.startswith("/rest/api/3/field/customfield_10876/context/context-1/option?"):
+                    return {"values": [{"id": "team-ada", "value": "Ada PSM", "disabled": False}], "isLast": True}
                 return {"issues": []}
 
             self.module._request_json = fake_request
@@ -571,8 +579,9 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertEqual(result["confidence"], "verified")
         self.assertIn("/rest/api/3/user/search?", calls[0][1])
         self.assertIn("query=psm%40staffany.com", calls[0][1])
-        self.assertIn("assignee+%3D+%22acct-from-jira%22", calls[1][1])
-        self.assertNotIn("customfield_10108", calls[1][1])
+        self.assertEqual(result["scope"]["ps_team"], "Ada PSM")
+        self.assertIn("cf%5B10876%5D+%3D+%22Ada+PSM%22", calls[-1][1])
+        self.assertNotIn("customfield_10108", calls[-1][1])
 
     def test_thin_poc_resolves_configured_slack_to_jira_email_alias(self):
         calls = []
@@ -596,6 +605,10 @@ class PsmJiraServerTest(unittest.TestCase):
                             "active": True,
                         }
                     ]
+                if path == "/rest/api/3/field/customfield_10876/context":
+                    return {"values": [{"id": "context-1"}]}
+                if path.startswith("/rest/api/3/field/customfield_10876/context/context-1/option?"):
+                    return {"values": [{"id": "team-kaiyi", "value": "Kai Yi", "disabled": False}], "isLast": True}
                 return {"issues": []}
 
             self.module._request_json = fake_request
@@ -604,7 +617,58 @@ class PsmJiraServerTest(unittest.TestCase):
 
         self.assertEqual(result["confidence"], "verified")
         self.assertIn("query=kaiyi%40staffany.com", calls[0][1])
-        self.assertIn("assignee+%3D+%22acct-kaiyi%22", calls[1][1])
+        self.assertEqual(result["scope"]["caller"], "kai.yi@staffany.com")
+        self.assertEqual(result["scope"]["ps_team"], "Kai Yi")
+        self.assertIn("cf%5B10876%5D+%3D+%22Kai+Yi%22", calls[-1][1])
+
+    def test_thin_poc_slack_roster_corrects_guessed_email_and_matches_ps_team(self):
+        calls = []
+        with patch.dict(
+            os.environ,
+            {
+                "PSM_OPS_JIRA_MODE": "thin_poc",
+                "PSM_OPS_ACCESS_POLICY_PATH": "",
+                "PSM_OPS_JIRA_FIELD_REMINDER_AT": "",
+            },
+            clear=False,
+        ), patch.object(
+            self.module,
+            "_slack_users",
+            return_value=[
+                {
+                    "id": "U-kaiyi",
+                    "name": "kaiyilee",
+                    "real_name": "Kai Yi Lee",
+                    "profile": {"email": "kaiyi@staffany.com", "real_name": "Kai Yi Lee", "display_name": "Kai Yi"},
+                }
+            ],
+        ):
+            def fake_request(method, path, body=None):
+                calls.append((method, path, body))
+                if path.startswith("/rest/api/3/user/search?"):
+                    return [
+                        {
+                            "accountId": "acct-kaiyi",
+                            "displayName": "Kaiyi Lee",
+                            "emailAddress": "kaiyi@staffany.com",
+                            "active": True,
+                        }
+                    ]
+                if path == "/rest/api/3/field/customfield_10876/context":
+                    return {"values": [{"id": "context-1"}]}
+                if path.startswith("/rest/api/3/field/customfield_10876/context/context-1/option?"):
+                    return {"values": [{"id": "team-kaiyi", "value": "Kai Yi", "disabled": False}], "isLast": True}
+                return {"issues": []}
+
+            self.module._request_json = fake_request
+
+            result = self.module.list_my_pco_tasks("kai.yi@staffany.com")
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["scope"]["caller"], "kaiyi@staffany.com")
+        self.assertEqual(result["scope"]["ps_team"], "Kai Yi")
+        self.assertIn("query=kaiyi%40staffany.com", calls[0][1])
+        self.assertIn("cf%5B10876%5D+%3D+%22Kai+Yi%22", calls[-1][1])
 
     def test_thin_poc_create_retries_summary_only_comments_and_assigns(self):
         calls = []

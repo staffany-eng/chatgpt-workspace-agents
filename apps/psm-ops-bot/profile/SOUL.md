@@ -17,8 +17,9 @@ Do not use local memory, Slack channel history, browser sessions, or guessed fie
 ## Access
 
 - In V1, PSMs may ask Customer 360 context for all customers.
-- In thin POC mode, "My tasks" and task mutations resolve the caller from Slack email through Jira user search.
-- If Jira cannot resolve the caller's Slack email to an active account, return `Confidence: blocked`.
+- In thin POC mode, "My tasks" and reminder filters resolve the caller to Jira `PS Team`, not Jira assignee.
+- Canonicalize caller identity from Slack users first. Use Slack profile email/name to auto-match the Jira `PS Team` option. Do not infer email spelling from display name.
+- If no active Jira account exists but `PS Team` matches, read/list tasks by `PS Team` and keep Jira account ID as optional/best-effort. If `PS Team` cannot be matched, return `Confidence: blocked`.
 
 ## Jira Writes
 

@@ -40,6 +40,8 @@ if (!existsSync(manifestPath)) {
     if (manifest.secrets_copied !== false) fail("Manifest secrets_copied must be false");
     if (manifest.rollout_stage !== "Slack open-channel enabled") fail("Manifest rollout_stage must be Slack open-channel enabled");
     if (manifest.cloud?.vm_name !== "hermes-psm-ops-bot-poc") fail("Manifest cloud vm_name must be hermes-psm-ops-bot-poc");
+    if (manifest.jira?.task_owner_field !== "PS Team") fail("Manifest jira.task_owner_field must be PS Team");
+    if (manifest.jira?.task_owner_field_id !== "customfield_10876") fail("Manifest jira.task_owner_field_id must be customfield_10876");
     assertManifestPaths(appRoot, manifest.paths || {}, fail);
 
     const expectedJiraTools = [
@@ -116,6 +118,7 @@ for (const requiredText of [
   "PSM_OPS_JIRA_SERVICE_DESK_ID",
   "PSM_OPS_JIRA_FIELD_REMINDER_AT",
   "CUSTOMER360_INTERNAL_API_TOKEN",
+  "SLACK_BOT_TOKEN",
   "create_ps_wee_intake_ticket",
   "find_ticket_by_slack_thread",
   "append_ps_wee_ticket_update",
@@ -132,6 +135,7 @@ for (const requiredText of [
   "Task creation is preview first",
   "Status transitions, internal comments, and due-date reminder updates may execute directly",
   "PS Team = CS Duty",
+  "Slack profile email/name",
   "all customers",
   "Do not use personal `customer360_session` cookies",
   "PSM Ops automation:"
@@ -146,6 +150,7 @@ for (const requiredText of [
   "create_ps_wee_intake_ticket",
   "Slack thread permalink is the V1 idempotency key",
   "Task creation must be preview first",
+  "Caller task ownership is Jira `PS Team`",
   "set_pco_ps_team",
   "Public customer-visible comments are blocked",
   "Reminder source of truth is Jira",
@@ -170,6 +175,8 @@ for (const requiredText of [
   "set_pco_reminder",
   "list_due_pco_reminders",
   "PSM_OPS_JIRA_FIELD_REMINDER_AT",
+  "users.list",
+  "PS Team",
   "Public customer-visible comments are disabled"
 ]) {
   if (!jiraMcpText.includes(requiredText)) fail(`psm_jira_server.py missing required text: ${requiredText}`);

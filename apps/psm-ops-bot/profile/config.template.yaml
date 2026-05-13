@@ -127,5 +127,6 @@ gateway:
   slack:
     enabled: true
     app_token_env: "SLACK_APP_TOKEN"
+    # Bot token must support users.list with email profiles for PS Team matching.
     bot_token_env: "SLACK_BOT_TOKEN"
     channel: "#ps-weeman-bot-test"

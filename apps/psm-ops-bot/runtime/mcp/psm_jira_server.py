@@ -105,6 +105,8 @@ SAFE_FIELDS = [
     "issuetype",
 ]
 
+SLACK_USER_CACHE: list[dict[str, Any]] | None = None
+
 
 class JiraError(RuntimeError):
     pass
@@ -313,6 +315,57 @@ def _request_json(method: str, path: str, body: dict[str, Any] | None = None) ->
         raise JiraError(f"Jira API unavailable: {error.reason}") from error
 
 
+def _slack_token() -> str:
+    return _env("SLACK_BOT_TOKEN") or _env("SLACK_TOKEN")
+
+
+def _request_slack_json(method: str, params: dict[str, str]) -> Any:
+    token = _slack_token()
+    if not token:
+        raise JiraError("SLACK_BOT_TOKEN is not configured for Slack user matching.")
+    query = urllib.parse.urlencode(params)
+    request = urllib.request.Request(
+        f"https://slack.com/api/{method}?{query}",
+        headers={"Authorization": f"Bearer {token}"},
+        method="GET",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as error:
+        detail = error.read().decode("utf-8", errors="replace")[:400]
+        raise JiraError(f"Slack API failed: HTTP {error.code} {detail}") from error
+    except urllib.error.URLError as error:
+        raise JiraError(f"Slack API unavailable: {error.reason}") from error
+    if not payload.get("ok"):
+        raise JiraError(f"Slack API failed: {payload.get('error', 'unknown_error')}")
+    return payload
+
+
+def _slack_users() -> list[dict[str, Any]]:
+    global SLACK_USER_CACHE
+    if SLACK_USER_CACHE is not None:
+        return SLACK_USER_CACHE
+    users: list[dict[str, Any]] = []
+    cursor = ""
+    while True:
+        params = {"limit": "200"}
+        if cursor:
+            params["cursor"] = cursor
+        payload = _request_slack_json("users.list", params)
+        for user in payload.get("members", []):
+            if not isinstance(user, dict):
+                continue
+            if user.get("deleted") or user.get("is_bot"):
+                continue
+            users.append(user)
+        cursor = str((payload.get("response_metadata") or {}).get("next_cursor") or "")
+        if not cursor:
+            break
+    SLACK_USER_CACHE = users
+    return users
+
+
 def _load_policy() -> dict[str, Any]:
     path = _env("PSM_OPS_ACCESS_POLICY_PATH")
     if not path:
@@ -338,6 +391,108 @@ def _normalize_slack_email(value: str) -> str:
     return raw
 
 
+def _identity_key(value: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", (value or "").strip().lower())
+
+
+def _email_local_key(value: str) -> str:
+    email = _normalize_slack_email(value)
+    if "@" not in email:
+        return ""
+    return _identity_key(email.split("@", 1)[0])
+
+
+def _slack_user_email(user: dict[str, Any]) -> str:
+    profile = user.get("profile") or {}
+    return str(profile.get("email") or "").strip().lower()
+
+
+def _slack_user_identity_keys(user: dict[str, Any]) -> set[str]:
+    profile = user.get("profile") or {}
+    values = [
+        user.get("name"),
+        user.get("real_name"),
+        profile.get("real_name"),
+        profile.get("display_name"),
+        _slack_user_email(user),
+        _email_local_key(_slack_user_email(user)),
+    ]
+    return {_identity_key(str(value)) for value in values if _identity_key(str(value))}
+
+
+def _resolve_slack_user(value: str) -> dict[str, Any] | None:
+    raw = value or ""
+    email = _normalize_slack_email(raw)
+    input_keys = {
+        _identity_key(raw),
+        _identity_key(email),
+        _email_local_key(email),
+    }
+    input_keys = {key for key in input_keys if key}
+    if not input_keys:
+        return None
+    try:
+        users = _slack_users()
+    except JiraError:
+        return None
+    exact_email = email if "@" in email else ""
+    if exact_email:
+        for user in users:
+            if _slack_user_email(user) == exact_email:
+                return user
+    matches = [user for user in users if input_keys & _slack_user_identity_keys(user)]
+    return matches[0] if len(matches) == 1 else None
+
+
+def _ps_team_options() -> list[dict[str, str]]:
+    field_id = _ps_team_field_id()
+    contexts = _request_json("GET", f"/rest/api/3/field/{field_id}/context")
+    options: list[dict[str, str]] = []
+    for context in contexts.get("values", []) if isinstance(contexts, dict) else []:
+        context_id = context.get("id")
+        if not context_id:
+            continue
+        start_at = 0
+        while True:
+            payload = _request_json(
+                "GET",
+                f"/rest/api/3/field/{field_id}/context/{context_id}/option?startAt={start_at}&maxResults=100",
+            )
+            values = payload.get("values", []) if isinstance(payload, dict) else []
+            for option in values:
+                if not isinstance(option, dict) or option.get("disabled"):
+                    continue
+                value = str(option.get("value") or "").strip()
+                if value:
+                    options.append({"id": str(option.get("id") or ""), "value": value})
+            if not values or payload.get("isLast", True):
+                break
+            start_at += len(values)
+    return options
+
+
+def _ps_team_option_for_identity(identity: dict[str, Any]) -> dict[str, str] | None:
+    options = _ps_team_options()
+    user = identity.get("slack_user") if isinstance(identity.get("slack_user"), dict) else None
+    keys = {
+        _identity_key(str(identity.get("slack_email") or "")),
+        _email_local_key(str(identity.get("slack_email") or "")),
+        _identity_key(str(identity.get("display_name") or "")),
+    }
+    if user:
+        keys.update(_slack_user_identity_keys(user))
+    keys = {key for key in keys if key}
+    for option in options:
+        option_key = _identity_key(option["value"])
+        if option_key in keys:
+            return option
+    for option in options:
+        option_key = _identity_key(option["value"])
+        if len(option_key) >= 4 and any(key.startswith(option_key) or option_key in key for key in keys):
+            return option
+    return None
+
+
 def _jira_email_for_slack(email: str) -> str:
     aliases = {
         "kai.yi@staffany.com": "kaiyi@staffany.com",
@@ -354,8 +509,10 @@ def _jira_email_for_slack(email: str) -> str:
     return aliases.get(email, email)
 
 
-def _caller(slack_user_email: str) -> dict[str, Any]:
-    email = _normalize_slack_email(slack_user_email)
+def _caller(slack_user_email: str, require_jira_account: bool = True, require_ps_team: bool = False) -> dict[str, Any]:
+    supplied_email = _normalize_slack_email(slack_user_email)
+    slack_user = _resolve_slack_user(slack_user_email)
+    email = _slack_user_email(slack_user) if slack_user else supplied_email
     jira_email = _jira_email_for_slack(email)
     if not email:
         raise JiraError("Caller Slack email is required.")
@@ -363,17 +520,48 @@ def _caller(slack_user_email: str) -> dict[str, Any]:
     for user in policy.get("users", []):
         if str(user.get("slack_email", "")).strip().lower() == email and user.get("active", True):
             account_id = str(user.get("jira_account_id", "")).strip()
-            if not account_id:
+            ps_team = str(user.get("ps_team") or user.get("ps_team_value") or "").strip()
+            if require_jira_account and not account_id:
                 raise JiraError(f"Jira account ID is missing for {email}.")
+            if require_ps_team and not ps_team:
+                raise JiraError(f"PS Team is missing for {email}.")
             return {
                 "slack_email": email,
                 "jira_account_id": account_id,
                 "display_name": user.get("display_name") or email,
+                "ps_team": ps_team,
+                "ps_team_option_id": user.get("ps_team_option_id") or "",
             }
     if _is_thin_poc():
-        caller = _jira_user_by_email(jira_email)
-        caller["slack_email"] = email
+        caller: dict[str, Any] = {
+            "slack_email": email,
+            "jira_email": jira_email,
+            "jira_account_id": "",
+            "display_name": email,
+            "slack_user": slack_user,
+        }
+        if slack_user:
+            profile = slack_user.get("profile") or {}
+            caller["display_name"] = (
+                str(profile.get("real_name") or "").strip()
+                or str(slack_user.get("real_name") or "").strip()
+                or str(profile.get("display_name") or "").strip()
+                or email
+            )
+        try:
+            jira_user = _jira_user_by_email(jira_email)
+            caller.update(jira_user)
+            caller["slack_email"] = email
+        except JiraError:
+            if require_jira_account:
+                raise
         caller["jira_email"] = jira_email
+        ps_team_option = _ps_team_option_for_identity(caller)
+        if ps_team_option:
+            caller["ps_team"] = ps_team_option["value"]
+            caller["ps_team_option_id"] = ps_team_option["id"]
+        elif require_ps_team:
+            raise JiraError(f"No PS Team option matched Slack user {email}.")
         return caller
     raise JiraError(f"No active Jira account mapping for {email}.")
 
@@ -424,6 +612,7 @@ def _search_issues(jql: str, fields: list[str], max_results: int) -> list[dict[s
 def _safe_issue(issue: dict[str, Any]) -> dict[str, Any]:
     fields = issue.get("fields") or {}
     reminder_field = _optional_field_id("reminder_at")
+    ps_team = fields.get(_ps_team_field_id()) or {}
     return {
         "issue_key": issue.get("key", ""),
         "url": f"{_jira_base_url()}/browse/{issue.get('key', '')}",
@@ -431,6 +620,7 @@ def _safe_issue(issue: dict[str, Any]) -> dict[str, Any]:
         "status": (fields.get("status") or {}).get("name", "Not set"),
         "priority": (fields.get("priority") or {}).get("name", "Not set"),
         "assignee": (fields.get("assignee") or {}).get("displayName", "Unassigned"),
+        "ps_team": ps_team.get("value", "Not set") if isinstance(ps_team, dict) else (ps_team or "Not set"),
         "due_date": fields.get("duedate") or "Not set",
         "updated": fields.get("updated") or "",
         "request_type": (fields.get("issuetype") or {}).get("name", "Not set"),
@@ -513,6 +703,7 @@ def _ticket_by_slack_thread(slack_thread_url: str, max_results: int = 5) -> list
 
 def _search_fields() -> list[str]:
     fields = list(SAFE_FIELDS)
+    fields.append(_ps_team_field_id())
     reminder_field = _optional_field_id("reminder_at")
     if reminder_field:
         fields.append(reminder_field)
@@ -591,9 +782,12 @@ def list_my_pco_tasks(
 
     scope = {"caller": (slack_user_email or "").strip().lower(), "filter": filter}
     try:
-        caller = _caller(slack_user_email)
-        account_id = caller["jira_account_id"]
-        clauses = [f"project = {_project_key()}", f"assignee = {_quote_jql(account_id)}"]
+        caller = _caller(slack_user_email, require_jira_account=False, require_ps_team=True)
+        ps_team = caller["ps_team"]
+        clauses = [
+            f"project = {_project_key()}",
+            f"{_jql_field_ref(_ps_team_field_id())} = {_quote_jql(ps_team)}",
+        ]
         normalized_filter = (filter or "open").strip().lower()
         if normalized_filter in {"open", "active"}:
             clauses.append("statusCategory != Done")
@@ -612,7 +806,16 @@ def list_my_pco_tasks(
     except JiraError as error:
         return _blocked(str(error), scope)
 
-    return _verified([_safe_issue(issue) for issue in issues], {**scope, "jira_account_id": caller["jira_account_id"]})
+    return _verified(
+        [_safe_issue(issue) for issue in issues],
+        {
+            **scope,
+            "caller": caller["slack_email"],
+            "ps_team": caller["ps_team"],
+            "ps_team_option_id": caller.get("ps_team_option_id", ""),
+            "jira_account_id": caller.get("jira_account_id", ""),
+        },
+    )
 
 
 @mcp.tool()
@@ -633,8 +836,9 @@ def draft_pco_task(
     """Build a Jira-ready PCO task draft without creating it."""
 
     scope = {"caller": (slack_user_email or "").strip().lower(), "customer": customer, "request_type_key": request_type_key}
+    normalized_ps_team = _normalize_ps_team(ps_team) or _infer_ps_team_from_text(summary, action_type, risk_reason, customer)
     try:
-        caller = _caller(slack_user_email)
+        caller = _caller(slack_user_email, require_jira_account=not _is_thin_poc(), require_ps_team=not bool(normalized_ps_team))
         request_type_id = _request_type_id(request_type_key)
         _configured_fields()
     except JiraError as error:
@@ -643,7 +847,7 @@ def draft_pco_task(
     if not customer or not summary:
         return _blocked("Customer and summary are required for a PCO task draft.", scope)
 
-    normalized_ps_team = _normalize_ps_team(ps_team) or _infer_ps_team_from_text(summary, action_type, risk_reason, customer)
+    normalized_ps_team = normalized_ps_team or str(caller.get("ps_team") or "").strip()
     draft = {
         "customer": customer.strip(),
         "summary": summary.strip(),
@@ -654,7 +858,7 @@ def draft_pco_task(
         "source_links": [str(link).strip() for link in (source_links or []) if str(link).strip()],
         "staffany_orgs": [str(org).strip() for org in (staffany_orgs or []) if str(org).strip()],
         "owner_psm": caller["display_name"],
-        "owner_jira_account_id": caller["jira_account_id"],
+        "owner_jira_account_id": caller.get("jira_account_id", ""),
         "contributor_cse": contributor_cse.strip(),
         "ps_team": normalized_ps_team,
         "request_type_key": request_type_key,
@@ -665,7 +869,12 @@ def draft_pco_task(
     duplicates = _duplicate_candidates(draft["customer"], draft["summary"])
     return _verified(
         {"draft": draft, "duplicate_candidates": duplicates},
-        {**scope, "jira_account_id": caller["jira_account_id"]},
+        {
+            **scope,
+            "caller": caller["slack_email"],
+            "ps_team": normalized_ps_team,
+            "jira_account_id": caller.get("jira_account_id", ""),
+        },
         "Reply create to create this PCO task.",
     )
 
@@ -1171,10 +1380,14 @@ def list_due_pco_reminders(
             clauses.append(f'duedate >= "{today}"')
             clauses.append(f'duedate <= "{upper_due_date}"')
         if slack_user_email:
-            caller = _caller(slack_user_email)
-            clauses.append(f"assignee = {_quote_jql(caller['jira_account_id'])}")
+            caller = _caller(slack_user_email, require_jira_account=False, require_ps_team=True)
+            clauses.append(f"{_jql_field_ref(_ps_team_field_id())} = {_quote_jql(caller['ps_team'])}")
+            scope["caller"] = caller["slack_email"]
+            scope["ps_team"] = caller["ps_team"]
+            scope["ps_team_option_id"] = caller.get("ps_team_option_id", "")
+            scope["jira_account_id"] = caller.get("jira_account_id", "")
         jql = " AND ".join(clauses) + " ORDER BY duedate ASC, updated DESC"
-        issues = _search_issues(jql, SAFE_FIELDS, max_results)
+        issues = _search_issues(jql, _search_fields(), max_results)
     except JiraError as error:
         return _blocked(str(error), scope)
 

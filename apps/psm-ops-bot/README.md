@@ -11,6 +11,7 @@ Alias note: `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` refer to this 
 - Slack surface: mention-required usage in public/open StaffAny Slack channels
 - Model: Anthropic provider, `claude-sonnet-4-6`
 - Jira scope: dedicated PCO Jira Service Management project only
+- Task ownership: Jira `PS Team`, matched from Slack users/profile identity
 - Customer context scope: Customer 360 internal API, all customers in V1
 - Source packet: this directory
 - Cloud host: GCE VM `hermes-psm-ops-bot-poc` in `staffany-warehouse` / `asia-southeast1`

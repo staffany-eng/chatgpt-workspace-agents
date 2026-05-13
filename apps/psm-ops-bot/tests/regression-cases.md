@@ -4,8 +4,9 @@
 
 `@PSM Ops show my overdue PCO tasks`
 
-- Resolves Slack email through runtime policy.
+- Fetches Slack users and canonicalizes profile email/name before matching the caller to Jira `PS Team`.
 - Calls `list_my_pco_tasks`.
+- Queries Jira by `PS Team`, not assignee.
 - Shows safe issue summaries only.
 
 ## Create Task
