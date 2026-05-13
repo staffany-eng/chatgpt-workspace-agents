@@ -16,9 +16,9 @@ metadata:
 
 Use this skill when the input is a named NurtureAny target account or scoped HubSpot company and the goal is to turn recent public signals into outreach.
 
-NurtureAny-specific rule: HubSpot scope comes first. On Slack, a first request that needs HubSpot, Tavily/public research, Slack lookup, or any other app-backed source must use the NurtureAny run gate before tools. After `run`, resolve the account from the caller's allowed HubSpot scope, then call the approved public-research path. If a brand/outlet name does not resolve as a scoped HubSpot target account, run the brand-parent identity fallback before blocking: use `find_brand_parent_candidates` only to discover possible parent/group names, then re-query scoped HubSpot target accounts with those candidates. Continue public news research only when the parent/group resolves inside caller scope. Do not research arbitrary company-name-only inputs outside the caller's NurtureAny scope.
+NurtureAny-specific rule: HubSpot scope comes first. On Slack, a first request that needs HubSpot, Tavily/public research, Slack lookup, or any other app-backed source must use the NurtureAny intent gate before tools. It may quick-autorun only when recent configured-channel context makes the account and ask obvious, the check is exact and light, expected under 60 seconds, and no paid/deep/public-heavy research is needed. After `run`, an equivalent same-thread approval nudge, or a valid quick-autorun decision, resolve the account from the caller's allowed HubSpot scope, then call the approved public-research path. If a brand/outlet name does not resolve as a scoped HubSpot target account, run the brand-parent identity fallback before blocking: use `find_brand_parent_candidates` only to discover possible parent/group names, then re-query scoped HubSpot target accounts with those candidates. Continue public news research only when the parent/group resolves inside caller scope. Do not research arbitrary company-name-only inputs outside the caller's NurtureAny scope.
 
-First Slack response format must be the standard NurtureAny five-line preflight only:
+First Slack response format must be the standard NurtureAny five-line preflight only unless the NurtureAny quick-autorun gate is fully satisfied:
 
 ```text
 Interpreted question: <target-account news request>

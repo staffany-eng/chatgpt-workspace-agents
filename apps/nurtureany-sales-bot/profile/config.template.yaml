@@ -74,12 +74,50 @@ nurtureany:
       - Singapore
       active: true
   approval_policy:
-    first_slack_request: plan_first
+    first_slack_request: intent_gate
     first_execution_approval: run
     hubspot_mutations: explicit_preview_approval
     external_message_sending: disabled
     eazybe_template_sending: approval_gated_v2_only
     free_form_whatsapp_sending: blocked
+  quick_autorun:
+    enabled: true
+    max_expected_seconds: 60
+    max_context_messages: 10
+    max_context_lookback_minutes: 30
+    allowed_work:
+    - read_only
+    - preview_only
+    - draft_only
+    approval_nudges:
+    - '^'
+    - '+1'
+    - 'yes'
+    - 'ok'
+    - 'go'
+    - 'please proceed'
+    - bot mention only
+    blocked_source_classes:
+    - ambiguous
+    - expanded_scope
+    - expensive
+    - paid_enrichment
+    - public_deep_research
+    - hubspot_mutation
+    - external_message_send
+    - photo_or_deck
+    - broad_audit
+    - multi_source_heavy
+    - bulk_export
+    slack_context_tool: read_recent_slack_intent_context
+    slack_context_token_env: SLACK_BOT_TOKEN
+    configured_channel_ids_env: NURTUREANY_SLACK_INTENT_CHANNEL_IDS
+    fallback_channel_ids_env: SLACK_HOME_CHANNEL
+    configured_channels_only: true
+    safe_output: safe summaries/permalinks only
+    raw_transcript_persistence: false
+    no_user_token_fallback: true
+    no_slack_connector_fallback: true
   revenue_actuals:
     query_builder_tool: build_sales_metric_actuals_query
     execution_tool: staffany_bigquery.execute_sql_readonly
@@ -166,6 +204,28 @@ nurtureany:
     enabled: false
     reason: V1 uses deterministic config and HubSpot as source of truth.
 mcp_servers:
+  slack_nurtureany:
+    description: Read-only Slack context adapter for quick-intent routing.
+    command: /Users/leekaiyi/.hermes/hermes-agent/venv/bin/python
+    args:
+    - /Users/leekaiyi/workspace/agent builder/apps/nurtureany-sales-bot/runtime/mcp/slack_nurtureany_server.py
+    auth:
+      type: bot_token_env
+      env: SLACK_BOT_TOKEN
+      configured_channel_ids_env: NURTUREANY_SLACK_INTENT_CHANNEL_IDS
+      fallback_channel_ids_env: SLACK_HOME_CHANNEL
+    access_policy:
+      mode: read_only
+      configured_channels_only: true
+      max_context_messages: 10
+      max_context_lookback_minutes: 30
+      safe_summaries_permalinks_only: true
+      raw_transcript_persistence: false
+      slack_mutations: false
+      user_token_fallback: false
+      slack_connector_fallback: false
+    tool_allowlist:
+    - read_recent_slack_intent_context
   hubspot_nurtureany:
     description: Custom HubSpot adapter for target-account nurture workflows.
     command: /Users/leekaiyi/.hermes/hermes-agent/venv/bin/python
@@ -544,6 +604,7 @@ gateway:
     app_token_env: SLACK_APP_TOKEN
     bot_token_env: SLACK_BOT_TOKEN
     allowed_users_env: SLACK_ALLOWED_USERS
+    intent_channel_ids_env: NURTUREANY_SLACK_INTENT_CHANNEL_IDS
     channels:
     - '#kaiyi-bot-testing'
     - '#team-rev-onboarding-sgmy-sales'

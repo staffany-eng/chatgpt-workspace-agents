@@ -109,6 +109,42 @@ if (!existsSync(manifestPath)) {
     if (manifest.access_policy?.manager_scope !== "country_scoped_team_read_only") {
       fail("Manifest manager scope must be country_scoped_team_read_only");
     }
+    if (manifest.quick_autorun?.enabled !== true) fail("Manifest quick_autorun must be enabled");
+    if (manifest.quick_autorun?.tool !== "read_recent_slack_intent_context") {
+      fail("Manifest quick_autorun tool must be read_recent_slack_intent_context");
+    }
+    if (manifest.quick_autorun?.max_messages !== 10) fail("Manifest quick_autorun max_messages must be 10");
+    if (manifest.quick_autorun?.max_lookback_minutes !== 30) {
+      fail("Manifest quick_autorun max_lookback_minutes must be 30");
+    }
+    if (manifest.quick_autorun?.max_expected_seconds !== 60) {
+      fail("Manifest quick_autorun max_expected_seconds must be 60");
+    }
+    for (const workClass of ["read_only", "preview_only", "draft_only"]) {
+      if (!manifest.quick_autorun?.allowed_work?.includes(workClass)) {
+        fail(`Manifest quick_autorun missing allowed work: ${workClass}`);
+      }
+    }
+    for (const blockedClass of ["hubspot_mutation", "external_message_send", "paid_enrichment", "public_deep_research", "photo_or_deck", "broad_audit", "bulk_export"]) {
+      if (!manifest.quick_autorun?.blocked_source_classes?.includes(blockedClass)) {
+        fail(`Manifest quick_autorun missing blocked source class: ${blockedClass}`);
+      }
+    }
+    if (manifest.quick_autorun?.slack_context?.token_env_var !== "SLACK_BOT_TOKEN") {
+      fail("Manifest quick_autorun Slack context must use SLACK_BOT_TOKEN");
+    }
+    if (manifest.quick_autorun?.slack_context?.configured_channel_ids_env_var !== "NURTUREANY_SLACK_INTENT_CHANNEL_IDS") {
+      fail("Manifest quick_autorun Slack context must name NURTUREANY_SLACK_INTENT_CHANNEL_IDS");
+    }
+    if (manifest.quick_autorun?.slack_context?.raw_transcript_persistence !== false) {
+      fail("Manifest quick_autorun must disable raw transcript persistence");
+    }
+    if (manifest.quick_autorun?.slack_context?.user_token_fallback !== false) {
+      fail("Manifest quick_autorun must disable user token fallback");
+    }
+    if (manifest.quick_autorun?.slack_context?.slack_connector_fallback !== false) {
+      fail("Manifest quick_autorun must disable Slack connector fallback");
+    }
 
     const paths = manifest.paths || {};
     for (const value of Object.values(paths)) {
@@ -140,6 +176,7 @@ if (!existsSync(manifestPath)) {
     }
 
     const expectedReadTools = [
+      "read_recent_slack_intent_context",
       "list_inbound_threads",
       "get_inbound_thread_context",
       "audit_inbound_sla",
@@ -247,6 +284,7 @@ if (!existsSync(manifestPath)) {
       ...(manifest.tools?.approval_gated_external_message_sending || [])
     ];
     const actualMcpTools = [
+      "runtime/mcp/slack_nurtureany_server.py",
       "runtime/mcp/hubspot_nurtureany_server.py",
       "runtime/mcp/google_calendar_nurtureany_server.py",
       "runtime/mcp/google_drive_nurtureany_server.py",
@@ -556,6 +594,8 @@ const filesToScan = [
   "skills/nurtureany-sales-bot/references/pre-demo-game-plans.md",
   "skills/nurtureany-sales-bot/references/regression-cases.md",
   "runtime/slack.md",
+  "runtime/mcp/slack_nurtureany_server.py",
+  "runtime/mcp/test_slack_nurtureany_server.py",
   "runtime/hubspot.md",
   "runtime/mcp/hubspot_nurtureany_server.py",
   "runtime/mcp/nurtureany_common/responses.py",
@@ -629,6 +669,17 @@ for (const text of [
   "NURTUREANY_ACCESS_POLICY_PATH",
   "runtime/access-policy.template.json",
   "unclassified_hubspot_owners",
+  "quick_autorun",
+  "max_expected_seconds: 60",
+  "max_context_messages: 10",
+  "max_context_lookback_minutes: 30",
+  "read_recent_slack_intent_context",
+  "slack_nurtureany",
+  "runtime/mcp/slack_nurtureany_server.py",
+  "NURTUREANY_SLACK_INTENT_CHANNEL_IDS",
+  "safe summaries/permalinks only",
+  "no_user_token_fallback: true",
+  "no_slack_connector_fallback: true",
   "list_my_target_accounts",
   "list_team_target_accounts",
       "audit_hubspot_owner_roster",
@@ -744,7 +795,13 @@ for (const text of [
   "Local references are allowed before `run`; app-backed or external sources are not",
   "KNS, K/N/S, or K N S",
   "Knowledge, Network, Support",
-  "Smoke/test/eval prompts are still first requests",
+  "quick-autorun gate",
+  "read_recent_slack_intent_context",
+  "safe summaries/permalinks only",
+  "no raw transcript persistence",
+  "Smoke/test/eval prompts follow the same quick-autorun gate",
+  "bot mention only",
+  "please proceed",
   "explicit approval",
   "Never auto-send",
   "Confidence",
@@ -818,7 +875,13 @@ for (const text of [
 const skillText = textOf("skills/nurtureany-sales-bot/SKILL.md");
 for (const text of [
   "NURTUREANY_ACCESS_POLICY_PATH",
-  "Smoke/test/eval prompts are still first requests",
+  "quick-autorun gate",
+  "read_recent_slack_intent_context",
+  "safe summaries/permalinks only",
+  "no raw transcript persistence",
+  "Smoke/test/eval prompts follow the same quick-autorun gate",
+  "bot mention only",
+  "please proceed",
   "local source-packet hydration",
   "KNS`, `K/N/S`, or `K N S`",
   "Knowledge, Network, Support",
@@ -949,7 +1012,9 @@ const sopToolCoverageText = textOf("skills/nurtureany-sales-bot/references/sop-t
 for (const text of [
   "Source hierarchy",
   "HubSpot override fields",
-  "Plan-first Slack flow",
+  "Intent-gated Slack flow",
+  "quick-autorun",
+  "read_recent_slack_intent_context",
   "Access scope",
   "PII/body safety",
   "Cost/credit reporting",
@@ -963,6 +1028,7 @@ for (const text of [
   if (!sopToolCoverageText.includes(text)) fail(`sop-tool-coverage.md missing required text: ${text}`);
 }
 for (const tool of [
+  "runtime/mcp/slack_nurtureany_server.py",
   "runtime/mcp/hubspot_nurtureany_server.py",
   "runtime/mcp/google_calendar_nurtureany_server.py",
   "runtime/mcp/google_drive_nurtureany_server.py",
@@ -981,7 +1047,12 @@ for (const tool of [
 const combinedRegressionText = `${textOf("skills/nurtureany-sales-bot/references/regression-cases.md")}\n${textOf("tests/regression-cases.md")}`;
 for (const text of [
   "Inbound Routing Quality",
-  "Smoke/test prompts are still first requests",
+  "Smoke/test prompts follow the same quick-intent gate",
+  "Quick Intent Auto-Run",
+  "Ambiguous Recent Context Still Preflight",
+  "Broad Friday Review Still Preflight",
+  "Mutation Send Reveal Still Approval-Gated",
+  "read_recent_slack_intent_context",
   "lead source",
   "checked/not-checked",
   "QO / closed-won attribution was not checked in this run",
@@ -1009,6 +1080,35 @@ if (accessPolicyTemplate) {
 }
 
 const hubspotServerText = textOf("runtime/mcp/hubspot_nurtureany_server.py");
+const slackIntentServerText = textOf("runtime/mcp/slack_nurtureany_server.py");
+for (const text of [
+  "SLACK_BOT_TOKEN",
+  "NURTUREANY_SLACK_INTENT_CHANNEL_IDS",
+  "MAX_CONTEXT_MESSAGES = 10",
+  "MAX_LOOKBACK_MINUTES = 30",
+  "conversations.history",
+  "conversations.replies",
+  "chat.getPermalink",
+  "read_recent_slack_intent_context",
+  "safe_summaries",
+  "will_post_message",
+  "transcript_persisted",
+  "mcp.run(\"stdio\")"
+]) {
+  if (!slackIntentServerText.includes(text)) fail(`runtime/mcp/slack_nurtureany_server.py missing required text: ${text}`);
+}
+
+const slackIntentTestText = textOf("runtime/mcp/test_slack_nurtureany_server.py");
+for (const text of [
+  "read_recent_slack_intent_context",
+  "test_missing_token_blocks_without_network",
+  "test_unconfigured_channel_blocks_without_network",
+  "test_history_reads_are_capped_and_redacted",
+  "test_thread_replies_path"
+]) {
+  if (!slackIntentTestText.includes(text)) fail(`runtime/mcp/test_slack_nurtureany_server.py missing required text: ${text}`);
+}
+
 for (const text of [
   "ACCESS_POLICY_ENV_VAR = \"NURTUREANY_ACCESS_POLICY_PATH\"",
   "audit_hubspot_owner_roster",
@@ -1345,6 +1445,15 @@ for (const text of [
 
 const slackText = textOf("runtime/slack.md");
 for (const text of [
+  "quick-autorun gate",
+  "read_recent_slack_intent_context",
+  "SLACK_BOT_TOKEN",
+  "safe summaries/permalinks only",
+  "conversations.history",
+  "conversations.replies",
+  "chat.getPermalink",
+  "bot mention only",
+  "please proceed",
   "event_tags=[\"Singapore\", \"Sports\"]",
   "event-first matching",
   "event.url|event.name",
@@ -1370,6 +1479,14 @@ for (const text of [
 
 const healthText = textOf("runtime/health-checks.md");
 for (const text of [
+  "Quick-autorun policy",
+  "Slack intent-context smoke check",
+  "read_recent_slack_intent_context",
+  "SLACK_BOT_TOKEN",
+  "safe summaries/permalinks only",
+  "conversations.history",
+  "conversations.replies",
+  "chat.getPermalink",
   "Luma event-link smoke check",
   "Event-first Luma smoke check",
   "campaign social-effectiveness smoke check",
@@ -1508,6 +1625,7 @@ const healthScriptText = textOf("runtime/check-health.sh");
 for (const text of [
   "PROFILE=\"${HERMES_PROFILE:-nurtureanysalesbot}\"",
   "export HERMES_HOME=\"$HOME/.hermes/profiles/$PROFILE\"",
+  "EXPECT_SLACK_INTENT_TOOLS=\"${EXPECT_SLACK_INTENT_TOOLS:-1}\"",
   "EXPECT_HUBSPOT_TOOLS=\"${EXPECT_HUBSPOT_TOOLS:-41}\"",
   "NURTUREANY_GATEWAY_SERVICE_NAME",
   "systemctl --user is-active --quiet \"$GATEWAY_SERVICE_NAME\"",
@@ -1531,11 +1649,18 @@ for (const text of [
   "slack-display:interim-assistant-messages-not-disabled",
   "kanban:dispatch-in-gateway-not-disabled",
   "terminal:cwd-points-at-codex-worktree",
+  "quick-autorun:not-enabled",
+  "slack_nurtureany",
+  "read_recent_slack_intent_context",
+  "slack-intent:configured-channel-ids-missing",
+  "slack-intent:missing-conversations-history-scope",
+  "slack-intent:channel-not-found-or-not-in-channel",
   "mcp:near_me_nurtureany:missing-google-places-env",
   "google-drive:token-permissions-not-600",
   "slack-allowlist:missing-policy-users",
   "slack-allowlist:extra-users",
   "mcp_test public_research_nurtureany",
+  "mcp_test slack_nurtureany",
   "mcp_test eazybe_nurtureany",
   "mcp_test near_me_nurtureany"
 ]) {

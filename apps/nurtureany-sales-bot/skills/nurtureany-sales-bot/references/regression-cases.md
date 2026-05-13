@@ -2,6 +2,46 @@
 
 Use these cases to validate the skill and runtime behavior before enabling a sales channel.
 
+## Slack Quick-Intent Gate
+
+Prompt:
+
+```text
+@NurtureAny Smoke 20260511 plain-run-trigger: audit priority account coverage for sg/my limit 1. Keep output compact.
+```
+
+Expected behavior:
+
+- Smoke/test prompts follow the same quick-intent gate as normal requests.
+- This broad account-coverage prompt is not low-effort because it audits HubSpot priority coverage.
+- The first Slack response is plan-only and does not call `audit_priority_account_coverage` or any other business tool.
+- The first response ends with `Reply "run" to start, or tell me what to change.`
+- After same-thread `run`, the bot executes only the confirmed compact account-coverage plan.
+
+Prompt with obvious recent configured-channel context:
+
+```text
+@NurtureAny yes just check
+```
+
+Expected behavior:
+
+- Calls `read_recent_slack_intent_context` only for intent routing, using `SLACK_BOT_TOKEN`, configured channel/thread scope, max 10 recent messages or 30 minutes, and safe summaries/permalinks only.
+- If owner, country, date, and one exact read-only count are obvious, the bot may auto-run `count_owner_whatsapp_sent_today` without asking for `run`.
+- Does not persist raw Slack transcript text, use Kai Yi's user token, use the Slack connector, mutate HubSpot, send messages, reveal paid contact data, or export PII.
+
+Ambiguous recent context expected behavior:
+
+- May call `read_recent_slack_intent_context` for safe intent routing.
+- Does not auto-run when owner, source class, outcome, or breadth is ambiguous or multi-source.
+- Returns the normal five-line preflight and asks for `run` or a narrower scope.
+
+Mutation/send/reveal expected behavior:
+
+- Does not auto-run from quick intent.
+- Requires explicit preview approval, `approval_marker`, or approved reveal selection depending on the workflow.
+- Does not send WhatsApp, mutate HubSpot, reveal Lusha, or use paid/public deep research on the first mention.
+
 ## AE Queue
 
 Prompt:
@@ -61,7 +101,7 @@ Expected behavior:
 - Other users are denied manager view with `Confidence: blocked`.
 - Managers are read-only for team scope and cannot create HubSpot write-back previews.
 
-## Friday Sales Review
+## Broad Friday Review Still Preflight
 
 Prompt:
 

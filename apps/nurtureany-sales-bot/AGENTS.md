@@ -39,10 +39,11 @@ The profiles may share model auth during pilot setup, but Slack app tokens, HubS
 
 ## Safety Rules
 
-- V1 is review-first. The first Slack request plans only; the user must approve execution.
+- V1 is review-first with a narrow quick-autorun exception. The first Slack request may execute immediately only when bounded recent Slack context makes the intent obvious, the work is read-only or preview/draft-only, expected under 60 seconds, exact in scope, and uses at most a small number of bounded tool calls.
+- Ambiguous, expanded, expensive, paid, write/send, photo/deck, broad audit, or multi-source first requests still plan first and require `run`.
 - HubSpot writes require explicit approval of a preview.
 - External messages are never auto-sent in V1.
-- Do not store or expose API keys, OAuth tokens, raw Slack transcripts, raw HubSpot rows, phone-number exports, or unnecessary PII.
+- Do not store or expose API keys, OAuth tokens, raw Slack transcripts, raw HubSpot rows, phone-number exports, or unnecessary PII. Slack context reads for quick intent must use the bot token, configured channels only, and safe summaries/permalinks only.
 - Do not use Honcho for V1 business truth, permissions, account state, or contact data.
 
 ## Verification

@@ -28,6 +28,7 @@
       "skills/nurtureany-sales-bot/references/rev-planning-and-metrics.md"
     ],
     "slack_runtime": "runtime/slack.md",
+    "slack_mcp": "runtime/mcp/slack_nurtureany_server.py",
     "hubspot_runtime": "runtime/hubspot.md",
     "hubspot_mcp": "runtime/mcp/hubspot_nurtureany_server.py",
     "case_study_catalog": "runtime/data/case-studies.json",
@@ -289,8 +290,57 @@
     },
     "required_for_verified_current_clients": true
   },
+  "quick_autorun": {
+    "enabled": true,
+    "intent_source": "bounded_recent_slack_context",
+    "tool": "read_recent_slack_intent_context",
+    "max_messages": 10,
+    "max_lookback_minutes": 30,
+    "max_expected_seconds": 60,
+    "allowed_work": [
+      "read_only",
+      "preview_only",
+      "draft_only"
+    ],
+    "approval_nudges": [
+      "^",
+      "+1",
+      "yes",
+      "ok",
+      "go",
+      "please proceed",
+      "bot mention only"
+    ],
+    "blocked_source_classes": [
+      "ambiguous",
+      "expanded_scope",
+      "expensive",
+      "paid_enrichment",
+      "public_deep_research",
+      "hubspot_mutation",
+      "external_message_send",
+      "photo_or_deck",
+      "broad_audit",
+      "multi_source_heavy",
+      "bulk_export"
+    ],
+    "slack_context": {
+      "token_env_var": "SLACK_BOT_TOKEN",
+      "configured_channel_ids_env_var": "NURTUREANY_SLACK_INTENT_CHANNEL_IDS",
+      "fallback_channel_ids_env_var": "SLACK_HOME_CHANNEL",
+      "configured_channels_only": true,
+      "allowed_tools": [
+        "read_recent_slack_intent_context"
+      ],
+      "safe_output": "safe summaries/permalinks only",
+      "raw_transcript_persistence": false,
+      "user_token_fallback": false,
+      "slack_connector_fallback": false
+    }
+  },
   "tools": {
     "read": [
+      "read_recent_slack_intent_context",
       "list_inbound_threads",
       "get_inbound_thread_context",
       "audit_inbound_sla",

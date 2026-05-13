@@ -6,7 +6,7 @@ Use this reference with `sales-best-practices.md` before changing or answering f
 
 - Source hierarchy: HubSpot and live tool output override training docs for target-account membership, owner, country, contract end date, current tools, follow-up status, calls, meetings, tasks, notes, conversations, campaigns, and deals.
 - HubSpot override fields: `hs_is_target_account`, `hubspot_owner_id`, `company_country`, `contract_end_date`, `current_tools`, HubSpot communications/notes/tasks/meetings/calls, Conversations threads, Marketing Campaigns, and configured QO/QO Met/closed-won deal stages.
-- Plan-first Slack flow: first tool-backed Slack request plans only and waits for `run`; material scope changes need a revised plan.
+- Intent-gated Slack flow: first tool-backed Slack request plans and waits for `run` unless quick-autorun is fully satisfied by obvious configured-channel context, exact scope, read-only or preview/draft-only work, expected runtime under 60 seconds, and a small bounded tool set. Material scope changes need a revised plan.
 - Access scope: Slack email is caller identity only; access comes from `NURTUREANY_ACCESS_POLICY_PATH`, HubSpot owners API, and country/owner scope.
 - PII/body safety: never return raw Slack transcripts, raw HubSpot rows, communication bodies, note bodies, task bodies, call/meeting bodies, attendee exports, phone exports, raw images, raw registration answers, raw match-key lists, or secrets by default. The only communication-body exception is `check_account_followup_status(include_body=true)` for admin callers and selected company IDs; note/task bodies, event guest data, phone exports, and bulk exports remain blocked.
 - Cost/credit reporting: Tavily public research and Exa must return `cost_report`; Lusha must return `credit_report`; any future Prospeo pilot must add equivalent cost/credit reporting before use. No hidden paid enrichment.
@@ -23,6 +23,7 @@ Use this reference with `sales-best-practices.md` before changing or answering f
 
 | Tool | Group | SOP coverage |
 | --- | --- | --- |
+| `read_recent_slack_intent_context` | Slack intent | Read-only configured-channel context for quick-autorun routing only; max 10 messages or 30 minutes, safe summaries/permalinks only, no raw transcript persistence, no user-token or Slack-connector fallback, no Slack mutation. |
 | `list_inbound_threads` | Inbound | HubSpot Conversations summaries only; apply inbound/routing SOP, access scope, plan-first flow, PII/body safety, no mutation. |
 | `get_inbound_thread_context` | Inbound | One selected thread only; HubSpot override fields govern account truth; no bulk export, no raw-body dump, no mutation. |
 | `audit_inbound_sla` | Inbound | Admin/manager inbound SLA audit only; safe aggregate routing/ack/first-touch evidence plus safe per-row lead context when available; no phone numbers, bulk raw thread export, or mutation. |

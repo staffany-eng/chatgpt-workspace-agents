@@ -9,6 +9,7 @@ EXPECT_GATEWAY="${EXPECT_GATEWAY:-1}"
 EXPECT_MODEL_AUTH="${EXPECT_MODEL_AUTH:-1}"
 EXPECT_MODEL_PROVIDER="${EXPECT_MODEL_PROVIDER:-anthropic}"
 EXPECT_MODEL_DEFAULT="${EXPECT_MODEL_DEFAULT:-claude-sonnet-4-6}"
+EXPECT_SLACK_INTENT_TOOLS="${EXPECT_SLACK_INTENT_TOOLS:-1}"
 EXPECT_STAFFANY_BIGQUERY_TOOLS="${EXPECT_STAFFANY_BIGQUERY_TOOLS:-4}"
 EXPECT_HUBSPOT_TOOLS="${EXPECT_HUBSPOT_TOOLS:-41}"
 EXPECT_GOOGLE_CALENDAR_TOOLS="${EXPECT_GOOGLE_CALENDAR_TOOLS:-2}"
@@ -192,7 +193,34 @@ if ((nurtureany.get("honcho") or {}).get("enabled")) is not False:
     print("honcho:nurtureany-not-disabled")
     raise SystemExit(1)
 
+quick_autorun = nurtureany.get("quick_autorun") or {}
+if quick_autorun.get("enabled") is not True:
+    print("quick-autorun:not-enabled")
+    raise SystemExit(1)
+if int(quick_autorun.get("max_expected_seconds") or 0) != 60:
+    print("quick-autorun:max-expected-seconds-unexpected")
+    raise SystemExit(1)
+if int(quick_autorun.get("max_context_messages") or 0) != 10:
+    print("quick-autorun:max-context-messages-unexpected")
+    raise SystemExit(1)
+if int(quick_autorun.get("max_context_lookback_minutes") or 0) != 30:
+    print("quick-autorun:max-context-lookback-unexpected")
+    raise SystemExit(1)
+if quick_autorun.get("slack_context_tool") != "read_recent_slack_intent_context":
+    print("quick-autorun:slack-context-tool-unexpected")
+    raise SystemExit(1)
+if quick_autorun.get("slack_context_token_env") != "SLACK_BOT_TOKEN":
+    print("quick-autorun:slack-context-token-env-unexpected")
+    raise SystemExit(1)
+if quick_autorun.get("raw_transcript_persistence") is not False:
+    print("quick-autorun:raw-transcript-persistence-enabled")
+    raise SystemExit(1)
+if quick_autorun.get("no_user_token_fallback") is not True or quick_autorun.get("no_slack_connector_fallback") is not True:
+    print("quick-autorun:unsafe-fallback-enabled")
+    raise SystemExit(1)
+
 expected_servers = {
+    "slack_nurtureany": ["read_recent_slack_intent_context"],
     "staffany_bigquery": ["list_dataset_ids", "list_table_ids", "get_table_info", "execute_sql_readonly"],
     "hubspot_nurtureany": [
         "list_inbound_threads",
@@ -440,6 +468,59 @@ if resolved_ids - allowed_ids:
 if allowed_ids - resolved_ids:
     print("slack-allowlist:extra-users")
     raise SystemExit(1)
+
+intent_channels_raw = (
+    os.environ.get("NURTUREANY_SLACK_INTENT_CHANNEL_IDS")
+    or profile_env.get("NURTUREANY_SLACK_INTENT_CHANNEL_IDS")
+    or os.environ.get("SLACK_HOME_CHANNEL")
+    or profile_env.get("SLACK_HOME_CHANNEL")
+    or ""
+)
+intent_channels = [value.strip() for value in intent_channels_raw.split(",") if value.strip()]
+if not intent_channels:
+    print("slack-intent:configured-channel-ids-missing")
+    raise SystemExit(1)
+
+
+def slack_get(method: str, params: dict[str, str]) -> dict:
+    url = f"https://slack.com/api/{method}?" + urllib.parse.urlencode(params)
+    request = urllib.request.Request(url, headers={"Authorization": f"Bearer {slack_token}"})
+    try:
+        with urllib.request.urlopen(request, timeout=20) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except Exception:
+        print("slack-intent:request-failed")
+        raise SystemExit(1)
+
+
+auth_data = slack_get("auth.test", {})
+if not auth_data.get("ok"):
+    print("slack-intent:auth-test-failed")
+    raise SystemExit(1)
+
+channel_id = intent_channels[0]
+history_data = slack_get("conversations.history", {"channel": channel_id, "limit": "1"})
+if not history_data.get("ok"):
+    error = str(history_data.get("error") or "unknown")
+    if error == "missing_scope":
+        print("slack-intent:missing-conversations-history-scope")
+    elif error in {"not_in_channel", "channel_not_found"}:
+        print("slack-intent:channel-not-found-or-not-in-channel")
+    else:
+        print("slack-intent:history-check-failed")
+    raise SystemExit(1)
+
+messages = history_data.get("messages") or []
+if messages:
+    message_ts = str((messages[0] or {}).get("ts") or "")
+    replies_data = slack_get("conversations.replies", {"channel": channel_id, "ts": message_ts, "limit": "1"})
+    if not replies_data.get("ok"):
+        print("slack-intent:replies-check-failed")
+        raise SystemExit(1)
+    permalink_data = slack_get("chat.getPermalink", {"channel": channel_id, "message_ts": message_ts})
+    if not permalink_data.get("ok"):
+        print("slack-intent:permalink-check-failed")
+        raise SystemExit(1)
 PY
 then
   fail "$(cat "$slack_allowlist_out")"
@@ -470,6 +551,7 @@ mcp_test() {
   grep -q "Tools discovered: $count" "$out" || fail "mcp:$name-tool-count-unexpected"
 }
 
+mcp_test slack_nurtureany "$EXPECT_SLACK_INTENT_TOOLS"
 mcp_test staffany_bigquery "$EXPECT_STAFFANY_BIGQUERY_TOOLS"
 mcp_test hubspot_nurtureany "$EXPECT_HUBSPOT_TOOLS"
 mcp_test google_calendar_nurtureany "$EXPECT_GOOGLE_CALENDAR_TOOLS"
