@@ -112,8 +112,12 @@ for (const requiredText of [
   "find_ker_ticket_from_slack_thread",
   "lookup_ker_ticket_by_key",
   "JIRA_API_TOKEN",
+  "/home/leekaiyi/.hermes/profiles/launchbot/source/launchbot",
 ]) {
   if (!configText.includes(requiredText)) fail(`config.template.yaml missing required text: ${requiredText}`);
+}
+if (configText.includes("/Users/leekaiyi/.hermes/profiles/launchbot/source/launchbot")) {
+  fail("config.template.yaml must not point cloud runtime at the local Mac launchbot profile");
 }
 
 const soulText = existsSync(join(appRoot, "profile", "SOUL.md"))
@@ -129,6 +133,7 @@ for (const requiredText of [
   "Intercom draft articles",
   "Launchbot packet",
   "Launch Superpower handoff is a Launchbot skill/workflow",
+  "Never answer `Source: Launch Superpower Bot packet`",
   "experimental",
 ]) {
   if (!soulText.includes(requiredText)) fail(`SOUL.md missing required text: ${requiredText}`);

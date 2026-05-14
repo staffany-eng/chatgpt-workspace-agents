@@ -1,5 +1,5 @@
 terminal:
-  cwd: ~/agent-builder/apps/launchbot
+  cwd: /home/leekaiyi/.hermes/profiles/launchbot/source/launchbot
 security:
   redact_secrets: true
 display:
@@ -25,9 +25,9 @@ model:
 mcp_servers:
   launchbot_ker:
     description: "Read-only Slack thread to Jira KER lookup adapter for Launchbot."
-    command: "/Users/leekaiyi/.hermes/hermes-agent/venv/bin/python"
+    command: "/home/leekaiyi/.hermes/hermes-agent/venv/bin/python"
     args:
-      - "/Users/leekaiyi/.hermes/profiles/launchbot/source/launchbot/runtime/mcp/launchbot_ker_server.py"
+      - "/home/leekaiyi/.hermes/profiles/launchbot/source/launchbot/runtime/mcp/launchbot_ker_server.py"
     timeout: 120
     tool_allowlist:
       - "find_ker_ticket_from_slack_thread"

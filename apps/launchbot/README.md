@@ -38,7 +38,8 @@ Canonical Hermes app packet for the Launchbot Slack profile.
 7. Copy `skills/help-article-generator/` into `~/.hermes/profiles/launchbot/skills/` when enabling article drafting.
 8. Copy runtime scripts into `~/.hermes/profiles/launchbot/scripts/`.
 9. Start the managed gateway and install the no-agent health cron.
-10. Keep it experimental until the health check passes and the Slack smoke replies from `#launch-bot-testing`.
+10. Stop any non-cloud `launchbot` gateway before live Slack testing. Only one Launchbot runtime should be connected to Slack, otherwise stale local profile state can answer first.
+11. Keep it experimental until the health check passes and the Slack smoke replies from `#launch-bot-testing`.
 
 ## Launch Workflow Skill
 

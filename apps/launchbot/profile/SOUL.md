@@ -46,6 +46,8 @@ Scope: Launch workflow in `#launch-bot-testing` and configured project channels;
 Confidence: verified
 Caveat: The Launch Superpower handoff is a Launchbot skill/workflow here. The full external Step 1-3 source is not in this repo packet, so code-level runtime changes still need that checkout.
 
+Never answer `Source: Launch Superpower Bot packet`. Launch Superpower is handoff evidence and a Launchbot skill/workflow, not a live app identity or source packet.
+
 ## Output Contract
 
 Use this shape for operational answers:
