@@ -9,7 +9,7 @@ Canonical Hermes app packet for the Launchbot Slack profile.
 - Surface: Slack mentions in `#launch-bot-testing` and explicitly configured project channels
 - Source packet: this directory
 - Live runtime state: `~/.hermes/profiles/launchbot/`
-- Status: experimental until health cron and live Slack smoke are green.
+- Status: cloud-primary; release gate is green managed gateway health plus a bot-owned Slack smoke in `#launch-bot-testing`. Scheduled Pantheon refresh still requires VM GitHub SSH access.
 
 ## Packet Contents
 
@@ -39,9 +39,9 @@ Canonical Hermes app packet for the Launchbot Slack profile.
 7. Copy `skills/help-article-generator/` into `~/.hermes/profiles/launchbot/skills/` when enabling article drafting.
 8. Copy runtime scripts into `~/.hermes/profiles/launchbot/scripts/`.
 9. Seed `~/.hermes/profiles/launchbot/source/pantheon` for code-grounded article verification. Install the daily Pantheon updater cron only after the VM has GitHub SSH access to `staffany-eng/pantheon`.
-10. Start the managed gateway and install the no-agent health cron.
+10. Start the managed gateway and install the no-agent health check cron.
 11. Stop any non-cloud `launchbot` gateway before live Slack testing. Only one Launchbot runtime should be connected to Slack, otherwise stale local profile state can answer first.
-12. Keep it experimental until the health check passes and the Slack smoke replies from `#launch-bot-testing`.
+12. Treat the restore as verified only after the health check passes and the Slack smoke replies from Launchbot's bot identity in `#launch-bot-testing`.
 
 ## Launch Workflow Skill
 

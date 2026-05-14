@@ -141,7 +141,8 @@ for (const requiredText of [
   "Launchbot packet",
   "Launch Superpower handoff is a Launchbot skill/workflow",
   "Never answer `Source: Launch Superpower Bot packet`",
-  "experimental",
+  "cloud-primary",
+  "Launchbot's bot identity",
 ]) {
   if (!soulText.includes(requiredText)) fail(`SOUL.md missing required text: ${requiredText}`);
 }
@@ -176,6 +177,16 @@ for (const requiredText of [
   "LAUNCHBOT_PANTHEON_REPO_DIR",
 ]) {
   if (!healthText.includes(requiredText)) fail(`check-health.sh missing required Pantheon health text: ${requiredText}`);
+}
+
+const auditText = textOf("runtime/audit-live-profile.sh");
+for (const requiredText of [
+  "cron:health-check-missing",
+  "cron:pantheon-repo-update-missing",
+  "cron:pantheon-repo-update-present-without-github-ssh",
+  "GIT_TERMINAL_PROMPT=0 git ls-remote",
+]) {
+  if (!auditText.includes(requiredText)) fail(`audit-live-profile.sh missing required cron/access text: ${requiredText}`);
 }
 
 const pantheonUpdateText = textOf("runtime/update-pantheon-repo.sh");
