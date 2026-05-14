@@ -43,19 +43,56 @@ DEFAULT_DECISION_MAKER_TITLES = [
     "founder",
     "ceo",
     "chief executive officer",
-    "managing director",
-    "director",
-    "general manager",
-    "head of operations",
-    "operations director",
-    "hr director",
-    "people director",
     "hr manager",
-    "people manager",
+    "hr director",
+    "head of hr",
+    "people and culture",
+    "people & culture",
+    "people operations",
+    "chief people officer",
     "operations manager",
-    "finance manager",
-    "payroll manager",
+    "head of operations",
+    "director of operations",
+    "operations director",
+    "coo",
+    "chief operating officer",
 ]
+WEAK_TITLE_PATTERNS = (
+    "store manager",
+    "outlet manager",
+    "branch manager",
+    "restaurant manager",
+    "assistant manager",
+    "shift manager",
+    "supervisor",
+    "team leader",
+    "crew",
+    "cashier",
+)
+FORMER_EMPLOYEE_MARKERS = (
+    "former",
+    "previously",
+    "ex-",
+    "past ",
+    "alumni",
+)
+COMPANY_NAME_STOPWORDS = {
+    "and",
+    "cafe",
+    "co",
+    "company",
+    "group",
+    "holding",
+    "holdings",
+    "limited",
+    "ltd",
+    "pte",
+    "restaurant",
+    "restaurants",
+    "sg",
+    "singapore",
+    "the",
+}
 
 
 mcp = FastMCP(
@@ -284,9 +321,85 @@ def _decision_maker_match(title: str, target_titles: list[str]) -> dict[str, Any
     }
 
 
+def _normalized_terms(value: str) -> list[str]:
+    return [term for term in "".join(char.lower() if char.isalnum() else " " for char in value).split() if term]
+
+
+def _company_name_match(title: str, company_name: str) -> bool:
+    company_terms = [term for term in _normalized_terms(company_name) if term not in COMPANY_NAME_STOPWORDS and len(term) > 2]
+    if not company_terms:
+        return False
+    title_terms = set(_normalized_terms(title))
+    required = company_terms[:2]
+    return all(term in title_terms for term in required)
+
+
+def _has_marker(text: str, markers: tuple[str, ...]) -> bool:
+    lowered = f" {text.lower()} "
+    return any(marker in lowered for marker in markers)
+
+
+def _candidate_quality(
+    title: str,
+    source_type: str,
+    company: dict[str, str],
+    decision_match: dict[str, Any],
+) -> dict[str, Any]:
+    quality_signals: list[str] = []
+    supporting_signals: list[str] = []
+    warnings: list[str] = []
+
+    if decision_match.get("matched"):
+        quality_signals.append("target_title_match")
+    else:
+        warnings.append("no_target_title_match")
+
+    if source_type == "company_public_profile":
+        quality_signals.append("company_domain_source_match")
+    if source_type == "linkedin_manual_check":
+        quality_signals.append("linkedin_url_present")
+
+    if company.get("domain"):
+        supporting_signals.append("company_domain_anchor_supplied")
+    else:
+        warnings.append("missing_company_domain_anchor")
+
+    if _company_name_match(title, company.get("name", "")):
+        supporting_signals.append("company_name_match_in_result_title")
+
+    if _has_marker(title, WEAK_TITLE_PATTERNS):
+        warnings.append("weak_store_or_junior_manager_title")
+    if _has_marker(title, FORMER_EMPLOYEE_MARKERS):
+        warnings.append("possible_former_employee")
+    if "company_domain_source_match" not in quality_signals and "linkedin_url_present" not in quality_signals:
+        warnings.append("no_linkedin_or_company_domain_result_url")
+
+    signal_count = len(quality_signals)
+    if "possible_former_employee" in warnings or "weak_store_or_junior_manager_title" in warnings:
+        confidence_band = "low"
+    elif signal_count >= 2 and warnings:
+        confidence_band = "medium"
+    elif signal_count >= 2:
+        confidence_band = "high"
+    else:
+        confidence_band = "low"
+
+    return {
+        "signal_count": signal_count,
+        "quality_signals": quality_signals,
+        "supporting_signals": supporting_signals,
+        "warnings": warnings,
+        "confidence_band": confidence_band,
+        "rule": "High requires at least two core signals: target title match, company-domain source URL, or LinkedIn URL. Single-signal candidates stay low confidence.",
+    }
+
+
 def _candidate(result: dict[str, Any], company: dict[str, str], target_titles: list[str], rank: int) -> dict[str, Any]:
     title = str(result.get("title") or "").strip()
     url = str(result.get("url") or result.get("id") or "").strip()
+    source_type = _source_type(url, company["domain"])
+    decision_match = _decision_maker_match(title, target_titles)
+    quality = _candidate_quality(title, source_type, company, decision_match)
     return {
         "rank": rank,
         "input_company": company,
@@ -294,11 +407,25 @@ def _candidate(result: dict[str, Any], company: dict[str, str], target_titles: l
         "title": title,
         "url": url,
         "source_domain": _domain(url),
-        "source_type": _source_type(url, company["domain"]),
+        "source_type": source_type,
         "inferred_name": _inferred_name(title),
         "inferred_title": _inferred_title(title),
-        "decision_maker_match": _decision_maker_match(title, target_titles),
+        "decision_maker_match": decision_match,
+        "signal_count": quality["signal_count"],
+        "quality_signals": quality["quality_signals"],
+        "supporting_signals": quality["supporting_signals"],
+        "quality_warnings": quality["warnings"],
+        "confidence_band": quality["confidence_band"],
+        "quality_gate": quality,
         "confidence": "needs-check",
+    }
+
+
+def _quality_summary(candidates: list[dict[str, Any]]) -> dict[str, int]:
+    return {
+        "high": len([candidate for candidate in candidates if candidate.get("confidence_band") == "high"]),
+        "medium": len([candidate for candidate in candidates if candidate.get("confidence_band") == "medium"]),
+        "low": len([candidate for candidate in candidates if candidate.get("confidence_band") == "low"]),
     }
 
 
@@ -358,6 +485,8 @@ def search_exa_people_candidates(
                     "query": query,
                     "exa_request_id": response.get("requestId") or "",
                     "returned_results": len(results),
+                    "quality_summary": _quality_summary(candidates),
+                    "review_next_step": "Pass candidates through review_public_enrichment_evidence for HubSpot dedupe before AE handoff.",
                     "candidates": candidates,
                 }
             )
@@ -379,7 +508,7 @@ def search_exa_people_candidates(
         "source": "Exa People Search",
         "scope": scope,
         "confidence": "needs-check",
-        "caveat": "Public people candidates only. LinkedIn/social URLs are manual-check evidence and were not fetched.",
+        "caveat": "Public people candidates only. LinkedIn/social URLs are manual-check evidence and were not fetched. Low-confidence candidates are not hidden; review and HubSpot dedupe are required before AE handoff.",
         "cost_report": report,
     }
 

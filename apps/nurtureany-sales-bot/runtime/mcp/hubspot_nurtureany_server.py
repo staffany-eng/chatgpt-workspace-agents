@@ -8865,8 +8865,15 @@ def _photo_followup_draft(contact_name: str, company_name: str, event_name: str)
 
 def _candidate_from_evidence(item: dict[str, Any], source_type: str, source_url: str) -> dict[str, Any] | None:
     candidate = item.get("contact_candidate") if isinstance(item.get("contact_candidate"), dict) else item
-    name = str(candidate.get("name") or candidate.get("contact_name") or "").strip()
-    title = str(candidate.get("title") or candidate.get("jobtitle") or candidate.get("job_title") or "").strip()
+    name = str(candidate.get("name") or candidate.get("contact_name") or candidate.get("inferred_name") or "").strip()
+    title = str(
+        candidate.get("jobtitle")
+        or candidate.get("job_title")
+        or candidate.get("inferred_title")
+        or candidate.get("persona")
+        or candidate.get("title")
+        or ""
+    ).strip()
     email = _safe_email(str(candidate.get("email") or ""))
     if not (name or email):
         return None
@@ -8879,9 +8886,30 @@ def _candidate_from_evidence(item: dict[str, Any], source_type: str, source_url:
         "is_decision_maker": _role_is_decision_maker(title),
         "confidence": "needs-check",
     }
+    for key in ("confidence_band", "signal_count", "quality_signals", "supporting_signals", "quality_warnings", "quality_gate"):
+        if key in candidate:
+            result[key] = candidate[key]
     if candidate.get("phone") or candidate.get("phone_number"):
         result["omitted_fields"] = ["phone"]
     return result
+
+
+def _public_evidence_source_type(source_type: str, source_url: str) -> str:
+    normalized = (source_type or "").strip().lower()
+    if normalized in FREE_SEARCH_SOURCE_TYPES:
+        return normalized
+    if normalized == "linkedin_manual_check":
+        return "linkedin_manual"
+    if normalized == "company_public_profile":
+        return "company_website"
+    if normalized == "social_or_gated_manual_check":
+        host = urllib.parse.urlparse(source_url).netloc.lower()
+        if "facebook.com" in host:
+            return "facebook_manual"
+        if "google." in host:
+            return "google_maps_manual"
+        return "instagram_tiktok_manual"
+    return "general_web"
 
 
 def _contact_full_name(contact: dict[str, Any]) -> str:
@@ -14405,10 +14433,9 @@ def review_public_enrichment_evidence(
             if not isinstance(raw_item, dict):
                 continue
             item = raw_item
-            source_type = str(item.get("source_type") or "").strip().lower()
-            if source_type not in FREE_SEARCH_SOURCE_TYPES:
-                source_type = "general_web"
             source_url = str(item.get("url") or item.get("source_url") or "").strip()
+            raw_source_type = str(item.get("source_type") or "").strip().lower()
+            source_type = _public_evidence_source_type(raw_source_type, source_url)
             fetched_text, fetch_status = _fetch_public_evidence_text(source_type, source_url)
             signals = _extract_company_signals(item, source_type, source_url, fetched_text)
             company_signals.extend(signals)
@@ -14421,6 +14448,7 @@ def review_public_enrichment_evidence(
             reviewed_evidence.append(
                 {
                     "source_type": source_type,
+                    "original_source_type": raw_source_type,
                     "source_url": source_url,
                     "title": _short_text(str(item.get("title") or ""), 160),
                     "observed_at": str(item.get("observed_at") or ""),
