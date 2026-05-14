@@ -134,9 +134,9 @@ Use this skill to produce help articles in a repeatable format that is ready for
 Follow this exact high-level order:
 
 1. `Title`
-2. Audience applicability block
-3. Intro paragraph in marketable tone, with no `Introduction` header
-4. Optional second intro paragraph
+2. Subtitle
+3. Audience applicability block
+4. Quick explanation paragraph, with no `Introduction` header
 5. `This guide will cover how to:` as normal bold text (not a heading)
 6. Outline list using numbered items
 7. Main sections
@@ -204,17 +204,35 @@ Follow this exact high-level order:
 - Remove any internal-only section before sending content to Google Docs or Intercom.
 - If a generated draft contains literal HTML text, repeated title text, internal appendix content, or text-based divider lines, fix it before promotion.
 
+### New article ground rules
+
+- Title must be a simple present-tense verb + feature noun, contextual to StaffAny. Example: `Create Disbursement`, `Manage Leave Types`, `View Wallet Balance`.
+- Subtitle must start with `Learn how to` followed by the contextual verb + feature noun. Example: `Learn how to create disbursement in PayrollAny`.
+- For new articles, start the audience applicability block with these default values:
+  - `Tier: NA`
+  - `Product: PayrollAny`
+  - `Platform: Web`
+  - `Access Level: Owner`
+- After generating the draft, ask the user: `Are Product: PayrollAny, Platform: Web, and Access Level: Owner correct for this article?`
+- Add a quick explanation of the feature before the guide outline.
+- The outline under `This guide will cover how to:` must list every section header in article order.
+- Section headers must start with a simple present-tense verb + noun. Order sections from setting up or explaining the feature first, then using or managing it.
+- Each section must use numbered user steps. Start with where the user goes in StaffAny, for example `Go to Settings > Payroll > ...`.
+- Keep step text simple present tense, verb + noun where practical. Use feature conditions inside the relevant section steps instead of separating them into unrelated notes.
+- Use the StaffAny help center references for structure: `Create and Manage Disbursement` for the new PayrollAny article pattern, and `Create and Manage Leave Types` for setup, edit, delete, recalculation, and condition examples.
+
 ## Output Requirements
 
 1. Show draft text in-chat first.
-2. Generate `.docx` output for review.
-3. Ensure `.docx` preserves:
+2. Ask whether `Product: PayrollAny`, `Platform: Web`, and `Access Level: Owner` are correct for the article.
+3. Generate `.docx` output for review.
+4. Ensure `.docx` preserves:
    - title/heading hierarchy
    - bold text
    - centered audience block
    - correctly indented nested bullets
    - numbered lists that restart per subsection
-4. Return only the requested article draft or structure. Do not add meta commentary such as "Structure complete" after the article body.
+5. Return only the requested article draft or structure. Do not add meta commentary such as "Structure complete" after the article body.
 
 For `Update -> Video-only update`, replace the normal article drafting output with:
 
@@ -253,6 +271,8 @@ Always keep these details outside the publishable article body:
 Before finalizing:
 
 - Section order matches contract
+- Title uses simple verb + feature noun
+- Subtitle starts with `Learn how to`
 - Pantheon evidence gate passes
 - No visible divider lines are present
 - Platform is `Mobile` or `Web`

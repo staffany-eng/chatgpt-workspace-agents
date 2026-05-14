@@ -261,6 +261,10 @@ mcp_servers:
     - list_my_target_accounts
     - list_team_target_accounts
     - audit_hubspot_owner_roster
+    - resolve_nurture_scope
+    - resolve_sales_owners
+    - list_sales_call_events
+    - summarize_sales_call_stats
     - audit_priority_account_coverage
     - build_sales_metric_actuals_query
     - build_hubspot_revenue_funnel_metrics
