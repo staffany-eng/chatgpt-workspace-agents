@@ -645,6 +645,19 @@ DAILY_NURTURE_ACTIVE_MATERIAL_STATUSES = {"active", "approved", "live"}
 DAILY_NURTURE_RUNS_DIR_ENV = "NURTUREANY_DAILY_RUNS_DIR"
 OPERATION_LEDGER_DIR_ENV = "NURTUREANY_OPERATION_LEDGER_DIR"
 OPERATION_LEDGER_DEFAULT_PROFILE = "nurtureanysalesbot"
+LESSON_CANDIDATES_DIR_ENV = "NURTUREANY_LESSON_CANDIDATES_DIR"
+LESSON_CANDIDATE_STATUSES = {"pending_review", "approved_for_repo_promotion", "rejected", "promoted"}
+LESSON_CANDIDATE_RISK_CLASSES = {"low", "medium", "high"}
+LESSON_CANDIDATE_TARGET_SURFACES = {
+    "skill_reference",
+    "soul",
+    "mcp_contract",
+    "config_template",
+    "regression_case",
+    "runbook",
+    "research_wiki",
+    "app_manifest",
+}
 LUMA_BASE_URL = "https://public-api.luma.com"
 LUMA_USER_AGENT = "StaffAny-NurtureAny/1.0 (+https://staffany.com)"
 LUMA_TIMEOUT_SECONDS = 15
@@ -8200,6 +8213,13 @@ def _operation_ledger_dir() -> Path:
     return _profile_runtime_dir() / "operation-ledger"
 
 
+def _lesson_candidates_dir() -> Path:
+    raw = os.environ.get(LESSON_CANDIDATES_DIR_ENV, "").strip()
+    if raw:
+        return Path(raw).expanduser()
+    return _profile_runtime_dir() / "lesson-candidates"
+
+
 def _safe_file_stem(value: str) -> str:
     safe_name = re.sub(r"[^A-Za-z0-9_.:-]+", "_", value or "").strip("._")
     if safe_name:
@@ -8209,6 +8229,10 @@ def _safe_file_stem(value: str) -> str:
 
 def _ledger_path(operation_id: str) -> Path:
     return _operation_ledger_dir() / f"{_safe_file_stem(operation_id)}.json"
+
+
+def _lesson_candidate_path(lesson_id: str) -> Path:
+    return _lesson_candidates_dir() / f"{_safe_file_stem(lesson_id)}.json"
 
 
 def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -8227,6 +8251,32 @@ def _load_operation_record(operation_id: str) -> dict[str, Any]:
     return payload if isinstance(payload, dict) else {}
 
 
+def _load_lesson_candidate(lesson_id: str) -> dict[str, Any]:
+    path = _lesson_candidate_path(lesson_id)
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _iter_lesson_candidates() -> list[dict[str, Any]]:
+    candidates: list[dict[str, Any]] = []
+    directory = _lesson_candidates_dir()
+    try:
+        paths = sorted(directory.glob("*.json"))
+    except OSError:
+        return candidates
+    for path in paths:
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            continue
+        if isinstance(payload, dict):
+            candidates.append(payload)
+    return candidates
+
+
 def _compact_ledger_record(record: dict[str, Any]) -> dict[str, Any]:
     history = record.get("history") if isinstance(record.get("history"), list) else []
     return {
@@ -8241,6 +8291,53 @@ def _compact_ledger_record(record: dict[str, Any]) -> dict[str, Any]:
         "updated_at": record.get("updated_at") or "",
         "history_count": len(history),
     }
+
+
+def _compact_lesson_candidate(record: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "lesson_id": record.get("lesson_id") or "",
+        "created_at": record.get("created_at") or "",
+        "source_thread_permalink": record.get("source_thread_permalink") or "",
+        "source_summary": record.get("source_summary") or "",
+        "proposed_rule": record.get("proposed_rule") or "",
+        "applies_to": record.get("applies_to") or "",
+        "target_repo_surface": record.get("target_repo_surface") or "",
+        "risk_class": record.get("risk_class") or "",
+        "status": record.get("status") or "pending_review",
+        "reviewer": record.get("reviewer") or "",
+        "review_notes": record.get("review_notes") or "",
+    }
+
+
+def _clean_lesson_text(value: str, *, max_length: int) -> str:
+    text = re.sub(r"\s+", " ", str(value or "").strip())
+    return text[:max_length]
+
+
+def _lesson_payload_unsafe(*values: str) -> str:
+    combined = "\n".join(str(value or "") for value in values)
+    secret_patterns = (
+        r"xox[baprs]-",
+        r"sk-[A-Za-z0-9_-]{20,}",
+        r"(?i)(api[_ -]?key|private[_ -]?app[_ -]?token|oauth[_ -]?token|client[_ -]?secret)\s*[:=]",
+        r"-----BEGIN [A-Z ]*PRIVATE KEY-----",
+    )
+    for pattern in secret_patterns:
+        if re.search(pattern, combined):
+            return "unsafe_payload:secret_or_token"
+    if re.search(r"(?im)^\s*(user|assistant|bot|<@U[A-Z0-9]+|[A-Za-z .'-]{1,40}):\s+.+\n\s*(user|assistant|bot|<@U[A-Z0-9]+|[A-Za-z .'-]{1,40}):", combined):
+        return "unsafe_payload:raw_transcript_shape"
+    if re.search(r"(?i)\b(user|assistant|bot|<@U[A-Z0-9]+)\s*:\s+.{1,500}\b(user|assistant|bot|<@U[A-Z0-9]+)\s*:", combined):
+        return "unsafe_payload:raw_transcript_shape"
+    if re.search(r'(?i)"properties"\s*:\s*\{|"hs_communication_body"\s*:|"mobilephone"\s*:|"phone"\s*:', combined):
+        return "unsafe_payload:raw_hubspot_row_or_pii_field"
+    pii_text = "\n".join(str(value or "") for value in values[1:])
+    phone_like = r"(?:\+?\d[\s().-]*){8,}"
+    if re.search(rf"(?i)(phone|mobile|whatsapp|sms|contact number|number)\D{{0,40}}{phone_like}", pii_text) or re.search(
+        rf"(?<!\w)\+\d[\d\s().-]{{7,}}", pii_text
+    ):
+        return "unsafe_payload:phone_number_like_text"
+    return ""
 
 
 def _persist_daily_nurture_run(run_id: str, payload: dict[str, Any]) -> dict[str, str | bool]:
@@ -16055,6 +16152,167 @@ def build_daily_nurture_plan(
         return _blocked(str(error), {"caller_email": slack_user_email})
     except ValueError as error:
         return _blocked(str(error), {"caller_email": slack_user_email})
+
+
+@mcp.tool()
+def record_nurtureany_lesson_candidate(
+    source_summary: str,
+    proposed_rule: str,
+    applies_to: str,
+    target_repo_surface: str,
+    risk_class: str,
+    source_thread_permalink: str = "",
+    lesson_id: str = "",
+) -> dict[str, Any]:
+    """Record a pending reviewed-learning candidate in the profile runtime store."""
+
+    source_thread_permalink = _clean_lesson_text(source_thread_permalink, max_length=300)
+    source_summary = _clean_lesson_text(source_summary, max_length=800)
+    proposed_rule = _clean_lesson_text(proposed_rule, max_length=800)
+    applies_to = _clean_lesson_text(applies_to, max_length=300)
+    target_repo_surface = _clean_lesson_text(target_repo_surface, max_length=80)
+    risk_class = _clean_lesson_text(risk_class, max_length=20).lower()
+    if not source_summary or not proposed_rule or not applies_to or not target_repo_surface or not risk_class:
+        return _blocked(
+            "source_summary, proposed_rule, applies_to, target_repo_surface, and risk_class are required.",
+            {"lesson_candidates": "required-fields"},
+        )
+    if target_repo_surface not in LESSON_CANDIDATE_TARGET_SURFACES:
+        return _blocked(
+            "target_repo_surface must be one of skill_reference, soul, mcp_contract, config_template, regression_case, runbook, research_wiki, or app_manifest.",
+            {"target_repo_surface": target_repo_surface},
+        )
+    if risk_class not in LESSON_CANDIDATE_RISK_CLASSES:
+        return _blocked("risk_class must be low, medium, or high.", {"risk_class": risk_class})
+    unsafe_reason = _lesson_payload_unsafe(source_thread_permalink, source_summary, proposed_rule, applies_to)
+    if unsafe_reason:
+        return _blocked(
+            "Lesson candidates must not contain raw Slack transcripts, raw HubSpot rows, phone numbers, secrets, tokens, or contact exports.",
+            {"reason": unsafe_reason},
+        )
+
+    now = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    if lesson_id:
+        safe_lesson_id = _safe_file_stem(str(lesson_id).strip())
+    else:
+        digest = hashlib.sha256(f"{source_summary}\n{proposed_rule}\n{applies_to}".encode("utf-8")).hexdigest()[:10]
+        safe_lesson_id = f"lesson-{now.replace(':', '').replace('+', 'Z')}-{digest}"
+    if not safe_lesson_id:
+        return _blocked("lesson_id could not be normalized.", {"lesson_candidates": "invalid-id"})
+    path = _lesson_candidate_path(safe_lesson_id)
+    if path.exists():
+        return _blocked("A lesson candidate already exists for this lesson_id.", {"lesson_id": safe_lesson_id})
+
+    record = {
+        "lesson_id": safe_lesson_id,
+        "created_at": now,
+        "source_thread_permalink": source_thread_permalink,
+        "source_summary": source_summary,
+        "proposed_rule": proposed_rule,
+        "applies_to": applies_to,
+        "target_repo_surface": target_repo_surface,
+        "risk_class": risk_class,
+        "status": "pending_review",
+        "reviewer": "",
+        "review_notes": "",
+        "promotion_policy": "Runtime candidate only. Human review must promote approved behavior into the repo packet, tests, and deployment.",
+        "source_of_truth_boundary": "Does not override HubSpot, access policy, Slack identity rules, safety rules, or approved repo references.",
+        "honcho_used": False,
+        "will_mutate_hubspot": False,
+    }
+    try:
+        _atomic_write_json(path, record)
+    except OSError as error:
+        return _blocked(f"Lesson candidate write failed: {error.__class__.__name__}", {"lesson_id": safe_lesson_id})
+    return {
+        "answer": _compact_lesson_candidate(record),
+        "source": "NurtureAny profile-runtime reviewed lesson candidates",
+        "scope": {"lesson_id": safe_lesson_id, "lesson_candidates_dir": str(_lesson_candidates_dir()), "status": "pending_review"},
+        "confidence": "verified",
+        "caveat": "Candidate only. It does not change bot behavior until reviewed, promoted into the repo packet, verified, and deployed.",
+    }
+
+
+@mcp.tool()
+def list_nurtureany_lesson_candidates(status: str = "", limit: int = 20) -> dict[str, Any]:
+    """List compact NurtureAny lesson candidates from the profile runtime store."""
+
+    status = str(status or "").strip()
+    if status and status not in LESSON_CANDIDATE_STATUSES:
+        return _blocked("status must be one of pending_review, approved_for_repo_promotion, rejected, or promoted.", {"status": status})
+    try:
+        safe_limit = max(1, min(int(limit), 100))
+    except (TypeError, ValueError):
+        safe_limit = 20
+    candidates = []
+    for record in _iter_lesson_candidates():
+        candidate_status = str(record.get("status") or "pending_review").strip()
+        if status and candidate_status != status:
+            continue
+        compact = _compact_lesson_candidate(record)
+        unsafe_reason = _lesson_payload_unsafe(
+            compact.get("source_thread_permalink", ""),
+            compact.get("source_summary", ""),
+            compact.get("proposed_rule", ""),
+            compact.get("applies_to", ""),
+            compact.get("review_notes", ""),
+        )
+        if unsafe_reason:
+            compact = {
+                "lesson_id": compact.get("lesson_id") or "",
+                "status": candidate_status,
+                "created_at": compact.get("created_at") or "",
+                "redacted": True,
+                "redaction_reason": unsafe_reason,
+            }
+        candidates.append(compact)
+    candidates.sort(key=lambda item: str(item.get("created_at") or ""), reverse=True)
+    returned = candidates[:safe_limit]
+    return {
+        "answer": {
+            "candidates": returned,
+            "returned_count": len(returned),
+            "total_matching_count": len(candidates),
+            "status_filter": status or "all",
+            "valid_statuses": sorted(LESSON_CANDIDATE_STATUSES),
+        },
+        "source": "NurtureAny profile-runtime reviewed lesson candidates",
+        "scope": {"lesson_candidates_dir": str(_lesson_candidates_dir()), "limit": safe_limit},
+        "confidence": "verified",
+        "caveat": "Runtime candidates are not durable behavior until promoted into the repo packet and deployed.",
+    }
+
+
+@mcp.tool()
+def read_nurtureany_lesson_candidate(lesson_id: str) -> dict[str, Any]:
+    """Read one NurtureAny lesson candidate by id."""
+
+    lesson_id = _safe_file_stem(str(lesson_id or "").strip())
+    if not lesson_id:
+        return _blocked("lesson_id is required to read a lesson candidate.", {"lesson_candidates": "required-id"})
+    record = _load_lesson_candidate(lesson_id)
+    if not record:
+        return _blocked("No lesson candidate found for this lesson_id.", {"lesson_id": lesson_id})
+    compact = _compact_lesson_candidate(record)
+    unsafe_reason = _lesson_payload_unsafe(
+        compact.get("source_thread_permalink", ""),
+        compact.get("source_summary", ""),
+        compact.get("proposed_rule", ""),
+        compact.get("applies_to", ""),
+        compact.get("review_notes", ""),
+    )
+    if unsafe_reason:
+        return _blocked(
+            "Lesson candidate contains material that should not be returned through Slack/MCP.",
+            {"lesson_id": lesson_id, "reason": unsafe_reason},
+        )
+    return {
+        "answer": compact,
+        "source": "NurtureAny profile-runtime reviewed lesson candidates",
+        "scope": {"lesson_id": lesson_id, "lesson_candidates_dir": str(_lesson_candidates_dir())},
+        "confidence": "verified",
+        "caveat": "Read-only candidate. It does not change bot behavior until promoted into the repo packet and deployed.",
+    }
 
 
 @mcp.tool()

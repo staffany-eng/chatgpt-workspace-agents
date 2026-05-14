@@ -134,3 +134,10 @@ if [ -r "$PROFILE_DIR/operation-ledger" ] || [ -d "$PROFILE_DIR/operation-ledger
 else
   line "operation_ledger:not-found"
 fi
+
+if [ -r "$PROFILE_DIR/lesson-candidates" ] || [ -d "$PROFILE_DIR/lesson-candidates" ]; then
+  count="$(find "$PROFILE_DIR/lesson-candidates" -type f -name '*.json' 2>/dev/null | wc -l | tr -d ' ')"
+  line "lesson_candidates:files=$count"
+else
+  line "lesson_candidates:not-found"
+fi

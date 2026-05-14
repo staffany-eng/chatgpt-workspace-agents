@@ -200,6 +200,14 @@ nurtureany:
   honcho:
     enabled: false
     reason: V1 uses deterministic config and HubSpot as source of truth.
+  reviewed_lessons:
+    enabled: true
+    runtime_candidates_env: NURTUREANY_LESSON_CANDIDATES_DIR
+    default_profile_dir: lesson-candidates
+    record_status: pending_review
+    auto_behavior_change: false
+    honcho_used: false
+    source_of_truth_overrides: false
 mcp_servers:
   slack_nurtureany:
     description: Read-only Slack context adapter for quick-intent routing.
@@ -293,6 +301,9 @@ mcp_servers:
     - plan_event_photo_followup
     - record_nurtureany_operation_checkpoint
     - read_nurtureany_operation_ledger
+    - record_nurtureany_lesson_candidate
+    - list_nurtureany_lesson_candidates
+    - read_nurtureany_lesson_candidate
     - draft_nurture_message
     - plan_hubspot_writeback
     mutation_tools_disabled_until_write_phase:

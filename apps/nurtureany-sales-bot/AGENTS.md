@@ -13,10 +13,13 @@ Read these first for app work:
 - `skills/nurtureany-sales-bot/references/hubspot-fields.md`
 - `skills/nurtureany-sales-bot/references/sales-best-practices.md`
 - `skills/nurtureany-sales-bot/references/sop-tool-coverage.md`
+- `skills/nurtureany-sales-bot/references/reviewed-lessons.md`
 - `runtime/slack.md`
 - `runtime/hubspot.md`
 - `runtime/bigquery.md`
 - `runtime/health-checks.md`
+- `../../research/wiki/sources/hermes-agent-docs.md`
+- `../../research/wiki/syntheses/hermes-runtime-bot-operating-model.md`
 
 For source evidence or repo-wide claims, also read the root `AGENTS.md` files listed there.
 

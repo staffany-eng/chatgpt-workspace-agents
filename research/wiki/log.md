@@ -109,3 +109,7 @@ Synthesized the cached Intercom shape profile into LaunchBot article-planning ru
 ## [2026-05-14] ingest | StaffAny Intercom Article Inventory
 
 Ingested a metadata-only Intercom article inventory for LaunchBot. Pulled 328 articles into ignored cache, committed normalized metadata and derived content signals only, and wired the planner to use inventory lookup before live affected-article search.
+
+## [2026-05-15] ingest | Hermes Agent live docs full refresh
+
+Refreshed the Hermes source note from live `llms.txt` and `llms-full.txt`. Captured current retrieval metadata, hashes, 98 curated index links, 153 source pages, six added pages since the May 10 refresh, thematic coverage counts, and short paraphrased extracts only. Promoted the refresh into a shared Hermes runtime bot operating model and wired it into Da Ta Hermz, NurtureAny, and Launchbot app guides.
