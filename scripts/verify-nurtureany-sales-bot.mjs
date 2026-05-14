@@ -714,6 +714,7 @@ for (const text of [
   "run_post_deploy_check",
   "NURTUREANY_DEPLOY_CHECK_ATTEMPTS",
   "NURTUREANY_DEPLOY_CHECK_RETRY_SECONDS",
+  "else\n      status=\"$?\"\n    fi",
   "deploy:check:$label=retry:$attempt/$attempts",
   "deploy:check:$label=failed-after-$attempts-attempts",
   "deploy:summary:sha=",
