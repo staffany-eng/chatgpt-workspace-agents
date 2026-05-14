@@ -31,7 +31,8 @@ Use this skill to produce help articles in a repeatable format that is ready for
    - Remind user content must be updated before drafting.
 4. If `Update`:
    - Do not ask for article URL first.
-   - Scan English help center content under `https://help.staffany.com/en/`.
+   - Search live Intercom articles first using `npm run intercom:affected -- --topic "<topic>"`.
+   - Scan English help center content under `https://help.staffany.com/en/` only as public fallback context.
    - Propose which article(s)/section(s) should be edited.
 5. Language rollout:
    - Default to English first.
@@ -41,28 +42,72 @@ Use this skill to produce help articles in a repeatable format that is ready for
 
 1. Treat Pantheon as the StaffAny product behavior source of truth for help articles:
    - Cloud LaunchBot path: `~/.hermes/profiles/launchbot/source/pantheon`
+   - Default local checkout: `/Users/leekaiyi/workspace/pantheon`
+   - Configured runtime checkout: `LAUNCH_PANTHEON_REPO`
    - Expected remote: `git@github.com:staffany-eng/pantheon.git`
    - Expected branch: `develop`
+   - Do not auto-pull by default.
 2. Before drafting product behavior, verify the Pantheon checkout is fresh and clean:
    - `~/.hermes/profiles/launchbot/scripts/launchbot-update-pantheon-repo.sh`
+   - `npm run help-article:pantheon-scan -- --topic "<topic>" [--app <app,app>] [--paths <paths>]`
    - `git -C ~/.hermes/profiles/launchbot/source/pantheon status --short`
    - `git -C ~/.hermes/profiles/launchbot/source/pantheon rev-parse --abbrev-ref HEAD`
    - `git -C ~/.hermes/profiles/launchbot/source/pantheon rev-parse HEAD`
-3. Jira tickets and PRDs can explain launch intent, customer positioning, and release context, but Pantheon code decides actual product behavior.
-4. Locate behavior in Pantheon before writing:
+3. Scope Pantheon app evidence correctly:
+   - `gryphon` for Web/admin behavior
+   - `pixie` for Mobile behavior
+   - `kraken` for backend/API/data behavior
+   - `manticore` only for analytics/reporting behavior
+4. Jira tickets and PRDs can explain launch intent, customer positioning, and release context, but Pantheon code decides actual product behavior.
+5. Locate behavior in Pantheon before writing:
    - feature entry points
    - user flow steps
    - access levels
    - flags/gating
    - API/data touchpoints
-5. Trace backend/API behavior in `apps/kraken`, web/admin behavior in `apps/gryphon`, mobile behavior in `apps/pixie`, and product labels or permissions in the actual code paths.
-6. Use only verified behavior in the article body.
-7. If Pantheon is missing, stale, dirty, or conflicts with Jira/PRD, block or mark the draft `needs-check`; do not guess.
-8. Keep assumptions explicit when evidence is incomplete.
+6. Trace backend/API behavior in `apps/kraken`, web/admin behavior in `apps/gryphon`, mobile behavior in `apps/pixie`, and product labels or permissions in the actual code paths.
+7. Use only verified Pantheon behavior in the article body.
+8. If Pantheon is missing, dirty, ambiguous, stale, or conflicts with Jira/PRD/Intercom, mark the draft `needs-check` and do not stage it for Intercom.
+9. Keep assumptions explicit outside the publishable article body when evidence is incomplete.
 
 ## Launchbot Planning Rules
 
 - Handoff-upgraded rules in this Launchbot skill override the older Grimoire help-article skill where they conflict.
+- Before drafting, run article planning from the cached Intercom article-shape profile:
+  - `npm run help-article:plan -- --topic "<topic>"`
+- `help-article:plan` includes an adaptive intake gate. It should infer article family, surface, audience, and desired outcome from explicit flags, topic text, cached family models, and cached inventory before asking anything.
+- If `help-article:plan` returns `needs-intake`, ask only the missing high-impact questions from `intake.questions`. Do not run a long interview or ask for every optional field.
+- Refresh the cached article-shape profile only when needed:
+  - `npm run help-article:shape-refresh`
+- Refresh the all-article inventory metadata map when article coverage changes:
+  - `npm run intercom:inventory`
+- Do not pull all live Intercom articles for every draft. Use live Intercom only for shape refreshes, affected-article search, and final stale checks before staging.
+- Use the article planning profile at `references/article-planning-profile.json` as the repeatable source for article families, audience/platform split rules, workflow tags, and create-vs-update recommendations.
+- Use the all-article inventory at `references/intercom-article-inventory.json` as the Help Center map. It must stay metadata plus derived content signals only; do not commit raw article bodies.
+- Use the hybrid Intercom format profile as the format source of truth: live Intercom pull first, then the normalized profile at `references/intercom-format-profile.json` for repeatable checks.
+- For local live Intercom tests, use `node scripts/launchbot-with-secrets.mjs --only intercom -- <command>` instead of copying tokens into a worktree. It reads `launchbot-step3-intercom-access-token` from GCP Secret Manager and maps it to `LAUNCH_STEP3_INTERCOM_ACCESS_TOKEN` / `INTERCOM_ACCESS_TOKEN` only for the child process.
+- Use Pantheon evidence as the product-behavior source of truth before drafting or staging.
+- Before sending content to Google Docs or Intercom, run `npm run help-article:evidence-check -- --draft <draft.md> --evidence <pantheon-evidence.json> --title "<article title>"`.
+- Before sending content to Google Docs or Intercom, run `npm run help-article:format-check -- --draft <draft.md> --title "<article title>"`.
+- If the Pantheon evidence gate fails, fix the source scope or draft before promotion. Do not bypass failures for missing Pantheon evidence, dirty repo state, ambiguous app scope, source conflicts, platform-specific evidence gaps, unsupported product behavior claims, or internal app-name leakage.
+- If the format gate fails, fix the draft before promotion. Do not bypass failures for missing audience metadata, repeated title text, raw HTML or markdown leakage, text divider lines, internal appendix content, bad list numbering, missing FAQ, or missing numbered outline.
+- For topic updates, use `npm run intercom:affected -- --topic "<topic>"` to find affected Intercom articles, then stage proposed diffs/previews for approval instead of overwriting published articles.
+- For an existing article update, use `npm run intercom:stage-update -- --article-id <article_id> --draft <draft.md> --evidence <pantheon-evidence.json> --title "<article title>"` to create the local staged-update record.
+- `intercom:stage-update` must use the cached article planning profile plus a live target-article pull to run the pre-stage stale check. If the cached target article fingerprint or `updated_at` disagrees with live Intercom, mark the staged update `needs-check` / `needs-refresh`.
+- Public publishing stays manual in Intercom; Launchbot writes only draft/staging output after approval.
+
+## Article Planning Rules
+
+- Start from `help-article:plan`, not the user's intake form.
+- Treat `needs-intake` as a normal planning stop: answer the concise questions, then rerun `help-article:plan` with the supplied `--surface`, `--audience`, `--outcome`, `--change`, `--jira`, `--prd`, `--release-state`, `--feature-flag`, `--reviewer`, or `--screenshot-owner` flags as relevant.
+- Prefer updating an existing article when live Intercom already has the same audience, platform, and workflow.
+- Split articles when audiences perform different jobs, such as admin setup vs employee action.
+- Split articles when platform flows differ materially, such as Web owner setup vs Mobile staff redemption.
+- Split marketplace or multi-sided workflows by actor view.
+- Keep one article when one audience completes one connected lifecycle.
+- Keep overview articles only when they coordinate related subflows.
+- If the planner returns `needs-check`, refresh or expand the article-shape profile before drafting.
+- Keep Slack, Jira, and PRD as intent/context. Pantheon remains behavior truth, and cached Intercom planning synthesis remains article-shape truth.
 - For ClubAny / Club Blue brand-and-perk management, default to one combined management article unless the user explicitly requests separate owner/staff articles.
 - The combined ClubAny management article should use major sections:
   - `Managing Brands`
@@ -110,10 +155,10 @@ Follow this exact high-level order:
 - The label `Contents of this article are applicable to the following users` must be bold and centered.
 - The metadata lines below it must be centered, not bold by default.
 - Include:
-  - Tier, using one or more of: `Startup`, `Growth`, `Scale`
   - Product, using one or more of: `EngageAny`, `StaffAny`, `HRAny`, `HireAny`, `PayrollAny`
   - Platform
   - Access Level
+- Tier is optional for now. Include it only when the source article or product owner explicitly supplies it.
 - Platform values must be user-facing:
   - `Mobile`
   - `Web`
@@ -125,6 +170,7 @@ Follow this exact high-level order:
 - Combine access levels where necessary, for example `Owner, Manager`.
 - For ClubAny / Club Blue content, set Product to `StaffAny`.
 - Never use internal app names (`pixie`, `gryphon`) in this field.
+- Never use internal app names (`gryphon`, `pixie`, `kraken`, `manticore`) anywhere in the publishable article body.
 
 ### Introduction rules
 
@@ -167,6 +213,7 @@ Always keep these details outside the publishable article body:
 - Source of truth used
 - Repository and branch/sha
 - Pantheon checkout path and freshness status
+- Pantheon evidence pack path
 - Key file paths/symbols
 - API/data touchpoints
 - Assumptions
@@ -177,12 +224,13 @@ Always keep these details outside the publishable article body:
 Before finalizing:
 
 - Section order matches contract
+- Pantheon evidence gate passes
 - No visible divider lines are present
 - Platform is `Mobile` or `Web`
 - Intro exists (no intro header)
 - No repeated title appears in the article body
 - No raw HTML appears as visible text
-- Audience block includes Tier, Product, Platform, and Access Level
+- Audience block includes Product, Platform, and Access Level
 - Outline uses real numbered lists with visible indentation
 - Steps restart from `1` per subsection
 - FAQ has bold `Q:` questions and normal answers

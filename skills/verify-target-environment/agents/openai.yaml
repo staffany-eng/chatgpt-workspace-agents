@@ -1,0 +1,4 @@
+interface:
+  display_name: "Verify Target Environment"
+  short_description: "Verify bot deploys in target env"
+  default_prompt: "Use $verify-target-environment to pull main, reconcile, deploy, verify in target environment, and merge only after target checks pass."

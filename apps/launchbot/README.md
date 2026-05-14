@@ -11,6 +11,9 @@ Canonical Hermes app packet for the Launchbot Slack profile.
 - Live runtime state: `~/.hermes/profiles/launchbot/` on `hermes-data-bot-poc`
 - Status: cloud-primary; release gate is green managed gateway health plus a bot-owned Slack smoke in `#launch-bot-testing`. Scheduled Pantheon refresh still requires VM GitHub SSH access.
 - Pantheon source checkout: `~/.hermes/profiles/launchbot/source/pantheon`, refreshed from `git@github.com:staffany-eng/pantheon.git` branch `develop` after VM GitHub SSH access is authorized.
+- Slack Socket Mode event subscriptions: `app_mention` and `message.channels`; OAuth scopes must include `app_mentions:read`, `channels:history`, `channels:read`, and `chat:write`.
+- Help article planning: cached Intercom article-shape profile plus metadata inventory first, then live Intercom only for affected search and pre-stage stale checks.
+- Publish surface: Intercom draft/staging output only; public publish stays manual in Intercom.
 
 ## Packet Contents
 
@@ -28,6 +31,7 @@ Canonical Hermes app packet for the Launchbot Slack profile.
 | `skills/help-article-generator/` | Launchbot help-article drafting skill upgraded from the 2026-05-11 handoff. |
 | `runtime/launch-workflow.md` | Help-article, Google Docs review, Slack approval, and Intercom draft workflow contract. |
 | `runtime/launchbot_e2e.py` | Minimal VM-safe handoff runner when the external source checkout is absent. |
+| `runtime/intercom-format-gate.mjs` | Pantheon evidence scan/check, Intercom search, cached article-shape planning, curated format-profile pull, and pre-publish format check CLI. |
 | `tests/launch-workflow-regression-cases.md` | Manual/eval regression scenarios for the launch workflow. |
 
 ## Restore Order
@@ -61,4 +65,22 @@ If a review message already exists and a human reviewer has reacted with ✅, pr
 
 ```bash
 python3 apps/launchbot/runtime/launchbot_e2e.py --issue KER-1742 --version v006 --approval-only
+```
+
+For local commands that need live Launchbot credentials, use Secret Manager through the wrapper instead of copying values into this worktree:
+
+```bash
+node scripts/launchbot-with-secrets.mjs --check --only intercom
+node scripts/launchbot-with-secrets.mjs --only intercom -- node apps/launchbot/runtime/intercom-format-gate.mjs intercom:affected --topic "ClubAny brands and perks"
+```
+
+Core help article planning and gate commands:
+
+```bash
+npm run help-article:plan -- --topic "<topic>"
+npm run help-article:pantheon-scan -- --topic "<topic>" --app gryphon,kraken
+npm run help-article:evidence-check -- --draft <draft.md> --evidence <pantheon-evidence.json> --title "<article title>"
+npm run help-article:format-check -- --draft <draft.md> --title "<article title>"
+npm run intercom:affected -- --topic "<topic>"
+npm run intercom:stage-update -- --article-id <article_id> --draft <draft.md> --evidence <pantheon-evidence.json> --title "<article title>"
 ```

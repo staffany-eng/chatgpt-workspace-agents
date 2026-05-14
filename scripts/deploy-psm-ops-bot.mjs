@@ -330,6 +330,21 @@ copy_dir "$deploy_dir/ops/hermes" "$remote_source_dir/ops/hermes"
 copy_dir "$deploy_dir/apps/psm-ops-bot" "$source_app"
 
 copy_dir "$deploy_dir/apps/psm-ops-bot" "$profile/source/psm-ops-bot"
+python3 - "$deploy_dir/apps/psm-ops-bot/profile/config.template.yaml" "$profile/config.yaml" "$runtime_owner" "$remote_source_dir" <<'PY'
+import sys
+from pathlib import Path
+
+src = Path(sys.argv[1])
+dst = Path(sys.argv[2])
+runtime_owner = sys.argv[3]
+remote_source_dir = sys.argv[4]
+text = src.read_text()
+text = text.replace("/Users/leekaiyi/.hermes/hermes-agent/venv/bin/python", f"/home/{runtime_owner}/.hermes/hermes-agent/venv/bin/python")
+text = text.replace("/Users/leekaiyi/workspace/agent builder", remote_source_dir)
+dst.write_text(text)
+PY
+sudo chown "$runtime_owner:$runtime_owner" "$profile/config.yaml"
+sudo chmod 0644 "$profile/config.yaml"
 copy_file "$deploy_dir/apps/psm-ops-bot/profile/SOUL.md" "$profile/SOUL.md" 0644
 copy_dir "$deploy_dir/apps/psm-ops-bot/skills/psm-ops-bot" "$profile/skills/psm-ops-bot"
 copy_dir "$deploy_dir/apps/psm-ops-bot/runtime/mcp" "$profile/runtime/mcp"

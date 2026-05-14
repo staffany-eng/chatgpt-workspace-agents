@@ -89,6 +89,7 @@ class PsmJiraServerTest(unittest.TestCase):
                 "JIRA_API_TOKEN": "jira-token",
                 "SLACK_BOT_TOKEN": "xoxb-fake",
                 "PSM_OPS_JIRA_MODE": "full",
+                "PSM_OPS_TODAY": "2026-05-13",
                 "PSM_OPS_ACCESS_POLICY_PATH": str(policy_path),
                 "PSM_OPS_JIRA_SERVICE_DESK_ID": "10",
                 "PSM_OPS_JIRA_REQUEST_TYPE_CUSTOMER_NEXT_ACTION": "101",
@@ -152,6 +153,16 @@ class PsmJiraServerTest(unittest.TestCase):
         for field_name in extra_required or []:
             fields.append({"fieldId": f"customfield_extra_{len(fields)}", "name": field_name, "required": True})
         return fields
+
+    def test_roi_urgent_field_defaults_to_no_when_required(self):
+        field = {
+            "fieldId": "customfield_10833",
+            "name": "Urgent?",
+            "required": True,
+            "validValues": [{"value": "11975", "label": "Yes"}, {"value": "11976", "label": "No"}],
+        }
+
+        self.assertEqual(self.module._roi_default_priority_for_field(field), "No")
 
     def test_list_my_tasks_is_ps_team_scoped_and_safe(self):
         calls = []

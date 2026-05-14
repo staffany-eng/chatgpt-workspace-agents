@@ -59,6 +59,8 @@ ROI ticket quality requires the text company/customer field and the object-backe
 
 ROI requester is mandatory. Explicit `requested by` / `reported by` wins; otherwise use the current Slack sender. Do not fall back to a bot, team, or `team@staffany.com` requester.
 
+For ROI urgency fields, match the field's configured options exactly. If the required field is `Urgent?` with Yes/No options and the Slack request does not state urgency, use `No`; do not send `Normal`, `Medium`, or boolean values.
+
 ## PS Team Routing
 
 - Jira `PS Team` is the task-owner source of truth for "my tasks" and scoped reminders.

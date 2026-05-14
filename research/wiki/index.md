@@ -29,6 +29,7 @@ This directory is the maintained research wiki for designing ChatGPT workspace a
 - [StaffAny Rev Team Planning And Metrics](./sources/staffany-rev-team-planning-and-metrics.md)
 - [StaffAny Public Customer Case Studies](./sources/staffany-public-customer-case-studies.md)
 - [Launch Superpower Bot Handoff](./sources/launch-superpower-bot-handoff.md)
+- [StaffAny Intercom Help Article Shape](./sources/staffany-intercom-help-article-shape.md)
 - [NurtureAny Target Market And User Journey](./sources/nurtureany-target-market-user-journey.md)
 - [NurtureAny Mobile Number Rollout](./sources/nurtureany-mobile-number-rollout.md)
 - [PSM Ops PCO Release Watch](./sources/psm-ops-pco-release-watch.md)
@@ -45,6 +46,7 @@ This directory is the maintained research wiki for designing ChatGPT workspace a
 - [NurtureAny Sales Best Practices](./syntheses/nurtureany-sales-best-practices.md)
 - [StaffAny Revenue Operating Model](./syntheses/staffany-revenue-operating-model.md)
 - [PSM Ops Release Watch](./syntheses/psm-ops-release-watch.md)
+- [Help Article Planning Rules](./syntheses/help-article-planning-rules.md)
 
 ## Maintenance
 

@@ -155,8 +155,9 @@ Requester rules:
 
 Field rules:
 
-- Fill deterministic fields only: requester, customer/org, request category, summary/title, details/context, source Slack thread, original channel, and priority/urgency when stated.
+- Fill deterministic fields only: requester, customer/org, StaffAny Organization object, request category, summary/title, details/context, source Slack thread, original channel, and priority/urgency when stated.
 - For ROI, fill both the text `Company Name` field and the object-backed `StaffAny Organization` field when the request type exposes both. A valid ticket with only `Company Name` is lower-quality because the board loses the clickable StaffAny org object.
+- If the ROI form uses a required `Urgent?` Yes/No field and the Slack request does not state urgency, use `No`; do not send `Normal`, `Medium`, or a boolean for that field.
 - If the ROI form requires priority and has a `Medium` or `Normal` option, the adapter may use that as the default.
 - If any required field remains missing, `create_roi_ticket_from_slack` blocks with exact missing field names and does not write to Jira.
 

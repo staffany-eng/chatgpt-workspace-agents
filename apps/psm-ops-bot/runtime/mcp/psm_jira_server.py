@@ -516,6 +516,16 @@ def _roi_default_priority_for_field(field: dict[str, Any]) -> str:
     options = [option for option in (field.get("validValues") or []) if isinstance(option, dict)]
     if not options:
         return "Medium"
+    field_label = _normalize_label(_roi_field_name(field))
+    if "urgent" in field_label:
+        for option in options:
+            labels = [
+                str(option.get("label") or ""),
+                str(option.get("name") or ""),
+                str(option.get("value") or ""),
+            ]
+            if any(_normalize_label(label) == "no" for label in labels if label):
+                return str(option.get("label") or option.get("name") or option.get("value") or "No")
     for preferred in ["medium", "normal"]:
         for option in options:
             labels = [

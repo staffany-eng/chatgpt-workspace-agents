@@ -21,8 +21,13 @@
     "ker_mcp_tests": "runtime/mcp/test_launchbot_ker_server.py",
     "launch_workflow": "runtime/launch-workflow.md",
     "handoff_runner": "runtime/launchbot_e2e.py",
+    "intercom_format_gate": "runtime/intercom-format-gate.mjs",
+    "intercom_format_gate_tests": "runtime/intercom-format-gate.test.mjs",
     "help_article_skill": "skills/help-article-generator/SKILL.md",
     "help_article_skeleton": "skills/help-article-generator/references/help-article-skeleton.md",
+    "intercom_format_profile": "skills/help-article-generator/references/intercom-format-profile.json",
+    "article_planning_profile": "skills/help-article-generator/references/article-planning-profile.json",
+    "intercom_article_inventory": "skills/help-article-generator/references/intercom-article-inventory.json",
     "launch_workflow_regression_cases": "tests/launch-workflow-regression-cases.md"
   },
   "channels": [
@@ -37,7 +42,19 @@
       "C0AJAUNCEL8"
     ],
     "require_mention": true,
-    "reactions": false
+    "reactions": false,
+    "socket_mode": true,
+    "required_bot_events": [
+      "app_mention",
+      "message.channels"
+    ],
+    "required_oauth_scopes": [
+      "app_mentions:read",
+      "channels:history",
+      "channels:read",
+      "chat:write"
+    ],
+    "event_subscription_drift_guard": "Launchbot Socket Mode must subscribe to message.channels or channel mentions/replies will not reach the Hermes gateway."
   },
   "mcp": {
     "launchbot_ker": {
@@ -102,9 +119,18 @@
     "evidence": {
       "raw_manifest": "research/raw/launch-superpower-bot/2026-05-11-handoff/source-manifest.md",
       "raw_handoff": "research/raw/launch-superpower-bot/2026-05-11-handoff/handoff.md",
-      "source_note": "research/wiki/sources/launch-superpower-bot-handoff.md"
+      "source_note": "research/wiki/sources/launch-superpower-bot-handoff.md",
+      "intercom_shape_raw": "research/raw/staffany-intercom-help-article-shape/source-record.md",
+      "intercom_shape_source_note": "research/wiki/sources/staffany-intercom-help-article-shape.md",
+      "intercom_shape_synthesis": "research/wiki/syntheses/help-article-planning-rules.md"
     },
     "workflow_steps": [
+      {
+        "step": 0,
+        "name": "pantheon_evidence_and_intercom_format_gate",
+        "status": "implemented_in_packet",
+        "output": "read-only Pantheon evidence packs, live Intercom article search, cached article planning, curated format profile, and pre-publish draft gates"
+      },
       {
         "step": 1,
         "name": "help_article_trigger",
@@ -141,6 +167,12 @@
     "optional_env_names": [
       "LAUNCH_STEP3_INTERCOM_AUTHOR_ID",
       "LAUNCH_STEP3_INTERCOM_APP_ID",
+      "LAUNCH_INTERCOM_HELP_CENTER_ID",
+      "LAUNCH_INTERCOM_FORMAT_SAMPLE_IDS",
+      "LAUNCH_INTERCOM_SHAPE_FAMILIES",
+      "LAUNCH_INTERCOM_INVENTORY_STATE",
+      "LAUNCH_PANTHEON_REPO",
+      "LAUNCH_PANTHEON_APPS",
       "LAUNCH_GOOGLE_AUTH_JSON",
       "GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE",
       "LAUNCH_STEP2_SLACK_CHANNEL_ID",
@@ -149,6 +181,10 @@
     ],
     "help_article_contract": {
       "source_of_truth": "pantheon_code_grounded_behavior",
+      "pantheon_evidence_required": true,
+      "pantheon_evidence_gate": true,
+      "pantheon_missing_or_dirty_blocks": true,
+      "pantheon_ambiguous_or_conflicting_blocks": true,
       "code_source_checkout": {
         "repo": "pantheon",
         "remote": "git@github.com:staffany-eng/pantheon.git",
@@ -164,6 +200,17 @@
       "audience_block_centered": true,
       "outline_list": "numbered",
       "numbered_steps_restart_per_subsection": true,
+      "intercom_format_profile": "skills/help-article-generator/references/intercom-format-profile.json",
+      "article_planning_profile": "skills/help-article-generator/references/article-planning-profile.json",
+      "intercom_article_inventory": "skills/help-article-generator/references/intercom-article-inventory.json",
+      "article_planner_required_before_draft": true,
+      "adaptive_intake_gate_before_plan": true,
+      "article_inventory_metadata_only": true,
+      "article_inventory_used_before_live_search": true,
+      "article_shape_stale_check_before_staging": true,
+      "cached_intercom_planning_profile": true,
+      "pre_publish_format_gate": true,
+      "live_intercom_wins_on_conflict": true,
       "clubany_product_label": "StaffAny",
       "clubany_management_article_default": "combined_brands_and_perks_article"
     },
