@@ -64,6 +64,7 @@
         "add_internal_pco_comment",
         "set_pco_assignee",
         "set_pco_ps_team",
+        "link_pco_to_engineering_issue",
         "set_pco_reminder",
         "list_due_pco_reminders"
       ]
@@ -108,6 +109,7 @@
       "idempotency_key": "Slack thread permalink",
       "field_envs": [
         "PSM_OPS_ROI_JIRA_FIELD_CUSTOMER",
+        "PSM_OPS_ROI_JIRA_FIELD_STAFFANY_ORGS",
         "PSM_OPS_ROI_JIRA_FIELD_REQUEST_CATEGORY",
         "PSM_OPS_ROI_JIRA_FIELD_SOURCE_LINKS",
         "PSM_OPS_ROI_JIRA_FIELD_REQUESTER",

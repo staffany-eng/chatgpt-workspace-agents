@@ -29,7 +29,7 @@ if command -v hermes >/dev/null 2>&1; then
   for server in psm_jira psm_c360 psm_google_calendar; do
     out="$(hermes -p "$PROFILE" mcp test "$server" 2>&1 || true)"
     case "$server" in
-      psm_jira) expected=19 ;;
+      psm_jira) expected=20 ;;
       psm_c360) expected=3 ;;
       psm_google_calendar) expected=1 ;;
     esac

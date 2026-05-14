@@ -68,6 +68,15 @@ THIN_POC_FIELD_IDS = {
     "ps_team": "customfield_10876",
 }
 REMINDER_NOT_CONFIGURED = "Reminder at field is not configured in PCO yet."
+ENGINEERING_LINK_TARGET_RE = re.compile(r"^(KER|SCHE)-\d+$", re.IGNORECASE)
+PCO_ISSUE_RE = re.compile(r"^PCO-\d+$", re.IGNORECASE)
+ISSUE_LINK_TYPE_ALIASES = {
+    "blocks": "Blocks",
+    "is blocked by": "Blocks",
+    "blocked by": "Blocks",
+    "relates": "Relates",
+    "relates to": "Relates",
+}
 
 FIELD_ENVS = {
     "customer": "PSM_OPS_JIRA_FIELD_CUSTOMER",
@@ -82,6 +91,7 @@ FIELD_ENVS = {
 
 ROI_FIELD_ENVS = {
     "customer": "PSM_OPS_ROI_JIRA_FIELD_CUSTOMER",
+    "staffany_orgs": "PSM_OPS_ROI_JIRA_FIELD_STAFFANY_ORGS",
     "request_category": "PSM_OPS_ROI_JIRA_FIELD_REQUEST_CATEGORY",
     "source_links": "PSM_OPS_ROI_JIRA_FIELD_SOURCE_LINKS",
     "requester": "PSM_OPS_ROI_JIRA_FIELD_REQUESTER",
@@ -437,6 +447,8 @@ def _roi_field_key(field: dict[str, Any]) -> str:
         return "summary"
     if field_id == "description" or "description" in name or "details" in name or "context" in name:
         return "details"
+    if "staffany" in name and any(token in name for token in ["org", "organisation", "organization"]):
+        return "staffany_orgs"
     if name == "org" or any(token in name for token in ["company", "customer", "account", " org ", "organisation", "organization"]):
         return "customer"
     if "requester" in name or "requestor" in name or ("reported" in name and "by" in name) or ("requested" in name and "by" in name):
@@ -599,6 +611,34 @@ def _request_json(method: str, path: str, body: dict[str, Any] | None = None) ->
         raise JiraError(f"Jira API failed: HTTP {error.code} {detail}") from error
     except urllib.error.URLError as error:
         raise JiraError(f"Jira API unavailable: {error.reason}") from error
+
+
+def _issue_link_exists(pco_key: str, engineering_key: str, link_type: str) -> bool:
+    payload = _request_json(
+        "GET",
+        f"/rest/api/3/issue/{urllib.parse.quote(pco_key)}?fields=issuelinks",
+    )
+    issue_links = ((payload.get("fields") or {}).get("issuelinks") or [])
+    for issue_link in issue_links:
+        if ((issue_link.get("type") or {}).get("name") or "") != link_type:
+            continue
+        inward_key = ((issue_link.get("inwardIssue") or {}).get("key") or "").upper()
+        outward_key = ((issue_link.get("outwardIssue") or {}).get("key") or "").upper()
+        if link_type == "Blocks":
+            if engineering_key in {inward_key, outward_key}:
+                return True
+            continue
+        if engineering_key in {inward_key, outward_key}:
+            return True
+    return False
+
+
+def _looks_like_existing_issue_link_error(error: JiraError) -> bool:
+    message = str(error).lower()
+    return (
+        ("issue link" in message or "link between" in message or "link" in message)
+        and ("already exists" in message or "exists" in message or "duplicate" in message)
+    )
 
 
 def _slack_token() -> str:
@@ -960,6 +1000,15 @@ def _quote_jql(value: str) -> str:
     return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
+def _normalize_issue_key(value: str) -> str:
+    return (value or "").strip().upper()
+
+
+def _normalize_issue_link_type(value: str) -> str:
+    normalized = _normalize_label(value or "Blocks")
+    return ISSUE_LINK_TYPE_ALIASES.get(normalized, "")
+
+
 def _jql_field_ref(field_id: str) -> str:
     match = re.fullmatch(r"customfield_(\d+)", field_id)
     return f"cf[{match.group(1)}]" if match else field_id
@@ -1196,6 +1245,7 @@ def _roi_metadata_comment(draft: dict[str, Any]) -> str:
         ("Requester", draft.get("requester_text")),
         ("Requester source", draft.get("requester_source")),
         ("Customer/org", draft.get("customer")),
+        ("StaffAny Organization", ", ".join(draft.get("staffany_orgs") or [])),
         ("Request category", draft.get("request_category")),
         ("Priority/urgency", draft.get("priority")),
         ("Summary", draft.get("summary")),
@@ -1226,6 +1276,7 @@ def _roi_request_field_values(fields: list[dict[str, Any]], draft: dict[str, Any
         "summary": draft.get("summary", ""),
         "details": draft.get("description", ""),
         "customer": draft.get("customer", ""),
+        "staffany_orgs": ", ".join(draft.get("staffany_orgs") or []),
         "request_category": draft.get("request_category", ""),
         "source_links": "\n".join([draft.get("slack_thread_url", ""), *(draft.get("evidence_links") or [])]).strip(),
         "requester": draft.get("requester_text", ""),
@@ -1631,6 +1682,7 @@ def create_roi_ticket_from_slack(
     slack_thread_url: str,
     message_text: str = "",
     customer: str = "",
+    staffany_orgs: list[str] | None = None,
     summary: str = "",
     details: str = "",
     request_category: str = "",
@@ -1644,6 +1696,9 @@ def create_roi_ticket_from_slack(
     source = (slack_thread_url or "").strip()
     links = [str(link).strip() for link in (evidence_links or []) if str(link).strip()]
     normalized_customer = (customer or "").strip()
+    normalized_staffany_orgs = [str(org).strip() for org in (staffany_orgs or []) if str(org).strip()]
+    if not normalized_staffany_orgs and normalized_customer:
+        normalized_staffany_orgs = [normalized_customer]
     intent_text = "\n".join(
         part
         for part in [
@@ -1710,6 +1765,7 @@ def create_roi_ticket_from_slack(
                 "requester_text": requester_text,
                 "requester_source": requester_source,
                 "customer": normalized_customer,
+                "staffany_orgs": normalized_staffany_orgs,
                 "request_category": roi_category,
                 "priority": (priority or "").strip(),
                 "summary": roi_summary,
@@ -1725,6 +1781,7 @@ def create_roi_ticket_from_slack(
             "requester_source": requester_source,
             "requester_jira_account_id": requester_identity["jira_account_id"],
             "customer": normalized_customer,
+            "staffany_orgs": normalized_staffany_orgs,
             "request_category": roi_category,
             "priority": (priority or "").strip(),
             "summary": roi_summary,
@@ -2029,6 +2086,86 @@ def set_pco_ps_team(
         {"issue_key": key, "ps_team": normalized},
         scope,
         "PS Team was updated on the Jira issue.",
+    )
+
+
+@mcp.tool()
+def link_pco_to_engineering_issue(
+    pco_issue_key: str,
+    engineering_issue_key: str,
+    link_type: str = "Blocks",
+) -> dict[str, Any]:
+    """Link a PCO issue to a KER/SCHE issue with a narrow allowlist."""
+
+    pco_key = _normalize_issue_key(pco_issue_key)
+    engineering_key = _normalize_issue_key(engineering_issue_key)
+    normalized_link_type = _normalize_issue_link_type(link_type)
+    scope = {
+        "pco_issue_key": pco_key,
+        "engineering_issue_key": engineering_key,
+        "link_type": normalized_link_type or (link_type or "").strip(),
+    }
+    if not PCO_ISSUE_RE.fullmatch(pco_key):
+        return _blocked("pco_issue_key must look like PCO-123.", scope)
+    if not ENGINEERING_LINK_TARGET_RE.fullmatch(engineering_key):
+        return _blocked("engineering_issue_key must look like KER-123 or SCHE-123.", scope)
+    if normalized_link_type not in {"Blocks", "Relates"}:
+        return _blocked("link_type must be Blocks or Relates.", scope)
+
+    if normalized_link_type == "Blocks":
+        body = {
+            "type": {"name": "Blocks"},
+            "outwardIssue": {"key": engineering_key},
+            "inwardIssue": {"key": pco_key},
+        }
+        relationship = f"{pco_key} is blocked by {engineering_key}"
+    else:
+        body = {
+            "type": {"name": "Relates"},
+            "outwardIssue": {"key": pco_key},
+            "inwardIssue": {"key": engineering_key},
+        }
+        relationship = f"{pco_key} relates to {engineering_key}"
+
+    try:
+        if _issue_link_exists(pco_key, engineering_key, normalized_link_type):
+            return _verified(
+                {
+                    "pco_issue_key": pco_key,
+                    "engineering_issue_key": engineering_key,
+                    "link_type": normalized_link_type,
+                    "relationship": relationship,
+                    "already_exists": True,
+                },
+                scope,
+                "Issue link already existed; checked issue links only, without reading Jira comments or descriptions.",
+            )
+        _request_json("POST", "/rest/api/3/issueLink", body)
+    except JiraError as error:
+        if _looks_like_existing_issue_link_error(error):
+            return _verified(
+                {
+                    "pco_issue_key": pco_key,
+                    "engineering_issue_key": engineering_key,
+                    "link_type": normalized_link_type,
+                    "relationship": relationship,
+                    "already_exists": True,
+                },
+                scope,
+                "Jira reported the issue link already exists; no raw Jira comments or descriptions were exposed.",
+            )
+        return _blocked(str(error), scope)
+
+    return _verified(
+        {
+            "pco_issue_key": pco_key,
+            "engineering_issue_key": engineering_key,
+            "link_type": normalized_link_type,
+            "relationship": relationship,
+            "already_exists": False,
+        },
+        scope,
+        "Issue link created only between PCO and KER/SCHE; no raw Jira issue content was read or exposed.",
     )
 
 

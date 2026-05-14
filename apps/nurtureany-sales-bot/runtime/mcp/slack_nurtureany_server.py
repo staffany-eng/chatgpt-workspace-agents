@@ -41,9 +41,10 @@ mcp = FastMCP(
         "Read-only bounded Slack context for NurtureAny quick-intent routing and "
         "selected-thread summaries. Use SLACK_BOT_TOKEN and configured channel "
         "IDs only. Quick intent is max 10 messages or 30 minutes; explicit "
-        "thread reads are max 50 messages and may auto-join public source "
-        "channels when explicitly enabled. Return safe snippets/permalinks only, "
-        "and never post or persist raw Slack transcripts."
+        "thread reads may run before approval for planning context, are max 50 "
+        "messages, and may auto-join public source channels when explicitly "
+        "enabled. Return safe snippets/permalinks only, and never post or persist "
+        "raw Slack transcripts."
     ),
 )
 
@@ -403,14 +404,14 @@ def get_current_slack_thread_context(
     current_ts: str = "",
     limit: int = DEFAULT_THREAD_CONTEXT_LIMIT,
 ) -> dict[str, Any]:
-    """Read one configured-channel Slack thread after approval or bounded continuation."""
+    """Read one selected Slack thread for preflight context, approval, or bounded continuation."""
 
     return _thread_context(channel_id, thread_ts, current_ts, limit)
 
 
 @mcp.tool()
 def get_selected_slack_thread_context(permalink: str, limit: int = DEFAULT_THREAD_CONTEXT_LIMIT) -> dict[str, Any]:
-    """Read one configured-channel Slack thread from a user-supplied permalink."""
+    """Read one selected Slack thread from a user-supplied permalink."""
 
     try:
         channel_id, thread_ts = _parse_slack_permalink(permalink)

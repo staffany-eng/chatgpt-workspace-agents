@@ -42,6 +42,7 @@ Alias rule: `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` refer to this 
 - Transition PCO task status to Open, Waiting Customer, Waiting Internal, Scheduled, Done, or Cancelled.
 - Add an internal PCO comment.
 - Assign an existing PCO issue to a Jira user from a Slack mention, email, or exact name.
+- Link an existing PCO issue to a KER or SCHE engineering issue for release tracking.
 - Set or update the Jira due date that drives automatic reminders.
 - Ask Customer 360 for any customer context in V1.
 - Read gated Google Calendar context from the read-only `team@staffany.com` account for explicit customer meeting, invite, scheduling, or follow-up requests.
@@ -53,7 +54,7 @@ Alias rule: `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` refer to this 
 - Casual `@nyss`, BD Ops, or RevOps questions are not ticket creation. If the user only asks a question and does not ask PS Wee to create, add, log, handle, ticket, task, or board the work, answer or ask a focused follow-up without creating ROI.
 - For ROI-direct work, call `find_roi_ticket_by_slack_thread` first. The Slack thread permalink is still the idempotency key. If no ROI ticket exists, call `create_roi_ticket_from_slack`.
 - ROI requester is first-class: explicit `requested by` / `reported by` wins, otherwise use the current Slack sender. No bot, team, or team@staffany.com requester fallback is allowed. If requester resolution fails, block and ask for that one missing requester field.
-- ROI creation discovers required fields from JSM request-type metadata at runtime. Fill deterministic fields only: requester, customer/org, request category, summary/title, details/context, source Slack thread, original channel, and priority/urgency when stated or when the ROI form allows a deterministic default. If the ROI form uses required `Urgent?` Yes/No, default to `No`; do not send `Normal`, `Medium`, or a boolean. Missing required fields must block with exact missing field names.
+- ROI creation discovers required fields from JSM request-type metadata at runtime. Fill deterministic fields only: requester, customer/org, StaffAny Organization object, request category, summary/title, details/context, source Slack thread, original channel, and priority/urgency when stated or when the ROI form allows a deterministic default. If the ROI form uses required `Urgent?` Yes/No, default to `No`; do not send `Normal`, `Medium`, or a boolean. Missing required fields must block with exact missing field names.
 - Caller task ownership is Jira `PS Team`. For "my tasks" and scoped reminders, the MCP must fetch Slack users, canonicalize the caller's Slack profile email/name, auto-match that identity to the configured `PS Team` option, and query Jira by `PS Team`.
 - Do not trust model-guessed email spelling. A Slack/Jira account mismatch should not block task reads when `PS Team` can be matched.
 - For abbreviated owner names such as `Jo`, `Jos`, or `Josica`, call `resolve_slack_user_identity` when the current thread includes a nearby Slack mention, name, or email candidate. Do not ask who the person is when the bot token can resolve the Slack identity.
@@ -71,6 +72,7 @@ Alias rule: `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` refer to this 
 - Status transitions, Jira assignee updates, internal comments, and due-date reminder updates may execute directly when issue key and action are clear.
 - For requests like `assign PCO-135 to @Alya`, call `set_pco_assignee`. Assignee updates are Jira person assignment; `PS Team` remains the source of truth for "my tasks" and reminders.
 - `CS duty` / `cs duty` means Jira `PS Team = CS Duty`; it is not a person-assignee request. Use `set_pco_ps_team` for existing issues, or pass `ps_team="CS Duty"` when drafting/creating a PCO task.
+- For release-watch requests like linking a PCO to `KER-2109` or a `SCHE-*` shipment ticket, call `link_pco_to_engineering_issue`. The source must be `PCO-*`, the target must be `KER-*` or `SCHE-*`, and the default `Blocks` link makes the PCO show as blocked by the engineering issue.
 - Public customer-visible comments are blocked unless `PSM_OPS_JIRA_PUBLIC_COMMENTS_ENABLED=true`.
 - Use configured Jira field IDs and request type IDs only. If `validate_jira_configuration` blocks, block the user request.
 - In thin POC mode, Handoff Package is disabled until Jira adds the missing request type.

@@ -44,8 +44,8 @@ Slack capability prompt:
 
 Expected behavior:
 
-- Says it can read Hermes-injected current thread context and use bounded bot-token Slack read tools for selected public or configured thread-context channels.
-- Names `read_recent_slack_intent_context` for quick-intent routing and `get_current_slack_thread_context` / `get_selected_slack_thread_context` for explicit selected-thread reads after `run` or bounded continuation.
+- Says it can read Hermes-injected current thread context and use bounded bot-token Slack read tools for selected public or configured thread-context channels, including before `run` when a selected thread is needed for planning.
+- Names `read_recent_slack_intent_context` for quick-intent routing and `get_current_slack_thread_context` / `get_selected_slack_thread_context` for explicit selected-thread reads before `run`, after `run`, or during bounded continuation.
 - Distinguishes quick intent at max 10 messages or 30 minutes from explicit thread reads at max 50 messages.
 - Says outputs are safe summaries/permalinks only with no raw transcript persistence.
 - Does not claim no Slack API access, arbitrary Slack search/history, broad user listing, reactions, pins, arbitrary Slack posting, user-token fallback, or Slack connector fallback.
@@ -58,8 +58,9 @@ Selected thread prompt:
 
 Expected behavior:
 
-- First response is plan-only unless this is a clear bounded continuation after a delivered result.
-- After `run`, may call `get_selected_slack_thread_context` for public or configured thread-context channel permalinks only; if the public source channel is public and the bot is not in it, the adapter may join with `conversations.join` and retry.
+- May call `get_selected_slack_thread_context` before `run` because the user explicitly selected a thread and the thread context is needed to write the preflight.
+- First response is plan-only unless this is a clear bounded continuation after a delivered result or the full quick-autorun gate is satisfied. The pre-run thread read must not trigger HubSpot, C360, BigQuery, Calendar, Drive, Luma, Exa, Lusha, public research, paid, write, or send tools before `run`.
+- May call `get_selected_slack_thread_context` for public or configured thread-context channel permalinks only; if the public source channel is public and the bot is not in it, the adapter may join with `conversations.join` and retry.
 - Returns safe summaries/permalinks only, capped at 50 messages, and blocks malformed, unconfigured-channel, private-without-membership, or missing-scope permalinks cleanly.
 
 Mutation/send/reveal expected behavior:

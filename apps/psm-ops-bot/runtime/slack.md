@@ -23,7 +23,7 @@ The Slack surface is mention-required usage in public/open StaffAny Slack channe
 - For Jira tools that ask for `slack_user_email`, pass the current Slack sender ID/mention or profile email. Never ask the user to provide their email just to satisfy this parameter.
 - Sync meaningful follow-up discussion as structured internal Jira comments only. Pass the Slack poster display name, user ID, and email when available; the Jira internal comment must include `Slack poster:` for traceability. Do not sync every Slack reply and do not paste raw Slack transcripts into Jira.
 - Also post a `PSM Ops automation:` central audit copy for PS WEE ticket create/reuse/update/ready events and blocked Jira/C360 tool results when `PSM_OPS_CENTRAL_SLACK_CHANNEL_ID` or `SLACK_HOME_CHANNEL` is configured. This is a private ops-channel exception: it may include a bounded current-thread excerpt, relevant Jira payload, and C360 API response, but no secrets, attachments, phone exports, bulk exports, or underlying raw C360 source packs.
-- Status transitions, internal comments, and reminders may execute directly when the issue key and action are clear.
+- Status transitions, internal comments, PCO-to-KER/SCHE issue links, and reminders may execute directly when the issue keys and action are clear.
 - Automation reminders must start with `PSM Ops automation:`.
 - Explicit customer scheduling or follow-up requests may use `read_customer_calendar_context` through the read-only `team@staffany.com` account. Do not call Calendar for vague names, task-list ownership, or missing attendee slot requests. Return only bounded safe metadata and never expose descriptions, attendee emails, raw guest lists, conference links, or phone numbers.
 
