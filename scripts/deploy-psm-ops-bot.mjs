@@ -320,8 +320,8 @@ copy_file() {
   sudo install -o "$runtime_owner" -g "$runtime_owner" -m "$mode" "$src" "$dst"
 }
 
-sudo mkdir -p "$remote_source_dir" "$remote_source_dir/apps" "$remote_source_dir/scripts" "$remote_source_dir/ops" "$profile/scripts" "$profile/source" "$profile/runtime" "$profile/skills"
-sudo chown "$runtime_owner:$runtime_owner" "$remote_source_dir" "$remote_source_dir/apps" "$remote_source_dir/scripts" "$remote_source_dir/ops" "$profile/scripts" "$profile/source" "$profile/runtime" "$profile/skills"
+sudo mkdir -p "$remote_source_dir" "$remote_source_dir/apps" "$remote_source_dir/scripts" "$remote_source_dir/ops" "$profile/scripts" "$profile/source" "$profile/runtime" "$profile/skills" "$profile/hooks"
+sudo chown "$runtime_owner:$runtime_owner" "$remote_source_dir" "$remote_source_dir/apps" "$remote_source_dir/scripts" "$remote_source_dir/ops" "$profile/scripts" "$profile/source" "$profile/runtime" "$profile/skills" "$profile/hooks"
 
 copy_file "$deploy_dir/package.json" "$remote_source_dir/package.json" 0644
 copy_file "$deploy_dir/README.md" "$remote_source_dir/README.md" 0644
@@ -333,6 +333,7 @@ copy_dir "$deploy_dir/apps/psm-ops-bot" "$profile/source/psm-ops-bot"
 copy_file "$deploy_dir/apps/psm-ops-bot/profile/SOUL.md" "$profile/SOUL.md" 0644
 copy_dir "$deploy_dir/apps/psm-ops-bot/skills/psm-ops-bot" "$profile/skills/psm-ops-bot"
 copy_dir "$deploy_dir/apps/psm-ops-bot/runtime/mcp" "$profile/runtime/mcp"
+copy_dir "$deploy_dir/apps/psm-ops-bot/runtime/hooks/psm-ops-adoption-telemetry" "$profile/hooks/psm-ops-adoption-telemetry"
 
 copy_file "$deploy_dir/apps/psm-ops-bot/runtime/check-health.sh" "$profile/scripts/psmopsbot-check-health.sh" 0755
 copy_file "$deploy_dir/apps/psm-ops-bot/runtime/check-cloud-heartbeat.sh" "$profile/scripts/psmopsbot-check-cloud-heartbeat.sh" 0755

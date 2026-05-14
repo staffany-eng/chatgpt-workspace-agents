@@ -94,6 +94,26 @@ members = payload.get("members") or []
 if not any(((member.get("profile") or {}).get("email")) for member in members if isinstance(member, dict)):
     print("slack:users-list-email-scope-missing")
     sys.exit(1)
+central_channel = os.environ.get("PSM_OPS_CENTRAL_SLACK_CHANNEL_ID", "").strip()
+if central_channel:
+    query = urllib.parse.urlencode({"channel": central_channel})
+    request = urllib.request.Request(
+        f"https://slack.com/api/conversations.info?{query}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=20) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except Exception:
+        print("slack:central-channel-info-unavailable")
+        sys.exit(1)
+    if not payload.get("ok"):
+        print(f"slack:central-channel-info:{payload.get('error', 'unknown_error')}")
+        sys.exit(1)
+    channel = payload.get("channel") or {}
+    if channel.get("is_member") is False:
+        print("slack:central-channel-bot-not-member")
+        sys.exit(1)
 PY
 
 if [ "${PSM_OPS_JIRA_MODE:-}" != "thin_poc" ]; then
@@ -107,8 +127,9 @@ fi
 
 cron_jobs="$PROFILE_DIR/cron/jobs.json"
 if [ -r "$cron_jobs" ] && command -v python3 >/dev/null 2>&1; then
-  python3 - "$cron_jobs" <<'PY'
+python3 - "$cron_jobs" <<'PY'
 import json
+import os
 import sys
 
 payload = json.loads(open(sys.argv[1], "r", encoding="utf-8").read())
@@ -120,8 +141,19 @@ missing = [
     for name in ["psmopsbot due-date reminders"]
     if name not in names
 ]
+if os.environ.get("PSM_OPS_ADOPTION_METRICS_ENABLED", "").strip().lower() in {"1", "true", "yes", "on"}:
+    if "psmopsbot adoption digest" not in names:
+        missing.append("psmopsbot adoption digest")
 if missing:
     print(f"cron:missing:{','.join(missing)}")
     sys.exit(1)
 PY
+fi
+
+hook_dir="$PROFILE_DIR/hooks/psm-ops-adoption-telemetry"
+if [ -d "$hook_dir" ]; then
+  [ -r "$hook_dir/HOOK.yaml" ] || fail "hook:adoption:missing-HOOK.yaml"
+  [ -r "$hook_dir/handler.py" ] || fail "hook:adoption:missing-handler.py"
+elif [ "${PSM_OPS_ADOPTION_METRICS_ENABLED:-}" = "true" ] || [ "${PSM_OPS_ADOPTION_METRICS_ENABLED:-}" = "1" ]; then
+  fail "hook:adoption:missing"
 fi

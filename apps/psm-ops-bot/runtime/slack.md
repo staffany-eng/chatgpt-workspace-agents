@@ -19,6 +19,7 @@ The Slack surface is mention-required usage in public/open StaffAny Slack channe
 - Post the created or existing ticket link in the same Slack thread, then ask for missing info there.
 - For Jira tools that ask for `slack_user_email`, pass the current Slack sender ID/mention or profile email. Never ask the user to provide their email just to satisfy this parameter.
 - Sync meaningful follow-up discussion as structured internal Jira comments only. Pass the Slack poster display name, user ID, and email when available; the Jira internal comment must include `Slack poster:` for traceability. Do not sync every Slack reply and do not paste raw Slack transcripts into Jira.
+- Also post a `PSM Ops automation:` central audit copy for PS WEE ticket create/reuse/update/ready events and blocked Jira/C360 tool results when `PSM_OPS_CENTRAL_SLACK_CHANNEL_ID` or `SLACK_HOME_CHANNEL` is configured. This is a private ops-channel exception: it may include a bounded current-thread excerpt, relevant Jira payload, and C360 API response, but no secrets, attachments, phone exports, bulk exports, or underlying raw C360 source packs.
 - Status transitions, internal comments, and reminders may execute directly when the issue key and action are clear.
 - Automation reminders must start with `PSM Ops automation:`.
 - Explicit customer scheduling or follow-up requests may use `read_customer_calendar_context` through the read-only `team@staffany.com` account. Do not call Calendar for vague names, task-list ownership, or missing attendee slot requests. Return only bounded safe metadata and never expose descriptions, attendee emails, raw guest lists, conference links, or phone numbers.
@@ -49,7 +50,9 @@ Caveat: Reply "create" to create this task.
 
 ## Slack Scopes
 
-Use the minimum Hermes Slack gateway scopes required for app mentions and caller identity. The PSM Jira MCP needs `users:read` and `users:read.email` so it can fetch Slack users, canonicalize profile email/name, and match the caller to Jira `PS Team`. Do not request broad private-channel enumeration for V1.
+Use the minimum Hermes Slack gateway scopes required for app mentions and caller identity. The PSM Jira MCP needs `users:read` and `users:read.email` so it can fetch Slack users, canonicalize profile email/name, and match the caller to Jira `PS Team`.
+
+Central audit copies need bot-owned `chat:write`. If raw source-thread excerpt fetch is enabled, the bot also needs `channels:history` for public channels it is in and `groups:history` only for private channels where the bot has explicitly been invited. Do not request broad private-channel enumeration for V1.
 
 ## Channel Access
 

@@ -36,6 +36,9 @@
     "live_profile_audit_script": "runtime/audit-live-profile.sh",
     "rock_productions_c360_smoke_script": "runtime/smoke-rock-productions-c360.sh",
     "adoption_digest_script": "runtime/psm_ops_adoption_digest.py",
+    "slack_notifier": "runtime/mcp/psm_slack_notifier.py",
+    "adoption_hook": "runtime/hooks/psm-ops-adoption-telemetry/HOOK.yaml",
+    "adoption_hook_handler": "runtime/hooks/psm-ops-adoption-telemetry/handler.py",
     "deploy_runbook": "deploy/gce-onboarding-runbook.md",
     "regression_cases": "tests/regression-cases.md"
   },
@@ -116,5 +119,21 @@
   "channels": [
     "Slack public/open channels with mention-required gateway"
   ],
+  "central_audit": {
+    "slack_channel_name": "ps-weeman-bot-test",
+    "slack_channel_id_env_var": "PSM_OPS_CENTRAL_SLACK_CHANNEL_ID",
+    "message_prefix": "PSM Ops automation:",
+    "events": [
+      "ticket_created",
+      "ticket_reused",
+      "ticket_update_synced",
+      "ticket_ready",
+      "blocked",
+      "c360_search",
+      "c360_account_context",
+      "c360_customer_answer",
+      "c360_blocked"
+    ]
+  },
   "secrets_copied": false
 }

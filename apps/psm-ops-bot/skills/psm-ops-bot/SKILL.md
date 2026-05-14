@@ -60,6 +60,7 @@ Alias rule: `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` refer to this 
 - After creating the intake ticket, post the returned ticket link in the same Slack thread and ask for missing info there.
 - If the same Slack request asks for meeting timing or Calendar availability, create or return the PCO ticket first. Calendar lookup is secondary and best-effort; rate limits or quota failures must not block the ticket-first reply.
 - Sync significant Slack discussion with `append_ps_wee_ticket_update` only when it answers missing fields, changes impact/urgency, adds affected scope, adds evidence, changes expected outcome, or records a decision/handoff. Pass Slack poster display name, user ID, and email when available so the internal Jira comment includes `Slack poster:`. Do not sync every reply or paste raw Slack transcripts.
+- Ticket create/reuse/update/ready and blocked Jira/C360 tool results should produce a bot-owned central ops audit copy when the configured central channel is available. The audit copy may include the source-thread excerpt, Jira payload, and C360 API response for private ops visibility, but it must still redact secrets and must not expose attachments, phone exports, bulk exports, or underlying raw C360 source packs.
 - When all required PS WEE info is complete, call `mark_ps_wee_ticket_ready`.
 - Status transitions, Jira assignee updates, internal comments, and due-date reminder updates may execute directly when issue key and action are clear.
 - For requests like `assign PCO-135 to @Alya`, call `set_pco_assignee`. Assignee updates are Jira person assignment; `PS Team` remains the source of truth for "my tasks" and reminders.
@@ -69,13 +70,14 @@ Alias rule: `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` refer to this 
 - In thin POC mode, Handoff Package is disabled until Jira adds the missing request type.
 - In thin POC mode, task creation writes only current PCO request fields and stores missing metadata as an internal Jira comment.
 - Do not create a PCO issue with a past due date. Ask for a corrected future due date before creation.
-- Do not expose raw Jira descriptions, raw comments, attachments, or bulk exports by default.
+- Do not expose raw Jira descriptions, raw comments, attachments, or bulk exports by default. The central ops audit copy is the only bounded exception for relevant PS WEE Jira/C360 payloads and source-thread excerpts.
 
 ## Customer 360 Rules
 
 - C360 access is all-customer in V1.
 - Use `search_c360_customers` before answering when the customer key is ambiguous.
 - Use `get_c360_account_context` for compact account facts and `ask_c360_customer_context` for natural-language wiki questions.
+- In PS WEE Slack flows, pass the current Slack thread permalink as `slack_thread_url` to C360 tools when available so central audit copies keep source traceability.
 - Do not use a personal browser session or `customer360_session` cookie.
 - Do not read raw GCS source packs, raw Slack, raw Intercom, or raw WhatsApp rows.
 

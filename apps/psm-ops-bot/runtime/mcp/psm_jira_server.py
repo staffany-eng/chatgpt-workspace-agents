@@ -18,6 +18,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from mcp.server.fastmcp import FastMCP
 
 from profile_env import load_profile_env
+from psm_slack_notifier import post_ps_wee_audit
 
 
 load_profile_env()
@@ -341,7 +342,38 @@ def _configured_fields() -> dict[str, str]:
     return _field_ids()
 
 
+def _issue_url(issue_key: str) -> str:
+    key = (issue_key or "").strip().upper()
+    return f"{_jira_base_url()}/browse/{key}" if key else ""
+
+
+def _notify_ps_wee_blocked(message: str, scope: dict[str, Any]) -> None:
+    source = str((scope or {}).get("slack_thread_url") or "").strip()
+    if not source:
+        return
+    key = str((scope or {}).get("issue_key") or "").strip().upper()
+    try:
+        issue_url = _issue_url(key)
+    except JiraError:
+        issue_url = ""
+    try:
+        post_ps_wee_audit(
+            "blocked",
+            source_thread_url=source,
+            issue_key=key,
+            issue_url=issue_url,
+            requester=str((scope or {}).get("caller") or ""),
+            customer=str((scope or {}).get("customer") or ""),
+            blocked_reason=message,
+            jira_payload={"scope": scope},
+            extra={"subsystem": "jira_pco"},
+        )
+    except Exception:
+        return
+
+
 def _blocked(message: str, scope: dict[str, Any]) -> dict[str, Any]:
+    _notify_ps_wee_blocked(message, scope)
     return {
         "answer": {"status": "blocked", "message": message},
         "source": "Jira PCO",
@@ -377,7 +409,7 @@ def _request_json(method: str, path: str, body: dict[str, Any] | None = None) ->
 
 
 def _slack_token() -> str:
-    return _env("SLACK_BOT_TOKEN") or _env("SLACK_TOKEN")
+    return _env("SLACK_BOT_TOKEN")
 
 
 def _request_slack_json(method: str, params: dict[str, str]) -> Any:
@@ -1153,8 +1185,21 @@ def create_ps_wee_intake_ticket(
     try:
         existing = _ticket_by_slack_thread(source, 5)
         if existing:
+            answer = {"existing_ticket": existing[0], "duplicate_candidates": existing}
+            answer["central_copy"] = post_ps_wee_audit(
+                "ticket_reused",
+                source_thread_url=source,
+                issue_key=str(existing[0].get("issue_key") or ""),
+                issue_url=str(existing[0].get("url") or ""),
+                requester=scope["caller"],
+                customer=normalized_customer,
+                summary=str(existing[0].get("summary") or normalized_issue),
+                status=str(existing[0].get("status") or ""),
+                jira_payload=answer,
+                extra={"request_type_key": request_type_key},
+            )
             return _verified(
-                {"existing_ticket": existing[0], "duplicate_candidates": existing},
+                answer,
                 scope,
                 "Existing PCO ticket found for the same Slack thread; update it instead of creating a duplicate.",
             )
@@ -1224,6 +1269,19 @@ def create_ps_wee_intake_ticket(
     answer["slack_reply"] = (
         f"Created first so this won't be missed: {ticket_ref}. "
         f"I still need: {', '.join(missing)}."
+    )
+    answer["central_copy"] = post_ps_wee_audit(
+        "ticket_created",
+        source_thread_url=source,
+        issue_key=issue_key,
+        issue_url=issue_url,
+        requester=scope["caller"],
+        customer=normalized_customer,
+        summary=normalized_issue,
+        status="created",
+        missing_info=missing,
+        jira_payload={"draft": draft, "answer": answer},
+        extra={"request_type_key": request_type_key},
     )
     return result
 
@@ -1488,7 +1546,26 @@ def append_ps_wee_ticket_update(
     if links:
         lines.append("Evidence links:")
         lines.extend(f"- {link}" for link in links)
-    return add_internal_pco_comment(key, "\n".join(lines), slack_user_email)
+    result = add_internal_pco_comment(key, "\n".join(lines), slack_user_email)
+    if result.get("confidence") == "verified":
+        answer = result.get("answer", {})
+        answer["central_copy"] = post_ps_wee_audit(
+            "ticket_update_synced",
+            source_thread_url=source,
+            issue_key=key,
+            issue_url=_issue_url(key),
+            requester=scope["caller"],
+            summary=summary,
+            status="update synced",
+            jira_payload={
+                "issue_key": key,
+                "update_summary": summary,
+                "updated_fields": fields,
+                "evidence_links": links,
+                "comment": answer,
+            },
+        )
+    return result
 
 
 @mcp.tool()
@@ -1522,6 +1599,16 @@ def mark_ps_wee_ticket_ready(
     answer = comment_result.get("answer", {})
     answer["ready_for_triage"] = True
     answer["warnings"] = warnings
+    answer["central_copy"] = post_ps_wee_audit(
+        "ticket_ready",
+        source_thread_url=source,
+        issue_key=key,
+        issue_url=_issue_url(key),
+        requester=scope["caller"],
+        summary=(ready_summary or "").strip(),
+        status="ready for triage",
+        jira_payload={"issue_key": key, "ready_summary": ready_summary, "warnings": warnings, "comment": comment_result.get("answer", {})},
+    )
     return _verified(answer, scope, "Ticket readiness is marked by internal comment and removal of needs-info label when Jira allows it.")
 
 

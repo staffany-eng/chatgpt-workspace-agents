@@ -39,6 +39,9 @@ Thin POC Jira IDs must also be present in the profile `.env`:
 - `GOOGLE_CALENDAR_TOKEN_FILE=/home/leekaiyi/.hermes/profiles/psmopsbot/google-calendar-token.json`
 - `GOOGLE_CALENDAR_CLIENT_SECRET_FILE=/home/leekaiyi/.hermes/profiles/psmopsbot/google-calendar-client-secret.json`
 - `GOOGLE_CALENDAR_ACCOUNT_EMAIL=team@staffany.com`
+- `PSM_OPS_CENTRAL_SLACK_CHANNEL_ID` for bot-owned PS WEE central audit copies
+- `PSM_OPS_CENTRAL_FETCH_SLACK_THREAD=true` if bounded source-thread transcript excerpts should be included
+- `PSM_OPS_ADOPTION_METRICS_ENABLED=true` or `PSM_OPS_ADOPTION_METRICS_PATH` for adoption telemetry
 
 Handoff Package intentionally returns a blocked response until PCO has the missing request type. Reminder automation uses Jira `duedate`; no separate reminder field is required in thin POC.
 
@@ -82,10 +85,12 @@ hermes -p psmopsbot config set terminal.cwd "$HOME/agent-builder/apps/psm-ops-bo
 Copy packet files:
 
 ```bash
-mkdir -p ~/.hermes/profiles/psmopsbot/skills
+mkdir -p ~/.hermes/profiles/psmopsbot/skills ~/.hermes/profiles/psmopsbot/hooks ~/.hermes/profiles/psmopsbot/scripts
 cp apps/psm-ops-bot/profile/SOUL.md ~/.hermes/profiles/psmopsbot/SOUL.md
 rsync -a --delete apps/psm-ops-bot/skills/psm-ops-bot/ ~/.hermes/profiles/psmopsbot/skills/psm-ops-bot/
 rsync -a apps/psm-ops-bot/runtime/mcp/ ~/.hermes/profiles/psmopsbot/runtime/mcp/
+rsync -a apps/psm-ops-bot/runtime/hooks/psm-ops-adoption-telemetry/ ~/.hermes/profiles/psmopsbot/hooks/psm-ops-adoption-telemetry/
+cp apps/psm-ops-bot/runtime/scripts/psm_ops_adoption_digest.py ~/.hermes/profiles/psmopsbot/scripts/psm_ops_adoption_digest.py
 ```
 
 Write the approved `team@staffany.com` OAuth files from Secret Manager to the paths configured above. Do not commit or paste those JSON files into the repo.
@@ -159,6 +164,12 @@ hermes -p psmopsbot cron create "0 1 * * *" \
   --name "psmopsbot due-date reminders" \
   --prompt "PSM Ops automation: Check Jira PCO tasks due tomorrow, due today, and overdue as of now for #ps-weeman-bot-test. Use list_due_pco_reminders with lead_days=1. Return only safe issue summaries and do not call Slack post APIs directly." \
   --deliver "slack:#ps-weeman-bot-test"
+
+hermes -p psmopsbot cron create "0 2 * * 1-5" \
+  --name "psmopsbot adoption digest" \
+  --script psm_ops_adoption_digest.py \
+  --no-agent \
+  --deliver "slack:#ps-weeman-bot-test"
 ```
 
 The GCE host runs UTC, so `0 1 * * *` is 09:00 Asia/Singapore daily.
@@ -192,3 +203,6 @@ Cloud smoke:
 5. Ask for due-date reminders and verify `list_due_pco_reminders` returns due tomorrow, due today, and overdue tasks only while not Done.
 6. Ask for Rock Productions from a channel-style hint such as `proj-cs-rockproductions`; verify the bot finds `Rock Productions Pte Ltd`, shows the searched variants safely, and does not say a generic customer cannot be found.
 7. Ask one calendar follow-up question and verify `psm_google_calendar.read_customer_calendar_context` returns bounded event metadata from `team@staffany.com` without descriptions, attendee emails, raw guest lists, or conference links.
+8. Ask one C360 customer question and verify a C360 link/citation appears.
+9. Create a PS WEE intake ticket from a non-home public channel and verify the same Slack thread gets the ticket link while the central ops channel gets a `PSM Ops automation:` audit copy with the source thread permalink.
+10. Run `hermes -p psmopsbot insights --days 30 --source slack` and `hermes -p psmopsbot sessions stats` for native Hermes adoption checks.

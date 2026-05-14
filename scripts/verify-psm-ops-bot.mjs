@@ -144,10 +144,13 @@ const filesToScan = [
   "runtime/audit-live-profile.sh",
   "runtime/smoke-rock-productions-c360.sh",
   "runtime/psm_ops_adoption_digest.py",
+  "runtime/mcp/psm_slack_notifier.py",
   "runtime/mcp/psm_jira_server.py",
   "runtime/mcp/psm_c360_server.py",
   "runtime/mcp/google_oauth.py",
   "runtime/mcp/psm_google_calendar_server.py",
+  "runtime/hooks/psm-ops-adoption-telemetry/HOOK.yaml",
+  "runtime/hooks/psm-ops-adoption-telemetry/handler.py",
   "deploy/gce-onboarding-runbook.md",
   "tests/regression-cases.md"
 ];
@@ -188,6 +191,7 @@ if (!existsSync(deployScriptPath)) {
     "psmopsbot-audit-live-profile.sh",
     "psmopsbot-rock-productions-c360-smoke.sh",
     "psm_ops_adoption_digest.py",
+    "psm-ops-adoption-telemetry",
     "smoke-rock-productions-c360.sh",
     "rock_productions_c360",
     "hermes-gateway-$profile_name.service",
@@ -219,6 +223,8 @@ for (const requiredText of [
   "CUSTOMER360_INTERNAL_API_TOKEN",
   "SLACK_BOT_TOKEN",
   "resolve_slack_user_identity",
+  "PSM_OPS_CENTRAL_SLACK_CHANNEL_ID",
+  "PSM_OPS_ADOPTION_METRICS_PATH",
   "create_ps_wee_intake_ticket",
   "find_ticket_by_slack_thread",
   "append_ps_wee_ticket_update",
@@ -306,6 +312,7 @@ for (const requiredText of [
   "jira://request-types",
   "PSM_OPS_TODAY",
   "PSM_OPS_TIMEZONE",
+  "post_ps_wee_audit",
   "PS Team",
   "Public customer-visible comments are disabled"
 ]) {
@@ -421,6 +428,26 @@ for (const requiredText of [
   if (!googleCalendarMcpText.includes(requiredText)) fail(`psm_google_calendar_server.py missing required text: ${requiredText}`);
 }
 
+const notifierText = textOf(appRoot, "runtime/mcp/psm_slack_notifier.py");
+for (const requiredText of [
+  "SLACK_BOT_TOKEN",
+  "PSM_OPS_CENTRAL_SLACK_CHANNEL_ID",
+  "chat.postMessage",
+  "conversations.replies",
+  "PSM Ops automation:",
+  "PSM_OPS_ADOPTION_METRICS_PATH"
+]) {
+  if (!notifierText.includes(requiredText)) fail(`psm_slack_notifier.py missing required text: ${requiredText}`);
+}
+for (const forbiddenText of ["SLACK_USER_TOKEN", "SLACK_TOKEN"]) {
+  if (notifierText.includes(forbiddenText)) fail(`psm_slack_notifier.py must not use ${forbiddenText}`);
+}
+
+const hookText = textOf(appRoot, "runtime/hooks/psm-ops-adoption-telemetry/handler.py");
+for (const requiredText of ["response_confidence", "psm-ops-adoption.jsonl", "PSM_OPS_ADOPTION_METRICS_PATH"]) {
+  if (!hookText.includes(requiredText)) fail(`adoption hook handler missing required text: ${requiredText}`);
+}
+
 const runbookText = textOf(appRoot, "deploy/gce-onboarding-runbook.md");
 for (const requiredText of [
   "hermes-psm-ops-bot-poc",
@@ -492,10 +519,12 @@ if (deployScriptSyntaxCheck.status !== 0) {
 const pyCompile = spawnSync("python3", [
   "-m",
   "py_compile",
+  join(appRoot, "runtime/mcp/psm_slack_notifier.py"),
   join(appRoot, "runtime/mcp/psm_jira_server.py"),
   join(appRoot, "runtime/mcp/psm_c360_server.py"),
   join(appRoot, "runtime/mcp/google_oauth.py"),
   join(appRoot, "runtime/mcp/psm_google_calendar_server.py"),
+  join(appRoot, "runtime/hooks/psm-ops-adoption-telemetry/handler.py"),
   join(appRoot, "runtime/psm_ops_adoption_digest.py")
 ], {
   cwd: repoRoot,

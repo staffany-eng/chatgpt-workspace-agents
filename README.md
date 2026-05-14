@@ -33,9 +33,10 @@ The live smoke-test channel map lives in `ops/hermes/channels.md`.
 
 - Da Ta Hermz: `#da-ta-hermz-testing` (`C0AU19E6T0C`)
 - NurtureAny: `#nurtureany-testing` (`C0B2UGK4DB6`)
+- PSM Ops / PS WEE: `#ps-weeman-bot-test` (`C0B2VT50YT1`)
 - Launchbot: `#launch-bot-testing` (`C0B32M34J3W`)
 
-`PS WEE` / `PS Wee Manager` is the PSM Ops Bot profile `psmopsbot`; do not route it to NurtureAny.
+`PS WEE` / `PS Wee Manager` is the PSM Ops Bot profile `psmopsbot`; workflow tests use PSM Ops in `#ps-weeman-bot-test`. Sales-manager and manager-chase workflow tests use NurtureAny in `#nurtureany-testing`.
 
 ## Verification
 

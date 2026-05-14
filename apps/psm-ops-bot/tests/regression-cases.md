@@ -30,6 +30,7 @@
 - Creates the PCO intake ticket immediately with `create_ps_wee_intake_ticket` when no same-thread ticket exists.
 - Includes the Slack thread permalink in Jira.
 - Posts the ticket link in-thread and asks for missing info.
+- Posts a bot-owned `PSM Ops automation:` central audit copy with the source Slack thread permalink.
 
 ## PS WEE Task List Plus Calendar
 
@@ -65,6 +66,7 @@ Thread:
 
 - Calls `append_ps_wee_ticket_update` only for meaningful ticket context.
 - Adds a structured internal Jira comment with the Slack thread permalink and `Slack poster:`.
+- Posts a central audit copy with update summary and source Slack thread permalink.
 - Does not sync every reply or paste raw Slack transcripts.
 
 ## PS WEE Ready
@@ -74,6 +76,15 @@ Thread:
 - Calls `mark_ps_wee_ticket_ready`.
 - Adds a ready-for-triage internal comment.
 - Removes `needs-info` when Jira allows it.
+- Posts a central audit copy with the source Slack thread permalink.
+
+## PS WEE Blocked Routing
+
+`@PSM Ops create ticket for Fei Siong but no Slack thread permalink is available`
+
+- Returns `Confidence: blocked`.
+- Posts a central audit copy when a source Slack thread permalink exists in tool scope.
+- Does not use Kai Yi's user token or the Slack connector for visible Slack delivery.
 
 ## Transition
 

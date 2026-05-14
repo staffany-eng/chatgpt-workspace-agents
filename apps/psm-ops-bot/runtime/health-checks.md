@@ -10,6 +10,7 @@ PSM Ops Bot needs deterministic cloud health checks because prompt correctness d
 - Model route is pinned to `anthropic` / `claude-sonnet-4-6`.
 - Slack gateway is mention-required and not restricted to a single public/open channel.
 - Slack bot token can call `users.list` with profile emails for `PS Team` identity matching.
+- If `PSM_OPS_CENTRAL_SLACK_CHANNEL_ID` is configured, the Slack bot token can inspect that channel and the bot is a member.
 - `psm_jira` MCP lists exactly the expected tools.
 - `psm_c360` MCP lists exactly the expected tools.
 - `psm_google_calendar` MCP lists exactly `read_customer_calendar_context` when Google Calendar is enabled.
@@ -21,6 +22,7 @@ PSM Ops Bot needs deterministic cloud health checks because prompt correctness d
 - Reminder cron is enabled in cloud and uses Jira `duedate` only.
 - VM-local cloud heartbeat cron is enabled every 15 minutes with local delivery disabled.
 - PS WEE adoption digest cron is enabled as a no-agent weekday Slack automation with the `PSM Ops automation:` prefix.
+- PS WEE adoption telemetry hook is installed under the profile hooks directory.
 - Healthy no-agent checks print nothing and exit 0.
 
 ## Commands
@@ -88,6 +90,24 @@ hermes -p psmopsbot cron create "0 2 * * 1-5" \
 ```
 
 The GCE host runs UTC, so `0 1 * * *` is 09:00 Asia/Singapore daily.
+
+Install central audit/adoption telemetry after the profile exists:
+
+```bash
+mkdir -p ~/.hermes/profiles/psmopsbot/hooks ~/.hermes/profiles/psmopsbot/scripts
+rsync -a apps/psm-ops-bot/runtime/hooks/psm-ops-adoption-telemetry/ \
+  ~/.hermes/profiles/psmopsbot/hooks/psm-ops-adoption-telemetry/
+cp apps/psm-ops-bot/runtime/scripts/psm_ops_adoption_digest.py \
+  ~/.hermes/profiles/psmopsbot/scripts/psm_ops_adoption_digest.py
+
+hermes -p psmopsbot cron create "0 2 * * 1-5" \
+  --name "psmopsbot adoption digest" \
+  --script psm_ops_adoption_digest.py \
+  --no-agent \
+  --deliver "slack:#ps-weeman-bot-test"
+```
+
+Set `PSM_OPS_CENTRAL_SLACK_CHANNEL_ID` to the central ops channel ID in the live profile `.env`; prefer the ID over the name.
 
 ## Failure Behavior
 

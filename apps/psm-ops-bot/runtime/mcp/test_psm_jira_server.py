@@ -389,6 +389,7 @@ class PsmJiraServerTest(unittest.TestCase):
 
     def test_ps_wee_intake_creates_immediate_ticket_with_slack_trace(self):
         calls = []
+        audit_calls = []
 
         def fake_request(method, path, body=None):
             calls.append((method, path, deepcopy(body)))
@@ -401,10 +402,11 @@ class PsmJiraServerTest(unittest.TestCase):
             return {}
 
         self.module._request_json = fake_request
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: audit_calls.append((event_type, kwargs)) or {"ok": True}
 
         result = self.module.create_ps_wee_intake_ticket(
             slack_user_email="psm@staffany.com",
-            slack_thread_url="https://staffany.slack.com/archives/C08SDJR03N1/p1778205303989579",
+            slack_thread_url="https://staffany.slack.com/archives/C0B2VT50YT1/p1778205303989579",
             customer="Fei Siong",
             issue_summary="Payroll readiness unclear",
             known_details="PS asked to raise this first.",
@@ -418,15 +420,19 @@ class PsmJiraServerTest(unittest.TestCase):
             "[Needs info] Fei Siong - Payroll readiness unclear",
         )
         self.assertEqual(calls[2][1], "/rest/servicedeskapi/request/PCO-789/comment")
-        self.assertIn("Source Slack thread: https://staffany.slack.com/archives/C08SDJR03N1/p1778205303989579", calls[2][2]["body"])
+        self.assertIn("Source Slack thread: https://staffany.slack.com/archives/C0B2VT50YT1/p1778205303989579", calls[2][2]["body"])
         self.assertIn("Known details: PS asked to raise this first.", calls[2][2]["body"])
         self.assertEqual(calls[3][1], "/rest/api/3/issue/PCO-789")
         self.assertEqual(calls[3][2]["update"]["labels"], [{"add": "needs-info"}])
         self.assertIn("Created first so this won't be missed", result["answer"]["slack_reply"])
         self.assertIn("<https://staffany.atlassian.net/browse/PCO-789|PCO-789>", result["answer"]["slack_reply"])
+        self.assertEqual(audit_calls[0][0], "ticket_created")
+        self.assertEqual(audit_calls[0][1]["source_thread_url"], "https://staffany.slack.com/archives/C0B2VT50YT1/p1778205303989579")
+        self.assertEqual(audit_calls[0][1]["issue_key"], "PCO-789")
 
     def test_ps_wee_intake_reuses_existing_ticket_for_same_slack_thread(self):
         calls = []
+        audit_calls = []
 
         def fake_request(method, path, body=None):
             calls.append((method, path, body))
@@ -445,18 +451,22 @@ class PsmJiraServerTest(unittest.TestCase):
             }
 
         self.module._request_json = fake_request
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: audit_calls.append((event_type, kwargs)) or {"ok": True}
 
         result = self.module.create_ps_wee_intake_ticket(
             slack_user_email="psm@staffany.com",
-            slack_thread_url="https://staffany.slack.com/archives/C08SDJR03N1/p1778205303989579",
+            slack_thread_url="https://staffany.slack.com/archives/C0B2VT50YT1/p1778205303989579",
         )
 
         self.assertEqual(result["confidence"], "verified")
         self.assertEqual(result["answer"]["existing_ticket"]["issue_key"], "PCO-789")
         self.assertEqual(len(calls), 1)
+        self.assertEqual(audit_calls[0][0], "ticket_reused")
+        self.assertEqual(audit_calls[0][1]["issue_key"], "PCO-789")
 
     def test_append_ps_wee_ticket_update_posts_structured_comment_only(self):
         calls = []
+        audit_calls = []
 
         def fake_request(method, path, body=None):
             calls.append((method, path, body))
@@ -471,10 +481,11 @@ class PsmJiraServerTest(unittest.TestCase):
                 "profile": {"email": "damba@staffany.com", "real_name": "Damba CSE", "display_name": "Damba"},
             }
         ]
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: audit_calls.append((event_type, kwargs)) or {"ok": True}
 
         result = self.module.append_ps_wee_ticket_update(
             issue_key="PCO-789",
-            slack_thread_url="https://staffany.slack.com/archives/C08SDJR03N1/p1778205303989579",
+            slack_thread_url="https://staffany.slack.com/archives/C0B2VT50YT1/p1778205303989579",
             update_summary="PS confirmed impact and affected date range.",
             updated_fields={"impact": "Payroll blocked", "affected date range": "May payroll"},
             evidence_links=["https://example.com/screenshot"],
@@ -485,15 +496,18 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertEqual(result["confidence"], "verified")
         body = calls[0][2]["body"]
         self.assertIn("PS WEE Slack ticket update:", body)
-        self.assertIn("Source Slack thread: https://staffany.slack.com/archives/C08SDJR03N1/p1778205303989579", body)
+        self.assertIn("Source Slack thread: https://staffany.slack.com/archives/C0B2VT50YT1/p1778205303989579", body)
         self.assertIn("Slack poster: Damba CSE <@U03P4FU4CHG> damba@staffany.com", body)
         self.assertIn("- impact: Payroll blocked", body)
         self.assertIn("- affected date range: May payroll", body)
         self.assertIn("- https://example.com/screenshot", body)
         self.assertFalse(calls[0][2]["public"])
+        self.assertEqual(audit_calls[0][0], "ticket_update_synced")
+        self.assertEqual(audit_calls[0][1]["source_thread_url"], "https://staffany.slack.com/archives/C0B2VT50YT1/p1778205303989579")
 
     def test_mark_ps_wee_ticket_ready_comments_and_removes_needs_info_label(self):
         calls = []
+        audit_calls = []
 
         def fake_request(method, path, body=None):
             calls.append((method, path, body))
@@ -502,10 +516,11 @@ class PsmJiraServerTest(unittest.TestCase):
             return {}
 
         self.module._request_json = fake_request
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: audit_calls.append((event_type, kwargs)) or {"ok": True}
 
         result = self.module.mark_ps_wee_ticket_ready(
             issue_key="PCO-789",
-            slack_thread_url="https://staffany.slack.com/archives/C08SDJR03N1/p1778205303989579",
+            slack_thread_url="https://staffany.slack.com/archives/C0B2VT50YT1/p1778205303989579",
             ready_summary="Customer, issue, impact, scope, and outcome are now complete.",
         )
 
@@ -514,6 +529,23 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertEqual(calls[1][1], "/rest/api/3/issue/PCO-789")
         self.assertEqual(calls[1][2]["update"]["labels"], [{"remove": "needs-info"}])
         self.assertTrue(result["answer"]["ready_for_triage"])
+        self.assertEqual(audit_calls[0][0], "ticket_ready")
+        self.assertEqual(audit_calls[0][1]["issue_key"], "PCO-789")
+
+    def test_ps_wee_blocked_path_posts_central_audit_when_thread_is_present(self):
+        audit_calls = []
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: audit_calls.append((event_type, kwargs)) or {"ok": True}
+
+        result = self.module.append_ps_wee_ticket_update(
+            issue_key="PCO-789",
+            slack_thread_url="https://staffany.slack.com/archives/C0B2VT50YT1/p1778205303989579",
+            update_summary="",
+        )
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertEqual(audit_calls[0][0], "blocked")
+        self.assertEqual(audit_calls[0][1]["issue_key"], "PCO-789")
+        self.assertIn("meaningful update", audit_calls[0][1]["blocked_reason"])
 
     def test_transition_uses_available_transition_to_target_status(self):
         calls = []

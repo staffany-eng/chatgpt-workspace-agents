@@ -141,6 +141,7 @@ class PsmC360ServerTest(unittest.TestCase):
 
     def test_ask_customer_context_posts_question(self):
         calls = []
+        audit_calls = []
 
         def fake_http(method, path, body=None):
             calls.append((method, path, body))
@@ -154,10 +155,12 @@ class PsmC360ServerTest(unittest.TestCase):
             }
 
         self.module._http_json = fake_http
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: audit_calls.append((event_type, kwargs)) or {"ok": True}
 
         result = self.module.ask_c360_customer_context(
             "fei-siong-group",
             "Where is payroll painful?",
+            slack_thread_url="https://staffany.slack.com/archives/C0B2VT50YT1/p1778205303989579",
         )
 
         self.assertEqual(
@@ -172,6 +175,9 @@ class PsmC360ServerTest(unittest.TestCase):
         )
         self.assertEqual(result["confidence"], "verified")
         self.assertEqual(result["answer"]["answer"], "Payroll context.")
+        self.assertEqual(result["central_copy"]["ok"], True)
+        self.assertEqual(audit_calls[0][0], "c360_customer_answer")
+        self.assertEqual(audit_calls[0][1]["source_thread_url"], "https://staffany.slack.com/archives/C0B2VT50YT1/p1778205303989579")
 
     def test_missing_token_blocks(self):
         with patch.dict(os.environ, {"CUSTOMER360_INTERNAL_API_TOKEN": "", "CUSTOMER_360_INTERNAL_API_TOKEN": ""}, clear=False):
@@ -179,6 +185,21 @@ class PsmC360ServerTest(unittest.TestCase):
 
         self.assertEqual(result["confidence"], "blocked")
         self.assertIn("CUSTOMER360_INTERNAL_API_TOKEN", result["caveat"])
+
+    def test_c360_blocked_posts_central_audit_when_thread_is_present(self):
+        audit_calls = []
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: audit_calls.append((event_type, kwargs)) or {"ok": True}
+
+        with patch.dict(os.environ, {"CUSTOMER360_INTERNAL_API_TOKEN": "", "CUSTOMER_360_INTERNAL_API_TOKEN": ""}, clear=False):
+            result = self.module.get_c360_account_context(
+                "fei-siong-group",
+                slack_thread_url="https://staffany.slack.com/archives/C0B2VT50YT1/p1778205303989579",
+            )
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertEqual(result["answer"]["central_copy"]["ok"], True)
+        self.assertEqual(audit_calls[0][0], "c360_blocked")
+        self.assertIn("CUSTOMER360_INTERNAL_API_TOKEN", audit_calls[0][1]["blocked_reason"])
 
 
 if __name__ == "__main__":

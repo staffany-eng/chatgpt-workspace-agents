@@ -99,6 +99,7 @@ The access policy file maps Slack email to Jira account ID:
 - `create_ps_wee_intake_ticket`: mutation; creates an immediate needs-info intake ticket for explicit PS WEE ticketing requests without preview approval.
 - `append_ps_wee_ticket_update`: mutation; adds a concise structured internal comment for meaningful Slack follow-up discussion, including `Slack poster:` when the Slack poster display name, user ID, or email is available.
 - `mark_ps_wee_ticket_ready`: mutation; adds a ready-for-triage internal comment and removes `needs-info` when Jira allows it.
+- These three PS WEE lifecycle tools also emit bot-owned central ops audit copies when the central Slack channel is configured. The Jira issue itself remains structured; raw-ish ops detail belongs in the private central Slack audit copy only.
 - `draft_pco_task`: no mutation; includes duplicate candidates.
 - `create_approved_pco_task`: mutation; requires approval marker.
 - `transition_pco_task`: mutation; only configured target statuses.

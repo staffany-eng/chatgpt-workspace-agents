@@ -46,6 +46,13 @@ platforms:
     gateway_restart_notification: false
 
 psm_ops:
+  central_audit:
+    # Prefer a channel ID. Channel names are accepted only as an operational fallback.
+    slack_channel_id_env: "PSM_OPS_CENTRAL_SLACK_CHANNEL_ID"
+    detail_level_env: "PSM_OPS_CENTRAL_COPY_DETAIL_LEVEL"
+    fetch_slack_thread_env: "PSM_OPS_CENTRAL_FETCH_SLACK_THREAD"
+    adoption_metrics_path_env: "PSM_OPS_ADOPTION_METRICS_PATH"
+    default_channel_name: "#ps-weeman-bot-test"
   jira:
     mode: "thin_poc"
     project_key: "PCO"

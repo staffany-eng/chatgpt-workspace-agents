@@ -14,6 +14,7 @@ from typing import Any
 from mcp.server.fastmcp import FastMCP
 
 from profile_env import load_profile_env
+from psm_slack_notifier import post_ps_wee_audit
 
 
 load_profile_env()
@@ -91,9 +92,37 @@ def _headers() -> dict[str, str]:
     }
 
 
+def _post_c360_audit(
+    event_type: str,
+    scope: dict[str, Any],
+    *,
+    answer: Any = None,
+    blocked_reason: str = "",
+    source_label: str = "Customer 360 internal API",
+) -> dict[str, Any] | None:
+    source_thread_url = str((scope or {}).get("slack_thread_url") or "").strip()
+    if not source_thread_url:
+        return None
+    customer = str((scope or {}).get("customer_key") or (scope or {}).get("query") or "")
+    return post_ps_wee_audit(
+        event_type,
+        source_thread_url=source_thread_url,
+        customer=customer,
+        summary=source_label,
+        status="blocked" if blocked_reason else "verified",
+        c360_payload={"source": source_label, "scope": scope, "answer": answer},
+        blocked_reason=blocked_reason,
+        extra={"subsystem": "customer360"},
+    )
+
+
 def _blocked(message: str, scope: dict[str, Any]) -> dict[str, Any]:
+    central_copy = _post_c360_audit("c360_blocked", scope, blocked_reason=message)
+    answer = {"status": "blocked", "message": message}
+    if central_copy is not None:
+        answer["central_copy"] = central_copy
     return {
-        "answer": {"status": "blocked", "message": message},
+        "answer": answer,
         "source": "Customer 360 internal API",
         "scope": scope,
         "confidence": "blocked",
@@ -333,7 +362,7 @@ def _merge_c360_groups(existing: Any, new_group: Any) -> Any:
 
 
 @mcp.tool()
-def search_c360_customers(query: str, limit: int = 8) -> dict[str, Any]:
+def search_c360_customers(query: str, limit: int = 8, slack_thread_url: str = "") -> dict[str, Any]:
     """Search Customer 360 customers by company, owner, org, or customer key."""
 
     normalized_query = (query or "").strip()
@@ -343,6 +372,7 @@ def search_c360_customers(query: str, limit: int = 8) -> dict[str, Any]:
         "query": normalized_query,
         "limit": search_limit,
         "searched_variants": searched_variants,
+        "slack_thread_url": (slack_thread_url or "").strip(),
     }
     if not normalized_query:
         return _blocked("Customer search query is required.", scope)
@@ -358,8 +388,15 @@ def search_c360_customers(query: str, limit: int = 8) -> dict[str, Any]:
 
     groups = _dedupe_c360_groups(groups)
     missing_mapping = len(groups) == 0
-    return {
-        "answer": groups[:search_limit],
+    answer = groups[:search_limit]
+    central_copy = _post_c360_audit(
+        "c360_search",
+        scope,
+        answer=answer,
+        source_label="Customer 360 /api/companies",
+    )
+    result = {
+        "answer": answer,
         "searched_variants": searched_variants,
         "match_count": len(groups),
         "missing_mapping": missing_mapping,
@@ -372,15 +409,18 @@ def search_c360_customers(query: str, limit: int = 8) -> dict[str, Any]:
             else "All-customer C360 access is enabled for V1; task writes still stay Jira-scoped."
         ),
     }
+    if central_copy is not None:
+        result["central_copy"] = central_copy
+    return result
 
 
 @mcp.tool()
-def get_c360_account_context(customer_key: str, format: str = "markdown") -> dict[str, Any]:
+def get_c360_account_context(customer_key: str, format: str = "markdown", slack_thread_url: str = "") -> dict[str, Any]:
     """Fetch compact Customer 360 account context for one customer key."""
 
     key = (customer_key or "").strip()
     output_format = "json" if str(format).lower() == "json" else "markdown"
-    scope = {"customer_key": key, "format": output_format}
+    scope = {"customer_key": key, "format": output_format, "slack_thread_url": (slack_thread_url or "").strip()}
     if not key:
         return _blocked("Customer key is required.", scope)
 
@@ -391,22 +431,36 @@ def get_c360_account_context(customer_key: str, format: str = "markdown") -> dic
     except C360Error as error:
         return _blocked(str(error), scope)
 
-    return {
-        "answer": payload.get("data", payload) if isinstance(payload, dict) else payload,
+    answer = payload.get("data", payload) if isinstance(payload, dict) else payload
+    central_copy = _post_c360_audit(
+        "c360_account_context",
+        scope,
+        answer=answer,
+        source_label=f"Customer 360 /api/companies/{key}/context",
+    )
+    result = {
+        "answer": answer,
         "source": f"Customer 360 /api/companies/{key}/context",
         "scope": scope,
         "confidence": "verified",
         "caveat": "Context is compact and cited; raw source packs are not exposed.",
     }
+    if central_copy is not None:
+        result["central_copy"] = central_copy
+    return result
 
 
 @mcp.tool()
-def ask_c360_customer_context(customer_key: str, question: str) -> dict[str, Any]:
+def ask_c360_customer_context(customer_key: str, question: str, slack_thread_url: str = "") -> dict[str, Any]:
     """Ask Customer 360 compiled wiki and account context about one customer."""
 
     key = (customer_key or "").strip()
     normalized_question = (question or "").strip()
-    scope = {"customer_key": key, "question_chars": len(normalized_question)}
+    scope = {
+        "customer_key": key,
+        "question_chars": len(normalized_question),
+        "slack_thread_url": (slack_thread_url or "").strip(),
+    }
     if not key:
         return _blocked("Customer key is required.", scope)
     if not normalized_question:
@@ -428,14 +482,22 @@ def ask_c360_customer_context(customer_key: str, question: str) -> dict[str, Any
     if isinstance(data, dict) and data.get("citationRefs") == []:
         confidence = "needs-check"
         caveat = "Customer 360 returned no supporting citation refs for this question."
-
-    return {
+    central_copy = _post_c360_audit(
+        "c360_customer_answer",
+        scope,
+        answer=data,
+        source_label=f"Customer 360 /api/companies/{key}/ask",
+    )
+    result = {
         "answer": data,
         "source": f"Customer 360 /api/companies/{key}/ask",
         "scope": scope,
         "confidence": confidence,
         "caveat": caveat,
     }
+    if central_copy is not None:
+        result["central_copy"] = central_copy
+    return result
 
 
 if __name__ == "__main__":

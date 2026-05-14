@@ -1,0 +1,7 @@
+name: psm-ops-adoption-telemetry
+description: Record PSM Ops Slack adoption events for audit and cron digests.
+events:
+  - session:start
+  - agent:start
+  - agent:step
+  - agent:end
