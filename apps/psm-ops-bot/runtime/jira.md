@@ -135,6 +135,7 @@ Required env vars:
 Optional but recommended field env vars:
 
 - `PSM_OPS_ROI_JIRA_FIELD_CUSTOMER`
+- `PSM_OPS_ROI_JIRA_FIELD_STAFFANY_ORGS`
 - `PSM_OPS_ROI_JIRA_FIELD_REQUEST_CATEGORY`
 - `PSM_OPS_ROI_JIRA_FIELD_SOURCE_LINKS`
 - `PSM_OPS_ROI_JIRA_FIELD_REQUESTER`
@@ -155,6 +156,7 @@ Requester rules:
 Field rules:
 
 - Fill deterministic fields only: requester, customer/org, request category, summary/title, details/context, source Slack thread, original channel, and priority/urgency when stated.
+- For ROI, fill both the text `Company Name` field and the object-backed `StaffAny Organization` field when the request type exposes both. A valid ticket with only `Company Name` is lower-quality because the board loses the clickable StaffAny org object.
 - If the ROI form requires priority and has a `Medium` or `Normal` option, the adapter may use that as the default.
 - If any required field remains missing, `create_roi_ticket_from_slack` blocks with exact missing field names and does not write to Jira.
 

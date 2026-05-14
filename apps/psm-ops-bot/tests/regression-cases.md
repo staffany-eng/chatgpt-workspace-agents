@@ -44,6 +44,7 @@
 - Resolves requester from explicit `requested by` / `reported by` first, otherwise the Slack sender.
 - Blocks creation if requester cannot resolve; no bot or `team@staffany.com` requester fallback.
 - Discovers required ROI request fields from JSM metadata and blocks with exact missing field names if customer/org, category, requester, summary/details, source thread, or other required fields are missing.
+- Fills both `Company Name` and `StaffAny Organization` when the ROI request type exposes both fields.
 - Includes source Slack thread, original channel, and requester in the ROI payload or internal metadata.
 
 ## PS WEE Casual NYSS Question

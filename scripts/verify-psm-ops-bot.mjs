@@ -228,6 +228,7 @@ for (const requiredText of [
   "PSM_OPS_ROI_JIRA_PROJECT_KEY",
   "PSM_OPS_ROI_JIRA_REQUEST_TYPE_ID",
   "PSM_OPS_ROI_JIRA_FIELD_REQUESTER",
+  "PSM_OPS_ROI_JIRA_FIELD_STAFFANY_ORGS",
   "CUSTOMER360_INTERNAL_API_TOKEN",
   "SLACK_BOT_TOKEN",
   'allow_bots: "mentions"',
@@ -342,6 +343,7 @@ for (const requiredText of [
   "post_ps_wee_audit",
   "ROI_TRIGGER_PATTERNS",
   "PSM_OPS_ROI_JIRA_REQUEST_TYPE_ID",
+  "PSM_OPS_ROI_JIRA_FIELD_STAFFANY_ORGS",
   "PS Team",
   "Public customer-visible comments are disabled"
 ]) {

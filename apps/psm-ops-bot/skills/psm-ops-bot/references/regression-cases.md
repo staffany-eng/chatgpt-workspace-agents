@@ -70,6 +70,7 @@ Expected:
 - Resolves requester from explicit `requested by` / `reported by` first, otherwise the Slack sender.
 - Blocks creation when requester cannot resolve to Slack/Jira identity; never uses a bot, team, or `team@staffany.com` fallback requester.
 - Discovers required ROI JSM fields at runtime and blocks with exact missing field names when required values are missing.
+- Fills both `Company Name` and `StaffAny Organization` when the ROI request type exposes both fields; a ticket with only the text company field is incomplete.
 - Includes source Slack thread, original channel, and requester in ROI request fields or internal metadata.
 
 ## Casual NYSS Question Does Not Create ROI

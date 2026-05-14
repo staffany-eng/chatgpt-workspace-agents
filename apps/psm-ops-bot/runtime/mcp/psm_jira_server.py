@@ -91,6 +91,7 @@ FIELD_ENVS = {
 
 ROI_FIELD_ENVS = {
     "customer": "PSM_OPS_ROI_JIRA_FIELD_CUSTOMER",
+    "staffany_orgs": "PSM_OPS_ROI_JIRA_FIELD_STAFFANY_ORGS",
     "request_category": "PSM_OPS_ROI_JIRA_FIELD_REQUEST_CATEGORY",
     "source_links": "PSM_OPS_ROI_JIRA_FIELD_SOURCE_LINKS",
     "requester": "PSM_OPS_ROI_JIRA_FIELD_REQUESTER",
@@ -446,6 +447,8 @@ def _roi_field_key(field: dict[str, Any]) -> str:
         return "summary"
     if field_id == "description" or "description" in name or "details" in name or "context" in name:
         return "details"
+    if "staffany" in name and any(token in name for token in ["org", "organisation", "organization"]):
+        return "staffany_orgs"
     if name == "org" or any(token in name for token in ["company", "customer", "account", " org ", "organisation", "organization"]):
         return "customer"
     if "requester" in name or "requestor" in name or ("reported" in name and "by" in name) or ("requested" in name and "by" in name):
@@ -1232,6 +1235,7 @@ def _roi_metadata_comment(draft: dict[str, Any]) -> str:
         ("Requester", draft.get("requester_text")),
         ("Requester source", draft.get("requester_source")),
         ("Customer/org", draft.get("customer")),
+        ("StaffAny Organization", ", ".join(draft.get("staffany_orgs") or [])),
         ("Request category", draft.get("request_category")),
         ("Priority/urgency", draft.get("priority")),
         ("Summary", draft.get("summary")),
@@ -1262,6 +1266,7 @@ def _roi_request_field_values(fields: list[dict[str, Any]], draft: dict[str, Any
         "summary": draft.get("summary", ""),
         "details": draft.get("description", ""),
         "customer": draft.get("customer", ""),
+        "staffany_orgs": ", ".join(draft.get("staffany_orgs") or []),
         "request_category": draft.get("request_category", ""),
         "source_links": "\n".join([draft.get("slack_thread_url", ""), *(draft.get("evidence_links") or [])]).strip(),
         "requester": draft.get("requester_text", ""),
@@ -1667,6 +1672,7 @@ def create_roi_ticket_from_slack(
     slack_thread_url: str,
     message_text: str = "",
     customer: str = "",
+    staffany_orgs: list[str] | None = None,
     summary: str = "",
     details: str = "",
     request_category: str = "",
@@ -1680,6 +1686,9 @@ def create_roi_ticket_from_slack(
     source = (slack_thread_url or "").strip()
     links = [str(link).strip() for link in (evidence_links or []) if str(link).strip()]
     normalized_customer = (customer or "").strip()
+    normalized_staffany_orgs = [str(org).strip() for org in (staffany_orgs or []) if str(org).strip()]
+    if not normalized_staffany_orgs and normalized_customer:
+        normalized_staffany_orgs = [normalized_customer]
     intent_text = "\n".join(
         part
         for part in [
@@ -1746,6 +1755,7 @@ def create_roi_ticket_from_slack(
                 "requester_text": requester_text,
                 "requester_source": requester_source,
                 "customer": normalized_customer,
+                "staffany_orgs": normalized_staffany_orgs,
                 "request_category": roi_category,
                 "priority": (priority or "").strip(),
                 "summary": roi_summary,
@@ -1761,6 +1771,7 @@ def create_roi_ticket_from_slack(
             "requester_source": requester_source,
             "requester_jira_account_id": requester_identity["jira_account_id"],
             "customer": normalized_customer,
+            "staffany_orgs": normalized_staffany_orgs,
             "request_category": roi_category,
             "priority": (priority or "").strip(),
             "summary": roi_summary,

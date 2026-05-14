@@ -98,6 +98,7 @@ psm_ops:
       idempotency_key: "Slack thread permalink"
       fields:
         customer: "PSM_OPS_ROI_JIRA_FIELD_CUSTOMER"
+        staffany_orgs: "PSM_OPS_ROI_JIRA_FIELD_STAFFANY_ORGS"
         request_category: "PSM_OPS_ROI_JIRA_FIELD_REQUEST_CATEGORY"
         source_links: "PSM_OPS_ROI_JIRA_FIELD_SOURCE_LINKS"
         requester: "PSM_OPS_ROI_JIRA_FIELD_REQUESTER"

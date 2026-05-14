@@ -108,6 +108,7 @@ class PsmJiraServerTest(unittest.TestCase):
                 "PSM_OPS_ROI_JIRA_SERVICE_DESK_ID": "20",
                 "PSM_OPS_ROI_JIRA_REQUEST_TYPE_ID": "201",
                 "PSM_OPS_ROI_JIRA_FIELD_CUSTOMER": "customfield_20101",
+                "PSM_OPS_ROI_JIRA_FIELD_STAFFANY_ORGS": "customfield_20100",
                 "PSM_OPS_ROI_JIRA_FIELD_REQUEST_CATEGORY": "customfield_20102",
                 "PSM_OPS_ROI_JIRA_FIELD_SOURCE_LINKS": "customfield_20103",
                 "PSM_OPS_ROI_JIRA_FIELD_REQUESTER": "customfield_20104",
@@ -678,8 +679,8 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertEqual(payload["raiseOnBehalfOf"], "acct-123")
         values = payload["requestFieldValues"]
         self.assertEqual(values["customfield_20101"], "Dreamus")
+        self.assertEqual(values["customfield_20100"], "Dreamus")
         self.assertEqual(values["customfield_20102"], {"id": "11967"})
-        self.assertNotIn("customfield_20100", values)
         self.assertNotIn("customfield_20107", values)
         self.assertIn("https://staffany.slack.com/archives/C08SDJR03N1/p1778753307219139", values["customfield_20103"])
         self.assertIn("Ada PSM", values["customfield_20104"])
@@ -699,6 +700,7 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertIn("customer", result["answer"]["mapped_fields"])
         self.assertIn("priority", result["answer"]["mapped_fields"])
         self.assertEqual(result["answer"]["configured_field_ids"]["customer"], "customfield_20101")
+        self.assertEqual(result["answer"]["configured_field_ids"]["staffany_orgs"], "customfield_20100")
         self.assertEqual(result["answer"]["configured_field_ids"]["priority"], "customfield_20106")
 
     def test_roi_ticket_explicit_requester_overrides_sender(self):

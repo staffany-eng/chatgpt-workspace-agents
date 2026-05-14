@@ -43,6 +43,7 @@ The live profile must configure these environment variables before the gateway i
 | ROI service desk ID | `PSM_OPS_ROI_JIRA_SERVICE_DESK_ID` |
 | ROI request type ID | `PSM_OPS_ROI_JIRA_REQUEST_TYPE_ID` |
 | ROI customer/org field | `PSM_OPS_ROI_JIRA_FIELD_CUSTOMER` |
+| ROI StaffAny Organization object field | `PSM_OPS_ROI_JIRA_FIELD_STAFFANY_ORGS` |
 | ROI request category field | `PSM_OPS_ROI_JIRA_FIELD_REQUEST_CATEGORY` |
 | ROI source links field | `PSM_OPS_ROI_JIRA_FIELD_SOURCE_LINKS` |
 | ROI requester field | `PSM_OPS_ROI_JIRA_FIELD_REQUESTER` |
@@ -53,6 +54,8 @@ The live profile must configure these environment variables before the gateway i
 Do not guess these environment-configured IDs at answer time. `validate_jira_configuration` must fail closed when required PCO values are missing.
 
 For ROI, `validate_roi_jira_configuration` must discover required request fields from JSM request-type metadata at runtime. If a required field cannot be mapped deterministically, or if multiple ROI request types / ambiguous field mappings are configured, fail closed.
+
+ROI ticket quality requires the text company/customer field and the object-backed StaffAny Organization field when the request type exposes both fields. Do not treat `Company Name` alone as enough when Jira shows an empty `StaffAny Organization` object slot.
 
 ROI requester is mandatory. Explicit `requested by` / `reported by` wins; otherwise use the current Slack sender. Do not fall back to a bot, team, or `team@staffany.com` requester.
 
