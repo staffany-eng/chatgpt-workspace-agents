@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Read-only Slack intent-context MCP adapter for NurtureAny Sales Bot.
+"""Read-only Slack context MCP adapter for NurtureAny Sales Bot.
 
-This server reads only a bounded recent window from configured Slack channels
-so NurtureAny can decide whether a first mention is obvious and safe to run.
-It never posts messages, stores transcripts, exports channel history, or uses a
-user token.
+This server reads only bounded context from configured Slack channels so
+NurtureAny can route obvious first mentions and summarize selected threads. It
+never posts messages, stores transcripts, exports channel history, or uses a user
+token.
 """
 
 from __future__ import annotations
@@ -30,16 +30,19 @@ MAX_CONTEXT_MESSAGES = 10
 MAX_LOOKBACK_MINUTES = 30
 DEFAULT_LOOKBACK_MINUTES = 30
 DEFAULT_CONTEXT_LIMIT = 10
+MAX_THREAD_CONTEXT_MESSAGES = 50
+DEFAULT_THREAD_CONTEXT_LIMIT = 50
 USER_AGENT = "StaffAny-NurtureAny/1.0 (+https://staffany.com)"
 
 
 mcp = FastMCP(
     "slack_nurtureany",
     instructions=(
-        "Read-only bounded Slack context for NurtureAny quick-intent routing. "
-        "Use SLACK_BOT_TOKEN, configured channel IDs only, max 10 messages or "
-        "30 minutes, safe snippets/permalinks only, and never post or persist "
-        "raw Slack transcripts."
+        "Read-only bounded Slack context for NurtureAny quick-intent routing and "
+        "selected-thread summaries. Use SLACK_BOT_TOKEN and configured channel "
+        "IDs only. Quick intent is max 10 messages or 30 minutes; explicit "
+        "thread reads are max 50 messages. Return safe snippets/permalinks only, "
+        "and never post or persist raw Slack transcripts."
     ),
 )
 
@@ -58,6 +61,19 @@ def _scope(channel_id: str, thread_ts: str, limit: int, lookback_minutes: int) -
         "lookback_minutes": lookback_minutes,
         "max_context_messages": MAX_CONTEXT_MESSAGES,
         "max_lookback_minutes": MAX_LOOKBACK_MINUTES,
+        "read_only": True,
+        "transcript_persisted": False,
+        "configured_channels_only": True,
+    }
+
+
+def _thread_scope(channel_id: str, thread_ts: str, limit: int, current_ts: str = "") -> dict[str, Any]:
+    return {
+        "channel_id": (channel_id or "").strip(),
+        "thread_ts": (thread_ts or "").strip(),
+        "current_ts": (current_ts or "").strip(),
+        "requested_limit": limit,
+        "max_thread_context_messages": MAX_THREAD_CONTEXT_MESSAGES,
         "read_only": True,
         "transcript_persisted": False,
         "configured_channels_only": True,
@@ -200,6 +216,59 @@ def _thread_messages(
     return [message for message in messages if oldest <= _message_ts(message) <= latest], "Slack conversations.replies API"
 
 
+def _parse_slack_permalink(permalink: str) -> tuple[str, str]:
+    parsed = urllib.parse.urlparse(str(permalink or "").strip())
+    match = re.search(r"/archives/([^/]+)/p(\d{10})(\d{6})", parsed.path)
+    if not match:
+        raise SlackIntentError("Malformed Slack permalink. Expected /archives/<channel>/p<timestamp>.")
+    channel_id = urllib.parse.unquote(match.group(1))
+    message_ts = f"{match.group(2)}.{match.group(3)}"
+    query = urllib.parse.parse_qs(parsed.query)
+    thread_ts = str((query.get("thread_ts") or [message_ts])[0] or message_ts)
+    return channel_id, thread_ts
+
+
+def _thread_context(channel_id: str, thread_ts: str, current_ts: str, limit: int) -> dict[str, Any]:
+    safe_limit = _clamp_int(limit, DEFAULT_THREAD_CONTEXT_LIMIT, 1, MAX_THREAD_CONTEXT_MESSAGES)
+    scope = _thread_scope(channel_id, thread_ts, safe_limit, current_ts)
+    channel = (channel_id or "").strip()
+    thread = (thread_ts or "").strip()
+    configured_channels = _configured_channel_ids()
+    if not channel:
+        return _blocked("channel_id is required for Slack thread context.", scope)
+    if not thread:
+        return _blocked("thread_ts is required for Slack thread context.", scope)
+    if not configured_channels:
+        return _blocked("NURTUREANY_SLACK_INTENT_CHANNEL_IDS or SLACK_HOME_CHANNEL is required.", scope)
+    if channel not in configured_channels:
+        return _blocked("Slack thread context is restricted to configured channel IDs.", scope)
+
+    latest = max(_ts_float(current_ts, time.time()), _ts_float(thread, 0.0))
+    try:
+        messages, source = _thread_messages(channel, thread, latest, 0.0, safe_limit)
+    except SlackIntentError as error:
+        return _blocked(str(error), scope)
+
+    messages = sorted(messages, key=_message_ts)[-safe_limit:]
+    safe_messages = [_safe_message(message, channel) for message in messages]
+    confidence = "verified" if safe_messages else "needs-check"
+    caveat = "Safe snippets/permalinks only; no raw transcript persisted and Slack is not business source of truth."
+    return {
+        "answer": {
+            "messages": safe_messages,
+            "safe_summaries": [message.get("summary", "") for message in safe_messages],
+            "message_count": len(safe_messages),
+            "will_mutate_slack": False,
+            "will_post_message": False,
+            "transcript_persisted": False,
+        },
+        "source": source,
+        "scope": scope,
+        "confidence": confidence,
+        "caveat": caveat,
+    }
+
+
 @mcp.tool()
 def read_recent_slack_intent_context(
     channel_id: str,
@@ -250,6 +319,30 @@ def read_recent_slack_intent_context(
         "confidence": confidence,
         "caveat": caveat,
     }
+
+
+@mcp.tool()
+def get_current_slack_thread_context(
+    channel_id: str,
+    thread_ts: str,
+    current_ts: str = "",
+    limit: int = DEFAULT_THREAD_CONTEXT_LIMIT,
+) -> dict[str, Any]:
+    """Read one configured-channel Slack thread after approval or bounded continuation."""
+
+    return _thread_context(channel_id, thread_ts, current_ts, limit)
+
+
+@mcp.tool()
+def get_selected_slack_thread_context(permalink: str, limit: int = DEFAULT_THREAD_CONTEXT_LIMIT) -> dict[str, Any]:
+    """Read one configured-channel Slack thread from a user-supplied permalink."""
+
+    try:
+        channel_id, thread_ts = _parse_slack_permalink(permalink)
+    except SlackIntentError as error:
+        safe_limit = _clamp_int(limit, DEFAULT_THREAD_CONTEXT_LIMIT, 1, MAX_THREAD_CONTEXT_MESSAGES)
+        return _blocked(str(error), _thread_scope("", "", safe_limit))
+    return _thread_context(channel_id, thread_ts, "", limit)
 
 
 if __name__ == "__main__":

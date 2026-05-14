@@ -400,8 +400,9 @@ run_post_deploy_check() {
         echo "deploy:check:$label=passed-after-retry:$attempt"
       fi
       return 0
+    else
+      status="$?"
     fi
-    status="$?"
     if [ "$attempt" -eq "$attempts" ]; then
       echo "deploy:check:$label=failed-after-$attempts-attempts"
       return "$status"

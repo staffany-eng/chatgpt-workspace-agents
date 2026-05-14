@@ -219,6 +219,7 @@ mcp_servers:
       configured_channels_only: true
       max_context_messages: 10
       max_context_lookback_minutes: 30
+      max_thread_context_messages: 50
       safe_summaries_permalinks_only: true
       raw_transcript_persistence: false
       slack_mutations: false
@@ -226,6 +227,8 @@ mcp_servers:
       slack_connector_fallback: false
     tool_allowlist:
     - read_recent_slack_intent_context
+    - get_current_slack_thread_context
+    - get_selected_slack_thread_context
   hubspot_nurtureany:
     description: Custom HubSpot adapter for target-account nurture workflows.
     command: /Users/leekaiyi/.hermes/hermes-agent/venv/bin/python

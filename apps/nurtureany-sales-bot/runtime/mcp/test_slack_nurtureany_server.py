@@ -22,7 +22,11 @@ class SlackNurtureAnyServerTest(unittest.TestCase):
     def test_exposes_read_only_context_tool_only(self):
         self.assertEqual(
             sorted(tool.__name__ for tool in self.module.mcp.tools),
-            ["read_recent_slack_intent_context"],
+            [
+                "get_current_slack_thread_context",
+                "get_selected_slack_thread_context",
+                "read_recent_slack_intent_context",
+            ],
         )
         tool_names = " ".join(tool.__name__ for tool in self.module.mcp.tools)
         for forbidden in ["post", "send", "update", "delete"]:
@@ -118,6 +122,100 @@ class SlackNurtureAnyServerTest(unittest.TestCase):
         self.assertEqual(calls[0][0], "conversations.replies")
         self.assertEqual(result["answer"]["message_count"], 1)
         self.assertEqual(result["answer"]["messages"][0]["summary"], "run this quick check")
+
+    def test_current_thread_reads_are_capped_and_redacted(self):
+        calls = []
+
+        def fake_slack_api(method, params):
+            calls.append((method, params))
+            if method == "conversations.replies":
+                return {
+                    "ok": True,
+                    "messages": [
+                        {
+                            "ts": "1770000000.000000",
+                            "user": "U123",
+                            "text": "thread context for test@example.com +65 9123 4567",
+                        }
+                    ],
+                }
+            if method == "chat.getPermalink":
+                return {"ok": True, "permalink": "https://staffany.slack.com/archives/C123/p1770000000000000"}
+            raise AssertionError(f"unexpected method {method}")
+
+        with patch.dict(
+            os.environ,
+            {"SLACK_BOT_TOKEN": "test-bot-token", "NURTUREANY_SLACK_INTENT_CHANNEL_IDS": "C123"},
+            clear=True,
+        ), patch.object(self.module, "_slack_api", side_effect=fake_slack_api):
+            result = self.module.get_current_slack_thread_context(
+                "C123", "1770000000.000000", current_ts="1770000001.000000", limit=99
+            )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["scope"]["requested_limit"], self.module.MAX_THREAD_CONTEXT_MESSAGES)
+        self.assertEqual(calls[0][0], "conversations.replies")
+        self.assertEqual(calls[0][1]["channel"], "C123")
+        self.assertEqual(calls[0][1]["ts"], "1770000000.000000")
+        message = result["answer"]["messages"][0]
+        self.assertIn("[email]", message["summary"])
+        self.assertIn("[phone]", message["summary"])
+        self.assertFalse(result["answer"]["will_mutate_slack"])
+        self.assertFalse(result["answer"]["will_post_message"])
+        self.assertFalse(result["answer"]["transcript_persisted"])
+
+    def test_selected_permalink_thread_reads_parse_thread_ts(self):
+        calls = []
+
+        def fake_slack_api(method, params):
+            calls.append((method, params))
+            if method == "conversations.replies":
+                return {
+                    "ok": True,
+                    "messages": [
+                        {"ts": "1770000000.000000", "user": "U123", "text": "root"},
+                        {"ts": "1770000002.000000", "user": "U456", "text": "reply"},
+                    ],
+                }
+            if method == "chat.getPermalink":
+                return {"ok": True, "permalink": "https://staffany.slack.com/archives/C123/p1770000000000000"}
+            raise AssertionError(f"unexpected method {method}")
+
+        permalink = "https://staffany.slack.com/archives/C123/p1770000002000000?thread_ts=1770000000.000000&cid=C123"
+        with patch.dict(
+            os.environ,
+            {"SLACK_BOT_TOKEN": "test-bot-token", "NURTUREANY_SLACK_INTENT_CHANNEL_IDS": "C123"},
+            clear=True,
+        ), patch.object(self.module, "_slack_api", side_effect=fake_slack_api):
+            result = self.module.get_selected_slack_thread_context(permalink, limit=2)
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(calls[0][0], "conversations.replies")
+        self.assertEqual(calls[0][1]["channel"], "C123")
+        self.assertEqual(calls[0][1]["ts"], "1770000000.000000")
+        self.assertEqual(result["answer"]["message_count"], 2)
+
+    def test_selected_permalink_blocks_malformed_without_network(self):
+        with patch.dict(os.environ, {"SLACK_BOT_TOKEN": "test-bot-token"}, clear=True), patch(
+            "urllib.request.urlopen", side_effect=AssertionError("should not call Slack")
+        ):
+            result = self.module.get_selected_slack_thread_context("https://staffany.slack.com/not-a-thread")
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("Malformed Slack permalink", result["answer"])
+
+    def test_selected_permalink_blocks_unconfigured_channel_without_network(self):
+        with patch.dict(
+            os.environ,
+            {"SLACK_BOT_TOKEN": "test-bot-token", "NURTUREANY_SLACK_INTENT_CHANNEL_IDS": "C123"},
+            clear=True,
+        ), patch("urllib.request.urlopen", side_effect=AssertionError("should not call Slack")):
+            result = self.module.get_selected_slack_thread_context(
+                "https://staffany.slack.com/archives/C999/p1770000000000000"
+            )
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("configured channel IDs", result["answer"])
 
 
 if __name__ == "__main__":
