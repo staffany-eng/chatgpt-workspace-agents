@@ -130,11 +130,11 @@ class PsmJiraServerTest(unittest.TestCase):
                 "name": "Request category",
                 "required": True,
                 "validValues": [
-                    {"value": "BD Ops", "label": "BD Ops"},
-                    {"value": "NYSS", "label": "NYSS"},
-                    {"value": "RevOps", "label": "RevOps"},
-                    {"value": "ROI", "label": "ROI"},
-                    {"value": "Billing / invoice", "label": "Billing / invoice"},
+                    {"value": "11967", "label": "BD Ops"},
+                    {"value": "11968", "label": "NYSS"},
+                    {"value": "11969", "label": "RevOps"},
+                    {"value": "11970", "label": "ROI"},
+                    {"value": "11971", "label": "Billing / invoice"},
                 ],
             },
             {"fieldId": "customfield_20103", "name": "Source links", "required": True},
@@ -144,7 +144,7 @@ class PsmJiraServerTest(unittest.TestCase):
                 "fieldId": "customfield_20106",
                 "name": "Priority",
                 "required": False,
-                "validValues": [{"value": "Medium", "label": "Medium"}, {"value": "High", "label": "High"}],
+                "validValues": [{"value": "12001", "label": "Medium"}, {"value": "12002", "label": "High"}],
             },
             {"fieldId": "customfield_20107", "name": "Urgency Impact", "required": False},
         ]
@@ -573,7 +573,9 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertEqual(payload["raiseOnBehalfOf"], "acct-123")
         values = payload["requestFieldValues"]
         self.assertEqual(values["customfield_20101"], "Dreamus")
-        self.assertEqual(values["customfield_20102"], "BD Ops")
+        self.assertEqual(values["customfield_20102"], {"id": "11967"})
+        self.assertNotIn("customfield_20100", values)
+        self.assertNotIn("customfield_20107", values)
         self.assertIn("https://staffany.slack.com/archives/C08SDJR03N1/p1778753307219139", values["customfield_20103"])
         self.assertIn("Ada PSM", values["customfield_20104"])
         self.assertEqual(values["customfield_20105"], "#team-rev-bd-ops")

@@ -492,7 +492,11 @@ def _roi_option_value(field: dict[str, Any], raw_value: str) -> Any:
             str(option.get("id") or ""),
         ]
         if any(_normalize_label(candidate) == normalized for candidate in candidates if candidate):
-            return option.get("value") or option.get("id") or value
+            option_id = str(option.get("value") or option.get("id") or "").strip()
+            if option_id:
+                return {"id": option_id}
+            option_name = str(option.get("label") or option.get("name") or "").strip()
+            return {"name": option_name} if option_name else value
     return value
 
 
@@ -1228,6 +1232,11 @@ def _roi_request_field_values(fields: list[dict[str, Any]], draft: dict[str, Any
             continue
         key = _roi_field_key(field)
         if not key:
+            if _roi_field_required(field):
+                missing_required.append(_roi_field_name(field))
+            continue
+        mapped_field = mapping.get(key)
+        if mapped_field and str(mapped_field.get("fieldId") or "") != field_id:
             if _roi_field_required(field):
                 missing_required.append(_roi_field_name(field))
             continue
