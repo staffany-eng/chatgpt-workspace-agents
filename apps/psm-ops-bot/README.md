@@ -7,10 +7,10 @@ Alias note: `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` refer to this 
 ## Runtime Shape
 
 - Runtime: Hermes Agent
-- Profile: `psmopsbot`
+- Profile: `psmopsbot` on cloud host only; do not create or run a Mac-local `psmopsbot` profile.
 - Slack surface: mention-required usage in public/open StaffAny Slack channels
 - Model: Anthropic provider, `claude-sonnet-4-6`
-- Jira scope: dedicated PCO Jira Service Management project only
+- Jira scope: PCO Jira Service Management for PS/customer work; ROI Jira Service Management for RevOps, BD Ops, NYSS, and ROI-board work
 - Task ownership: Jira `PS Team`, matched from Slack users/profile identity
 - Customer context scope: Customer 360 internal API, all customers in V1
 - Source packet: this directory
@@ -23,7 +23,7 @@ Alias note: `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` refer to this 
 | `profile/SOUL.md` | Source-controlled profile soul prompt. |
 | `profile/config.template.yaml` | Non-secret Hermes profile config template. |
 | `skills/psm-ops-bot/` | Hermes skill and references. |
-| `runtime/mcp/psm_jira_server.py` | PCO Jira MCP adapter. |
+| `runtime/mcp/psm_jira_server.py` | PCO and ROI Jira MCP adapter. |
 | `runtime/mcp/psm_c360_server.py` | Customer 360 MCP adapter. |
 | `runtime/mcp/psm_google_calendar_server.py` | Read-only Google Calendar adapter using `team@staffany.com`. |
 | `runtime/mcp/psm_slack_notifier.py` | Bot-owned central Slack audit notifier for PS WEE lifecycle and blocked events. |
@@ -43,7 +43,7 @@ Alias note: `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` refer to this 
 ## Restore Order
 
 1. Provision or access the GCE cloud host. Do not run the production gateway from a laptop.
-2. Create or select Hermes profile `psmopsbot`.
+2. Create or select Hermes profile `psmopsbot` on `hermes-psm-ops-bot-poc` only. If a Mac-local `~/.hermes/profiles/psmopsbot` exists, delete or archive it before testing so Slack cannot hit stale local state.
 3. Copy `profile/SOUL.md` into the profile `SOUL.md`.
 4. Apply `profile/config.template.yaml` with real runtime paths and configured Jira field IDs.
 5. Copy `skills/psm-ops-bot/` into the profile skills directory.

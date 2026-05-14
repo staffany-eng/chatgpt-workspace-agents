@@ -1,12 +1,19 @@
 # Jira Field Contract
 
-The PSM Ops bot writes only to the dedicated PCO Jira Service Management project.
+The PSM Ops bot writes PS/customer-ops work to PCO Jira Service Management and RevOps/BD Ops/NYSS work directly to ROI Jira Service Management.
 
 ## Project
 
 - Project key: `PCO`
 - Project name: `PCO - PSM Customer Ops`
 - Source of truth: Jira Service Management
+
+## ROI Direct Project
+
+- Project key: configured by `PSM_OPS_ROI_JIRA_PROJECT_KEY`
+- Source of truth: Jira Service Management ROI board
+- Idempotency key: source Slack thread permalink
+- No PCO wrapper ticket for ROI-direct work
 
 ## Preconfigured Runtime Values
 
@@ -32,8 +39,22 @@ The live profile must configure these environment variables before the gateway i
 | Source links field | `PSM_OPS_JIRA_FIELD_SOURCE_LINKS` |
 | Reminder at field | `PSM_OPS_JIRA_FIELD_REMINDER_AT` only if a separate reminder field is introduced later |
 | PS Team field | `PSM_OPS_JIRA_FIELD_PS_TEAM`; in thin POC this defaults to `customfield_10876` |
+| ROI project key | `PSM_OPS_ROI_JIRA_PROJECT_KEY` |
+| ROI service desk ID | `PSM_OPS_ROI_JIRA_SERVICE_DESK_ID` |
+| ROI request type ID | `PSM_OPS_ROI_JIRA_REQUEST_TYPE_ID` |
+| ROI customer/org field | `PSM_OPS_ROI_JIRA_FIELD_CUSTOMER` |
+| ROI request category field | `PSM_OPS_ROI_JIRA_FIELD_REQUEST_CATEGORY` |
+| ROI source links field | `PSM_OPS_ROI_JIRA_FIELD_SOURCE_LINKS` |
+| ROI requester field | `PSM_OPS_ROI_JIRA_FIELD_REQUESTER` |
+| ROI requester Slack field | `PSM_OPS_ROI_JIRA_FIELD_REQUESTER_SLACK` |
+| ROI original channel field | `PSM_OPS_ROI_JIRA_FIELD_ORIGINAL_CHANNEL` |
+| ROI priority/urgency field | `PSM_OPS_ROI_JIRA_FIELD_PRIORITY` |
 
-Do not discover or guess these at answer time. `validate_jira_configuration` must fail closed when required values are missing.
+Do not guess these environment-configured IDs at answer time. `validate_jira_configuration` must fail closed when required PCO values are missing.
+
+For ROI, `validate_roi_jira_configuration` must discover required request fields from JSM request-type metadata at runtime. If a required field cannot be mapped deterministically, or if multiple ROI request types / ambiguous field mappings are configured, fail closed.
+
+ROI requester is mandatory. Explicit `requested by` / `reported by` wins; otherwise use the current Slack sender. Do not fall back to a bot, team, or `team@staffany.com` requester.
 
 ## PS Team Routing
 

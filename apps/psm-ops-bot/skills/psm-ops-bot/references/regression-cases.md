@@ -52,6 +52,40 @@ Expected:
 - Posts the ticket link in the same Slack thread and asks for missing info.
 - Does not paste the raw Slack transcript into Jira.
 
+## PS WEE ROI Direct Intake
+
+Prompt:
+
+```text
+@PS Wee Manager create a task for bd ops to send Dreamus invoice
+```
+
+Expected:
+
+- Treats `PS Wee Manager` as this PSM Ops Bot, not a separate app/profile.
+- Calls `classify_roi_ticket_request` and detects actionable BD Ops / invoice work.
+- Calls `find_roi_ticket_by_slack_thread` with the current Slack thread permalink.
+- If no ROI ticket exists for that Slack thread, calls `create_roi_ticket_from_slack`.
+- Does not call `create_ps_wee_intake_ticket` or create a PCO wrapper.
+- Resolves requester from explicit `requested by` / `reported by` first, otherwise the Slack sender.
+- Blocks creation when requester cannot resolve to Slack/Jira identity; never uses a bot, team, or `team@staffany.com` fallback requester.
+- Discovers required ROI JSM fields at runtime and blocks with exact missing field names when required values are missing.
+- Includes source Slack thread, original channel, and requester in ROI request fields or internal metadata.
+
+## Casual NYSS Question Does Not Create ROI
+
+Prompt:
+
+```text
+@PS Wee Manager @nyss what is the Stripe password?
+```
+
+Expected:
+
+- Does not create ROI.
+- Does not create PCO.
+- Requires create/add/log/handle/ticket/task/board wording before ROI ticket creation.
+
 ## PS WEE Task List And Calendar Mixed Request
 
 Thread:

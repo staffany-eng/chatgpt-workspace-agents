@@ -21,7 +21,8 @@ For repo-wide source claims, also follow the root `AGENTS.md`.
 
 ## Source Boundaries
 
-- Jira PCO is the task source of truth.
+- Jira PCO is the PS/customer-ops task source of truth.
+- Jira ROI is the source of truth for RevOps, BD Ops, NYSS, and ROI-board work; do not create a PCO wrapper for those requests.
 - Customer 360 is the customer context source of truth.
 - The bot may use all Customer 360 customers in V1.
 - "My tasks" and reminder filters are scoped by Jira `PS Team`, not Jira assignee.

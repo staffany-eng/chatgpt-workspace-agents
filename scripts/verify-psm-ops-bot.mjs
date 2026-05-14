@@ -55,9 +55,13 @@ if (!existsSync(manifestPath)) {
 
     const expectedJiraTools = [
       "validate_jira_configuration",
+      "validate_roi_jira_configuration",
       "resolve_slack_user_identity",
+      "classify_roi_ticket_request",
       "list_my_pco_tasks",
       "find_ticket_by_slack_thread",
+      "find_roi_ticket_by_slack_thread",
+      "create_roi_ticket_from_slack",
       "create_ps_wee_intake_ticket",
       "append_ps_wee_ticket_update",
       "mark_ps_wee_ticket_ready",
@@ -220,11 +224,18 @@ for (const requiredText of [
   "max_parallel_jobs: 1",
   "PSM_OPS_JIRA_SERVICE_DESK_ID",
   "PSM_OPS_JIRA_FIELD_REMINDER_AT",
+  "PSM_OPS_ROI_JIRA_PROJECT_KEY",
+  "PSM_OPS_ROI_JIRA_REQUEST_TYPE_ID",
+  "PSM_OPS_ROI_JIRA_FIELD_REQUESTER",
   "CUSTOMER360_INTERNAL_API_TOKEN",
   "SLACK_BOT_TOKEN",
   "resolve_slack_user_identity",
   "PSM_OPS_CENTRAL_SLACK_CHANNEL_ID",
   "PSM_OPS_ADOPTION_METRICS_PATH",
+  "classify_roi_ticket_request",
+  "validate_roi_jira_configuration",
+  "create_roi_ticket_from_slack",
+  "find_roi_ticket_by_slack_thread",
   "create_ps_wee_intake_ticket",
   "find_ticket_by_slack_thread",
   "append_ps_wee_ticket_update",
@@ -244,6 +255,8 @@ for (const requiredText of [
 const soulText = textOf(appRoot, "profile/SOUL.md");
 for (const requiredText of [
   "Task creation is preview first",
+  "ROI-direct requests are ticket-first",
+  "No bot, team, or team@staffany.com requester fallback is allowed",
   "Status transitions, Jira assignee updates, internal comments, and due-date reminder updates may execute directly",
   "PS Team = CS Duty",
   "customer reached out",
@@ -266,7 +279,11 @@ for (const requiredText of [
 const skillText = textOf(appRoot, "skills/psm-ops-bot/SKILL.md");
 for (const requiredText of [
   "PCO is the only task system",
+  "ROI is the source of truth for RevOps, BD Ops, NYSS, and ROI-board work",
   "PS WEE",
+  "create_roi_ticket_from_slack",
+  "find_roi_ticket_by_slack_thread",
+  "classify_roi_ticket_request",
   "create_ps_wee_intake_ticket",
   "resolve_slack_user_identity",
   "customer reached out",
@@ -293,9 +310,13 @@ const jiraMcpText = textOf(appRoot, "runtime/mcp/psm_jira_server.py");
 for (const requiredText of [
   "@mcp.tool()",
   "validate_jira_configuration",
+  "validate_roi_jira_configuration",
   "resolve_slack_user_identity",
+  "classify_roi_ticket_request",
   "list_my_pco_tasks",
   "find_ticket_by_slack_thread",
+  "find_roi_ticket_by_slack_thread",
+  "create_roi_ticket_from_slack",
   "create_ps_wee_intake_ticket",
   "append_ps_wee_ticket_update",
   "Slack poster",
@@ -313,6 +334,8 @@ for (const requiredText of [
   "PSM_OPS_TODAY",
   "PSM_OPS_TIMEZONE",
   "post_ps_wee_audit",
+  "ROI_TRIGGER_PATTERNS",
+  "PSM_OPS_ROI_JIRA_REQUEST_TYPE_ID",
   "PS Team",
   "Public customer-visible comments are disabled"
 ]) {
@@ -358,6 +381,10 @@ if (!nurtureProfileBlock) {
   fail("ops/hermes/profiles.yaml missing nurtureanysalesbot profile");
 } else if (/ps\s+wee\s+manager/i.test(nurtureProfileBlock)) {
   fail("nurtureanysalesbot must not claim PS Wee Manager workflow aliases");
+} else if (!nurtureProfileBlock.includes("local_profile_policy: cloud_only")) {
+  fail("nurtureanysalesbot profile must be marked cloud-only");
+} else if (nurtureProfileBlock.includes("launchd_label:")) {
+  fail("nurtureanysalesbot profile must not define a Mac launchd_label");
 }
 
 const psmOpsProfileBlock = profileBlock(profilesText, "psmopsbot");
@@ -368,13 +395,14 @@ if (!psmOpsProfileBlock) {
     "display_name: PSM Ops Bot",
     "canonical_profile: psmopsbot",
     "live_profile: psmopsbot",
-    "workflow_aliases: [PS WEE, PS Wee Manager, PSM manager ops bot]",
+    "workflow_aliases: [PS WEE, PS Wee Manager, PSM Manager Ops Bot, ps wee manager, ps wee, psm manager ops bot]",
     "app_packet: apps/psm-ops-bot",
     "deploy_host: hermes-psm-ops-bot-poc",
+    "local_profile_policy: cloud_only",
     "systemd_unit: hermes-gateway-psmopsbot.service",
     "bot_name: ps_wee_manager",
     "open_channel_mode: true",
-    "psm_jira: 14",
+    "psm_jira: 19",
     "psm_c360: 3",
     "psmopsbot due-date reminders",
     "psmopsbot local cloud heartbeat",
@@ -383,6 +411,9 @@ if (!psmOpsProfileBlock) {
     if (!psmOpsProfileBlock.includes(requiredText)) {
       fail(`psmopsbot profile missing required text: ${requiredText}`);
     }
+  }
+  if (psmOpsProfileBlock.includes("launchd_label:")) {
+    fail("psmopsbot profile must not define a Mac launchd_label");
   }
 }
 
@@ -484,6 +515,7 @@ for (const requiredText of [
   "PSM Ops automation: PS WEE adoption digest",
   "psm-ops-adoption.jsonl",
   "ticket_created",
+  "roi_ticket_created",
   "c360_search",
   "Central copy",
   "hermes -p psmopsbot insights --days 30 --source slack"

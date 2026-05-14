@@ -1,11 +1,12 @@
 # Jira Runtime
 
-PSM Ops Bot uses Jira PCO as the only task source of truth.
+PSM Ops Bot uses Jira PCO as the PS/customer-ops task source of truth and Jira ROI as the RevOps/BD Ops/NYSS task source of truth.
 
 ## API Pattern
 
 - List/search tasks: Jira Cloud JQL search API.
 - Create PCO requests: Jira Service Management request API.
+- Create ROI requests: Jira Service Management request API for the configured ROI service desk and request type.
 - Due date: Jira Cloud issue update API against the standard `duedate` field after request creation.
 - Status transitions: Jira Cloud issue transitions API.
 - Comments: Jira Service Management request comment API with `public=false` by default.
@@ -90,12 +91,52 @@ The access policy file maps Slack email to Jira account ID:
 }
 ```
 
+## ROI Direct Runtime Config
+
+ROI-direct is for RevOps, BD Ops, NYSS, and ROI-board requests. It does not create a PCO wrapper ticket. The ROI ticket is the source of truth; the Slack thread permalink is evidence and the idempotency key.
+
+Required env vars:
+
+- `PSM_OPS_ROI_JIRA_PROJECT_KEY`
+- `PSM_OPS_ROI_JIRA_SERVICE_DESK_ID`
+- `PSM_OPS_ROI_JIRA_REQUEST_TYPE_ID`
+
+Optional but recommended field env vars:
+
+- `PSM_OPS_ROI_JIRA_FIELD_CUSTOMER`
+- `PSM_OPS_ROI_JIRA_FIELD_REQUEST_CATEGORY`
+- `PSM_OPS_ROI_JIRA_FIELD_SOURCE_LINKS`
+- `PSM_OPS_ROI_JIRA_FIELD_REQUESTER`
+- `PSM_OPS_ROI_JIRA_FIELD_REQUESTER_SLACK`
+- `PSM_OPS_ROI_JIRA_FIELD_ORIGINAL_CHANNEL`
+- `PSM_OPS_ROI_JIRA_FIELD_PRIORITY`
+
+`validate_roi_jira_configuration` reads the JSM request-type metadata at runtime. If required fields cannot be mapped deterministically, or multiple request types/field mappings are configured, the adapter fails closed.
+
+Requester rules:
+
+- Explicit `requested by` / `reported by` wins.
+- Otherwise the current Slack sender is requester.
+- Resolve requester through Slack identity and Jira account mapping before creation.
+- No bot, team, or `team@staffany.com` requester fallback is allowed.
+- Unresolved requester blocks creation and asks for the missing requester only.
+
+Field rules:
+
+- Fill deterministic fields only: requester, customer/org, request category, summary/title, details/context, source Slack thread, original channel, and priority/urgency when stated.
+- If the ROI form requires priority and has a `Medium` or `Normal` option, the adapter may use that as the default.
+- If any required field remains missing, `create_roi_ticket_from_slack` blocks with exact missing field names and does not write to Jira.
+
 ## Tool Rules
 
 - `validate_jira_configuration`: run in health checks and before broad enablement.
+- `validate_roi_jira_configuration`: run after ROI env setup and before broad ROI enablement.
 - `resolve_slack_user_identity`: safe read; resolve one Slack mention, email, or exact name through `users.list` before asking avoidable owner questions.
+- `classify_roi_ticket_request`: safe read; route actionable ROI/RevOps/BD Ops/NYSS requests to ROI only when create/add/log/handle/task wording is present.
 - `list_my_pco_tasks`: safe read, caller-scoped by Jira `PS Team`.
 - `find_ticket_by_slack_thread`: safe read; use the Slack thread permalink as the PS WEE idempotency key.
+- `find_roi_ticket_by_slack_thread`: safe read; use the Slack thread permalink as the ROI idempotency key.
+- `create_roi_ticket_from_slack`: mutation; creates direct ROI JSM tickets for actionable RevOps/BD Ops/NYSS/ROI-board requests with first-class requester, required-field checks, source Slack thread, and no PCO wrapper.
 - `create_ps_wee_intake_ticket`: mutation; creates an immediate needs-info intake ticket for explicit PS WEE ticketing requests without preview approval.
 - `append_ps_wee_ticket_update`: mutation; adds a concise structured internal comment for meaningful Slack follow-up discussion, including `Slack poster:` when the Slack poster display name, user ID, or email is available.
 - `mark_ps_wee_ticket_ready`: mutation; adds a ready-for-triage internal comment and removes `needs-info` when Jira allows it.

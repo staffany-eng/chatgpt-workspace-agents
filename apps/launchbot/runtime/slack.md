@@ -10,7 +10,7 @@ Launchbot's current surfaces are `#launch-bot-testing` and explicitly configured
   - `C0AJAUNCEL8` (`#proj-cs-seonggong-seorae`) for Seorae KER lookup.
 - Disable tool progress, streaming, interim assistant messages, and reactions.
 - Visible operational replies must come from the Launchbot app identity.
-- Only one `launchbot` gateway should be connected to Slack. After cloud promotion, stop the local Mac `launchbot` gateway before live smokes so stale local profile sessions cannot answer instead of the cloud runtime.
+- Only one `launchbot` gateway should be connected to Slack. `launchbot` is cloud-only on `hermes-data-bot-poc`; a Mac-local `~/.hermes/profiles/launchbot` profile or gateway should not exist for live smokes.
 - Do not use Kai Yi's user token or the Slack connector for bot/runtime inspection when the Launchbot bot token exists.
 - For ticket lookup, read bounded Slack thread context with the bot token and call read-only Jira KER search. Do not post from the MCP tool and do not mutate Jira.
 

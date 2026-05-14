@@ -30,6 +30,14 @@ function scanForSecretPatterns(relPath) {
   sharedScanForSecretPatterns(appRoot, relPath, fail);
 }
 
+function profileBlock(profilesText, profileName) {
+  const marker = `  - name: ${profileName}`;
+  const start = profilesText.indexOf(marker);
+  if (start === -1) return "";
+  const next = profilesText.indexOf("\n  - name:", start + marker.length);
+  return profilesText.slice(start, next === -1 ? undefined : next);
+}
+
 if (!existsSync(manifestPath)) {
   fail("Missing apps/hermes-data-bot/app.manifest.json");
 } else {
@@ -96,6 +104,13 @@ for (const relPath of filesToScan) {
 const configText = existsSync(join(appRoot, "profile", "config.template.yaml"))
   ? readFileSync(join(appRoot, "profile", "config.template.yaml"), "utf8")
   : "";
+for (const requiredText of [
+  "Apply on hermes-data-bot-poc only",
+  "Do not create a Mac-local",
+  "staffanydatabot profile"
+]) {
+  if (!configText.includes(requiredText)) fail(`config.template.yaml missing cloud-only profile guidance: ${requiredText}`);
+}
 for (const tool of ["list_dataset_ids", "list_table_ids", "get_table_info", "execute_sql_readonly"]) {
   if (!configText.includes(tool)) fail(`config.template.yaml missing allowlisted tool ${tool}`);
 }
@@ -131,6 +146,31 @@ for (const requiredText of [
   "Do not create a separate LaunchBot VM unless"
 ]) {
   if (!topologyText.includes(requiredText)) fail(`GCP VM topology doc missing required text: ${requiredText}`);
+}
+
+const profilesText = existsSync(join(repoRoot, "ops", "hermes", "profiles.yaml"))
+  ? readFileSync(join(repoRoot, "ops", "hermes", "profiles.yaml"), "utf8")
+  : "";
+for (const [profileName, deployHost] of [
+  ["staffanydatabot", "hermes-data-bot-poc"],
+  ["launchbot", "hermes-data-bot-poc"],
+  ["psmopsbot", "hermes-psm-ops-bot-poc"],
+  ["nurtureanysalesbot", "nurtureany-sales-bot-prod"]
+]) {
+  const block = profileBlock(profilesText, profileName);
+  if (!block) {
+    fail(`ops/hermes/profiles.yaml missing ${profileName} profile`);
+    continue;
+  }
+  if (!block.includes(`deploy_host: ${deployHost}`)) {
+    fail(`${profileName} profile must deploy to ${deployHost}`);
+  }
+  if (!block.includes("local_profile_policy: cloud_only")) {
+    fail(`${profileName} profile must be marked cloud-only`);
+  }
+  if (block.includes("launchd_label:")) {
+    fail(`${profileName} profile must not define a Mac launchd_label`);
+  }
 }
 
 const deployRunbookText = existsSync(join(appRoot, "deploy", "gce-onboarding-runbook.md"))

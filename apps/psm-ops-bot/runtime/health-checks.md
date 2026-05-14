@@ -2,6 +2,8 @@
 
 PSM Ops Bot needs deterministic cloud health checks because prompt correctness does not prove Slack, Jira, C360, cron, or gateway wiring.
 
+`psmopsbot` is cloud-only. Run these checks on `hermes-psm-ops-bot-poc`, not from a Mac-local Hermes profile.
+
 ## Expected Checks
 
 - Hermes gateway service `hermes-gateway-psmopsbot.service` is active on the GCE host.
@@ -16,6 +18,7 @@ PSM Ops Bot needs deterministic cloud health checks because prompt correctness d
 - `psm_google_calendar` MCP lists exactly `read_customer_calendar_context` when Google Calendar is enabled.
 - Google Calendar OAuth is configured for `team@staffany.com` with `calendar.readonly`, returns bounded event metadata, and exposes no mutation or attendee-export tools.
 - `validate_jira_configuration` reports thin POC defaults or full configured fields and request types, including `PS Team`.
+- `validate_roi_jira_configuration` reports exactly one ROI project key, service desk ID, request type ID, and mapped required request fields before ROI-direct creation is enabled.
 - C360 internal API token is configured.
 - Rock Productions C360 lookup smoke passes for `proj-cs-rockproductions`, including normalized variants, HubSpot company `8051493928`, and StaffAny org `Rock Productions`.
 - Cron concurrency is capped with `cron.max_parallel_jobs: 1`.

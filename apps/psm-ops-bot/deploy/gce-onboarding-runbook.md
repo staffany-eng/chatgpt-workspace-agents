@@ -11,6 +11,7 @@ This runbook deploys PSM Ops Bot on company cloud infrastructure. Do not run the
 - Profile: `psmopsbot`
 - Gateway service: `hermes-gateway-psmopsbot.service`
 - Slack channel mode: public/open channels, mention required
+- Local profile policy: cloud-only. Do not create or run `~/.hermes/profiles/psmopsbot` on a Mac operator host.
 
 ## Secrets
 
@@ -42,6 +43,19 @@ Thin POC Jira IDs must also be present in the profile `.env`:
 - `PSM_OPS_CENTRAL_SLACK_CHANNEL_ID` for bot-owned PS WEE central audit copies
 - `PSM_OPS_CENTRAL_FETCH_SLACK_THREAD=true` if bounded source-thread transcript excerpts should be included
 - `PSM_OPS_ADOPTION_METRICS_ENABLED=true` or `PSM_OPS_ADOPTION_METRICS_PATH` for adoption telemetry
+
+ROI-direct Jira IDs must also be present before enabling RevOps / BD Ops / NYSS routing:
+
+- `PSM_OPS_ROI_JIRA_PROJECT_KEY`
+- `PSM_OPS_ROI_JIRA_SERVICE_DESK_ID`
+- `PSM_OPS_ROI_JIRA_REQUEST_TYPE_ID`
+- `PSM_OPS_ROI_JIRA_FIELD_CUSTOMER`
+- `PSM_OPS_ROI_JIRA_FIELD_REQUEST_CATEGORY`
+- `PSM_OPS_ROI_JIRA_FIELD_SOURCE_LINKS`
+- `PSM_OPS_ROI_JIRA_FIELD_REQUESTER`
+- `PSM_OPS_ROI_JIRA_FIELD_REQUESTER_SLACK`
+- `PSM_OPS_ROI_JIRA_FIELD_ORIGINAL_CHANNEL`
+- `PSM_OPS_ROI_JIRA_FIELD_PRIORITY`
 
 Handoff Package intentionally returns a blocked response until PCO has the missing request type. Reminder automation uses Jira `duedate`; no separate reminder field is required in thin POC.
 

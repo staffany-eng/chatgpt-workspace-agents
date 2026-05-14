@@ -86,6 +86,20 @@ psm_ops:
       source_links: "PSM_OPS_JIRA_FIELD_SOURCE_LINKS"
       reminder_at: "PSM_OPS_JIRA_FIELD_REMINDER_AT"
       ps_team: "PSM_OPS_JIRA_FIELD_PS_TEAM"
+    roi_direct:
+      project_key_env: "PSM_OPS_ROI_JIRA_PROJECT_KEY"
+      service_desk_id_env: "PSM_OPS_ROI_JIRA_SERVICE_DESK_ID"
+      request_type_id_env: "PSM_OPS_ROI_JIRA_REQUEST_TYPE_ID"
+      requester_rule: "explicit requested/reported-by wins, otherwise current Slack sender; unresolved requester blocks"
+      idempotency_key: "Slack thread permalink"
+      fields:
+        customer: "PSM_OPS_ROI_JIRA_FIELD_CUSTOMER"
+        request_category: "PSM_OPS_ROI_JIRA_FIELD_REQUEST_CATEGORY"
+        source_links: "PSM_OPS_ROI_JIRA_FIELD_SOURCE_LINKS"
+        requester: "PSM_OPS_ROI_JIRA_FIELD_REQUESTER"
+        requester_slack: "PSM_OPS_ROI_JIRA_FIELD_REQUESTER_SLACK"
+        original_channel: "PSM_OPS_ROI_JIRA_FIELD_ORIGINAL_CHANNEL"
+        priority: "PSM_OPS_ROI_JIRA_FIELD_PRIORITY"
     allowed_statuses:
       - "Open"
       - "Waiting Customer"
@@ -107,16 +121,20 @@ psm_ops:
 
 mcp_servers:
   psm_jira:
-    description: "PCO Jira Service Management task adapter for PSM Ops Bot."
+    description: "PCO and ROI Jira Service Management task adapter for PSM Ops Bot."
     command: "/Users/leekaiyi/.hermes/hermes-agent/venv/bin/python"
     args:
       - "/Users/leekaiyi/workspace/agent builder/apps/psm-ops-bot/runtime/mcp/psm_jira_server.py"
     timeout: 120
     tool_allowlist:
       - "validate_jira_configuration"
+      - "validate_roi_jira_configuration"
       - "resolve_slack_user_identity"
+      - "classify_roi_ticket_request"
       - "list_my_pco_tasks"
       - "find_ticket_by_slack_thread"
+      - "find_roi_ticket_by_slack_thread"
+      - "create_roi_ticket_from_slack"
       - "create_ps_wee_intake_ticket"
       - "append_ps_wee_ticket_update"
       - "mark_ps_wee_ticket_ready"

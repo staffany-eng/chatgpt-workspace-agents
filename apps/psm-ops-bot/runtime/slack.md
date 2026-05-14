@@ -12,6 +12,9 @@ The Slack surface is mention-required usage in public/open StaffAny Slack channe
 - Keep Slack output quiet: no streaming drafts, no tool progress, no status reactions.
 - Suppress gateway lifecycle notices in the pilot channel with `platforms.slack.gateway_restart_notification=false`.
 - Task creation is preview first. Same-thread `create`, `approve create`, or `create this` approves the previously shown draft.
+- ROI-direct requests are ticket-first and must go straight to ROI JSM, not PCO. When PS Wee is asked to create, add, log, handle, ticket, task, or board work for ROI, RevOps, BD Ops, bdops, NYSS, n y s s, invoice/billing, renewal invoices, discounts, HC/deal checks, Stripe invoices, HubSpot deals, ERP dashboards/data issues, linked BE, accessible invoices, MRR mismatch, SLA dashboards, or asset sync, call `classify_roi_ticket_request`, then `find_roi_ticket_by_slack_thread`, then `create_roi_ticket_from_slack` if no same-thread ROI ticket exists.
+- Do not trigger ROI creation for casual `@nyss`, BD Ops, or RevOps questions unless the user asks PS Wee to create, add, log, handle, ticket, task, or board the work.
+- ROI requester is first-class. Explicit `requested by` / `reported by` wins; otherwise pass the current Slack sender ID/mention or email. If requester cannot resolve, block creation and ask for requester only. No bot, team, or `team@staffany.com` fallback.
 - PS WEE ticketing requests are ticket-first. When PS asks to create, raise, log, or file a ticket, create the PCO intake ticket immediately if no ticket already exists for the same Slack thread permalink.
 - Operational task-list requests are ticket-first. When PS asks to `add to <person/team> task list`, `add to Jo/Jos/Josica`, `put on backlog`, `add to follow-up list`, or equivalent, create or return the PCO intake ticket before asking for missing fields.
 - A confirmed customer reach-out in a PS WEE/customer-ops thread is ticket-first even if nobody says "create ticket". Examples: "did they reach out?" followed by "yes, via Intercom", a support-thread permalink, an admin screenshot showing a limit hit, or a teammate confirming impact. Create or return the same-thread PCO intake ticket first, then ask for missing details.
@@ -46,6 +49,16 @@ Source: Jira PCO draft + Customer 360 context
 Scope: <customer/caller>
 Confidence: <verified | needs-check | blocked>
 Caveat: Reply "create" to create this task.
+```
+
+ROI ticket output:
+
+```text
+Created ROI ticket: <url|ROI-key>. Requester: <resolved requester>.
+Source: Jira ROI
+Scope: <caller, Slack thread, customer/request category>
+Confidence: verified
+Caveat: ROI ticket is source of truth; Slack thread is evidence.
 ```
 
 ## Slack Scopes

@@ -6,10 +6,10 @@ profiles:
     status: production_poc
     owner: revops
     app_packet: apps/hermes-data-bot
-    deploy_host: local-macos
+    deploy_host: hermes-data-bot-poc
     profile_dir: ${HOME}/.hermes/profiles/staffanydatabot
+    local_profile_policy: cloud_only
     service:
-      launchd_label: ai.hermes.gateway-staffanydatabot
       systemd_unit: hermes-gateway-staffanydatabot.service
     slack:
       bot_name: da-ta-hermz
@@ -47,6 +47,7 @@ profiles:
     app_packet: apps/nurtureany-sales-bot
     deploy_host: nurtureany-sales-bot-prod
     profile_dir: ${HOME}/.hermes/profiles/nurtureanysalesbot
+    local_profile_policy: cloud_only
     service:
       systemd_unit: hermes-gateway-nurtureanysalesbot.service
     slack:
@@ -99,14 +100,14 @@ profiles:
     display_name: PSM Ops Bot
     canonical_profile: psmopsbot
     live_profile: psmopsbot
-    workflow_aliases: [PS WEE, PS Wee Manager, PSM manager ops bot]
+    workflow_aliases: [PS WEE, PS Wee Manager, PSM Manager Ops Bot, ps wee manager, ps wee, psm manager ops bot]
     status: production_poc
     owner: psm
     app_packet: apps/psm-ops-bot
     deploy_host: hermes-psm-ops-bot-poc
     profile_dir: ${HOME}/.hermes/profiles/psmopsbot
+    local_profile_policy: cloud_only
     service:
-      launchd_label: ai.hermes.gateway-psmopsbot
       systemd_unit: hermes-gateway-psmopsbot.service
     slack:
       bot_name: ps_wee_manager
@@ -116,7 +117,7 @@ profiles:
       allowed_channel_ids: []
       report_prefix: "PSM Ops automation:"
     required_mcp:
-      psm_jira: 14
+      psm_jira: 19
       psm_c360: 3
     expected_crons:
       - name: psmopsbot due-date reminders
@@ -140,49 +141,6 @@ profiles:
       pause_unsafe_crons: true
       post_slack_report: true
 
-  - name: psmopsbot
-    display_name: PSM Ops
-    canonical_profile: psmopsbot
-    live_profile: psmopsbot
-    workflow_aliases: [PS WEE, PS Wee Manager, PSM Manager Ops Bot, ps wee manager, ps wee, psm manager ops bot]
-    status: production_poc
-    owner: psm
-    app_packet: apps/psm-ops-bot
-    deploy_host: hermes-psm-ops-bot-poc
-    profile_dir: ${HOME}/.hermes/profiles/psmopsbot
-    service:
-      systemd_unit: hermes-gateway-psmopsbot.service
-    slack:
-      bot_name: psmopsbot
-      home_channel_id: C0B2VT50YT1
-      home_channel_name: ps-weeman-bot-test
-      open_channel_mode: true
-      allowed_channel_ids: [C0B2VT50YT1]
-      report_prefix: "PSM Ops automation:"
-    required_mcp:
-      psm_jira: 14
-      psm_c360: 3
-    expected_crons:
-      - name: psmopsbot due-date reminders
-        schedule: "0 1 * * *"
-        mode: agent
-      - name: psmopsbot local cloud heartbeat
-        schedule: "*/15 * * * *"
-        mode: no-agent
-      - name: psmopsbot adoption digest
-        schedule: "0 2 * * 1-5"
-        mode: no-agent
-    checks:
-      health_command: apps/psm-ops-bot/runtime/check-health.sh
-      audit_command: apps/psm-ops-bot/runtime/audit-live-profile.sh
-    recovery:
-      restart_gateway: managed_only
-      stale_socket_seconds: 300
-      stale_session_minutes: 30
-      profile_sync: manual_review
-      pause_unsafe_crons: true
-      post_slack_report: true
-
   - name: launchbot
     display_name: Launchbot
     canonical_profile: launchbot
@@ -190,10 +148,10 @@ profiles:
     status: experimental
     owner: revops
     app_packet: apps/launchbot
-    deploy_host: local-macos
+    deploy_host: hermes-data-bot-poc
     profile_dir: ${HOME}/.hermes/profiles/launchbot
+    local_profile_policy: cloud_only
     service:
-      launchd_label: ai.hermes.gateway-launchbot
       systemd_unit: hermes-gateway-launchbot.service
     slack:
       bot_name: launchbot

@@ -30,6 +30,14 @@ function textOf(relPath) {
   return existsSync(path) ? readFileSync(path, "utf8") : "";
 }
 
+function profileBlock(profilesText, profileName) {
+  const marker = `  - name: ${profileName}`;
+  const start = profilesText.indexOf(marker);
+  if (start === -1) return "";
+  const next = profilesText.indexOf("\n  - name:", start + marker.length);
+  return profilesText.slice(start, next === -1 ? undefined : next);
+}
+
 const manifest = existsSync(manifestPath) ? sharedReadJson(manifestPath, fail) : null;
 if (!manifest) {
   fail("Missing apps/launchbot/app.manifest.json");
@@ -148,6 +156,27 @@ for (const requiredText of [
 }
 if (configText.includes("/Users/leekaiyi/.hermes/profiles/launchbot/source/launchbot")) {
   fail("config.template.yaml must not point cloud runtime at the local Mac launchbot profile");
+}
+
+const profilesText = existsSync(join(repoRoot, "ops", "hermes", "profiles.yaml"))
+  ? readFileSync(join(repoRoot, "ops", "hermes", "profiles.yaml"), "utf8")
+  : "";
+const launchbotProfileBlock = profileBlock(profilesText, "launchbot");
+if (!launchbotProfileBlock) {
+  fail("ops/hermes/profiles.yaml missing launchbot profile");
+} else {
+  for (const requiredText of [
+    "deploy_host: hermes-data-bot-poc",
+    "local_profile_policy: cloud_only",
+    "systemd_unit: hermes-gateway-launchbot.service",
+  ]) {
+    if (!launchbotProfileBlock.includes(requiredText)) {
+      fail(`launchbot profile missing required cloud-only text: ${requiredText}`);
+    }
+  }
+  if (launchbotProfileBlock.includes("launchd_label:")) {
+    fail("launchbot profile must not define a Mac launchd_label");
+  }
 }
 
 const soulText = existsSync(join(appRoot, "profile", "SOUL.md"))

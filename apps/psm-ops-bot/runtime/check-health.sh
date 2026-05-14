@@ -29,7 +29,7 @@ if command -v hermes >/dev/null 2>&1; then
   for server in psm_jira psm_c360 psm_google_calendar; do
     out="$(hermes -p "$PROFILE" mcp test "$server" 2>&1 || true)"
     case "$server" in
-      psm_jira) expected=15 ;;
+      psm_jira) expected=19 ;;
       psm_c360) expected=3 ;;
       psm_google_calendar) expected=1 ;;
     esac
@@ -57,6 +57,9 @@ for key in \
   JIRA_API_TOKEN \
   SLACK_BOT_TOKEN \
   PSM_OPS_JIRA_SERVICE_DESK_ID \
+  PSM_OPS_ROI_JIRA_PROJECT_KEY \
+  PSM_OPS_ROI_JIRA_SERVICE_DESK_ID \
+  PSM_OPS_ROI_JIRA_REQUEST_TYPE_ID \
   CUSTOMER360_INTERNAL_API_TOKEN \
   GOOGLE_CALENDAR_TOKEN_FILE \
   GOOGLE_CALENDAR_CLIENT_SECRET_FILE; do

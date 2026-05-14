@@ -42,6 +42,24 @@ profiles:
     assert.equal(psmOps.slack.open_channel_mode, true);
   });
 
+  it("keeps StaffAny Slack app profiles cloud-only from Mac operator hosts", () => {
+    const profiles = parseProfilesYaml(readFileSync(new URL("../profiles.yaml", import.meta.url), "utf8"));
+    const cloudOnlyProfiles = new Map([
+      ["staffanydatabot", "hermes-data-bot-poc"],
+      ["launchbot", "hermes-data-bot-poc"],
+      ["psmopsbot", "hermes-psm-ops-bot-poc"],
+      ["nurtureanysalesbot", "nurtureany-sales-bot-prod"],
+    ]);
+
+    for (const [profileName, deployHost] of cloudOnlyProfiles) {
+      const profile = profiles.find((candidate) => candidate.name === profileName);
+      assert.ok(profile, `${profileName} profile must exist`);
+      assert.equal(profile.deploy_host, deployHost);
+      assert.equal(profile.local_profile_policy, "cloud_only");
+      assert.equal(profile.service?.launchd_label, undefined);
+    }
+  });
+
   it("expands home placeholders without touching other strings", () => {
     assert.equal(expandPath("${HOME}/.hermes/profiles/x", { HOME: "/tmp/home" }), "/tmp/home/.hermes/profiles/x");
     assert.equal(expandPath("~/x", { HOME: "/tmp/home" }), "/tmp/home/x");

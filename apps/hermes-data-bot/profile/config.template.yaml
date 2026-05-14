@@ -1,6 +1,7 @@
 # Non-secret Hermes profile template for StaffAny Hermes Data Bot.
-# Copy relevant values into ~/.hermes/profiles/staffanydatabot/config.yaml and verify
-# exact key support with the installed Hermes version before restarting the gateway.
+# Apply on hermes-data-bot-poc only, under the cloud profile
+# ~/.hermes/profiles/staffanydatabot/config.yaml. Do not create a Mac-local
+# staffanydatabot profile.
 
 terminal:
   cwd: "~/agent-builder/apps/hermes-data-bot"

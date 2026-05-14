@@ -32,6 +32,28 @@
 - Posts the ticket link in-thread and asks for missing info.
 - Posts a bot-owned `PSM Ops automation:` central audit copy with the source Slack thread permalink.
 
+## PS WEE ROI Direct
+
+`@PS Wee Manager create a task for bd ops to send Dreamus invoice`
+
+- Treats PS Wee Manager as the existing PSM Ops Bot.
+- Calls `classify_roi_ticket_request` and detects actionable BD Ops / invoice work.
+- Calls `find_roi_ticket_by_slack_thread` using the current Slack thread permalink.
+- Creates a direct ROI ticket with `create_roi_ticket_from_slack` when no same-thread ROI ticket exists.
+- Does not create a PCO wrapper ticket.
+- Resolves requester from explicit `requested by` / `reported by` first, otherwise the Slack sender.
+- Blocks creation if requester cannot resolve; no bot or `team@staffany.com` requester fallback.
+- Discovers required ROI request fields from JSM metadata and blocks with exact missing field names if customer/org, category, requester, summary/details, source thread, or other required fields are missing.
+- Includes source Slack thread, original channel, and requester in the ROI payload or internal metadata.
+
+## PS WEE Casual NYSS Question
+
+`@PS Wee Manager @nyss what is the Stripe password?`
+
+- Does not create ROI.
+- Does not create PCO.
+- Requires create/add/log/handle/ticket/task/board wording before ROI ticket creation.
+
 ## PS WEE Task List Plus Calendar
 
 Thread:

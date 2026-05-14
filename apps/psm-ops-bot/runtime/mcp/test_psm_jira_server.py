@@ -69,6 +69,12 @@ class PsmJiraServerTest(unittest.TestCase):
                             "ps_team": "Ada PSM",
                             "ps_team_option_id": "team-ada",
                             "active": True,
+                        },
+                        {
+                            "slack_email": "reporter@staffany.com",
+                            "jira_account_id": "acct-reporter",
+                            "display_name": "Rina Reporter",
+                            "active": True,
                         }
                     ]
                 }
@@ -81,6 +87,7 @@ class PsmJiraServerTest(unittest.TestCase):
                 "JIRA_BASE_URL": "https://staffany.atlassian.net",
                 "JIRA_EMAIL": "bot@staffany.com",
                 "JIRA_API_TOKEN": "jira-token",
+                "SLACK_BOT_TOKEN": "xoxb-fake",
                 "PSM_OPS_JIRA_MODE": "full",
                 "PSM_OPS_ACCESS_POLICY_PATH": str(policy_path),
                 "PSM_OPS_JIRA_SERVICE_DESK_ID": "10",
@@ -97,11 +104,51 @@ class PsmJiraServerTest(unittest.TestCase):
                 "PSM_OPS_JIRA_FIELD_SOURCE_LINKS": "customfield_10107",
                 "PSM_OPS_JIRA_FIELD_REMINDER_AT": "customfield_10108",
                 "PSM_OPS_JIRA_FIELD_PS_TEAM": "customfield_10876",
+                "PSM_OPS_ROI_JIRA_PROJECT_KEY": "ROI",
+                "PSM_OPS_ROI_JIRA_SERVICE_DESK_ID": "20",
+                "PSM_OPS_ROI_JIRA_REQUEST_TYPE_ID": "201",
+                "PSM_OPS_ROI_JIRA_FIELD_CUSTOMER": "customfield_20101",
+                "PSM_OPS_ROI_JIRA_FIELD_REQUEST_CATEGORY": "customfield_20102",
+                "PSM_OPS_ROI_JIRA_FIELD_SOURCE_LINKS": "customfield_20103",
+                "PSM_OPS_ROI_JIRA_FIELD_REQUESTER": "customfield_20104",
+                "PSM_OPS_ROI_JIRA_FIELD_ORIGINAL_CHANNEL": "customfield_20105",
+                "PSM_OPS_ROI_JIRA_FIELD_PRIORITY": "customfield_20106",
             },
             clear=False,
         )
         self.env.start()
         self.addCleanup(self.env.stop)
+
+    def _roi_fields(self, customer_required=True, extra_required=None):
+        fields = [
+            {"fieldId": "summary", "name": "Summary", "required": True},
+            {"fieldId": "description", "name": "Details", "required": True},
+            {"fieldId": "customfield_20101", "name": "Customer", "required": customer_required},
+            {
+                "fieldId": "customfield_20102",
+                "name": "Request category",
+                "required": True,
+                "validValues": [
+                    {"value": "BD Ops", "label": "BD Ops"},
+                    {"value": "NYSS", "label": "NYSS"},
+                    {"value": "RevOps", "label": "RevOps"},
+                    {"value": "ROI", "label": "ROI"},
+                    {"value": "Billing / invoice", "label": "Billing / invoice"},
+                ],
+            },
+            {"fieldId": "customfield_20103", "name": "Source links", "required": True},
+            {"fieldId": "customfield_20104", "name": "Requester", "required": True},
+            {"fieldId": "customfield_20105", "name": "Original channel", "required": False},
+            {
+                "fieldId": "customfield_20106",
+                "name": "Priority",
+                "required": False,
+                "validValues": [{"value": "Medium", "label": "Medium"}, {"value": "High", "label": "High"}],
+            },
+        ]
+        for field_name in extra_required or []:
+            fields.append({"fieldId": f"customfield_extra_{len(fields)}", "name": field_name, "required": True})
+        return fields
 
     def test_list_my_tasks_is_ps_team_scoped_and_safe(self):
         calls = []
@@ -463,6 +510,188 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertEqual(len(calls), 1)
         self.assertEqual(audit_calls[0][0], "ticket_reused")
         self.assertEqual(audit_calls[0][1]["issue_key"], "PCO-789")
+
+    def test_roi_intent_routes_aliases_to_roi(self):
+        examples = [
+            "Create a task for bd ops to send Dreamus invoice",
+            "add BD Ops to check the renewal invoice",
+            "log nyss ticket for accessible invoice issue",
+            "handle n y s s MRR mismatch",
+            "create RevOps ticket for HubSpot deal check",
+            "put this ROI request on the board",
+        ]
+
+        for text in examples:
+            with self.subTest(text=text):
+                result = self.module.classify_roi_ticket_request(text)
+                self.assertEqual(result["confidence"], "verified")
+                self.assertTrue(result["answer"]["is_roi_ticket_request"])
+
+    def test_roi_intent_blocks_casual_nyss_question(self):
+        result = self.module.classify_roi_ticket_request("@nyss what is the Stripe password")
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertFalse(result["answer"]["is_roi_ticket_request"])
+        self.assertFalse(result["answer"]["action_detected"])
+
+    def test_roi_ticket_defaults_requester_to_slack_sender(self):
+        calls = []
+        audit_calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
+                return {"issues": []}
+            if path.endswith("/requesttype/201/field"):
+                return {"requestTypeFields": self._roi_fields()}
+            if path == "/rest/servicedeskapi/request":
+                return {"issueKey": "ROI-123", "requestTypeId": "201"}
+            if path.endswith("/comment"):
+                return {"id": "comment-roi-123"}
+            return {}
+
+        self.module._request_json = fake_request
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: audit_calls.append((event_type, kwargs)) or {"ok": True}
+
+        result = self.module.create_roi_ticket_from_slack(
+            slack_user_email="psm@staffany.com",
+            slack_thread_url="https://staffany.slack.com/archives/C08SDJR03N1/p1778753307219139",
+            message_text="Create a task for bd ops to send Dreamus invoice",
+            customer="Dreamus",
+            original_channel="#team-rev-bd-ops",
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        create_call = calls[2]
+        self.assertEqual(create_call[0], "POST")
+        self.assertEqual(create_call[1], "/rest/servicedeskapi/request")
+        payload = create_call[2]
+        self.assertEqual(payload["serviceDeskId"], "20")
+        self.assertEqual(payload["requestTypeId"], "201")
+        self.assertEqual(payload["raiseOnBehalfOf"], "acct-123")
+        values = payload["requestFieldValues"]
+        self.assertEqual(values["customfield_20101"], "Dreamus")
+        self.assertEqual(values["customfield_20102"], "BD Ops")
+        self.assertIn("https://staffany.slack.com/archives/C08SDJR03N1/p1778753307219139", values["customfield_20103"])
+        self.assertIn("Ada PSM", values["customfield_20104"])
+        self.assertEqual(values["customfield_20105"], "#team-rev-bd-ops")
+        self.assertEqual(calls[3][1], "/rest/servicedeskapi/request/ROI-123/comment")
+        self.assertIn("Requester: Ada PSM", calls[3][2]["body"])
+        self.assertIn("Created ROI ticket", result["answer"]["slack_reply"])
+        self.assertEqual(audit_calls[0][0], "roi_ticket_created")
+        self.assertEqual(audit_calls[0][1]["issue_key"], "ROI-123")
+
+    def test_roi_ticket_explicit_requester_overrides_sender(self):
+        calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
+                return {"issues": []}
+            if path.endswith("/requesttype/201/field"):
+                return {"requestTypeFields": self._roi_fields(customer_required=False)}
+            if path == "/rest/servicedeskapi/request":
+                return {"issueKey": "ROI-124", "requestTypeId": "201"}
+            if path.endswith("/comment"):
+                return {"id": "comment-roi-124"}
+            return {}
+
+        self.module._request_json = fake_request
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: {"ok": True}
+
+        result = self.module.create_roi_ticket_from_slack(
+            slack_user_email="psm@staffany.com",
+            slack_thread_url="https://staffany.slack.com/archives/C08SDJR03N1/p1778753307219140",
+            message_text="Create RevOps ticket for renewal invoice, requested by reporter@staffany.com",
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        payload = calls[2][2]
+        self.assertEqual(payload["raiseOnBehalfOf"], "acct-reporter")
+        self.assertIn("Rina Reporter", payload["requestFieldValues"]["customfield_20104"])
+        self.assertEqual(result["answer"]["requester_source"], "explicit_requester")
+
+    def test_roi_ticket_unresolved_requester_blocks_creation(self):
+        calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
+                return {"issues": []}
+            return {}
+
+        self.module._request_json = fake_request
+
+        result = self.module.create_roi_ticket_from_slack(
+            slack_user_email="psm@staffany.com",
+            slack_thread_url="https://staffany.slack.com/archives/C08SDJR03N1/p1778753307219141",
+            message_text="Create BD Ops ticket for discount approval, reported by unknown@staffany.com",
+            customer="Dreamus",
+        )
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("No active Jira account mapping", result["caveat"])
+        self.assertEqual([call for call in calls if call[0] == "POST"], [])
+
+    def test_roi_ticket_missing_required_fields_blocks_with_exact_names(self):
+        calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
+                return {"issues": []}
+            if path.endswith("/requesttype/201/field"):
+                return {"requestTypeFields": self._roi_fields(customer_required=True)}
+            return {}
+
+        self.module._request_json = fake_request
+
+        result = self.module.create_roi_ticket_from_slack(
+            slack_user_email="psm@staffany.com",
+            slack_thread_url="https://staffany.slack.com/archives/C08SDJR03N1/p1778753307219142",
+            message_text="Create a task for bd ops to check invoice",
+        )
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertEqual(result["scope"]["missing_fields"], ["Customer"])
+        self.assertIn("Missing required ROI fields: Customer", result["caveat"])
+        self.assertEqual([call for call in calls if call[0] == "POST"], [])
+
+    def test_roi_ticket_reuses_existing_same_thread_ticket(self):
+        calls = []
+        audit_calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            self.assertEqual(method, "GET")
+            return {
+                "issues": [
+                    {
+                        "key": "ROI-555",
+                        "fields": {
+                            "summary": "Dreamus invoice",
+                            "status": {"name": "Open"},
+                            "priority": {"name": "Medium"},
+                            "reporter": {"displayName": "Rina Reporter"},
+                        },
+                    }
+                ]
+            }
+
+        self.module._request_json = fake_request
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: audit_calls.append((event_type, kwargs)) or {"ok": True}
+
+        result = self.module.create_roi_ticket_from_slack(
+            slack_user_email="psm@staffany.com",
+            slack_thread_url="https://staffany.slack.com/archives/C08SDJR03N1/p1778753307219143",
+            message_text="Create a task for bd ops to send Dreamus invoice",
+            customer="Dreamus",
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["answer"]["existing_ticket"]["issue_key"], "ROI-555")
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(audit_calls[0][0], "roi_ticket_reused")
 
     def test_append_ps_wee_ticket_update_posts_structured_comment_only(self):
         calls = []
