@@ -93,3 +93,7 @@ Ingested the Launch Superpower Bot handoff and extracted help-article-generator 
 ## [2026-05-14] decision | Launchbot owns Launch Superpower workflow
 
 Corrected the app boundary: Launchbot is the main Hermes app, and the Launch Superpower handoff is now modeled as a Launchbot skill/workflow rather than a separate app packet. Raw handoff evidence remains under `research/raw/launch-superpower-bot/`.
+
+## [2026-05-14] ingest | PSM Ops PCO Release Watch
+
+Ingested the `KER-2109` PCO release-watch workflow as private PSM Ops operating evidence. Preserved safe links and implementation summaries only, synthesized the reusable PCO-to-KER/SCHE issue-link pattern, and promoted the rule that linked SCHE tickets with released `fixVersion` are the durable engineering release signal for PCO follow-up.

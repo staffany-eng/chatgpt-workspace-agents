@@ -206,6 +206,22 @@ Expected:
 - Resolves the Slack mention to an active Jira account.
 - Does not update Jira `PS Team`; "my tasks" and reminders remain PS Team scoped.
 
+## Link Engineering Issue
+
+Prompt:
+
+```text
+link PCO-123 to KER-2109 so this PCO is blocked by the engineering release
+```
+
+Expected:
+
+- Calls `link_pco_to_engineering_issue`.
+- Requires source issue key to be `PCO-*`.
+- Allows only `KER-*` or `SCHE-*` as the engineering target.
+- Defaults to Jira `Blocks` direction so the PCO shows as blocked by the engineering issue.
+- Does not read or expose raw engineering issue descriptions, comments, or attachments.
+
 ## Reminder
 
 Prompt:

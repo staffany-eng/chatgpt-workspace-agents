@@ -285,6 +285,111 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertEqual(calls[1][1], "/rest/api/3/issue/PCO-134")
         self.assertEqual(calls[1][2]["fields"]["customfield_10876"], {"id": "12025"})
 
+    def test_link_pco_to_ker_uses_blocks_direction_for_pco_blocked_by_engineering(self):
+        calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            return {}
+
+        self.module._request_json = fake_request
+
+        result = self.module.link_pco_to_engineering_issue("PCO-123", "KER-2109")
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(calls[0][0], "GET")
+        self.assertEqual(calls[0][1], "/rest/api/3/issue/PCO-123?fields=issuelinks")
+        self.assertEqual(calls[1][0], "POST")
+        self.assertEqual(calls[1][1], "/rest/api/3/issueLink")
+        self.assertEqual(calls[1][2]["type"], {"name": "Blocks"})
+        self.assertEqual(calls[1][2]["outwardIssue"], {"key": "KER-2109"})
+        self.assertEqual(calls[1][2]["inwardIssue"], {"key": "PCO-123"})
+        self.assertEqual(result["answer"]["relationship"], "PCO-123 is blocked by KER-2109")
+        self.assertFalse(result["answer"]["already_exists"])
+        self.assertIn("no raw Jira issue content", result["caveat"])
+
+    def test_link_pco_to_sche_accepts_relates_fallback(self):
+        calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            return {}
+
+        self.module._request_json = fake_request
+
+        result = self.module.link_pco_to_engineering_issue("PCO-123", "SCHE-19631", "relates to")
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(calls[1][2]["type"], {"name": "Relates"})
+        self.assertEqual(calls[1][2]["outwardIssue"], {"key": "PCO-123"})
+        self.assertEqual(calls[1][2]["inwardIssue"], {"key": "SCHE-19631"})
+
+    def test_link_pco_to_engineering_issue_reports_existing_blocks_link(self):
+        calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if method == "GET":
+                return {
+                    "fields": {
+                        "issuelinks": [
+                            {
+                                "type": {"name": "Blocks"},
+                                "inwardIssue": {"key": "KER-2109"},
+                            }
+                        ]
+                    }
+                }
+            return {}
+
+        self.module._request_json = fake_request
+
+        result = self.module.link_pco_to_engineering_issue("PCO-123", "KER-2109")
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertTrue(result["answer"]["already_exists"])
+        self.assertEqual(len(calls), 1)
+        self.assertIn("already existed", result["caveat"])
+
+    def test_link_pco_to_engineering_issue_reports_existing_blocks_link_from_outward_issue(self):
+        calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if method == "GET":
+                return {
+                    "fields": {
+                        "issuelinks": [
+                            {
+                                "type": {"name": "Blocks"},
+                                "outwardIssue": {"key": "KER-2109"},
+                            }
+                        ]
+                    }
+                }
+            return {}
+
+        self.module._request_json = fake_request
+
+        result = self.module.link_pco_to_engineering_issue("PCO-123", "KER-2109")
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertTrue(result["answer"]["already_exists"])
+        self.assertEqual(len(calls), 1)
+        self.assertIn("already existed", result["caveat"])
+
+    def test_link_pco_to_engineering_issue_rejects_non_pco_source(self):
+        result = self.module.link_pco_to_engineering_issue("KER-2109", "SCHE-19631")
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("PCO-123", result["caveat"])
+
+    def test_link_pco_to_engineering_issue_rejects_non_engineering_target(self):
+        result = self.module.link_pco_to_engineering_issue("PCO-123", "PCO-456")
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("KER-123 or SCHE-123", result["caveat"])
+
     def test_set_pco_assignee_resolves_slack_mention_to_jira_account(self):
         calls = []
 

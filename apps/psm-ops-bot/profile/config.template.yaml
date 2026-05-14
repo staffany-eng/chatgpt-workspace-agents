@@ -148,6 +148,7 @@ mcp_servers:
       - "add_internal_pco_comment"
       - "set_pco_assignee"
       - "set_pco_ps_team"
+      - "link_pco_to_engineering_issue"
       - "set_pco_reminder"
       - "list_due_pco_reminders"
   psm_c360:

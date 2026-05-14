@@ -9,6 +9,7 @@ PSM Ops Bot uses Jira PCO as the PS/customer-ops task source of truth and Jira R
 - Create ROI requests: Jira Service Management request API for the configured ROI service desk and request type.
 - Due date: Jira Cloud issue update API against the standard `duedate` field after request creation.
 - Status transitions: Jira Cloud issue transitions API.
+- Engineering links: Jira Cloud issue link API, restricted to existing `PCO-*` issues linked to `KER-*` or `SCHE-*`.
 - Comments: Jira Service Management request comment API with `public=false` by default.
 - Reminders: Jira JQL over the standard `duedate` field. No separate reminder database or custom reminder field is required for thin POC.
 
@@ -50,6 +51,36 @@ Task creation blocks past due dates before writing to Jira. Today is evaluated i
 Automatic reminders use `duedate <= tomorrow` and `statusCategory != Done`. This means each task appears one day before it is due, on the due date, and every day after until it is marked Done. `set_pco_reminder` updates the issue due date because due date is the reminder source of truth in thin POC.
 
 For portal/request-form visibility, add the field named `Due date` / field ID `duedate` to PCO request types `81` Customer Success Work, `82` Onboarding, and `83` Data Setup. The bot does not require the form field to be visible because it sets `duedate` after creation, but PSMs will see a cleaner form if Jira admins add it.
+
+## Engineering Release Watch Pattern
+
+For customer follow-up that is blocked by engineering shipment, keep PCO as the PS task and link it to the product/engineering issues:
+
+- Link `PCO-*` to `KER-*` for product context.
+- Link `PCO-*` directly to the confirmed `SCHE-*` shipment tickets because `fixVersion` is expected on the shipment tickets.
+- Use `Blocks` so the PCO appears blocked by the engineering issue. Use `Relates` only if the Jira site does not support `Blocks`.
+
+Recommended Jira Automation for a specific watch ticket:
+
+```text
+Trigger: scheduled daily, 09:00 Asia/Singapore
+Lookup issues JQL:
+project = SCHE
+AND issue in linkedIssues("PCO-XXX")
+AND statusCategory = Done
+AND fixVersion in releasedVersions()
+
+PCO condition:
+key = PCO-XXX
+AND status = "Waiting Internal"
+
+Actions:
+- add internal comment listing released linked SCHE tickets and fixVersions
+- transition PCO to Open
+- set duedate to today
+```
+
+Do not use Slack or the Release Checklist as the primary shipped signal. The Release Checklist is version-level supporting evidence after `fixVersion` identifies the release.
 
 ## Full Runtime Config
 
@@ -147,6 +178,7 @@ Field rules:
 - `add_internal_pco_comment`: mutation; internal comments only unless explicitly enabled.
 - `set_pco_assignee`: mutation; assigns an existing PCO issue to a Jira user resolved from a Slack mention, email, or exact name. This does not change `PS Team`.
 - `set_pco_ps_team`: mutation; updates only the configured Jira `PS Team` field. Treat "cs duty" as `CS Duty`, not a person assignee.
+- `link_pco_to_engineering_issue`: mutation; links an existing `PCO-*` issue to a `KER-*` or `SCHE-*` engineering issue. Default `Blocks` direction makes the PCO show as blocked by the engineering issue. `Relates` is allowed only as fallback when Jira lacks Blocks.
 - `set_pco_reminder`: mutation; updates Jira `duedate`, which drives automatic reminders.
 - `list_due_pco_reminders`: safe read for cron and user checks; user-scoped checks filter by Jira `PS Team`.
 

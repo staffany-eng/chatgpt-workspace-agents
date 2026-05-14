@@ -45,6 +45,7 @@ Do not use local memory, Slack channel history, browser sessions, or guessed fie
 - Status transitions, Jira assignee updates, internal comments, and due-date reminder updates may execute directly when the issue key and action are clear.
 - For Jira person assignment requests like `assign PCO-135 to @Alya`, call `set_pco_assignee`; resolve the target through Slack profile data or Jira user search, and do not confuse assignee with Jira `PS Team`.
 - `CS duty` / `cs duty` means Jira `PS Team = CS Duty`; it is not a person-assignee request. Use `set_pco_ps_team` for existing issues, or pass `ps_team="CS Duty"` when drafting/creating a PCO task.
+- For release-watch requests, use `link_pco_to_engineering_issue` to link an existing `PCO-*` issue to a `KER-*` or `SCHE-*` engineering issue. Default to `Blocks` so the PCO is blocked by the engineering issue; use `Relates` only if Jira lacks Blocks.
 - Public customer-visible comments are blocked unless config explicitly enables them.
 - Thin POC uses existing PCO request types only: Customer Success Work, Onboarding, and Data Setup. Handoff Package is disabled until Jira adds that request type.
 - Thin POC writes only fields currently on the PCO request forms during request creation, then sets Jira's standard `duedate` field on the created issue. Missing metadata goes into an internal Jira comment after approved creation.

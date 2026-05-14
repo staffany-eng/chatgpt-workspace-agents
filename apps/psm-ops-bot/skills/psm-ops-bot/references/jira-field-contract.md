@@ -73,6 +73,14 @@ ROI requester is mandatory. Explicit `requested by` / `reported by` wins; otherw
 - Use `set_pco_assignee` for existing issues. Resolve the target through Slack profile data or Jira user search, then call Jira Cloud's issue assignee API.
 - Do not use assignee for "my tasks", reminders, or duty routing; those remain scoped by Jira `PS Team`.
 
+## Engineering Issue Links
+
+- Use `link_pco_to_engineering_issue` only for existing `PCO-*` issues that need release tracking against `KER-*` or `SCHE-*`.
+- Default link type is `Blocks`; the tool creates the link so the PCO shows as blocked by the engineering issue.
+- `Relates` is allowed as a fallback only when Jira does not support the standard Blocks link type.
+- Reject non-PCO source issues and non-KER/non-SCHE targets.
+- Do not expose raw engineering issue descriptions, comments, attachments, or Jira bulk exports.
+
 ## Statuses
 
 Allowed target statuses:

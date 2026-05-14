@@ -71,6 +71,7 @@ if (!existsSync(manifestPath)) {
       "add_internal_pco_comment",
       "set_pco_assignee",
       "set_pco_ps_team",
+      "link_pco_to_engineering_issue",
       "set_pco_reminder",
       "list_due_pco_reminders"
     ];
@@ -243,6 +244,7 @@ for (const requiredText of [
   "append_ps_wee_ticket_update",
   "mark_ps_wee_ticket_ready",
   "set_pco_ps_team",
+  "link_pco_to_engineering_issue",
   "psm_jira",
   "psm_c360",
   "psm_google_calendar",
@@ -298,6 +300,7 @@ for (const requiredText of [
   "past due date",
   "set_pco_assignee",
   "set_pco_ps_team",
+  "link_pco_to_engineering_issue",
   "Public customer-visible comments are blocked",
   "Reminder source of truth is Jira",
   "Use `search_c360_customers`",
@@ -328,6 +331,7 @@ for (const requiredText of [
   "add_internal_pco_comment",
   "set_pco_assignee",
   "set_pco_ps_team",
+  "link_pco_to_engineering_issue",
   "set_pco_reminder",
   "list_due_pco_reminders",
   "PSM_OPS_JIRA_FIELD_REMINDER_AT",

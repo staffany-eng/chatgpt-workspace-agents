@@ -80,6 +80,14 @@ This page stores accepted research-backed learnings before promotion into future
 - Planning implication: NurtureAny should label source class in revenue answers, use QO for qualified-opportunity pace, and ask for clarification when "new ARR" could mean multiple metrics. Generic Hermes Data Bot answers should follow the same target-vs-actual split when asked for Rev metrics.
 - Caveat: Planning artifacts can be used for target comparisons, but they should not be treated as actuals.
 
+### Use Jira Links And SCHE FixVersion For PCO Release Watches
+
+- Status: accepted for the PSM Ops Bot source packet.
+- Evidence: [PSM Ops PCO Release Watch](./sources/psm-ops-pco-release-watch.md), [PSM Ops Release Watch](./syntheses/psm-ops-release-watch.md).
+- Learning: For customer follow-up blocked by engineering shipment, PCO owns PS/customer work while KER/SCHE own engineering context and shipment truth. Jira issue links should connect PCO to KER/SCHE, and released `fixVersion` on linked SCHE shipment tickets should be the durable release signal.
+- Planning implication: Future PSM Ops release-watch work should promote distilled behavior into `apps/psm-ops-bot/` because the live bot does not read the research wiki at runtime. Use Jira `duedate` for reminders and avoid labels when issue links can model the relationship.
+- Caveat: KER and parent/container SCHE links give context; actual child SCHE shipment tickets still need to be linked once engineering confirms them.
+
 ## Rejected Or Deferred Learnings
 
 - Do not copy OpenClaw workspace file structure directly into ChatGPT workspace agents. ChatGPT has its own product surfaces for apps, skills, files, memory, schedules, and channels.
