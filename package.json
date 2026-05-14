@@ -8,6 +8,7 @@
     "hooks:install": "git config core.hooksPath .githooks",
     "hermes-data-bot:verify": "node scripts/verify-hermes-data-bot.mjs",
     "nurtureany-sales-bot:verify": "node scripts/verify-nurtureany-sales-bot.mjs",
+    "nurtureany-sales-bot:deploy": "node scripts/deploy-nurtureany-sales-bot.mjs",
     "launchbot:verify": "node scripts/verify-launchbot.mjs",
     "hermes-caretaker:test": "node --test ops/hermes/test/*.test.mjs",
     "hermes-caretaker:dry-run": "node ops/hermes/caretaker.mjs --dry-run --json",

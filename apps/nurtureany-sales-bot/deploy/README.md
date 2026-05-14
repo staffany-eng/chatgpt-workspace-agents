@@ -13,64 +13,46 @@ NurtureAny deploys by syncing this repo packet into the live Hermes profile on t
 
 ## Routine Deploy Flow
 
-Run locally first:
+Routine deploys should use the source-controlled deploy script from the repo root. Without `--apply`, it performs preflight and prints the target/SHA without uploading, syncing, restarting, or running prod checks.
 
 ```bash
 cd /Users/khaidarsyah/Developer/Works/staffany/chatgpt-workspace-agents
-npm run nurtureany-sales-bot:verify
+npm run nurtureany-sales-bot:deploy
 ```
 
-SSH to prod:
+Deploy exact `origin/main` to production:
+
+```bash
+npm run nurtureany-sales-bot:deploy -- --apply
+```
+
+The script:
+
+- fetches and deploys exact `origin/main`
+- runs `npm run nurtureany-sales-bot:verify` locally and again on the VM archive
+- uploads `/private/tmp/nurtureany-origin-main.tar.gz` and `/private/tmp/nurtureany-origin-main.sha`
+- syncs only deploy-owned packet paths into `/home/leekaiyi/.hermes/profiles/nurtureanysalesbot`
+- preserves runtime secrets/state, including `.env`, OAuth files, access policy, cron, logs, sessions, daily-runs, and operation-ledger
+- idempotently mirrors missing non-secret tool allowlist entries from `profile/config.template.yaml` into live `config.yaml`
+- restarts only `hermes-gateway-nurtureanysalesbot.service`
+- runs live profile audit, health check, cloud doctor, and service status
+- stamps `$profile/VERSION` with the deployed SHA, branch, and UTC timestamp
+
+Useful options:
+
+```bash
+npm run nurtureany-sales-bot:deploy -- --apply --verbose
+npm run nurtureany-sales-bot:deploy -- --apply --skip-upload
+npm run nurtureany-sales-bot:deploy -- --apply --skip-restart
+```
+
+Manual SSH fallback, if the script itself cannot run:
 
 ```bash
 gcloud compute ssh nurtureany-sales-bot-prod \
   --project=staffany-warehouse \
   --zone=asia-southeast1-a \
   --tunnel-through-iap
-```
-
-On the VM, from the repo checkout:
-
-```bash
-cd ~/agent-builder
-git status --short --branch
-git pull --ff-only origin main
-npm run nurtureany-sales-bot:verify
-
-mkdir -p ~/.hermes/profiles/nurtureanysalesbot/scripts
-mkdir -p ~/.hermes/profiles/nurtureanysalesbot/source
-
-rsync -a --delete apps/nurtureany-sales-bot/ \
-  ~/.hermes/profiles/nurtureanysalesbot/source/nurtureany-sales-bot/
-
-cp apps/nurtureany-sales-bot/profile/SOUL.md \
-  ~/.hermes/profiles/nurtureanysalesbot/SOUL.md
-
-rsync -a --delete apps/nurtureany-sales-bot/skills/nurtureany-sales-bot/ \
-  ~/.hermes/profiles/nurtureanysalesbot/skills/nurtureany-sales-bot/
-
-rsync -a --delete apps/nurtureany-sales-bot/skills/target-account-news-scout/ \
-  ~/.hermes/profiles/nurtureanysalesbot/skills/target-account-news-scout/
-
-cp apps/nurtureany-sales-bot/runtime/check-health.sh \
-  ~/.hermes/profiles/nurtureanysalesbot/scripts/nurtureanysalesbot-check-health.sh
-cp apps/nurtureany-sales-bot/runtime/audit-live-profile.sh \
-  ~/.hermes/profiles/nurtureanysalesbot/scripts/nurtureanysalesbot-audit-live-profile.sh
-cp apps/nurtureany-sales-bot/runtime/check-slack-socket-health.sh \
-  ~/.hermes/profiles/nurtureanysalesbot/scripts/nurtureanysalesbot-check-slack-socket-health.sh
-cp apps/nurtureany-sales-bot/runtime/nurtureany-cloud-doctor.sh \
-  ~/.hermes/profiles/nurtureanysalesbot/scripts/nurtureanysalesbot-cloud-doctor.sh
-
-systemctl --user restart hermes-gateway-nurtureanysalesbot.service
-```
-
-Verify after restart:
-
-```bash
-apps/nurtureany-sales-bot/runtime/audit-live-profile.sh
-apps/nurtureany-sales-bot/runtime/check-health.sh
-apps/nurtureany-sales-bot/runtime/nurtureany-cloud-doctor.sh
-systemctl --user status hermes-gateway-nurtureanysalesbot.service --no-pager
 ```
 
 `check-health.sh` should print nothing on success. `audit-live-profile.sh` should end with `live-profile:audit-ok`.

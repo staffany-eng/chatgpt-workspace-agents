@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -29,6 +29,12 @@ function assertFile(relPath) {
 
 function textOf(relPath) {
   return sharedTextOf(appRoot, relPath);
+}
+
+function repoTextOf(relPath) {
+  const path = join(repoRoot, relPath);
+  if (!existsSync(path)) return "";
+  return readFileSync(path, "utf8");
 }
 
 function scanForSecretPatterns(relPath) {
@@ -649,6 +655,80 @@ const filesToScan = [
 for (const relPath of filesToScan) {
   assertFile(relPath);
   scanForSecretPatterns(relPath);
+}
+
+const packageJson = readJson(join(repoRoot, "package.json"));
+if (packageJson?.scripts?.["nurtureany-sales-bot:deploy"] !== "node scripts/deploy-nurtureany-sales-bot.mjs") {
+  fail("package.json must expose nurtureany-sales-bot:deploy");
+}
+
+const deployScriptRelPath = "scripts/deploy-nurtureany-sales-bot.mjs";
+const deployScriptPath = join(repoRoot, deployScriptRelPath);
+if (!existsSync(deployScriptPath)) {
+  fail("Missing scripts/deploy-nurtureany-sales-bot.mjs");
+}
+const deployScriptText = repoTextOf(deployScriptRelPath);
+for (const text of [
+  "project: \"staffany-warehouse\"",
+  "zone: \"asia-southeast1-a\"",
+  "vm: \"nurtureany-sales-bot-prod\"",
+  "profile: \"nurtureanysalesbot\"",
+  "runtimeOwner: \"leekaiyi\"",
+  "--apply",
+  "Dry run only. No archive upload, remote sync, gateway restart, or production health checks were run.",
+  "/private/tmp",
+  "nurtureany-origin-main.tar.gz",
+  "nurtureany-origin-main.sha",
+  "origin/main",
+  "gcloud",
+  "compute",
+  "scp",
+  "ssh",
+  "copy_dir",
+  "source/nurtureany-sales-bot",
+  "skills/nurtureany-sales-bot",
+  "skills/target-account-news-scout",
+  "runtime/mcp",
+  "runtime/data",
+  "runtime/jobs",
+  "runtime/sql",
+  "check-cloud-heartbeat.sh",
+  "nurtureanysalesbot-check-cloud-heartbeat.sh",
+  "check-health.sh",
+  "audit-live-profile.sh",
+  "check-slack-socket-health.sh",
+  "nurtureany-cloud-doctor.sh",
+  "profile/config.template.yaml",
+  "config.yaml",
+  "tool_allowlist",
+  "apply-live-config-overrides.py",
+  ".env",
+  "OAuth files",
+  "NURTUREANY_ACCESS_POLICY_PATH",
+  "cron",
+  "logs",
+  "sessions",
+  "daily-runs",
+  "operation-ledger",
+  "hermes-gateway-$profile_name.service",
+  "deploy:summary:sha=",
+  "deploy:summary:cloud_doctor=passed"
+]) {
+  if (!deployScriptText.includes(text)) fail(`${deployScriptRelPath} missing required text: ${text}`);
+}
+for (const [pattern, label] of [
+  [/xox[baprs]-[A-Za-z0-9-]+/, "Slack token"],
+  [/xapp-[A-Za-z0-9-]+/, "Slack app token"],
+  [/sk-[A-Za-z0-9_-]{20,}/, "OpenAI-style API key"],
+  [/pat-[a-z0-9]+-[A-Za-z0-9-]{20,}/, "HubSpot private app token"],
+  [/-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/, "private key"],
+  [/AIza[0-9A-Za-z_-]{20,}/, "Google API key"]
+]) {
+  if (pattern.test(deployScriptText)) fail(`${label} pattern found in ${deployScriptRelPath}`);
+}
+const deploySyntaxCheck = spawnSync("node", ["--check", deployScriptPath], { encoding: "utf8" });
+if (deploySyntaxCheck.status !== 0) {
+  fail(`Node syntax check failed for ${deployScriptRelPath}: ${(deploySyntaxCheck.stderr || deploySyntaxCheck.stdout).trim()}`);
 }
 
 const configText = textOf("profile/config.template.yaml");
