@@ -31,6 +31,14 @@ function scanForSecretPatterns(relPath) {
   sharedScanForSecretPatterns(appRoot, relPath, fail);
 }
 
+function profileBlock(profilesText, profileName) {
+  const marker = `  - name: ${profileName}`;
+  const start = profilesText.indexOf(marker);
+  if (start === -1) return "";
+  const next = profilesText.indexOf("\n  - name:", start + marker.length);
+  return profilesText.slice(start, next === -1 ? undefined : next);
+}
+
 if (!existsSync(manifestPath)) {
   fail("Missing apps/psm-ops-bot/app.manifest.json");
 } else {
@@ -201,9 +209,57 @@ for (const requiredText of [
   "get_c360_account_context",
   "ask_c360_customer_context",
   "CUSTOMER360_INTERNAL_API_TOKEN",
-  "Authorization"
+  "Authorization",
+  "searched_variants",
+  "missing_mapping",
+  "No Customer 360 customer/org mapping"
 ]) {
   if (!c360McpText.includes(requiredText)) fail(`psm_c360_server.py missing required text: ${requiredText}`);
+}
+
+const profilesText = readFileSync(join(repoRoot, "ops", "hermes", "profiles.yaml"), "utf8");
+const nurtureProfileBlock = profileBlock(profilesText, "nurtureanysalesbot");
+if (!nurtureProfileBlock) {
+  fail("ops/hermes/profiles.yaml missing nurtureanysalesbot profile");
+} else if (/ps\s+wee\s+manager/i.test(nurtureProfileBlock)) {
+  fail("nurtureanysalesbot must not claim PS Wee Manager workflow aliases");
+}
+
+const psmOpsProfileBlock = profileBlock(profilesText, "psmopsbot");
+if (!psmOpsProfileBlock) {
+  fail("ops/hermes/profiles.yaml missing psmopsbot profile");
+} else {
+  for (const requiredText of [
+    "display_name: PSM Ops Bot",
+    "canonical_profile: psmopsbot",
+    "live_profile: psmopsbot",
+    "workflow_aliases: [PS WEE, PS Wee Manager, PSM manager ops bot]",
+    "app_packet: apps/psm-ops-bot",
+    "deploy_host: hermes-psm-ops-bot-poc",
+    "systemd_unit: hermes-gateway-psmopsbot.service",
+    "bot_name: ps_wee_manager",
+    "open_channel_mode: true",
+    "psm_jira: 14",
+    "psm_c360: 3",
+    "psmopsbot due-date reminders",
+    "psmopsbot local cloud heartbeat"
+  ]) {
+    if (!psmOpsProfileBlock.includes(requiredText)) {
+      fail(`psmopsbot profile missing required text: ${requiredText}`);
+    }
+  }
+}
+
+for (const [relPath, text] of [
+  ["README.md", readFileSync(join(repoRoot, "README.md"), "utf8")],
+  ["ops/hermes/channels.md", readFileSync(join(repoRoot, "ops", "hermes", "channels.md"), "utf8")]
+]) {
+  if (!/PS WEE[\s\S]*psmopsbot|psmopsbot[\s\S]*PS WEE/i.test(text)) {
+    fail(`${relPath} must document PS WEE as psmopsbot`);
+  }
+  if (/ps\s+wee\s+manager[^.\n]*(?:uses?|are)\s+NurtureAny|ps\s+wee\s+manager[^.\n]*NurtureAny\s+workflows/i.test(text)) {
+    fail(`${relPath} must not route PS Wee Manager to NurtureAny`);
+  }
 }
 
 const runbookText = textOf(appRoot, "deploy/gce-onboarding-runbook.md");
