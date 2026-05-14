@@ -387,9 +387,34 @@ uid=$(id -u "$runtime_owner")
 sudo -H -u "$runtime_owner" XDG_RUNTIME_DIR="/run/user/$uid" systemctl --user restart "$service"
 sudo -H -u "$runtime_owner" XDG_RUNTIME_DIR="/run/user/$uid" systemctl --user is-active "$service"
 sleep 10
-sudo -H -u "$runtime_owner" HERMES_PROFILE_DIR="$profile" HERMES_HOME="$profile" NURTUREANY_APP_ROOT="$profile/source/nurtureany-sales-bot" XDG_RUNTIME_DIR="/run/user/$uid" "$profile/scripts/nurtureanysalesbot-audit-live-profile.sh"
-sudo -H -u "$runtime_owner" HERMES_PROFILE_DIR="$profile" HERMES_HOME="$profile" XDG_RUNTIME_DIR="/run/user/$uid" "$profile/scripts/nurtureanysalesbot-check-health.sh"
-sudo -H -u "$runtime_owner" HERMES_PROFILE_DIR="$profile" HERMES_HOME="$profile" XDG_RUNTIME_DIR="/run/user/$uid" "$profile/scripts/nurtureanysalesbot-cloud-doctor.sh"
+
+run_post_deploy_check() {
+  label="$1"
+  shift
+  attempts="\${NURTUREANY_DEPLOY_CHECK_ATTEMPTS:-3}"
+  delay_seconds="\${NURTUREANY_DEPLOY_CHECK_RETRY_SECONDS:-10}"
+  attempt=1
+  while [ "$attempt" -le "$attempts" ]; do
+    if "$@"; then
+      if [ "$attempt" -gt 1 ]; then
+        echo "deploy:check:$label=passed-after-retry:$attempt"
+      fi
+      return 0
+    fi
+    status="$?"
+    if [ "$attempt" -eq "$attempts" ]; then
+      echo "deploy:check:$label=failed-after-$attempts-attempts"
+      return "$status"
+    fi
+    echo "deploy:check:$label=retry:$attempt/$attempts"
+    sleep "$delay_seconds"
+    attempt=$((attempt + 1))
+  done
+}
+
+run_post_deploy_check audit sudo -H -u "$runtime_owner" HERMES_PROFILE_DIR="$profile" HERMES_HOME="$profile" NURTUREANY_APP_ROOT="$profile/source/nurtureany-sales-bot" XDG_RUNTIME_DIR="/run/user/$uid" "$profile/scripts/nurtureanysalesbot-audit-live-profile.sh"
+run_post_deploy_check health sudo -H -u "$runtime_owner" HERMES_PROFILE_DIR="$profile" HERMES_HOME="$profile" XDG_RUNTIME_DIR="/run/user/$uid" "$profile/scripts/nurtureanysalesbot-check-health.sh"
+run_post_deploy_check cloud_doctor sudo -H -u "$runtime_owner" HERMES_PROFILE_DIR="$profile" HERMES_HOME="$profile" XDG_RUNTIME_DIR="/run/user/$uid" "$profile/scripts/nurtureanysalesbot-cloud-doctor.sh"
 sudo -H -u "$runtime_owner" XDG_RUNTIME_DIR="/run/user/$uid" systemctl --user status "$service" --no-pager
 
 echo "deploy:summary:sha=$deploy_sha"

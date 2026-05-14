@@ -711,6 +711,11 @@ for (const text of [
   "daily-runs",
   "operation-ledger",
   "hermes-gateway-$profile_name.service",
+  "run_post_deploy_check",
+  "NURTUREANY_DEPLOY_CHECK_ATTEMPTS",
+  "NURTUREANY_DEPLOY_CHECK_RETRY_SECONDS",
+  "deploy:check:$label=retry:$attempt/$attempts",
+  "deploy:check:$label=failed-after-$attempts-attempts",
   "deploy:summary:sha=",
   "deploy:summary:cloud_doctor=passed"
 ]) {
