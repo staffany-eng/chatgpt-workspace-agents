@@ -13,6 +13,7 @@ import {
 const repoRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const appRoot = join(repoRoot, "apps", "psm-ops-bot");
 const manifestPath = join(appRoot, "app.manifest.json");
+const packageJsonPath = join(repoRoot, "package.json");
 const failures = [];
 
 function fail(message) {
@@ -117,6 +118,45 @@ const filesToScan = [
 for (const relPath of filesToScan) {
   assertFile(relPath);
   scanForSecretPatterns(relPath);
+}
+
+if (!existsSync(packageJsonPath)) {
+  fail("Missing package.json");
+} else {
+  const packageJson = readJson(packageJsonPath);
+  if (packageJson?.scripts?.["psm-ops-bot:deploy"] !== "node scripts/deploy-psm-ops-bot.mjs") {
+    fail("package.json must expose psm-ops-bot:deploy");
+  }
+}
+
+const deployScriptRelPath = "scripts/deploy-psm-ops-bot.mjs";
+const deployScriptPath = join(repoRoot, deployScriptRelPath);
+if (!existsSync(deployScriptPath)) {
+  fail("Missing scripts/deploy-psm-ops-bot.mjs");
+} else {
+  const deployScriptText = readFileSync(deployScriptPath, "utf8");
+  for (const requiredText of [
+    'vm: "hermes-psm-ops-bot-poc"',
+    'profile: "psmopsbot"',
+    "psm-ops-origin-main.tar.gz",
+    "psm-ops-origin-main.sha",
+    "scripts/verify-psm-ops-bot.mjs",
+    "apps/psm-ops-bot",
+    "source/psm-ops-bot",
+    "skills/psm-ops-bot",
+    "psmopsbot-check-health.sh",
+    "psmopsbot-check-cloud-heartbeat.sh",
+    "psmopsbot-audit-live-profile.sh",
+    "hermes-gateway-$profile_name.service",
+    "PSM_OPS_SOURCE_DIR",
+    'remote_verify="skipped:node-not-found"',
+    "FORBIDDEN_RUNTIME_STATE_LABELS"
+  ]) {
+    if (!deployScriptText.includes(requiredText)) fail(`${deployScriptRelPath} missing required text: ${requiredText}`);
+  }
+  if (/SLACK_BOT_TOKEN=.*xox|JIRA_API_TOKEN=.*[A-Za-z0-9_-]{20,}|CUSTOMER360_INTERNAL_API_TOKEN=.*[A-Za-z0-9_-]{20,}/.test(deployScriptText)) {
+    fail(`${deployScriptRelPath} appears to contain secret material`);
+  }
 }
 
 const configText = textOf(appRoot, "profile/config.template.yaml");
@@ -272,7 +312,10 @@ for (const requiredText of [
   "asia-southeast1",
   "hermes-gateway-psmopsbot.service",
   "Secret Manager",
-  "public/open channels"
+  "public/open channels",
+  "npm run psm-ops-bot:deploy",
+  "psm-ops-origin-main.tar.gz",
+  "preserves runtime secrets/state"
 ]) {
   if (!runbookText.includes(requiredText)) fail(`GCE runbook missing required text: ${requiredText}`);
 }
@@ -301,6 +344,17 @@ const shellCheck = spawnSync("bash", [
 });
 if (shellCheck.status !== 0) {
   fail(`Shell syntax check failed: ${shellCheck.stderr || shellCheck.stdout}`);
+}
+
+const deployScriptSyntaxCheck = spawnSync(process.execPath, [
+  "--check",
+  deployScriptPath
+], {
+  cwd: repoRoot,
+  encoding: "utf8"
+});
+if (deployScriptSyntaxCheck.status !== 0) {
+  fail(`Deploy script syntax check failed: ${deployScriptSyntaxCheck.stderr || deployScriptSyntaxCheck.stdout}`);
 }
 
 const pyCompile = spawnSync("python3", [
