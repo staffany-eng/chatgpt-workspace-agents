@@ -133,7 +133,7 @@ The script:
 
 - fetches and deploys exact `origin/main`
 - runs `node scripts/verify-psm-ops-bot.mjs` locally before upload
-- uploads `/tmp/psm-ops-origin-main.tar.gz` and `/tmp/psm-ops-origin-main.sha`
+- uploads SHA-scoped `/tmp/psm-ops-origin-main-<sha>.tar.gz` and `/tmp/psm-ops-origin-main-<sha>.sha` artifacts
 - syncs only deploy-owned source packet paths into `/home/leekaiyi/agent-builder` and `~/.hermes/profiles/psmopsbot`
 - preserves runtime secrets/state, including `.env`, auth, cron, logs, sessions, state DB, and gateway state
 - restarts only `hermes-gateway-psmopsbot.service`

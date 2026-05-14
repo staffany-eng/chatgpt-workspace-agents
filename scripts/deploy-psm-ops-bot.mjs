@@ -57,8 +57,10 @@ log(`Deploy SHA: ${deploySha}`);
 
 run(process.execPath, ["scripts/verify-psm-ops-bot.mjs"]);
 
-const archivePath = join(tmpRoot, "psm-ops-origin-main.tar.gz");
-const shaPath = join(tmpRoot, "psm-ops-origin-main.sha");
+const archiveName = `psm-ops-origin-main-${deploySha}.tar.gz`;
+const shaName = `psm-ops-origin-main-${deploySha}.sha`;
+const archivePath = join(tmpRoot, archiveName);
+const shaPath = join(tmpRoot, shaName);
 
 if (!args.apply) {
   log("Dry run only. No archive upload, remote sync, gateway restart, or production health checks were run.");
@@ -85,7 +87,7 @@ if (!args.skipUpload) {
     "compute",
     "scp",
     archivePath,
-    `${args.vm}:/tmp/psm-ops-origin-main.tar.gz`,
+    `${args.vm}:/tmp/${archiveName}`,
     "--project",
     args.project,
     "--zone",
@@ -96,7 +98,7 @@ if (!args.skipUpload) {
     "compute",
     "scp",
     shaPath,
-    `${args.vm}:/tmp/psm-ops-origin-main.sha`,
+    `${args.vm}:/tmp/${shaName}`,
     "--project",
     args.project,
     "--zone",
@@ -104,7 +106,7 @@ if (!args.skipUpload) {
     "--tunnel-through-iap",
   ]);
 } else {
-  log("Skipping upload. Remote deploy will use existing /tmp/psm-ops-origin-main.tar.gz and .sha.");
+  log(`Skipping upload. Remote deploy will use existing /tmp/${archiveName} and /tmp/${shaName}.`);
 }
 
 const remoteOutput = runCapture(
@@ -121,7 +123,7 @@ const remoteOutput = runCapture(
     "--command",
     "bash -s",
   ],
-  { input: remoteDeployScript(args) },
+  { input: remoteDeployScript(args, deploySha) },
 );
 
 process.stdout.write(remoteOutput);
@@ -255,20 +257,22 @@ function runProcess(command, commandArgs, options = {}) {
   return result;
 }
 
-function remoteDeployScript(options) {
+function remoteDeployScript(options, deploySha) {
   const profile = shellQuote(options.profile);
   const runtimeOwner = shellQuote(options.runtimeOwner);
   const remoteSourceDir = shellQuote(options.remoteSourceDir || `/home/${options.runtimeOwner}/agent-builder`);
+  const deployShaExpected = shellQuote(deploySha);
   const skipRestart = options.skipRestart ? "1" : "0";
   return `set -euo pipefail
 profile_name=${profile}
 runtime_owner=${runtimeOwner}
 remote_source_dir=${remoteSourceDir}
+deploy_sha_expected=${deployShaExpected}
 skip_restart=${skipRestart}
 profile="/home/$runtime_owner/.hermes/profiles/$profile_name"
 service="hermes-gateway-$profile_name.service"
-archive="/tmp/psm-ops-origin-main.tar.gz"
-sha_file="/tmp/psm-ops-origin-main.sha"
+archive="/tmp/psm-ops-origin-main-$deploy_sha_expected.tar.gz"
+sha_file="/tmp/psm-ops-origin-main-$deploy_sha_expected.sha"
 source_app="$remote_source_dir/apps/psm-ops-bot"
 
 test -f "$archive" || { echo "deploy:error:archive-missing"; exit 1; }
@@ -294,6 +298,7 @@ test -f "$deploy_dir/scripts/verify-psm-ops-bot.mjs" || { echo "deploy:error:ver
 test -d "$deploy_dir/apps/psm-ops-bot" || { echo "deploy:error:app-packet-missing"; exit 1; }
 
 deploy_sha=$(cat "$sha_file")
+[ "$deploy_sha" = "$deploy_sha_expected" ] || { echo "deploy:error:sha-mismatch:$deploy_sha:$deploy_sha_expected"; exit 1; }
 deploy_branch=main
 deploy_timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 remote_verify="skipped:node-not-found"

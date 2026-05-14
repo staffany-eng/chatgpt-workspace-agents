@@ -175,8 +175,10 @@ if (!existsSync(deployScriptPath)) {
   for (const requiredText of [
     'vm: "hermes-psm-ops-bot-poc"',
     'profile: "psmopsbot"',
-    "psm-ops-origin-main.tar.gz",
-    "psm-ops-origin-main.sha",
+    "psm-ops-origin-main-${deploySha}.tar.gz",
+    "psm-ops-origin-main-${deploySha}.sha",
+    "deploy_sha_expected",
+    "sha-mismatch",
     "scripts/verify-psm-ops-bot.mjs",
     "apps/psm-ops-bot",
     "source/psm-ops-bot",
@@ -426,7 +428,7 @@ for (const requiredText of [
   "Secret Manager",
   "public/open channels",
   "npm run psm-ops-bot:deploy",
-  "psm-ops-origin-main.tar.gz",
+  "psm-ops-origin-main-<sha>.tar.gz",
   "preserves runtime secrets/state",
   "GOOGLE_CALENDAR_TOKEN_FILE",
   "team@staffany.com"
