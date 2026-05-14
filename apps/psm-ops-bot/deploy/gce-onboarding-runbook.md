@@ -22,6 +22,8 @@ Store these in Secret Manager and load them into the profile `.env` on the cloud
 - `customer-360-jira-api-token`
 - `customer-360-internal-api-token`
 - `hermes-data-bot-anthropic-api-key`
+- Google Calendar OAuth JSON for `team@staffany.com` with `https://www.googleapis.com/auth/calendar.readonly`
+- Google Calendar OAuth client secret JSON for the same StaffAny OAuth client
 
 Thin POC does not require `SLACK_ALLOWED_USERS`, `SLACK_ALLOWED_CHANNELS`, or a PSM Ops access-policy file. The bot resolves the caller by fetching Slack users, canonicalizing profile email/name, and matching that identity to Jira `PS Team`. Jira user search is optional best-effort attribution, not the task-owner filter. Keep `slack.require_mention=true` so public/open-channel usage does not become free-response mode.
 
@@ -34,6 +36,9 @@ Thin POC Jira IDs must also be present in the profile `.env`:
 - `PSM_OPS_JIRA_REQUEST_TYPE_DATA_HYGIENE`
 - `PSM_OPS_JIRA_FIELD_STAFFANY_ORGS`
 - `PSM_OPS_JIRA_FIELD_PS_TEAM`
+- `GOOGLE_CALENDAR_TOKEN_FILE=/home/leekaiyi/.hermes/profiles/psmopsbot/google-calendar-token.json`
+- `GOOGLE_CALENDAR_CLIENT_SECRET_FILE=/home/leekaiyi/.hermes/profiles/psmopsbot/google-calendar-client-secret.json`
+- `GOOGLE_CALENDAR_ACCOUNT_EMAIL=team@staffany.com`
 
 Handoff Package intentionally returns a blocked response until PCO has the missing request type. Reminder automation uses Jira `duedate`; no separate reminder field is required in thin POC.
 
@@ -80,7 +85,10 @@ Copy packet files:
 mkdir -p ~/.hermes/profiles/psmopsbot/skills
 cp apps/psm-ops-bot/profile/SOUL.md ~/.hermes/profiles/psmopsbot/SOUL.md
 rsync -a --delete apps/psm-ops-bot/skills/psm-ops-bot/ ~/.hermes/profiles/psmopsbot/skills/psm-ops-bot/
+rsync -a apps/psm-ops-bot/runtime/mcp/ ~/.hermes/profiles/psmopsbot/runtime/mcp/
 ```
+
+Write the approved `team@staffany.com` OAuth files from Secret Manager to the paths configured above. Do not commit or paste those JSON files into the repo.
 
 Configure model:
 
@@ -169,3 +177,4 @@ Cloud smoke:
 4. Add an internal comment.
 5. Ask for due-date reminders and verify `list_due_pco_reminders` returns due tomorrow, due today, and overdue tasks only while not Done.
 6. Ask one C360 customer question and verify a C360 link/citation appears.
+7. Ask one calendar follow-up question and verify `psm_google_calendar.read_customer_calendar_context` returns bounded event metadata from `team@staffany.com` without descriptions, attendee emails, raw guest lists, or conference links.

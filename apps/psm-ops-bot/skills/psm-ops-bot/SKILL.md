@@ -24,6 +24,7 @@ Alias rule: `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` refer to this 
 2. `references/regression-cases.md` for expected behavior.
 3. `psm_jira` MCP for live PCO task reads and writes.
 4. `psm_c360` MCP for live Customer 360 search/context/Q&A.
+5. `psm_google_calendar` MCP for read-only `team@staffany.com` scheduling context only through the gated `read_customer_calendar_context` tool.
 
 ## Capabilities
 
@@ -42,6 +43,7 @@ Alias rule: `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` refer to this 
 - Assign an existing PCO issue to a Jira user from a Slack mention, email, or exact name.
 - Set or update the Jira due date that drives automatic reminders.
 - Ask Customer 360 for any customer context in V1.
+- Read gated Google Calendar context from the read-only `team@staffany.com` account for explicit customer meeting, invite, scheduling, or follow-up requests.
 
 ## Jira Rules
 
@@ -77,6 +79,18 @@ Alias rule: `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` refer to this 
 - Do not use a personal browser session or `customer360_session` cookie.
 - Do not read raw GCS source packs, raw Slack, raw Intercom, or raw WhatsApp rows.
 
+## Google Calendar Rules
+
+- Use only `read_customer_calendar_context` for Calendar access.
+- Access is read-only through `team@staffany.com` and `https://www.googleapis.com/auth/calendar.readonly`.
+- Ticket/task creation stays Jira-first. Calendar lookup is secondary context and must not block the PCO ticket path.
+- Do not call Calendar for task-list ownership, vague names, empty customer queries, or weak person-only strings like `Jo`.
+- For existing follow-up checks, call `read_customer_calendar_context` with `intent="find_existing_followup"`, a specific `customer_query`, and bounded `start`/`end`.
+- For meeting-slot suggestions, call `read_customer_calendar_context` with `intent="suggest_meeting_slots"` only when attendee emails and duration are explicit. If attendees are missing, ask for attendees instead of calling Calendar.
+- If selected calendars are inaccessible, report `Confidence: blocked` and do not say there is no meeting, follow-up, or available slot.
+- Do not mutate calendar data. Do not expose event descriptions, attendee emails, raw guest lists, conference links, phone numbers, or private calendar metadata.
+- Calendar is scheduling context only; Jira PCO remains task truth.
+
 ## Reminder Rules
 
 - Reminder source of truth is Jira `duedate`.
@@ -108,3 +122,4 @@ Caveat: <only the material caveat>
 7. Treating `PS WEE` as a separate app/profile instead of the existing PSM Ops Bot.
 8. Using Jira assignee or a guessed Slack email as the source of truth for "my tasks" instead of Jira `PS Team`.
 9. Letting Calendar lookup run before Jira ticket creation when one Slack request asks for both scheduling and task-list work.
+10. Treating Google Calendar as customer or task truth instead of bounded scheduling context.

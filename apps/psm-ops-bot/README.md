@@ -25,8 +25,10 @@ Alias note: `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` refer to this 
 | `skills/psm-ops-bot/` | Hermes skill and references. |
 | `runtime/mcp/psm_jira_server.py` | PCO Jira MCP adapter. |
 | `runtime/mcp/psm_c360_server.py` | Customer 360 MCP adapter. |
+| `runtime/mcp/psm_google_calendar_server.py` | Read-only Google Calendar adapter using `team@staffany.com`. |
 | `runtime/jira.md` | Jira field, workflow, and safety contract. |
 | `runtime/c360.md` | Customer 360 internal API contract. |
+| `runtime/google-calendar.md` | Google Calendar read-only access contract. |
 | `runtime/slack.md` | Slack gateway behavior and output contracts. |
 | `runtime/health-checks.md` | Health, drift, and cron verification. |
 | `runtime/check-health.sh` | No-agent live health check. |
@@ -43,7 +45,7 @@ Alias note: `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` refer to this 
 4. Apply `profile/config.template.yaml` with real runtime paths and configured Jira field IDs.
 5. Copy `skills/psm-ops-bot/` into the profile skills directory.
 6. Set profile `.env` from Secret Manager values only.
-7. Configure Slack, `psm_jira`, and `psm_c360` MCP servers.
+7. Configure Slack, `psm_jira`, `psm_c360`, and `psm_google_calendar` MCP servers.
 8. Install health, audit, and reminder cron jobs on the cloud host.
 9. Run health checks and regression cases before widening access.
 

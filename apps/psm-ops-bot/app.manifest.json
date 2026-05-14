@@ -25,9 +25,11 @@
     ],
     "jira_runtime": "runtime/jira.md",
     "c360_runtime": "runtime/c360.md",
+    "google_calendar_runtime": "runtime/google-calendar.md",
     "slack_runtime": "runtime/slack.md",
     "psm_jira_mcp": "runtime/mcp/psm_jira_server.py",
     "psm_c360_mcp": "runtime/mcp/psm_c360_server.py",
+    "psm_google_calendar_mcp": "runtime/mcp/psm_google_calendar_server.py",
     "health_checks": "runtime/health-checks.md",
     "health_check_script": "runtime/check-health.sh",
     "cloud_heartbeat_script": "runtime/check-cloud-heartbeat.sh",
@@ -63,6 +65,12 @@
         "get_c360_account_context",
         "ask_c360_customer_context"
       ]
+    },
+    "psm_google_calendar": {
+      "command_env": "PSM_OPS_PYTHON",
+      "expected_tools": [
+        "read_customer_calendar_context"
+      ]
     }
   },
   "jira": {
@@ -87,6 +95,21 @@
     "all_customer_access_v1": true,
     "auth_env_var": "CUSTOMER360_INTERNAL_API_TOKEN",
     "base_url_env_var": "CUSTOMER360_BASE_URL"
+  },
+  "google_calendar": {
+    "account_email": "team@staffany.com",
+    "access_mode": "team_oauth_shared_calendar",
+    "service_account": false,
+    "required_scope": "https://www.googleapis.com/auth/calendar.readonly",
+    "read_only": true,
+    "max_calendars": 5,
+    "max_events_per_calendar": 50,
+    "allowed_tools": [
+      "read_customer_calendar_context"
+    ],
+    "event_mutations": false,
+    "attendee_exports": false,
+    "private_field_exports": false
   },
   "channels": [
     "Slack public/open channels with mention-required gateway"

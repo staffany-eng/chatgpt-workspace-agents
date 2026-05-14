@@ -90,6 +90,13 @@ psm_ops:
     base_url_env: "CUSTOMER360_BASE_URL"
     internal_token_env: "CUSTOMER360_INTERNAL_API_TOKEN"
     all_customer_access_v1: true
+  google_calendar:
+    account_email: "team@staffany.com"
+    access_mode: "team_oauth_shared_calendar"
+    token_file_env: "GOOGLE_CALENDAR_TOKEN_FILE"
+    client_secret_file_env: "GOOGLE_CALENDAR_CLIENT_SECRET_FILE"
+    required_scope: "https://www.googleapis.com/auth/calendar.readonly"
+    read_only: true
 
 mcp_servers:
   psm_jira:
@@ -124,6 +131,18 @@ mcp_servers:
       - "search_c360_customers"
       - "get_c360_account_context"
       - "ask_c360_customer_context"
+  psm_google_calendar:
+    description: "Read-only Google Calendar adapter for PSM Ops Bot using team@staffany.com."
+    command: "/Users/leekaiyi/.hermes/hermes-agent/venv/bin/python"
+    args:
+      - "/Users/leekaiyi/workspace/agent builder/apps/psm-ops-bot/runtime/mcp/psm_google_calendar_server.py"
+    timeout: 60
+    env:
+      GOOGLE_CALENDAR_TOKEN_FILE: "${GOOGLE_CALENDAR_TOKEN_FILE}"
+      GOOGLE_CALENDAR_CLIENT_SECRET_FILE: "${GOOGLE_CALENDAR_CLIENT_SECRET_FILE}"
+      GOOGLE_CALENDAR_ACCOUNT_EMAIL: "team@staffany.com"
+    tool_allowlist:
+      - "read_customer_calendar_context"
 
 gateway:
   slack:

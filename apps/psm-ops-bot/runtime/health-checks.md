@@ -12,6 +12,8 @@ PSM Ops Bot needs deterministic cloud health checks because prompt correctness d
 - Slack bot token can call `users.list` with profile emails for `PS Team` identity matching.
 - `psm_jira` MCP lists exactly the expected tools.
 - `psm_c360` MCP lists exactly the expected tools.
+- `psm_google_calendar` MCP lists exactly `read_customer_calendar_context` when Google Calendar is enabled.
+- Google Calendar OAuth is configured for `team@staffany.com` with `calendar.readonly`, returns bounded event metadata, and exposes no mutation or attendee-export tools.
 - `validate_jira_configuration` reports thin POC defaults or full configured fields and request types, including `PS Team`.
 - C360 internal API token is configured.
 - Cron concurrency is capped with `cron.max_parallel_jobs: 1`.

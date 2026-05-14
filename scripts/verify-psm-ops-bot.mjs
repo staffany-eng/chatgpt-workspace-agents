@@ -90,6 +90,38 @@ if (!existsSync(manifestPath)) {
     for (const tool of actualC360Tools) {
       if (!expectedC360Tools.includes(tool)) fail(`Manifest has unexpected psm_c360 tool: ${tool}`);
     }
+
+    const expectedGoogleCalendarTools = [
+      "read_customer_calendar_context"
+    ];
+    const actualGoogleCalendarTools = manifest.mcp?.psm_google_calendar?.expected_tools || [];
+    for (const tool of expectedGoogleCalendarTools) {
+      if (!actualGoogleCalendarTools.includes(tool)) fail(`Manifest missing psm_google_calendar tool: ${tool}`);
+    }
+    for (const tool of actualGoogleCalendarTools) {
+      if (!expectedGoogleCalendarTools.includes(tool)) fail(`Manifest has unexpected psm_google_calendar tool: ${tool}`);
+    }
+    if ((manifest.google_calendar?.allowed_tools || []).includes("list_google_calendar_events")) {
+      fail("Manifest must not expose broad list_google_calendar_events as an allowed Google Calendar tool");
+    }
+    if (manifest.google_calendar?.account_email !== "team@staffany.com") fail("Manifest Google Calendar account_email must be team@staffany.com");
+    if (manifest.google_calendar?.access_mode !== "team_oauth_shared_calendar") {
+      fail("Manifest Google Calendar access_mode must be team_oauth_shared_calendar");
+    }
+    if (manifest.google_calendar?.service_account !== false) fail("Manifest Google Calendar must not claim service_account=true");
+    if (manifest.google_calendar?.required_scope !== "https://www.googleapis.com/auth/calendar.readonly") {
+      fail("Manifest Google Calendar required_scope must be calendar.readonly");
+    }
+    if (manifest.google_calendar?.read_only !== true) fail("Manifest Google Calendar read_only must be true");
+    if (manifest.google_calendar?.max_calendars !== 5) fail("Manifest Google Calendar max_calendars must be 5");
+    if (manifest.google_calendar?.max_events_per_calendar !== 50) {
+      fail("Manifest Google Calendar max_events_per_calendar must be 50");
+    }
+    if (manifest.google_calendar?.event_mutations !== false) fail("Manifest Google Calendar event_mutations must be false");
+    if (manifest.google_calendar?.attendee_exports !== false) fail("Manifest Google Calendar attendee_exports must be false");
+    if (manifest.google_calendar?.private_field_exports !== false) {
+      fail("Manifest Google Calendar private_field_exports must be false");
+    }
   }
 }
 
@@ -105,12 +137,15 @@ const filesToScan = [
   "runtime/slack.md",
   "runtime/jira.md",
   "runtime/c360.md",
+  "runtime/google-calendar.md",
   "runtime/health-checks.md",
   "runtime/check-health.sh",
   "runtime/check-cloud-heartbeat.sh",
   "runtime/audit-live-profile.sh",
   "runtime/mcp/psm_jira_server.py",
   "runtime/mcp/psm_c360_server.py",
+  "runtime/mcp/google_oauth.py",
+  "runtime/mcp/psm_google_calendar_server.py",
   "deploy/gce-onboarding-runbook.md",
   "tests/regression-cases.md"
 ];
@@ -160,6 +195,9 @@ if (!existsSync(deployScriptPath)) {
 }
 
 const configText = textOf(appRoot, "profile/config.template.yaml");
+if (configText.includes('      - "list_google_calendar_events"')) {
+  fail("config.template.yaml must not expose broad list_google_calendar_events");
+}
 for (const requiredText of [
   "psmopsbot",
   "SLACK_ALLOWED_CHANNELS empty",
@@ -177,7 +215,12 @@ for (const requiredText of [
   "mark_ps_wee_ticket_ready",
   "set_pco_ps_team",
   "psm_jira",
-  "psm_c360"
+  "psm_c360",
+  "psm_google_calendar",
+  "GOOGLE_CALENDAR_TOKEN_FILE",
+  "GOOGLE_CALENDAR_CLIENT_SECRET_FILE",
+  "team@staffany.com",
+  "calendar.readonly"
 ]) {
   if (!configText.includes(requiredText)) fail(`config.template.yaml missing required text: ${requiredText}`);
 }
@@ -195,6 +238,9 @@ for (const requiredText of [
   "Slack sender ID/mention",
   "past due date",
   "all customers",
+  "Google Calendar",
+  "team@staffany.com",
+  "read_customer_calendar_context",
   "Do not use personal `customer360_session` cookies",
   "PSM Ops automation:"
 ]) {
@@ -219,7 +265,10 @@ for (const requiredText of [
   "set_pco_ps_team",
   "Public customer-visible comments are blocked",
   "Reminder source of truth is Jira",
-  "Use `search_c360_customers`"
+  "Use `search_c360_customers`",
+  "read_customer_calendar_context",
+  "team@staffany.com",
+  "calendar.readonly"
 ]) {
   if (!skillText.includes(requiredText)) fail(`Skill missing required text: ${requiredText}`);
 }
@@ -312,6 +361,36 @@ for (const [relPath, text] of [
   }
 }
 
+const googleCalendarText = textOf(appRoot, "runtime/google-calendar.md");
+for (const requiredText of [
+  "team@staffany.com",
+  "GOOGLE_CALENDAR_TOKEN_FILE",
+  "https://www.googleapis.com/auth/calendar.readonly",
+  "read_customer_calendar_context",
+  "Max calendars per request: 5",
+  "Max events per calendar: 50",
+  "Do not create, update, delete, RSVP, invite, export attendees"
+]) {
+  if (!googleCalendarText.includes(requiredText)) fail(`runtime/google-calendar.md missing required text: ${requiredText}`);
+}
+
+const googleCalendarMcpText = textOf(appRoot, "runtime/mcp/psm_google_calendar_server.py");
+for (const requiredText of [
+  "GOOGLE_CALENDAR_TOKEN_FILE",
+  "GOOGLE_CALENDAR_CLIENT_SECRET_FILE",
+  "DEFAULT_ACCOUNT_EMAIL = \"team@staffany.com\"",
+  "CALENDAR_READONLY_SCOPE",
+  "MAX_CALENDARS = 5",
+  "MAX_EVENTS_PER_CALENDAR = 50",
+  "read_customer_calendar_context",
+  "WEAK_CUSTOMER_QUERY_TOKENS",
+  "team_oauth_shared_calendar",
+  "blocked_calendar_ids",
+  "No event mutations, attendee exports, descriptions, raw guest lists, or conference links"
+]) {
+  if (!googleCalendarMcpText.includes(requiredText)) fail(`psm_google_calendar_server.py missing required text: ${requiredText}`);
+}
+
 const runbookText = textOf(appRoot, "deploy/gce-onboarding-runbook.md");
 for (const requiredText of [
   "hermes-psm-ops-bot-poc",
@@ -322,7 +401,9 @@ for (const requiredText of [
   "public/open channels",
   "npm run psm-ops-bot:deploy",
   "psm-ops-origin-main.tar.gz",
-  "preserves runtime secrets/state"
+  "preserves runtime secrets/state",
+  "GOOGLE_CALENDAR_TOKEN_FILE",
+  "team@staffany.com"
 ]) {
   if (!runbookText.includes(requiredText)) fail(`GCE runbook missing required text: ${requiredText}`);
 }
@@ -368,7 +449,9 @@ const pyCompile = spawnSync("python3", [
   "-m",
   "py_compile",
   join(appRoot, "runtime/mcp/psm_jira_server.py"),
-  join(appRoot, "runtime/mcp/psm_c360_server.py")
+  join(appRoot, "runtime/mcp/psm_c360_server.py"),
+  join(appRoot, "runtime/mcp/google_oauth.py"),
+  join(appRoot, "runtime/mcp/psm_google_calendar_server.py")
 ], {
   cwd: repoRoot,
   env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1" },

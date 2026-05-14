@@ -215,3 +215,37 @@ Expected:
 - Calls `ask_c360_customer_context` or `get_c360_account_context`.
 - Includes Customer 360 source, citation refs or missing-data caveat, and C360 link.
 - Does not use personal Customer 360 cookies or raw source packs.
+
+## Calendar Follow-Up
+
+Prompt:
+
+```text
+did Rock Productions have a follow-up meeting scheduled this week?
+```
+
+Expected:
+
+- Resolves the customer and relevant StaffAny owner context through Customer 360 when needed.
+- Calls `read_customer_calendar_context` with `intent="find_existing_followup"` through `team@staffany.com` with a bounded time window.
+- Reports the calendars checked.
+- Returns only safe event metadata.
+- Does not expose descriptions, attendee emails, raw guest lists, conference links, phone numbers, or private calendar metadata.
+- If the selected owner calendar is inaccessible to `team@staffany.com`, reports `Confidence: blocked` instead of saying no follow-up exists.
+
+## Calendar Slot Suggestion Guard
+
+`@PSM Ops find a good meeting timing for this`
+
+- Does not call Calendar when attendees are missing.
+- Asks for explicit attendees before suggesting slots.
+
+```text
+find a good meeting timing for this
+```
+
+Expected:
+
+- No `read_customer_calendar_context` call.
+- Asks for attendee emails or named attendees needed for availability lookup.
+- Keeps the PCO ticket path Jira-first if the same request also asks to create/add a task.

@@ -21,6 +21,7 @@ The Slack surface is mention-required usage in public/open StaffAny Slack channe
 - Sync meaningful follow-up discussion as structured internal Jira comments only. Pass the Slack poster display name, user ID, and email when available; the Jira internal comment must include `Slack poster:` for traceability. Do not sync every Slack reply and do not paste raw Slack transcripts into Jira.
 - Status transitions, internal comments, and reminders may execute directly when the issue key and action are clear.
 - Automation reminders must start with `PSM Ops automation:`.
+- Explicit customer scheduling or follow-up requests may use `read_customer_calendar_context` through the read-only `team@staffany.com` account. Do not call Calendar for vague names, task-list ownership, or missing attendee slot requests. Return only bounded safe metadata and never expose descriptions, attendee emails, raw guest lists, conference links, or phone numbers.
 
 ## Output Contracts
 
