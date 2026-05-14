@@ -142,6 +142,12 @@ if (!existsSync(manifestPath)) {
     if (manifest.quick_autorun?.slack_context?.configured_channel_ids_env_var !== "NURTUREANY_SLACK_INTENT_CHANNEL_IDS") {
       fail("Manifest quick_autorun Slack context must name NURTUREANY_SLACK_INTENT_CHANNEL_IDS");
     }
+    if (manifest.quick_autorun?.slack_context?.configured_thread_channel_ids_env_var !== "NURTUREANY_SLACK_THREAD_CONTEXT_CHANNEL_IDS") {
+      fail("Manifest quick_autorun Slack context must name NURTUREANY_SLACK_THREAD_CONTEXT_CHANNEL_IDS");
+    }
+    if (manifest.quick_autorun?.slack_context?.configured_public_thread_channel_auto_join !== true) {
+      fail("Manifest quick_autorun Slack context must enable configured public thread-channel auto join");
+    }
     if (manifest.quick_autorun?.slack_context?.raw_transcript_persistence !== false) {
       fail("Manifest quick_autorun must disable raw transcript persistence");
     }
@@ -1206,11 +1212,13 @@ const slackIntentServerText = textOf("runtime/mcp/slack_nurtureany_server.py");
 for (const text of [
   "SLACK_BOT_TOKEN",
   "NURTUREANY_SLACK_INTENT_CHANNEL_IDS",
+  "NURTUREANY_SLACK_THREAD_CONTEXT_CHANNEL_IDS",
   "MAX_CONTEXT_MESSAGES = 10",
   "MAX_LOOKBACK_MINUTES = 30",
   "MAX_THREAD_CONTEXT_MESSAGES = 50",
   "conversations.history",
   "conversations.replies",
+  "conversations.join",
   "chat.getPermalink",
   "read_recent_slack_intent_context",
   "get_current_slack_thread_context",
@@ -1232,6 +1240,8 @@ for (const text of [
   "test_thread_replies_path",
   "test_current_thread_reads_are_capped_and_redacted",
   "test_selected_permalink_thread_reads_parse_thread_ts",
+  "test_selected_permalink_uses_separate_thread_context_channel_allowlist",
+  "test_selected_permalink_auto_joins_configured_public_channel_before_retry",
   "test_selected_permalink_blocks_malformed_without_network",
   "test_selected_permalink_blocks_unconfigured_channel_without_network"
 ]) {
@@ -1580,6 +1590,7 @@ for (const text of [
   "get_current_slack_thread_context",
   "get_selected_slack_thread_context",
   "SLACK_BOT_TOKEN",
+  "conversations.join",
   "safe summaries/permalinks only",
   "conversations.history",
   "conversations.replies",
@@ -1618,6 +1629,7 @@ for (const text of [
   "get_current_slack_thread_context",
   "get_selected_slack_thread_context",
   "SLACK_BOT_TOKEN",
+  "conversations.join",
   "safe summaries/permalinks only",
   "conversations.history",
   "conversations.replies",
@@ -1795,8 +1807,10 @@ for (const text of [
   "get_current_slack_thread_context",
   "get_selected_slack_thread_context",
   "slack-intent:configured-channel-ids-missing",
+  "slack-thread-context:configured-channel-ids-missing",
   "slack-intent:missing-conversations-history-scope",
   "slack-intent:channel-not-found-or-not-in-channel",
+  "slack-thread-context:channel-not-found-or-not-in-channel",
   "mcp:near_me_nurtureany:missing-google-places-env",
   "google-drive:token-permissions-not-600",
   "slack-allowlist:missing-policy-users",

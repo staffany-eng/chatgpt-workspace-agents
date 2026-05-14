@@ -494,6 +494,15 @@ intent_channels = [value.strip() for value in intent_channels_raw.split(",") if 
 if not intent_channels:
     print("slack-intent:configured-channel-ids-missing")
     raise SystemExit(1)
+thread_channels_raw = (
+    os.environ.get("NURTUREANY_SLACK_THREAD_CONTEXT_CHANNEL_IDS")
+    or profile_env.get("NURTUREANY_SLACK_THREAD_CONTEXT_CHANNEL_IDS")
+    or intent_channels_raw
+)
+thread_channels = [value.strip() for value in thread_channels_raw.split(",") if value.strip()]
+if not thread_channels:
+    print("slack-thread-context:configured-channel-ids-missing")
+    raise SystemExit(1)
 
 
 def slack_get(method: str, params: dict[str, str]) -> dict:
@@ -534,6 +543,37 @@ if messages:
     permalink_data = slack_get("chat.getPermalink", {"channel": channel_id, "message_ts": message_ts})
     if not permalink_data.get("ok"):
         print("slack-intent:permalink-check-failed")
+        raise SystemExit(1)
+
+thread_channel_id = thread_channels[0]
+thread_history_data = slack_get("conversations.history", {"channel": thread_channel_id, "limit": "1"})
+if not thread_history_data.get("ok"):
+    error = str(thread_history_data.get("error") or "unknown")
+    if error == "not_in_channel":
+        join_data = slack_get("conversations.join", {"channel": thread_channel_id})
+        if not join_data.get("ok"):
+            print("slack-thread-context:join-failed")
+            raise SystemExit(1)
+        thread_history_data = slack_get("conversations.history", {"channel": thread_channel_id, "limit": "1"})
+        if not thread_history_data.get("ok"):
+            print("slack-thread-context:history-after-join-failed")
+            raise SystemExit(1)
+    elif error == "missing_scope":
+        print("slack-thread-context:missing-conversations-history-scope")
+        raise SystemExit(1)
+    elif error == "channel_not_found":
+        print("slack-thread-context:channel-not-found-or-not-in-channel")
+        raise SystemExit(1)
+    else:
+        print("slack-thread-context:history-check-failed")
+        raise SystemExit(1)
+
+thread_messages = thread_history_data.get("messages") or []
+if thread_messages:
+    thread_message_ts = str((thread_messages[0] or {}).get("ts") or "")
+    thread_replies_data = slack_get("conversations.replies", {"channel": thread_channel_id, "ts": thread_message_ts, "limit": "1"})
+    if not thread_replies_data.get("ok"):
+        print("slack-thread-context:replies-check-failed")
         raise SystemExit(1)
 PY
 then

@@ -333,10 +333,14 @@
     "slack_context": {
       "token_env_var": "SLACK_BOT_TOKEN",
       "configured_channel_ids_env_var": "NURTUREANY_SLACK_INTENT_CHANNEL_IDS",
+      "configured_thread_channel_ids_env_var": "NURTUREANY_SLACK_THREAD_CONTEXT_CHANNEL_IDS",
+      "configured_public_thread_channel_auto_join": true,
       "fallback_channel_ids_env_var": "SLACK_HOME_CHANNEL",
       "configured_channels_only": true,
       "allowed_tools": [
-        "read_recent_slack_intent_context"
+        "read_recent_slack_intent_context",
+        "get_current_slack_thread_context",
+        "get_selected_slack_thread_context"
       ],
       "safe_output": "safe summaries/permalinks only",
       "raw_transcript_persistence": false,

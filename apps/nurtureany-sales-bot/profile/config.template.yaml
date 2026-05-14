@@ -112,6 +112,8 @@ nurtureany:
     slack_context_tool: read_recent_slack_intent_context
     slack_context_token_env: SLACK_BOT_TOKEN
     configured_channel_ids_env: NURTUREANY_SLACK_INTENT_CHANNEL_IDS
+    configured_thread_channel_ids_env: NURTUREANY_SLACK_THREAD_CONTEXT_CHANNEL_IDS
+    configured_public_thread_channel_auto_join: true
     fallback_channel_ids_env: SLACK_HOME_CHANNEL
     configured_channels_only: true
     safe_output: safe summaries/permalinks only
@@ -226,6 +228,8 @@ mcp_servers:
       type: bot_token_env
       env: SLACK_BOT_TOKEN
       configured_channel_ids_env: NURTUREANY_SLACK_INTENT_CHANNEL_IDS
+      configured_thread_channel_ids_env: NURTUREANY_SLACK_THREAD_CONTEXT_CHANNEL_IDS
+      configured_public_thread_channel_auto_join: true
       fallback_channel_ids_env: SLACK_HOME_CHANNEL
     access_policy:
       mode: read_only
