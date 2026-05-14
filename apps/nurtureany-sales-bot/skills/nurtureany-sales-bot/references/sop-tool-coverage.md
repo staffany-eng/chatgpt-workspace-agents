@@ -24,6 +24,8 @@ Use this reference with `sales-best-practices.md` before changing or answering f
 | Tool | Group | SOP coverage |
 | --- | --- | --- |
 | `read_recent_slack_intent_context` | Slack intent | Read-only configured-channel context for quick-autorun routing only; max 10 messages or 30 minutes, safe summaries/permalinks only, no raw transcript persistence, no user-token or Slack-connector fallback, no Slack mutation. |
+| `get_current_slack_thread_context` | Slack thread | Explicit selected-thread read after `run` or bounded continuation only; one configured-channel thread, max 50 messages, safe summaries/permalinks only, no raw transcript export, broad history/search, user listing, posting, reactions, pins, user-token fallback, or mutation. |
+| `get_selected_slack_thread_context` | Slack thread | User-supplied permalink read after `run` only; parse one configured-channel thread, max 50 messages, safe summaries/permalinks only, no raw transcript export, broad history/search, user listing, posting, reactions, pins, user-token fallback, or mutation. |
 | `list_inbound_threads` | Inbound | HubSpot Conversations summaries only; apply inbound/routing SOP, access scope, plan-first flow, PII/body safety, no mutation. |
 | `get_inbound_thread_context` | Inbound | One selected thread only; HubSpot override fields govern account truth; no bulk export, no raw-body dump, no mutation. |
 | `audit_inbound_sla` | Inbound | Admin/manager inbound SLA audit only; safe aggregate routing/ack/first-touch evidence plus safe per-row lead context when available; no phone numbers, bulk raw thread export, or mutation. |

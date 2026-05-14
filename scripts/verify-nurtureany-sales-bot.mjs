@@ -183,6 +183,8 @@ if (!existsSync(manifestPath)) {
 
     const expectedReadTools = [
       "read_recent_slack_intent_context",
+      "get_current_slack_thread_context",
+      "get_selected_slack_thread_context",
       "list_inbound_threads",
       "get_inbound_thread_context",
       "audit_inbound_sla",
@@ -762,7 +764,10 @@ for (const text of [
   "max_expected_seconds: 60",
   "max_context_messages: 10",
   "max_context_lookback_minutes: 30",
+  "max_thread_context_messages: 50",
   "read_recent_slack_intent_context",
+  "get_current_slack_thread_context",
+  "get_selected_slack_thread_context",
   "slack_nurtureany",
   "runtime/mcp/slack_nurtureany_server.py",
   "NURTUREANY_SLACK_INTENT_CHANNEL_IDS",
@@ -1177,10 +1182,13 @@ for (const text of [
   "NURTUREANY_SLACK_INTENT_CHANNEL_IDS",
   "MAX_CONTEXT_MESSAGES = 10",
   "MAX_LOOKBACK_MINUTES = 30",
+  "MAX_THREAD_CONTEXT_MESSAGES = 50",
   "conversations.history",
   "conversations.replies",
   "chat.getPermalink",
   "read_recent_slack_intent_context",
+  "get_current_slack_thread_context",
+  "get_selected_slack_thread_context",
   "safe_summaries",
   "will_post_message",
   "transcript_persisted",
@@ -1195,7 +1203,11 @@ for (const text of [
   "test_missing_token_blocks_without_network",
   "test_unconfigured_channel_blocks_without_network",
   "test_history_reads_are_capped_and_redacted",
-  "test_thread_replies_path"
+  "test_thread_replies_path",
+  "test_current_thread_reads_are_capped_and_redacted",
+  "test_selected_permalink_thread_reads_parse_thread_ts",
+  "test_selected_permalink_blocks_malformed_without_network",
+  "test_selected_permalink_blocks_unconfigured_channel_without_network"
 ]) {
   if (!slackIntentTestText.includes(text)) fail(`runtime/mcp/test_slack_nurtureany_server.py missing required text: ${text}`);
 }
@@ -1539,6 +1551,8 @@ const slackText = textOf("runtime/slack.md");
 for (const text of [
   "quick-autorun gate",
   "read_recent_slack_intent_context",
+  "get_current_slack_thread_context",
+  "get_selected_slack_thread_context",
   "SLACK_BOT_TOKEN",
   "safe summaries/permalinks only",
   "conversations.history",
@@ -1573,7 +1587,10 @@ const healthText = textOf("runtime/health-checks.md");
 for (const text of [
   "Quick-autorun policy",
   "Slack intent-context smoke check",
+  "Slack selected-thread smoke check",
   "read_recent_slack_intent_context",
+  "get_current_slack_thread_context",
+  "get_selected_slack_thread_context",
   "SLACK_BOT_TOKEN",
   "safe summaries/permalinks only",
   "conversations.history",
@@ -1720,7 +1737,7 @@ const healthScriptText = textOf("runtime/check-health.sh");
 for (const text of [
   "PROFILE=\"${HERMES_PROFILE:-nurtureanysalesbot}\"",
   "export HERMES_HOME=\"$HOME/.hermes/profiles/$PROFILE\"",
-  "EXPECT_SLACK_INTENT_TOOLS=\"${EXPECT_SLACK_INTENT_TOOLS:-1}\"",
+  "EXPECT_SLACK_INTENT_TOOLS=\"${EXPECT_SLACK_INTENT_TOOLS:-3}\"",
   "EXPECT_HUBSPOT_TOOLS=\"${EXPECT_HUBSPOT_TOOLS:-42}\"",
   "NURTUREANY_GATEWAY_SERVICE_NAME",
   "systemctl --user is-active --quiet \"$GATEWAY_SERVICE_NAME\"",
@@ -1746,7 +1763,10 @@ for (const text of [
   "terminal:cwd-points-at-codex-worktree",
   "quick-autorun:not-enabled",
   "slack_nurtureany",
+  "EXPECT_SLACK_INTENT_TOOLS=\"${EXPECT_SLACK_INTENT_TOOLS:-3}\"",
   "read_recent_slack_intent_context",
+  "get_current_slack_thread_context",
+  "get_selected_slack_thread_context",
   "slack-intent:configured-channel-ids-missing",
   "slack-intent:missing-conversations-history-scope",
   "slack-intent:channel-not-found-or-not-in-channel",

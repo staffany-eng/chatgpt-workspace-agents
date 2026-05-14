@@ -36,6 +36,32 @@ Ambiguous recent context expected behavior:
 - Does not auto-run when owner, source class, outcome, or breadth is ambiguous or multi-source.
 - Returns the normal five-line preflight and asks for `run` or a narrower scope.
 
+Slack capability prompt:
+
+```text
+@NurtureAny what can you do inside Slack? do you have Slack API access?
+```
+
+Expected behavior:
+
+- Says it can read Hermes-injected current thread context and use bounded bot-token Slack read tools for configured channels.
+- Names `read_recent_slack_intent_context` for quick-intent routing and `get_current_slack_thread_context` / `get_selected_slack_thread_context` for explicit selected-thread reads after `run` or bounded continuation.
+- Distinguishes quick intent at max 10 messages or 30 minutes from explicit thread reads at max 50 messages.
+- Says outputs are safe summaries/permalinks only with no raw transcript persistence.
+- Does not claim no Slack API access, arbitrary Slack search/history, broad user listing, reactions, pins, arbitrary Slack posting, user-token fallback, or Slack connector fallback.
+
+Selected thread prompt:
+
+```text
+@NurtureAny summarize this Slack thread: https://staffany.slack.com/archives/C0B2UGK4DB6/p1770000000000000
+```
+
+Expected behavior:
+
+- First response is plan-only unless this is a clear bounded continuation after a delivered result.
+- After `run`, may call `get_selected_slack_thread_context` for configured-channel permalinks only.
+- Returns safe summaries/permalinks only, capped at 50 messages, and blocks malformed, unconfigured-channel, or missing-scope permalinks cleanly.
+
 Mutation/send/reveal expected behavior:
 
 - Does not auto-run from quick intent.

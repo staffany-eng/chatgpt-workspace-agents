@@ -342,6 +342,8 @@
   "tools": {
     "read": [
       "read_recent_slack_intent_context",
+      "get_current_slack_thread_context",
+      "get_selected_slack_thread_context",
       "list_inbound_threads",
       "get_inbound_thread_context",
       "audit_inbound_sla",
