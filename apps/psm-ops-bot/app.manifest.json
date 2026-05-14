@@ -35,6 +35,7 @@
     "cloud_heartbeat_script": "runtime/check-cloud-heartbeat.sh",
     "live_profile_audit_script": "runtime/audit-live-profile.sh",
     "rock_productions_c360_smoke_script": "runtime/smoke-rock-productions-c360.sh",
+    "adoption_digest_script": "runtime/psm_ops_adoption_digest.py",
     "deploy_runbook": "deploy/gce-onboarding-runbook.md",
     "regression_cases": "tests/regression-cases.md"
   },

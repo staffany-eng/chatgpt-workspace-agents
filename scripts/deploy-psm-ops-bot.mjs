@@ -333,6 +333,7 @@ copy_file "$deploy_dir/apps/psm-ops-bot/runtime/check-health.sh" "$profile/scrip
 copy_file "$deploy_dir/apps/psm-ops-bot/runtime/check-cloud-heartbeat.sh" "$profile/scripts/psmopsbot-check-cloud-heartbeat.sh" 0755
 copy_file "$deploy_dir/apps/psm-ops-bot/runtime/audit-live-profile.sh" "$profile/scripts/psmopsbot-audit-live-profile.sh" 0755
 copy_file "$deploy_dir/apps/psm-ops-bot/runtime/smoke-rock-productions-c360.sh" "$profile/scripts/psmopsbot-rock-productions-c360-smoke.sh" 0755
+copy_file "$deploy_dir/apps/psm-ops-bot/runtime/psm_ops_adoption_digest.py" "$profile/scripts/psm_ops_adoption_digest.py" 0755
 
 if command -v node >/dev/null 2>&1; then
   (cd "$remote_source_dir" && node scripts/verify-psm-ops-bot.mjs)

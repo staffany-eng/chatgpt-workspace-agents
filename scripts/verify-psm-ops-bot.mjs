@@ -143,6 +143,7 @@ const filesToScan = [
   "runtime/check-cloud-heartbeat.sh",
   "runtime/audit-live-profile.sh",
   "runtime/smoke-rock-productions-c360.sh",
+  "runtime/psm_ops_adoption_digest.py",
   "runtime/mcp/psm_jira_server.py",
   "runtime/mcp/psm_c360_server.py",
   "runtime/mcp/google_oauth.py",
@@ -184,6 +185,7 @@ if (!existsSync(deployScriptPath)) {
     "psmopsbot-check-cloud-heartbeat.sh",
     "psmopsbot-audit-live-profile.sh",
     "psmopsbot-rock-productions-c360-smoke.sh",
+    "psm_ops_adoption_digest.py",
     "smoke-rock-productions-c360.sh",
     "rock_productions_c360",
     "hermes-gateway-$profile_name.service",
@@ -363,7 +365,8 @@ if (!psmOpsProfileBlock) {
     "psm_jira: 14",
     "psm_c360: 3",
     "psmopsbot due-date reminders",
-    "psmopsbot local cloud heartbeat"
+    "psmopsbot local cloud heartbeat",
+    "psmopsbot adoption digest"
   ]) {
     if (!psmOpsProfileBlock.includes(requiredText)) {
       fail(`psmopsbot profile missing required text: ${requiredText}`);
@@ -433,14 +436,27 @@ for (const requiredText of [
 const heartbeatText = textOf(appRoot, "runtime/check-cloud-heartbeat.sh");
 for (const requiredText of [
   "hermes-gateway-psmopsbot.service",
-  "psmopsbot due-date reminders",
-  "psmopsbot local cloud heartbeat",
-  "EXPECTED_ENABLED_CRON_COUNT",
-  "Asia/Singapore",
+    "psmopsbot due-date reminders",
+    "psmopsbot local cloud heartbeat",
+    "psmopsbot adoption digest",
+    "EXPECTED_ENABLED_CRON_COUNT",
+    "Asia/Singapore",
   "systemctl --user is-active",
-  "systemctl --user is-enabled"
+    "systemctl --user is-enabled"
 ]) {
   if (!heartbeatText.includes(requiredText)) fail(`Cloud heartbeat script missing required text: ${requiredText}`);
+}
+
+const adoptionDigestText = textOf(appRoot, "runtime/psm_ops_adoption_digest.py");
+for (const requiredText of [
+  "PSM Ops automation: PS WEE adoption digest",
+  "psm-ops-adoption.jsonl",
+  "ticket_created",
+  "c360_search",
+  "Central copy",
+  "hermes -p psmopsbot insights --days 30 --source slack"
+]) {
+  if (!adoptionDigestText.includes(requiredText)) fail(`Adoption digest script missing required text: ${requiredText}`);
 }
 
 const shellCheck = spawnSync("bash", [
@@ -474,7 +490,8 @@ const pyCompile = spawnSync("python3", [
   join(appRoot, "runtime/mcp/psm_jira_server.py"),
   join(appRoot, "runtime/mcp/psm_c360_server.py"),
   join(appRoot, "runtime/mcp/google_oauth.py"),
-  join(appRoot, "runtime/mcp/psm_google_calendar_server.py")
+  join(appRoot, "runtime/mcp/psm_google_calendar_server.py"),
+  join(appRoot, "runtime/psm_ops_adoption_digest.py")
 ], {
   cwd: repoRoot,
   env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1" },

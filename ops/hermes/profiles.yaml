@@ -124,6 +124,10 @@ profiles:
       - name: psmopsbot local cloud heartbeat
         schedule: "*/15 * * * *"
         mode: no-agent
+      - name: psmopsbot adoption digest
+        schedule: "0 2 * * 1-5"
+        mode: no-agent
+        deliver: slack:#ps-weeman-bot-test
     checks:
       health_command: apps/psm-ops-bot/runtime/check-health.sh
       audit_command: apps/psm-ops-bot/runtime/audit-live-profile.sh

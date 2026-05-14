@@ -139,6 +139,7 @@ The script:
 - restarts only `hermes-gateway-psmopsbot.service`
 - runs live profile audit, health check, cloud heartbeat, and service status
 - runs the Rock Productions C360 lookup smoke against the live Customer 360 API
+- preserves and verifies the PS WEE no-agent adoption digest cron
 - stamps `$profile/VERSION` with the deployed SHA, branch, and UTC timestamp
 
 Useful options:
@@ -161,6 +162,17 @@ hermes -p psmopsbot cron create "0 1 * * *" \
 ```
 
 The GCE host runs UTC, so `0 1 * * *` is 09:00 Asia/Singapore daily.
+
+Install the no-agent PS WEE adoption digest:
+
+```bash
+cp apps/psm-ops-bot/runtime/psm_ops_adoption_digest.py ~/.hermes/profiles/psmopsbot/scripts/psm_ops_adoption_digest.py
+hermes -p psmopsbot cron create "0 2 * * 1-5" \
+  --name "psmopsbot adoption digest" \
+  --script psm_ops_adoption_digest.py \
+  --no-agent \
+  --deliver "slack:#ps-weeman-bot-test"
+```
 
 ## Verification
 

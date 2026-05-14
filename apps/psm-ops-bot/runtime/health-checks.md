@@ -20,6 +20,7 @@ PSM Ops Bot needs deterministic cloud health checks because prompt correctness d
 - Cron concurrency is capped with `cron.max_parallel_jobs: 1`.
 - Reminder cron is enabled in cloud and uses Jira `duedate` only.
 - VM-local cloud heartbeat cron is enabled every 15 minutes with local delivery disabled.
+- PS WEE adoption digest cron is enabled as a no-agent weekday Slack automation with the `PSM Ops automation:` prefix.
 - Healthy no-agent checks print nothing and exit 0.
 
 ## Commands
@@ -77,6 +78,13 @@ hermes -p psmopsbot cron create "*/15 * * * *" \
   --name "psmopsbot local cloud heartbeat" \
   --script psmopsbot-check-cloud-heartbeat.sh \
   --no-agent
+
+cp apps/psm-ops-bot/runtime/psm_ops_adoption_digest.py ~/.hermes/profiles/psmopsbot/scripts/psm_ops_adoption_digest.py
+hermes -p psmopsbot cron create "0 2 * * 1-5" \
+  --name "psmopsbot adoption digest" \
+  --script psm_ops_adoption_digest.py \
+  --no-agent \
+  --deliver "slack:#ps-weeman-bot-test"
 ```
 
 The GCE host runs UTC, so `0 1 * * *` is 09:00 Asia/Singapore daily.
