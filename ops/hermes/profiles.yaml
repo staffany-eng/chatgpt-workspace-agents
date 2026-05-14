@@ -40,17 +40,14 @@ profiles:
   - name: nurtureanysalesbot
     display_name: NurtureAny
     canonical_profile: nurtureanysalesbot
-    live_profile: nae2e
-    aliases: [nae2e]
+    live_profile: nurtureanysalesbot
     workflow_aliases: [sales-manager workflows, manager chase]
     status: production_poc
     owner: revops
     app_packet: apps/nurtureany-sales-bot
     deploy_host: nurtureany-sales-bot-prod
     profile_dir: ${HOME}/.hermes/profiles/nurtureanysalesbot
-    live_profile_dir: ${HOME}/.hermes/profiles/nae2e
     service:
-      launchd_label: ai.hermes.gateway-nae2e
       systemd_unit: hermes-gateway-nurtureanysalesbot.service
     slack:
       bot_name: nurtureany
@@ -95,7 +92,6 @@ profiles:
       stale_socket_seconds: 300
       stale_session_minutes: 30
       profile_sync: canonical_rsync
-      create_profile_alias: true
       pause_unsafe_crons: true
       post_slack_report: true
 

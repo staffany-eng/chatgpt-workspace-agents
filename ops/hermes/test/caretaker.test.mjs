@@ -76,12 +76,34 @@ mcp_servers:
 describe("Hermes caretaker decisions", () => {
   const profile = {
     name: "nurtureanysalesbot",
-    live_profile: "nae2e",
-    recovery: { create_profile_alias: true },
+    live_profile: "nurtureanysalesbot",
+    deploy_host: "nurtureany-sales-bot-prod",
+    recovery: {},
   };
 
-  it("repairs missing profile alias and stale gateway", () => {
+  it("does not repair remote-only profiles from a Mac operator host", () => {
     const actions = decideActions(profile, {
+      remoteOnly: true,
+      needsProfileAlias: true,
+      serviceDisabled: false,
+      gatewayRunning: false,
+      socketStale: false,
+      profileDrift: "",
+      missingConfiguredPathCount: 0,
+      unsafeCrons: [],
+      missingChannelMembership: [],
+      staleSessionCount: 0,
+      activeAgents: 0,
+    });
+    assert.deepEqual(actions, []);
+  });
+
+  it("repairs missing profile alias and stale gateway when explicitly allowed", () => {
+    const actions = decideActions({
+      name: "demo",
+      live_profile: "demo-live",
+      recovery: { create_profile_alias: true },
+    }, {
       needsProfileAlias: true,
       serviceDisabled: false,
       gatewayRunning: false,
