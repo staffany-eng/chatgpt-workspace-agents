@@ -113,9 +113,11 @@ nurtureany:
     slack_context_token_env: SLACK_BOT_TOKEN
     configured_channel_ids_env: NURTUREANY_SLACK_INTENT_CHANNEL_IDS
     configured_thread_channel_ids_env: NURTUREANY_SLACK_THREAD_CONTEXT_CHANNEL_IDS
+    public_thread_channels_env: NURTUREANY_SLACK_THREAD_CONTEXT_PUBLIC_CHANNELS
     configured_public_thread_channel_auto_join: true
     fallback_channel_ids_env: SLACK_HOME_CHANNEL
-    configured_channels_only: true
+    configured_channels_only: false
+    public_channels_only: true
     safe_output: safe summaries/permalinks only
     raw_transcript_persistence: false
     no_user_token_fallback: true
@@ -229,11 +231,13 @@ mcp_servers:
       env: SLACK_BOT_TOKEN
       configured_channel_ids_env: NURTUREANY_SLACK_INTENT_CHANNEL_IDS
       configured_thread_channel_ids_env: NURTUREANY_SLACK_THREAD_CONTEXT_CHANNEL_IDS
+      public_thread_channels_env: NURTUREANY_SLACK_THREAD_CONTEXT_PUBLIC_CHANNELS
       configured_public_thread_channel_auto_join: true
       fallback_channel_ids_env: SLACK_HOME_CHANNEL
     access_policy:
       mode: read_only
-      configured_channels_only: true
+      configured_channels_only: false
+      public_channels_only: true
       max_context_messages: 10
       max_context_lookback_minutes: 30
       max_thread_context_messages: 50

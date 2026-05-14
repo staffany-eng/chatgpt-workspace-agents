@@ -44,7 +44,7 @@ Slack capability prompt:
 
 Expected behavior:
 
-- Says it can read Hermes-injected current thread context and use bounded bot-token Slack read tools for configured thread-context channels.
+- Says it can read Hermes-injected current thread context and use bounded bot-token Slack read tools for selected public or configured thread-context channels.
 - Names `read_recent_slack_intent_context` for quick-intent routing and `get_current_slack_thread_context` / `get_selected_slack_thread_context` for explicit selected-thread reads after `run` or bounded continuation.
 - Distinguishes quick intent at max 10 messages or 30 minutes from explicit thread reads at max 50 messages.
 - Says outputs are safe summaries/permalinks only with no raw transcript persistence.
@@ -59,7 +59,7 @@ Selected thread prompt:
 Expected behavior:
 
 - First response is plan-only unless this is a clear bounded continuation after a delivered result.
-- After `run`, may call `get_selected_slack_thread_context` for configured thread-context channel permalinks only; if the configured source channel is public and the bot is not in it, the adapter may join with `conversations.join` and retry.
+- After `run`, may call `get_selected_slack_thread_context` for public or configured thread-context channel permalinks only; if the public source channel is public and the bot is not in it, the adapter may join with `conversations.join` and retry.
 - Returns safe summaries/permalinks only, capped at 50 messages, and blocks malformed, unconfigured-channel, private-without-membership, or missing-scope permalinks cleanly.
 
 Mutation/send/reveal expected behavior:

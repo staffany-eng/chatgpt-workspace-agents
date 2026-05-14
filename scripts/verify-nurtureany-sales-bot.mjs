@@ -145,8 +145,14 @@ if (!existsSync(manifestPath)) {
     if (manifest.quick_autorun?.slack_context?.configured_thread_channel_ids_env_var !== "NURTUREANY_SLACK_THREAD_CONTEXT_CHANNEL_IDS") {
       fail("Manifest quick_autorun Slack context must name NURTUREANY_SLACK_THREAD_CONTEXT_CHANNEL_IDS");
     }
+    if (manifest.quick_autorun?.slack_context?.public_thread_channels_env_var !== "NURTUREANY_SLACK_THREAD_CONTEXT_PUBLIC_CHANNELS") {
+      fail("Manifest quick_autorun Slack context must name NURTUREANY_SLACK_THREAD_CONTEXT_PUBLIC_CHANNELS");
+    }
     if (manifest.quick_autorun?.slack_context?.configured_public_thread_channel_auto_join !== true) {
       fail("Manifest quick_autorun Slack context must enable configured public thread-channel auto join");
+    }
+    if (manifest.quick_autorun?.slack_context?.public_channels_only !== true) {
+      fail("Manifest quick_autorun Slack context must restrict broad thread reads to public channels only");
     }
     if (manifest.quick_autorun?.slack_context?.raw_transcript_persistence !== false) {
       fail("Manifest quick_autorun must disable raw transcript persistence");
@@ -1213,9 +1219,11 @@ for (const text of [
   "SLACK_BOT_TOKEN",
   "NURTUREANY_SLACK_INTENT_CHANNEL_IDS",
   "NURTUREANY_SLACK_THREAD_CONTEXT_CHANNEL_IDS",
+  "NURTUREANY_SLACK_THREAD_CONTEXT_PUBLIC_CHANNELS",
   "MAX_CONTEXT_MESSAGES = 10",
   "MAX_LOOKBACK_MINUTES = 30",
   "MAX_THREAD_CONTEXT_MESSAGES = 50",
+  "conversations.info",
   "conversations.history",
   "conversations.replies",
   "conversations.join",
@@ -1242,6 +1250,8 @@ for (const text of [
   "test_selected_permalink_thread_reads_parse_thread_ts",
   "test_selected_permalink_uses_separate_thread_context_channel_allowlist",
   "test_selected_permalink_auto_joins_configured_public_channel_before_retry",
+  "test_selected_permalink_can_auto_join_unconfigured_public_channel_when_enabled",
+  "test_selected_permalink_blocks_private_channel_even_when_all_public_enabled",
   "test_selected_permalink_blocks_malformed_without_network",
   "test_selected_permalink_blocks_unconfigured_channel_without_network"
 ]) {
@@ -1590,6 +1600,8 @@ for (const text of [
   "get_current_slack_thread_context",
   "get_selected_slack_thread_context",
   "SLACK_BOT_TOKEN",
+  "NURTUREANY_SLACK_THREAD_CONTEXT_PUBLIC_CHANNELS",
+  "public channels",
   "conversations.join",
   "safe summaries/permalinks only",
   "conversations.history",
@@ -1629,6 +1641,8 @@ for (const text of [
   "get_current_slack_thread_context",
   "get_selected_slack_thread_context",
   "SLACK_BOT_TOKEN",
+  "NURTUREANY_SLACK_THREAD_CONTEXT_PUBLIC_CHANNELS",
+  "public channels",
   "conversations.join",
   "safe summaries/permalinks only",
   "conversations.history",
