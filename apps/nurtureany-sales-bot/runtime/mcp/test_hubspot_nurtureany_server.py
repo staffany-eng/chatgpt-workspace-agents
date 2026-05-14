@@ -2070,7 +2070,14 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
             "company-1": {
                 "evidence": [
                     {"object_type": "communication", "timestamp": "2026-05-05T01:30:00Z"},
-                    {"object_type": "call", "object_id": "call-1", "owner_id": "owner-1", "timestamp": "2026-05-05T03:00:00Z", "duration_seconds": 90},
+                    {
+                        "object_type": "call",
+                        "object_id": "call-1",
+                        "owner_id": "owner-1",
+                        "timestamp": "2026-05-05T03:00:00Z",
+                        "duration_seconds": 90,
+                        "aircall_call_id": "3770565512",
+                    },
                 ]
             }
         }
@@ -2117,6 +2124,11 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         self.assertEqual(result["answer"]["one_on_one_sheet_preview_rows"][0]["QO set"], 2)
         self.assertEqual(result["answer"]["ae_weekly_checks"][0]["call_content_status"], "metadata-only needs-check")
         self.assertEqual(len(result["answer"]["ae_weekly_checks"][0]["long_call_without_appointment_candidates"]), 1)
+        candidate = result["answer"]["ae_weekly_checks"][0]["long_call_without_appointment_candidates"][0]
+        self.assertEqual(candidate["call_id"], "call-1")
+        self.assertEqual(candidate["aircall_call_id"], "3770565512")
+        self.assertNotIn("recording", json.dumps(candidate).lower())
+        self.assertNotIn("phone", json.dumps(candidate).lower())
 
     def test_ae_coaching_audit_owner_fast_path_returns_preview_without_fanout(self):
         company_data = {
@@ -2135,6 +2147,9 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
                     "hubspot_owner_id": "owner-1",
                     "hs_call_status": "COMPLETED",
                     "hs_call_duration": "130000",
+                    "hs_call_external_id": "3770565512",
+                    "hs_call_app_id": "36503",
+                    "hs_object_source_detail_1": "Aircall : AI-powered calling and SMS",
                 },
             }
         ]
@@ -2183,6 +2198,11 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         self.assertEqual(result["answer"]["ae_weekly_checks"][0]["timezone_source"], "missing")
         self.assertEqual(result["answer"]["ae_weekly_checks"][0]["in_window_message_count"], 0)
         self.assertEqual(result["scope"]["owner_scoped_fast_path"], True)
+        candidates = result["answer"]["ae_weekly_checks"][0]["long_call_without_appointment_candidates"]
+        self.assertEqual(candidates[0]["call_id"], "call-1")
+        self.assertEqual(candidates[0]["aircall_call_id"], "3770565512")
+        self.assertNotIn("hs_call_recording_url", json.dumps(candidates))
+        self.assertNotIn("hs_call_body", json.dumps(candidates))
 
     def test_ae_coaching_audit_owner_fast_path_applies_timezone_override_window(self):
         company_data = {
@@ -3449,6 +3469,8 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
             self.assertNotIn("hs_call_recording_url", properties)
             self.assertNotIn("hs_meeting_body", properties)
             if object_type == "calls":
+                self.assertIn("hs_call_external_id", properties)
+                self.assertIn("hs_object_source_detail_1", properties)
                 return [
                     {
                         "id": "call-short",
@@ -3468,6 +3490,9 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
                             "hs_call_status": "COMPLETED",
                             "hs_call_duration": "180000",
                             "hs_call_title": "Discovery call",
+                            "hs_call_external_id": "3770565512",
+                            "hs_call_app_id": "36503",
+                            "hs_object_source_detail_1": "Aircall : AI-powered calling and SMS",
                         },
                     },
                     {
@@ -3519,6 +3544,9 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         self.assertEqual(result["counts"]["completed_meetings"], 1)
         self.assertEqual(result["counts"]["warm_activity_points"], 1)
         self.assertEqual(result["counts"]["touches"], 3)
+        call_evidence = [item for item in result["evidence"] if item.get("object_type") == "call"]
+        connected = next(item for item in call_evidence if item.get("object_id") == "call-connected")
+        self.assertEqual(connected["aircall_call_id"], "3770565512")
         self.assertNotIn("+6512345678", json.dumps(result))
         self.assertNotIn("body", json.dumps(result).lower())
 

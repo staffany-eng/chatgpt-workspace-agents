@@ -2,6 +2,8 @@
 
 PSM Ops Bot needs deterministic cloud health checks because prompt correctness does not prove Slack, Jira, C360, cron, or gateway wiring.
 
+`psmopsbot` is cloud-only. Run these checks on `hermes-psm-ops-bot-poc`, not from a Mac-local Hermes profile.
+
 ## Expected Checks
 
 - Hermes gateway service `hermes-gateway-psmopsbot.service` is active on the GCE host.
@@ -10,14 +12,21 @@ PSM Ops Bot needs deterministic cloud health checks because prompt correctness d
 - Model route is pinned to `anthropic` / `claude-sonnet-4-6`.
 - Slack gateway is mention-required and not restricted to a single public/open channel.
 - Slack bot token can call `users.list` with profile emails for `PS Team` identity matching.
+- If `PSM_OPS_CENTRAL_SLACK_CHANNEL_ID` is configured, the Slack bot token can inspect that channel and the bot is a member.
 - Reviewed customer-channel map path is configured when customer-specific Slack channel auto-tagging is enabled.
 - `psm_jira` MCP lists exactly the expected tools.
 - `psm_c360` MCP lists exactly the expected tools.
+- `psm_google_calendar` MCP lists exactly `read_customer_calendar_context` when Google Calendar is enabled.
+- Google Calendar OAuth is configured for `team@staffany.com` with `calendar.readonly`, returns bounded event metadata, and exposes no mutation or attendee-export tools.
 - `validate_jira_configuration` reports thin POC defaults or full configured fields and request types, including `PS Team`.
+- `validate_roi_jira_configuration` reports exactly one ROI project key, service desk ID, request type ID, and mapped required request fields before ROI-direct creation is enabled.
 - C360 internal API token is configured.
+- Rock Productions C360 lookup smoke passes for `proj-cs-rockproductions`, including normalized variants, HubSpot company `8051493928`, and StaffAny org `Rock Productions`.
 - Cron concurrency is capped with `cron.max_parallel_jobs: 1`.
 - Reminder cron is enabled in cloud and uses Jira `duedate` only.
 - VM-local cloud heartbeat cron is enabled every 15 minutes with local delivery disabled.
+- PS WEE adoption digest cron is enabled as a no-agent weekday Slack automation with the `PSM Ops automation:` prefix.
+- PS WEE adoption telemetry hook is installed under the profile hooks directory.
 - Healthy no-agent checks print nothing and exit 0.
 
 ## Commands
@@ -48,6 +57,18 @@ Run live profile drift audit after syncing packet files:
 apps/psm-ops-bot/runtime/audit-live-profile.sh
 ```
 
+Run the live Rock Productions C360 lookup smoke after deploy:
+
+```bash
+apps/psm-ops-bot/runtime/smoke-rock-productions-c360.sh
+```
+
+Expected success output:
+
+```text
+c360:rock-productions:ok:hubspot=8051493928:org=Rock Productions
+```
+
 ## Cron Pattern
 
 Install automatic due-date reminders under the cloud profile:
@@ -63,10 +84,35 @@ hermes -p psmopsbot cron create "*/15 * * * *" \
   --name "psmopsbot local cloud heartbeat" \
   --script psmopsbot-check-cloud-heartbeat.sh \
   --no-agent
+
+cp apps/psm-ops-bot/runtime/psm_ops_adoption_digest.py ~/.hermes/profiles/psmopsbot/scripts/psm_ops_adoption_digest.py
+hermes -p psmopsbot cron create "0 2 * * 1-5" \
+  --name "psmopsbot adoption digest" \
+  --script psm_ops_adoption_digest.py \
+  --no-agent \
+  --deliver "slack:#ps-weeman-bot-test"
 ```
 
 The GCE host runs UTC, so `0 1 * * *` is 09:00 Asia/Singapore daily.
 
+Install central audit/adoption telemetry after the profile exists:
+
+```bash
+mkdir -p ~/.hermes/profiles/psmopsbot/hooks ~/.hermes/profiles/psmopsbot/scripts
+rsync -a apps/psm-ops-bot/runtime/hooks/psm-ops-adoption-telemetry/ \
+  ~/.hermes/profiles/psmopsbot/hooks/psm-ops-adoption-telemetry/
+cp apps/psm-ops-bot/runtime/scripts/psm_ops_adoption_digest.py \
+  ~/.hermes/profiles/psmopsbot/scripts/psm_ops_adoption_digest.py
+
+hermes -p psmopsbot cron create "0 2 * * 1-5" \
+  --name "psmopsbot adoption digest" \
+  --script psm_ops_adoption_digest.py \
+  --no-agent \
+  --deliver "slack:#ps-weeman-bot-test"
+```
+
+Set `PSM_OPS_CENTRAL_SLACK_CHANNEL_ID` to the central ops channel ID in the live profile `.env`; prefer the ID over the name.
+
 ## Failure Behavior
 
-On failure, print only the failing subsystem and next check. Do not print secrets, env values, raw logs, raw Slack messages, raw Jira comments, raw customer source data, phone numbers, or bulk exports.
+On failure, print only the failing subsystem and next check. Do not print secrets, env values, raw logs, raw Slack messages, raw Jira comments, raw customer source data, phone numbers, or bulk exports. The Rock Productions C360 smoke may print `searched_variants`, `match_count`, `missing_mapping`, `confidence`, and `caveat` only.

@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { countMissingConfiguredPaths, decideActions, expandPath, parseProfilesYaml, summarizeFacts } from "../caretaker.mjs";
@@ -24,6 +24,40 @@ profiles:
     assert.deepEqual(profiles[0].aliases, ["old-demo"]);
     assert.equal(profiles[0].required_mcp.demo_mcp, 2);
     assert.equal(profiles[0].expected_crons[0].schedule, "*/5 * * * *");
+  });
+
+  it("routes PS WEE aliases to psmopsbot instead of NurtureAny", () => {
+    const profiles = parseProfilesYaml(readFileSync(new URL("../profiles.yaml", import.meta.url), "utf8"));
+    const nurtureAny = profiles.find((profile) => profile.name === "nurtureanysalesbot");
+    const psmOps = profiles.find((profile) => profile.name === "psmopsbot");
+
+    assert.ok(nurtureAny);
+    assert.ok(psmOps);
+    assert.equal((nurtureAny.workflow_aliases || []).some((alias) => /ps\s+wee/i.test(alias)), false);
+    assert.ok(psmOps.workflow_aliases.includes("PS WEE"));
+    assert.ok(psmOps.workflow_aliases.includes("PS Wee Manager"));
+    assert.equal(psmOps.app_packet, "apps/psm-ops-bot");
+    assert.equal(psmOps.deploy_host, "hermes-psm-ops-bot-poc");
+    assert.equal(psmOps.service.systemd_unit, "hermes-gateway-psmopsbot.service");
+    assert.equal(psmOps.slack.open_channel_mode, true);
+  });
+
+  it("keeps StaffAny Slack app profiles cloud-only from Mac operator hosts", () => {
+    const profiles = parseProfilesYaml(readFileSync(new URL("../profiles.yaml", import.meta.url), "utf8"));
+    const cloudOnlyProfiles = new Map([
+      ["staffanydatabot", "hermes-data-bot-poc"],
+      ["launchbot", "hermes-data-bot-poc"],
+      ["psmopsbot", "hermes-psm-ops-bot-poc"],
+      ["nurtureanysalesbot", "nurtureany-sales-bot-prod"],
+    ]);
+
+    for (const [profileName, deployHost] of cloudOnlyProfiles) {
+      const profile = profiles.find((candidate) => candidate.name === profileName);
+      assert.ok(profile, `${profileName} profile must exist`);
+      assert.equal(profile.deploy_host, deployHost);
+      assert.equal(profile.local_profile_policy, "cloud_only");
+      assert.equal(profile.service?.launchd_label, undefined);
+    }
   });
 
   it("expands home placeholders without touching other strings", () => {
@@ -60,12 +94,34 @@ mcp_servers:
 describe("Hermes caretaker decisions", () => {
   const profile = {
     name: "nurtureanysalesbot",
-    live_profile: "nae2e",
-    recovery: { create_profile_alias: true },
+    live_profile: "nurtureanysalesbot",
+    deploy_host: "nurtureany-sales-bot-prod",
+    recovery: {},
   };
 
-  it("repairs missing profile alias and stale gateway", () => {
+  it("does not repair remote-only profiles from a Mac operator host", () => {
     const actions = decideActions(profile, {
+      remoteOnly: true,
+      needsProfileAlias: true,
+      serviceDisabled: false,
+      gatewayRunning: false,
+      socketStale: false,
+      profileDrift: "",
+      missingConfiguredPathCount: 0,
+      unsafeCrons: [],
+      missingChannelMembership: [],
+      staleSessionCount: 0,
+      activeAgents: 0,
+    });
+    assert.deepEqual(actions, []);
+  });
+
+  it("repairs missing profile alias and stale gateway when explicitly allowed", () => {
+    const actions = decideActions({
+      name: "demo",
+      live_profile: "demo-live",
+      recovery: { create_profile_alias: true },
+    }, {
       needsProfileAlias: true,
       serviceDisabled: false,
       gatewayRunning: false,

@@ -31,6 +31,28 @@ class PsmJiraServerTest(unittest.TestCase):
                 self.assertEqual(module._jira_mode(), "thin_poc")
                 self.assertEqual(os.environ["JIRA_EMAIL"], "bot@staffany.com")
 
+    def test_request_types_resource_exposes_identity_contract(self):
+        module = load_mcp_module("psm_jira_server.py", "psm_jira_resource_test")
+        with patch.dict(
+            os.environ,
+            {
+                "PSM_OPS_JIRA_MODE": "thin_poc",
+                "PSM_OPS_JIRA_SERVICE_DESK_ID": "",
+                "PSM_OPS_JIRA_REQUEST_TYPE_CUSTOMER_NEXT_ACTION": "",
+                "PSM_OPS_JIRA_REQUEST_TYPE_ONBOARDING_TASK": "",
+                "PSM_OPS_JIRA_REQUEST_TYPE_DATA_HYGIENE": "",
+                "PSM_OPS_JIRA_REQUEST_TYPE_HANDOFF_PACKAGE": "",
+                "PSM_OPS_JIRA_FIELD_STAFFANY_ORGS": "",
+            },
+            clear=False,
+        ):
+            payload = json.loads(module.jira_request_types_resource())
+
+        self.assertEqual(payload["request_types"]["customer_next_action"], "81")
+        self.assertEqual(payload["request_types"]["handoff_package"], "disabled_until_request_type_exists")
+        self.assertIn("Slack sender user id", payload["caller_identity"]["accepted_values"])
+        self.assertIn("do not ask the user for email", payload["caller_identity"]["rule"])
+
     def setUp(self):
         self.module = load_mcp_module("psm_jira_server.py")
         self.tmpdir = tempfile.TemporaryDirectory()
@@ -47,6 +69,12 @@ class PsmJiraServerTest(unittest.TestCase):
                             "ps_team": "Ada PSM",
                             "ps_team_option_id": "team-ada",
                             "active": True,
+                        },
+                        {
+                            "slack_email": "reporter@staffany.com",
+                            "jira_account_id": "acct-reporter",
+                            "display_name": "Rina Reporter",
+                            "active": True,
                         }
                     ]
                 }
@@ -59,7 +87,9 @@ class PsmJiraServerTest(unittest.TestCase):
                 "JIRA_BASE_URL": "https://staffany.atlassian.net",
                 "JIRA_EMAIL": "bot@staffany.com",
                 "JIRA_API_TOKEN": "jira-token",
+                "SLACK_BOT_TOKEN": "xoxb-fake",
                 "PSM_OPS_JIRA_MODE": "full",
+                "PSM_OPS_TODAY": "2026-05-13",
                 "PSM_OPS_ACCESS_POLICY_PATH": str(policy_path),
                 "PSM_OPS_JIRA_SERVICE_DESK_ID": "10",
                 "PSM_OPS_JIRA_REQUEST_TYPE_CUSTOMER_NEXT_ACTION": "101",
@@ -75,6 +105,16 @@ class PsmJiraServerTest(unittest.TestCase):
                 "PSM_OPS_JIRA_FIELD_SOURCE_LINKS": "customfield_10107",
                 "PSM_OPS_JIRA_FIELD_REMINDER_AT": "customfield_10108",
                 "PSM_OPS_JIRA_FIELD_PS_TEAM": "customfield_10876",
+                "PSM_OPS_ROI_JIRA_PROJECT_KEY": "ROI",
+                "PSM_OPS_ROI_JIRA_SERVICE_DESK_ID": "20",
+                "PSM_OPS_ROI_JIRA_REQUEST_TYPE_ID": "201",
+                "PSM_OPS_ROI_JIRA_FIELD_CUSTOMER": "customfield_20101",
+                "PSM_OPS_ROI_JIRA_FIELD_STAFFANY_ORGS": "customfield_20100",
+                "PSM_OPS_ROI_JIRA_FIELD_REQUEST_CATEGORY": "customfield_20102",
+                "PSM_OPS_ROI_JIRA_FIELD_SOURCE_LINKS": "customfield_20103",
+                "PSM_OPS_ROI_JIRA_FIELD_REQUESTER": "customfield_20104",
+                "PSM_OPS_ROI_JIRA_FIELD_ORIGINAL_CHANNEL": "customfield_20105",
+                "PSM_OPS_ROI_JIRA_FIELD_PRIORITY": "customfield_20106",
                 "PSM_OPS_CUSTOMER_CHANNEL_MAP_PATH": "",
             },
             clear=False,
@@ -82,6 +122,48 @@ class PsmJiraServerTest(unittest.TestCase):
         self.env.start()
         self.addCleanup(self.env.stop)
 
+    def _roi_fields(self, customer_required=True, extra_required=None):
+        fields = [
+            {"fieldId": "summary", "name": "Summary", "required": True},
+            {"fieldId": "description", "name": "Details", "required": True},
+            {"fieldId": "customfield_20101", "name": "Customer", "required": customer_required},
+            {"fieldId": "customfield_20100", "name": "StaffAny Organization", "required": False},
+            {
+                "fieldId": "customfield_20102",
+                "name": "Request category",
+                "required": True,
+                "validValues": [
+                    {"value": "11967", "label": "BD Ops"},
+                    {"value": "11968", "label": "NYSS"},
+                    {"value": "11969", "label": "RevOps"},
+                    {"value": "11970", "label": "ROI"},
+                    {"value": "11971", "label": "Billing / invoice"},
+                ],
+            },
+            {"fieldId": "customfield_20103", "name": "Source links", "required": True},
+            {"fieldId": "customfield_20104", "name": "Requester", "required": True},
+            {"fieldId": "customfield_20105", "name": "Original channel", "required": False},
+            {
+                "fieldId": "customfield_20106",
+                "name": "Priority",
+                "required": False,
+                "validValues": [{"value": "12001", "label": "Medium"}, {"value": "12002", "label": "High"}],
+            },
+            {"fieldId": "customfield_20107", "name": "Urgency Impact", "required": False},
+        ]
+        for field_name in extra_required or []:
+            fields.append({"fieldId": f"customfield_extra_{len(fields)}", "name": field_name, "required": True})
+        return fields
+
+    def test_roi_urgent_field_defaults_to_no_when_required(self):
+        field = {
+            "fieldId": "customfield_10833",
+            "name": "Urgent?",
+            "required": True,
+            "validValues": [{"value": "11975", "label": "Yes"}, {"value": "11976", "label": "No"}],
+        }
+
+        self.assertEqual(self.module._roi_default_priority_for_field(field), "No")
     def _customer_channel_map(self, entries: list[dict]) -> str:
         path = Path(self.tmpdir.name) / "customer-channel-map.json"
         path.write_text(json.dumps({"channels": entries}), encoding="utf-8")
@@ -219,6 +301,111 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertEqual(calls[1][0], "PUT")
         self.assertEqual(calls[1][1], "/rest/api/3/issue/PCO-134")
         self.assertEqual(calls[1][2]["fields"]["customfield_10876"], {"id": "12025"})
+
+    def test_link_pco_to_ker_uses_blocks_direction_for_pco_blocked_by_engineering(self):
+        calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            return {}
+
+        self.module._request_json = fake_request
+
+        result = self.module.link_pco_to_engineering_issue("PCO-123", "KER-2109")
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(calls[0][0], "GET")
+        self.assertEqual(calls[0][1], "/rest/api/3/issue/PCO-123?fields=issuelinks")
+        self.assertEqual(calls[1][0], "POST")
+        self.assertEqual(calls[1][1], "/rest/api/3/issueLink")
+        self.assertEqual(calls[1][2]["type"], {"name": "Blocks"})
+        self.assertEqual(calls[1][2]["outwardIssue"], {"key": "KER-2109"})
+        self.assertEqual(calls[1][2]["inwardIssue"], {"key": "PCO-123"})
+        self.assertEqual(result["answer"]["relationship"], "PCO-123 is blocked by KER-2109")
+        self.assertFalse(result["answer"]["already_exists"])
+        self.assertIn("no raw Jira issue content", result["caveat"])
+
+    def test_link_pco_to_sche_accepts_relates_fallback(self):
+        calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            return {}
+
+        self.module._request_json = fake_request
+
+        result = self.module.link_pco_to_engineering_issue("PCO-123", "SCHE-19631", "relates to")
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(calls[1][2]["type"], {"name": "Relates"})
+        self.assertEqual(calls[1][2]["outwardIssue"], {"key": "PCO-123"})
+        self.assertEqual(calls[1][2]["inwardIssue"], {"key": "SCHE-19631"})
+
+    def test_link_pco_to_engineering_issue_reports_existing_blocks_link(self):
+        calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if method == "GET":
+                return {
+                    "fields": {
+                        "issuelinks": [
+                            {
+                                "type": {"name": "Blocks"},
+                                "inwardIssue": {"key": "KER-2109"},
+                            }
+                        ]
+                    }
+                }
+            return {}
+
+        self.module._request_json = fake_request
+
+        result = self.module.link_pco_to_engineering_issue("PCO-123", "KER-2109")
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertTrue(result["answer"]["already_exists"])
+        self.assertEqual(len(calls), 1)
+        self.assertIn("already existed", result["caveat"])
+
+    def test_link_pco_to_engineering_issue_reports_existing_blocks_link_from_outward_issue(self):
+        calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if method == "GET":
+                return {
+                    "fields": {
+                        "issuelinks": [
+                            {
+                                "type": {"name": "Blocks"},
+                                "outwardIssue": {"key": "KER-2109"},
+                            }
+                        ]
+                    }
+                }
+            return {}
+
+        self.module._request_json = fake_request
+
+        result = self.module.link_pco_to_engineering_issue("PCO-123", "KER-2109")
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertTrue(result["answer"]["already_exists"])
+        self.assertEqual(len(calls), 1)
+        self.assertIn("already existed", result["caveat"])
+
+    def test_link_pco_to_engineering_issue_rejects_non_pco_source(self):
+        result = self.module.link_pco_to_engineering_issue("KER-2109", "SCHE-19631")
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("PCO-123", result["caveat"])
+
+    def test_link_pco_to_engineering_issue_rejects_non_engineering_target(self):
+        result = self.module.link_pco_to_engineering_issue("PCO-123", "PCO-456")
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("KER-123 or SCHE-123", result["caveat"])
 
     def test_set_pco_assignee_resolves_slack_mention_to_jira_account(self):
         calls = []
@@ -418,6 +605,7 @@ class PsmJiraServerTest(unittest.TestCase):
 
     def test_ps_wee_intake_creates_immediate_ticket_with_slack_trace(self):
         calls = []
+        audit_calls = []
 
         def fake_request(method, path, body=None):
             calls.append((method, path, deepcopy(body)))
@@ -430,10 +618,11 @@ class PsmJiraServerTest(unittest.TestCase):
             return {}
 
         self.module._request_json = fake_request
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: audit_calls.append((event_type, kwargs)) or {"ok": True}
 
         result = self.module.create_ps_wee_intake_ticket(
             slack_user_email="psm@staffany.com",
-            slack_thread_url="https://staffany.slack.com/archives/C08SDJR03N1/p1778205303989579",
+            slack_thread_url="https://staffany.slack.com/archives/C0B2VT50YT1/p1778205303989579",
             customer="Fei Siong",
             issue_summary="Payroll readiness unclear",
             known_details="PS asked to raise this first.",
@@ -447,12 +636,15 @@ class PsmJiraServerTest(unittest.TestCase):
             "[Needs info] Fei Siong - Payroll readiness unclear",
         )
         self.assertEqual(calls[2][1], "/rest/servicedeskapi/request/PCO-789/comment")
-        self.assertIn("Source Slack thread: https://staffany.slack.com/archives/C08SDJR03N1/p1778205303989579", calls[2][2]["body"])
+        self.assertIn("Source Slack thread: https://staffany.slack.com/archives/C0B2VT50YT1/p1778205303989579", calls[2][2]["body"])
         self.assertIn("Known details: PS asked to raise this first.", calls[2][2]["body"])
         self.assertEqual(calls[3][1], "/rest/api/3/issue/PCO-789")
         self.assertEqual(calls[3][2]["update"]["labels"], [{"add": "needs-info"}])
         self.assertIn("Created first so this won't be missed", result["answer"]["slack_reply"])
         self.assertIn("<https://staffany.atlassian.net/browse/PCO-789|PCO-789>", result["answer"]["slack_reply"])
+        self.assertEqual(audit_calls[0][0], "ticket_created")
+        self.assertEqual(audit_calls[0][1]["source_thread_url"], "https://staffany.slack.com/archives/C0B2VT50YT1/p1778205303989579")
+        self.assertEqual(audit_calls[0][1]["issue_key"], "PCO-789")
 
     def test_ps_wee_intake_auto_tags_reviewed_customer_channel_with_blank_customer(self):
         map_path = self._customer_channel_map(
@@ -646,6 +838,7 @@ class PsmJiraServerTest(unittest.TestCase):
 
     def test_ps_wee_intake_reuses_existing_ticket_for_same_slack_thread(self):
         calls = []
+        audit_calls = []
 
         def fake_request(method, path, body=None):
             calls.append((method, path, body))
@@ -664,44 +857,259 @@ class PsmJiraServerTest(unittest.TestCase):
             }
 
         self.module._request_json = fake_request
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: audit_calls.append((event_type, kwargs)) or {"ok": True}
 
         result = self.module.create_ps_wee_intake_ticket(
             slack_user_email="psm@staffany.com",
-            slack_thread_url="https://staffany.slack.com/archives/C08SDJR03N1/p1778205303989579",
+            slack_thread_url="https://staffany.slack.com/archives/C0B2VT50YT1/p1778205303989579",
         )
 
         self.assertEqual(result["confidence"], "verified")
         self.assertEqual(result["answer"]["existing_ticket"]["issue_key"], "PCO-789")
         self.assertEqual(len(calls), 1)
+        self.assertEqual(audit_calls[0][0], "ticket_reused")
+        self.assertEqual(audit_calls[0][1]["issue_key"], "PCO-789")
+
+    def test_roi_intent_routes_aliases_to_roi(self):
+        examples = [
+            "Create a task for bd ops to send Dreamus invoice",
+            "add BD Ops to check the renewal invoice",
+            "log nyss ticket for accessible invoice issue",
+            "handle n y s s MRR mismatch",
+            "create RevOps ticket for HubSpot deal check",
+            "put this ROI request on the board",
+        ]
+
+        for text in examples:
+            with self.subTest(text=text):
+                result = self.module.classify_roi_ticket_request(text)
+                self.assertEqual(result["confidence"], "verified")
+                self.assertTrue(result["answer"]["is_roi_ticket_request"])
+
+    def test_roi_intent_blocks_casual_nyss_question(self):
+        result = self.module.classify_roi_ticket_request("@nyss what is the Stripe password")
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertFalse(result["answer"]["is_roi_ticket_request"])
+        self.assertFalse(result["answer"]["action_detected"])
+
+    def test_roi_ticket_defaults_requester_to_slack_sender(self):
+        calls = []
+        audit_calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
+                return {"issues": []}
+            if path.endswith("/requesttype/201/field"):
+                return {"requestTypeFields": self._roi_fields()}
+            if path == "/rest/servicedeskapi/request":
+                return {"issueKey": "ROI-123", "requestTypeId": "201"}
+            if path.endswith("/comment"):
+                return {"id": "comment-roi-123"}
+            return {}
+
+        self.module._request_json = fake_request
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: audit_calls.append((event_type, kwargs)) or {"ok": True}
+
+        result = self.module.create_roi_ticket_from_slack(
+            slack_user_email="psm@staffany.com",
+            slack_thread_url="https://staffany.slack.com/archives/C08SDJR03N1/p1778753307219139",
+            message_text="Create a task for bd ops to send Dreamus invoice",
+            customer="Dreamus",
+            original_channel="#team-rev-bd-ops",
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        create_call = calls[2]
+        self.assertEqual(create_call[0], "POST")
+        self.assertEqual(create_call[1], "/rest/servicedeskapi/request")
+        payload = create_call[2]
+        self.assertEqual(payload["serviceDeskId"], "20")
+        self.assertEqual(payload["requestTypeId"], "201")
+        self.assertEqual(payload["raiseOnBehalfOf"], "acct-123")
+        values = payload["requestFieldValues"]
+        self.assertEqual(values["customfield_20101"], "Dreamus")
+        self.assertEqual(values["customfield_20100"], "Dreamus")
+        self.assertEqual(values["customfield_20102"], {"id": "11967"})
+        self.assertNotIn("customfield_20107", values)
+        self.assertIn("https://staffany.slack.com/archives/C08SDJR03N1/p1778753307219139", values["customfield_20103"])
+        self.assertIn("Ada PSM", values["customfield_20104"])
+        self.assertEqual(values["customfield_20105"], "#team-rev-bd-ops")
+        self.assertEqual(calls[3][1], "/rest/servicedeskapi/request/ROI-123/comment")
+        self.assertIn("Requester: Ada PSM", calls[3][2]["body"])
+        self.assertIn("Created ROI ticket", result["answer"]["slack_reply"])
+        self.assertEqual(audit_calls[0][0], "roi_ticket_created")
+        self.assertEqual(audit_calls[0][1]["issue_key"], "ROI-123")
+
+    def test_roi_configured_fields_disambiguate_optional_name_matches(self):
+        self.module._request_json = lambda method, path, body=None: {"requestTypeFields": self._roi_fields()}
+
+        result = self.module.validate_roi_jira_configuration()
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertIn("customer", result["answer"]["mapped_fields"])
+        self.assertIn("priority", result["answer"]["mapped_fields"])
+        self.assertEqual(result["answer"]["configured_field_ids"]["customer"], "customfield_20101")
+        self.assertEqual(result["answer"]["configured_field_ids"]["staffany_orgs"], "customfield_20100")
+        self.assertEqual(result["answer"]["configured_field_ids"]["priority"], "customfield_20106")
+
+    def test_roi_ticket_explicit_requester_overrides_sender(self):
+        calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
+                return {"issues": []}
+            if path.endswith("/requesttype/201/field"):
+                return {"requestTypeFields": self._roi_fields(customer_required=False)}
+            if path == "/rest/servicedeskapi/request":
+                return {"issueKey": "ROI-124", "requestTypeId": "201"}
+            if path.endswith("/comment"):
+                return {"id": "comment-roi-124"}
+            return {}
+
+        self.module._request_json = fake_request
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: {"ok": True}
+
+        result = self.module.create_roi_ticket_from_slack(
+            slack_user_email="psm@staffany.com",
+            slack_thread_url="https://staffany.slack.com/archives/C08SDJR03N1/p1778753307219140",
+            message_text="Create RevOps ticket for renewal invoice, requested by reporter@staffany.com",
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        payload = calls[2][2]
+        self.assertEqual(payload["raiseOnBehalfOf"], "acct-reporter")
+        self.assertIn("Rina Reporter", payload["requestFieldValues"]["customfield_20104"])
+        self.assertEqual(result["answer"]["requester_source"], "explicit_requester")
+
+    def test_roi_ticket_unresolved_requester_blocks_creation(self):
+        calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
+                return {"issues": []}
+            return {}
+
+        self.module._request_json = fake_request
+
+        result = self.module.create_roi_ticket_from_slack(
+            slack_user_email="psm@staffany.com",
+            slack_thread_url="https://staffany.slack.com/archives/C08SDJR03N1/p1778753307219141",
+            message_text="Create BD Ops ticket for discount approval, reported by unknown@staffany.com",
+            customer="Dreamus",
+        )
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("No active Jira account mapping", result["caveat"])
+        self.assertEqual([call for call in calls if call[0] == "POST"], [])
+
+    def test_roi_ticket_missing_required_fields_blocks_with_exact_names(self):
+        calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
+                return {"issues": []}
+            if path.endswith("/requesttype/201/field"):
+                return {"requestTypeFields": self._roi_fields(customer_required=True)}
+            return {}
+
+        self.module._request_json = fake_request
+
+        result = self.module.create_roi_ticket_from_slack(
+            slack_user_email="psm@staffany.com",
+            slack_thread_url="https://staffany.slack.com/archives/C08SDJR03N1/p1778753307219142",
+            message_text="Create a task for bd ops to check invoice",
+        )
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertEqual(result["scope"]["missing_fields"], ["Customer"])
+        self.assertIn("Missing required ROI fields: Customer", result["caveat"])
+        self.assertEqual([call for call in calls if call[0] == "POST"], [])
+
+    def test_roi_ticket_reuses_existing_same_thread_ticket(self):
+        calls = []
+        audit_calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            self.assertEqual(method, "GET")
+            return {
+                "issues": [
+                    {
+                        "key": "ROI-555",
+                        "fields": {
+                            "summary": "Dreamus invoice",
+                            "status": {"name": "Open"},
+                            "priority": {"name": "Medium"},
+                            "reporter": {"displayName": "Rina Reporter"},
+                        },
+                    }
+                ]
+            }
+
+        self.module._request_json = fake_request
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: audit_calls.append((event_type, kwargs)) or {"ok": True}
+
+        result = self.module.create_roi_ticket_from_slack(
+            slack_user_email="psm@staffany.com",
+            slack_thread_url="https://staffany.slack.com/archives/C08SDJR03N1/p1778753307219143",
+            message_text="Create a task for bd ops to send Dreamus invoice",
+            customer="Dreamus",
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["answer"]["existing_ticket"]["issue_key"], "ROI-555")
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(audit_calls[0][0], "roi_ticket_reused")
 
     def test_append_ps_wee_ticket_update_posts_structured_comment_only(self):
         calls = []
+        audit_calls = []
 
         def fake_request(method, path, body=None):
             calls.append((method, path, body))
             return {"id": "comment-790"}
 
         self.module._request_json = fake_request
+        self.module._slack_users = lambda: [
+            {
+                "id": "U03P4FU4CHG",
+                "name": "damba",
+                "real_name": "Damba CSE",
+                "profile": {"email": "damba@staffany.com", "real_name": "Damba CSE", "display_name": "Damba"},
+            }
+        ]
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: audit_calls.append((event_type, kwargs)) or {"ok": True}
 
         result = self.module.append_ps_wee_ticket_update(
             issue_key="PCO-789",
-            slack_thread_url="https://staffany.slack.com/archives/C08SDJR03N1/p1778205303989579",
+            slack_thread_url="https://staffany.slack.com/archives/C0B2VT50YT1/p1778205303989579",
             update_summary="PS confirmed impact and affected date range.",
             updated_fields={"impact": "Payroll blocked", "affected date range": "May payroll"},
             evidence_links=["https://example.com/screenshot"],
+            slack_poster_name="Damba CSE",
+            slack_user_email="damba@staffany.com",
         )
 
         self.assertEqual(result["confidence"], "verified")
         body = calls[0][2]["body"]
         self.assertIn("PS WEE Slack ticket update:", body)
-        self.assertIn("Source Slack thread: https://staffany.slack.com/archives/C08SDJR03N1/p1778205303989579", body)
+        self.assertIn("Source Slack thread: https://staffany.slack.com/archives/C0B2VT50YT1/p1778205303989579", body)
+        self.assertIn("Slack poster: Damba CSE <@U03P4FU4CHG> damba@staffany.com", body)
         self.assertIn("- impact: Payroll blocked", body)
         self.assertIn("- affected date range: May payroll", body)
         self.assertIn("- https://example.com/screenshot", body)
         self.assertFalse(calls[0][2]["public"])
+        self.assertEqual(audit_calls[0][0], "ticket_update_synced")
+        self.assertEqual(audit_calls[0][1]["source_thread_url"], "https://staffany.slack.com/archives/C0B2VT50YT1/p1778205303989579")
 
     def test_mark_ps_wee_ticket_ready_comments_and_removes_needs_info_label(self):
         calls = []
+        audit_calls = []
 
         def fake_request(method, path, body=None):
             calls.append((method, path, body))
@@ -710,10 +1118,11 @@ class PsmJiraServerTest(unittest.TestCase):
             return {}
 
         self.module._request_json = fake_request
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: audit_calls.append((event_type, kwargs)) or {"ok": True}
 
         result = self.module.mark_ps_wee_ticket_ready(
             issue_key="PCO-789",
-            slack_thread_url="https://staffany.slack.com/archives/C08SDJR03N1/p1778205303989579",
+            slack_thread_url="https://staffany.slack.com/archives/C0B2VT50YT1/p1778205303989579",
             ready_summary="Customer, issue, impact, scope, and outcome are now complete.",
         )
 
@@ -722,6 +1131,23 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertEqual(calls[1][1], "/rest/api/3/issue/PCO-789")
         self.assertEqual(calls[1][2]["update"]["labels"], [{"remove": "needs-info"}])
         self.assertTrue(result["answer"]["ready_for_triage"])
+        self.assertEqual(audit_calls[0][0], "ticket_ready")
+        self.assertEqual(audit_calls[0][1]["issue_key"], "PCO-789")
+
+    def test_ps_wee_blocked_path_posts_central_audit_when_thread_is_present(self):
+        audit_calls = []
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: audit_calls.append((event_type, kwargs)) or {"ok": True}
+
+        result = self.module.append_ps_wee_ticket_update(
+            issue_key="PCO-789",
+            slack_thread_url="https://staffany.slack.com/archives/C0B2VT50YT1/p1778205303989579",
+            update_summary="",
+        )
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertEqual(audit_calls[0][0], "blocked")
+        self.assertEqual(audit_calls[0][1]["issue_key"], "PCO-789")
+        self.assertIn("meaningful update", audit_calls[0][1]["blocked_reason"])
 
     def test_transition_uses_available_transition_to_target_status(self):
         calls = []
@@ -1019,6 +1445,61 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertIn("query=kaiyi%40staffany.com", calls[0][1])
         self.assertIn("cf%5B10876%5D+%3D+%22Kai+Yi%22", calls[-1][1])
 
+    def test_thin_poc_slack_sender_mention_drafts_without_email_prompt(self):
+        calls = []
+        with patch.dict(
+            os.environ,
+            {
+                "PSM_OPS_JIRA_MODE": "thin_poc",
+                "PSM_OPS_ACCESS_POLICY_PATH": "",
+                "PSM_OPS_JIRA_FIELD_REMINDER_AT": "",
+            },
+            clear=False,
+        ), patch.object(
+            self.module,
+            "_slack_users",
+            return_value=[
+                {
+                    "id": "U6E68280P",
+                    "name": "kaiyilee",
+                    "real_name": "Kai Yi Lee",
+                    "profile": {"email": "kaiyi@staffany.com", "real_name": "Kai Yi Lee", "display_name": "Kai Yi"},
+                }
+            ],
+        ):
+            def fake_request(method, path, body=None):
+                calls.append((method, path, body))
+                if path.startswith("/rest/api/3/user/search?"):
+                    return [
+                        {
+                            "accountId": "acct-kaiyi",
+                            "displayName": "Kaiyi Lee",
+                            "emailAddress": "kaiyi@staffany.com",
+                            "active": True,
+                        }
+                    ]
+                if path == "/rest/api/3/field/customfield_10876/context":
+                    return {"values": [{"id": "context-1"}]}
+                if path.startswith("/rest/api/3/field/customfield_10876/context/context-1/option?"):
+                    return {"values": [{"id": "team-kaiyi", "value": "Kai Yi", "disabled": False}], "isLast": True}
+                return {"issues": []}
+
+            self.module._request_json = fake_request
+
+            result = self.module.draft_pco_task(
+                slack_user_email="<@U6E68280P>",
+                customer="Rock Productions",
+                summary="Follow up on PSM home page and What's New",
+                due_date="2026-07-15",
+            )
+
+        self.assertEqual(result["confidence"], "verified")
+        draft = result["answer"]["draft"]
+        self.assertEqual(result["scope"]["caller"], "kaiyi@staffany.com")
+        self.assertEqual(result["scope"]["ps_team"], "Kai Yi")
+        self.assertEqual(draft["owner_jira_account_id"], "acct-kaiyi")
+        self.assertEqual(draft["ps_team"], "Kai Yi")
+
     def test_thin_poc_create_retries_summary_only_comments_and_assigns(self):
         calls = []
         with patch.dict(
@@ -1069,6 +1550,43 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertEqual(calls[3][1], "/rest/servicedeskapi/request/PCO-456/comment")
         self.assertEqual(calls[4][1], "/rest/api/3/issue/PCO-456/assignee")
         self.assertIn("Optional PCO request fields were skipped", result["answer"]["warnings"][0])
+
+    def test_create_blocks_past_due_date_before_jira_write(self):
+        calls = []
+        with patch.dict(
+            os.environ,
+            {
+                "PSM_OPS_TODAY": "2026-05-14",
+                "PSM_OPS_JIRA_MODE": "thin_poc",
+            },
+            clear=False,
+        ):
+            def fake_request(method, path, body=None):
+                calls.append((method, path, deepcopy(body)))
+                return {"issueKey": "PCO-999"}
+
+            self.module._request_json = fake_request
+
+            result = self.module.create_approved_pco_task(
+                {
+                    "customer": "Rock Productions",
+                    "summary": "Follow up with product",
+                    "due_date": "2025-07-15",
+                    "request_type_id": "81",
+                },
+                "create",
+            )
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("before today", result["answer"]["message"])
+        self.assertEqual(calls, [])
+
+    def test_today_date_rejects_invalid_timezone(self):
+        with patch.dict(os.environ, {"PSM_OPS_TODAY": "", "PSM_OPS_TIMEZONE": "Not/AZone"}, clear=False):
+            with self.assertRaises(self.module.JiraError) as raised:
+                self.module._today_date()
+
+        self.assertIn("PSM_OPS_TIMEZONE", str(raised.exception))
 
     def test_thin_poc_reminder_uses_due_date_without_custom_field(self):
         with patch.dict(

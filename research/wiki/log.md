@@ -89,3 +89,23 @@ Ingested the Mobile Number Google Doc as private NurtureAny sales execution hygi
 ## [2026-05-13] ingest | Launch Superpower Bot Handoff
 
 Ingested the Launch Superpower Bot handoff and extracted help-article-generator skill package. Preserved the raw handoff, source manifest, and skill files; added a launch app packet for help-article drafting, Google Docs review, Slack approval, and Intercom draft creation while keeping Step 4 and source-code changes explicitly blocked on the external runtime checkout.
+
+## [2026-05-14] decision | Launchbot owns Launch Superpower workflow
+
+Corrected the app boundary: Launchbot is the main Hermes app, and the Launch Superpower handoff is now modeled as a Launchbot skill/workflow rather than a separate app packet. Raw handoff evidence remains under `research/raw/launch-superpower-bot/`.
+
+## [2026-05-14] ingest | PSM Ops PCO Release Watch
+
+Ingested the `KER-2109` PCO release-watch workflow as private PSM Ops operating evidence. Preserved safe links and implementation summaries only, synthesized the reusable PCO-to-KER/SCHE issue-link pattern, and promoted the rule that linked SCHE tickets with released `fixVersion` are the durable engineering release signal for PCO follow-up.
+
+## [2026-05-14] ingest | StaffAny Intercom Help Article Shape
+
+Ingested a curated Intercom help-article shape profile for LaunchBot planning. Pulled 37 published reference articles across 10 article families, kept full Intercom JSON/HTML in ignored `.cache/`, and committed only normalized article IDs, titles, timestamps, headings, tags, split rules, and structural fingerprints.
+
+## [2026-05-14] synthesis | Help Article Planning Rules
+
+Synthesized the cached Intercom shape profile into LaunchBot article-planning rules: plan before drafting, split by audience/platform/workflow, use Pantheon for behavior truth, use live Intercom for affected-article search and exact target stale checks, and block staging as `needs-refresh` when cached shape evidence disagrees with live Intercom.
+
+## [2026-05-14] ingest | StaffAny Intercom Article Inventory
+
+Ingested a metadata-only Intercom article inventory for LaunchBot. Pulled 328 articles into ignored cache, committed normalized metadata and derived content signals only, and wired the planner to use inventory lookup before live affected-article search.

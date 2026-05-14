@@ -6,10 +6,10 @@ profiles:
     status: production_poc
     owner: revops
     app_packet: apps/hermes-data-bot
-    deploy_host: local-macos
+    deploy_host: hermes-data-bot-poc
     profile_dir: ${HOME}/.hermes/profiles/staffanydatabot
+    local_profile_policy: cloud_only
     service:
-      launchd_label: ai.hermes.gateway-staffanydatabot
       systemd_unit: hermes-gateway-staffanydatabot.service
     slack:
       bot_name: da-ta-hermz
@@ -40,17 +40,15 @@ profiles:
   - name: nurtureanysalesbot
     display_name: NurtureAny
     canonical_profile: nurtureanysalesbot
-    live_profile: nae2e
-    aliases: [nae2e]
-    workflow_aliases: [ps wee manager, sales-manager workflows, manager chase]
+    live_profile: nurtureanysalesbot
+    workflow_aliases: [sales-manager workflows, manager chase]
     status: production_poc
     owner: revops
     app_packet: apps/nurtureany-sales-bot
     deploy_host: nurtureany-sales-bot-prod
     profile_dir: ${HOME}/.hermes/profiles/nurtureanysalesbot
-    live_profile_dir: ${HOME}/.hermes/profiles/nae2e
+    local_profile_policy: cloud_only
     service:
-      launchd_label: ai.hermes.gateway-nae2e
       systemd_unit: hermes-gateway-nurtureanysalesbot.service
     slack:
       bot_name: nurtureany
@@ -80,12 +78,6 @@ profiles:
       - name: nurtureanysalesbot Slack socket watchdog
         schedule: "*/5 * * * *"
         mode: no-agent
-      - name: nurtureanysalesbot Jeremy daily nurture pack
-        schedule: "0 9 * * 1-5"
-        mode: agent
-      - name: nurtureanysalesbot Jeremy noon nurture reminder
-        schedule: "0 12 * * 1-5"
-        mode: agent
     unsafe_cron_name_prefixes: [event-roi-]
     checks:
       health_command: apps/nurtureany-sales-bot/runtime/check-health.sh
@@ -95,7 +87,51 @@ profiles:
       stale_socket_seconds: 300
       stale_session_minutes: 30
       profile_sync: canonical_rsync
-      create_profile_alias: true
+      pause_unsafe_crons: true
+      post_slack_report: true
+
+  - name: psmopsbot
+    display_name: PSM Ops Bot
+    canonical_profile: psmopsbot
+    live_profile: psmopsbot
+    workflow_aliases: [PS WEE, PS Wee Manager, PSM Manager Ops Bot, ps wee manager, ps wee, psm manager ops bot]
+    status: production_poc
+    owner: psm
+    app_packet: apps/psm-ops-bot
+    deploy_host: hermes-psm-ops-bot-poc
+    profile_dir: ${HOME}/.hermes/profiles/psmopsbot
+    local_profile_policy: cloud_only
+    service:
+      systemd_unit: hermes-gateway-psmopsbot.service
+    slack:
+      bot_name: ps_wee_manager
+      home_channel_id: C0B2VT50YT1
+      home_channel_name: ps-weeman-bot-test
+      open_channel_mode: true
+      allowed_channel_ids: []
+      report_prefix: "PSM Ops automation:"
+    required_mcp:
+      psm_jira: 19
+      psm_c360: 3
+    expected_crons:
+      - name: psmopsbot due-date reminders
+        schedule: "0 1 * * *"
+        mode: agent
+      - name: psmopsbot local cloud heartbeat
+        schedule: "*/15 * * * *"
+        mode: no-agent
+      - name: psmopsbot adoption digest
+        schedule: "0 2 * * 1-5"
+        mode: no-agent
+        deliver: slack:#ps-weeman-bot-test
+    checks:
+      health_command: apps/psm-ops-bot/runtime/check-health.sh
+      audit_command: apps/psm-ops-bot/runtime/audit-live-profile.sh
+    recovery:
+      restart_gateway: managed_only
+      stale_socket_seconds: 300
+      stale_session_minutes: 30
+      profile_sync: canonical_rsync
       pause_unsafe_crons: true
       post_slack_report: true
 
@@ -106,10 +142,10 @@ profiles:
     status: experimental
     owner: revops
     app_packet: apps/launchbot
-    deploy_host: local-macos
+    deploy_host: hermes-data-bot-poc
     profile_dir: ${HOME}/.hermes/profiles/launchbot
+    local_profile_policy: cloud_only
     service:
-      launchd_label: ai.hermes.gateway-launchbot
       systemd_unit: hermes-gateway-launchbot.service
     slack:
       bot_name: launchbot
@@ -120,9 +156,14 @@ profiles:
     required_mcp:
       launchbot_ker:
         tools: 2
+      launchbot_help_article:
+        tools: 2
     expected_crons:
       - name: launchbot health check
         schedule: "*/5 * * * *"
+        mode: no-agent
+      - name: launchbot pantheon repo update
+        schedule: "0 22 * * *"
         mode: no-agent
     checks:
       health_command: apps/launchbot/runtime/check-health.sh

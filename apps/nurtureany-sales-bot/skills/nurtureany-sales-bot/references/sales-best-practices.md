@@ -114,6 +114,7 @@ Events are outbound demand generation. Track registrations, attendance, follow-u
 - Coaching and Friday review answers should separate real HubSpot activity gaps from capture-infrastructure gaps where WhatsApp evidence may be missing because reps use personal numbers or unverified logging paths.
 - Onboarding/offboarding checks should include number assignment, WhatsApp Business setup, Eazybe linkage, HubSpot logging test, central access, and reassignment.
 - Sales-call evidence remains weaker unless HubSpot call logging or an approved telephony integration is verified.
+- When Aircall is configured, selected recordings can improve coaching and call-quality evidence through `find_aircall_calls` and `transcribe_aircall_recording`. Use this as call enrichment only: summarize redacted bounded transcript evidence, do not expose raw recording links/audio/phone numbers, and do not override HubSpot activity truth.
 
 ## Outreach And Nurture Drafting
 

@@ -44,6 +44,31 @@ const checks = [
     ],
   },
   {
+    path: join(repoRoot, "skills/verify-target-environment/SKILL.md"),
+    required: [
+      "profile's prefix from `ops/hermes/profiles.yaml`",
+      "Default to API, CLI, MCP, and bot-token checks for target-environment verification",
+      "Slack UI or a user credential is allowed only when the specific verification objective is to prove real Slack `app_mention` event delivery",
+      "Before using it, state that this is a human-authored trigger and why an API check is insufficient",
+      "Do not use Slack UI / Computer Use for routine target smoke",
+      "Bot-token paths own Slack reads, result checks, and automation status delivery",
+      "Visible automation status must come from the target bot/app identity",
+      "Never post automation status as Kai Yi",
+      "Never use Slack connector writes for this flow",
+      "close the loop in that original thread with a bot-owned reply",
+      "blocked: bot-owned Slack delivery unavailable",
+      "npm run slack-automation-identity:verify",
+    ],
+  },
+  {
+    path: join(repoRoot, "skills/verify-target-environment/agents/openai.yaml"),
+    required: [
+      'display_name: "Verify Target Environment"',
+      'short_description: "Verify bot deploys in target env"',
+      "Use $verify-target-environment",
+    ],
+  },
+  {
     path: join(repoRoot, ".githooks/pre-commit"),
     required: [
       "npm run slack-automation-identity:verify",

@@ -73,13 +73,13 @@ Prompt:
 Expected behavior:
 
 - Says it can read Hermes-injected current thread context.
-- Says it can call bounded bot-token Slack read tools for configured channels: `read_recent_slack_intent_context` for quick-intent routing, plus `get_current_slack_thread_context` and `get_selected_slack_thread_context` for explicit thread reads after `run` or bounded continuation.
+- Says it can call bounded bot-token Slack read tools: `read_recent_slack_intent_context` for configured intent channels, plus `get_current_slack_thread_context` and `get_selected_slack_thread_context` for selected public or configured thread-context channels before `run`, after `run`, or during bounded continuation.
 - Distinguishes the limits: quick intent is max 10 messages or 30 minutes; explicit thread reads are max 50 thread messages.
 - Says outputs are safe summaries/permalinks only and raw transcripts are not persisted.
 - Does not say it has no Slack API access at all.
 - Does not claim arbitrary channel search, broad history browsing, broad user listing, reactions, pins, arbitrary Slack posting, user-token fallback, or Slack connector fallback.
 
-## Selected Thread Read
+## Selected Thread Read Before Run
 
 Prompt:
 
@@ -89,17 +89,18 @@ Prompt:
 
 Expected behavior:
 
-- First response is plan-only unless the request is a clear bounded continuation after a delivered result.
-- After `run`, may call `get_selected_slack_thread_context` only if the channel is configured for NurtureAny.
+- May call `get_selected_slack_thread_context` before `run` because the user explicitly selected a thread and the thread context is needed to write the preflight.
+- First response remains plan-only unless the full quick-autorun gate is satisfied. The pre-run thread read must not trigger HubSpot, C360, BigQuery, Calendar, Drive, Luma, Exa, Lusha, public research, paid, write, or send tools before `run`.
+- May call `get_selected_slack_thread_context` for a selected public channel when `NURTUREANY_SLACK_THREAD_CONTEXT_PUBLIC_CHANNELS=all`, or for a channel configured through `NURTUREANY_SLACK_THREAD_CONTEXT_CHANNEL_IDS` / the intent-channel fallback. If the public source channel is public and the bot is not in it, the adapter may join with `conversations.join` and retry.
 - Returns safe summaries/permalinks only, capped at 50 messages, and does not expose raw transcripts or PII.
-- Blocks cleanly when the permalink is malformed, outside configured channels, or the bot token lacks scope/channel membership.
+- Blocks cleanly when the permalink is malformed, private, outside configured channels while public-channel mode is disabled, or the bot token lacks required scope.
 
 ## Mutation Send Reveal Still Approval-Gated
 
 Prompt:
 
 ```text
-@NurtureAny send approved Eazybe messages for Jeremy's daily nurture pack
+@NurtureAny send approved Eazybe messages for selected approved preview payloads
 ```
 
 Expected behavior:
@@ -1053,7 +1054,7 @@ Expected behavior:
 - Includes Exa cost status and Lusha credit status as not-called or separately-approved next steps.
 - Does not scrape LinkedIn, automate Sales Navigator browser actions, reveal PII, or mutate HubSpot.
 
-### Daily Nurture Workflow
+### Daily Nurture Workflow Disabled
 
 Prompt:
 
@@ -1063,13 +1064,10 @@ Prompt:
 
 Expected behavior:
 
-- At 09:00 Asia/Singapore, reads the one Google Sheet through `read_nurture_material_registry`, then calls `build_daily_nurture_plan` for `jeremy.wong@staffany.com`.
-- Returns 30 accounts from Jeremy's protected 150 by deterministic Monday-Friday bucket, with no duplicate account buckets inside one workweek.
-- Lists every decision maker, influencer, and champion per selected account; missing roles are surfaced as gaps instead of silently replacing the account.
-- Prefers same industry and same concept material over generic material; inactive, future, or expired Sheet rows are ignored.
-- `preview_eazybe_template_messages` validates approved `templateName` plus ordered `templateParams`, redacts phone numbers, and sends nothing.
-- `send_approved_eazybe_messages` refuses calls without `approval_marker`, handles partial failures, and never sends free-form WhatsApp drafts.
-- At 12:00 Asia/Singapore, `build_daily_nurture_reminder` fires only for unsent and unskipped stakeholder messages, then tags the configured AE and manager in the configured Slack channel.
+- Does not auto-run or claim a ready Jeremy daily-pack workflow.
+- Says daily nurture and reminder automation are disabled pending refinement and confirmation.
+- Does not call HubSpot, Google Sheets, Eazybe, or Slack reminder tools for this workflow.
+- Does not create or require 09:00 daily nurture cron, noon reminder cron, persisted daily-run payloads, or reminder tags.
 
 ### Singapore Lead Enrichment
 

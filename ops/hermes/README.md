@@ -29,8 +29,10 @@ node ops/hermes/caretaker.mjs --dry-run --profile nurtureanysalesbot
 Apply bounded repairs:
 
 ```bash
-node ops/hermes/caretaker.mjs --apply --profile nurtureanysalesbot
+node ops/hermes/caretaker.mjs --apply --profile staffanydatabot
 ```
+
+Profiles whose `deploy_host` is not `local-macos` are remote-only from a Mac operator host. The caretaker may inspect registry state for those profiles, but it must not create local profile aliases, start local LaunchAgents, or repair remote services from the Mac. Run production runtime repairs on the configured VM instead. StaffAny Slack bot profiles are cloud-only: `staffanydatabot` and `launchbot` live on `hermes-data-bot-poc`; `psmopsbot` lives on `hermes-psm-ops-bot-poc`. Mac-local `~/.hermes/profiles/{staffanydatabot,launchbot,psmopsbot,nurtureanysalesbot}` should not exist.
 
 Install or refresh the macOS 5-minute runner:
 

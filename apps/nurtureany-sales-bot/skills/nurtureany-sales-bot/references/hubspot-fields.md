@@ -71,10 +71,11 @@ When NurtureAny is asked what data sources it used, answer definitively from thi
 - Customer/prospect status: HubSpot company property `type`, then `lifecyclestage`, then `prospecting_account`; C360 current-customer evidence may strengthen customer status when explicitly used.
 - Sales follow-up status: HubSpot WhatsApp `communications`, notes, completed tasks, and existing incomplete tasks associated to the scoped company/contact/deal.
 - Friday connected calls: HubSpot `calls` associated to scoped accounts through company/contact/deal where `hs_call_status=COMPLETED` and `hs_call_duration>=120000`.
+- Selected call review: Aircall call metadata and OpenAI transcription may enrich one selected call artifact when configured, but Aircall does not override HubSpot calls, account ownership, follow-up status, or activity truth.
 - Friday warm activity proof: HubSpot `meetings` associated to scoped accounts through company/contact/deal where `hs_meeting_outcome=COMPLETED` and `hs_meeting_title` or `hs_activity_type` matches a configured warm activity label.
 - Manager chase drafts: HubSpot priority-account coverage, safe sales-owned tasks, and safe activity summary fields are truth; selected Slack context is only a short summary/permalink for wording.
 
-`current_tool_renewal_date`, C360, Google Calendar, Luma, Tavily public research, Exa, Lusha, Prospeo pilot evidence, Slack, and public evidence are enrichment or context sources only. They must not override HubSpot target-account membership, ownership, `contract_end_date`, `current_tools`, verified decision-maker fields, or phone-verification fields.
+`current_tool_renewal_date`, Aircall recordings/transcripts, C360, Google Calendar, Luma, Tavily public research, Exa, Lusha, Prospeo pilot evidence, Slack, and public evidence are enrichment or context sources only. They must not override HubSpot target-account membership, ownership, `contract_end_date`, `current_tools`, follow-up activity, verified decision-maker fields, or phone-verification fields.
 
 For Calendar follow-up coverage, first resolve the HubSpot company owner to owner name/email through HubSpot owners API. Then scan that AE's calendar ID, for example `jeremy.wong@staffany.com`, using the read-only `team@staffany.com` OAuth account. If the AE calendar is not accessible to `team@staffany.com`, return blocked/needs-check calendar coverage; do not say "no calendar follow-up" from the team primary calendar alone.
 
@@ -139,6 +140,8 @@ Use these safe HubSpot timeline fields for tactical pause Friday reporting:
 Friday report output mirrors the tactical pause docs: 120/150 account coverage, double tap, 30 WhatsApp daily rhythm, 40 connected calls, QO/QO Met guardrail, warm activity proof, Friday correction, coaching observations, and next-week actions. If `NURTUREANY_QO_PIPELINE_IDS`, `NURTUREANY_QO_STAGE_IDS`, `NURTUREANY_QO_MET_STAGE_IDS`, or `NURTUREANY_CLOSED_WON_STAGE_IDS` is missing, the report still returns hygiene/account coverage with `Confidence: needs-check`.
 
 Do not expose `hs_call_body`, call recordings, meeting bodies, meeting descriptions, attachments, phone numbers, raw communication bodies, note bodies, task bodies, or bulk exports.
+
+For Aircall-selected call review, do not expose raw recording URLs, raw downloaded audio, raw phone numbers, or bulk transcripts. Use the Aircall adapter only for selected-call redacted transcript summaries with 25 MB / 60 minute caps and transient audio deletion.
 
 ## Contact Properties
 

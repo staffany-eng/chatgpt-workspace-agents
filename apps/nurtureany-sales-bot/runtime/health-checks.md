@@ -8,6 +8,7 @@ NurtureAny needs deterministic runtime checks because prompt correctness does no
 - On Linux cloud hosts, gateway health checks `hermes-gateway-nurtureanysalesbot.service` through `systemd --user` instead of grepping old journal/status text.
 - On macOS development hosts, gateway health checks the launchctl label before falling back to `hermes gateway status`.
 - Slack Socket Mode watchdog is installed as no-agent cron and restarts the managed `nurtureanysalesbot` gateway service when the latest stale Socket Mode line is not followed by a fresh session for at least 300 seconds.
+- Slack ingress watchdog uses `SLACK_BOT_TOKEN` to read recent configured-channel history, finds recent human messages that mention the bot, checks for a bot reply or a gateway `inbound message: platform=slack` log after the mention, and restarts the gateway when the mention is older than the grace window but never reached the gateway. This catches the stale-listener failure mode where Socket Mode still says connected.
 - Local cloud heartbeat is installed as no-agent cron on `nurtureany-sales-bot-prod`. It checks only the local VM: user-systemd gateway state, expected Hermes cron records, paused legacy event-ROI jobs, unsafe-send absence, and redacted cloud-doctor MCP counts. Healthy runs print nothing.
 - Cron concurrency is capped with `cron.max_parallel_jobs: 1`.
 - Secret redaction remains enabled.
@@ -18,7 +19,7 @@ NurtureAny needs deterministic runtime checks because prompt correctness does no
 - Same-thread `run` replies after a bot plan route without re-mentioning the bot when the thread parent mentioned `@NurtureAny`.
 - Quick-autorun policy is enabled only for obvious, exact, read-only or preview/draft-only work expected under 60 seconds, using at most 10 configured-channel Slack context messages from the last 30 minutes.
 - Slack intent-context smoke check confirms `read_recent_slack_intent_context` is available, uses `SLACK_BOT_TOKEN`, reads configured channels only, returns safe summaries/permalinks only, persists no raw transcript, and reports missing `conversations.history`, `conversations.replies`, `chat.getPermalink`, or channel membership as a blocker.
-- Slack selected-thread smoke check confirms `get_current_slack_thread_context` and `get_selected_slack_thread_context` are available only for configured-channel thread reads after `run` or bounded continuation, cap output at 50 messages, return safe summaries/permalinks only, persist no raw transcript, and do not expose posting, reactions, pins, broad search, broad user listing, user-token fallback, or Slack connector fallback.
+- Slack selected-thread smoke check confirms `get_current_slack_thread_context` and `get_selected_slack_thread_context` are available only for selected public or configured thread-context channel reads before `run`, after `run`, or during bounded continuation, cap output at 50 messages, return safe summaries/permalinks only, persist no raw transcript, can use `NURTUREANY_SLACK_THREAD_CONTEXT_PUBLIC_CHANNELS=all` for public channels, can auto-join public source channels with `conversations.join`, do not depend on Kai Yi channel membership, and do not expose posting, reactions, pins, private-channel bypass, broad search, broad user listing, user-token fallback, or Slack connector fallback.
 - Slack gateway `SLACK_ALLOWED_USERS` matches the active, resolved Slack users from `NURTUREANY_ACCESS_POLICY_PATH`; policy aliases that do not resolve in Slack are ignored, but missing or extra resolved user IDs fail health.
 - `NURTUREANY_ACCESS_POLICY_PATH` points to a runtime-only policy file when sales reps are enabled; the source template has fake example reps only.
 - HubSpot owner lookup works for configured admins/managers and classified sales reps.
@@ -32,6 +33,9 @@ NurtureAny needs deterministic runtime checks because prompt correctness does no
 - HubSpot Friday review smoke check returns Hygiene Summary, Funnel Snapshot, optional warehouse metric follow-up SQL, Top Coaching Observations, Actions for Next Week, and Support Needed; blocks AE callers; enforces Kerren SG/MY and Sarah ID scope; and still returns hygiene/account coverage with `Confidence: needs-check` when QO/QO Met/deal stage config is missing.
 - HubSpot manager-chase smoke check returns Manager draft only rows from `build_manager_chase_plan`, blocks AE callers, accepts selected Slack context only as summary/permalink, and does not tag reps, expose raw Slack transcripts, expose task/communication bodies, send external messages, or mutate HubSpot.
 - HubSpot Friday review activity check counts only completed calls of at least 120 seconds as connected calls, counts warm activity from completed meetings with configured labels, and does not expose call bodies, meeting bodies, recordings, phone numbers, task/note/communication bodies, or attachments.
+- Aircall MCP lists only `find_aircall_calls` and `transcribe_aircall_recording` when Aircall is enabled.
+- Aircall metadata smoke check uses `AIRCALL_API_ID` and `AIRCALL_API_TOKEN`, verifies `/v1/calls` is reachable, caps recent calls at 5, reports recording availability, and does not print phone numbers or raw recording URLs.
+- Aircall transcription smoke check uses one selected numeric call ID with recording, requires `OPENAI_API_KEY`, defaults to `gpt-4o-transcribe-diarize`, caps audio at 25 MB / 60 minutes, deletes temporary audio, returns redacted bounded transcript fields only, and never mutates Aircall or HubSpot.
 - HubSpot clean-lead check treats associated contact and verified decision maker as separate required fields; `hs_num_contacts_with_buying_roles` alone is reported as hygiene, not decision-maker coverage.
 - HubSpot SG lead-enrichment smoke check confirms `build_singapore_lead_enrichment_plan` returns the requested gap buckets, reads phone-verification fields, treats manual Truecaller lookup as candidate evidence only, emits field-level rollup mismatch notes, and returns WhatsApp talking points without sending.
 - HubSpot pre-demo game plan smoke check accepts selected scoped company IDs, company links, or exact company names, caps at 5 accounts, returns candidate company IDs instead of guessing ambiguous names, returns approved case-study matches when available, returns `pricing needed` and `case-study match needed` when missing, and does not expose raw task bodies or mutation tools.
@@ -43,10 +47,9 @@ NurtureAny needs deterministic runtime checks because prompt correctness does no
 - HubSpot event-follow-up smoke check resolves Luma checked-in attendance, verifies event-specific Eazybe WhatsApp communications in HubSpot, marks generic WhatsApp as `needs_check`, and never exposes raw WhatsApp bodies, guest emails, phone numbers, or raw attendee lists.
 - Indonesia event-registration fallback smoke check confirms `read_indonesia_event_registration_attendance` is available, restricted to `ID REV - LL & HHH EVENTS`, uses `Attend The Event` as manual attendance only when Luma check-in is empty or not used, and never exposes phone numbers, full emails, or raw registration exports.
 - Google Slides deck-access smoke check confirms `read_google_slides_deck` is available, uses the `team@staffany.com` read-only Drive OAuth token, supports native Slides and Drive-hosted `.pptx` text extraction, never retains raw deck bytes, and never asks for "Anyone with the link" public sharing.
-- Daily nurture smoke check confirms `read_nurture_material_registry` and `build_daily_nurture_plan` are available, the 30/150 weekday rotation is deterministic for Jeremy, role gaps are surfaced, and no free-form WhatsApp sends occur.
-- Daily nurture 9am cron persists the run JSON under `NURTUREANY_DAILY_RUNS_DIR` before Slack delivery; the 12pm reminder loads that persisted run and does not recompute the 30/150 account selection.
+- Daily nurture and reminder automation are disabled pending refinement. Health checks must not require a Jeremy daily pack, 09:00 cron, noon reminder, or `NURTUREANY_DAILY_RUNS_DIR`; `read_nurture_material_registry` remains read-only material context only.
 - Operation ledger tools `record_nurtureany_operation_checkpoint` and `read_nurtureany_operation_ledger` are available for restart-safe Slack workflow continuation.
-- Eazybe approval-gated smoke check confirms `preview_eazybe_template_messages`, `send_approved_eazybe_messages`, `check_eazybe_send_status`, and `build_daily_nurture_reminder` are available; sends require `approval_marker`, `templateName`, ordered `templateParams`, and phone-number redaction.
+- Eazybe approval-gated smoke check confirms `preview_eazybe_template_messages`, `send_approved_eazybe_messages`, and `check_eazybe_send_status` are available; sends require `approval_marker`, `templateName`, ordered `templateParams`, and phone-number redaction.
 - HubSpot photo scan smoke check accepts Luma event candidates, correlates Drive photo timestamps to Luma event dates, auto-tags `nurture_event` only for one clear event-date match, and keeps HubSpot person/contact association blocked until uploader confirmation.
 - A tiny target-account count query succeeds for each supported country.
 - StaffAny BigQuery MCP lists only expected read-only tools.
@@ -154,13 +157,9 @@ hermes -p nurtureanysalesbot cron create "*/5 * * * *" \
   --name "nurtureanysalesbot Slack socket watchdog" \
   --script nurtureanysalesbot-check-slack-socket-health.sh \
   --no-agent
-hermes -p nurtureanysalesbot cron create "0 9 * * 1-5" \
-  --name "nurtureanysalesbot Jeremy daily nurture pack" \
-  --prompt "NurtureAny automation: Read the NurtureAny material registry, build Jeremy's daily nurture plan for 30 of his protected 150 HubSpot target accounts, persist the run JSON under NURTUREANY_DAILY_RUNS_DIR, and return the 9am Asia/Singapore Slack pack with message IDs for approval-gated Eazybe preview. Let the cron system deliver your final response to Slack. Do not call Slack message-send tools."
-hermes -p nurtureanysalesbot cron create "0 12 * * 1-5" \
-  --name "nurtureanysalesbot Jeremy noon nurture reminder" \
-  --prompt "NurtureAny automation: Load the persisted Jeremy daily nurture run from NURTUREANY_DAILY_RUNS_DIR. Do not recompute the 30/150 account selection. Check statuses for assigned stakeholder messages; if any were not Eazybe accepted/queued, later matched in HubSpot WhatsApp, or explicitly skipped, return the Slack reminder tagging Jeremy and his manager. Let the cron system deliver your final response to Slack. Do not call Slack message-send tools."
 ```
+
+Daily nurture is available as an on-demand workflow, not a required production cron. The runtime audit expects four enabled operational crons: health check, live profile audit, local cloud heartbeat, and Slack socket watchdog.
 
 The current Hermes CLI uses the deployment host timezone for cron scheduling and does not expose a `--timezone` flag.
 

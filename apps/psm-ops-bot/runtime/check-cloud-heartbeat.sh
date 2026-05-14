@@ -7,7 +7,9 @@ GATEWAY_SERVICE="${GATEWAY_SERVICE:-hermes-gateway-psmopsbot.service}"
 EXPECTED_REMINDER_CRON_NAME="${EXPECTED_REMINDER_CRON_NAME:-psmopsbot due-date reminders}"
 EXPECTED_CLOUD_HEARTBEAT_CRON_NAME="${EXPECTED_CLOUD_HEARTBEAT_CRON_NAME:-psmopsbot local cloud heartbeat}"
 EXPECTED_CLOUD_HEARTBEAT_SCRIPT="${EXPECTED_CLOUD_HEARTBEAT_SCRIPT:-psmopsbot-check-cloud-heartbeat.sh}"
-EXPECTED_ENABLED_CRON_COUNT="${EXPECTED_ENABLED_CRON_COUNT:-2}"
+EXPECTED_ADOPTION_DIGEST_CRON_NAME="${EXPECTED_ADOPTION_DIGEST_CRON_NAME:-psmopsbot adoption digest}"
+EXPECTED_ADOPTION_DIGEST_SCRIPT="${EXPECTED_ADOPTION_DIGEST_SCRIPT:-psm_ops_adoption_digest.py}"
+EXPECTED_ENABLED_CRON_COUNT="${EXPECTED_ENABLED_CRON_COUNT:-3}"
 EXPECTED_CRON_TIMEZONE="${EXPECTED_CRON_TIMEZONE:-Asia/Singapore}"
 
 PATH="$HOME/.local/bin:$HOME/.hermes/hermes-agent/venv/bin:$HOME/.hermes/hermes-agent:$PATH"
@@ -39,6 +41,8 @@ python3 - "$cron_json" \
   "$EXPECTED_REMINDER_CRON_NAME" \
   "$EXPECTED_CLOUD_HEARTBEAT_CRON_NAME" \
   "$EXPECTED_CLOUD_HEARTBEAT_SCRIPT" \
+  "$EXPECTED_ADOPTION_DIGEST_CRON_NAME" \
+  "$EXPECTED_ADOPTION_DIGEST_SCRIPT" \
   "$EXPECTED_ENABLED_CRON_COUNT" \
   "$EXPECTED_CRON_TIMEZONE" <<'PY'
 import json
@@ -49,9 +53,11 @@ import sys
     reminder_name,
     heartbeat_name,
     heartbeat_script,
+    adoption_digest_name,
+    adoption_digest_script,
     expected_enabled_count,
     expected_timezone,
-) = sys.argv[1:7]
+) = sys.argv[1:9]
 
 try:
     with open(jobs_path, "r", encoding="utf-8") as handle:
@@ -71,7 +77,7 @@ if len(enabled) != int(expected_enabled_count):
     raise SystemExit(1)
 
 by_name = {job.get("name"): job for job in enabled if isinstance(job, dict)}
-for required_name in [reminder_name, heartbeat_name]:
+for required_name in [reminder_name, heartbeat_name, adoption_digest_name]:
     if required_name not in by_name:
         print(f"cron:missing:{required_name}")
         raise SystemExit(1)
@@ -90,5 +96,21 @@ if heartbeat.get("timezone") != expected_timezone:
     raise SystemExit(1)
 if heartbeat.get("deliver"):
     print("cron:heartbeat-delivery-enabled")
+    raise SystemExit(1)
+
+adoption_digest = by_name[adoption_digest_name]
+if adoption_digest.get("script") != adoption_digest_script:
+    print("cron:adoption-digest-script-unexpected")
+    raise SystemExit(1)
+adoption_schedule = adoption_digest.get("schedule")
+adoption_schedule_expr = adoption_schedule.get("expr") if isinstance(adoption_schedule, dict) else adoption_schedule
+if adoption_schedule_expr != "0 2 * * 1-5":
+    print("cron:adoption-digest-schedule-unexpected")
+    raise SystemExit(1)
+if adoption_digest.get("deliver") != "slack:#ps-weeman-bot-test":
+    print("cron:adoption-digest-delivery-unexpected")
+    raise SystemExit(1)
+if adoption_digest.get("no_agent") is not True:
+    print("cron:adoption-digest-mode-unexpected")
     raise SystemExit(1)
 PY

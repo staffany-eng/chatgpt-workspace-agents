@@ -9,14 +9,30 @@
   "model_provider": "anthropic",
   "model": "claude-sonnet-4-6",
   "paths": {
+    "todo": "TODO.md",
     "soul": "profile/SOUL.md",
     "config_template": "profile/config.template.yaml",
     "slack_runtime": "runtime/slack.md",
     "health_checks": "runtime/health-checks.md",
     "health_check_script": "runtime/check-health.sh",
     "live_profile_audit_script": "runtime/audit-live-profile.sh",
+    "pantheon_update_script": "runtime/update-pantheon-repo.sh",
     "ker_mcp_server": "runtime/mcp/launchbot_ker_server.py",
-    "ker_mcp_tests": "runtime/mcp/test_launchbot_ker_server.py"
+    "ker_mcp_tests": "runtime/mcp/test_launchbot_ker_server.py",
+    "help_article_mcp_server": "runtime/mcp/launchbot_help_article_server.py",
+    "help_article_mcp_tests": "runtime/mcp/test_launchbot_help_article_server.py",
+    "help_article_video_fixtures": "runtime/mcp/fixtures/help_article_video_fixtures.json",
+    "launch_workflow": "runtime/launch-workflow.md",
+    "handoff_runner": "runtime/launchbot_e2e.py",
+    "intercom_format_gate": "runtime/intercom-format-gate.mjs",
+    "intercom_format_gate_tests": "runtime/intercom-format-gate.test.mjs",
+    "help_article_skill": "skills/help-article-generator/SKILL.md",
+    "help_article_skeleton": "skills/help-article-generator/references/help-article-skeleton.md",
+    "intercom_format_profile": "skills/help-article-generator/references/intercom-format-profile.json",
+    "article_planning_profile": "skills/help-article-generator/references/article-planning-profile.json",
+    "intercom_article_inventory": "skills/help-article-generator/references/intercom-article-inventory.json",
+    "help_article_video_registry": "skills/help-article-generator/references/video-placement-registry.json",
+    "launch_workflow_regression_cases": "tests/launch-workflow-regression-cases.md"
   },
   "channels": [
     "Slack #launch-bot-testing",
@@ -30,7 +46,19 @@
       "C0AJAUNCEL8"
     ],
     "require_mention": true,
-    "reactions": false
+    "reactions": false,
+    "socket_mode": true,
+    "required_bot_events": [
+      "app_mention",
+      "message.channels"
+    ],
+    "required_oauth_scopes": [
+      "app_mentions:read",
+      "channels:history",
+      "channels:read",
+      "chat:write"
+    ],
+    "event_subscription_drift_guard": "Launchbot Socket Mode must subscribe to message.channels or channel mentions/replies will not reach the Hermes gateway."
   },
   "mcp": {
     "launchbot_ker": {
@@ -57,15 +85,199 @@
         "api_token_env_var": "JIRA_API_TOKEN",
         "mutations": false
       }
+    },
+    "launchbot_help_article": {
+      "mode": "draft_only_registered_video_slots",
+      "tools": [
+        "preview_help_article_video_update",
+        "create_help_article_video_update_draft"
+      ],
+      "registry": "skills/help-article-generator/references/video-placement-registry.json",
+      "intercom": {
+        "access_token_env_var": "LAUNCH_STEP3_INTERCOM_ACCESS_TOKEN",
+        "article_api": "GET and PUT /articles/{article_id}",
+        "forced_state": "draft",
+        "mutations": [
+          "body"
+        ],
+        "publish": false,
+        "delete": false,
+        "tag_mutation": false,
+        "collection_mutation": false
+      },
+      "video": {
+        "provider": "loom",
+        "accepted_url_shapes": [
+          "https://www.loom.com/share/{video_id}",
+          "https://www.loom.com/embed/{video_id}"
+        ],
+        "normalized_url_shape": "https://www.loom.com/embed/{video_id}",
+        "reject_raw_video_files": true,
+        "reject_slack_file_urls": true
+      }
     }
+  },
+  "source_repositories": {
+    "pantheon": {
+      "purpose": "StaffAny product behavior source of truth for help article drafting",
+      "remote": "git@github.com:staffany-eng/pantheon.git",
+      "branch": "develop",
+      "default_checkout": "~/.hermes/profiles/launchbot/source/pantheon",
+      "deploy_key_path": "~/.hermes/profiles/launchbot/ssh/pantheon_deploy_key",
+      "status_json": "~/.hermes/profiles/launchbot/runtime/pantheon-repo-status.json",
+      "update_mode": "git pull --ff-only",
+      "daily_update_requires": "VM GitHub SSH access to staffany-eng/pantheon"
+    }
+  },
+  "expected_crons": [
+    {
+      "name": "launchbot health check",
+      "schedule": "*/5 * * * *",
+      "mode": "no-agent"
+    },
+    {
+      "name": "launchbot pantheon repo update",
+      "schedule": "0 22 * * *",
+      "mode": "no-agent",
+      "requires": "VM GitHub SSH access to staffany-eng/pantheon"
+    }
+  ],
+  "launch_workflow": {
+    "source_status": "skill_and_workflow_from_2026_05_11_handoff_source_code_not_present",
+    "test_feature": {
+      "jira_issue": "KER-1742",
+      "ticket_name": "Club Blue",
+      "feature": "ClubAny brands, perks, and redemptions",
+      "latest_clean_version": "v005"
+    },
+    "evidence": {
+      "raw_manifest": "research/raw/launch-superpower-bot/2026-05-11-handoff/source-manifest.md",
+      "raw_handoff": "research/raw/launch-superpower-bot/2026-05-11-handoff/handoff.md",
+      "source_note": "research/wiki/sources/launch-superpower-bot-handoff.md",
+      "intercom_shape_raw": "research/raw/staffany-intercom-help-article-shape/source-record.md",
+      "intercom_shape_source_note": "research/wiki/sources/staffany-intercom-help-article-shape.md",
+      "intercom_shape_synthesis": "research/wiki/syntheses/help-article-planning-rules.md"
+    },
+    "workflow_steps": [
+      {
+        "step": 0,
+        "name": "pantheon_evidence_and_intercom_format_gate",
+        "status": "implemented_in_packet",
+        "output": "read-only Pantheon evidence packs, live Intercom article search, cached article planning, curated format profile, and pre-publish draft gates"
+      },
+      {
+        "step": 1,
+        "name": "help_article_trigger",
+        "status": "skill_backed_handoff_runner",
+        "output": "code-grounded help article drafts and manifest"
+      },
+      {
+        "step": 2,
+        "name": "google_docs_approval",
+        "status": "skill_backed_handoff_runner",
+        "output": "per-article Google Docs and Slack review messages"
+      },
+      {
+        "step": 3,
+        "name": "intercom_publish",
+        "status": "skill_backed_handoff_runner",
+        "output": "Intercom draft articles after Slack approval reaction"
+      },
+      {
+        "step": 4,
+        "name": "launch_derivatives",
+        "status": "planned_stub",
+        "output": "Released posts, WhatsApp drafts, and newsletter drafts"
+      }
+    ],
+    "required_env_names": [
+      "LAUNCH_STEP2_SLACK_BOT_TOKEN",
+      "LAUNCH_STEP3_SLACK_SIGNING_SECRET",
+      "LAUNCH_STEP3_SLACK_BOT_TOKEN",
+      "LAUNCH_STEP3_GOOGLE_SERVICE_ACCOUNT_JSON",
+      "LAUNCH_STEP3_INTERCOM_ACCESS_TOKEN",
+      "LAUNCH_STEP3_INTERCOM_STAGING_COLLECTION_ID"
+    ],
+    "optional_env_names": [
+      "LAUNCH_STEP3_INTERCOM_AUTHOR_ID",
+      "LAUNCH_STEP3_INTERCOM_APP_ID",
+      "LAUNCH_INTERCOM_HELP_CENTER_ID",
+      "LAUNCH_INTERCOM_FORMAT_SAMPLE_IDS",
+      "LAUNCH_INTERCOM_SHAPE_FAMILIES",
+      "LAUNCH_INTERCOM_INVENTORY_STATE",
+      "LAUNCH_PANTHEON_REPO",
+      "LAUNCH_PANTHEON_APPS",
+      "LAUNCH_GOOGLE_AUTH_JSON",
+      "GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE",
+      "LAUNCH_STEP2_SLACK_CHANNEL_ID",
+      "LAUNCH_STEP3_SLACK_APPROVAL_REACTION",
+      "LAUNCH_STEP3_SLACK_AUTHORIZED_REVIEWER_IDS"
+    ],
+    "help_article_contract": {
+      "source_of_truth": "pantheon_code_grounded_behavior",
+      "pantheon_evidence_required": true,
+      "pantheon_evidence_gate": true,
+      "pantheon_missing_or_dirty_blocks": true,
+      "pantheon_ambiguous_or_conflicting_blocks": true,
+      "code_source_checkout": {
+        "repo": "pantheon",
+        "remote": "git@github.com:staffany-eng/pantheon.git",
+        "branch": "develop",
+        "path": "~/.hermes/profiles/launchbot/source/pantheon",
+        "freshness_status": "~/.hermes/profiles/launchbot/runtime/pantheon-repo-status.json",
+        "daily_update_requires": "GitHub SSH access on the VM"
+      },
+      "publishable_body_excludes_internal_appendix": true,
+      "raw_html_in_markdown_body": false,
+      "text_dividers_in_markdown_body": false,
+      "repeated_title_in_body": false,
+      "audience_block_centered": true,
+      "outline_list": "numbered",
+      "numbered_steps_restart_per_subsection": true,
+      "intercom_format_profile": "skills/help-article-generator/references/intercom-format-profile.json",
+      "article_planning_profile": "skills/help-article-generator/references/article-planning-profile.json",
+      "intercom_article_inventory": "skills/help-article-generator/references/intercom-article-inventory.json",
+      "article_planner_required_before_draft": true,
+      "adaptive_intake_gate_before_plan": true,
+      "article_inventory_metadata_only": true,
+      "article_inventory_used_before_live_search": true,
+      "article_shape_stale_check_before_staging": true,
+      "cached_intercom_planning_profile": true,
+      "pre_publish_format_gate": true,
+      "live_intercom_wins_on_conflict": true,
+      "clubany_product_label": "StaffAny",
+      "clubany_management_article_default": "combined_brands_and_perks_article",
+      "video_only_update_lane": {
+        "mode": "Update -> Video-only update",
+        "locale": "en",
+        "registry": "skills/help-article-generator/references/video-placement-registry.json",
+        "slot_match_required": true,
+        "supported_provider": "loom",
+        "replace_policy": "replace_next_video_after_anchor",
+        "preview_tool": "preview_help_article_video_update",
+        "draft_tool": "create_help_article_video_update_draft",
+        "draft_state_only": true,
+        "article_text_rewrite": false,
+        "publish": false
+      }
+    },
+    "known_gaps": [
+      "External Step 1-3 source checkout is not present in this repo.",
+      "ClubAny content planner still needs to prefer one combined management article by default.",
+      "DOCX renderer still needs real Word numbering definitions.",
+      "Screenshot capture or screenshot placeholders are not automated yet.",
+      "Visual DOCX render QA depends on a working document renderer.",
+      "Step 4 launch derivatives are still planned only."
+    ]
   },
   "required_env_names": [
     "SLACK_BOT_TOKEN",
     "JIRA_BASE_URL",
     "JIRA_EMAIL",
     "JIRA_API_TOKEN",
+    "LAUNCH_STEP3_INTERCOM_ACCESS_TOKEN",
     "LAUNCHBOT_KER_ALLOWED_CHANNEL_IDS"
   ],
   "secrets_copied": false,
-  "status": "experimental"
+  "status": "cloud_primary_review_ready"
 }

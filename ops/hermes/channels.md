@@ -5,10 +5,11 @@ Use these channels for live Slack smoke tests and runtime checks.
 | Bot | Hermes profile | Slack channel | Channel ID | Notes |
 | --- | --- | --- | --- | --- |
 | Da Ta Hermz | `staffanydatabot` | `#da-ta-hermz-testing` | `C0AU19E6T0C` | StaffAny data, BigQuery, registry, release-feature, and metric smoke tests. |
-| NurtureAny | `nurtureanysalesbot` canonical, `nae2e` current local alias | `#nurtureany-testing` | `C0B2UGK4DB6` | Sales nurture, HubSpot, manager, Eazybe-preview, event, and CRO smoke tests. |
+| NurtureAny | `nurtureanysalesbot` on `nurtureany-sales-bot-prod` | `#nurtureany-testing` | `C0B2UGK4DB6` | Sales nurture, HubSpot, manager, Eazybe-preview, event, and CRO smoke tests. |
+| PS WEE / PSM Ops Bot | `psmopsbot` | `#ps-weeman-bot-test` | `C0B2VT50YT1` | PSM Ops, Jira PCO, Customer 360, central ops audit, adoption digest, and public/open-channel smoke tests. |
 | Launchbot | `launchbot` | `#launch-bot-testing` | `C0B32M34J3W` | Launch/deploy ops smoke tests. Experimental until health cron is green. |
 
-`ps wee manager`, sales-manager workflows, and manager-chase tests are NurtureAny workflows. Test them in `#nurtureany-testing` (`C0B2UGK4DB6`), not a separate bot channel.
+`PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` are PSM Ops workflows. Test them with `psmopsbot` in `#ps-weeman-bot-test` (`C0B2VT50YT1`). Sales-manager and manager-chase tests remain NurtureAny workflows in `#nurtureany-testing` (`C0B2UGK4DB6`).
 
 Do not use these NurtureAny event channels for live automation until the bot is invited and membership is verified:
 

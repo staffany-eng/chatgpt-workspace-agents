@@ -7,10 +7,10 @@ Alias note: `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` refer to this 
 ## Runtime Shape
 
 - Runtime: Hermes Agent
-- Profile: `psmopsbot`
+- Profile: `psmopsbot` on cloud host only; do not create or run a Mac-local `psmopsbot` profile.
 - Slack surface: mention-required usage in public/open StaffAny Slack channels
 - Model: Anthropic provider, `claude-sonnet-4-6`
-- Jira scope: dedicated PCO Jira Service Management project only
+- Jira scope: PCO Jira Service Management for PS/customer work; ROI Jira Service Management for RevOps, BD Ops, NYSS, and ROI-board work
 - Task ownership: Jira `PS Team`, matched from Slack users/profile identity
 - Customer context scope: Customer 360 internal API, all customers in V1
 - Source packet: this directory
@@ -23,10 +23,15 @@ Alias note: `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` refer to this 
 | `profile/SOUL.md` | Source-controlled profile soul prompt. |
 | `profile/config.template.yaml` | Non-secret Hermes profile config template. |
 | `skills/psm-ops-bot/` | Hermes skill and references. |
-| `runtime/mcp/psm_jira_server.py` | PCO Jira MCP adapter. |
+| `runtime/mcp/psm_jira_server.py` | PCO and ROI Jira MCP adapter. |
 | `runtime/mcp/psm_c360_server.py` | Customer 360 MCP adapter. |
+| `runtime/mcp/psm_google_calendar_server.py` | Read-only Google Calendar adapter using `team@staffany.com`. |
+| `runtime/mcp/psm_slack_notifier.py` | Bot-owned central Slack audit notifier for PS WEE lifecycle and blocked events. |
+| `runtime/hooks/psm-ops-adoption-telemetry/` | Hermes gateway hook for adoption metrics. |
+| `runtime/scripts/psm_ops_adoption_digest.py` | No-agent cron script for adoption digest delivery. |
 | `runtime/jira.md` | Jira field, workflow, and safety contract. |
 | `runtime/c360.md` | Customer 360 internal API contract. |
+| `runtime/google-calendar.md` | Google Calendar read-only access contract. |
 | `runtime/slack.md` | Slack gateway behavior and output contracts. |
 | `runtime/health-checks.md` | Health, drift, and cron verification. |
 | `runtime/check-health.sh` | No-agent live health check. |
@@ -35,15 +40,37 @@ Alias note: `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` refer to this 
 | `deploy/gce-onboarding-runbook.md` | Cloud deployment runbook. |
 | `tests/regression-cases.md` | Manual/eval regression cases. |
 
+## Runtime Secrets
+
+ROI-direct Jira config is durable in Secret Manager as:
+
+```text
+projects/1093387803298/secrets/psm-ops-bot-roi-jira-env
+```
+
+The secret is in project `staffany-warehouse`, uses dotenv format, and is labeled
+`app=psm-ops-bot`, `env=prod`, `format=dotenv`, `scope=roi-jira`. It contains only
+`PSM_OPS_ROI_*` runtime config. Do not copy secret values into this repo.
+
+Hydrate it on `hermes-psm-ops-bot-poc` after the base profile `.env` exists:
+
+```bash
+gcloud secrets versions access latest \
+  --project=staffany-warehouse \
+  --secret=psm-ops-bot-roi-jira-env \
+  >> ~/.hermes/profiles/psmopsbot/.env
+chmod 600 ~/.hermes/profiles/psmopsbot/.env
+```
+
 ## Restore Order
 
 1. Provision or access the GCE cloud host. Do not run the production gateway from a laptop.
-2. Create or select Hermes profile `psmopsbot`.
+2. Create or select Hermes profile `psmopsbot` on `hermes-psm-ops-bot-poc` only. If a Mac-local `~/.hermes/profiles/psmopsbot` exists, delete or archive it before testing so Slack cannot hit stale local state.
 3. Copy `profile/SOUL.md` into the profile `SOUL.md`.
 4. Apply `profile/config.template.yaml` with real runtime paths and configured Jira field IDs.
 5. Copy `skills/psm-ops-bot/` into the profile skills directory.
-6. Set profile `.env` from Secret Manager values only.
-7. Configure Slack, `psm_jira`, and `psm_c360` MCP servers.
+6. Set profile `.env` from Secret Manager values only, including `psm-ops-bot-roi-jira-env` for ROI-direct routing.
+7. Configure Slack, `psm_jira`, `psm_c360`, and `psm_google_calendar` MCP servers.
 8. Install health, audit, and reminder cron jobs on the cloud host.
 9. Run health checks and regression cases before widening access.
 

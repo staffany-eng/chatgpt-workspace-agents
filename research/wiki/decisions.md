@@ -49,6 +49,13 @@ This page stores accepted research-backed learnings before promotion into future
 - Planning implication: New StaffAny Hermes Data Bot features should first decide which source packet surface changes; runtime-only changes remain drift until a specific reviewed artifact is promoted back into `apps/hermes-data-bot/`.
 - Caveat: Do not copy raw memory, Slack transcripts, query rows, logs with sensitive content, or credentials from the live profile into the repo.
 
+### Treat Launchbot As The App And Launch Superpower As A Skill
+
+- Status: accepted for Launchbot packet cleanup.
+- Evidence: current GCP topology places profile `launchbot` behind `hermes-gateway-launchbot.service`; the 2026-05-11 Launch Superpower handoff is workflow evidence and a reusable help-article procedure.
+- Learning: Launchbot is the main Hermes app identity. Launch Superpower should not be modeled as a second app; its useful behavior belongs inside Launchbot as a help-article launch workflow skill.
+- Planning implication: Durable Launchbot behavior belongs under `apps/launchbot/`; handoff evidence can remain under `research/raw/launch-superpower-bot/`, but runtime skill and workflow files should live under the Launchbot app packet.
+
 ### Use HubSpot Contract End Date And Current Tools For NurtureAny
 
 - Status: accepted for the NurtureAny Sales Bot source packet.
@@ -72,6 +79,14 @@ This page stores accepted research-backed learnings before promotion into future
 - Learning: Rev planning Sheets and onboarding Slides explain targets, definitions, and operating rules, while Manticore/BigQuery is the source for actual QO, ARR, MRR, and movement metrics.
 - Planning implication: NurtureAny should label source class in revenue answers, use QO for qualified-opportunity pace, and ask for clarification when "new ARR" could mean multiple metrics. Generic Hermes Data Bot answers should follow the same target-vs-actual split when asked for Rev metrics.
 - Caveat: Planning artifacts can be used for target comparisons, but they should not be treated as actuals.
+
+### Use Jira Links And SCHE FixVersion For PCO Release Watches
+
+- Status: accepted for the PSM Ops Bot source packet.
+- Evidence: [PSM Ops PCO Release Watch](./sources/psm-ops-pco-release-watch.md), [PSM Ops Release Watch](./syntheses/psm-ops-release-watch.md).
+- Learning: For customer follow-up blocked by engineering shipment, PCO owns PS/customer work while KER/SCHE own engineering context and shipment truth. Jira issue links should connect PCO to KER/SCHE, and released `fixVersion` on linked SCHE shipment tickets should be the durable release signal.
+- Planning implication: Future PSM Ops release-watch work should promote distilled behavior into `apps/psm-ops-bot/` because the live bot does not read the research wiki at runtime. Use Jira `duedate` for reminders and avoid labels when issue links can model the relationship.
+- Caveat: KER and parent/container SCHE links give context; actual child SCHE shipment tickets still need to be linked once engineering confirms them.
 
 ## Rejected Or Deferred Learnings
 

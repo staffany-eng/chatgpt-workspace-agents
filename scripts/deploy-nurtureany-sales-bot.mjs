@@ -34,9 +34,13 @@ if (args.help) {
   process.exit(0);
 }
 
-for (const command of ["git", "npm", "gcloud"]) {
-  ensureCommand(command);
-}
+const gitCommand = resolveCommand("git", ["git"]);
+const npmCommand = resolveCommand("npm", ["npm", "/opt/homebrew/bin/npm", "/usr/local/bin/npm"]);
+const gcloudCommand = resolveCommand("gcloud", [
+  "gcloud",
+  "/opt/homebrew/share/google-cloud-sdk/bin/gcloud",
+  "/usr/local/share/google-cloud-sdk/bin/gcloud",
+]);
 
 log("Preparing NurtureAny Sales Bot deploy from origin/main");
 log(`Target: project=${args.project} zone=${args.zone} vm=${args.vm} profile=${args.profile} runtime_owner=${args.runtimeOwner}`);
@@ -44,14 +48,14 @@ if (args.verbose) {
   log(`Preserved runtime state: ${FORBIDDEN_RUNTIME_STATE_LABELS.join(", ")}`);
 }
 
-run("git", ["fetch", "origin", "main"]);
-const deploySha = runCapture("git", ["rev-parse", "origin/main"]).trim();
+run(gitCommand, ["fetch", "origin", "main"]);
+const deploySha = runCapture(gitCommand, ["rev-parse", "origin/main"]).trim();
 if (!deploySha) {
   throw new Error("Could not resolve origin/main deploy SHA.");
 }
 log(`Deploy SHA: ${deploySha}`);
 
-run("npm", ["run", "nurtureany-sales-bot:verify"]);
+run(npmCommand, ["run", "nurtureany-sales-bot:verify"]);
 
 const archivePath = join(tmpRoot, "nurtureany-origin-main.tar.gz");
 const shaPath = join(tmpRoot, "nurtureany-origin-main.sha");
@@ -72,10 +76,10 @@ if (!args.apply) {
 }
 
 writeFileSync(shaPath, `${deploySha}\n`);
-run("git", ["archive", "--format=tar.gz", "-o", archivePath, "origin/main"]);
+run(gitCommand, ["archive", "--format=tar.gz", "-o", archivePath, "origin/main"]);
 
 if (!args.skipUpload) {
-  run("gcloud", [
+  run(gcloudCommand, [
     "compute",
     "scp",
     archivePath,
@@ -86,7 +90,7 @@ if (!args.skipUpload) {
     args.zone,
     "--tunnel-through-iap",
   ]);
-  run("gcloud", [
+  run(gcloudCommand, [
     "compute",
     "scp",
     shaPath,
@@ -102,7 +106,7 @@ if (!args.skipUpload) {
 }
 
 const remoteOutput = runCapture(
-  "gcloud",
+  gcloudCommand,
   [
     "compute",
     "ssh",
@@ -203,11 +207,14 @@ Options:
 `);
 }
 
-function ensureCommand(command) {
-  const result = spawnSync(command, ["--version"], { encoding: "utf8" });
-  if (result.error || result.status !== 0) {
-    throw new Error(`Required command not available: ${command}`);
+function resolveCommand(label, candidates) {
+  for (const candidate of candidates) {
+    const result = spawnSync(candidate, ["--version"], { encoding: "utf8" });
+    if (!result.error && result.status === 0) {
+      return candidate;
+    }
   }
+  throw new Error(`Required command not available: ${label}`);
 }
 
 function run(command, commandArgs, options = {}) {
@@ -302,56 +309,38 @@ copy_dir "$deploy_dir/apps/nurtureany-sales-bot/runtime/sql" "$profile/runtime/s
 sudo python3 - "$deploy_dir/apps/nurtureany-sales-bot/profile/config.template.yaml" "$profile/config.yaml" <<'PY'
 import sys
 from pathlib import Path
+import yaml
 
 template_path = Path(sys.argv[1])
 config_path = Path(sys.argv[2])
-template_lines = template_path.read_text().splitlines()
-config_lines = config_path.read_text().splitlines()
 
-expected = []
-in_block = False
-for line in template_lines:
-    if line.strip() == "tool_allowlist:":
-        in_block = True
-        continue
-    if in_block:
-        if line.startswith("    - "):
-            expected.append(line.split("- ", 1)[1].strip())
-            continue
-        if line.strip():
-            break
-
-if not expected:
-    raise SystemExit("deploy:error:template-tool-allowlist-not-found")
-
-config_tool_indexes = {}
-for index, line in enumerate(config_lines):
-    stripped = line.strip()
-    if stripped.startswith("- "):
-        tool = stripped[2:].strip()
-        config_tool_indexes.setdefault(tool, index)
+template = yaml.safe_load(template_path.read_text())
+config = yaml.safe_load(config_path.read_text())
+template_servers = template.get("mcp_servers") or {}
+config_servers = config.get("mcp_servers") or {}
 
 changed = False
-for tool in expected:
-    if tool in config_tool_indexes:
+for server_name, template_server in template_servers.items():
+    template_tools = template_server.get("tools") or {}
+    expected = template_tools.get("include") or template_server.get("tool_allowlist") or []
+    if not expected:
         continue
-    expected_index = expected.index(tool)
-    previous_tools = expected[:expected_index]
-    insert_after = next((candidate for candidate in reversed(previous_tools) if candidate in config_tool_indexes), "")
-    if not insert_after:
-        raise SystemExit(f"deploy:error:cannot-place-tool:{tool}")
-    insert_index = config_tool_indexes[insert_after] + 1
-    indent = config_lines[config_tool_indexes[insert_after]].split("-", 1)[0]
-    config_lines.insert(insert_index, f"{indent}- {tool}")
-    config_tool_indexes = {
-        line.strip()[2:].strip(): index
-        for index, line in enumerate(config_lines)
-        if line.strip().startswith("- ")
-    }
-    changed = True
+    config_server = config_servers.get(server_name)
+    if not isinstance(config_server, dict):
+        raise SystemExit(f"deploy:error:mcp-server-missing:{server_name}")
+    config_tools = config_server.setdefault("tools", {})
+    if config_tools.get("include") != expected:
+        config_tools["include"] = list(expected)
+        changed = True
+    if config_server.pop("tool_allowlist", None) is not None:
+        changed = True
+    for key in ("resources", "prompts"):
+        if key in template_tools and config_tools.get(key) != template_tools[key]:
+            config_tools[key] = template_tools[key]
+            changed = True
 
 if changed:
-    config_path.write_text("\\n".join(config_lines) + "\\n")
+    config_path.write_text(yaml.safe_dump(config, sort_keys=False))
 PY
 sudo chown "$runtime_owner:$runtime_owner" "$profile/config.yaml"
 
@@ -391,11 +380,12 @@ sleep 10
 run_post_deploy_check() {
   label="$1"
   shift
-  attempts="\${NURTUREANY_DEPLOY_CHECK_ATTEMPTS:-3}"
-  delay_seconds="\${NURTUREANY_DEPLOY_CHECK_RETRY_SECONDS:-10}"
+  attempts="\${NURTUREANY_DEPLOY_CHECK_ATTEMPTS:-8}"
+  delay_seconds="\${NURTUREANY_DEPLOY_CHECK_RETRY_SECONDS:-20}"
+  command_timeout_seconds="\${NURTUREANY_DEPLOY_CHECK_COMMAND_TIMEOUT_SECONDS:-90}"
   attempt=1
   while [ "$attempt" -le "$attempts" ]; do
-    if "$@"; then
+    if timeout "$command_timeout_seconds" "$@"; then
       if [ "$attempt" -gt 1 ]; then
         echo "deploy:check:$label=passed-after-retry:$attempt"
       fi
@@ -413,7 +403,12 @@ run_post_deploy_check() {
   done
 }
 
-run_post_deploy_check audit sudo -H -u "$runtime_owner" HERMES_PROFILE_DIR="$profile" HERMES_HOME="$profile" NURTUREANY_APP_ROOT="$profile/source/nurtureany-sales-bot" XDG_RUNTIME_DIR="/run/user/$uid" "$profile/scripts/nurtureanysalesbot-audit-live-profile.sh"
+run_post_deploy_check audit sudo -H -u "$runtime_owner" HERMES_PROFILE_DIR="$profile" HERMES_HOME="$profile" NURTUREANY_APP_ROOT="$profile/source/nurtureany-sales-bot" RUN_NESTED_HEALTH_CHECK=0 XDG_RUNTIME_DIR="/run/user/$uid" "$profile/scripts/nurtureanysalesbot-audit-live-profile.sh"
+health_warmup_seconds="\${NURTUREANY_DEPLOY_HEALTH_WARMUP_SECONDS:-120}"
+if [ "$health_warmup_seconds" -gt 0 ]; then
+  echo "deploy:check:health=warmup:$health_warmup_seconds"
+  sleep "$health_warmup_seconds"
+fi
 run_post_deploy_check health sudo -H -u "$runtime_owner" HERMES_PROFILE_DIR="$profile" HERMES_HOME="$profile" XDG_RUNTIME_DIR="/run/user/$uid" "$profile/scripts/nurtureanysalesbot-check-health.sh"
 run_post_deploy_check cloud_doctor sudo -H -u "$runtime_owner" HERMES_PROFILE_DIR="$profile" HERMES_HOME="$profile" XDG_RUNTIME_DIR="/run/user/$uid" "$profile/scripts/nurtureanysalesbot-cloud-doctor.sh"
 sudo -H -u "$runtime_owner" XDG_RUNTIME_DIR="/run/user/$uid" systemctl --user status "$service" --no-pager

@@ -31,6 +31,8 @@
     "slack_mcp": "runtime/mcp/slack_nurtureany_server.py",
     "hubspot_runtime": "runtime/hubspot.md",
     "hubspot_mcp": "runtime/mcp/hubspot_nurtureany_server.py",
+    "aircall_runtime": "runtime/aircall.md",
+    "aircall_mcp": "runtime/mcp/aircall_nurtureany_server.py",
     "case_study_catalog": "runtime/data/case-studies.json",
     "access_policy_template": "runtime/access-policy.template.json",
     "bigquery_runtime": "runtime/bigquery.md",
@@ -110,8 +112,10 @@
     "format": "dotenv",
     "version_policy": "latest",
     "secret_values_committed": false,
-    "expected_key_count": 22,
+    "expected_key_count": 25,
     "expected_keys": [
+      "AIRCALL_API_ID",
+      "AIRCALL_API_TOKEN",
       "ANTHROPIC_API_KEY",
       "EXA_API_KEY",
       "GOOGLE_PLACES_API_KEY",
@@ -127,6 +131,7 @@
       "NURTUREANY_QO_STAGE_IDS",
       "NURTUREANY_REVENUE_NEW_BUSINESS_PIPELINE_IDS",
       "NURTUREANY_REVENUE_RENEWAL_PIPELINE_IDS",
+      "OPENAI_API_KEY",
       "SLACK_ALLOWED_USERS",
       "SLACK_APP_TOKEN",
       "SLACK_BOT_TOKEN",
@@ -328,10 +333,16 @@
     "slack_context": {
       "token_env_var": "SLACK_BOT_TOKEN",
       "configured_channel_ids_env_var": "NURTUREANY_SLACK_INTENT_CHANNEL_IDS",
+      "configured_thread_channel_ids_env_var": "NURTUREANY_SLACK_THREAD_CONTEXT_CHANNEL_IDS",
+      "public_thread_channels_env_var": "NURTUREANY_SLACK_THREAD_CONTEXT_PUBLIC_CHANNELS",
+      "configured_public_thread_channel_auto_join": true,
       "fallback_channel_ids_env_var": "SLACK_HOME_CHANNEL",
-      "configured_channels_only": true,
+      "configured_channels_only": false,
+      "public_channels_only": true,
       "allowed_tools": [
-        "read_recent_slack_intent_context"
+        "read_recent_slack_intent_context",
+        "get_current_slack_thread_context",
+        "get_selected_slack_thread_context"
       ],
       "safe_output": "safe summaries/permalinks only",
       "raw_transcript_persistence": false,
@@ -363,6 +374,8 @@
       "prepare_sales_navigator_decision_maker_queue",
       "build_friday_sales_review",
       "build_manager_chase_plan",
+      "find_aircall_calls",
+      "transcribe_aircall_recording",
       "get_account_context",
       "build_pre_demo_game_plans",
       "find_sales_case_studies",
@@ -372,7 +385,6 @@
       "count_owner_whatsapp_sent_today",
       "check_account_followup_status",
       "check_event_followup_status",
-      "build_daily_nurture_plan",
       "find_target_accounts_by_luma_match_keys",
       "score_nurture_accounts",
       "find_contact_gaps",
@@ -387,7 +399,6 @@
       "read_nurture_material_registry",
       "read_indonesia_event_registration_attendance",
       "check_eazybe_send_status",
-      "build_daily_nurture_reminder",
       "record_nurtureany_operation_checkpoint",
       "read_nurtureany_operation_ledger",
       "draft_nurture_message",
@@ -464,6 +475,29 @@
     "selected_pii_in_slack": true,
     "bulk_contact_exports": false,
     "hubspot_writeback": "preview_only"
+  },
+  "aircall": {
+    "auth_env_vars": [
+      "AIRCALL_API_ID",
+      "AIRCALL_API_TOKEN"
+    ],
+    "transcription_auth_env_var": "OPENAI_API_KEY",
+    "read_only": true,
+    "provider": "Aircall Public API plus OpenAI audio transcriptions",
+    "default_transcription_model": "gpt-4o-transcribe-diarize",
+    "allowed_tools": [
+      "find_aircall_calls",
+      "transcribe_aircall_recording"
+    ],
+    "max_calls": 5,
+    "selected_call_only": true,
+    "max_audio_bytes": 26214400,
+    "max_audio_seconds": 3600,
+    "recording_downloads": "transient_only",
+    "raw_recording_urls_returned": false,
+    "raw_audio_retained": false,
+    "bulk_transcript_exports": false,
+    "hubspot_source_of_truth": true
   },
   "exa": {
     "auth_env_var": "EXA_API_KEY",
@@ -633,27 +667,16 @@
     "hubspot_writeback": "none"
   },
   "daily_nurture": {
-    "pilot": "Jeremy",
-    "assumed_hubspot_owner_email": "jeremy.wong@staffany.com",
-    "protected_pool_baseline": 150,
-    "daily_account_count": 30,
-    "timezone": "Asia/Singapore",
-    "working_days": "Monday-Friday",
-    "nine_am_cron_utc": "0 1 * * 1-5",
-    "noon_reminder_cron_utc": "0 4 * * 1-5",
-    "nine_am_cron_local": "0 9 * * 1-5",
-    "noon_reminder_cron_local": "0 12 * * 1-5",
-    "material_registry_source": "read-only Google Sheet",
-    "daily_runs_dir_env_var": "NURTUREANY_DAILY_RUNS_DIR",
-    "sent_definition": "Eazybe accepted/queued approved template OR HubSpot matching WhatsApp communication after run start",
-    "all_stakeholders_per_account": true,
-    "no_silent_replacement": true
+    "status": "disabled_pending_refinement",
+    "approved_runtime_workflow": false,
+    "cron_enabled": false,
+    "reminder_cron_enabled": false,
+    "reason": "Workflow must be refined and confirmed before being advertised or scheduled."
   },
   "eazybe": {
     "auth_env_var": "EAZYBE_API_KEY",
     "broadcast_api_url_env_var": "EAZYBE_BROADCAST_API_URL",
     "status_api_url_env_var": "EAZYBE_STATUS_API_URL",
-    "daily_runs_dir_env_var": "NURTUREANY_DAILY_RUNS_DIR",
     "base_mode": "approval_gated_template_send",
     "approved_templates_only": true,
     "template_payload_model": "templateName plus ordered templateParams",
@@ -663,8 +686,7 @@
     "allowed_tools": [
       "preview_eazybe_template_messages",
       "send_approved_eazybe_messages",
-      "check_eazybe_send_status",
-      "build_daily_nurture_reminder"
+      "check_eazybe_send_status"
     ]
   },
   "near_me": {

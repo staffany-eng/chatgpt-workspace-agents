@@ -26,10 +26,13 @@ create task for Fei Siong to confirm payroll readiness by Friday
 Expected:
 
 - Searches/resolves C360 customer if needed.
+- Passes the current Slack sender ID/mention into Jira tools when email is not already present.
+- Does not ask the user for Slack/Jira email before drafting or creating.
 - Calls `draft_pco_task`.
 - Shows the Jira-ready draft and duplicate candidates.
 - Does not create yet.
 - After same-thread `create`, calls `create_approved_pco_task`.
+- Blocks creation if the resolved due date is before today's date.
 
 ## PS WEE Ticket First Intake
 
@@ -49,6 +52,12 @@ Expected:
 - Posts the ticket link in the same Slack thread and asks for missing info.
 - Does not paste the raw Slack transcript into Jira.
 
+## PS WEE ROI Direct Intake
+
+Prompt:
+
+```text
+@PS Wee Manager create a task for bd ops to send Dreamus invoice
 ## PS WEE Customer Channel Auto-Tag
 
 Prompt in a reviewed customer-specific Slack channel:
@@ -59,6 +68,30 @@ add this to follow-up list, payroll readiness unclear
 
 Expected:
 
+- Treats `PS Wee Manager` as this PSM Ops Bot, not a separate app/profile.
+- Calls `classify_roi_ticket_request` and detects actionable BD Ops / invoice work.
+- Calls `find_roi_ticket_by_slack_thread` with the current Slack thread permalink.
+- If no ROI ticket exists for that Slack thread, calls `create_roi_ticket_from_slack`.
+- Does not call `create_ps_wee_intake_ticket` or create a PCO wrapper.
+- Resolves requester from explicit `requested by` / `reported by` first, otherwise the Slack sender.
+- Blocks creation when requester cannot resolve to Slack/Jira identity; never uses a bot, team, or `team@staffany.com` fallback requester.
+- Discovers required ROI JSM fields at runtime and blocks with exact missing field names when required values are missing.
+- Fills both `Company Name` and `StaffAny Organization` when the ROI request type exposes both fields; a ticket with only the text company field is incomplete.
+- Includes source Slack thread, original channel, and requester in ROI request fields or internal metadata.
+
+## Casual NYSS Question Does Not Create ROI
+
+Prompt:
+
+```text
+@PS Wee Manager @nyss what is the Stripe password?
+```
+
+Expected:
+
+- Does not create ROI.
+- Does not create PCO.
+- Requires create/add/log/handle/ticket/task/board wording before ROI ticket creation.
 - Calls `find_ticket_by_slack_thread` with the current Slack thread permalink first.
 - Calls `create_ps_wee_intake_ticket` with the current Slack thread permalink.
 - Resolves the reviewed channel mapping with `resolve_customer_channel_org`.
@@ -127,7 +160,7 @@ impact is payroll blocked for May payroll, affected outlet is central kitchen
 Expected:
 
 - Calls `append_ps_wee_ticket_update` only because the reply adds meaningful ticket context.
-- Adds a structured internal Jira comment with the Slack thread permalink and updated fields.
+- Adds a structured internal Jira comment with the Slack thread permalink, `Slack poster:`, and updated fields.
 - Does not sync every casual acknowledgement or paste raw Slack transcript text.
 
 ## PS WEE Ready For Triage
@@ -185,6 +218,22 @@ Expected:
 - Resolves the Slack mention to an active Jira account.
 - Does not update Jira `PS Team`; "my tasks" and reminders remain PS Team scoped.
 
+## Link Engineering Issue
+
+Prompt:
+
+```text
+link PCO-123 to KER-2109 so this PCO is blocked by the engineering release
+```
+
+Expected:
+
+- Calls `link_pco_to_engineering_issue`.
+- Requires source issue key to be `PCO-*`.
+- Allows only `KER-*` or `SCHE-*` as the engineering target.
+- Defaults to Jira `Blocks` direction so the PCO shows as blocked by the engineering issue.
+- Does not read or expose raw engineering issue descriptions, comments, or attachments.
+
 ## Reminder
 
 Prompt:
@@ -228,3 +277,37 @@ Expected:
 - Calls `ask_c360_customer_context` or `get_c360_account_context`.
 - Includes Customer 360 source, citation refs or missing-data caveat, and C360 link.
 - Does not use personal Customer 360 cookies or raw source packs.
+
+## Calendar Follow-Up
+
+Prompt:
+
+```text
+did Rock Productions have a follow-up meeting scheduled this week?
+```
+
+Expected:
+
+- Resolves the customer and relevant StaffAny owner context through Customer 360 when needed.
+- Calls `read_customer_calendar_context` with `intent="find_existing_followup"` through `team@staffany.com` with a bounded time window.
+- Reports the calendars checked.
+- Returns only safe event metadata.
+- Does not expose descriptions, attendee emails, raw guest lists, conference links, phone numbers, or private calendar metadata.
+- If the selected owner calendar is inaccessible to `team@staffany.com`, reports `Confidence: blocked` instead of saying no follow-up exists.
+
+## Calendar Slot Suggestion Guard
+
+`@PSM Ops find a good meeting timing for this`
+
+- Does not call Calendar when attendees are missing.
+- Asks for explicit attendees before suggesting slots.
+
+```text
+find a good meeting timing for this
+```
+
+Expected:
+
+- No `read_customer_calendar_context` call.
+- Asks for attendee emails or named attendees needed for availability lookup.
+- Keeps the PCO ticket path Jira-first if the same request also asks to create/add a task.

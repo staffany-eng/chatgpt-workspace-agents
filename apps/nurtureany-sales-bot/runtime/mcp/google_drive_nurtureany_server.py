@@ -1250,7 +1250,7 @@ def read_nurture_material_registry(
             "row_count": len(rows),
             "missing_tabs": missing_tabs,
             "invalid_tabs": invalid_tabs,
-            "next_step": "Pass rows into build_daily_nurture_plan.material_registry_rows.",
+            "next_step": "Use rows as read-only material context only; daily nurture automation is disabled pending refinement.",
         },
         "source": "Google Sheets NurtureAny material registry",
         "scope": {**scope, "tabs": selected_tabs, "requested_limit_per_tab": capped_limit},

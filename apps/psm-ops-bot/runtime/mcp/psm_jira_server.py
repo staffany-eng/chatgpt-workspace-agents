@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Jira PCO MCP adapter for PSM Ops Bot."""
+"""Jira PCO/ROI MCP adapter for PSM Ops Bot."""
 
 from __future__ import annotations
 
@@ -10,13 +10,15 @@ import re
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from mcp.server.fastmcp import FastMCP
 
 from profile_env import load_profile_env
+from psm_slack_notifier import post_ps_wee_audit
 
 
 load_profile_env()
@@ -24,7 +26,7 @@ load_profile_env()
 mcp = FastMCP(
     "psm_jira",
     instructions=(
-        "PCO Jira Service Management task adapter for PSM Ops Bot. "
+        "PCO and ROI Jira Service Management task adapter for PSM Ops Bot. "
         "Uses preconfigured fields only and fails closed when config is missing."
     ),
 )
@@ -66,6 +68,15 @@ THIN_POC_FIELD_IDS = {
     "ps_team": "customfield_10876",
 }
 REMINDER_NOT_CONFIGURED = "Reminder at field is not configured in PCO yet."
+ENGINEERING_LINK_TARGET_RE = re.compile(r"^(KER|SCHE)-\d+$", re.IGNORECASE)
+PCO_ISSUE_RE = re.compile(r"^PCO-\d+$", re.IGNORECASE)
+ISSUE_LINK_TYPE_ALIASES = {
+    "blocks": "Blocks",
+    "is blocked by": "Blocks",
+    "blocked by": "Blocks",
+    "relates": "Relates",
+    "relates to": "Relates",
+}
 
 FIELD_ENVS = {
     "customer": "PSM_OPS_JIRA_FIELD_CUSTOMER",
@@ -77,6 +88,39 @@ FIELD_ENVS = {
     "source_links": "PSM_OPS_JIRA_FIELD_SOURCE_LINKS",
     "reminder_at": "PSM_OPS_JIRA_FIELD_REMINDER_AT",
 }
+
+ROI_FIELD_ENVS = {
+    "customer": "PSM_OPS_ROI_JIRA_FIELD_CUSTOMER",
+    "staffany_orgs": "PSM_OPS_ROI_JIRA_FIELD_STAFFANY_ORGS",
+    "request_category": "PSM_OPS_ROI_JIRA_FIELD_REQUEST_CATEGORY",
+    "source_links": "PSM_OPS_ROI_JIRA_FIELD_SOURCE_LINKS",
+    "requester": "PSM_OPS_ROI_JIRA_FIELD_REQUESTER",
+    "requester_slack": "PSM_OPS_ROI_JIRA_FIELD_REQUESTER_SLACK",
+    "original_channel": "PSM_OPS_ROI_JIRA_FIELD_ORIGINAL_CHANNEL",
+    "priority": "PSM_OPS_ROI_JIRA_FIELD_PRIORITY",
+}
+
+ROI_TRIGGER_PATTERNS = [
+    ("ROI", r"\broi\b"),
+    ("RevOps", r"\brev\s*ops\b|\brevops\b"),
+    ("BD Ops", r"\bbd\s*ops\b|\bbdops\b"),
+    ("NYSS", r"\bnyss\b|\bn\s*y\s*s\s*s\b"),
+    ("invoice", r"\binvoices?\b|\brenewal\s+invoices?\b|\bstripe\s+invoices?\b|\baccessible\s+invoices?\b"),
+    ("billing", r"\bbilling\b"),
+    ("discount", r"\bdiscounts?\b"),
+    ("HC/deal check", r"\bhc\s*/?\s*deal\s+checks?\b|\bheadcount\s*/?\s*deal\s+checks?\b|\bdeal\s+checks?\b"),
+    ("HubSpot deal", r"\bhubspot\s+deals?\b"),
+    ("ERP dashboard/data issue", r"\berp\b|\bdashboards?\b|\bdata\s+issues?\b"),
+    ("linked BE", r"\blink(?:ed)?\s+be\b|\bbusiness\s+entity\b"),
+    ("MRR mismatch", r"\bmrr\s+mismatch(?:es)?\b"),
+    ("SLA dashboard", r"\bsla\s+dashboards?\b"),
+    ("asset sync", r"\basset\s+sync\b"),
+]
+
+ROI_ACTION_PATTERN = re.compile(
+    r"\b(create|add|log|raise|file|handle|put|ticket|task|board)\b",
+    re.IGNORECASE,
+)
 
 PS_TEAM_ALIASES = {
     "cs": "CS Duty",
@@ -112,12 +156,78 @@ class JiraError(RuntimeError):
     pass
 
 
+@mcp.resource(
+    "jira://request-types",
+    name="PCO and ROI request types",
+    description="Configured PCO/ROI request types and identity rules for PSM Ops Bot.",
+    mime_type="application/json",
+)
+def jira_request_types_resource() -> str:
+    """Expose safe request type metadata to prevent model-side guessing."""
+
+    payload = {
+        "project_key": _project_key(),
+        "mode": _jira_mode(),
+        "service_desk_id": _service_desk_id() if _env("PSM_OPS_JIRA_SERVICE_DESK_ID") or _is_thin_poc() else "",
+        "request_types": {
+            key: _request_type_id(key) if key != "handoff_package" or not _is_thin_poc() else "disabled_until_request_type_exists"
+            for key in REQUEST_TYPE_ENVS
+        },
+        "fields": {
+            "ps_team": _ps_team_field_id(),
+            "staffany_orgs": _optional_field_id("staffany_orgs"),
+            "due_date": "duedate",
+        },
+        "roi": {
+            "project_key": _env("PSM_OPS_ROI_JIRA_PROJECT_KEY"),
+            "service_desk_id": _env("PSM_OPS_ROI_JIRA_SERVICE_DESK_ID"),
+            "request_type_id": _env("PSM_OPS_ROI_JIRA_REQUEST_TYPE_ID"),
+            "field_envs": ROI_FIELD_ENVS,
+            "idempotency_key": "Slack thread permalink",
+            "requester_rule": "Resolve explicit requested/reported-by first, else current Slack sender. Never fall back to bot/team identities.",
+        },
+        "caller_identity": {
+            "tool_parameter": "slack_user_email",
+            "accepted_values": ["Slack sender user id", "Slack mention", "Slack profile email"],
+            "rule": "Pass the current Slack sender id or mention when email is not already provided; do not ask the user for email.",
+        },
+    }
+    return json.dumps(payload, sort_keys=True)
 class CustomerChannelMapMiss(JiraError):
     pass
 
 
 def _env(name: str, default: str = "") -> str:
     return os.environ.get(name, default).strip()
+
+
+def _today_date() -> date:
+    override = _env("PSM_OPS_TODAY")
+    if override:
+        try:
+            return datetime.strptime(override, "%Y-%m-%d").date()
+        except ValueError as error:
+            raise JiraError("PSM_OPS_TODAY must be YYYY-MM-DD when configured.") from error
+    timezone_name = _env("PSM_OPS_TIMEZONE", "Asia/Singapore") or "Asia/Singapore"
+    try:
+        local_timezone = ZoneInfo(timezone_name)
+    except ZoneInfoNotFoundError as error:
+        raise JiraError("PSM_OPS_TIMEZONE must be a valid IANA timezone when configured.") from error
+    return datetime.now(local_timezone).date()
+
+
+def _validate_due_date_for_write(due_date: str) -> str:
+    value = (due_date or "").strip()
+    if not value:
+        return ""
+    try:
+        parsed = datetime.strptime(value, "%Y-%m-%d").date()
+    except ValueError as error:
+        raise JiraError("Due date must be YYYY-MM-DD before creating a PCO task.") from error
+    today = _today_date()
+    if parsed < today:
+        raise JiraError(f"Due date {value} is before today ({today.isoformat()}). Confirm a future due date before creating the PCO task.")
+    return value
 
 
 def _jira_mode() -> str:
@@ -162,6 +272,33 @@ def _service_desk_id() -> str:
         return THIN_POC_SERVICE_DESK_ID
     if not value:
         raise JiraError("PSM_OPS_JIRA_SERVICE_DESK_ID is not configured.")
+    return value
+
+
+def _roi_project_key() -> str:
+    value = _env("PSM_OPS_ROI_JIRA_PROJECT_KEY")
+    if not value:
+        raise JiraError("PSM_OPS_ROI_JIRA_PROJECT_KEY is not configured.")
+    if "," in value:
+        raise JiraError("PSM_OPS_ROI_JIRA_PROJECT_KEY must contain exactly one project key.")
+    return value.upper()
+
+
+def _roi_service_desk_id() -> str:
+    value = _env("PSM_OPS_ROI_JIRA_SERVICE_DESK_ID")
+    if not value:
+        raise JiraError("PSM_OPS_ROI_JIRA_SERVICE_DESK_ID is not configured.")
+    if "," in value:
+        raise JiraError("PSM_OPS_ROI_JIRA_SERVICE_DESK_ID must contain exactly one service desk ID.")
+    return value
+
+
+def _roi_request_type_id() -> str:
+    value = _env("PSM_OPS_ROI_JIRA_REQUEST_TYPE_ID")
+    if not value:
+        raise JiraError("PSM_OPS_ROI_JIRA_REQUEST_TYPE_ID is not configured.")
+    if "," in value:
+        raise JiraError("PSM_OPS_ROI_JIRA_REQUEST_TYPE_ID must contain exactly one request type ID.")
     return value
 
 
@@ -279,6 +416,134 @@ def _ps_team_issue_value(label: str) -> Any:
     return {"value": normalized}
 
 
+def _configured_roi_field_ids() -> dict[str, str]:
+    return {
+        key: _env(env_name)
+        for key, env_name in ROI_FIELD_ENVS.items()
+        if _env(env_name)
+    }
+
+
+def _roi_request_type_fields() -> list[dict[str, Any]]:
+    payload = _request_json(
+        "GET",
+        f"/rest/servicedeskapi/servicedesk/{urllib.parse.quote(_roi_service_desk_id())}"
+        f"/requesttype/{urllib.parse.quote(_roi_request_type_id())}/field",
+    )
+    fields = payload.get("requestTypeFields", []) if isinstance(payload, dict) else []
+    return [field for field in fields if isinstance(field, dict)]
+
+
+def _roi_field_required(field: dict[str, Any]) -> bool:
+    return bool(field.get("required"))
+
+
+def _roi_field_name(field: dict[str, Any]) -> str:
+    return str(field.get("name") or field.get("fieldId") or "").strip()
+
+
+def _roi_field_key(field: dict[str, Any]) -> str:
+    field_id = str(field.get("fieldId") or "").strip()
+    configured = _configured_roi_field_ids()
+    for key, configured_id in configured.items():
+        if configured_id and configured_id == field_id:
+            return key
+    name = _normalize_label(_roi_field_name(field))
+    if field_id == "summary" or name in {"summary", "title"} or "summary" in name or "title" in name:
+        return "summary"
+    if field_id == "description" or "description" in name or "details" in name or "context" in name:
+        return "details"
+    if "staffany" in name and any(token in name for token in ["org", "organisation", "organization"]):
+        return "staffany_orgs"
+    if name == "org" or any(token in name for token in ["company", "customer", "account", " org ", "organisation", "organization"]):
+        return "customer"
+    if "requester" in name or "requestor" in name or ("reported" in name and "by" in name) or ("requested" in name and "by" in name):
+        return "requester"
+    if "category" in name or ("request" in name and "type" in name):
+        return "request_category"
+    if "channel" in name:
+        return "original_channel"
+    if "source" in name or "slack" in name or "thread" in name or "link" in name or "evidence" in name:
+        return "source_links"
+    if "priority" in name or "urgency" in name:
+        return "priority"
+    return ""
+
+
+def _roi_field_mapping(fields: list[dict[str, Any]]) -> tuple[dict[str, dict[str, Any]], list[str]]:
+    mapping: dict[str, dict[str, Any]] = {}
+    ambiguous: list[str] = []
+    configured_ids = _configured_roi_field_ids()
+    configured_by_key = {key: field_id for key, field_id in configured_ids.items() if field_id}
+    for field in fields:
+        key = _roi_field_key(field)
+        if not key:
+            continue
+        field_id = str(field.get("fieldId") or "")
+        if key in mapping and str(mapping[key].get("fieldId") or "") != field_id:
+            configured_field_id = configured_by_key.get(key)
+            if configured_field_id == field_id:
+                mapping[key] = field
+                continue
+            if configured_field_id == str(mapping[key].get("fieldId") or ""):
+                continue
+            if _roi_field_required(field) or _roi_field_required(mapping[key]):
+                ambiguous.append(key)
+            continue
+        mapping[key] = field
+    return mapping, sorted(set(ambiguous))
+
+
+def _roi_option_value(field: dict[str, Any], raw_value: str) -> Any:
+    value = (raw_value or "").strip()
+    if not value:
+        return ""
+    options = [option for option in (field.get("validValues") or []) if isinstance(option, dict)]
+    if not options:
+        return value
+    normalized = _normalize_label(value)
+    for option in options:
+        candidates = [
+            str(option.get("label") or ""),
+            str(option.get("name") or ""),
+            str(option.get("value") or ""),
+            str(option.get("id") or ""),
+        ]
+        if any(_normalize_label(candidate) == normalized for candidate in candidates if candidate):
+            option_id = str(option.get("value") or option.get("id") or "").strip()
+            if option_id:
+                return {"id": option_id}
+            option_name = str(option.get("label") or option.get("name") or "").strip()
+            return {"name": option_name} if option_name else value
+    return value
+
+
+def _roi_default_priority_for_field(field: dict[str, Any]) -> str:
+    options = [option for option in (field.get("validValues") or []) if isinstance(option, dict)]
+    if not options:
+        return "Medium"
+    field_label = _normalize_label(_roi_field_name(field))
+    if "urgent" in field_label:
+        for option in options:
+            labels = [
+                str(option.get("label") or ""),
+                str(option.get("name") or ""),
+                str(option.get("value") or ""),
+            ]
+            if any(_normalize_label(label) == "no" for label in labels if label):
+                return str(option.get("label") or option.get("name") or option.get("value") or "No")
+    for preferred in ["medium", "normal"]:
+        for option in options:
+            labels = [
+                str(option.get("label") or ""),
+                str(option.get("name") or ""),
+                str(option.get("value") or ""),
+            ]
+            if any(_normalize_label(label) == preferred for label in labels if label):
+                return str(option.get("label") or option.get("name") or option.get("value") or preferred.title())
+    return ""
+
+
 def _configured_fields() -> dict[str, str]:
     if _is_thin_poc():
         return {
@@ -288,20 +553,51 @@ def _configured_fields() -> dict[str, str]:
     return _field_ids()
 
 
-def _blocked(message: str, scope: dict[str, Any]) -> dict[str, Any]:
+def _issue_url(issue_key: str) -> str:
+    key = (issue_key or "").strip().upper()
+    return f"{_jira_base_url()}/browse/{key}" if key else ""
+
+
+def _notify_ps_wee_blocked(message: str, scope: dict[str, Any]) -> None:
+    source = str((scope or {}).get("slack_thread_url") or "").strip()
+    if not source:
+        return
+    key = str((scope or {}).get("issue_key") or "").strip().upper()
+    try:
+        issue_url = _issue_url(key)
+    except JiraError:
+        issue_url = ""
+    try:
+        post_ps_wee_audit(
+            "blocked",
+            source_thread_url=source,
+            issue_key=key,
+            issue_url=issue_url,
+            requester=str((scope or {}).get("caller") or ""),
+            customer=str((scope or {}).get("customer") or ""),
+            blocked_reason=message,
+            jira_payload={"scope": scope},
+            extra={"subsystem": str((scope or {}).get("subsystem") or "jira_pco")},
+        )
+    except Exception:
+        return
+
+
+def _blocked(message: str, scope: dict[str, Any], source: str = "Jira PCO") -> dict[str, Any]:
+    _notify_ps_wee_blocked(message, scope)
     return {
         "answer": {"status": "blocked", "message": message},
-        "source": "Jira PCO",
+        "source": source,
         "scope": scope,
         "confidence": "blocked",
         "caveat": message,
     }
 
 
-def _verified(answer: Any, scope: dict[str, Any], caveat: str = "None.") -> dict[str, Any]:
+def _verified(answer: Any, scope: dict[str, Any], caveat: str = "None.", source: str = "Jira PCO") -> dict[str, Any]:
     return {
         "answer": answer,
-        "source": "Jira PCO",
+        "source": source,
         "scope": scope,
         "confidence": "verified",
         "caveat": caveat,
@@ -443,8 +739,36 @@ def _request_json(method: str, path: str, body: dict[str, Any] | None = None) ->
         raise JiraError(f"Jira API unavailable: {error.reason}") from error
 
 
+def _issue_link_exists(pco_key: str, engineering_key: str, link_type: str) -> bool:
+    payload = _request_json(
+        "GET",
+        f"/rest/api/3/issue/{urllib.parse.quote(pco_key)}?fields=issuelinks",
+    )
+    issue_links = ((payload.get("fields") or {}).get("issuelinks") or [])
+    for issue_link in issue_links:
+        if ((issue_link.get("type") or {}).get("name") or "") != link_type:
+            continue
+        inward_key = ((issue_link.get("inwardIssue") or {}).get("key") or "").upper()
+        outward_key = ((issue_link.get("outwardIssue") or {}).get("key") or "").upper()
+        if link_type == "Blocks":
+            if engineering_key in {inward_key, outward_key}:
+                return True
+            continue
+        if engineering_key in {inward_key, outward_key}:
+            return True
+    return False
+
+
+def _looks_like_existing_issue_link_error(error: JiraError) -> bool:
+    message = str(error).lower()
+    return (
+        ("issue link" in message or "link between" in message or "link" in message)
+        and ("already exists" in message or "exists" in message or "duplicate" in message)
+    )
+
+
 def _slack_token() -> str:
-    return _env("SLACK_BOT_TOKEN") or _env("SLACK_TOKEN")
+    return _env("SLACK_BOT_TOKEN")
 
 
 def _request_slack_json(method: str, params: dict[str, str]) -> Any:
@@ -802,6 +1126,15 @@ def _quote_jql(value: str) -> str:
     return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
+def _normalize_issue_key(value: str) -> str:
+    return (value or "").strip().upper()
+
+
+def _normalize_issue_link_type(value: str) -> str:
+    normalized = _normalize_label(value or "Blocks")
+    return ISSUE_LINK_TYPE_ALIASES.get(normalized, "")
+
+
 def _jql_field_ref(field_id: str) -> str:
     match = re.fullmatch(r"customfield_(\d+)", field_id)
     return f"cf[{match.group(1)}]" if match else field_id
@@ -911,6 +1244,32 @@ def _ticket_by_slack_thread(slack_thread_url: str, max_results: int = 5) -> list
     return [_safe_issue(issue) for issue in _search_issues(jql, _search_fields(), max_results)]
 
 
+def _safe_roi_issue(issue: dict[str, Any]) -> dict[str, Any]:
+    fields = issue.get("fields") or {}
+    return {
+        "issue_key": issue.get("key", ""),
+        "url": f"{_jira_base_url()}/browse/{issue.get('key', '')}",
+        "summary": fields.get("summary") or issue.get("key", ""),
+        "status": (fields.get("status") or {}).get("name", "Not set"),
+        "priority": (fields.get("priority") or {}).get("name", "Not set"),
+        "reporter": (fields.get("reporter") or {}).get("displayName", "Not set"),
+        "created": fields.get("created") or "",
+        "updated": fields.get("updated") or "",
+        "request_type": (fields.get("issuetype") or {}).get("name", "Not set"),
+    }
+
+
+def _roi_ticket_by_slack_thread(slack_thread_url: str, max_results: int = 5) -> list[dict[str, Any]]:
+    source = (slack_thread_url or "").strip()
+    if not source:
+        return []
+    jql = (
+        f"project = {_roi_project_key()} AND text ~ {_quote_jql(source[:180])} "
+        "ORDER BY updated DESC"
+    )
+    return [_safe_roi_issue(issue) for issue in _search_issues(jql, list(SAFE_FIELDS), max_results)]
+
+
 def _search_fields() -> list[str]:
     fields = list(SAFE_FIELDS)
     fields.append(_ps_team_field_id())
@@ -918,6 +1277,182 @@ def _search_fields() -> list[str]:
     if reminder_field:
         fields.append(reminder_field)
     return fields
+
+
+def _detect_roi_ticket_request(message_text: str) -> dict[str, Any]:
+    text = (message_text or "").strip()
+    matched_terms = [
+        label
+        for label, pattern in ROI_TRIGGER_PATTERNS
+        if re.search(pattern, text, flags=re.IGNORECASE)
+    ]
+    has_action = bool(ROI_ACTION_PATTERN.search(text))
+    is_request = bool(matched_terms and has_action)
+    caveat = "Actionable ROI/RevOps/BD Ops request." if is_request else "No ROI ticket should be created."
+    if matched_terms and not has_action:
+        caveat = "ROI/RevOps/BD Ops term found, but no create/add/log/handle/task action was requested."
+    return {
+        "is_roi_ticket_request": is_request,
+        "matched_terms": sorted(set(matched_terms)),
+        "requires_action": True,
+        "action_detected": has_action,
+        "caveat": caveat,
+    }
+
+
+def _explicit_requester_from_text(message_text: str) -> str:
+    text = message_text or ""
+    patterns = [
+        r"\b(?:requested|reported)\s+by\s+([^,\n;]+)",
+        r"\b(?:requester|reporter)\s*[:=]\s*([^,\n;]+)",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, text, flags=re.IGNORECASE)
+        if not match:
+            continue
+        candidate = match.group(1).strip()
+        candidate = re.sub(r"\s+(?:for|to|about|because|re)\b.*$", "", candidate, flags=re.IGNORECASE).strip()
+        if candidate:
+            return candidate
+    return ""
+
+
+def _resolve_roi_requester(slack_user_email: str, requester: str, message_text: str) -> tuple[dict[str, Any], str, str]:
+    explicit = (requester or "").strip() or _explicit_requester_from_text(message_text)
+    source = "explicit_requester" if explicit else "slack_sender"
+    query = explicit or (slack_user_email or "").strip()
+    if not query:
+        raise JiraError("Requester is required. Pass the current Slack sender or an explicit requested/reported-by user.")
+    caller = _caller(query, require_jira_account=True, require_ps_team=False)
+    if not caller.get("jira_account_id"):
+        raise JiraError(f"Requester could not be resolved to a Jira account: {query}")
+    return caller, source, query
+
+
+def _infer_roi_category(*values: str) -> str:
+    text = " ".join(str(value or "") for value in values)
+    if re.search(r"\bbd\s*ops\b|\bbdops\b", text, flags=re.IGNORECASE):
+        return "BD Ops"
+    if re.search(r"\bnyss\b|\bn\s*y\s*s\s*s\b", text, flags=re.IGNORECASE):
+        return "NYSS"
+    if re.search(r"\brev\s*ops\b|\brevops\b", text, flags=re.IGNORECASE):
+        return "RevOps"
+    if re.search(r"\broi\b", text, flags=re.IGNORECASE):
+        return "ROI"
+    if re.search(r"\binvoices?\b|\bbilling\b|\bstripe\b", text, flags=re.IGNORECASE):
+        return "Billing / invoice"
+    return "RevOps"
+
+
+def _compact_roi_summary(summary: str, message_text: str, customer: str) -> str:
+    raw = (summary or "").strip()
+    if raw:
+        return raw[:160]
+    cleaned = re.sub(r"\s+", " ", (message_text or "").strip())
+    if cleaned:
+        return cleaned[:160]
+    if customer:
+        return f"ROI request for {customer}"[:160]
+    return "ROI request from Slack"
+
+
+def _roi_requester_text(requester: dict[str, Any]) -> str:
+    display = str(requester.get("display_name") or "").strip()
+    email = str(requester.get("slack_email") or requester.get("jira_email") or "").strip()
+    account_id = str(requester.get("jira_account_id") or "").strip()
+    pieces = [piece for piece in [display, email, account_id] if piece]
+    return " / ".join(pieces)
+
+
+def _roi_metadata_comment(draft: dict[str, Any]) -> str:
+    metadata = [
+        ("Source Slack thread", draft.get("slack_thread_url")),
+        ("Original channel", draft.get("original_channel")),
+        ("Requester", draft.get("requester_text")),
+        ("Requester source", draft.get("requester_source")),
+        ("Customer/org", draft.get("customer")),
+        ("StaffAny Organization", ", ".join(draft.get("staffany_orgs") or [])),
+        ("Request category", draft.get("request_category")),
+        ("Priority/urgency", draft.get("priority")),
+        ("Summary", draft.get("summary")),
+        ("Details", draft.get("details")),
+        ("Evidence links", ", ".join(draft.get("evidence_links") or [])),
+    ]
+    lines = [f"{label}: {value}" for label, value in metadata if value]
+    return "PS WEE ROI ticket intake from Slack:\n" + "\n".join(lines)
+
+
+def _add_internal_jsm_comment(issue_key: str, comment: str) -> None:
+    key = (issue_key or "").strip().upper()
+    if not key or not comment.strip():
+        return
+    _request_json(
+        "POST",
+        f"/rest/servicedeskapi/request/{urllib.parse.quote(key)}/comment",
+        {"body": comment.strip(), "public": False},
+    )
+
+
+def _roi_request_field_values(fields: list[dict[str, Any]], draft: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
+    mapping, ambiguous = _roi_field_mapping(fields)
+    if ambiguous:
+        raise JiraError(f"Ambiguous ROI request field mapping: {', '.join(ambiguous)}")
+
+    field_values = {
+        "summary": draft.get("summary", ""),
+        "details": draft.get("description", ""),
+        "customer": draft.get("customer", ""),
+        "staffany_orgs": ", ".join(draft.get("staffany_orgs") or []),
+        "request_category": draft.get("request_category", ""),
+        "source_links": "\n".join([draft.get("slack_thread_url", ""), *(draft.get("evidence_links") or [])]).strip(),
+        "requester": draft.get("requester_text", ""),
+        "requester_slack": draft.get("requester_slack", ""),
+        "original_channel": draft.get("original_channel", ""),
+        "priority": draft.get("priority", ""),
+    }
+    values: dict[str, Any] = {}
+    missing_required: list[str] = []
+
+    for field in fields:
+        field_id = str(field.get("fieldId") or "").strip()
+        if not field_id:
+            continue
+        key = _roi_field_key(field)
+        if not key:
+            if _roi_field_required(field):
+                missing_required.append(_roi_field_name(field))
+            continue
+        mapped_field = mapping.get(key)
+        if mapped_field and str(mapped_field.get("fieldId") or "") != field_id:
+            if _roi_field_required(field):
+                missing_required.append(_roi_field_name(field))
+            continue
+        raw_value = str(field_values.get(key) or "").strip()
+        if key == "priority" and not raw_value:
+            raw_value = _roi_default_priority_for_field(field) if _roi_field_required(field) else ""
+        if _roi_field_required(field) and not raw_value:
+            missing_required.append(_roi_field_name(field))
+            continue
+        if raw_value:
+            values[field_id] = _roi_option_value(field, raw_value)
+
+    return values, sorted(set(missing_required))
+
+
+@mcp.tool()
+def classify_roi_ticket_request(message_text: str, slack_thread_url: str = "") -> dict[str, Any]:
+    """Classify whether a Slack message should route directly to ROI JSM instead of PCO."""
+
+    scope = {
+        "slack_thread_url": (slack_thread_url or "").strip(),
+        "message_text_chars": len(message_text or ""),
+    }
+    return _verified(
+        _detect_roi_ticket_request(message_text),
+        scope,
+        "Casual NYSS/BD Ops mentions without create/add/log/handle/task wording do not create ROI tickets.",
+        "PSM Ops ROI router",
+    )
 
 
 @mcp.tool()
@@ -979,6 +1514,67 @@ def validate_jira_configuration() -> dict[str, Any]:
             "allowed_statuses": list(ALLOWED_STATUSES.values()),
         },
         scope,
+    )
+
+
+@mcp.tool()
+def validate_roi_jira_configuration() -> dict[str, Any]:
+    """Validate configured ROI JSM project, request type, and required request fields."""
+
+    scope = {"project_key": _env("PSM_OPS_ROI_JIRA_PROJECT_KEY"), "subsystem": "jira_roi"}
+    missing = [
+        env_name
+        for env_name in [
+            "JIRA_BASE_URL",
+            "JIRA_EMAIL",
+            "JIRA_API_TOKEN",
+            "SLACK_BOT_TOKEN",
+            "PSM_OPS_ROI_JIRA_PROJECT_KEY",
+            "PSM_OPS_ROI_JIRA_SERVICE_DESK_ID",
+            "PSM_OPS_ROI_JIRA_REQUEST_TYPE_ID",
+        ]
+        if not _env(env_name)
+    ]
+    if missing:
+        return _blocked(f"Missing ROI Jira config: {', '.join(missing)}", scope, "Jira ROI")
+
+    try:
+        fields = _roi_request_type_fields()
+        if not fields:
+            return _blocked("ROI request type metadata returned no fields.", scope, "Jira ROI")
+        mapping, ambiguous = _roi_field_mapping(fields)
+    except JiraError as error:
+        return _blocked(str(error), scope, "Jira ROI")
+
+    if ambiguous:
+        return _blocked(f"Ambiguous ROI request field mapping: {', '.join(ambiguous)}", scope, "Jira ROI")
+
+    required_fields = [_roi_field_name(field) for field in fields if _roi_field_required(field)]
+    unsupported_required = [
+        _roi_field_name(field)
+        for field in fields
+        if _roi_field_required(field) and not _roi_field_key(field)
+    ]
+    if unsupported_required:
+        return _blocked(
+            "ROI required fields need explicit config: " + ", ".join(sorted(set(unsupported_required))),
+            {**scope, "required_fields": required_fields},
+            "Jira ROI",
+        )
+
+    return _verified(
+        {
+            "project_key": _roi_project_key(),
+            "service_desk_id": _roi_service_desk_id(),
+            "request_type_id": _roi_request_type_id(),
+            "required_fields": required_fields,
+            "mapped_fields": sorted(mapping.keys()),
+            "configured_field_ids": _configured_roi_field_ids(),
+            "requester_rule": "explicit requested/reported-by wins; otherwise current Slack sender; unresolved requester blocks creation",
+        },
+        scope,
+        "ROI request type metadata is reachable and required fields are mapped.",
+        "Jira ROI",
     )
 
 
@@ -1105,6 +1701,7 @@ def _create_pco_task_from_draft(draft: dict[str, Any], scope: dict[str, Any]) ->
     """Create a PCO JSM request from an already-authorized draft."""
 
     try:
+        _validate_due_date_for_write(str(draft.get("due_date") or ""))
         request_type_id = str(draft.get("request_type_id") or _request_type_id(str(draft.get("request_type_key") or "customer_next_action")))
         request_values = _request_field_values(draft)
         payload = {
@@ -1186,6 +1783,191 @@ def find_ticket_by_slack_thread(slack_thread_url: str, max_results: int = 5) -> 
 
 
 @mcp.tool()
+def find_roi_ticket_by_slack_thread(slack_thread_url: str, max_results: int = 5) -> dict[str, Any]:
+    """Find existing ROI tickets that already cite a Slack thread permalink."""
+
+    source = (slack_thread_url or "").strip()
+    scope = {"slack_thread_url": source, "max_results": max(1, min(int(max_results or 5), 20)), "subsystem": "jira_roi"}
+    if not source:
+        return _blocked("Slack thread URL is required for ROI ticket traceability.", scope, "Jira ROI")
+    try:
+        matches = _roi_ticket_by_slack_thread(source, scope["max_results"])
+    except JiraError as error:
+        return _blocked(str(error), scope, "Jira ROI")
+    return _verified(
+        {"matches": matches},
+        scope,
+        "Same Slack thread permalink is the ROI ticket idempotency key.",
+        "Jira ROI",
+    )
+
+
+@mcp.tool()
+def create_roi_ticket_from_slack(
+    slack_user_email: str,
+    slack_thread_url: str,
+    message_text: str = "",
+    customer: str = "",
+    staffany_orgs: list[str] | None = None,
+    summary: str = "",
+    details: str = "",
+    request_category: str = "",
+    original_channel: str = "",
+    requester: str = "",
+    evidence_links: list[str] | None = None,
+    priority: str = "",
+) -> dict[str, Any]:
+    """Create a direct ROI JSM ticket from an actionable PS WEE Slack request."""
+
+    source = (slack_thread_url or "").strip()
+    links = [str(link).strip() for link in (evidence_links or []) if str(link).strip()]
+    normalized_customer = (customer or "").strip()
+    normalized_staffany_orgs = [str(org).strip() for org in (staffany_orgs or []) if str(org).strip()]
+    if not normalized_staffany_orgs and normalized_customer:
+        normalized_staffany_orgs = [normalized_customer]
+    intent_text = "\n".join(
+        part
+        for part in [
+            message_text,
+            summary,
+            details,
+            request_category,
+            normalized_customer,
+        ]
+        if part
+    )
+    scope = {
+        "caller": (slack_user_email or "").strip().lower(),
+        "slack_thread_url": source,
+        "customer": normalized_customer,
+        "subsystem": "jira_roi",
+    }
+    if not source:
+        return _blocked("Slack thread URL is required before creating a traceable ROI ticket.", scope, "Jira ROI")
+
+    intent = _detect_roi_ticket_request(intent_text)
+    if not intent["is_roi_ticket_request"]:
+        return _blocked(
+            "This is not an actionable ROI/RevOps/BD Ops ticket request. Ask PS Wee to create, add, log, handle, or ticket the work.",
+            {**scope, "intent": intent},
+            "Jira ROI",
+        )
+
+    try:
+        existing = _roi_ticket_by_slack_thread(source, 5)
+        if existing:
+            answer = {"existing_ticket": existing[0], "duplicate_candidates": existing}
+            answer["central_copy"] = post_ps_wee_audit(
+                "roi_ticket_reused",
+                source_thread_url=source,
+                issue_key=str(existing[0].get("issue_key") or ""),
+                issue_url=str(existing[0].get("url") or ""),
+                requester=scope["caller"],
+                customer=normalized_customer,
+                summary=str(existing[0].get("summary") or summary or "ROI request from Slack"),
+                status=str(existing[0].get("status") or ""),
+                jira_payload=answer,
+                extra={"subsystem": "jira_roi"},
+            )
+            return _verified(
+                answer,
+                scope,
+                "Existing ROI ticket found for the same Slack thread; update it instead of creating a duplicate.",
+                "Jira ROI",
+            )
+
+        requester_identity, requester_source, requester_query = _resolve_roi_requester(slack_user_email, requester, message_text)
+        fields = _roi_request_type_fields()
+        if not fields:
+            return _blocked("ROI request type metadata returned no fields.", scope, "Jira ROI")
+
+        roi_summary = _compact_roi_summary(summary, message_text, normalized_customer)
+        roi_category = (request_category or "").strip() or _infer_roi_category(message_text, summary, details)
+        requester_text = _roi_requester_text(requester_identity)
+        description = _roi_metadata_comment(
+            {
+                "slack_thread_url": source,
+                "original_channel": (original_channel or "").strip(),
+                "requester_text": requester_text,
+                "requester_source": requester_source,
+                "customer": normalized_customer,
+                "staffany_orgs": normalized_staffany_orgs,
+                "request_category": roi_category,
+                "priority": (priority or "").strip(),
+                "summary": roi_summary,
+                "details": (details or message_text or "").strip(),
+                "evidence_links": links,
+            }
+        )
+        draft = {
+            "slack_thread_url": source,
+            "original_channel": (original_channel or "").strip(),
+            "requester_text": requester_text,
+            "requester_slack": requester_query,
+            "requester_source": requester_source,
+            "requester_jira_account_id": requester_identity["jira_account_id"],
+            "customer": normalized_customer,
+            "staffany_orgs": normalized_staffany_orgs,
+            "request_category": roi_category,
+            "priority": (priority or "").strip(),
+            "summary": roi_summary,
+            "details": (details or message_text or "").strip(),
+            "description": description,
+            "evidence_links": links,
+            "intent": intent,
+        }
+        request_values, missing_required = _roi_request_field_values(fields, draft)
+        if missing_required:
+            return _blocked(
+                "Missing required ROI fields: " + ", ".join(missing_required),
+                {**scope, "missing_fields": missing_required, "requester": requester_text},
+                "Jira ROI",
+            )
+        payload = {
+            "serviceDeskId": _roi_service_desk_id(),
+            "requestTypeId": _roi_request_type_id(),
+            "requestFieldValues": request_values,
+            "isAdfRequest": False,
+            "raiseOnBehalfOf": requester_identity["jira_account_id"],
+        }
+        response = _request_json("POST", "/rest/servicedeskapi/request", payload)
+    except JiraError as error:
+        return _blocked(str(error), scope, "Jira ROI")
+
+    warnings: list[str] = []
+    issue_key = str(response.get("issueKey") or response.get("issueId") or response.get("key") or "").strip()
+    issue_url = _issue_url(issue_key) if issue_key else ""
+    if issue_key:
+        try:
+            _add_internal_jsm_comment(issue_key, description)
+        except JiraError:
+            warnings.append("ROI ticket was created but Slack metadata internal comment could not be added.")
+    ticket_ref = f"<{issue_url}|{issue_key}>" if issue_key and issue_url else issue_key or issue_url or "the ROI ticket"
+    answer = {
+        "issue_key": issue_key,
+        "url": issue_url,
+        "jira_response": {key: response.get(key) for key in ["issueId", "issueKey", "requestTypeId"] if key in response},
+        "requester": requester_text,
+        "requester_source": requester_source,
+        "warnings": warnings,
+        "slack_reply": f"Created ROI ticket: {ticket_ref}. Requester: {requester_text}.",
+    }
+    answer["central_copy"] = post_ps_wee_audit(
+        "roi_ticket_created",
+        source_thread_url=source,
+        issue_key=issue_key,
+        issue_url=issue_url,
+        requester=requester_text,
+        customer=normalized_customer,
+        summary=roi_summary,
+        status="created",
+        jira_payload={"draft": draft, "request_payload": payload, "answer": answer},
+        extra={"subsystem": "jira_roi"},
+    )
+    return _verified(answer, scope, "ROI ticket is source of truth; Slack thread is evidence.", "Jira ROI")
+
+
+@mcp.tool()
 def create_ps_wee_intake_ticket(
     slack_user_email: str,
     slack_thread_url: str,
@@ -1220,8 +2002,21 @@ def create_ps_wee_intake_ticket(
     try:
         existing = _ticket_by_slack_thread(source, 5)
         if existing:
+            answer = {"existing_ticket": existing[0], "duplicate_candidates": existing}
+            answer["central_copy"] = post_ps_wee_audit(
+                "ticket_reused",
+                source_thread_url=source,
+                issue_key=str(existing[0].get("issue_key") or ""),
+                issue_url=str(existing[0].get("url") or ""),
+                requester=scope["caller"],
+                customer=normalized_customer,
+                summary=str(existing[0].get("summary") or normalized_issue),
+                status=str(existing[0].get("status") or ""),
+                jira_payload=answer,
+                extra={"request_type_key": request_type_key},
+            )
             return _verified(
-                {"existing_ticket": existing[0], "duplicate_candidates": existing},
+                answer,
                 scope,
                 "Existing PCO ticket found for the same Slack thread; update it instead of creating a duplicate.",
             )
@@ -1306,6 +2101,19 @@ def create_ps_wee_intake_ticket(
     answer["slack_reply"] = (
         f"Created first so this won't be missed: {ticket_ref}. "
         f"I still need: {', '.join(missing)}."
+    )
+    answer["central_copy"] = post_ps_wee_audit(
+        "ticket_created",
+        source_thread_url=source,
+        issue_key=issue_key,
+        issue_url=issue_url,
+        requester=scope["caller"],
+        customer=normalized_customer,
+        summary=normalized_issue,
+        status="created",
+        missing_info=missing,
+        jira_payload={"draft": draft, "answer": answer},
+        extra={"request_type_key": request_type_key},
     )
     return result
 
@@ -1426,8 +2234,88 @@ def set_pco_ps_team(
     )
 
 
+@mcp.tool()
+def link_pco_to_engineering_issue(
+    pco_issue_key: str,
+    engineering_issue_key: str,
+    link_type: str = "Blocks",
+) -> dict[str, Any]:
+    """Link a PCO issue to a KER/SCHE issue with a narrow allowlist."""
+
+    pco_key = _normalize_issue_key(pco_issue_key)
+    engineering_key = _normalize_issue_key(engineering_issue_key)
+    normalized_link_type = _normalize_issue_link_type(link_type)
+    scope = {
+        "pco_issue_key": pco_key,
+        "engineering_issue_key": engineering_key,
+        "link_type": normalized_link_type or (link_type or "").strip(),
+    }
+    if not PCO_ISSUE_RE.fullmatch(pco_key):
+        return _blocked("pco_issue_key must look like PCO-123.", scope)
+    if not ENGINEERING_LINK_TARGET_RE.fullmatch(engineering_key):
+        return _blocked("engineering_issue_key must look like KER-123 or SCHE-123.", scope)
+    if normalized_link_type not in {"Blocks", "Relates"}:
+        return _blocked("link_type must be Blocks or Relates.", scope)
+
+    if normalized_link_type == "Blocks":
+        body = {
+            "type": {"name": "Blocks"},
+            "outwardIssue": {"key": engineering_key},
+            "inwardIssue": {"key": pco_key},
+        }
+        relationship = f"{pco_key} is blocked by {engineering_key}"
+    else:
+        body = {
+            "type": {"name": "Relates"},
+            "outwardIssue": {"key": pco_key},
+            "inwardIssue": {"key": engineering_key},
+        }
+        relationship = f"{pco_key} relates to {engineering_key}"
+
+    try:
+        if _issue_link_exists(pco_key, engineering_key, normalized_link_type):
+            return _verified(
+                {
+                    "pco_issue_key": pco_key,
+                    "engineering_issue_key": engineering_key,
+                    "link_type": normalized_link_type,
+                    "relationship": relationship,
+                    "already_exists": True,
+                },
+                scope,
+                "Issue link already existed; checked issue links only, without reading Jira comments or descriptions.",
+            )
+        _request_json("POST", "/rest/api/3/issueLink", body)
+    except JiraError as error:
+        if _looks_like_existing_issue_link_error(error):
+            return _verified(
+                {
+                    "pco_issue_key": pco_key,
+                    "engineering_issue_key": engineering_key,
+                    "link_type": normalized_link_type,
+                    "relationship": relationship,
+                    "already_exists": True,
+                },
+                scope,
+                "Jira reported the issue link already exists; no raw Jira comments or descriptions were exposed.",
+            )
+        return _blocked(str(error), scope)
+
+    return _verified(
+        {
+            "pco_issue_key": pco_key,
+            "engineering_issue_key": engineering_key,
+            "link_type": normalized_link_type,
+            "relationship": relationship,
+            "already_exists": False,
+        },
+        scope,
+        "Issue link created only between PCO and KER/SCHE; no raw Jira issue content was read or exposed.",
+    )
+
+
 def _set_issue_due_date(issue_key: str, due_date: str) -> None:
-    value = (due_date or "").strip()
+    value = _validate_due_date_for_write(due_date)
     if not value:
         return
     _request_json(
@@ -1518,6 +2406,9 @@ def append_ps_wee_ticket_update(
     update_summary: str,
     updated_fields: dict[str, Any] | None = None,
     evidence_links: list[str] | None = None,
+    slack_poster_name: str = "",
+    slack_poster_user_id: str = "",
+    slack_poster_email: str = "",
     slack_user_email: str = "",
 ) -> dict[str, Any]:
     """Append a structured internal JSM comment for meaningful Slack discussion updates."""
@@ -1534,6 +2425,32 @@ def append_ps_wee_ticket_update(
         return _blocked("A meaningful update summary, updated fields, or evidence link is required.", scope)
 
     lines = ["PS WEE Slack ticket update:", f"Source Slack thread: {source}"]
+    poster_name = slack_poster_name.strip()
+    poster_user_id = slack_poster_user_id.strip()
+    if poster_user_id.startswith("<@") and poster_user_id.endswith(">"):
+        poster_user_id = poster_user_id[2:-1]
+    poster_email = slack_poster_email.strip().lower()
+    if slack_user_email.strip() and (not poster_name or not poster_user_id or not poster_email):
+        slack_user = _resolve_slack_user(slack_user_email)
+        if slack_user:
+            profile = slack_user.get("profile") or {}
+            poster_name = poster_name or (
+                str(profile.get("real_name") or "").strip()
+                or str(slack_user.get("real_name") or "").strip()
+                or str(profile.get("display_name") or "").strip()
+            )
+            poster_user_id = poster_user_id or str(slack_user.get("id") or "").strip()
+            poster_email = poster_email or _slack_user_email(slack_user)
+        poster_email = poster_email or _normalize_slack_email(slack_user_email)
+    poster_parts = []
+    if poster_name:
+        poster_parts.append(poster_name)
+    if poster_user_id:
+        poster_parts.append(f"<@{poster_user_id}>")
+    if poster_email:
+        poster_parts.append(poster_email)
+    if poster_parts:
+        lines.append(f"Slack poster: {' '.join(poster_parts)}")
     if summary:
         lines.append(f"Summary: {summary}")
     if fields:
@@ -1544,7 +2461,26 @@ def append_ps_wee_ticket_update(
     if links:
         lines.append("Evidence links:")
         lines.extend(f"- {link}" for link in links)
-    return add_internal_pco_comment(key, "\n".join(lines), slack_user_email)
+    result = add_internal_pco_comment(key, "\n".join(lines), slack_user_email)
+    if result.get("confidence") == "verified":
+        answer = result.get("answer", {})
+        answer["central_copy"] = post_ps_wee_audit(
+            "ticket_update_synced",
+            source_thread_url=source,
+            issue_key=key,
+            issue_url=_issue_url(key),
+            requester=scope["caller"],
+            summary=summary,
+            status="update synced",
+            jira_payload={
+                "issue_key": key,
+                "update_summary": summary,
+                "updated_fields": fields,
+                "evidence_links": links,
+                "comment": answer,
+            },
+        )
+    return result
 
 
 @mcp.tool()
@@ -1578,6 +2514,16 @@ def mark_ps_wee_ticket_ready(
     answer = comment_result.get("answer", {})
     answer["ready_for_triage"] = True
     answer["warnings"] = warnings
+    answer["central_copy"] = post_ps_wee_audit(
+        "ticket_ready",
+        source_thread_url=source,
+        issue_key=key,
+        issue_url=_issue_url(key),
+        requester=scope["caller"],
+        summary=(ready_summary or "").strip(),
+        status="ready for triage",
+        jira_payload={"issue_key": key, "ready_summary": ready_summary, "warnings": warnings, "comment": comment_result.get("answer", {})},
+    )
     return _verified(answer, scope, "Ticket readiness is marked by internal comment and removal of needs-info label when Jira allows it.")
 
 

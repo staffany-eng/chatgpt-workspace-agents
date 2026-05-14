@@ -55,6 +55,15 @@ gcloud compute ssh nurtureany-sales-bot-prod \
   --tunnel-through-iap
 ```
 
+Use the repo helper for repeatable runtime checks. It resolves `gcloud` from common local install paths, handles GCP OS Login landing as a different user, and switches to the real Hermes runtime user `leekaiyi` with `XDG_RUNTIME_DIR` set:
+
+```bash
+node scripts/nurtureany-prod-ssh.mjs --status
+node scripts/nurtureany-prod-ssh.mjs --health
+node scripts/nurtureany-prod-ssh.mjs --socket
+node scripts/nurtureany-prod-ssh.mjs --doctor
+```
+
 `check-health.sh` should print nothing on success. `audit-live-profile.sh` should end with `live-profile:audit-ok`.
 
 ## What Deploy Syncs

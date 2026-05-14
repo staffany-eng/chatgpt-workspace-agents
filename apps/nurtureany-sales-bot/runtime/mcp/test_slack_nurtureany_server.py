@@ -195,6 +195,155 @@ class SlackNurtureAnyServerTest(unittest.TestCase):
         self.assertEqual(calls[0][1]["ts"], "1770000000.000000")
         self.assertEqual(result["answer"]["message_count"], 2)
 
+    def test_selected_permalink_uses_separate_thread_context_channel_allowlist(self):
+        calls = []
+
+        def fake_slack_api(method, params):
+            calls.append((method, params))
+            if method == "conversations.replies":
+                return {
+                    "ok": True,
+                    "messages": [
+                        {"ts": "1770000000.000000", "user": "U123", "text": "source thread from another channel"},
+                    ],
+                }
+            if method == "chat.getPermalink":
+                return {"ok": True, "permalink": "https://staffany.slack.com/archives/C999/p1770000000000000"}
+            raise AssertionError(f"unexpected method {method}")
+
+        with patch.dict(
+            os.environ,
+            {
+                "SLACK_BOT_TOKEN": "test-bot-token",
+                "NURTUREANY_SLACK_INTENT_CHANNEL_IDS": "C123",
+                "NURTUREANY_SLACK_THREAD_CONTEXT_CHANNEL_IDS": "C999",
+            },
+            clear=True,
+        ), patch.object(self.module, "_slack_api", side_effect=fake_slack_api):
+            result = self.module.get_selected_slack_thread_context(
+                "https://staffany.slack.com/archives/C999/p1770000000000000"
+            )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(calls[0][0], "conversations.replies")
+        self.assertEqual(calls[0][1]["channel"], "C999")
+        self.assertEqual(result["answer"]["messages"][0]["summary"], "source thread from another channel")
+
+    def test_selected_permalink_auto_joins_configured_public_channel_before_retry(self):
+        calls = []
+        reply_attempts = 0
+
+        def fake_slack_api(method, params):
+            nonlocal reply_attempts
+            calls.append((method, params))
+            if method == "conversations.replies":
+                reply_attempts += 1
+                if reply_attempts == 1:
+                    raise self.module.SlackIntentError("Slack API returned error: not_in_channel")
+                return {
+                    "ok": True,
+                    "messages": [
+                        {"ts": "1770000000.000000", "user": "U123", "text": "joined public channel thread"},
+                    ],
+                }
+            if method == "conversations.join":
+                return {"ok": True, "channel": {"id": params["channel"], "is_channel": True}}
+            if method == "chat.getPermalink":
+                return {"ok": True, "permalink": "https://staffany.slack.com/archives/C999/p1770000000000000"}
+            raise AssertionError(f"unexpected method {method}")
+
+        with patch.dict(
+            os.environ,
+            {
+                "SLACK_BOT_TOKEN": "test-bot-token",
+                "NURTUREANY_SLACK_INTENT_CHANNEL_IDS": "C123",
+                "NURTUREANY_SLACK_THREAD_CONTEXT_CHANNEL_IDS": "C999",
+            },
+            clear=True,
+        ), patch.object(self.module, "_slack_api", side_effect=fake_slack_api):
+            result = self.module.get_selected_slack_thread_context(
+                "https://staffany.slack.com/archives/C999/p1770000000000000"
+            )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual([call[0] for call in calls[:3]], ["conversations.replies", "conversations.join", "conversations.replies"])
+        self.assertEqual(calls[1][1]["channel"], "C999")
+        self.assertIn("conversations.join", result["source"])
+        self.assertTrue(result["answer"]["joined_public_channel"])
+        self.assertEqual(result["answer"]["messages"][0]["summary"], "joined public channel thread")
+
+    def test_selected_permalink_can_auto_join_unconfigured_public_channel_when_enabled(self):
+        calls = []
+        reply_attempts = 0
+
+        def fake_slack_api(method, params):
+            nonlocal reply_attempts
+            calls.append((method, params))
+            if method == "conversations.info":
+                return {"ok": True, "channel": {"id": params["channel"], "is_channel": True, "is_private": False}}
+            if method == "conversations.replies":
+                reply_attempts += 1
+                if reply_attempts == 1:
+                    raise self.module.SlackIntentError("Slack API returned error: not_in_channel")
+                return {
+                    "ok": True,
+                    "messages": [
+                        {"ts": "1770000000.000000", "user": "U123", "text": "public channel source thread"},
+                    ],
+                }
+            if method == "conversations.join":
+                return {"ok": True, "channel": {"id": params["channel"], "is_channel": True, "is_private": False}}
+            if method == "chat.getPermalink":
+                return {"ok": True, "permalink": "https://staffany.slack.com/archives/C999/p1770000000000000"}
+            raise AssertionError(f"unexpected method {method}")
+
+        with patch.dict(
+            os.environ,
+            {
+                "SLACK_BOT_TOKEN": "test-bot-token",
+                "NURTUREANY_SLACK_INTENT_CHANNEL_IDS": "C123",
+                "NURTUREANY_SLACK_THREAD_CONTEXT_PUBLIC_CHANNELS": "all",
+            },
+            clear=True,
+        ), patch.object(self.module, "_slack_api", side_effect=fake_slack_api):
+            result = self.module.get_selected_slack_thread_context(
+                "https://staffany.slack.com/archives/C999/p1770000000000000"
+            )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(
+            [call[0] for call in calls[:4]],
+            ["conversations.info", "conversations.replies", "conversations.join", "conversations.replies"],
+        )
+        self.assertEqual(result["answer"]["message_count"], 1)
+        self.assertTrue(result["answer"]["may_join_public_channel"])
+        self.assertTrue(result["answer"]["joined_public_channel"])
+
+    def test_selected_permalink_blocks_private_channel_even_when_all_public_enabled(self):
+        calls = []
+
+        def fake_slack_api(method, params):
+            calls.append((method, params))
+            if method == "conversations.info":
+                return {"ok": True, "channel": {"id": params["channel"], "is_channel": True, "is_private": True}}
+            raise AssertionError(f"unexpected method {method}")
+
+        with patch.dict(
+            os.environ,
+            {
+                "SLACK_BOT_TOKEN": "test-bot-token",
+                "NURTUREANY_SLACK_THREAD_CONTEXT_PUBLIC_CHANNELS": "all",
+            },
+            clear=True,
+        ), patch.object(self.module, "_slack_api", side_effect=fake_slack_api):
+            result = self.module.get_selected_slack_thread_context(
+                "https://staffany.slack.com/archives/C999/p1770000000000000"
+            )
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertEqual([call[0] for call in calls], ["conversations.info"])
+        self.assertIn("public channels", result["answer"])
+
     def test_selected_permalink_blocks_malformed_without_network(self):
         with patch.dict(os.environ, {"SLACK_BOT_TOKEN": "test-bot-token"}, clear=True), patch(
             "urllib.request.urlopen", side_effect=AssertionError("should not call Slack")
@@ -215,7 +364,7 @@ class SlackNurtureAnyServerTest(unittest.TestCase):
             )
 
         self.assertEqual(result["confidence"], "blocked")
-        self.assertIn("configured channel IDs", result["answer"])
+        self.assertIn("configured thread-context channel IDs", result["answer"])
 
 
 if __name__ == "__main__":

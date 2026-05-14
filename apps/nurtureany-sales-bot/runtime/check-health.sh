@@ -12,6 +12,7 @@ EXPECT_MODEL_DEFAULT="${EXPECT_MODEL_DEFAULT:-claude-sonnet-4-6}"
 EXPECT_SLACK_INTENT_TOOLS="${EXPECT_SLACK_INTENT_TOOLS:-3}"
 EXPECT_STAFFANY_BIGQUERY_TOOLS="${EXPECT_STAFFANY_BIGQUERY_TOOLS:-4}"
 EXPECT_HUBSPOT_TOOLS="${EXPECT_HUBSPOT_TOOLS:-42}"
+EXPECT_AIRCALL_TOOLS="${EXPECT_AIRCALL_TOOLS:-2}"
 EXPECT_GOOGLE_CALENDAR_TOOLS="${EXPECT_GOOGLE_CALENDAR_TOOLS:-2}"
 EXPECT_GOOGLE_DRIVE_TOOLS="${EXPECT_GOOGLE_DRIVE_TOOLS:-5}"
 EXPECT_EAZYBE_TOOLS="${EXPECT_EAZYBE_TOOLS:-4}"
@@ -21,6 +22,7 @@ EXPECT_EXA_TOOLS="${EXPECT_EXA_TOOLS:-1}"
 EXPECT_PUBLIC_RESEARCH_TOOLS="${EXPECT_PUBLIC_RESEARCH_TOOLS:-2}"
 EXPECT_NEAR_ME_TOOLS="${EXPECT_NEAR_ME_TOOLS:-6}"
 EXPECT_C360_SALES_PACKET="${EXPECT_C360_SALES_PACKET:-1}"
+MCP_TEST_TIMEOUT_SECONDS="${MCP_TEST_TIMEOUT_SECONDS:-45}"
 C360_SALES_PACKET_SMOKE_COMPANY_ID="${C360_SALES_PACKET_SMOKE_COMPANY_ID:-9003704457}"
 C360_SALES_PACKET_SMOKE_COMPANY_NAME="${C360_SALES_PACKET_SMOKE_COMPANY_NAME:-Stripes Australia}"
 GATEWAY_SERVICE_NAME="${NURTUREANY_GATEWAY_SERVICE_NAME:-hermes-gateway-$PROFILE.service}"
@@ -274,8 +276,8 @@ expected_servers = {
         "read_nurtureany_operation_ledger",
         "draft_nurture_message",
         "plan_hubspot_writeback",
-        "build_daily_nurture_plan",
     ],
+    "aircall_nurtureany": ["find_aircall_calls", "transcribe_aircall_recording"],
     "google_calendar_nurtureany": ["list_google_calendar_events", "audit_google_calendar_meeting_quality"],
     "google_drive_nurtureany": [
         "list_drive_folder_images",
@@ -288,7 +290,6 @@ expected_servers = {
         "preview_eazybe_template_messages",
         "send_approved_eazybe_messages",
         "check_eazybe_send_status",
-        "build_daily_nurture_reminder",
     ],
     "luma_nurtureany": ["list_luma_events", "get_luma_event_match_keys", "get_luma_event_context"],
     "public_research_nurtureany": ["research_public_company_signals", "find_brand_parent_candidates"],
@@ -491,6 +492,15 @@ intent_channels = [value.strip() for value in intent_channels_raw.split(",") if 
 if not intent_channels:
     print("slack-intent:configured-channel-ids-missing")
     raise SystemExit(1)
+thread_channels_raw = (
+    os.environ.get("NURTUREANY_SLACK_THREAD_CONTEXT_CHANNEL_IDS")
+    or profile_env.get("NURTUREANY_SLACK_THREAD_CONTEXT_CHANNEL_IDS")
+    or intent_channels_raw
+)
+thread_channels = [value.strip() for value in thread_channels_raw.split(",") if value.strip()]
+if not thread_channels:
+    print("slack-thread-context:configured-channel-ids-missing")
+    raise SystemExit(1)
 
 
 def slack_get(method: str, params: dict[str, str]) -> dict:
@@ -532,6 +542,37 @@ if messages:
     if not permalink_data.get("ok"):
         print("slack-intent:permalink-check-failed")
         raise SystemExit(1)
+
+thread_channel_id = thread_channels[0]
+thread_history_data = slack_get("conversations.history", {"channel": thread_channel_id, "limit": "1"})
+if not thread_history_data.get("ok"):
+    error = str(thread_history_data.get("error") or "unknown")
+    if error == "not_in_channel":
+        join_data = slack_get("conversations.join", {"channel": thread_channel_id})
+        if not join_data.get("ok"):
+            print("slack-thread-context:join-failed")
+            raise SystemExit(1)
+        thread_history_data = slack_get("conversations.history", {"channel": thread_channel_id, "limit": "1"})
+        if not thread_history_data.get("ok"):
+            print("slack-thread-context:history-after-join-failed")
+            raise SystemExit(1)
+    elif error == "missing_scope":
+        print("slack-thread-context:missing-conversations-history-scope")
+        raise SystemExit(1)
+    elif error == "channel_not_found":
+        print("slack-thread-context:channel-not-found-or-not-in-channel")
+        raise SystemExit(1)
+    else:
+        print("slack-thread-context:history-check-failed")
+        raise SystemExit(1)
+
+thread_messages = thread_history_data.get("messages") or []
+if thread_messages:
+    thread_message_ts = str((thread_messages[0] or {}).get("ts") or "")
+    thread_replies_data = slack_get("conversations.replies", {"channel": thread_channel_id, "ts": thread_message_ts, "limit": "1"})
+    if not thread_replies_data.get("ok"):
+        print("slack-thread-context:replies-check-failed")
+        raise SystemExit(1)
 PY
 then
   fail "$(cat "$slack_allowlist_out")"
@@ -558,13 +599,44 @@ mcp_test() {
   local name="$1"
   local count="$2"
   local out="$tmp_dir/mcp-$name.out"
-  hermes -p "$PROFILE" mcp test "$name" >"$out" 2>&1 || fail "mcp:$name-test-failed"
+  if ! "$hermes_python" - "$PROFILE" "$name" "$out" "$MCP_TEST_TIMEOUT_SECONDS" <<'PY'
+import subprocess
+import sys
+
+profile, name, output_path, timeout_seconds = sys.argv[1:5]
+try:
+    timeout = float(timeout_seconds)
+except ValueError:
+    print("mcp:timeout-config-invalid")
+    raise SystemExit(1)
+
+with open(output_path, "w", encoding="utf-8") as handle:
+    try:
+        completed = subprocess.run(
+            ["hermes", "-p", profile, "mcp", "test", name],
+            stdout=handle,
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=timeout,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        handle.write(f"mcp:{name}:timeout-after-{timeout_seconds}s\n")
+        raise SystemExit(124)
+
+raise SystemExit(completed.returncode)
+PY
+  then
+    grep -q "mcp:$name:timeout-after-" "$out" && fail "mcp:$name-test-timeout"
+    fail "mcp:$name-test-failed"
+  fi
   grep -q "Tools discovered: $count" "$out" || fail "mcp:$name-tool-count-unexpected"
 }
 
 mcp_test slack_nurtureany "$EXPECT_SLACK_INTENT_TOOLS"
 mcp_test staffany_bigquery "$EXPECT_STAFFANY_BIGQUERY_TOOLS"
 mcp_test hubspot_nurtureany "$EXPECT_HUBSPOT_TOOLS"
+mcp_test aircall_nurtureany "$EXPECT_AIRCALL_TOOLS"
 mcp_test google_calendar_nurtureany "$EXPECT_GOOGLE_CALENDAR_TOOLS"
 mcp_test google_drive_nurtureany "$EXPECT_GOOGLE_DRIVE_TOOLS"
 mcp_test eazybe_nurtureany "$EXPECT_EAZYBE_TOOLS"

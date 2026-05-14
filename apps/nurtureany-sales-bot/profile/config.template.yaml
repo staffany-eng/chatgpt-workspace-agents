@@ -112,8 +112,12 @@ nurtureany:
     slack_context_tool: read_recent_slack_intent_context
     slack_context_token_env: SLACK_BOT_TOKEN
     configured_channel_ids_env: NURTUREANY_SLACK_INTENT_CHANNEL_IDS
+    configured_thread_channel_ids_env: NURTUREANY_SLACK_THREAD_CONTEXT_CHANNEL_IDS
+    public_thread_channels_env: NURTUREANY_SLACK_THREAD_CONTEXT_PUBLIC_CHANNELS
+    configured_public_thread_channel_auto_join: true
     fallback_channel_ids_env: SLACK_HOME_CHANNEL
-    configured_channels_only: true
+    configured_channels_only: false
+    public_channels_only: true
     safe_output: safe summaries/permalinks only
     raw_transcript_persistence: false
     no_user_token_fallback: true
@@ -161,32 +165,25 @@ nurtureany:
     no_rep_tagging: true
     no_external_send: true
     no_hubspot_mutation: true
+  aircall_call_review:
+    source_role: selected_call_enrichment_only
+    source_of_truth: HubSpot remains account, owner, task, note, deal, contact, and nurture-field truth
+    metadata_tool: find_aircall_calls
+    transcription_tool: transcribe_aircall_recording
+    default_model: gpt-4o-transcribe-diarize
+    max_calls: 5
+    selected_call_only: true
+    max_audio_bytes: 26214400
+    max_audio_seconds: 3600
+    raw_recording_urls_returned: false
+    raw_audio_retained: false
+    bulk_transcript_exports: false
   daily_nurture:
-    pilot: "Jeremy"
-    hubspot_owner_email: "jeremy.wong@staffany.com"
-    protected_pool_baseline: 150
-    daily_account_count: 30
-    timezone: "Asia/Singapore"
-    working_days: "Monday-Friday"
-    nine_am_cron_utc: "0 1 * * 1-5"
-    noon_reminder_cron_utc: "0 4 * * 1-5"
-    nine_am_cron_local: "0 9 * * 1-5"
-    noon_reminder_cron_local: "0 12 * * 1-5"
-    material_registry_spreadsheet_id_env: "NURTUREANY_MATERIAL_REGISTRY_SPREADSHEET_ID"
-    daily_runs_dir_env: "NURTUREANY_DAILY_RUNS_DIR"
-    sent_definition: "Eazybe accepted/queued approved template OR HubSpot matching WhatsApp communication after run start"
-    per_ae_runtime_config:
-      - name: "Jeremy"
-        slack_user_id: "U_JEREMY_PLACEHOLDER"
-        hubspot_owner_email: "jeremy.wong@staffany.com"
-        manager_slack_user_id: "U_MANAGER_PLACEHOLDER"
-        reminder_channel_id: "C_REMINDER_PLACEHOLDER"
-        supported_countries:
-          - "Singapore"
-        daily_account_count: 30
-        timezone: "Asia/Singapore"
-        eazybe_sender_ref: "EAZYBE_SENDER_REF_PLACEHOLDER"
-        default_template_name: "nurture_material_share_v1"
+    status: disabled_pending_refinement
+    approved_runtime_workflow: false
+    cron_enabled: false
+    reminder_cron_enabled: false
+    reason: "Workflow must be refined and confirmed before being advertised or scheduled."
   photo_matching:
     drive_folder_id: 1qXlFnr5TKFtsYNWk7ZywBBctDaae3RY-
     drive_folder_label: all-random
@@ -213,10 +210,14 @@ mcp_servers:
       type: bot_token_env
       env: SLACK_BOT_TOKEN
       configured_channel_ids_env: NURTUREANY_SLACK_INTENT_CHANNEL_IDS
+      configured_thread_channel_ids_env: NURTUREANY_SLACK_THREAD_CONTEXT_CHANNEL_IDS
+      public_thread_channels_env: NURTUREANY_SLACK_THREAD_CONTEXT_PUBLIC_CHANNELS
+      configured_public_thread_channel_auto_join: true
       fallback_channel_ids_env: SLACK_HOME_CHANNEL
     access_policy:
       mode: read_only
-      configured_channels_only: true
+      configured_channels_only: false
+      public_channels_only: true
       max_context_messages: 10
       max_context_lookback_minutes: 30
       max_thread_context_messages: 50
@@ -290,11 +291,38 @@ mcp_servers:
     - read_nurtureany_operation_ledger
     - draft_nurture_message
     - plan_hubspot_writeback
-    - build_daily_nurture_plan
     mutation_tools_disabled_until_write_phase:
     - create_hubspot_task
     - append_hubspot_note
     - update_nurture_fields
+  aircall_nurtureany:
+    description: Read-only Aircall call metadata and selected-call OpenAI transcription adapter.
+    command: /Users/leekaiyi/.hermes/hermes-agent/venv/bin/python
+    args:
+    - /Users/leekaiyi/workspace/agent builder/apps/nurtureany-sales-bot/runtime/mcp/aircall_nurtureany_server.py
+    auth_metadata:
+      aircall:
+        type: basic_auth_env
+        id_env: AIRCALL_API_ID
+        token_env: AIRCALL_API_TOKEN
+      transcription:
+        type: bearer_env_from_profile_dotenv
+        endpoint: https://api.openai.com/v1/audio/transcriptions
+        default_model: gpt-4o-transcribe-diarize
+    access_policy:
+      mode: read_only
+      selected_call_only: true
+      max_calls: 5
+      max_audio_bytes: 26214400
+      max_audio_seconds: 3600
+      raw_recording_urls_returned: false
+      raw_audio_retained: false
+      bulk_transcript_exports: false
+      transcript_output: redacted_bounded_internal_summary_only
+      hubspot_source_of_truth: true
+    tool_allowlist:
+    - find_aircall_calls
+    - transcribe_aircall_recording
   public_research_nurtureany:
     description: Read-only Tavily public company research for scoped HubSpot companies, plus brand-parent identity lookup before HubSpot re-query.
     command: /Users/leekaiyi/.hermes/hermes-agent/venv/bin/python
@@ -589,7 +617,6 @@ mcp_servers:
       env: EAZYBE_API_KEY
       broadcast_api_url_env: EAZYBE_BROADCAST_API_URL
       status_api_url_env: EAZYBE_STATUS_API_URL
-      daily_runs_dir_env: NURTUREANY_DAILY_RUNS_DIR
     access_policy:
       mode: approval_gated_template_send
       approved_templates_only: true
@@ -601,7 +628,6 @@ mcp_servers:
     - preview_eazybe_template_messages
     - send_approved_eazybe_messages
     - check_eazybe_send_status
-    - build_daily_nurture_reminder
 gateway:
   slack:
     enabled: true

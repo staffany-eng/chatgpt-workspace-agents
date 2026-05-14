@@ -41,8 +41,10 @@ mcp = FastMCP(
         "Read-only bounded Slack context for NurtureAny quick-intent routing and "
         "selected-thread summaries. Use SLACK_BOT_TOKEN and configured channel "
         "IDs only. Quick intent is max 10 messages or 30 minutes; explicit "
-        "thread reads are max 50 messages. Return safe snippets/permalinks only, "
-        "and never post or persist raw Slack transcripts."
+        "thread reads may run before approval for planning context, are max 50 "
+        "messages, and may auto-join public source channels when explicitly "
+        "enabled. Return safe snippets/permalinks only, and never post or persist "
+        "raw Slack transcripts."
     ),
 )
 
@@ -64,10 +66,12 @@ def _scope(channel_id: str, thread_ts: str, limit: int, lookback_minutes: int) -
         "read_only": True,
         "transcript_persisted": False,
         "configured_channels_only": True,
+        "configured_public_channel_auto_join": True,
     }
 
 
 def _thread_scope(channel_id: str, thread_ts: str, limit: int, current_ts: str = "") -> dict[str, Any]:
+    allow_all_public = _allow_all_public_thread_channels()
     return {
         "channel_id": (channel_id or "").strip(),
         "thread_ts": (thread_ts or "").strip(),
@@ -76,7 +80,9 @@ def _thread_scope(channel_id: str, thread_ts: str, limit: int, current_ts: str =
         "max_thread_context_messages": MAX_THREAD_CONTEXT_MESSAGES,
         "read_only": True,
         "transcript_persisted": False,
-        "configured_channels_only": True,
+        "configured_channels_only": not allow_all_public,
+        "allow_all_public_channels": allow_all_public,
+        "public_channels_only": True,
     }
 
 
@@ -91,14 +97,48 @@ def _token() -> str:
     return token
 
 
-def _configured_channel_ids() -> set[str]:
-    raw = (
-        os.environ.get("NURTUREANY_SLACK_INTENT_CHANNEL_IDS", "")
-        or os.environ.get("SLACK_ALLOWED_CHANNEL_IDS", "")
-        or os.environ.get("SLACK_HOME_CHANNEL", "")
-    )
+def _channel_ids_from_env(*names: str) -> set[str]:
+    raw = ""
+    for name in names:
+        raw = os.environ.get(name, "").strip()
+        if raw:
+            break
     values = re.split(r"[\s,]+", raw.strip())
     return {value for value in values if value}
+
+
+def _configured_channel_ids() -> set[str]:
+    return _channel_ids_from_env(
+        "NURTUREANY_SLACK_INTENT_CHANNEL_IDS",
+        "SLACK_ALLOWED_CHANNEL_IDS",
+        "SLACK_HOME_CHANNEL",
+    )
+
+
+def _configured_thread_channel_ids() -> set[str]:
+    return _channel_ids_from_env(
+        "NURTUREANY_SLACK_THREAD_CONTEXT_CHANNEL_IDS",
+        "NURTUREANY_SLACK_INTENT_CHANNEL_IDS",
+        "SLACK_ALLOWED_CHANNEL_IDS",
+        "SLACK_HOME_CHANNEL",
+    )
+
+
+def _thread_channel_config_source() -> str:
+    if os.environ.get("NURTUREANY_SLACK_THREAD_CONTEXT_CHANNEL_IDS", "").strip():
+        return "NURTUREANY_SLACK_THREAD_CONTEXT_CHANNEL_IDS"
+    return "NURTUREANY_SLACK_INTENT_CHANNEL_IDS or SLACK_HOME_CHANNEL"
+
+
+def _truthy_env(name: str) -> bool:
+    return os.environ.get(name, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _allow_all_public_thread_channels() -> bool:
+    mode = os.environ.get("NURTUREANY_SLACK_THREAD_CONTEXT_PUBLIC_CHANNELS", "").strip().lower()
+    return mode in {"all", "public", "true", "1", "yes", "on"} or _truthy_env(
+        "NURTUREANY_SLACK_THREAD_CONTEXT_ALLOW_ALL_PUBLIC"
+    )
 
 
 def _clamp_int(value: int | str | None, default: int, lower: int, upper: int) -> int:
@@ -216,6 +256,32 @@ def _thread_messages(
     return [message for message in messages if oldest <= _message_ts(message) <= latest], "Slack conversations.replies API"
 
 
+def _join_public_channel(channel_id: str) -> None:
+    _slack_api("conversations.join", {"channel": channel_id})
+
+
+def _is_public_channel(channel_id: str) -> bool:
+    payload = _slack_api("conversations.info", {"channel": channel_id})
+    channel = payload.get("channel") if isinstance(payload, dict) else {}
+    if not isinstance(channel, dict):
+        return False
+    return bool(channel.get("is_channel")) and not bool(channel.get("is_private"))
+
+
+def _thread_messages_with_public_join(
+    channel_id: str, thread_ts: str, latest: float, oldest: float, limit: int
+) -> tuple[list[dict[str, Any]], str, bool]:
+    try:
+        messages, source = _thread_messages(channel_id, thread_ts, latest, oldest, limit)
+        return messages, source, False
+    except SlackIntentError as error:
+        if "not_in_channel" not in str(error):
+            raise
+        _join_public_channel(channel_id)
+        messages, source = _thread_messages(channel_id, thread_ts, latest, oldest, limit)
+        return messages, f"{source} after Slack conversations.join", True
+
+
 def _parse_slack_permalink(permalink: str) -> tuple[str, str]:
     parsed = urllib.parse.urlparse(str(permalink or "").strip())
     match = re.search(r"/archives/([^/]+)/p(\d{10})(\d{6})", parsed.path)
@@ -233,19 +299,26 @@ def _thread_context(channel_id: str, thread_ts: str, current_ts: str, limit: int
     scope = _thread_scope(channel_id, thread_ts, safe_limit, current_ts)
     channel = (channel_id or "").strip()
     thread = (thread_ts or "").strip()
-    configured_channels = _configured_channel_ids()
+    configured_channels = _configured_thread_channel_ids()
+    allow_all_public = _allow_all_public_thread_channels()
     if not channel:
         return _blocked("channel_id is required for Slack thread context.", scope)
     if not thread:
         return _blocked("thread_ts is required for Slack thread context.", scope)
-    if not configured_channels:
-        return _blocked("NURTUREANY_SLACK_INTENT_CHANNEL_IDS or SLACK_HOME_CHANNEL is required.", scope)
     if channel not in configured_channels:
-        return _blocked("Slack thread context is restricted to configured channel IDs.", scope)
+        if not allow_all_public:
+            if not configured_channels:
+                return _blocked(f"{_thread_channel_config_source()} is required.", scope)
+            return _blocked("Slack thread context is restricted to configured thread-context channel IDs.", scope)
+        try:
+            if not _is_public_channel(channel):
+                return _blocked("Slack thread context can only auto-join public channels.", scope)
+        except SlackIntentError as error:
+            return _blocked(str(error), scope)
 
     latest = max(_ts_float(current_ts, time.time()), _ts_float(thread, 0.0))
     try:
-        messages, source = _thread_messages(channel, thread, latest, 0.0, safe_limit)
+        messages, source, joined_public_channel = _thread_messages_with_public_join(channel, thread, latest, 0.0, safe_limit)
     except SlackIntentError as error:
         return _blocked(str(error), scope)
 
@@ -260,6 +333,9 @@ def _thread_context(channel_id: str, thread_ts: str, current_ts: str, limit: int
             "message_count": len(safe_messages),
             "will_mutate_slack": False,
             "will_post_message": False,
+            "may_join_configured_public_channel": True,
+            "may_join_public_channel": allow_all_public or channel in configured_channels,
+            "joined_public_channel": joined_public_channel,
             "transcript_persisted": False,
         },
         "source": source,
@@ -328,14 +404,14 @@ def get_current_slack_thread_context(
     current_ts: str = "",
     limit: int = DEFAULT_THREAD_CONTEXT_LIMIT,
 ) -> dict[str, Any]:
-    """Read one configured-channel Slack thread after approval or bounded continuation."""
+    """Read one selected Slack thread for preflight context, approval, or bounded continuation."""
 
     return _thread_context(channel_id, thread_ts, current_ts, limit)
 
 
 @mcp.tool()
 def get_selected_slack_thread_context(permalink: str, limit: int = DEFAULT_THREAD_CONTEXT_LIMIT) -> dict[str, Any]:
-    """Read one configured-channel Slack thread from a user-supplied permalink."""
+    """Read one selected Slack thread from a user-supplied permalink."""
 
     try:
         channel_id, thread_ts = _parse_slack_permalink(permalink)

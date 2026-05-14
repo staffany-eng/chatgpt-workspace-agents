@@ -5,12 +5,12 @@ Canonical app packet for StaffAny's Hermes runtime data bot.
 ## Runtime Shape
 
 - Runtime: Hermes Agent
-- Profile: `staffanydatabot`
+- Profile: `staffanydatabot` on `hermes-data-bot-poc` only; do not create or run a Mac-local `staffanydatabot` profile.
 - First surface: Slack POC in `#da-ta-hermz-testing`
 - Model: Anthropic provider, `claude-sonnet-4-6`, configured in the live profile
 - BigQuery access: StaffAny BigQuery MCP proxy, read-only allowlist
 - Source packet: this directory
-- Live runtime state: `~/.hermes/profiles/staffanydatabot/`
+- Live runtime state: `~/.hermes/profiles/staffanydatabot/` on `hermes-data-bot-poc`
 - Slack scope policy: `groups:read` is intentionally not required for the POC.
 
 ## Current GCP Topology
@@ -44,7 +44,7 @@ See `deploy/gcp-vm-topology.md` before changing deployed bot placement or answer
 ## Restore Order
 
 1. Install Hermes and verify `hermes doctor`.
-2. Create or select the `staffanydatabot` profile.
+2. Create or select the `staffanydatabot` profile on `hermes-data-bot-poc` only. If a Mac-local `~/.hermes/profiles/staffanydatabot` exists, archive/delete it before live Slack testing.
 3. Copy `profile/SOUL.md` into the profile's `SOUL.md`.
 4. Use `profile/config.template.yaml` as the non-secret config guide.
 5. Copy `skills/staffany-data-bot/` into the profile skills directory.

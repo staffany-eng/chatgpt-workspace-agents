@@ -43,7 +43,7 @@ NurtureAny may use the StaffAny `team@staffany.com` Google Drive OAuth account t
 - Pass returned metadata to `scan_drive_event_photos` before photo matching.
 - Pass extracted `vision_clues` into `propose_photo_people_matches`; if no badge/signage/company/contact text is visible, ask for one missing clue instead of claiming a match.
 - Use `read_indonesia_event_registration_attendance` only for Indonesia LL/HHH event follow-up when Luma `checked_in_at` attendance is empty or check-in was not used.
-- Use `read_nurture_material_registry` before `build_daily_nurture_plan` for the daily 09:00 Asia/Singapore nurture pack. Pass returned `rows` as `material_registry_rows`.
+- The material registry is read-only context. Daily 09:00 nurture-pack automation is disabled pending workflow refinement and confirmation.
 - Material registry rows are read-only context. Active/approved/live rows may reference repo case-study IDs or contain podcast, salary benchmark, fireside chat learning, event invite, speaking opportunity, venue opportunity, or warm peer intro material. Expired, future, or inactive rows are ignored by the planner.
 - The fallback reads bounded rows from `ID REV - LL & HHH EVENTS`, for example `HHH Bali 7 May - Rsvp`, and treats `Attend The Event` as manual attendance evidence.
 - The fallback must return safe rows only: company, role/title, account mapping, RSVP/WA confirm, attended flag, QO/remarks, email domain/hash, and match keys. It must not return phone numbers, full emails, raw registration exports, or mutate Drive/Sheets.

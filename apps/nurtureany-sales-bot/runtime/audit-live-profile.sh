@@ -9,8 +9,6 @@ EXPECTED_HEALTH_CRON_NAME="${EXPECTED_HEALTH_CRON_NAME:-nurtureanysalesbot healt
 EXPECTED_AUDIT_CRON_NAME="${EXPECTED_AUDIT_CRON_NAME:-nurtureanysalesbot live profile audit}"
 EXPECTED_SLACK_SOCKET_WATCHDOG_CRON_NAME="${EXPECTED_SLACK_SOCKET_WATCHDOG_CRON_NAME:-nurtureanysalesbot Slack socket watchdog}"
 EXPECTED_CLOUD_HEARTBEAT_CRON_NAME="${EXPECTED_CLOUD_HEARTBEAT_CRON_NAME:-nurtureanysalesbot local cloud heartbeat}"
-EXPECTED_DAILY_NURTURE_CRON_NAME="${EXPECTED_DAILY_NURTURE_CRON_NAME:-nurtureanysalesbot Jeremy daily nurture pack}"
-EXPECTED_DAILY_NURTURE_REMINDER_CRON_NAME="${EXPECTED_DAILY_NURTURE_REMINDER_CRON_NAME:-nurtureanysalesbot Jeremy noon nurture reminder}"
 EXPECTED_CRON_TIMEZONE="${EXPECTED_CRON_TIMEZONE:-Asia/Singapore}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -100,11 +98,11 @@ printf '%s\n' "$cron_out" | grep -Fq "$EXPECTED_SLACK_SOCKET_WATCHDOG_CRON_NAME"
 
 cron_jobs_path="$PROFILE_DIR/cron/jobs.json"
 [ -r "$cron_jobs_path" ] || fail "cron:jobs-json-unreadable"
-python3 - "$cron_jobs_path" "$EXPECTED_HEALTH_CRON_NAME" "$EXPECTED_AUDIT_CRON_NAME" "$EXPECTED_SLACK_SOCKET_WATCHDOG_CRON_NAME" "$EXPECTED_CLOUD_HEARTBEAT_CRON_NAME" "$EXPECTED_DAILY_NURTURE_CRON_NAME" "$EXPECTED_DAILY_NURTURE_REMINDER_CRON_NAME" "$EXPECTED_CRON_TIMEZONE" > /dev/null <<'PY' || fail "cron:records-invalid"
+python3 - "$cron_jobs_path" "$EXPECTED_HEALTH_CRON_NAME" "$EXPECTED_AUDIT_CRON_NAME" "$EXPECTED_SLACK_SOCKET_WATCHDOG_CRON_NAME" "$EXPECTED_CLOUD_HEARTBEAT_CRON_NAME" "$EXPECTED_CRON_TIMEZONE" > /dev/null <<'PY' || fail "cron:records-invalid"
 import json
 import sys
 
-jobs_path, health_name, audit_name, watchdog_name, heartbeat_name, daily_name, reminder_name, timezone = sys.argv[1:9]
+jobs_path, health_name, audit_name, watchdog_name, heartbeat_name, timezone = sys.argv[1:7]
 payload = json.loads(open(jobs_path, "r", encoding="utf-8").read())
 jobs = payload.get("jobs") if isinstance(payload, dict) else payload
 if not isinstance(jobs, list):
@@ -147,18 +145,6 @@ require_job(health_name, expr="0 1 * * 1-5", script="nurtureanysalesbot-check-he
 require_job(audit_name, expr="15 1 * * 1-5", script="nurtureanysalesbot-audit-live-profile.sh")
 require_job(watchdog_name, expr="*/5 * * * *", script="nurtureanysalesbot-check-slack-socket-health.sh")
 require_job(heartbeat_name, expr="*/15 * * * *", script="nurtureanysalesbot-check-cloud-heartbeat.sh")
-require_job(
-    daily_name,
-    expr="0 9 * * 1-5",
-    deliver_prefix="slack:",
-    prompt_contains=["NurtureAny automation:", "Let the cron system deliver your final response to Slack", "Do not call Slack message-send tools"],
-)
-require_job(
-    reminder_name,
-    expr="0 12 * * 1-5",
-    deliver_prefix="slack:",
-    prompt_contains=["NurtureAny automation:", "load the persisted", "Do not recompute"],
-)
 
 for job in jobs:
     name = str(job.get("name") or "")

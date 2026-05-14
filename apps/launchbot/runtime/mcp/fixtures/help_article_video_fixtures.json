@@ -1,0 +1,25 @@
+{
+  "fixtures": [
+    {
+      "article_key": "web-app-timesheet",
+      "slot_id": "how-timesheet-works-video",
+      "old_video": "https://www.loom.com/embed/timesheetold001",
+      "new_video": "https://www.loom.com/embed/timesheetnew001",
+      "body": "<h1>Web App: Timesheet</h1><p>Before copy stays.</p><p>Here's a video of how Timesheet works:</p><iframe src=\"https://www.loom.com/embed/timesheetold001\"></iframe><h2>Overview</h2><p>After copy stays.</p>"
+    },
+    {
+      "article_key": "run-payroll",
+      "slot_id": "how-payroll-works-video",
+      "old_video": "https://www.loom.com/embed/payrollold001",
+      "new_video": "https://www.loom.com/embed/payrollnew001",
+      "body": "<h1>Run Payroll</h1><p>Here's a video of how Payroll works:</p><iframe width=\"640\" height=\"360\" src=\"https://www.loom.com/embed/payrollold001\"></iframe><h2>Before running payroll</h2><p>Keep this paragraph unchanged.</p>"
+    },
+    {
+      "article_key": "general-settings",
+      "slot_id": "settings-navigation-video",
+      "old_video": "https://www.loom.com/embed/settingsold001",
+      "new_video": "https://www.loom.com/embed/settingsnew001",
+      "body": "<h1>General Settings</h1><p>Learn how to navigate settings in this video.</p><p>&nbsp;</p><iframe src=\"https://www.loom.com/embed/settingsold001?sid=abc\"></iframe><h2>Account settings</h2><p>Keep this unchanged.</p>"
+    }
+  ]
+}

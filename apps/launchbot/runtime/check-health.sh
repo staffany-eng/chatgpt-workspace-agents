@@ -23,6 +23,13 @@ if [ -r "$PROFILE_DIR/.env" ]; then
   set +a
 fi
 
+EXPECT_PANTHEON_REPO_URL="${EXPECT_PANTHEON_REPO_URL:-git@github.com:staffany-eng/pantheon.git}"
+EXPECT_PANTHEON_BRANCH="${EXPECT_PANTHEON_BRANCH:-develop}"
+PANTHEON_REPO_DIR="${LAUNCHBOT_PANTHEON_REPO_DIR:-$PROFILE_DIR/source/pantheon}"
+PANTHEON_STATUS_PATH="${LAUNCHBOT_PANTHEON_STATUS_PATH:-$PROFILE_DIR/runtime/pantheon-repo-status.json}"
+PANTHEON_STATUS_MAX_AGE_SECONDS="${LAUNCHBOT_PANTHEON_STATUS_MAX_AGE_SECONDS:-172800}"
+HELP_ARTICLE_VIDEO_REGISTRY_PATH="${LAUNCHBOT_VIDEO_PLACEMENT_REGISTRY:-$PROFILE_DIR/source/launchbot/skills/help-article-generator/references/video-placement-registry.json}"
+
 fail() {
   printf '%s\n' "$1" >&2
   exit 1
@@ -33,6 +40,7 @@ need_command() {
 }
 
 need_command hermes
+need_command git
 config_path="$(hermes -p "$PROFILE" config path 2>/dev/null)" || fail "hermes:config-path-failed"
 [ -r "$config_path" ] || fail "hermes:config-unreadable"
 hermes -p "$PROFILE" config check >/dev/null 2>&1 || fail "hermes:config-check-failed"
@@ -102,13 +110,26 @@ tools = set(launchbot_ker.get("tool_allowlist") or [])
 expected_tools = {"find_ker_ticket_from_slack_thread", "lookup_ker_ticket_by_key"}
 if tools != expected_tools:
     fail("mcp:launchbot_ker:tool-allowlist-unexpected")
+
+launchbot_help_article = mcp_servers.get("launchbot_help_article") or {}
+video_tools = set(launchbot_help_article.get("tool_allowlist") or [])
+expected_video_tools = {"preview_help_article_video_update", "create_help_article_video_update_draft"}
+if video_tools != expected_video_tools:
+    fail("mcp:launchbot_help_article:tool-allowlist-unexpected")
+video_policy = launchbot_help_article.get("access_policy") or {}
+if video_policy.get("mode") != "draft_only_registered_video_slots":
+    fail("mcp:launchbot_help_article:mode-unexpected")
+for key in ["allow_publish", "allow_delete", "allow_tag_mutation", "allow_collection_mutation"]:
+    if video_policy.get(key) is not False:
+        fail(f"mcp:launchbot_help_article:{key}:must-be-false")
 PY
 
 for key in \
   SLACK_BOT_TOKEN \
   JIRA_BASE_URL \
   JIRA_EMAIL \
-  JIRA_API_TOKEN; do
+  JIRA_API_TOKEN \
+  LAUNCH_STEP3_INTERCOM_ACCESS_TOKEN; do
   value="${!key:-}"
   [ -n "$value" ] || fail "env:$key:missing"
 done
@@ -116,3 +137,93 @@ done
 mcp_out="$(hermes -p "$PROFILE" mcp test launchbot_ker 2>&1)" || fail "mcp:launchbot_ker:test-failed"
 count="$(printf '%s\n' "$mcp_out" | sed -nE 's/.*Tools discovered: ([0-9]+).*/\1/p' | tail -1)"
 [ "$count" = "2" ] || fail "mcp:launchbot_ker:tools=${count:-unavailable}:expected=2"
+
+video_mcp_out="$(hermes -p "$PROFILE" mcp test launchbot_help_article 2>&1)" || fail "mcp:launchbot_help_article:test-failed"
+video_count="$(printf '%s\n' "$video_mcp_out" | sed -nE 's/.*Tools discovered: ([0-9]+).*/\1/p' | tail -1)"
+[ "$video_count" = "2" ] || fail "mcp:launchbot_help_article:tools=${video_count:-unavailable}:expected=2"
+
+[ -r "$HELP_ARTICLE_VIDEO_REGISTRY_PATH" ] || fail "help-article-video-registry:missing"
+"$hermes_python" - "$HELP_ARTICLE_VIDEO_REGISTRY_PATH" <<'PY' || exit 1
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+
+def fail(message: str) -> None:
+    print(message, file=sys.stderr)
+    raise SystemExit(1)
+
+try:
+    registry = json.loads(path.read_text(encoding="utf-8"))
+except Exception:
+    fail("help-article-video-registry:invalid-json")
+
+if registry.get("version") != 1:
+    fail("help-article-video-registry:version-unexpected")
+articles = registry.get("articles")
+if not isinstance(articles, list) or len(articles) < 3:
+    fail("help-article-video-registry:articles-missing")
+for article in articles:
+    if article.get("locale") != "en":
+        fail("help-article-video-registry:non-en-locale")
+    if not article.get("intercom_article_id"):
+        fail("help-article-video-registry:article-id-missing")
+    slots = article.get("slots")
+    if not isinstance(slots, list) or not slots:
+        fail("help-article-video-registry:slot-missing")
+    for slot in slots:
+        if slot.get("provider") != "loom":
+            fail("help-article-video-registry:provider-unexpected")
+        if slot.get("replace_policy") != "replace_next_video_after_anchor":
+            fail("help-article-video-registry:replace-policy-unexpected")
+PY
+
+[ -d "$PANTHEON_REPO_DIR/.git" ] || fail "pantheon:checkout-missing"
+pantheon_remote="$(git -C "$PANTHEON_REPO_DIR" remote get-url origin 2>/dev/null)" || fail "pantheon:remote-unreadable"
+[ "$pantheon_remote" = "$EXPECT_PANTHEON_REPO_URL" ] || fail "pantheon:remote-unexpected"
+pantheon_branch="$(git -C "$PANTHEON_REPO_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null)" || fail "pantheon:branch-unreadable"
+[ "$pantheon_branch" = "$EXPECT_PANTHEON_BRANCH" ] || fail "pantheon:branch-unexpected"
+pantheon_status="$(git -C "$PANTHEON_REPO_DIR" status --porcelain=v1 2>/dev/null)" || fail "pantheon:status-unreadable"
+[ -z "$pantheon_status" ] || fail "pantheon:dirty-checkout"
+[ -r "$PANTHEON_STATUS_PATH" ] || fail "pantheon:status-json-missing"
+
+"$hermes_python" - "$PANTHEON_STATUS_PATH" "$EXPECT_PANTHEON_REPO_URL" "$EXPECT_PANTHEON_BRANCH" "$PANTHEON_REPO_DIR" "$PANTHEON_STATUS_MAX_AGE_SECONDS" <<'PY' || exit 1
+import json
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+status_path, expected_remote, expected_branch, expected_path, max_age_seconds = sys.argv[1:6]
+
+def fail(message: str) -> None:
+    print(message, file=sys.stderr)
+    raise SystemExit(1)
+
+try:
+    status = json.loads(Path(status_path).read_text(encoding="utf-8"))
+except Exception:
+    fail("pantheon:status-json-invalid")
+
+if status.get("remote") != expected_remote:
+    fail("pantheon:status-remote-unexpected")
+if status.get("branch") != expected_branch:
+    fail("pantheon:status-branch-unexpected")
+if status.get("path") != expected_path:
+    fail("pantheon:status-path-unexpected")
+sha = status.get("sha")
+if not isinstance(sha, str) or len(sha) != 40:
+    fail("pantheon:status-sha-invalid")
+updated_at = status.get("updated_at")
+if not isinstance(updated_at, str):
+    fail("pantheon:status-updated-at-missing")
+try:
+    timestamp = datetime.strptime(updated_at, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+except ValueError:
+    fail("pantheon:status-updated-at-invalid")
+age = (datetime.now(timezone.utc) - timestamp).total_seconds()
+if age < 0:
+    fail("pantheon:status-updated-at-future")
+if age > int(max_age_seconds):
+    fail("pantheon:status-stale")
+PY

@@ -94,7 +94,7 @@ if [ "$(uname -s)" = "Darwin" ] && command -v launchctl >/dev/null 2>&1; then
 fi
 
 if command -v hermes >/dev/null 2>&1; then
-  for server in staffany_bigquery hubspot_nurtureany google_calendar_nurtureany google_drive_nurtureany eazybe_nurtureany luma_nurtureany public_research_nurtureany lusha_nurtureany exa_nurtureany near_me_nurtureany; do
+  for server in staffany_bigquery hubspot_nurtureany aircall_nurtureany google_calendar_nurtureany google_drive_nurtureany eazybe_nurtureany luma_nurtureany public_research_nurtureany lusha_nurtureany exa_nurtureany near_me_nurtureany; do
     out="$(hermes -p "$PROFILE" mcp test "$server" 2>&1 || true)"
     count="$(printf '%s\n' "$out" | sed -nE 's/.*Tools discovered: ([0-9]+).*/\1/p' | tail -1)"
     if [ -n "$count" ]; then
@@ -133,12 +133,4 @@ if [ -r "$PROFILE_DIR/operation-ledger" ] || [ -d "$PROFILE_DIR/operation-ledger
   line "operation_ledger:files=$count"
 else
   line "operation_ledger:not-found"
-fi
-
-daily_runs_dir="${NURTUREANY_DAILY_RUNS_DIR:-$PROFILE_DIR/daily-runs}"
-if [ -d "$daily_runs_dir" ]; then
-  count="$(find "$daily_runs_dir" -type f -name '*.json' 2>/dev/null | wc -l | tr -d ' ')"
-  line "daily_runs:dir=$daily_runs_dir:files=$count"
-else
-  line "daily_runs:dir=$daily_runs_dir:not-found"
 fi

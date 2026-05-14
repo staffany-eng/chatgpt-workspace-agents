@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Minimal Launch Superpower Bot E2E runner.
+"""Minimal Launchbot launch-workflow E2E runner.
 
 This runner exists because the original vk-super-productivity source checkout is
 not present on Da Ta Hermz. It exercises the same external surfaces from the
@@ -14,7 +14,9 @@ import html
 import json
 import os
 import re
+import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 from typing import Any
@@ -288,7 +290,14 @@ def inline_html(text: str) -> str:
     return re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", escaped)
 
 
-def write_artifacts(base_dir: Path, issue: str, version: str, markdown: str) -> dict[str, Any]:
+def write_artifacts(
+    base_dir: Path,
+    issue: str,
+    version: str,
+    markdown: str,
+    *,
+    article_plan: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     version_dir = base_dir / "step-1-help-article-trigger" / "issues" / issue / "versions" / version
     version_dir.mkdir(parents=True, exist_ok=True)
     title = markdown.splitlines()[0].removeprefix("# ").strip()
@@ -301,9 +310,9 @@ def write_artifacts(base_dir: Path, issue: str, version: str, markdown: str) -> 
             [
                 "# Internal Notes",
                 "",
-                "- Source of truth: Launch Superpower Bot packet and 2026-05-11 handoff.",
+                "- Source of truth: Launchbot packet and 2026-05-11 handoff.",
                 "- Runtime source checkout: not present; runner used packet-backed article contract.",
-                "- Key app packet: apps/launch-superpower-bot/.",
+                "- Key app packet: apps/launchbot/.",
                 "- Assumption: KER-1742 ClubAny management can use Vanessa's combined article target.",
                 f"- Last verified issue/version: {issue}/{version}.",
             ]
@@ -323,6 +332,7 @@ def write_artifacts(base_dir: Path, issue: str, version: str, markdown: str) -> 
                 "internal_notes_path": str(notes_path),
             }
         ],
+        "article_plan": article_plan or {},
     }
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     return manifest
@@ -475,6 +485,158 @@ def intercom_direct_url(article_id: Any) -> str:
     return f"https://app.intercom.com/a/apps/{app_id}/articles/articles/{article_id}/show"
 
 
+def run_intercom_format_gate(title: str, markdown: str) -> dict[str, Any]:
+    app_root = Path(__file__).resolve().parents[1]
+    gate_script = app_root / "runtime" / "intercom-format-gate.mjs"
+    profile_path = (
+        app_root
+        / "skills"
+        / "help-article-generator"
+        / "references"
+        / "intercom-format-profile.json"
+    )
+    node_bin = env_value("LAUNCH_NODE_BINARY", "NODE_BINARY", required=False) or "node"
+    with tempfile.NamedTemporaryFile("w", suffix=".md", encoding="utf-8", delete=False) as draft_file:
+        draft_file.write(markdown)
+        draft_path = draft_file.name
+    try:
+        result = subprocess.run(
+            [
+                node_bin,
+                str(gate_script),
+                "help-article:format-check",
+                "--draft",
+                draft_path,
+                "--title",
+                title,
+                "--profile",
+                str(profile_path),
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    finally:
+        try:
+            Path(draft_path).unlink()
+        except FileNotFoundError:
+            pass
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout or "").strip()
+        fail(f"intercom-format-gate:failed:{detail[:1000]}")
+    try:
+        gate = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        fail(f"intercom-format-gate:invalid-json:{exc}")
+    if gate.get("status") != "pass":
+        fail(f"intercom-format-gate:{gate.get('status')}:{json.dumps(gate.get('errors', []))}")
+    return gate
+
+
+def run_help_article_plan(topic: str, *, allow_offline: bool = False) -> dict[str, Any]:
+    app_root = Path(__file__).resolve().parents[1]
+    gate_script = app_root / "runtime" / "intercom-format-gate.mjs"
+    node_bin = env_value("LAUNCH_NODE_BINARY", "NODE_BINARY", required=False) or "node"
+    command = [
+        node_bin,
+        str(gate_script),
+        "help-article:plan",
+        "--topic",
+        topic,
+    ]
+    if allow_offline and not (
+        os.environ.get("LAUNCH_STEP3_INTERCOM_ACCESS_TOKEN") or os.environ.get("INTERCOM_ACCESS_TOKEN")
+    ):
+        command.append("--offline")
+    result = subprocess.run(
+        command,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout or "").strip()
+        fail(f"help-article-plan:failed:{detail[:1000]}")
+    try:
+        article_plan = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        fail(f"help-article-plan:invalid-json:{exc}")
+    if article_plan.get("status") != "pass":
+        fail(f"help-article-plan:{article_plan.get('status')}:{json.dumps(article_plan.get('errors', []))}")
+    return article_plan
+
+
+def run_pantheon_evidence_gate(title: str, markdown: str) -> dict[str, Any]:
+    app_root = Path(__file__).resolve().parents[1]
+    repo_root = app_root.parents[1]
+    gate_script = app_root / "runtime" / "intercom-format-gate.mjs"
+    node_bin = env_value("LAUNCH_NODE_BINARY", "NODE_BINARY", required=False) or "node"
+    pantheon_apps = env_value("LAUNCH_PANTHEON_APPS", required=False) or "gryphon,pixie"
+    evidence_dir = repo_root / ".cache" / "launch-superpower-bot" / "pantheon-evidence"
+    evidence_dir.mkdir(parents=True, exist_ok=True)
+    evidence_slug = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")[:80] or "pantheon-evidence"
+    evidence_path = str(evidence_dir / f"{evidence_slug}.pantheon-evidence.json")
+    with tempfile.NamedTemporaryFile("w", suffix=".md", encoding="utf-8", delete=False) as draft_file:
+        draft_file.write(markdown)
+        draft_path = draft_file.name
+    try:
+        scan_result = subprocess.run(
+            [
+                node_bin,
+                str(gate_script),
+                "help-article:pantheon-scan",
+                "--topic",
+                title,
+                "--app",
+                pantheon_apps,
+                "--out",
+                evidence_path,
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if scan_result.returncode != 0:
+            detail = (scan_result.stderr or scan_result.stdout or "").strip()
+            fail(f"pantheon-evidence-scan:failed:{detail[:1000]}")
+        check_result = subprocess.run(
+            [
+                node_bin,
+                str(gate_script),
+                "help-article:evidence-check",
+                "--draft",
+                draft_path,
+                "--evidence",
+                evidence_path,
+                "--title",
+                title,
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    finally:
+        try:
+            Path(draft_path).unlink()
+        except FileNotFoundError:
+            pass
+    if check_result.returncode != 0:
+        detail = (check_result.stderr or check_result.stdout or "").strip()
+        fail(f"pantheon-evidence-gate:failed:{detail[:1000]}")
+    try:
+        scan = json.loads(scan_result.stdout)
+        check = json.loads(check_result.stdout)
+    except json.JSONDecodeError as exc:
+        fail(f"pantheon-evidence-gate:invalid-json:{exc}")
+    if check.get("status") != "pass":
+        fail(f"pantheon-evidence-gate:{check.get('status')}:{json.dumps(check.get('errors', []))}")
+    return {
+        "scan": scan,
+        "check": check,
+        "pantheon_evidence_path": evidence_path,
+    }
+
+
 def create_intercom_draft(title: str, markdown: str) -> dict[str, Any]:
     token = env_value("LAUNCH_STEP3_INTERCOM_ACCESS_TOKEN", "INTERCOM_ACCESS_TOKEN")
     parent_id = env_value("LAUNCH_STEP3_INTERCOM_STAGING_COLLECTION_ID", required=False) or DEFAULT_PARENT_COLLECTION_ID
@@ -524,6 +686,9 @@ def run_approval_only(args: argparse.Namespace) -> None:
         authorized_user_ids=csv_set(args.authorized_reviewer_ids),
     )
 
+    article_plan = run_help_article_plan(title)
+    pantheon_evidence_gate = run_pantheon_evidence_gate(title, markdown)
+    format_gate = run_intercom_format_gate(title, markdown)
     intercom_article = create_intercom_draft(title, markdown)
     direct_url = intercom_direct_url(intercom_article.get("id"))
     visible_url = intercom_article.get("url") or direct_url or str(intercom_article.get("id") or "")
@@ -551,6 +716,9 @@ def run_approval_only(args: argparse.Namespace) -> None:
         "intercom_direct_url": direct_url,
         "intercom_state": intercom_article.get("state"),
         "intercom_parent_id": intercom_article.get("parent_id"),
+        "article_plan": article_plan,
+        "pantheon_evidence_gate": pantheon_evidence_gate,
+        "format_gate": format_gate,
     }
     (step3_dir / "manifest.json").write_text(json.dumps(step3_manifest, indent=2) + "\n", encoding="utf-8")
 
@@ -568,6 +736,11 @@ def run_approval_only(args: argparse.Namespace) -> None:
         "intercom_url": intercom_article.get("url"),
         "intercom_direct_url": direct_url,
         "intercom_state": intercom_article.get("state"),
+        "article_plan_status": article_plan.get("status"),
+        "article_plan_selected_family": article_plan.get("selected_family", {}).get("id"),
+        "pantheon_evidence_status": pantheon_evidence_gate.get("check", {}).get("status"),
+        "pantheon_evidence_path": pantheon_evidence_gate.get("pantheon_evidence_path"),
+        "format_gate_status": format_gate.get("status"),
     }
     print(json.dumps(result, indent=2))
 
@@ -612,8 +785,9 @@ def main() -> None:
         return
 
     output_root = Path(args.output_root)
+    article_plan = run_help_article_plan(args.summary, allow_offline=args.skip_intercom)
     markdown = article_markdown(args.issue, args.version)
-    manifest = write_artifacts(output_root, args.issue, args.version, markdown)
+    manifest = write_artifacts(output_root, args.issue, args.version, markdown, article_plan=article_plan)
     article = manifest["articles"][0]
     title = article["title"]
 
@@ -644,7 +818,11 @@ def main() -> None:
     (step2_dir / "manifest.json").write_text(json.dumps(step2_manifest, indent=2) + "\n", encoding="utf-8")
 
     intercom_article = {}
+    format_gate = {}
+    pantheon_evidence_gate = {}
     if not args.skip_intercom:
+        pantheon_evidence_gate = run_pantheon_evidence_gate(title, markdown)
+        format_gate = run_intercom_format_gate(title, markdown)
         intercom_article = create_intercom_draft(title, markdown)
 
     step3_manifest = {
@@ -656,6 +834,9 @@ def main() -> None:
         "intercom_direct_url": intercom_direct_url(intercom_article.get("id")),
         "intercom_state": intercom_article.get("state"),
         "intercom_parent_id": intercom_article.get("parent_id"),
+        "article_plan": article_plan,
+        "pantheon_evidence_gate": pantheon_evidence_gate,
+        "format_gate": format_gate,
     }
     (step3_dir / "manifest.json").write_text(json.dumps(step3_manifest, indent=2) + "\n", encoding="utf-8")
 
@@ -672,6 +853,11 @@ def main() -> None:
         "intercom_url": intercom_article.get("url"),
         "intercom_direct_url": intercom_direct_url(intercom_article.get("id")),
         "intercom_state": intercom_article.get("state"),
+        "article_plan_status": article_plan.get("status"),
+        "article_plan_selected_family": article_plan.get("selected_family", {}).get("id"),
+        "pantheon_evidence_status": pantheon_evidence_gate.get("check", {}).get("status"),
+        "pantheon_evidence_path": pantheon_evidence_gate.get("pantheon_evidence_path"),
+        "format_gate_status": format_gate.get("status"),
     }
     print(json.dumps(result, indent=2))
 
