@@ -157,13 +157,9 @@ hermes -p nurtureanysalesbot cron create "*/5 * * * *" \
   --name "nurtureanysalesbot Slack socket watchdog" \
   --script nurtureanysalesbot-check-slack-socket-health.sh \
   --no-agent
-hermes -p nurtureanysalesbot cron create "0 9 * * 1-5" \
-  --name "nurtureanysalesbot Jeremy daily nurture pack" \
-  --prompt "NurtureAny automation: Read the NurtureAny material registry, build Jeremy's daily nurture plan for 30 of his protected 150 HubSpot target accounts, persist the run JSON under NURTUREANY_DAILY_RUNS_DIR, and return the 9am Asia/Singapore Slack pack with message IDs for approval-gated Eazybe preview. Let the cron system deliver your final response to Slack. Do not call Slack message-send tools."
-hermes -p nurtureanysalesbot cron create "0 12 * * 1-5" \
-  --name "nurtureanysalesbot Jeremy noon nurture reminder" \
-  --prompt "NurtureAny automation: Load the persisted Jeremy daily nurture run from NURTUREANY_DAILY_RUNS_DIR. Do not recompute the 30/150 account selection. Check statuses for assigned stakeholder messages; if any were not Eazybe accepted/queued, later matched in HubSpot WhatsApp, or explicitly skipped, return the Slack reminder tagging Jeremy and his manager. Let the cron system deliver your final response to Slack. Do not call Slack message-send tools."
 ```
+
+Daily nurture is available as an on-demand workflow, not a required production cron. The runtime audit expects four enabled operational crons: health check, live profile audit, local cloud heartbeat, and Slack socket watchdog.
 
 The current Hermes CLI uses the deployment host timezone for cron scheduling and does not expose a `--timezone` flag.
 

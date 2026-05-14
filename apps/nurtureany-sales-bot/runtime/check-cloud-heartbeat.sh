@@ -12,11 +12,9 @@ EXPECTED_HEALTH_CRON_NAME="${EXPECTED_HEALTH_CRON_NAME:-nurtureanysalesbot healt
 EXPECTED_AUDIT_CRON_NAME="${EXPECTED_AUDIT_CRON_NAME:-nurtureanysalesbot live profile audit}"
 EXPECTED_SLACK_SOCKET_WATCHDOG_CRON_NAME="${EXPECTED_SLACK_SOCKET_WATCHDOG_CRON_NAME:-nurtureanysalesbot Slack socket watchdog}"
 EXPECTED_CLOUD_HEARTBEAT_CRON_NAME="${EXPECTED_CLOUD_HEARTBEAT_CRON_NAME:-nurtureanysalesbot local cloud heartbeat}"
-EXPECTED_DAILY_NURTURE_CRON_NAME="${EXPECTED_DAILY_NURTURE_CRON_NAME:-nurtureanysalesbot Jeremy daily nurture pack}"
-EXPECTED_DAILY_NURTURE_REMINDER_CRON_NAME="${EXPECTED_DAILY_NURTURE_REMINDER_CRON_NAME:-nurtureanysalesbot Jeremy noon nurture reminder}"
 EXPECTED_CRON_TIMEZONE="${EXPECTED_CRON_TIMEZONE:-Asia/Singapore}"
 EXPECT_CLOUD_HEARTBEAT_CRON="${EXPECT_CLOUD_HEARTBEAT_CRON:-1}"
-EXPECT_ENABLED_CRON_COUNT="${EXPECT_ENABLED_CRON_COUNT:-6}"
+EXPECT_ENABLED_CRON_COUNT="${EXPECT_ENABLED_CRON_COUNT:-4}"
 EXPECT_HUBSPOT_TOOLS="${EXPECT_HUBSPOT_TOOLS:-42}"
 EXPECT_CLOUD_DOCTOR="${EXPECT_CLOUD_DOCTOR:-1}"
 
@@ -60,8 +58,6 @@ python3 - "$cron_jobs_path" \
   "$EXPECTED_AUDIT_CRON_NAME" \
   "$EXPECTED_SLACK_SOCKET_WATCHDOG_CRON_NAME" \
   "$EXPECTED_CLOUD_HEARTBEAT_CRON_NAME" \
-  "$EXPECTED_DAILY_NURTURE_CRON_NAME" \
-  "$EXPECTED_DAILY_NURTURE_REMINDER_CRON_NAME" \
   "$EXPECTED_CRON_TIMEZONE" \
   "$EXPECT_CLOUD_HEARTBEAT_CRON" \
   "$EXPECT_ENABLED_CRON_COUNT" <<'PY' || fail "cron:records-invalid"
@@ -74,12 +70,10 @@ import sys
     audit_name,
     socket_name,
     heartbeat_name,
-    daily_name,
-    reminder_name,
     timezone,
     expect_heartbeat,
     expected_enabled_count,
-) = sys.argv[1:11]
+) = sys.argv[1:9]
 
 payload = json.loads(open(jobs_path, "r", encoding="utf-8").read())
 jobs = payload.get("jobs") if isinstance(payload, dict) else payload
@@ -119,8 +113,6 @@ require_job(audit_name, expr="15 1 * * 1-5", script="nurtureanysalesbot-audit-li
 require_job(socket_name, expr="*/5 * * * *", script="nurtureanysalesbot-check-slack-socket-health.sh")
 if expect_heartbeat == "1":
     require_job(heartbeat_name, expr="*/15 * * * *", script="nurtureanysalesbot-check-cloud-heartbeat.sh")
-require_job(daily_name, expr="0 9 * * 1-5", script=None)
-require_job(reminder_name, expr="0 12 * * 1-5", script=None)
 
 enabled = [job for job in jobs if isinstance(job, dict) and job.get("enabled") is True]
 if len(enabled) != int(expected_enabled_count):
