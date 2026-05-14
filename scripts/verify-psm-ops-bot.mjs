@@ -142,6 +142,7 @@ const filesToScan = [
   "runtime/check-health.sh",
   "runtime/check-cloud-heartbeat.sh",
   "runtime/audit-live-profile.sh",
+  "runtime/smoke-rock-productions-c360.sh",
   "runtime/mcp/psm_jira_server.py",
   "runtime/mcp/psm_c360_server.py",
   "runtime/mcp/google_oauth.py",
@@ -182,6 +183,9 @@ if (!existsSync(deployScriptPath)) {
     "psmopsbot-check-health.sh",
     "psmopsbot-check-cloud-heartbeat.sh",
     "psmopsbot-audit-live-profile.sh",
+    "psmopsbot-rock-productions-c360-smoke.sh",
+    "smoke-rock-productions-c360.sh",
+    "rock_productions_c360",
     "hermes-gateway-$profile_name.service",
     "PSM_OPS_SOURCE_DIR",
     'remote_verify="skipped:node-not-found"',
@@ -316,6 +320,24 @@ for (const requiredText of [
   if (!c360McpText.includes(requiredText)) fail(`psm_c360_server.py missing required text: ${requiredText}`);
 }
 
+const rockProductionsSmokeText = textOf(appRoot, "runtime/smoke-rock-productions-c360.sh");
+for (const requiredText of [
+  "proj-cs-rockproductions",
+  "rockproductions",
+  "rock productions",
+  "rock production",
+  "Rock Productions Pte Ltd",
+  "8051493928",
+  "Rock Productions",
+  "missing_mapping",
+  "StaffAny org",
+  "c360:rock-productions:ok"
+]) {
+  if (!rockProductionsSmokeText.includes(requiredText)) {
+    fail(`Rock Productions C360 smoke script missing required text: ${requiredText}`);
+  }
+}
+
 const profilesText = readFileSync(join(repoRoot, "ops", "hermes", "profiles.yaml"), "utf8");
 const nurtureProfileBlock = profileBlock(profilesText, "nurtureanysalesbot");
 if (!nurtureProfileBlock) {
@@ -425,7 +447,8 @@ const shellCheck = spawnSync("bash", [
   "-n",
   join(appRoot, "runtime", "check-health.sh"),
   join(appRoot, "runtime", "check-cloud-heartbeat.sh"),
-  join(appRoot, "runtime", "audit-live-profile.sh")
+  join(appRoot, "runtime", "audit-live-profile.sh"),
+  join(appRoot, "runtime", "smoke-rock-productions-c360.sh")
 ], {
   cwd: repoRoot,
   encoding: "utf8"

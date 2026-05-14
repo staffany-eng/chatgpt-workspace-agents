@@ -138,6 +138,7 @@ The script:
 - preserves runtime secrets/state, including `.env`, auth, cron, logs, sessions, state DB, and gateway state
 - restarts only `hermes-gateway-psmopsbot.service`
 - runs live profile audit, health check, cloud heartbeat, and service status
+- runs the Rock Productions C360 lookup smoke against the live Customer 360 API
 - stamps `$profile/VERSION` with the deployed SHA, branch, and UTC timestamp
 
 Useful options:
@@ -167,6 +168,7 @@ The GCE host runs UTC, so `0 1 * * *` is 09:00 Asia/Singapore daily.
 npm run psm-ops-bot:verify
 apps/psm-ops-bot/runtime/check-health.sh
 apps/psm-ops-bot/runtime/audit-live-profile.sh
+apps/psm-ops-bot/runtime/smoke-rock-productions-c360.sh
 ```
 
 Cloud smoke:
@@ -176,5 +178,5 @@ Cloud smoke:
 3. Transition it to Scheduled.
 4. Add an internal comment.
 5. Ask for due-date reminders and verify `list_due_pco_reminders` returns due tomorrow, due today, and overdue tasks only while not Done.
-6. Ask one C360 customer question and verify a C360 link/citation appears.
+6. Ask for Rock Productions from a channel-style hint such as `proj-cs-rockproductions`; verify the bot finds `Rock Productions Pte Ltd`, shows the searched variants safely, and does not say a generic customer cannot be found.
 7. Ask one calendar follow-up question and verify `psm_google_calendar.read_customer_calendar_context` returns bounded event metadata from `team@staffany.com` without descriptions, attendee emails, raw guest lists, or conference links.

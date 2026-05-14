@@ -16,6 +16,7 @@ PSM Ops Bot needs deterministic cloud health checks because prompt correctness d
 - Google Calendar OAuth is configured for `team@staffany.com` with `calendar.readonly`, returns bounded event metadata, and exposes no mutation or attendee-export tools.
 - `validate_jira_configuration` reports thin POC defaults or full configured fields and request types, including `PS Team`.
 - C360 internal API token is configured.
+- Rock Productions C360 lookup smoke passes for `proj-cs-rockproductions`, including normalized variants, HubSpot company `8051493928`, and StaffAny org `Rock Productions`.
 - Cron concurrency is capped with `cron.max_parallel_jobs: 1`.
 - Reminder cron is enabled in cloud and uses Jira `duedate` only.
 - VM-local cloud heartbeat cron is enabled every 15 minutes with local delivery disabled.
@@ -49,6 +50,18 @@ Run live profile drift audit after syncing packet files:
 apps/psm-ops-bot/runtime/audit-live-profile.sh
 ```
 
+Run the live Rock Productions C360 lookup smoke after deploy:
+
+```bash
+apps/psm-ops-bot/runtime/smoke-rock-productions-c360.sh
+```
+
+Expected success output:
+
+```text
+c360:rock-productions:ok:hubspot=8051493928:org=Rock Productions
+```
+
 ## Cron Pattern
 
 Install automatic due-date reminders under the cloud profile:
@@ -70,4 +83,4 @@ The GCE host runs UTC, so `0 1 * * *` is 09:00 Asia/Singapore daily.
 
 ## Failure Behavior
 
-On failure, print only the failing subsystem and next check. Do not print secrets, env values, raw logs, raw Slack messages, raw Jira comments, raw customer source data, phone numbers, or bulk exports.
+On failure, print only the failing subsystem and next check. Do not print secrets, env values, raw logs, raw Slack messages, raw Jira comments, raw customer source data, phone numbers, or bulk exports. The Rock Productions C360 smoke may print `searched_variants`, `match_count`, `missing_mapping`, `confidence`, and `caveat` only.

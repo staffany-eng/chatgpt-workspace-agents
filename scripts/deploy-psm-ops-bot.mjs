@@ -71,6 +71,7 @@ if (!args.apply) {
     audit: "not run (dry run)",
     health: "not run (dry run)",
     heartbeat: "not run (dry run)",
+    rockProductionsC360: "not run (dry run)",
     remoteVerify: "not run (dry run)",
   });
   process.exit(0);
@@ -134,6 +135,7 @@ printSummary({
   audit: remoteSummary.audit || "unknown",
   health: remoteSummary.health || "unknown",
   heartbeat: remoteSummary.heartbeat || "unknown",
+  rockProductionsC360: remoteSummary.rockProductionsC360 || "unknown",
   remoteVerify: remoteSummary.remoteVerify || "unknown",
 });
 
@@ -330,6 +332,7 @@ copy_dir "$deploy_dir/apps/psm-ops-bot/runtime/mcp" "$profile/runtime/mcp"
 copy_file "$deploy_dir/apps/psm-ops-bot/runtime/check-health.sh" "$profile/scripts/psmopsbot-check-health.sh" 0755
 copy_file "$deploy_dir/apps/psm-ops-bot/runtime/check-cloud-heartbeat.sh" "$profile/scripts/psmopsbot-check-cloud-heartbeat.sh" 0755
 copy_file "$deploy_dir/apps/psm-ops-bot/runtime/audit-live-profile.sh" "$profile/scripts/psmopsbot-audit-live-profile.sh" 0755
+copy_file "$deploy_dir/apps/psm-ops-bot/runtime/smoke-rock-productions-c360.sh" "$profile/scripts/psmopsbot-rock-productions-c360-smoke.sh" 0755
 
 if command -v node >/dev/null 2>&1; then
   (cd "$remote_source_dir" && node scripts/verify-psm-ops-bot.mjs)
@@ -351,6 +354,7 @@ if [ "$skip_restart" = "1" ]; then
   echo "deploy:summary:audit=not run (skip-restart)"
   echo "deploy:summary:health=not run (skip-restart)"
   echo "deploy:summary:heartbeat=not run (skip-restart)"
+  echo "deploy:summary:rock_productions_c360=not run (skip-restart)"
   echo "deploy:summary:remote_verify=$remote_verify"
   exit 0
 fi
@@ -388,6 +392,7 @@ run_post_deploy_check() {
 run_post_deploy_check audit sudo -H -u "$runtime_owner" PSM_OPS_SOURCE_DIR="$source_app" HERMES_PROFILE_DIR="$profile" XDG_RUNTIME_DIR="/run/user/$uid" "$source_app/runtime/audit-live-profile.sh"
 run_post_deploy_check health sudo -H -u "$runtime_owner" HERMES_PROFILE_DIR="$profile" XDG_RUNTIME_DIR="/run/user/$uid" "$source_app/runtime/check-health.sh"
 run_post_deploy_check heartbeat sudo -H -u "$runtime_owner" HERMES_PROFILE_DIR="$profile" XDG_RUNTIME_DIR="/run/user/$uid" "$source_app/runtime/check-cloud-heartbeat.sh"
+run_post_deploy_check rock_productions_c360 sudo -H -u "$runtime_owner" PSM_OPS_SOURCE_DIR="$source_app" HERMES_PROFILE_DIR="$profile" XDG_RUNTIME_DIR="/run/user/$uid" "$source_app/runtime/smoke-rock-productions-c360.sh"
 sudo -H -u "$runtime_owner" XDG_RUNTIME_DIR="/run/user/$uid" systemctl --user status "$service" --no-pager
 
 echo "deploy:summary:sha=$deploy_sha"
@@ -397,6 +402,7 @@ echo "deploy:summary:gateway=active"
 echo "deploy:summary:audit=passed"
 echo "deploy:summary:health=passed"
 echo "deploy:summary:heartbeat=passed"
+echo "deploy:summary:rock_productions_c360=passed"
 echo "deploy:summary:remote_verify=$remote_verify"
 `;
 }
@@ -419,6 +425,7 @@ function parseRemoteSummary(output) {
     if (key === "audit") summary.audit = value;
     if (key === "health") summary.health = value;
     if (key === "heartbeat") summary.heartbeat = value;
+    if (key === "rock_productions_c360") summary.rockProductionsC360 = value;
     if (key === "remote_verify") summary.remoteVerify = value;
   }
   return summary;
@@ -433,6 +440,7 @@ function printSummary(summary) {
   console.log(`- audit: ${summary.audit}`);
   console.log(`- health: ${summary.health}`);
   console.log(`- heartbeat: ${summary.heartbeat}`);
+  console.log(`- rock_productions_c360: ${summary.rockProductionsC360}`);
   console.log(`- remote_verify: ${summary.remoteVerify}`);
 }
 
