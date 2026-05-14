@@ -12,6 +12,7 @@ EXPECT_MODEL_DEFAULT="${EXPECT_MODEL_DEFAULT:-claude-sonnet-4-6}"
 EXPECT_SLACK_INTENT_TOOLS="${EXPECT_SLACK_INTENT_TOOLS:-3}"
 EXPECT_STAFFANY_BIGQUERY_TOOLS="${EXPECT_STAFFANY_BIGQUERY_TOOLS:-4}"
 EXPECT_HUBSPOT_TOOLS="${EXPECT_HUBSPOT_TOOLS:-42}"
+EXPECT_AIRCALL_TOOLS="${EXPECT_AIRCALL_TOOLS:-2}"
 EXPECT_GOOGLE_CALENDAR_TOOLS="${EXPECT_GOOGLE_CALENDAR_TOOLS:-2}"
 EXPECT_GOOGLE_DRIVE_TOOLS="${EXPECT_GOOGLE_DRIVE_TOOLS:-5}"
 EXPECT_EAZYBE_TOOLS="${EXPECT_EAZYBE_TOOLS:-4}"
@@ -277,6 +278,7 @@ expected_servers = {
         "plan_hubspot_writeback",
         "build_daily_nurture_plan",
     ],
+    "aircall_nurtureany": ["find_aircall_calls", "transcribe_aircall_recording"],
     "google_calendar_nurtureany": ["list_google_calendar_events", "audit_google_calendar_meeting_quality"],
     "google_drive_nurtureany": [
         "list_drive_folder_images",
@@ -596,6 +598,7 @@ PY
 mcp_test slack_nurtureany "$EXPECT_SLACK_INTENT_TOOLS"
 mcp_test staffany_bigquery "$EXPECT_STAFFANY_BIGQUERY_TOOLS"
 mcp_test hubspot_nurtureany "$EXPECT_HUBSPOT_TOOLS"
+mcp_test aircall_nurtureany "$EXPECT_AIRCALL_TOOLS"
 mcp_test google_calendar_nurtureany "$EXPECT_GOOGLE_CALENDAR_TOOLS"
 mcp_test google_drive_nurtureany "$EXPECT_GOOGLE_DRIVE_TOOLS"
 mcp_test eazybe_nurtureany "$EXPECT_EAZYBE_TOOLS"

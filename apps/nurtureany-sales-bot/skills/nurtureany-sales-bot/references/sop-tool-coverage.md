@@ -4,7 +4,7 @@ Use this reference with `sales-best-practices.md` before changing or answering f
 
 ## Global SOP Rules
 
-- Source hierarchy: HubSpot and live tool output override training docs for target-account membership, owner, country, contract end date, current tools, follow-up status, calls, meetings, tasks, notes, conversations, campaigns, and deals.
+- Source hierarchy: HubSpot and live tool output override training docs for target-account membership, owner, country, contract end date, current tools, follow-up status, calls, meetings, tasks, notes, conversations, campaigns, and deals. Aircall is selected-call enrichment only and never overrides HubSpot account/activity truth.
 - HubSpot override fields: `hs_is_target_account`, `hubspot_owner_id`, `company_country`, `contract_end_date`, `current_tools`, HubSpot communications/notes/tasks/meetings/calls, Conversations threads, Marketing Campaigns, and configured QO/QO Met/closed-won deal stages.
 - Intent-gated Slack flow: first tool-backed Slack request plans and waits for `run` unless quick-autorun is fully satisfied by obvious configured-channel context, exact scope, read-only or preview/draft-only work, expected runtime under 60 seconds, and a small bounded tool set. Material scope changes need a revised plan.
 - Access scope: Slack email is caller identity only; access comes from `NURTUREANY_ACCESS_POLICY_PATH`, HubSpot owners API, and country/owner scope.
@@ -47,6 +47,8 @@ Use this reference with `sales-best-practices.md` before changing or answering f
 | `prepare_sales_navigator_decision_maker_queue` | Decision-maker handoff | Manual Sales Navigator queue from scoped HubSpot company/contact context; `pre_demo_150` and `post_event_top10` only, no LinkedIn scraping, browser automation, PII reveal, or HubSpot mutation. |
 | `build_friday_sales_review` | Friday rhythm | Uses sales best practices for hygiene, funnel, coaching, actions, support, and optional warehouse follow-ups; stage config gates QO/QO Met; no raw bodies. |
 | `build_manager_chase_plan` | Manager chase | Manager/admin-only copy-ready chase drafts from HubSpot coverage, task/activity evidence, and optional selected Slack blocker summaries; Manager draft only, no rep tags, raw transcripts, sends, or mutation. |
+| `find_aircall_calls` | Call review | Read-only Aircall recent-call lookup for selected call-review workflows; max 5 calls, safe metadata and recording availability only, no phone numbers, raw recording URLs, audio, transcripts, mutation, or HubSpot truth override. |
+| `transcribe_aircall_recording` | Call review | Selected numeric Aircall call ID only; transiently downloads one recording, sends it to OpenAI audio transcription, caps at 25 MB / 60 minutes, deletes audio before return, returns redacted bounded transcript text/segments only, and never mutates Aircall or HubSpot. |
 | `get_account_context` | Account context | HubSpot account truth plus C360 enrichment for verified customers; safe packet by default; access scope, PII/body safety, no mutation. |
 | `build_pre_demo_game_plans` | Pre-demo | Selected scoped accounts only; I-C-BANT and missing-evidence rules; optional Slack source-thread permalink as provenance only; no raw Slack transcript, invented pricing/current tools/case studies, or mutation. |
 | `find_sales_case_studies` | Case studies | Read-only approved public customer-story and full-video-reviewed BMC podcast-card lookup for scoped HubSpot accounts or supplied brainstorm queries; no weak analogy promotion, HubSpot mutation, or unapproved name drops. |

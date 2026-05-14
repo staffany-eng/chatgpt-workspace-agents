@@ -161,6 +161,19 @@ nurtureany:
     no_rep_tagging: true
     no_external_send: true
     no_hubspot_mutation: true
+  aircall_call_review:
+    source_role: selected_call_enrichment_only
+    source_of_truth: HubSpot remains account, owner, task, note, deal, contact, and nurture-field truth
+    metadata_tool: find_aircall_calls
+    transcription_tool: transcribe_aircall_recording
+    default_model: gpt-4o-transcribe-diarize
+    max_calls: 5
+    selected_call_only: true
+    max_audio_bytes: 26214400
+    max_audio_seconds: 3600
+    raw_recording_urls_returned: false
+    raw_audio_retained: false
+    bulk_transcript_exports: false
   daily_nurture:
     pilot: "Jeremy"
     hubspot_owner_email: "jeremy.wong@staffany.com"
@@ -295,6 +308,34 @@ mcp_servers:
     - create_hubspot_task
     - append_hubspot_note
     - update_nurture_fields
+  aircall_nurtureany:
+    description: Read-only Aircall call metadata and selected-call OpenAI transcription adapter.
+    command: /Users/leekaiyi/.hermes/hermes-agent/venv/bin/python
+    args:
+    - /Users/leekaiyi/workspace/agent builder/apps/nurtureany-sales-bot/runtime/mcp/aircall_nurtureany_server.py
+    auth_metadata:
+      aircall:
+        type: basic_auth_env
+        id_env: AIRCALL_API_ID
+        token_env: AIRCALL_API_TOKEN
+      transcription:
+        type: bearer_env_from_profile_dotenv
+        endpoint: https://api.openai.com/v1/audio/transcriptions
+        default_model: gpt-4o-transcribe-diarize
+    access_policy:
+      mode: read_only
+      selected_call_only: true
+      max_calls: 5
+      max_audio_bytes: 26214400
+      max_audio_seconds: 3600
+      raw_recording_urls_returned: false
+      raw_audio_retained: false
+      bulk_transcript_exports: false
+      transcript_output: redacted_bounded_internal_summary_only
+      hubspot_source_of_truth: true
+    tool_allowlist:
+    - find_aircall_calls
+    - transcribe_aircall_recording
   public_research_nurtureany:
     description: Read-only Tavily public company research for scoped HubSpot companies, plus brand-parent identity lookup before HubSpot re-query.
     command: /Users/leekaiyi/.hermes/hermes-agent/venv/bin/python

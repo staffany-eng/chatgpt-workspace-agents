@@ -204,6 +204,8 @@ if (!existsSync(manifestPath)) {
       "prepare_sales_navigator_decision_maker_queue",
       "build_friday_sales_review",
       "build_manager_chase_plan",
+      "find_aircall_calls",
+      "transcribe_aircall_recording",
       "get_account_context",
       "build_pre_demo_game_plans",
       "find_sales_case_studies",
@@ -296,6 +298,7 @@ if (!existsSync(manifestPath)) {
     const actualMcpTools = [
       "runtime/mcp/slack_nurtureany_server.py",
       "runtime/mcp/hubspot_nurtureany_server.py",
+      "runtime/mcp/aircall_nurtureany_server.py",
       "runtime/mcp/google_calendar_nurtureany_server.py",
       "runtime/mcp/google_drive_nurtureany_server.py",
       "runtime/mcp/eazybe_nurtureany_server.py",
@@ -315,6 +318,23 @@ if (!existsSync(manifestPath)) {
     if (manifest.lusha?.max_reveal_contacts !== 3) fail("Manifest Lusha max_reveal_contacts must be 3");
     if (manifest.lusha?.selected_pii_in_slack !== true) fail("Manifest Lusha selected_pii_in_slack must be true");
     if (manifest.lusha?.bulk_contact_exports !== false) fail("Manifest Lusha bulk_contact_exports must be false");
+    if (!manifest.aircall?.auth_env_vars?.includes("AIRCALL_API_ID")) fail("Manifest Aircall missing AIRCALL_API_ID");
+    if (!manifest.aircall?.auth_env_vars?.includes("AIRCALL_API_TOKEN")) fail("Manifest Aircall missing AIRCALL_API_TOKEN");
+    if (manifest.aircall?.transcription_auth_env_var !== "OPENAI_API_KEY") fail("Manifest Aircall missing OPENAI_API_KEY");
+    if (manifest.aircall?.read_only !== true) fail("Manifest Aircall read_only must be true");
+    if (manifest.aircall?.default_transcription_model !== "gpt-4o-transcribe-diarize") {
+      fail("Manifest Aircall default model must be gpt-4o-transcribe-diarize");
+    }
+    if (manifest.aircall?.max_calls !== 5) fail("Manifest Aircall max_calls must be 5");
+    if (manifest.aircall?.selected_call_only !== true) fail("Manifest Aircall must be selected_call_only");
+    if (manifest.aircall?.max_audio_bytes !== 26214400) fail("Manifest Aircall max_audio_bytes must be 26214400");
+    if (manifest.aircall?.max_audio_seconds !== 3600) fail("Manifest Aircall max_audio_seconds must be 3600");
+    if (manifest.aircall?.raw_recording_urls_returned !== false) fail("Manifest Aircall must not return raw recording URLs");
+    if (manifest.aircall?.raw_audio_retained !== false) fail("Manifest Aircall must not retain raw audio");
+    if (manifest.aircall?.bulk_transcript_exports !== false) fail("Manifest Aircall must block bulk transcript exports");
+    for (const tool of ["find_aircall_calls", "transcribe_aircall_recording"]) {
+      if (!manifest.aircall?.allowed_tools?.includes(tool)) fail(`Manifest Aircall missing allowed tool: ${tool}`);
+    }
     if (manifest.exa?.auth_env_var !== "EXA_API_KEY") fail("Manifest missing EXA_API_KEY auth env var");
     if (manifest.exa?.max_search_companies !== 5) fail("Manifest Exa max_search_companies must be 5");
     if (manifest.exa?.max_candidates_per_company !== 5) fail("Manifest Exa max_candidates_per_company must be 5");
@@ -608,6 +628,9 @@ const filesToScan = [
   "runtime/mcp/test_slack_nurtureany_server.py",
   "runtime/hubspot.md",
   "runtime/mcp/hubspot_nurtureany_server.py",
+  "runtime/aircall.md",
+  "runtime/mcp/aircall_nurtureany_server.py",
+  "runtime/mcp/test_aircall_nurtureany_server.py",
   "runtime/mcp/nurtureany_common/responses.py",
   "runtime/mcp/nurtureany_common/text.py",
   "runtime/mcp/nurtureany_common/scoped_company.py",

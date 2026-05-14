@@ -31,6 +31,8 @@
     "slack_mcp": "runtime/mcp/slack_nurtureany_server.py",
     "hubspot_runtime": "runtime/hubspot.md",
     "hubspot_mcp": "runtime/mcp/hubspot_nurtureany_server.py",
+    "aircall_runtime": "runtime/aircall.md",
+    "aircall_mcp": "runtime/mcp/aircall_nurtureany_server.py",
     "case_study_catalog": "runtime/data/case-studies.json",
     "access_policy_template": "runtime/access-policy.template.json",
     "bigquery_runtime": "runtime/bigquery.md",
@@ -110,8 +112,10 @@
     "format": "dotenv",
     "version_policy": "latest",
     "secret_values_committed": false,
-    "expected_key_count": 22,
+    "expected_key_count": 25,
     "expected_keys": [
+      "AIRCALL_API_ID",
+      "AIRCALL_API_TOKEN",
       "ANTHROPIC_API_KEY",
       "EXA_API_KEY",
       "GOOGLE_PLACES_API_KEY",
@@ -127,6 +131,7 @@
       "NURTUREANY_QO_STAGE_IDS",
       "NURTUREANY_REVENUE_NEW_BUSINESS_PIPELINE_IDS",
       "NURTUREANY_REVENUE_RENEWAL_PIPELINE_IDS",
+      "OPENAI_API_KEY",
       "SLACK_ALLOWED_USERS",
       "SLACK_APP_TOKEN",
       "SLACK_BOT_TOKEN",
@@ -363,6 +368,8 @@
       "prepare_sales_navigator_decision_maker_queue",
       "build_friday_sales_review",
       "build_manager_chase_plan",
+      "find_aircall_calls",
+      "transcribe_aircall_recording",
       "get_account_context",
       "build_pre_demo_game_plans",
       "find_sales_case_studies",
@@ -464,6 +471,29 @@
     "selected_pii_in_slack": true,
     "bulk_contact_exports": false,
     "hubspot_writeback": "preview_only"
+  },
+  "aircall": {
+    "auth_env_vars": [
+      "AIRCALL_API_ID",
+      "AIRCALL_API_TOKEN"
+    ],
+    "transcription_auth_env_var": "OPENAI_API_KEY",
+    "read_only": true,
+    "provider": "Aircall Public API plus OpenAI audio transcriptions",
+    "default_transcription_model": "gpt-4o-transcribe-diarize",
+    "allowed_tools": [
+      "find_aircall_calls",
+      "transcribe_aircall_recording"
+    ],
+    "max_calls": 5,
+    "selected_call_only": true,
+    "max_audio_bytes": 26214400,
+    "max_audio_seconds": 3600,
+    "recording_downloads": "transient_only",
+    "raw_recording_urls_returned": false,
+    "raw_audio_retained": false,
+    "bulk_transcript_exports": false,
+    "hubspot_source_of_truth": true
   },
   "exa": {
     "auth_env_var": "EXA_API_KEY",
