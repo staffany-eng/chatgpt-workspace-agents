@@ -393,9 +393,10 @@ run_post_deploy_check() {
   shift
   attempts="\${NURTUREANY_DEPLOY_CHECK_ATTEMPTS:-8}"
   delay_seconds="\${NURTUREANY_DEPLOY_CHECK_RETRY_SECONDS:-15}"
+  command_timeout_seconds="\${NURTUREANY_DEPLOY_CHECK_COMMAND_TIMEOUT_SECONDS:-180}"
   attempt=1
   while [ "$attempt" -le "$attempts" ]; do
-    if "$@"; then
+    if timeout "$command_timeout_seconds" "$@"; then
       if [ "$attempt" -gt 1 ]; then
         echo "deploy:check:$label=passed-after-retry:$attempt"
       fi
