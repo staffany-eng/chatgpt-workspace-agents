@@ -366,9 +366,10 @@ if [ "$skip_restart" = "1" ]; then
 fi
 
 uid=$(id -u "$runtime_owner")
+sudo -H -u "$runtime_owner" XDG_RUNTIME_DIR="/run/user/$uid" systemctl --user reset-failed "$service" || true
 sudo -H -u "$runtime_owner" XDG_RUNTIME_DIR="/run/user/$uid" systemctl --user restart "$service"
 sudo -H -u "$runtime_owner" XDG_RUNTIME_DIR="/run/user/$uid" systemctl --user is-active "$service"
-sleep 10
+sleep "\${PSM_OPS_DEPLOY_GATEWAY_SETTLE_SECONDS:-20}"
 
 run_post_deploy_check() {
   label="$1"

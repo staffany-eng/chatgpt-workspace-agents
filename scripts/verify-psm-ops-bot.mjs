@@ -192,6 +192,8 @@ if (!existsSync(deployScriptPath)) {
     "rock_productions_c360",
     "hermes-gateway-$profile_name.service",
     "PSM_OPS_SOURCE_DIR",
+    "PSM_OPS_DEPLOY_GATEWAY_SETTLE_SECONDS",
+    "systemctl --user reset-failed",
     'remote_verify="skipped:node-not-found"',
     "FORBIDDEN_RUNTIME_STATE_LABELS"
   ]) {
