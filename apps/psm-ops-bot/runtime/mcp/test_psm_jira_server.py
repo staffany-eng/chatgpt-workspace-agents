@@ -124,6 +124,7 @@ class PsmJiraServerTest(unittest.TestCase):
             {"fieldId": "summary", "name": "Summary", "required": True},
             {"fieldId": "description", "name": "Details", "required": True},
             {"fieldId": "customfield_20101", "name": "Customer", "required": customer_required},
+            {"fieldId": "customfield_20100", "name": "StaffAny Organization", "required": False},
             {
                 "fieldId": "customfield_20102",
                 "name": "Request category",
@@ -145,6 +146,7 @@ class PsmJiraServerTest(unittest.TestCase):
                 "required": False,
                 "validValues": [{"value": "Medium", "label": "Medium"}, {"value": "High", "label": "High"}],
             },
+            {"fieldId": "customfield_20107", "name": "Urgency Impact", "required": False},
         ]
         for field_name in extra_required or []:
             fields.append({"fieldId": f"customfield_extra_{len(fields)}", "name": field_name, "required": True})
@@ -580,6 +582,17 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertIn("Created ROI ticket", result["answer"]["slack_reply"])
         self.assertEqual(audit_calls[0][0], "roi_ticket_created")
         self.assertEqual(audit_calls[0][1]["issue_key"], "ROI-123")
+
+    def test_roi_configured_fields_disambiguate_optional_name_matches(self):
+        self.module._request_json = lambda method, path, body=None: {"requestTypeFields": self._roi_fields()}
+
+        result = self.module.validate_roi_jira_configuration()
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertIn("customer", result["answer"]["mapped_fields"])
+        self.assertIn("priority", result["answer"]["mapped_fields"])
+        self.assertEqual(result["answer"]["configured_field_ids"]["customer"], "customfield_20101")
+        self.assertEqual(result["answer"]["configured_field_ids"]["priority"], "customfield_20106")
 
     def test_roi_ticket_explicit_requester_overrides_sender(self):
         calls = []

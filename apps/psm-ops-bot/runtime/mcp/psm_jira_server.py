@@ -455,12 +455,20 @@ def _roi_field_key(field: dict[str, Any]) -> str:
 def _roi_field_mapping(fields: list[dict[str, Any]]) -> tuple[dict[str, dict[str, Any]], list[str]]:
     mapping: dict[str, dict[str, Any]] = {}
     ambiguous: list[str] = []
+    configured_ids = _configured_roi_field_ids()
+    configured_by_key = {key: field_id for key, field_id in configured_ids.items() if field_id}
     for field in fields:
         key = _roi_field_key(field)
         if not key:
             continue
         field_id = str(field.get("fieldId") or "")
         if key in mapping and str(mapping[key].get("fieldId") or "") != field_id:
+            configured_field_id = configured_by_key.get(key)
+            if configured_field_id == field_id:
+                mapping[key] = field
+                continue
+            if configured_field_id == str(mapping[key].get("fieldId") or ""):
+                continue
             if _roi_field_required(field) or _roi_field_required(mapping[key]):
                 ambiguous.append(key)
             continue
