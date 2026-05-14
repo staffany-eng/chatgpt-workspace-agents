@@ -153,6 +153,16 @@ def _split_compact_customer_name(value: str) -> str:
     return ""
 
 
+def _singularize_last_customer_word(value: str) -> str:
+    tokens = _customer_tokens(value)
+    if not tokens:
+        return ""
+    last = tokens[-1]
+    if len(last) <= 3 or not last.endswith("s") or last.endswith("ss"):
+        return ""
+    return " ".join([*tokens[:-1], last[:-1]])
+
+
 def _has_company_entity_suffix(value: str) -> bool:
     normalized = " ".join(_customer_tokens(value))
     return any(normalized.endswith(suffix) for suffix in COMPANY_ENTITY_SUFFIXES)
@@ -202,6 +212,9 @@ def _customer_search_variants(query: str) -> list[str]:
             expanded = _split_compact_customer_name(candidate_tokens[0])
             if expanded:
                 values.append(expanded)
+                singular_expanded = _singularize_last_customer_word(expanded)
+                if singular_expanded:
+                    values.append(singular_expanded)
 
         company_base = expanded or spaced
         if (
@@ -258,14 +271,65 @@ def _group_dedupe_keys(group: Any) -> list[str]:
 
 def _dedupe_c360_groups(groups: list[Any]) -> list[Any]:
     deduped = []
+    key_to_index = {}
     seen = set()
     for group in groups:
         keys = _group_dedupe_keys(group)
         if any(key in seen for key in keys):
+            duplicate_index = next(
+                (key_to_index[key] for key in keys if key in key_to_index),
+                None,
+            )
+            if duplicate_index is not None:
+                deduped[duplicate_index] = _merge_c360_groups(
+                    deduped[duplicate_index],
+                    group,
+                )
             continue
         deduped.append(group)
+        group_index = len(deduped) - 1
         seen.update(keys)
+        for key in keys:
+            key_to_index[key] = group_index
     return deduped
+
+
+def _merge_c360_groups(existing: Any, new_group: Any) -> Any:
+    if not isinstance(existing, dict) or not isinstance(new_group, dict):
+        return existing
+
+    existing_org_matches = existing.get("orgMatches")
+    new_org_matches = new_group.get("orgMatches")
+    existing_org_count = len(existing_org_matches) if isinstance(existing_org_matches, list) else 0
+    new_org_count = len(new_org_matches) if isinstance(new_org_matches, list) else 0
+    prefer_new = new_org_count > existing_org_count
+    merged = {**existing, **new_group} if prefer_new else {**new_group, **existing}
+
+    matched_fields = []
+    for field in [
+        *(existing.get("matchedFields") if isinstance(existing.get("matchedFields"), list) else []),
+        *(new_group.get("matchedFields") if isinstance(new_group.get("matchedFields"), list) else []),
+    ]:
+        if field not in matched_fields:
+            matched_fields.append(field)
+    if matched_fields:
+        merged["matchedFields"] = matched_fields
+
+    org_matches = []
+    seen_org_keys = set()
+    for item in [
+        *(existing_org_matches if isinstance(existing_org_matches, list) else []),
+        *(new_org_matches if isinstance(new_org_matches, list) else []),
+    ]:
+        key = json.dumps(item, sort_keys=True, default=str)
+        if key in seen_org_keys:
+            continue
+        seen_org_keys.add(key)
+        org_matches.append(item)
+    if org_matches:
+        merged["orgMatches"] = org_matches
+
+    return merged
 
 
 @mcp.tool()

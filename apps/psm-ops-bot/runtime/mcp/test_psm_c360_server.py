@@ -60,6 +60,7 @@ class PsmC360ServerTest(unittest.TestCase):
         self.assertIn("proj-cs-rockproductions", variants)
         self.assertIn("rockproductions", variants)
         self.assertIn("rock productions", variants)
+        self.assertIn("rock production", variants)
         self.assertIn("Rock Productions Pte Ltd", variants)
 
     def test_search_customers_merges_and_dedupes_variant_results(self):
@@ -83,6 +84,20 @@ class PsmC360ServerTest(unittest.TestCase):
                         "companyName": "Rock Productions Pte Ltd",
                     }
                 ]
+            elif query == "rock production":
+                groups = [
+                    {
+                        "customerKey": "rock-productions",
+                        "companyName": "Rock Productions Pte Ltd",
+                        "matchedFields": ["HubSpot company", "StaffAny org"],
+                        "orgMatches": [
+                            {
+                                "matchedValue": "Rock Productions",
+                                "matchType": "StaffAny org",
+                            }
+                        ],
+                    }
+                ]
             elif query == "Rock Productions Pte Ltd":
                 groups = [
                     {
@@ -103,6 +118,11 @@ class PsmC360ServerTest(unittest.TestCase):
         self.assertEqual(result["match_count"], 1)
         self.assertFalse(result["missing_mapping"])
         self.assertEqual(result["answer"][0]["customerKey"], "rock-productions")
+        self.assertEqual(
+            result["answer"][0]["orgMatches"][0]["matchedValue"],
+            "Rock Productions",
+        )
+        self.assertIn("StaffAny org", result["answer"][0]["matchedFields"])
         self.assertIn("Rock Productions Pte Ltd", result["searched_variants"])
 
     def test_search_customers_reports_missing_mapping_for_no_match(self):
