@@ -1,6 +1,8 @@
 # Non-secret Hermes profile template for PSM Ops Bot.
 # Copy values into ~/.hermes/profiles/psmopsbot/config.yaml on the cloud host
 # and load real secrets/field IDs from Secret Manager or the profile .env.
+# ROI-direct dotenv source:
+#   gcloud secrets versions access latest --project=staffany-warehouse --secret=psm-ops-bot-roi-jira-env
 
 terminal:
   cwd: "~/agent-builder/apps/psm-ops-bot"

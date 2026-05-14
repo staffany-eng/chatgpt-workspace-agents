@@ -40,6 +40,28 @@ Alias note: `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` refer to this 
 | `deploy/gce-onboarding-runbook.md` | Cloud deployment runbook. |
 | `tests/regression-cases.md` | Manual/eval regression cases. |
 
+## Runtime Secrets
+
+ROI-direct Jira config is durable in Secret Manager as:
+
+```text
+projects/1093387803298/secrets/psm-ops-bot-roi-jira-env
+```
+
+The secret is in project `staffany-warehouse`, uses dotenv format, and is labeled
+`app=psm-ops-bot`, `env=prod`, `format=dotenv`, `scope=roi-jira`. It contains only
+`PSM_OPS_ROI_*` runtime config. Do not copy secret values into this repo.
+
+Hydrate it on `hermes-psm-ops-bot-poc` after the base profile `.env` exists:
+
+```bash
+gcloud secrets versions access latest \
+  --project=staffany-warehouse \
+  --secret=psm-ops-bot-roi-jira-env \
+  >> ~/.hermes/profiles/psmopsbot/.env
+chmod 600 ~/.hermes/profiles/psmopsbot/.env
+```
+
 ## Restore Order
 
 1. Provision or access the GCE cloud host. Do not run the production gateway from a laptop.
@@ -47,7 +69,7 @@ Alias note: `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` refer to this 
 3. Copy `profile/SOUL.md` into the profile `SOUL.md`.
 4. Apply `profile/config.template.yaml` with real runtime paths and configured Jira field IDs.
 5. Copy `skills/psm-ops-bot/` into the profile skills directory.
-6. Set profile `.env` from Secret Manager values only.
+6. Set profile `.env` from Secret Manager values only, including `psm-ops-bot-roi-jira-env` for ROI-direct routing.
 7. Configure Slack, `psm_jira`, `psm_c360`, and `psm_google_calendar` MCP servers.
 8. Install health, audit, and reminder cron jobs on the cloud host.
 9. Run health checks and regression cases before widening access.

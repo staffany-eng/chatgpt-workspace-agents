@@ -19,12 +19,18 @@ Store these in Secret Manager and load them into the profile `.env` on the cloud
 
 - `psm-ops-bot-slack-bot-token`
 - `psm-ops-bot-slack-app-token`
+- `psm-ops-bot-roi-jira-env`
 - `customer-360-jira-email`
 - `customer-360-jira-api-token`
 - `customer-360-internal-api-token`
 - `hermes-data-bot-anthropic-api-key`
 - Google Calendar OAuth JSON for `team@staffany.com` with `https://www.googleapis.com/auth/calendar.readonly`
 - Google Calendar OAuth client secret JSON for the same StaffAny OAuth client
+
+`psm-ops-bot-roi-jira-env` is a dotenv-formatted Secret Manager secret in project
+`staffany-warehouse`, labeled `app=psm-ops-bot`, `env=prod`, `format=dotenv`, and
+`scope=roi-jira`. It stores the approved `PSM_OPS_ROI_*` Jira routing and field
+configuration only; do not copy those values into this repo.
 
 Thin POC does not require `SLACK_ALLOWED_USERS`, `SLACK_ALLOWED_CHANNELS`, or a PSM Ops access-policy file. The bot resolves the caller by fetching Slack users, canonicalizing profile email/name, and matching that identity to Jira `PS Team`. Jira user search is optional best-effort attribution, not the task-owner filter. Keep `slack.require_mention=true` so public/open-channel usage does not become free-response mode.
 
@@ -56,6 +62,19 @@ ROI-direct Jira IDs must also be present before enabling RevOps / BD Ops / NYSS 
 - `PSM_OPS_ROI_JIRA_FIELD_REQUESTER_SLACK`
 - `PSM_OPS_ROI_JIRA_FIELD_ORIGINAL_CHANNEL`
 - `PSM_OPS_ROI_JIRA_FIELD_PRIORITY`
+
+To hydrate ROI-direct config on `hermes-psm-ops-bot-poc`, append the Secret Manager
+dotenv after the base profile `.env` exists:
+
+```bash
+gcloud secrets versions access latest \
+  --project=staffany-warehouse \
+  --secret=psm-ops-bot-roi-jira-env \
+  >> ~/.hermes/profiles/psmopsbot/.env
+chmod 600 ~/.hermes/profiles/psmopsbot/.env
+systemctl --user restart hermes-gateway-psmopsbot.service
+~/.hermes/profiles/psmopsbot/scripts/psmopsbot-check-health.sh
+```
 
 Handoff Package intentionally returns a blocked response until PCO has the missing request type. Reminder automation uses Jira `duedate`; no separate reminder field is required in thin POC.
 
