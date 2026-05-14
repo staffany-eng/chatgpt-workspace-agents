@@ -1,4 +1,4 @@
-# Launch Superpower Bot Regression Cases
+# Launchbot Launch Workflow Regression Cases
 
 ## Slack Identity And Capability
 

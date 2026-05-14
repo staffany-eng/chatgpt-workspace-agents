@@ -53,7 +53,7 @@ Use this skill to produce help articles in a repeatable format that is ready for
 
 ## Launchbot Planning Rules
 
-- Handoff-upgraded rules in this packet override the older Grimoire help-article skill where they conflict.
+- Handoff-upgraded rules in this Launchbot skill override the older Grimoire help-article skill where they conflict.
 - For ClubAny / Club Blue brand-and-perk management, default to one combined management article unless the user explicitly requests separate owner/staff articles.
 - The combined ClubAny management article should use major sections:
   - `Managing Brands`

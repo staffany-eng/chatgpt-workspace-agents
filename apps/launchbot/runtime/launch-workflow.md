@@ -1,8 +1,8 @@
-# Launch Superpower Bot Workflow
+# Launchbot Launch Workflow
 
 ## Source Status
 
-This packet captures the workflow contract from the 2026-05-11 handoff. The runtime source code under `vk-super-productivity/launch-superpower-bot` is not present in this repo, so code-level fixes must happen in that external checkout.
+This Launchbot skill/workflow captures the workflow contract from the 2026-05-11 handoff. The runtime source code under `vk-super-productivity/launch-superpower-bot` is not present in this repo, so code-level fixes must happen in that external checkout.
 
 When the external source checkout is absent, use `runtime/launchbot_e2e.py` as the minimal VM-safe runner for the handoff flow. It generates versioned Step 1 artifacts, creates a Google Doc review draft, posts a bot-owned Slack review message, processes an existing approved Slack reaction with `--approval-only`, and creates an Intercom draft article with a direct Intercom app URL when the API response omits a public URL.
 

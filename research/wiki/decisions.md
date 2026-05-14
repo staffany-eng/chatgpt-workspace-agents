@@ -49,6 +49,13 @@ This page stores accepted research-backed learnings before promotion into future
 - Planning implication: New StaffAny Hermes Data Bot features should first decide which source packet surface changes; runtime-only changes remain drift until a specific reviewed artifact is promoted back into `apps/hermes-data-bot/`.
 - Caveat: Do not copy raw memory, Slack transcripts, query rows, logs with sensitive content, or credentials from the live profile into the repo.
 
+### Treat Launchbot As The App And Launch Superpower As A Skill
+
+- Status: accepted for Launchbot packet cleanup.
+- Evidence: current GCP topology places profile `launchbot` behind `hermes-gateway-launchbot.service`; the 2026-05-11 Launch Superpower handoff is workflow evidence and a reusable help-article procedure.
+- Learning: Launchbot is the main Hermes app identity. Launch Superpower should not be modeled as a second app; its useful behavior belongs inside Launchbot as a help-article launch workflow skill.
+- Planning implication: Durable Launchbot behavior belongs under `apps/launchbot/`; handoff evidence can remain under `research/raw/launch-superpower-bot/`, but runtime skill and workflow files should live under the Launchbot app packet.
+
 ### Use HubSpot Contract End Date And Current Tools For NurtureAny
 
 - Status: accepted for the NurtureAny Sales Bot source packet.

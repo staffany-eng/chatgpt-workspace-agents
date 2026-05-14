@@ -1,6 +1,6 @@
 # Launchbot
 
-Minimal canonical Hermes app packet for the Launchbot Slack profile.
+Canonical Hermes app packet for the Launchbot Slack profile.
 
 ## Runtime Shape
 
@@ -9,7 +9,7 @@ Minimal canonical Hermes app packet for the Launchbot Slack profile.
 - Surface: Slack mentions in `#launch-bot-testing` and explicitly configured project channels
 - Source packet: this directory
 - Live runtime state: `~/.hermes/profiles/launchbot/`
-- Status: experimental until it has real tools, owner, runbooks, and passing health cron.
+- Status: experimental until health cron and live Slack smoke are green.
 
 ## Packet Contents
 
@@ -22,6 +22,10 @@ Minimal canonical Hermes app packet for the Launchbot Slack profile.
 | `runtime/check-health.sh` | Silent no-agent health check. |
 | `runtime/audit-live-profile.sh` | Live profile drift audit. |
 | `runtime/mcp/launchbot_ker_server.py` | Read-only Slack thread to Jira KER lookup tool. |
+| `skills/help-article-generator/` | Launchbot help-article drafting skill upgraded from the 2026-05-11 handoff. |
+| `runtime/launch-workflow.md` | Help-article, Google Docs review, Slack approval, and Intercom draft workflow contract. |
+| `runtime/launchbot_e2e.py` | Minimal VM-safe handoff runner when the external source checkout is absent. |
+| `tests/launch-workflow-regression-cases.md` | Manual/eval regression scenarios for the launch workflow. |
 
 ## Restore Order
 
@@ -31,6 +35,25 @@ Minimal canonical Hermes app packet for the Launchbot Slack profile.
 4. Use `profile/config.template.yaml` as the non-secret config guide.
 5. Set Slack and model secrets from the approved secret store only.
 6. Set Jira read-only env vars (`JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN`) in the live profile `.env` before enabling KER lookup.
-7. Copy runtime scripts into `~/.hermes/profiles/launchbot/scripts/`.
-8. Start the managed gateway and install the no-agent health cron.
-9. Keep it experimental until the health check passes and the Slack smoke replies from `#launch-bot-testing`.
+7. Copy `skills/help-article-generator/` into `~/.hermes/profiles/launchbot/skills/` when enabling article drafting.
+8. Copy runtime scripts into `~/.hermes/profiles/launchbot/scripts/`.
+9. Start the managed gateway and install the no-agent health cron.
+10. Keep it experimental until the health check passes and the Slack smoke replies from `#launch-bot-testing`.
+
+## Launch Workflow Skill
+
+Launchbot is the app. The Launch Superpower handoff is represented here as a Launchbot skill and workflow capability, not as a separate app identity.
+
+The handoff evidence remains under `research/raw/launch-superpower-bot/2026-05-11-handoff/`, with the maintained source note at `research/wiki/sources/launch-superpower-bot-handoff.md`.
+
+Run the VM-safe handoff path from the repo root after the required runtime secrets are available:
+
+```bash
+python3 apps/launchbot/runtime/launchbot_e2e.py --issue KER-1742 --version v006
+```
+
+If a review message already exists and a human reviewer has reacted with ✅, process only the approval gate:
+
+```bash
+python3 apps/launchbot/runtime/launchbot_e2e.py --issue KER-1742 --version v006 --approval-only
+```

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Minimal Launch Superpower Bot E2E runner.
+"""Minimal Launchbot launch-workflow E2E runner.
 
 This runner exists because the original vk-super-productivity source checkout is
 not present on Da Ta Hermz. It exercises the same external surfaces from the
@@ -301,9 +301,9 @@ def write_artifacts(base_dir: Path, issue: str, version: str, markdown: str) -> 
             [
                 "# Internal Notes",
                 "",
-                "- Source of truth: Launch Superpower Bot packet and 2026-05-11 handoff.",
+                "- Source of truth: Launchbot packet and 2026-05-11 handoff.",
                 "- Runtime source checkout: not present; runner used packet-backed article contract.",
-                "- Key app packet: apps/launch-superpower-bot/.",
+                "- Key app packet: apps/launchbot/.",
                 "- Assumption: KER-1742 ClubAny management can use Vanessa's combined article target.",
                 f"- Last verified issue/version: {issue}/{version}.",
             ]

@@ -12,7 +12,7 @@
 
 ## Context Caveat
 
-This note summarizes a teammate handoff, not a source-code audit. Use it as the durable starting packet for Launch Superpower Bot and as implementation guidance only after checking the external `vk-super-productivity/launch-superpower-bot` source repo.
+This note summarizes a teammate handoff, not a source-code audit. Current repo modeling treats Launchbot as the app and this handoff as a Launchbot skill/workflow input. Use it as implementation guidance only after checking the external `vk-super-productivity/launch-superpower-bot` source repo.
 
 ## Evidence Used
 
@@ -41,9 +41,9 @@ This note summarizes a teammate handoff, not a source-code audit. Use it as the 
 
 ## Learning Summary
 
-- Launch Superpower Bot should be represented as a separate app packet rather than folded into Hermes Data Bot or NurtureAny.
+- Launchbot should be represented as the app packet. The Launch Superpower handoff should be folded into Launchbot as a help-article launch workflow skill, not treated as a second app identity.
 - The reusable help-article generator belongs in the app packet as a skill because it captures repeatable drafting, formatting, and internal-note boundaries.
-- Workflow evidence should stay split from durable instructions: the raw handoff is evidence, while `apps/launch-superpower-bot/` carries the reviewed packet contract.
+- Workflow evidence should stay split from durable instructions: the raw handoff is evidence, while `apps/launchbot/` carries the reviewed runtime, skill, and workflow contract.
 - The strongest immediate product upgrade is better help-article quality control before Google Docs and Intercom promotion.
 - Step 4 should stay marked as planned until source code and regression evidence exist.
 
@@ -53,11 +53,11 @@ This note summarizes a teammate handoff, not a source-code audit. Use it as the 
 - Status: completed
 - Focus source: `docs/product-compass.md`, `docs/documentation-guide.md`, `research/wiki/weights.md`
 - Evidence weight check: weight 3 for user-supplied workflow guidance until the external source repo is checked; weight 4 for the specific recorded `v005` test outputs.
-- Result: create a launch-specific app packet and verifier, while keeping code-level runtime changes blocked on the external source checkout.
+- Result: fold the launch workflow into the Launchbot app packet and verifier, while keeping code-level runtime changes blocked on the external source checkout.
 
 ## Possible Agent Builder Relevance
 
-- User-supplied: Add `apps/launch-superpower-bot/` as a durable packet for the Launch Superpower workflow.
+- User-supplied correction: Launchbot is the main bot; the Launch Superpower handoff should be a skill/workflow inside `apps/launchbot/`.
 - Agent-synthesized: Preserve the handoff and extracted skill package under `research/raw/` and keep the maintained note under `research/wiki/sources/`.
 - Agent-synthesized: Reuse the handoff-upgraded help-article skill as the packet skill and override older help-article formatting rules where they conflict.
 - Do-not-promote: Do not claim Step 4, screenshot automation, or real Word numbering are shipped until the external source code is updated and verified.

@@ -89,3 +89,7 @@ Ingested the Mobile Number Google Doc as private NurtureAny sales execution hygi
 ## [2026-05-13] ingest | Launch Superpower Bot Handoff
 
 Ingested the Launch Superpower Bot handoff and extracted help-article-generator skill package. Preserved the raw handoff, source manifest, and skill files; added a launch app packet for help-article drafting, Google Docs review, Slack approval, and Intercom draft creation while keeping Step 4 and source-code changes explicitly blocked on the external runtime checkout.
+
+## [2026-05-14] decision | Launchbot owns Launch Superpower workflow
+
+Corrected the app boundary: Launchbot is the main Hermes app, and the Launch Superpower handoff is now modeled as a Launchbot skill/workflow rather than a separate app packet. Raw handoff evidence remains under `research/raw/launch-superpower-bot/`.
