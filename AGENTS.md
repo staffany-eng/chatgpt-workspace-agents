@@ -19,6 +19,11 @@ For Hermes Data Bot app work, also read:
 - `apps/hermes-data-bot/app.manifest.json`
 - `apps/hermes-data-bot/deploy/gcp-vm-topology.md`
 
+For any Hermes runtime bot work on Da Ta Hermz, NurtureAny, or Launchbot, also read:
+
+- `research/wiki/sources/hermes-agent-docs.md`
+- `research/wiki/syntheses/hermes-runtime-bot-operating-model.md`
+
 ## Research Workflow
 
 - Preserve source evidence under `research/raw/`.

@@ -115,6 +115,7 @@ class PsmJiraServerTest(unittest.TestCase):
                 "PSM_OPS_ROI_JIRA_FIELD_REQUESTER": "customfield_20104",
                 "PSM_OPS_ROI_JIRA_FIELD_ORIGINAL_CHANNEL": "customfield_20105",
                 "PSM_OPS_ROI_JIRA_FIELD_PRIORITY": "customfield_20106",
+                "PSM_OPS_CUSTOMER_CHANNEL_MAP_PATH": "",
             },
             clear=False,
         )
@@ -163,6 +164,10 @@ class PsmJiraServerTest(unittest.TestCase):
         }
 
         self.assertEqual(self.module._roi_default_priority_for_field(field), "No")
+    def _customer_channel_map(self, entries: list[dict]) -> str:
+        path = Path(self.tmpdir.name) / "customer-channel-map.json"
+        path.write_text(json.dumps({"channels": entries}), encoding="utf-8")
+        return str(path)
 
     def test_list_my_tasks_is_ps_team_scoped_and_safe(self):
         calls = []
@@ -493,6 +498,51 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertEqual(result["confidence"], "blocked")
         self.assertIn("No unique Slack user", result["caveat"])
 
+    def test_resolve_customer_channel_org_returns_reviewed_mapping(self):
+        map_path = self._customer_channel_map(
+            [
+                {
+                    "channel_id": "C08SDJR03N1",
+                    "channel_name": "cust-fei-siong",
+                    "customer_key": "fei-siong-group",
+                    "customer_name": "Fei Siong Group",
+                    "staffany_orgs": ["FS-001", "FS-002"],
+                    "status": "reviewed",
+                }
+            ]
+        )
+        with patch.dict(os.environ, {"PSM_OPS_CUSTOMER_CHANNEL_MAP_PATH": map_path}, clear=False):
+            result = self.module.resolve_customer_channel_org(
+                "https://staffany.slack.com/archives/C08SDJR03N1/p1778205303989579",
+                customer="Fei Siong",
+            )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["answer"]["customer_name"], "Fei Siong Group")
+        self.assertEqual(result["answer"]["staffany_orgs"], ["FS-001", "FS-002"])
+
+    def test_resolve_customer_channel_org_blocks_conflicting_customer(self):
+        map_path = self._customer_channel_map(
+            [
+                {
+                    "channel_id": "C08SDJR03N1",
+                    "channel_name": "cust-fei-siong",
+                    "customer_key": "fei-siong-group",
+                    "customer_name": "Fei Siong Group",
+                    "staffany_orgs": ["FS-001"],
+                    "status": "reviewed",
+                }
+            ]
+        )
+        with patch.dict(os.environ, {"PSM_OPS_CUSTOMER_CHANNEL_MAP_PATH": map_path}, clear=False):
+            result = self.module.resolve_customer_channel_org(
+                "https://staffany.slack.com/archives/C08SDJR03N1/p1778205303989579",
+                customer="Walta Tech",
+            )
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("maps to Fei Siong Group", result["caveat"])
+
     def test_set_pco_assignee_blocks_ambiguous_name(self):
         def fake_request(method, path, body=None):
             if path.startswith("/rest/api/3/user/assignable/search?"):
@@ -595,6 +645,196 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertEqual(audit_calls[0][0], "ticket_created")
         self.assertEqual(audit_calls[0][1]["source_thread_url"], "https://staffany.slack.com/archives/C0B2VT50YT1/p1778205303989579")
         self.assertEqual(audit_calls[0][1]["issue_key"], "PCO-789")
+
+    def test_ps_wee_intake_auto_tags_reviewed_customer_channel_with_blank_customer(self):
+        map_path = self._customer_channel_map(
+            [
+                {
+                    "channel_id": "C08SDJR03N1",
+                    "channel_name": "cust-fei-siong",
+                    "customer_key": "fei-siong-group",
+                    "customer_name": "Fei Siong Group",
+                    "staffany_orgs": ["FS-001", "FS-002"],
+                    "status": "reviewed",
+                }
+            ]
+        )
+        calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
+                return {"issues": []}
+            if path == "/rest/servicedeskapi/request":
+                return {"issueKey": "PCO-790", "requestTypeId": "101"}
+            if path.endswith("/comment"):
+                return {"id": "comment-790"}
+            return {}
+
+        self.module._request_json = fake_request
+
+        with patch.dict(os.environ, {"PSM_OPS_CUSTOMER_CHANNEL_MAP_PATH": map_path}, clear=False):
+            result = self.module.create_ps_wee_intake_ticket(
+                slack_user_email="psm@staffany.com",
+                slack_thread_url="https://staffany.slack.com/archives/C08SDJR03N1/p1778205303989579",
+                issue_summary="Payroll readiness unclear",
+            )
+
+        self.assertEqual(result["confidence"], "verified")
+        request_values = calls[1][2]["requestFieldValues"]
+        self.assertEqual(request_values["customfield_10101"], "Fei Siong Group")
+        self.assertEqual(request_values["customfield_10102"], "FS-001, FS-002")
+        self.assertEqual(request_values["summary"], "[Needs info] Fei Siong Group - Payroll readiness unclear")
+        self.assertNotIn("customer/org", result["answer"]["missing_info"])
+        self.assertIn("Customer channel: C08SDJR03N1", calls[2][2]["body"])
+        self.assertIn("Customer 360 customer key: fei-siong-group", calls[2][2]["body"])
+
+    def test_ps_wee_intake_reviewed_channel_allows_matching_customer(self):
+        map_path = self._customer_channel_map(
+            [
+                {
+                    "channel_id": "C08SDJR03N1",
+                    "channel_name": "cust-fei-siong",
+                    "customer_key": "fei-siong-group",
+                    "customer_name": "Fei Siong Group",
+                    "staffany_orgs": ["FS-001"],
+                    "status": "reviewed",
+                }
+            ]
+        )
+        calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
+                return {"issues": []}
+            if path == "/rest/servicedeskapi/request":
+                return {"issueKey": "PCO-791", "requestTypeId": "101"}
+            if path.endswith("/comment"):
+                return {"id": "comment-791"}
+            return {}
+
+        self.module._request_json = fake_request
+
+        with patch.dict(os.environ, {"PSM_OPS_CUSTOMER_CHANNEL_MAP_PATH": map_path}, clear=False):
+            result = self.module.create_ps_wee_intake_ticket(
+                slack_user_email="psm@staffany.com",
+                slack_thread_url="https://staffany.slack.com/archives/C08SDJR03N1/p1778205303989579",
+                customer="Fei Siong",
+                issue_summary="Payroll readiness unclear",
+            )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(calls[1][2]["requestFieldValues"]["customfield_10102"], "FS-001")
+
+    def test_ps_wee_intake_blocks_conflicting_customer_channel_mapping(self):
+        map_path = self._customer_channel_map(
+            [
+                {
+                    "channel_id": "C08SDJR03N1",
+                    "channel_name": "cust-fei-siong",
+                    "customer_key": "fei-siong-group",
+                    "customer_name": "Fei Siong Group",
+                    "staffany_orgs": ["FS-001"],
+                    "status": "reviewed",
+                }
+            ]
+        )
+        calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
+                return {"issues": []}
+            return {}
+
+        self.module._request_json = fake_request
+
+        with patch.dict(os.environ, {"PSM_OPS_CUSTOMER_CHANNEL_MAP_PATH": map_path}, clear=False):
+            result = self.module.create_ps_wee_intake_ticket(
+                slack_user_email="psm@staffany.com",
+                slack_thread_url="https://staffany.slack.com/archives/C08SDJR03N1/p1778205303989579",
+                customer="Walta Tech",
+                issue_summary="Payroll readiness unclear",
+            )
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertEqual(len(calls), 1)
+        self.assertIn("Confirm the customer", result["caveat"])
+
+    def test_ps_wee_intake_blocks_unreviewed_customer_channel_mapping(self):
+        map_path = self._customer_channel_map(
+            [
+                {
+                    "channel_id": "C08SDJR03N1",
+                    "channel_name": "cust-fei-siong",
+                    "customer_key": "fei-siong-group",
+                    "customer_name": "Fei Siong Group",
+                    "staffany_orgs": ["FS-001"],
+                    "status": "needs_review",
+                }
+            ]
+        )
+        calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
+                return {"issues": []}
+            return {}
+
+        self.module._request_json = fake_request
+
+        with patch.dict(os.environ, {"PSM_OPS_CUSTOMER_CHANNEL_MAP_PATH": map_path}, clear=False):
+            result = self.module.create_ps_wee_intake_ticket(
+                slack_user_email="psm@staffany.com",
+                slack_thread_url="https://staffany.slack.com/archives/C08SDJR03N1/p1778205303989579",
+                issue_summary="Payroll readiness unclear",
+            )
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertEqual(len(calls), 1)
+        self.assertIn("not reviewed", result["caveat"])
+
+    def test_ps_wee_intake_unmapped_channel_keeps_current_needs_info_behavior(self):
+        map_path = self._customer_channel_map(
+            [
+                {
+                    "channel_id": "COTHER123",
+                    "channel_name": "cust-other",
+                    "customer_key": "other",
+                    "customer_name": "Other Customer",
+                    "staffany_orgs": ["OTHER"],
+                    "status": "reviewed",
+                }
+            ]
+        )
+        calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
+                return {"issues": []}
+            if path == "/rest/servicedeskapi/request":
+                return {"issueKey": "PCO-792", "requestTypeId": "101"}
+            if path.endswith("/comment"):
+                return {"id": "comment-792"}
+            return {}
+
+        self.module._request_json = fake_request
+
+        with patch.dict(os.environ, {"PSM_OPS_CUSTOMER_CHANNEL_MAP_PATH": map_path}, clear=False):
+            result = self.module.create_ps_wee_intake_ticket(
+                slack_user_email="psm@staffany.com",
+                slack_thread_url="https://staffany.slack.com/archives/C08SDJR03N1/p1778205303989579",
+                issue_summary="Payroll readiness unclear",
+            )
+
+        self.assertEqual(result["confidence"], "verified")
+        request_values = calls[1][2]["requestFieldValues"]
+        self.assertEqual(request_values["summary"], "[Needs info] Unknown customer - Payroll readiness unclear")
+        self.assertNotIn("customfield_10102", request_values)
+        self.assertIn("customer/org", result["answer"]["missing_info"])
 
     def test_ps_wee_intake_reuses_existing_ticket_for_same_slack_thread(self):
         calls = []

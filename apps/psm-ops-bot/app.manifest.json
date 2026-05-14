@@ -21,6 +21,7 @@
     "skill": "skills/psm-ops-bot/SKILL.md",
     "references": [
       "skills/psm-ops-bot/references/jira-field-contract.md",
+      "skills/psm-ops-bot/references/customer-channel-candidates.md",
       "skills/psm-ops-bot/references/regression-cases.md"
     ],
     "jira_runtime": "runtime/jira.md",
@@ -51,6 +52,7 @@
         "validate_roi_jira_configuration",
         "resolve_slack_user_identity",
         "classify_roi_ticket_request",
+        "resolve_customer_channel_org",
         "list_my_pco_tasks",
         "find_ticket_by_slack_thread",
         "find_roi_ticket_by_slack_thread",

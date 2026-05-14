@@ -1005,6 +1005,22 @@ Expected behavior:
 - Returns summary metrics plus deal-level audit rows.
 - Does not edit HubSpot or call BigQuery.
 
+### Direct Call Stats Primitive
+
+Prompt:
+
+```text
+@NurtureAny What is Singapore and Malaysia sales rep connected call of more than 1min between 2pm to 5pm today
+```
+
+Expected behavior:
+
+- Resolves caller scope and scoped sales owners, then calls `summarize_sales_call_stats`.
+- Does not call `build_ae_coaching_audit`, Friday review, priority-account coverage, or use `long_call_without_appointment_candidates`.
+- Shows whether counts are `owner_level`, `target_account_associated`, or `selected_company_associated`.
+- Treats `>1 min` as `duration_seconds > 60`; exactly 60 seconds is excluded.
+- Uses completed plus `duration_seconds >= 120` for default connected-call guardrail unless the user explicitly asks for a different threshold.
+
 ### AE Coaching Audit
 
 Prompt:
@@ -1088,3 +1104,19 @@ Expected behavior:
 - `truecaller_manual_lookup` stays candidate evidence unless paired with `nurtureany_phone_verification_status=called_connected`.
 - Returns field-level HubSpot mismatch reasons when rollups and associated contacts disagree.
 - Returns KNS talking points only; no HubSpot mutation, Lusha/Prospeo reveal, automated Truecaller lookup, raw phone-number export, or WhatsApp send.
+
+### Reviewed Lesson Candidate
+
+Prompt:
+
+```text
+@NurtureAny lesson: when I say KNS, always expand it as Knowledge, Network, Support
+```
+
+Expected behavior:
+
+- Records a `pending_review` candidate with `record_nurtureany_lesson_candidate` only if the correction is reusable and can be summarized safely.
+- Does not claim the lesson is already approved, promoted, or active behavior.
+- Does not use Honcho, mutate HubSpot, or store raw Slack transcripts.
+- Rejects lesson payloads that contain raw HubSpot rows, phone numbers, contact exports, secrets, or tokens.
+- Explains that durable behavior requires review, repo promotion, verification, deploy, and live check.

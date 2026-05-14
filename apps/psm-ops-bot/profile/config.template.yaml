@@ -68,6 +68,7 @@ psm_ops:
     service_desk_id_env: "PSM_OPS_JIRA_SERVICE_DESK_ID"
     access_policy_path_env: "PSM_OPS_ACCESS_POLICY_PATH" # optional in thin_poc
     public_comments_enabled_env: "PSM_OPS_JIRA_PUBLIC_COMMENTS_ENABLED"
+    customer_channel_map_path_env: "PSM_OPS_CUSTOMER_CHANNEL_MAP_PATH"
     thin_poc_defaults:
       service_desk_id: "70"
       customer_next_action_request_type: "81"
@@ -138,6 +139,7 @@ mcp_servers:
       - "validate_roi_jira_configuration"
       - "resolve_slack_user_identity"
       - "classify_roi_ticket_request"
+      - "resolve_customer_channel_org"
       - "list_my_pco_tasks"
       - "find_ticket_by_slack_thread"
       - "find_roi_ticket_by_slack_thread"

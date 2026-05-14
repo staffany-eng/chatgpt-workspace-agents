@@ -165,6 +165,7 @@ Field rules:
 
 - `validate_jira_configuration`: run in health checks and before broad enablement.
 - `validate_roi_jira_configuration`: run after ROI env setup and before broad ROI enablement.
+- `resolve_customer_channel_org`: safe read; resolve a Slack thread permalink to a reviewed customer-channel mapping before auto-tagging Jira `StaffAny Org(s)`.
 - `resolve_slack_user_identity`: safe read; resolve one Slack mention, email, or exact name through `users.list` before asking avoidable owner questions.
 - `classify_roi_ticket_request`: safe read; route actionable ROI/RevOps/BD Ops/NYSS requests to ROI only when create/add/log/handle/task wording is present.
 - `list_my_pco_tasks`: safe read, caller-scoped by Jira `PS Team`.

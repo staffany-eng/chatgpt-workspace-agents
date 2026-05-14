@@ -19,7 +19,7 @@ This directory is the maintained research wiki for designing ChatGPT workspace a
 - [Midas Karpathy Research Process](./sources/midas-research-process.md)
 - [OpenClaw Official Docs](./sources/openclaw-official-docs.md)
 - [OpenClaw Kaiyi Current Implementation](./sources/openclaw-kaiyi-implementation.md)
-- [Hermes Agent Docs And Patterns](./sources/hermes-agent-docs.md) - refreshed from live docs on 2026-05-10
+- [Hermes Agent Docs And Patterns](./sources/hermes-agent-docs.md) - refreshed from live docs on 2026-05-15
 - [ChatGPT Workspace Agent Official Docs](./sources/chatgpt-workspace-agent-docs.md)
 - [BigQuery MCP Proxy](./sources/bigquery-mcp-proxy.md)
 - [StaffAny Hermes Data Bot POC](./sources/staffany-hermes-data-bot-poc.md)
@@ -37,6 +37,7 @@ This directory is the maintained research wiki for designing ChatGPT workspace a
 ## Syntheses
 
 - [Workspace Agent Abstraction Boundaries](./syntheses/workspace-agent-abstraction-boundaries.md)
+- [Hermes Runtime Bot Operating Model](./syntheses/hermes-runtime-bot-operating-model.md)
 - [Memory Models](./syntheses/memory-models.md)
 - [Instruction Surfaces](./syntheses/instruction-surfaces.md)
 - [Skills vs Apps vs MCP](./syntheses/skills-vs-apps-vs-mcp.md)

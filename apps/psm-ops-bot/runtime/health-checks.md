@@ -13,6 +13,7 @@ PSM Ops Bot needs deterministic cloud health checks because prompt correctness d
 - Slack gateway is mention-required and not restricted to a single public/open channel.
 - Slack bot token can call `users.list` with profile emails for `PS Team` identity matching.
 - If `PSM_OPS_CENTRAL_SLACK_CHANNEL_ID` is configured, the Slack bot token can inspect that channel and the bot is a member.
+- Reviewed customer-channel map path is configured when customer-specific Slack channel auto-tagging is enabled.
 - `psm_jira` MCP lists exactly the expected tools.
 - `psm_c360` MCP lists exactly the expected tools.
 - `psm_google_calendar` MCP lists exactly `read_customer_calendar_context` when Google Calendar is enabled.

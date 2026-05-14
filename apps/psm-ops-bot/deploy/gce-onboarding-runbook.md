@@ -75,8 +75,11 @@ chmod 600 ~/.hermes/profiles/psmopsbot/.env
 systemctl --user restart hermes-gateway-psmopsbot.service
 ~/.hermes/profiles/psmopsbot/scripts/psmopsbot-check-health.sh
 ```
+- `PSM_OPS_CUSTOMER_CHANNEL_MAP_PATH` when customer-specific Slack channel auto-tagging is enabled
 
 Handoff Package intentionally returns a blocked response until PCO has the missing request type. Reminder automation uses Jira `duedate`; no separate reminder field is required in thin POC.
+
+Customer-specific Slack channel auto-tagging reads a reviewed JSON map from `PSM_OPS_CUSTOMER_CHANNEL_MAP_PATH`. Keep the map in profile/runtime storage, not in git. Each reviewed row must include `channel_id`, `channel_name`, `customer_key`, `customer_name`, `staffany_orgs`, and `status=reviewed`.
 
 ## VM Bootstrap
 

@@ -25,12 +25,17 @@ Alias rule: `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` refer to this 
 3. `psm_jira` MCP for live PCO task reads/writes and ROI-direct JSM ticket creation.
 4. `psm_c360` MCP for live Customer 360 search/context/Q&A.
 5. `psm_google_calendar` MCP for read-only `team@staffany.com` scheduling context only through the gated `read_customer_calendar_context` tool.
+2. `references/customer-channel-candidates.md` for the public Slack customer-channel review queue. This is not an active runtime map.
+3. `references/regression-cases.md` for expected behavior.
+4. `psm_jira` MCP for live PCO task reads and writes.
+5. `psm_c360` MCP for live Customer 360 search/context/Q&A.
 
 ## Capabilities
 
 - List the caller's own open, overdue, due-this-week, or automatic reminder-due PCO tasks.
 - Resolve a single Slack mention, email, or exact name to safe identity fields before asking avoidable owner questions.
 - Route actionable RevOps, BD Ops, NYSS, and ROI-board asks directly to ROI JSM with `classify_roi_ticket_request`, `find_roi_ticket_by_slack_thread`, and `create_roi_ticket_from_slack`.
+- Resolve reviewed customer-specific Slack channel mappings to Customer 360 customer and Jira StaffAny Org(s).
 - Create an immediate PS WEE intake ticket when PS asks to create, raise, log, or file a ticket.
 - Create an immediate PS WEE intake ticket when PS asks to add work to a person/team task list, backlog, or follow-up list.
 - Create an immediate PS WEE intake ticket when a customer-ops thread confirms a customer reached out or hit a limit, even if the human did not use the words "create ticket".
@@ -63,6 +68,7 @@ Alias rule: `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` refer to this 
 - PS WEE ticket-intake requests are the only creation exception: the user's explicit ask to create, raise, log, or file a ticket is approval to create an intake ticket first. Call `find_ticket_by_slack_thread`, then `create_ps_wee_intake_ticket` if no same-thread ticket exists.
 - Operational task-list and backlog requests are also PS WEE ticket-intake requests. Phrases like `add to <person/team> task list`, `add to Jo/Jos/Josica`, `put on backlog`, and `add to follow-up list` must call `find_ticket_by_slack_thread` and create the needs-info intake before asking for missing details.
 - Customer reach-out confirmations in an active PS WEE/customer-ops thread are also ticket-intake requests. If the bot asked whether the customer reached out, hit a limit, or needs follow-up, and a teammate replies with Intercom/support/Slack evidence, an admin screenshot, or a clear yes, call `find_ticket_by_slack_thread` and create the needs-info intake if none exists. Do not ask "do you want me to log a ticket?" first.
+- For customer-specific Slack channels, pass the current Slack thread permalink so `resolve_customer_channel_org` can auto-fill the reviewed Customer 360 customer and Jira StaffAny Org(s). If the channel mapping and message customer conflict, block and ask for confirmation.
 - Slack thread permalink is the V1 idempotency key for PS WEE ticket intake and must be passed into the ticket.
 - After creating the intake ticket, post the returned ticket link in the same Slack thread and ask for missing info there.
 - If the same Slack request asks for meeting timing or Calendar availability, create or return the PCO ticket first. Calendar lookup is secondary and best-effort; rate limits or quota failures must not block the ticket-first reply.

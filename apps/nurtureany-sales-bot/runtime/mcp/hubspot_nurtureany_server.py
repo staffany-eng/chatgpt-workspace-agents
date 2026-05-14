@@ -519,6 +519,8 @@ _CASE_STUDY_CATALOG_CACHE: list[dict[str, Any]] | None = None
 _DEAL_PROPERTY_NAMES_CACHE: set[str] | None = None
 CONNECTED_CALL_WEEKLY_TARGET = 40
 CONNECTED_CALL_MIN_DURATION_MS = 120_000
+SALES_CALL_DEFAULT_SCAN_LIMIT = 1_000
+SALES_CALL_ASSOCIATION_MODES = {"owner_level", "target_account_associated", "selected_company_associated"}
 STALE_ACCOUNT_DAYS = 18
 FRIDAY_REVIEW_DETAIL_LIMIT = 25
 QO_PIPELINE_IDS_ENV_VAR = "NURTUREANY_QO_PIPELINE_IDS"
@@ -643,6 +645,19 @@ DAILY_NURTURE_ACTIVE_MATERIAL_STATUSES = {"active", "approved", "live"}
 DAILY_NURTURE_RUNS_DIR_ENV = "NURTUREANY_DAILY_RUNS_DIR"
 OPERATION_LEDGER_DIR_ENV = "NURTUREANY_OPERATION_LEDGER_DIR"
 OPERATION_LEDGER_DEFAULT_PROFILE = "nurtureanysalesbot"
+LESSON_CANDIDATES_DIR_ENV = "NURTUREANY_LESSON_CANDIDATES_DIR"
+LESSON_CANDIDATE_STATUSES = {"pending_review", "approved_for_repo_promotion", "rejected", "promoted"}
+LESSON_CANDIDATE_RISK_CLASSES = {"low", "medium", "high"}
+LESSON_CANDIDATE_TARGET_SURFACES = {
+    "skill_reference",
+    "soul",
+    "mcp_contract",
+    "config_template",
+    "regression_case",
+    "runbook",
+    "research_wiki",
+    "app_manifest",
+}
 LUMA_BASE_URL = "https://public-api.luma.com"
 LUMA_USER_AGENT = "StaffAny-NurtureAny/1.0 (+https://staffany.com)"
 LUMA_TIMEOUT_SECONDS = 15
@@ -2651,7 +2666,7 @@ def _long_call_candidates_without_appointment(owner_id: str, companies: list[dic
             if owner_id and str(item.get("owner_id") or "") != str(owner_id):
                 continue
             duration_ms = _int_value(item.get("duration_seconds")) * 1000
-            if duration_ms < AE_COACHING_LONG_CALL_MIN_DURATION_MS or has_completed_meeting:
+            if duration_ms <= AE_COACHING_LONG_CALL_MIN_DURATION_MS or has_completed_meeting:
                 continue
             company = company_by_id.get(str(company_id), {})
             props = company.get("properties", {})
@@ -2664,7 +2679,7 @@ def _long_call_candidates_without_appointment(owner_id: str, companies: list[dic
                     "call_at": item.get("timestamp"),
                     "duration_seconds": item.get("duration_seconds"),
                     "status": "needs-check",
-                    "reason": "call over 60s with no completed appointment/meeting evidence on this account in the audited week",
+                    "reason": "call >60s with no completed appointment/meeting evidence on this account in the audited week",
                     "call_content_status": "metadata-only",
                 }
             )
@@ -4992,6 +5007,722 @@ def _owner_display(owner_id: str, owner_lookup: dict[str, dict[str, Any]]) -> di
         "owner_email": _normalize_email(str(owner.get("email") or "")),
         "owner_name": _owner_name(owner) if owner else "",
     }
+
+
+def _display_for_owner_id(owner_id: str, owner_lookup: dict[str, dict[str, Any]]) -> dict[str, str]:
+    display = _owner_display(owner_id, owner_lookup)
+    if not display["owner_email"]:
+        display["owner_email"] = _owner_email_by_id(owner_id)
+    if not display["owner_name"]:
+        display["owner_name"] = _owner_name_by_id(owner_id)
+    return display
+
+
+def _parse_sales_local_datetime(value: str, tz: ZoneInfo, field_name: str) -> datetime:
+    text = str(value or "").strip()
+    if not text:
+        raise MetricClarification(f"{field_name} is required.")
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError as error:
+        raise MetricClarification(f"{field_name} must be ISO-like, for example 2026-05-14 14:00.") from error
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=tz)
+    return parsed.astimezone(tz)
+
+
+def _sales_call_window(start_local: str, end_local: str, timezone_name: str) -> dict[str, str]:
+    tz_name = str(timezone_name or "Asia/Singapore").strip() or "Asia/Singapore"
+    tz = _zoneinfo_or_none(tz_name)
+    if not tz:
+        raise MetricClarification(f"timezone is invalid: {tz_name}.")
+    start = _parse_sales_local_datetime(start_local, tz, "start_local")
+    end = _parse_sales_local_datetime(end_local, tz, "end_local")
+    if end <= start:
+        raise MetricClarification("end_local must be after start_local.")
+    return {
+        "timezone": tz_name,
+        "start_local": start.isoformat(),
+        "end_local": end.isoformat(),
+        "start_utc": _utc_iso(start),
+        "end_utc": _utc_iso(end),
+    }
+
+
+def _normalize_owner_id_list(owner_ids: list[str] | None) -> list[str]:
+    selected: list[str] = []
+    for owner_id in owner_ids or []:
+        text = str(owner_id or "").strip()
+        if text and text not in selected:
+            selected.append(text)
+    return selected
+
+
+def _normalize_owner_email_list(owner_emails: list[str] | None, owner_email: str | None = None) -> list[str]:
+    selected: list[str] = []
+    for value in (owner_emails or []) + ([owner_email] if owner_email else []):
+        email = _normalize_email(str(value or ""))
+        if email and email not in selected:
+            selected.append(email)
+    return selected
+
+
+def _sales_owner_rows_for_scope(
+    scope: dict[str, Any],
+    countries: list[str],
+    owner_ids: list[str] | None = None,
+    owner_emails: list[str] | None = None,
+    owner_name: str | None = None,
+    classified_sales_reps_only: bool = True,
+    limit: int = 500,
+) -> tuple[list[dict[str, Any]], list[str]]:
+    selected_countries = set(countries)
+    requested_ids = _normalize_owner_id_list(owner_ids)
+    requested_emails = _normalize_owner_email_list(owner_emails)
+    unresolved: list[str] = []
+
+    if owner_name:
+        identity = _resolve_requested_owner(scope, countries, None, owner_name)
+        if identity:
+            requested_ids.append(identity["owner_id"])
+            requested_emails.append(identity["owner_email"])
+
+    for owner_email in list(requested_emails):
+        identity = _resolve_requested_owner(scope, countries, owner_email, None)
+        if identity and identity["owner_id"] not in requested_ids:
+            requested_ids.append(identity["owner_id"])
+
+    if scope.get("kind") == "ae":
+        scope_owner_id = str(scope.get("owner_id") or "").strip()
+        if requested_ids and any(owner_id != scope_owner_id for owner_id in requested_ids):
+            raise ScopeError("Caller is not authorized to inspect another owner's sales activity.")
+        if not requested_ids and not requested_emails:
+            requested_ids = [scope_owner_id] if scope_owner_id else []
+            if scope.get("hubspot_owner_email"):
+                requested_emails = [_normalize_email(str(scope.get("hubspot_owner_email") or ""))]
+
+    requested_limit = _bounded_int(limit, default=500, maximum=HUBSPOT_SEARCH_TOTAL_LIMIT)
+    policy = _access_policy()
+    rows_by_id: dict[str, dict[str, Any]] = {}
+    seen_owner_emails: set[str] = set()
+
+    for slack_email, rep in policy.get("sales_reps", {}).items():
+        rep_countries = list(rep.get("countries") or ())
+        country_overlap = [country for country in rep_countries if country in selected_countries]
+        if countries and not country_overlap:
+            continue
+        owner_email = _normalize_email(str(rep.get("hubspot_owner_email") or ""))
+        if requested_emails and owner_email not in requested_emails and _normalize_email(slack_email) not in requested_emails:
+            continue
+        if not owner_email or owner_email in seen_owner_emails:
+            continue
+        seen_owner_emails.add(owner_email)
+        owner = _owner_by_email(owner_email)
+        owner_id = str((owner or {}).get("id") or "").strip()
+        if not owner_id:
+            unresolved.append(owner_email)
+            continue
+        if requested_ids and owner_id not in requested_ids:
+            continue
+        if scope.get("kind") == "ae" and owner_id != str(scope.get("owner_id") or ""):
+            continue
+        rows_by_id[owner_id] = {
+            "owner_id": owner_id,
+            "owner_email": owner_email,
+            "owner_name": _owner_name(owner or {}),
+            "countries": country_overlap or rep_countries,
+            "timezone": str(rep.get("timezone") or "").strip(),
+            "classification": "sales_rep",
+            "slack_email": slack_email,
+        }
+        if len(rows_by_id) >= requested_limit:
+            break
+
+    if not classified_sales_reps_only:
+        for owner_id in requested_ids:
+            if owner_id in rows_by_id:
+                continue
+            owner = _owner_by_id(owner_id)
+            identity = _owner_identity(owner) if owner else {"owner_id": owner_id, "owner_email": "", "owner_name": ""}
+            if scope.get("kind") == "manager" and not _manager_can_query_owner(scope, identity["owner_email"], countries):
+                continue
+            rows_by_id[owner_id] = {
+                **identity,
+                "countries": countries,
+                "timezone": _policy_timezone_for_owner_email(identity["owner_email"]),
+                "classification": _policy_classification(identity["owner_email"], policy) if identity["owner_email"] else "provided_owner_id",
+            }
+
+    if requested_ids:
+        missing_ids = [owner_id for owner_id in requested_ids if owner_id and owner_id not in rows_by_id]
+        unresolved.extend(missing_ids)
+
+    rows = sorted(
+        rows_by_id.values(),
+        key=lambda row: (",".join(row.get("countries") or []), row.get("owner_name") or row.get("owner_email") or row.get("owner_id")),
+    )
+    return rows[:requested_limit], _unique_text(unresolved)
+
+
+def _resolve_sales_owner_ids_for_activity(
+    scope: dict[str, Any],
+    countries: list[str],
+    owner_ids: list[str] | None = None,
+    owner_emails: list[str] | None = None,
+    owner_email: str | None = None,
+    owner_name: str | None = None,
+    classified_sales_reps_only: bool = True,
+) -> tuple[list[str], list[dict[str, Any]], list[str]]:
+    requested_emails = _normalize_owner_email_list(owner_emails, owner_email)
+    rows, unresolved = _sales_owner_rows_for_scope(
+        scope,
+        countries,
+        owner_ids=owner_ids,
+        owner_emails=requested_emails,
+        owner_name=owner_name,
+        classified_sales_reps_only=classified_sales_reps_only,
+        limit=HUBSPOT_SEARCH_TOTAL_LIMIT,
+    )
+    resolved_ids = [str(row.get("owner_id") or "").strip() for row in rows if str(row.get("owner_id") or "").strip()]
+    if not resolved_ids:
+        raise MetricClarification("No scoped sales owners resolved. Use resolve_sales_owners first or pass a scoped owner email.")
+    return resolved_ids, rows, unresolved
+
+
+def _target_company_ids_for_sales_calls(
+    countries: list[str],
+    owner_ids: list[str],
+    scan_limit: int,
+) -> tuple[list[str], bool]:
+    company_ids: list[str] = []
+    truncated = False
+    per_owner_limit = _bounded_int(scan_limit, default=SALES_CALL_DEFAULT_SCAN_LIMIT, maximum=HUBSPOT_SEARCH_TOTAL_LIMIT)
+    for owner_id in owner_ids:
+        data = _company_search(
+            _target_filters(countries, owner_id),
+            per_owner_limit,
+            maximum=HUBSPOT_SEARCH_TOTAL_LIMIT,
+            sorts=[{"propertyName": "hubspot_owner_id", "direction": "ASCENDING"}],
+        )
+        truncated = truncated or bool(data.get("truncated"))
+        for company in data.get("results", []):
+            company_id = str(company.get("id") or "").strip()
+            if company_id and company_id not in company_ids:
+                company_ids.append(company_id)
+    return company_ids, truncated
+
+
+def _scoped_selected_company_ids(company_ids: list[str] | None, scope: dict[str, Any]) -> list[str]:
+    selected: list[str] = []
+    for company_id in company_ids or []:
+        normalized = str(company_id or "").strip()
+        if not normalized:
+            continue
+        _assert_company_access(normalized, scope)
+        if normalized not in selected:
+            selected.append(normalized)
+    return selected
+
+
+def _associated_call_company_ids(
+    call_ids: list[str],
+    selected_company_ids: list[str],
+    deadline: float | None = None,
+) -> tuple[dict[str, list[str]], dict[str, dict[str, list[str]]]]:
+    if not call_ids or not selected_company_ids:
+        return {}, {}
+    selected_companies = set(selected_company_ids)
+    direct_company_ids = _batch_association_ids_until("calls", "companies", call_ids, deadline)
+    call_contact_ids = _batch_association_ids_until("calls", "contacts", call_ids, deadline)
+    call_deal_ids = _batch_association_ids_until("calls", "deals", call_ids, deadline)
+    company_contact_ids = _batch_association_ids_until("companies", "contacts", selected_company_ids, deadline)
+    company_deal_ids = _batch_association_ids_until("companies", "deals", selected_company_ids, deadline)
+
+    contact_to_companies: dict[str, list[str]] = {}
+    for company_id, contact_ids in company_contact_ids.items():
+        for contact_id in contact_ids:
+            contact_to_companies.setdefault(contact_id, []).append(company_id)
+    deal_to_companies: dict[str, list[str]] = {}
+    for company_id, deal_ids in company_deal_ids.items():
+        for deal_id in deal_ids:
+            deal_to_companies.setdefault(deal_id, []).append(company_id)
+
+    matched_company_ids: dict[str, list[str]] = {}
+    association_details: dict[str, dict[str, list[str]]] = {}
+    for call_id in call_ids:
+        companies = set(direct_company_ids.get(call_id, [])).intersection(selected_companies)
+        matched_contacts = []
+        matched_deals = []
+        for contact_id in call_contact_ids.get(call_id, []):
+            contact_companies = set(contact_to_companies.get(contact_id, [])).intersection(selected_companies)
+            if contact_companies:
+                companies.update(contact_companies)
+                matched_contacts.append(contact_id)
+        for deal_id in call_deal_ids.get(call_id, []):
+            deal_companies = set(deal_to_companies.get(deal_id, [])).intersection(selected_companies)
+            if deal_companies:
+                companies.update(deal_companies)
+                matched_deals.append(deal_id)
+        if companies:
+            matched_company_ids[call_id] = sorted(companies)
+            association_details[call_id] = {
+                "associated_company_ids": sorted(companies),
+                "associated_contact_ids": _unique_text(matched_contacts),
+                "associated_deal_ids": _unique_text(matched_deals),
+            }
+    return matched_company_ids, association_details
+
+
+def _call_status_matches(call: dict[str, Any], status: str) -> bool:
+    normalized = str(status or "ANY").strip().upper()
+    if normalized in {"", "ANY", "ALL"}:
+        return True
+    if normalized == "COMPLETED":
+        return _is_completed_call(call)
+    call_status = str(call.get("properties", {}).get("hs_call_status") or "").strip().upper()
+    return call_status == normalized
+
+
+def _safe_sales_call_event(
+    call: dict[str, Any],
+    owner_lookup: dict[str, dict[str, Any]],
+    association_mode: str,
+    associations: dict[str, list[str]] | None = None,
+    association_details: dict[str, list[str]] | None = None,
+) -> dict[str, Any]:
+    props = call.get("properties", {})
+    owner_id = str(props.get("hubspot_owner_id") or "").strip()
+    display = _display_for_owner_id(owner_id, owner_lookup)
+    duration_ms = _call_duration_ms(call)
+    details = association_details or {}
+    return {
+        "event_type": "call",
+        "object_id": str(call.get("id") or "").strip(),
+        "timestamp_utc": props.get("hs_timestamp") or props.get("hs_lastmodifieddate") or "",
+        "owner_id": owner_id,
+        "owner_email": display.get("owner_email") or "",
+        "owner_name": display.get("owner_name") or "",
+        "status": str(props.get("hs_call_status") or "").strip(),
+        "duration_seconds": round(duration_ms / 1000, 3),
+        "completed": _is_completed_call(call),
+        "completed_gt_60s": _is_completed_call(call) and duration_ms > AE_COACHING_LONG_CALL_MIN_DURATION_MS,
+        "connected_call_120s_guardrail": _is_connected_call(call),
+        "channel": str(props.get("hs_call_source") or props.get("hs_object_source_label") or "").strip(),
+        "association_mode": association_mode,
+        "associated_company_ids": details.get("associated_company_ids") or associations or [],
+        "associated_contact_ids": details.get("associated_contact_ids") or [],
+        "associated_deal_ids": details.get("associated_deal_ids") or [],
+        "aircall_call_id": _aircall_call_id_from_hubspot_call(call),
+        "raw_body_returned": False,
+    }
+
+
+def _list_sales_call_events_core(
+    scope: dict[str, Any],
+    countries: list[str],
+    owner_ids: list[str],
+    start_local: str,
+    end_local: str,
+    timezone_name: str,
+    status: str,
+    association_mode: str,
+    company_ids: list[str] | None = None,
+    limit: int = SALES_CALL_DEFAULT_SCAN_LIMIT,
+    deadline: float | None = None,
+) -> dict[str, Any]:
+    mode = str(association_mode or "owner_level").strip()
+    if mode not in SALES_CALL_ASSOCIATION_MODES:
+        raise MetricClarification(
+            "association_mode must be one of owner_level, target_account_associated, or selected_company_associated."
+        )
+    scan_limit = _bounded_int(limit, default=SALES_CALL_DEFAULT_SCAN_LIMIT, maximum=HUBSPOT_SEARCH_TOTAL_LIMIT)
+    window = _sales_call_window(start_local, end_local, timezone_name)
+    owner_lookup = _owner_lookup_by_id()
+
+    raw_calls: list[dict[str, Any]] = []
+    source_totals: dict[str, int | None] = {}
+    source_returned: dict[str, int] = {}
+    truncated = False
+    for owner_id in owner_ids:
+        if _deadline_exceeded(deadline):
+            truncated = True
+            break
+        filters = [
+            {"propertyName": "hubspot_owner_id", "operator": "EQ", "value": owner_id},
+            {"propertyName": "hs_timestamp", "operator": "GTE", "value": window["start_utc"]},
+            {"propertyName": "hs_timestamp", "operator": "LTE", "value": window["end_utc"]},
+        ]
+        data = _object_search("calls", filters, CALL_PROPERTIES, limit=scan_limit, maximum=HUBSPOT_SEARCH_TOTAL_LIMIT)
+        source_totals[owner_id] = data.get("total")
+        source_returned[owner_id] = len(data.get("results", []))
+        truncated = truncated or bool(data.get("truncated"))
+        raw_calls.extend(data.get("results", []))
+
+    filtered_calls = [call for call in raw_calls if _call_status_matches(call, status)]
+    selected_company_ids: list[str] = []
+    company_pool_truncated = False
+    matched_company_ids: dict[str, list[str]] = {}
+    association_details: dict[str, dict[str, list[str]]] = {}
+    if mode == "target_account_associated":
+        selected_company_ids, company_pool_truncated = _target_company_ids_for_sales_calls(countries, owner_ids, scan_limit)
+    elif mode == "selected_company_associated":
+        selected_company_ids = _scoped_selected_company_ids(company_ids, scope)
+        if not selected_company_ids:
+            raise MetricClarification("company_ids is required for selected_company_associated.")
+    if selected_company_ids:
+        call_ids = [str(call.get("id") or "").strip() for call in filtered_calls if str(call.get("id") or "").strip()]
+        matched_company_ids, association_details = _associated_call_company_ids(call_ids, selected_company_ids, deadline)
+        filtered_calls = [
+            call for call in filtered_calls if str(call.get("id") or "").strip() in matched_company_ids
+        ]
+    elif mode != "owner_level":
+        filtered_calls = []
+
+    events = []
+    for call in filtered_calls:
+        call_id = str(call.get("id") or "").strip()
+        events.append(
+            _safe_sales_call_event(
+                call,
+                owner_lookup,
+                mode,
+                associations=matched_company_ids.get(call_id, []),
+                association_details=association_details.get(call_id, {}),
+            )
+        )
+
+    return {
+        "events": events,
+        "window": window,
+        "association_mode": mode,
+        "status_filter": str(status or "ANY").strip().upper() or "ANY",
+        "source_call_total_before_status_filter_by_owner": source_totals,
+        "source_call_returned_before_status_filter_by_owner": source_returned,
+        "selected_company_count": len(selected_company_ids),
+        "company_pool_truncated": company_pool_truncated,
+        "requested_limit_per_owner": scan_limit,
+        "returned_count": len(events),
+        "has_more": bool(truncated or company_pool_truncated),
+        "truncated": bool(truncated or company_pool_truncated),
+    }
+
+
+def _empty_call_metrics() -> dict[str, int]:
+    return {
+        "total_calls": 0,
+        "completed_calls": 0,
+        "completed_calls_gt_60s": 0,
+        "connected_calls_120s_guardrail": 0,
+        "completed_calls_exactly_60s_excluded_from_gt_60s": 0,
+    }
+
+
+def _add_call_metrics(metrics: dict[str, int], event: dict[str, Any]) -> None:
+    metrics["total_calls"] += 1
+    if event.get("completed"):
+        metrics["completed_calls"] += 1
+        duration_ms = int(round(float(event.get("duration_seconds") or 0) * 1000))
+        if duration_ms > AE_COACHING_LONG_CALL_MIN_DURATION_MS:
+            metrics["completed_calls_gt_60s"] += 1
+        elif duration_ms == AE_COACHING_LONG_CALL_MIN_DURATION_MS:
+            metrics["completed_calls_exactly_60s_excluded_from_gt_60s"] += 1
+    if event.get("connected_call_120s_guardrail"):
+        metrics["connected_calls_120s_guardrail"] += 1
+
+
+def _summarize_sales_call_events(events: list[dict[str, Any]], owner_rows: list[dict[str, Any]]) -> dict[str, Any]:
+    owner_metadata = {str(row.get("owner_id") or ""): row for row in owner_rows}
+    owners: dict[str, dict[str, Any]] = {}
+    totals = _empty_call_metrics()
+    for row in owner_rows:
+        owner_id = str(row.get("owner_id") or "").strip()
+        if not owner_id:
+            continue
+        owners[owner_id] = {
+            "owner_id": owner_id,
+            "owner_email": row.get("owner_email") or "",
+            "owner_name": row.get("owner_name") or "",
+            "countries": row.get("countries") or [],
+            "timezone": row.get("timezone") or "",
+            **_empty_call_metrics(),
+        }
+    for event in events:
+        owner_id = str(event.get("owner_id") or "").strip()
+        if owner_id not in owners:
+            meta = owner_metadata.get(owner_id, {})
+            owners[owner_id] = {
+                "owner_id": owner_id,
+                "owner_email": event.get("owner_email") or meta.get("owner_email") or "",
+                "owner_name": event.get("owner_name") or meta.get("owner_name") or "",
+                "countries": meta.get("countries") or [],
+                "timezone": meta.get("timezone") or "",
+                **_empty_call_metrics(),
+            }
+        _add_call_metrics(owners[owner_id], event)
+        _add_call_metrics(totals, event)
+    return {"owners": list(owners.values()), "totals": totals}
+
+
+@mcp.tool()
+def resolve_nurture_scope(
+    slack_user_email: str,
+    countries: list[str] | None = None,
+    owner_email: str | None = None,
+) -> dict[str, Any]:
+    """Resolve caller scope and allowed countries without returning business metrics."""
+
+    try:
+        scope = _caller_scope(slack_user_email)
+        if scope["kind"] == "blocked":
+            return _blocked(scope.get("blocked_reason") or "Caller identity is not mapped to an allowed scope.", {"caller_email": slack_user_email})
+        selected = _safe_countries(countries, scope["countries"])
+        if not selected:
+            return _blocked("Requested countries are outside caller scope.", _scope_response(scope, []))
+        target_owner_id = None
+        target_owner_email = ""
+        if owner_email:
+            target_owner_id, target_owner_email = _target_owner_id_for_scope(scope, owner_email)
+        answer = {
+            **_scope_response(scope, selected, target_owner_id, target_owner_email),
+            "allowed_countries": list(scope.get("countries", ())),
+            "canonical_email": scope.get("email"),
+            "caller_role": scope.get("kind"),
+            "timezone": "Asia/Singapore",
+            "access_caveats": [
+                "No business metrics returned.",
+                "HubSpot ownership and country access still apply to downstream source tools.",
+            ],
+        }
+        return {
+            "answer": answer,
+            "source": "NurtureAny runtime access policy plus HubSpot owner lookup when owner_email is supplied",
+            "scope": _scope_response(scope, selected, target_owner_id, target_owner_email),
+            "confidence": "verified",
+            "caveat": "Scope resolver only. It does not read calls, companies, contacts, deals, tasks, notes, or campaign metrics.",
+        }
+    except (AccessPolicyError, ScopeError, MetricClarification) as error:
+        return _blocked(str(error), {"caller_email": slack_user_email, "owner_email": owner_email})
+    except HubSpotError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email, "owner_email": owner_email})
+
+
+@mcp.tool()
+def resolve_sales_owners(
+    slack_user_email: str,
+    countries: list[str] | None = None,
+    owner_email: str | None = None,
+    owner_name: str | None = None,
+    owner_ids: list[str] | None = None,
+    classified_sales_reps_only: bool = True,
+    limit: int = 500,
+) -> dict[str, Any]:
+    """Resolve scoped HubSpot sales owners before owner/team metrics."""
+
+    try:
+        scope = _caller_scope(slack_user_email)
+        if scope["kind"] == "blocked":
+            return _blocked(scope.get("blocked_reason") or "Caller identity is not mapped to an allowed scope.", {"caller_email": slack_user_email})
+        selected = _safe_countries(countries, scope["countries"])
+        if not selected:
+            return _blocked("Requested countries are outside caller scope.", _scope_response(scope, []))
+        rows, unresolved = _sales_owner_rows_for_scope(
+            scope,
+            selected,
+            owner_ids=owner_ids,
+            owner_emails=_normalize_owner_email_list(None, owner_email),
+            owner_name=owner_name,
+            classified_sales_reps_only=classified_sales_reps_only,
+            limit=limit,
+        )
+        return {
+            "answer": {
+                "owners": rows,
+                "owner_count": len(rows),
+                "unresolved": unresolved,
+                "classified_sales_reps_only": classified_sales_reps_only,
+            },
+            "source": "NurtureAny runtime access policy and HubSpot owners API",
+            "scope": _scope_response(scope, selected),
+            "total": len(rows),
+            "requested_limit": _bounded_int(limit, default=500, maximum=HUBSPOT_SEARCH_TOTAL_LIMIT),
+            "returned_count": len(rows),
+            "has_more": len(rows) >= _bounded_int(limit, default=500, maximum=HUBSPOT_SEARCH_TOTAL_LIMIT),
+            "truncated": len(rows) >= _bounded_int(limit, default=500, maximum=HUBSPOT_SEARCH_TOTAL_LIMIT),
+            "will_mutate_hubspot": False,
+            "confidence": "needs-check" if unresolved else "verified",
+            "caveat": "Owner resolver only. Use the returned owner_id values for scoped rep/team metric tools.",
+        }
+    except (AccessPolicyError, ScopeError, MetricClarification) as error:
+        return _blocked(str(error), {"caller_email": slack_user_email, "owner_email": owner_email, "owner_name": owner_name})
+    except HubSpotError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email})
+
+
+@mcp.tool()
+def list_sales_call_events(
+    slack_user_email: str,
+    countries: list[str] | None = None,
+    owner_ids: list[str] | None = None,
+    owner_emails: list[str] | None = None,
+    owner_email: str | None = None,
+    owner_name: str | None = None,
+    company_ids: list[str] | None = None,
+    start_local: str = "",
+    end_local: str = "",
+    timezone: str = "Asia/Singapore",
+    status: str = "ANY",
+    association_mode: str = "owner_level",
+    classified_sales_reps_only: bool = True,
+    limit: int = SALES_CALL_DEFAULT_SCAN_LIMIT,
+) -> dict[str, Any]:
+    """List normalized safe HubSpot call events for scoped owners and a local-time window."""
+
+    try:
+        scope = _caller_scope(slack_user_email)
+        if scope["kind"] == "blocked":
+            return _blocked(scope.get("blocked_reason") or "Caller identity is not mapped to an allowed scope.", {"caller_email": slack_user_email})
+        selected = _safe_countries(countries, scope["countries"])
+        if not selected:
+            return _blocked("Requested countries are outside caller scope.", _scope_response(scope, []))
+        resolved_owner_ids, owner_rows, unresolved = _resolve_sales_owner_ids_for_activity(
+            scope,
+            selected,
+            owner_ids=owner_ids,
+            owner_emails=owner_emails,
+            owner_email=owner_email,
+            owner_name=owner_name,
+            classified_sales_reps_only=classified_sales_reps_only,
+        )
+        data = _list_sales_call_events_core(
+            scope,
+            selected,
+            resolved_owner_ids,
+            start_local,
+            end_local,
+            timezone,
+            status,
+            association_mode,
+            company_ids=company_ids,
+            limit=limit,
+        )
+        return {
+            "answer": {
+                "events": data["events"],
+                "event_count": len(data["events"]),
+                "owners": owner_rows,
+                "unresolved_owners": unresolved,
+                "association_mode": data["association_mode"],
+                "status_filter": data["status_filter"],
+                "raw_body_returned": False,
+            },
+            "source": "HubSpot calls metadata via scoped owner/time-window search",
+            "scope": {
+                **_scope_response(scope, selected),
+                "owner_ids": resolved_owner_ids,
+                "window": data["window"],
+                "association_mode": data["association_mode"],
+            },
+            "requested_limit": data["requested_limit_per_owner"],
+            "returned_count": data["returned_count"],
+            "has_more": data["has_more"],
+            "truncated": data["truncated"],
+            "will_mutate_hubspot": False,
+            "confidence": "needs-check" if data["truncated"] or unresolved else "verified",
+            "caveat": "Safe call metadata only. No call bodies, transcripts, recordings, raw HubSpot rows, phone numbers, or HubSpot mutation.",
+        }
+    except (AccessPolicyError, ScopeError, MetricClarification) as error:
+        return _blocked(str(error), {"caller_email": slack_user_email})
+    except HubSpotError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email})
+
+
+@mcp.tool()
+def summarize_sales_call_stats(
+    slack_user_email: str,
+    countries: list[str] | None = None,
+    owner_ids: list[str] | None = None,
+    owner_emails: list[str] | None = None,
+    owner_email: str | None = None,
+    owner_name: str | None = None,
+    company_ids: list[str] | None = None,
+    start_local: str = "",
+    end_local: str = "",
+    timezone: str = "Asia/Singapore",
+    status: str = "ANY",
+    thresholds: list[int] | None = None,
+    association_mode: str = "owner_level",
+    classified_sales_reps_only: bool = True,
+    limit: int = SALES_CALL_DEFAULT_SCAN_LIMIT,
+) -> dict[str, Any]:
+    """Summarize deterministic call counts by owner using the shared call primitive."""
+
+    try:
+        scope = _caller_scope(slack_user_email)
+        if scope["kind"] == "blocked":
+            return _blocked(scope.get("blocked_reason") or "Caller identity is not mapped to an allowed scope.", {"caller_email": slack_user_email})
+        selected = _safe_countries(countries, scope["countries"])
+        if not selected:
+            return _blocked("Requested countries are outside caller scope.", _scope_response(scope, []))
+        resolved_owner_ids, owner_rows, unresolved = _resolve_sales_owner_ids_for_activity(
+            scope,
+            selected,
+            owner_ids=owner_ids,
+            owner_emails=owner_emails,
+            owner_email=owner_email,
+            owner_name=owner_name,
+            classified_sales_reps_only=classified_sales_reps_only,
+        )
+        data = _list_sales_call_events_core(
+            scope,
+            selected,
+            resolved_owner_ids,
+            start_local,
+            end_local,
+            timezone,
+            status,
+            association_mode,
+            company_ids=company_ids,
+            limit=limit,
+        )
+        summary = _summarize_sales_call_events(data["events"], owner_rows)
+        threshold_values = sorted({int(value) for value in (thresholds or [60, 120]) if int(value) > 0})
+        return {
+            "answer": {
+                "totals": summary["totals"],
+                "owners": summary["owners"],
+                "thresholds_seconds": {
+                    "completed_calls_gt_60s": 60,
+                    "connected_calls_120s_guardrail": 120,
+                    "requested": threshold_values,
+                },
+                "association_mode": data["association_mode"],
+                "status_filter": data["status_filter"],
+                "source_call_total_before_status_filter_by_owner": data["source_call_total_before_status_filter_by_owner"],
+                "source_call_returned_before_status_filter_by_owner": data["source_call_returned_before_status_filter_by_owner"],
+                "selected_company_count": data["selected_company_count"],
+                "raw_body_returned": False,
+                "used_long_call_without_appointment_candidates": False,
+                "will_mutate_hubspot": False,
+            },
+            "source": "HubSpot calls metadata via list_sales_call_events primitive plus deterministic reducer",
+            "scope": {
+                **_scope_response(scope, selected),
+                "owner_ids": resolved_owner_ids,
+                "window": data["window"],
+                "association_mode": data["association_mode"],
+            },
+            "requested_limit": data["requested_limit_per_owner"],
+            "returned_count": data["returned_count"],
+            "has_more": data["has_more"],
+            "truncated": data["truncated"],
+            "will_mutate_hubspot": False,
+            "confidence": "needs-check" if data["truncated"] or unresolved else "verified",
+            "caveat": "Call stats are deterministic counts over safe HubSpot call metadata. `completed_calls_gt_60s` is strictly duration_seconds > 60; exactly 60s is excluded. `connected_calls_120s_guardrail` is completed calls with duration_seconds >= 120. No coaching candidate caps are used.",
+        }
+    except (AccessPolicyError, ScopeError, MetricClarification, ValueError) as error:
+        return _blocked(str(error), {"caller_email": slack_user_email})
+    except HubSpotError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email})
 
 
 def _detail_account_row(
@@ -7482,6 +8213,13 @@ def _operation_ledger_dir() -> Path:
     return _profile_runtime_dir() / "operation-ledger"
 
 
+def _lesson_candidates_dir() -> Path:
+    raw = os.environ.get(LESSON_CANDIDATES_DIR_ENV, "").strip()
+    if raw:
+        return Path(raw).expanduser()
+    return _profile_runtime_dir() / "lesson-candidates"
+
+
 def _safe_file_stem(value: str) -> str:
     safe_name = re.sub(r"[^A-Za-z0-9_.:-]+", "_", value or "").strip("._")
     if safe_name:
@@ -7491,6 +8229,10 @@ def _safe_file_stem(value: str) -> str:
 
 def _ledger_path(operation_id: str) -> Path:
     return _operation_ledger_dir() / f"{_safe_file_stem(operation_id)}.json"
+
+
+def _lesson_candidate_path(lesson_id: str) -> Path:
+    return _lesson_candidates_dir() / f"{_safe_file_stem(lesson_id)}.json"
 
 
 def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -7509,6 +8251,32 @@ def _load_operation_record(operation_id: str) -> dict[str, Any]:
     return payload if isinstance(payload, dict) else {}
 
 
+def _load_lesson_candidate(lesson_id: str) -> dict[str, Any]:
+    path = _lesson_candidate_path(lesson_id)
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _iter_lesson_candidates() -> list[dict[str, Any]]:
+    candidates: list[dict[str, Any]] = []
+    directory = _lesson_candidates_dir()
+    try:
+        paths = sorted(directory.glob("*.json"))
+    except OSError:
+        return candidates
+    for path in paths:
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            continue
+        if isinstance(payload, dict):
+            candidates.append(payload)
+    return candidates
+
+
 def _compact_ledger_record(record: dict[str, Any]) -> dict[str, Any]:
     history = record.get("history") if isinstance(record.get("history"), list) else []
     return {
@@ -7523,6 +8291,53 @@ def _compact_ledger_record(record: dict[str, Any]) -> dict[str, Any]:
         "updated_at": record.get("updated_at") or "",
         "history_count": len(history),
     }
+
+
+def _compact_lesson_candidate(record: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "lesson_id": record.get("lesson_id") or "",
+        "created_at": record.get("created_at") or "",
+        "source_thread_permalink": record.get("source_thread_permalink") or "",
+        "source_summary": record.get("source_summary") or "",
+        "proposed_rule": record.get("proposed_rule") or "",
+        "applies_to": record.get("applies_to") or "",
+        "target_repo_surface": record.get("target_repo_surface") or "",
+        "risk_class": record.get("risk_class") or "",
+        "status": record.get("status") or "pending_review",
+        "reviewer": record.get("reviewer") or "",
+        "review_notes": record.get("review_notes") or "",
+    }
+
+
+def _clean_lesson_text(value: str, *, max_length: int) -> str:
+    text = re.sub(r"\s+", " ", str(value or "").strip())
+    return text[:max_length]
+
+
+def _lesson_payload_unsafe(*values: str) -> str:
+    combined = "\n".join(str(value or "") for value in values)
+    secret_patterns = (
+        r"xox[baprs]-",
+        r"sk-[A-Za-z0-9_-]{20,}",
+        r"(?i)(api[_ -]?key|private[_ -]?app[_ -]?token|oauth[_ -]?token|client[_ -]?secret)\s*[:=]",
+        r"-----BEGIN [A-Z ]*PRIVATE KEY-----",
+    )
+    for pattern in secret_patterns:
+        if re.search(pattern, combined):
+            return "unsafe_payload:secret_or_token"
+    if re.search(r"(?im)^\s*(user|assistant|bot|<@U[A-Z0-9]+|[A-Za-z .'-]{1,40}):\s+.+\n\s*(user|assistant|bot|<@U[A-Z0-9]+|[A-Za-z .'-]{1,40}):", combined):
+        return "unsafe_payload:raw_transcript_shape"
+    if re.search(r"(?i)\b(user|assistant|bot|<@U[A-Z0-9]+)\s*:\s+.{1,500}\b(user|assistant|bot|<@U[A-Z0-9]+)\s*:", combined):
+        return "unsafe_payload:raw_transcript_shape"
+    if re.search(r'(?i)"properties"\s*:\s*\{|"hs_communication_body"\s*:|"mobilephone"\s*:|"phone"\s*:', combined):
+        return "unsafe_payload:raw_hubspot_row_or_pii_field"
+    pii_text = "\n".join(str(value or "") for value in values[1:])
+    phone_like = r"(?:\+?\d[\s().-]*){8,}"
+    if re.search(rf"(?i)(phone|mobile|whatsapp|sms|contact number|number)\D{{0,40}}{phone_like}", pii_text) or re.search(
+        rf"(?<!\w)\+\d[\d\s().-]{{7,}}", pii_text
+    ):
+        return "unsafe_payload:phone_number_like_text"
+    return ""
 
 
 def _persist_daily_nurture_run(run_id: str, payload: dict[str, Any]) -> dict[str, str | bool]:
@@ -11886,30 +12701,39 @@ def _ae_owner_fast_coaching_audit(
         week["week_start"],
     )
 
+    call_data = _list_sales_call_events_core(
+        scope,
+        selected,
+        [str(target_owner_id or "")],
+        week["start_dt"].astimezone(SINGAPORE_TIMEZONE).isoformat(),
+        week["end_dt"].astimezone(SINGAPORE_TIMEZONE).isoformat(),
+        week["timezone"],
+        "ANY",
+        "owner_level",
+        limit=500,
+    )
+    calls = call_data.get("events", [])
+    connected_call_count = sum(1 for call in calls if call.get("connected_call_120s_guardrail"))
+    long_call_candidates = []
+    for call in calls:
+        if not call.get("completed_gt_60s"):
+            continue
+        candidate = {
+            "call_id": str(call.get("object_id") or ""),
+            "timestamp": call.get("timestamp_utc") or "",
+            "duration_seconds": call.get("duration_seconds"),
+            "appointment_evidence_status": "needs-check",
+        }
+        aircall_call_id = call.get("aircall_call_id") or ""
+        if aircall_call_id:
+            candidate["aircall_call_id"] = aircall_call_id
+        long_call_candidates.append(candidate)
+
     time_filters = [
         {"propertyName": "hubspot_owner_id", "operator": "EQ", "value": target_owner_id},
         {"propertyName": "hs_timestamp", "operator": "GTE", "value": _task_datetime_filter_value(week["week_start"])},
         {"propertyName": "hs_timestamp", "operator": "LTE", "value": _task_datetime_filter_value(week["week_end"], True)},
     ]
-    call_data = _object_search("calls", time_filters, CALL_PROPERTIES, limit=500, maximum=500)
-    calls = call_data.get("results", [])
-    connected_call_count = sum(1 for call in calls if _is_connected_call(call))
-    long_call_candidates = []
-    for call in calls:
-        if not _is_completed_call(call) or _call_duration_ms(call) < AE_COACHING_LONG_CALL_MIN_DURATION_MS:
-            continue
-        props = call.get("properties", {})
-        candidate = {
-            "call_id": str(call.get("id") or ""),
-            "timestamp": props.get("hs_timestamp") or props.get("hs_lastmodifieddate") or "",
-            "duration_seconds": round(_call_duration_ms(call) / 1000),
-            "appointment_evidence_status": "needs-check",
-        }
-        aircall_call_id = _aircall_call_id_from_hubspot_call(call)
-        if aircall_call_id:
-            candidate["aircall_call_id"] = aircall_call_id
-        long_call_candidates.append(candidate)
-
     communication_data = _object_search("communications", time_filters, COMMUNICATION_PROPERTIES, limit=500, maximum=500)
     communication_evidence = []
     for communication in communication_data.get("results", []):
@@ -11943,7 +12767,7 @@ def _ae_owner_fast_coaching_audit(
     if morning_message_count < min(AE_COACHING_DEFAULT_LIMIT, len(companies)):
         focus.append("morning target-account message coverage needs-check")
     if long_call_candidates:
-        focus.append("calls over 60s need appointment-evidence review")
+        focus.append("calls >60s need appointment-evidence review")
 
     row = {
         "ae_owner_id": target_owner_id,
@@ -11983,7 +12807,7 @@ def _ae_owner_fast_coaching_audit(
         "In-window WhatsApp": row["in_window_message_count"],
         "Late by minutes": row["late_by_minutes"] if row["late_by_minutes"] is not None else "needs-check",
         "Connected calls": row["connected_call_count"],
-        ">=60s calls no appointment": len(long_call_candidates),
+        ">60s calls no appointment": len(long_call_candidates),
         "Coaching focus": "; ".join(row["coaching_focus"]),
     }
     truncated = bool(company_data.get("truncated") or call_data.get("truncated") or communication_data.get("truncated"))
@@ -12115,7 +12939,7 @@ def build_ae_coaching_audit(
             if morning_account_count < owner_row.get("weekly_account_target", 0):
                 focus.append("morning target-account message coverage gap")
             if call_candidates:
-                focus.append("calls over 60s without appointment evidence")
+                focus.append("calls >60s without appointment evidence")
             row = {
                 "ae_owner_id": owner_id,
                 "ae_email": owner_row.get("owner_email") or "",
@@ -12155,7 +12979,7 @@ def build_ae_coaching_audit(
                     "In-window WhatsApp": row["in_window_message_count"],
                     "Late by minutes": row["late_by_minutes"] if row["late_by_minutes"] is not None else "needs-check",
                     "Connected calls": row["connected_call_count"],
-                    ">=60s calls no appointment": len(call_candidates),
+                    ">60s calls no appointment": len(call_candidates),
                     "Coaching focus": "; ".join(row["coaching_focus"]),
                 }
             )
@@ -15328,6 +16152,167 @@ def build_daily_nurture_plan(
         return _blocked(str(error), {"caller_email": slack_user_email})
     except ValueError as error:
         return _blocked(str(error), {"caller_email": slack_user_email})
+
+
+@mcp.tool()
+def record_nurtureany_lesson_candidate(
+    source_summary: str,
+    proposed_rule: str,
+    applies_to: str,
+    target_repo_surface: str,
+    risk_class: str,
+    source_thread_permalink: str = "",
+    lesson_id: str = "",
+) -> dict[str, Any]:
+    """Record a pending reviewed-learning candidate in the profile runtime store."""
+
+    source_thread_permalink = _clean_lesson_text(source_thread_permalink, max_length=300)
+    source_summary = _clean_lesson_text(source_summary, max_length=800)
+    proposed_rule = _clean_lesson_text(proposed_rule, max_length=800)
+    applies_to = _clean_lesson_text(applies_to, max_length=300)
+    target_repo_surface = _clean_lesson_text(target_repo_surface, max_length=80)
+    risk_class = _clean_lesson_text(risk_class, max_length=20).lower()
+    if not source_summary or not proposed_rule or not applies_to or not target_repo_surface or not risk_class:
+        return _blocked(
+            "source_summary, proposed_rule, applies_to, target_repo_surface, and risk_class are required.",
+            {"lesson_candidates": "required-fields"},
+        )
+    if target_repo_surface not in LESSON_CANDIDATE_TARGET_SURFACES:
+        return _blocked(
+            "target_repo_surface must be one of skill_reference, soul, mcp_contract, config_template, regression_case, runbook, research_wiki, or app_manifest.",
+            {"target_repo_surface": target_repo_surface},
+        )
+    if risk_class not in LESSON_CANDIDATE_RISK_CLASSES:
+        return _blocked("risk_class must be low, medium, or high.", {"risk_class": risk_class})
+    unsafe_reason = _lesson_payload_unsafe(source_thread_permalink, source_summary, proposed_rule, applies_to)
+    if unsafe_reason:
+        return _blocked(
+            "Lesson candidates must not contain raw Slack transcripts, raw HubSpot rows, phone numbers, secrets, tokens, or contact exports.",
+            {"reason": unsafe_reason},
+        )
+
+    now = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    if lesson_id:
+        safe_lesson_id = _safe_file_stem(str(lesson_id).strip())
+    else:
+        digest = hashlib.sha256(f"{source_summary}\n{proposed_rule}\n{applies_to}".encode("utf-8")).hexdigest()[:10]
+        safe_lesson_id = f"lesson-{now.replace(':', '').replace('+', 'Z')}-{digest}"
+    if not safe_lesson_id:
+        return _blocked("lesson_id could not be normalized.", {"lesson_candidates": "invalid-id"})
+    path = _lesson_candidate_path(safe_lesson_id)
+    if path.exists():
+        return _blocked("A lesson candidate already exists for this lesson_id.", {"lesson_id": safe_lesson_id})
+
+    record = {
+        "lesson_id": safe_lesson_id,
+        "created_at": now,
+        "source_thread_permalink": source_thread_permalink,
+        "source_summary": source_summary,
+        "proposed_rule": proposed_rule,
+        "applies_to": applies_to,
+        "target_repo_surface": target_repo_surface,
+        "risk_class": risk_class,
+        "status": "pending_review",
+        "reviewer": "",
+        "review_notes": "",
+        "promotion_policy": "Runtime candidate only. Human review must promote approved behavior into the repo packet, tests, and deployment.",
+        "source_of_truth_boundary": "Does not override HubSpot, access policy, Slack identity rules, safety rules, or approved repo references.",
+        "honcho_used": False,
+        "will_mutate_hubspot": False,
+    }
+    try:
+        _atomic_write_json(path, record)
+    except OSError as error:
+        return _blocked(f"Lesson candidate write failed: {error.__class__.__name__}", {"lesson_id": safe_lesson_id})
+    return {
+        "answer": _compact_lesson_candidate(record),
+        "source": "NurtureAny profile-runtime reviewed lesson candidates",
+        "scope": {"lesson_id": safe_lesson_id, "lesson_candidates_dir": str(_lesson_candidates_dir()), "status": "pending_review"},
+        "confidence": "verified",
+        "caveat": "Candidate only. It does not change bot behavior until reviewed, promoted into the repo packet, verified, and deployed.",
+    }
+
+
+@mcp.tool()
+def list_nurtureany_lesson_candidates(status: str = "", limit: int = 20) -> dict[str, Any]:
+    """List compact NurtureAny lesson candidates from the profile runtime store."""
+
+    status = str(status or "").strip()
+    if status and status not in LESSON_CANDIDATE_STATUSES:
+        return _blocked("status must be one of pending_review, approved_for_repo_promotion, rejected, or promoted.", {"status": status})
+    try:
+        safe_limit = max(1, min(int(limit), 100))
+    except (TypeError, ValueError):
+        safe_limit = 20
+    candidates = []
+    for record in _iter_lesson_candidates():
+        candidate_status = str(record.get("status") or "pending_review").strip()
+        if status and candidate_status != status:
+            continue
+        compact = _compact_lesson_candidate(record)
+        unsafe_reason = _lesson_payload_unsafe(
+            compact.get("source_thread_permalink", ""),
+            compact.get("source_summary", ""),
+            compact.get("proposed_rule", ""),
+            compact.get("applies_to", ""),
+            compact.get("review_notes", ""),
+        )
+        if unsafe_reason:
+            compact = {
+                "lesson_id": compact.get("lesson_id") or "",
+                "status": candidate_status,
+                "created_at": compact.get("created_at") or "",
+                "redacted": True,
+                "redaction_reason": unsafe_reason,
+            }
+        candidates.append(compact)
+    candidates.sort(key=lambda item: str(item.get("created_at") or ""), reverse=True)
+    returned = candidates[:safe_limit]
+    return {
+        "answer": {
+            "candidates": returned,
+            "returned_count": len(returned),
+            "total_matching_count": len(candidates),
+            "status_filter": status or "all",
+            "valid_statuses": sorted(LESSON_CANDIDATE_STATUSES),
+        },
+        "source": "NurtureAny profile-runtime reviewed lesson candidates",
+        "scope": {"lesson_candidates_dir": str(_lesson_candidates_dir()), "limit": safe_limit},
+        "confidence": "verified",
+        "caveat": "Runtime candidates are not durable behavior until promoted into the repo packet and deployed.",
+    }
+
+
+@mcp.tool()
+def read_nurtureany_lesson_candidate(lesson_id: str) -> dict[str, Any]:
+    """Read one NurtureAny lesson candidate by id."""
+
+    lesson_id = _safe_file_stem(str(lesson_id or "").strip())
+    if not lesson_id:
+        return _blocked("lesson_id is required to read a lesson candidate.", {"lesson_candidates": "required-id"})
+    record = _load_lesson_candidate(lesson_id)
+    if not record:
+        return _blocked("No lesson candidate found for this lesson_id.", {"lesson_id": lesson_id})
+    compact = _compact_lesson_candidate(record)
+    unsafe_reason = _lesson_payload_unsafe(
+        compact.get("source_thread_permalink", ""),
+        compact.get("source_summary", ""),
+        compact.get("proposed_rule", ""),
+        compact.get("applies_to", ""),
+        compact.get("review_notes", ""),
+    )
+    if unsafe_reason:
+        return _blocked(
+            "Lesson candidate contains material that should not be returned through Slack/MCP.",
+            {"lesson_id": lesson_id, "reason": unsafe_reason},
+        )
+    return {
+        "answer": compact,
+        "source": "NurtureAny profile-runtime reviewed lesson candidates",
+        "scope": {"lesson_id": lesson_id, "lesson_candidates_dir": str(_lesson_candidates_dir())},
+        "confidence": "verified",
+        "caveat": "Read-only candidate. It does not change bot behavior until promoted into the repo packet and deployed.",
+    }
 
 
 @mcp.tool()

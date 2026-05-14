@@ -58,6 +58,12 @@ Prompt:
 
 ```text
 @PS Wee Manager create a task for bd ops to send Dreamus invoice
+## PS WEE Customer Channel Auto-Tag
+
+Prompt in a reviewed customer-specific Slack channel:
+
+```text
+add this to follow-up list, payroll readiness unclear
 ```
 
 Expected:
@@ -86,6 +92,11 @@ Expected:
 - Does not create ROI.
 - Does not create PCO.
 - Requires create/add/log/handle/ticket/task/board wording before ROI ticket creation.
+- Calls `find_ticket_by_slack_thread` with the current Slack thread permalink first.
+- Calls `create_ps_wee_intake_ticket` with the current Slack thread permalink.
+- Resolves the reviewed channel mapping with `resolve_customer_channel_org`.
+- Auto-fills the mapped Customer 360 customer and Jira `StaffAny Org(s)`.
+- If the message names a different customer than the reviewed channel mapping, blocks and asks for confirmation.
 
 ## PS WEE Task List And Calendar Mixed Request
 

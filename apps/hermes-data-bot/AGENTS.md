@@ -13,6 +13,8 @@ Read these first for app work:
 - `runtime/mcp/staffany-bigquery.md`
 - `runtime/slack.md`
 - `runtime/health-checks.md`
+- `../../research/wiki/sources/hermes-agent-docs.md`
+- `../../research/wiki/syntheses/hermes-runtime-bot-operating-model.md`
 
 For source evidence or repo-wide claims, also read the root `AGENTS.md` files listed there.
 

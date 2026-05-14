@@ -83,6 +83,30 @@ if (!existsSync(manifestPath)) {
     }
     if (manifest.whatsapp_auto_send !== false) fail("Manifest whatsapp_auto_send must be false");
     if (manifest.honcho_enabled !== false) fail("Manifest honcho_enabled must be false");
+    if (manifest.reviewed_lessons?.enabled !== true) fail("Manifest reviewed_lessons must be enabled");
+    if (manifest.reviewed_lessons?.runtime_candidates_env_var !== "NURTUREANY_LESSON_CANDIDATES_DIR") {
+      fail("Manifest reviewed_lessons must name NURTUREANY_LESSON_CANDIDATES_DIR");
+    }
+    if (manifest.reviewed_lessons?.record_status !== "pending_review") {
+      fail("Manifest reviewed_lessons record_status must be pending_review");
+    }
+    if (manifest.reviewed_lessons?.honcho_used !== false) fail("Manifest reviewed_lessons must keep Honcho unused");
+    if (manifest.reviewed_lessons?.auto_behavior_change !== false) {
+      fail("Manifest reviewed_lessons must disable auto behavior changes");
+    }
+    if (manifest.reviewed_lessons?.source_of_truth_overrides !== false) {
+      fail("Manifest reviewed_lessons must not override source-of-truth rules");
+    }
+    for (const status of ["pending_review", "approved_for_repo_promotion", "rejected", "promoted"]) {
+      if (!manifest.reviewed_lessons?.valid_statuses?.includes(status)) {
+        fail(`Manifest reviewed_lessons missing status: ${status}`);
+      }
+    }
+    for (const tool of ["record_nurtureany_lesson_candidate", "list_nurtureany_lesson_candidates", "read_nurtureany_lesson_candidate"]) {
+      if (!manifest.reviewed_lessons?.candidate_tools?.includes(tool)) {
+        fail(`Manifest reviewed_lessons missing tool: ${tool}`);
+      }
+    }
 
     const countries = manifest.scope?.countries || [];
     for (const country of ["Singapore", "Malaysia", "Indonesia"]) {
@@ -182,6 +206,7 @@ if (!existsSync(manifestPath)) {
       "skills/nurtureany-sales-bot/references/hubspot-fields.md",
       "skills/nurtureany-sales-bot/references/sales-best-practices.md",
       "skills/nurtureany-sales-bot/references/sop-tool-coverage.md",
+      "skills/nurtureany-sales-bot/references/reviewed-lessons.md",
       "skills/nurtureany-sales-bot/references/playbooks.md",
       "skills/nurtureany-sales-bot/references/pre-demo-game-plans.md",
       "skills/nurtureany-sales-bot/references/case-studies.md",
@@ -213,6 +238,10 @@ if (!existsSync(manifestPath)) {
       "list_my_target_accounts",
       "list_team_target_accounts",
       "audit_hubspot_owner_roster",
+      "resolve_nurture_scope",
+      "resolve_sales_owners",
+      "list_sales_call_events",
+      "summarize_sales_call_stats",
       "audit_priority_account_coverage",
       "build_sales_metric_actuals_query",
       "build_hubspot_revenue_funnel_metrics",
@@ -248,6 +277,9 @@ if (!existsSync(manifestPath)) {
       "check_eazybe_send_status",
       "record_nurtureany_operation_checkpoint",
       "read_nurtureany_operation_ledger",
+      "record_nurtureany_lesson_candidate",
+      "list_nurtureany_lesson_candidates",
+      "read_nurtureany_lesson_candidate",
       "draft_nurture_message",
       "list_google_calendar_events",
       "audit_google_calendar_meeting_quality",
@@ -629,6 +661,7 @@ const filesToScan = [
   "skills/nurtureany-sales-bot/references/hubspot-fields.md",
   "skills/nurtureany-sales-bot/references/sales-best-practices.md",
   "skills/nurtureany-sales-bot/references/sop-tool-coverage.md",
+  "skills/nurtureany-sales-bot/references/reviewed-lessons.md",
   "skills/nurtureany-sales-bot/references/playbooks.md",
   "skills/nurtureany-sales-bot/references/pre-demo-game-plans.md",
   "skills/nurtureany-sales-bot/references/regression-cases.md",
@@ -914,7 +947,12 @@ for (const text of [
   "LUSHA_API_KEY",
   "search_lusha_decision_maker_candidates",
   "reveal_lusha_contact_details",
-  "get_lusha_credit_usage"
+  "get_lusha_credit_usage",
+  "reviewed_lessons:",
+  "runtime_candidates_env: NURTUREANY_LESSON_CANDIDATES_DIR",
+  "record_nurtureany_lesson_candidate",
+  "list_nurtureany_lesson_candidates",
+  "read_nurtureany_lesson_candidate"
 ]) {
   if (!configText.includes(text)) fail(`config.template.yaml missing required text: ${text}`);
 }
@@ -1159,6 +1197,20 @@ for (const text of [
   "disabled in V1"
 ]) {
   if (!sopToolCoverageText.includes(text)) fail(`sop-tool-coverage.md missing required text: ${text}`);
+}
+const reviewedLessonsText = textOf("skills/nurtureany-sales-bot/references/reviewed-lessons.md");
+for (const text of [
+  "Reviewed lessons",
+  "record_nurtureany_lesson_candidate",
+  "pending_review",
+  "approved_for_repo_promotion",
+  "promoted",
+  "Honcho remains disabled",
+  "never override HubSpot",
+  "raw Slack transcripts",
+  "raw HubSpot rows"
+]) {
+  if (!reviewedLessonsText.includes(text)) fail(`reviewed-lessons.md missing required text: ${text}`);
 }
 for (const tool of [
   "runtime/mcp/slack_nurtureany_server.py",
@@ -1782,7 +1834,7 @@ for (const text of [
   "PROFILE=\"${HERMES_PROFILE:-nurtureanysalesbot}\"",
   "export HERMES_HOME=\"$HOME/.hermes/profiles/$PROFILE\"",
   "EXPECT_SLACK_INTENT_TOOLS=\"${EXPECT_SLACK_INTENT_TOOLS:-3}\"",
-  "EXPECT_HUBSPOT_TOOLS=\"${EXPECT_HUBSPOT_TOOLS:-42}\"",
+  "EXPECT_HUBSPOT_TOOLS=\"${EXPECT_HUBSPOT_TOOLS:-48}\"",
   "NURTUREANY_GATEWAY_SERVICE_NAME",
   "systemctl --user is-active --quiet \"$GATEWAY_SERVICE_NAME\"",
   "GATEWAY_LAUNCHD_LABEL",
@@ -1839,7 +1891,7 @@ for (const text of [
   "EXPECTED_CLOUD_HEARTBEAT_CRON_NAME",
   "nurtureanysalesbot local cloud heartbeat",
   "EXPECT_ENABLED_CRON_COUNT=\"${EXPECT_ENABLED_CRON_COUNT:-4}\"",
-  "EXPECT_HUBSPOT_TOOLS=\"${EXPECT_HUBSPOT_TOOLS:-42}\"",
+  "EXPECT_HUBSPOT_TOOLS=\"${EXPECT_HUBSPOT_TOOLS:-48}\"",
   "EXPECT_PUBLIC_RESEARCH_TOOLS=\"${EXPECT_PUBLIC_RESEARCH_TOOLS:-2}\"",
   "nurtureanysalesbot-check-cloud-heartbeat.sh",
   "cron:enabled-count-unexpected",
@@ -1886,7 +1938,8 @@ for (const text of [
   "gateway_duplicate_launchd:",
   "mcp:$server:tools=$count",
   "cron:enabled=",
-  "operation_ledger:"
+  "operation_ledger:",
+  "lesson_candidates:"
 ]) {
   if (!cloudDoctorScriptText.includes(text)) fail(`runtime/nurtureany-cloud-doctor.sh missing required text: ${text}`);
 }

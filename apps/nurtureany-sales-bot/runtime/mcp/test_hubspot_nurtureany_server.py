@@ -136,6 +136,99 @@ class OperationLedgerTest(unittest.TestCase):
         self.assertEqual(loaded["confidence"], "verified")
 
 
+class ReviewedLessonCandidateTest(unittest.TestCase):
+    def setUp(self):
+        self.module = load_hubspot_module()
+
+    def test_lesson_candidate_write_list_read(self):
+        with tempfile.TemporaryDirectory() as lesson_dir, patch.dict(os.environ, {"NURTUREANY_LESSON_CANDIDATES_DIR": lesson_dir}):
+            written = self.module.record_nurtureany_lesson_candidate(
+                lesson_id="thread-123-learning",
+                source_thread_permalink="https://staffany.slack.com/archives/C123/p1710000000000100",
+                source_summary="User corrected that KNS means Knowledge, Network, Support in NurtureAny nurture copy.",
+                proposed_rule="When a user writes KNS, expand it as Knowledge, Network, Support.",
+                applies_to="nurture drafting and pre-demo nurture references",
+                target_repo_surface="skill_reference",
+                risk_class="low",
+            )
+            listed = self.module.list_nurtureany_lesson_candidates(status="pending_review")
+            loaded = self.module.read_nurtureany_lesson_candidate("thread-123-learning")
+
+        self.assertEqual(written["confidence"], "verified")
+        self.assertEqual(written["answer"]["status"], "pending_review")
+        self.assertEqual(written["answer"]["reviewer"], "")
+        self.assertFalse(written["answer"].get("honcho_used", False))
+        self.assertEqual(listed["answer"]["returned_count"], 1)
+        self.assertEqual(loaded["answer"]["lesson_id"], "thread-123-learning")
+        self.assertEqual(loaded["answer"]["target_repo_surface"], "skill_reference")
+
+    def test_lesson_candidate_rejects_unsafe_secret_payload(self):
+        with tempfile.TemporaryDirectory() as lesson_dir, patch.dict(os.environ, {"NURTUREANY_LESSON_CANDIDATES_DIR": lesson_dir}):
+            result = self.module.record_nurtureany_lesson_candidate(
+                source_summary="User pasted API key: api_key=redacted-token-value",
+                proposed_rule="Remember this credential for future runs.",
+                applies_to="runtime",
+                target_repo_surface="skill_reference",
+                risk_class="high",
+            )
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("raw Slack transcripts", result["caveat"])
+
+    def test_lesson_candidate_rejects_raw_transcript_shape(self):
+        with tempfile.TemporaryDirectory() as lesson_dir, patch.dict(os.environ, {"NURTUREANY_LESSON_CANDIDATES_DIR": lesson_dir}):
+            result = self.module.record_nurtureany_lesson_candidate(
+                source_summary="User: please do this\nBot: okay I will",
+                proposed_rule="Use the transcript forever.",
+                applies_to="Slack",
+                target_repo_surface="skill_reference",
+                risk_class="medium",
+            )
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("raw Slack transcripts", result["caveat"])
+
+    def test_lesson_candidate_rejects_raw_hubspot_row_and_phone(self):
+        with tempfile.TemporaryDirectory() as lesson_dir, patch.dict(os.environ, {"NURTUREANY_LESSON_CANDIDATES_DIR": lesson_dir}):
+            raw_row = self.module.record_nurtureany_lesson_candidate(
+                source_summary='{"properties": {"phone": "+65 9123 4567", "hs_communication_body": "hello"}}',
+                proposed_rule="Store this row.",
+                applies_to="HubSpot",
+                target_repo_surface="skill_reference",
+                risk_class="high",
+            )
+            phone = self.module.record_nurtureany_lesson_candidate(
+                source_summary="User corrected a contact route.",
+                proposed_rule="Use +65 9123 4567 as the default WhatsApp contact.",
+                applies_to="contact lookup",
+                target_repo_surface="skill_reference",
+                risk_class="high",
+            )
+
+        self.assertEqual(raw_row["confidence"], "blocked")
+        self.assertEqual(phone["confidence"], "blocked")
+
+    def test_lesson_candidate_rejects_self_approval_surface_and_risk_mismatch(self):
+        with tempfile.TemporaryDirectory() as lesson_dir, patch.dict(os.environ, {"NURTUREANY_LESSON_CANDIDATES_DIR": lesson_dir}):
+            bad_surface = self.module.record_nurtureany_lesson_candidate(
+                source_summary="User gave a reusable correction.",
+                proposed_rule="Change future behavior.",
+                applies_to="NurtureAny",
+                target_repo_surface="honcho",
+                risk_class="low",
+            )
+            bad_risk = self.module.record_nurtureany_lesson_candidate(
+                source_summary="User gave a reusable correction.",
+                proposed_rule="Change future behavior.",
+                applies_to="NurtureAny",
+                target_repo_surface="skill_reference",
+                risk_class="auto_approved",
+            )
+
+        self.assertEqual(bad_surface["confidence"], "blocked")
+        self.assertEqual(bad_risk["confidence"], "blocked")
+
+
 class OwnerWhatsAppSentTodayTest(unittest.TestCase):
     def setUp(self):
         self.module = load_hubspot_module()
@@ -450,6 +543,126 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         self.assertEqual(scope["email"], "rep.slack@staffany.com")
         self.assertEqual(scope["requested_email"], "rep.alias@staffany.com")
         self.assertEqual(scope["countries"], ("Malaysia",))
+
+    def test_summarize_sales_call_stats_uses_deterministic_thresholds(self):
+        policy = {
+            "source": "test-policy",
+            "admins": set(),
+            "managers": {"kerren.fong@staffany.com": ("Singapore", "Malaysia")},
+            "sales_reps": {
+                "rep.slack@staffany.com": {
+                    "hubspot_owner_email": "rep.owner@staffany.com",
+                    "countries": ("Singapore",),
+                    "timezone": "Asia/Singapore",
+                }
+            },
+            "disabled": set(),
+            "aliases": {},
+        }
+        calls = [
+            {"id": "call-60", "properties": {"hs_timestamp": "2026-05-14T06:10:00Z", "hubspot_owner_id": "owner-1", "hs_call_status": "COMPLETED", "hs_call_duration": "60000"}},
+            {"id": "call-61", "properties": {"hs_timestamp": "2026-05-14T06:20:00Z", "hubspot_owner_id": "owner-1", "hs_call_status": "COMPLETED", "hs_call_duration": "61000"}},
+            {"id": "call-119", "properties": {"hs_timestamp": "2026-05-14T06:30:00Z", "hubspot_owner_id": "owner-1", "hs_call_status": "COMPLETED", "hs_call_duration": "119000"}},
+            {"id": "call-120", "properties": {"hs_timestamp": "2026-05-14T06:40:00Z", "hubspot_owner_id": "owner-1", "hs_call_status": "COMPLETED", "hs_call_duration": "120000"}},
+            {"id": "call-done", "properties": {"hs_timestamp": "2026-05-14T06:50:00Z", "hubspot_owner_id": "owner-1", "hs_call_status": "DONE", "hs_call_duration": "130000"}},
+            {"id": "call-scheduled", "properties": {"hs_timestamp": "2026-05-14T06:55:00Z", "hubspot_owner_id": "owner-1", "hs_call_status": "SCHEDULED", "hs_call_duration": "300000"}},
+        ]
+
+        def fake_object_search(object_type, filters, *_args, **_kwargs):
+            self.assertEqual(object_type, "calls")
+            self.assertIn({"propertyName": "hs_timestamp", "operator": "GTE", "value": "2026-05-14T06:00:00Z"}, filters)
+            self.assertIn({"propertyName": "hs_timestamp", "operator": "LTE", "value": "2026-05-14T09:00:00Z"}, filters)
+            return {"results": calls, "total": 6, "requested_limit": 1000, "returned_count": 6, "has_more": False, "truncated": False}
+
+        with patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
+            self.module, "_access_policy", return_value=policy
+        ), patch.object(
+            self.module, "_owner_by_email", return_value={"id": "owner-1", "email": "rep.owner@staffany.com", "firstName": "Rep", "lastName": "Owner"}
+        ), patch.object(
+            self.module, "_owner_lookup_by_id", return_value={"owner-1": {"id": "owner-1", "email": "rep.owner@staffany.com", "firstName": "Rep", "lastName": "Owner"}}
+        ), patch.object(
+            self.module, "_object_search", side_effect=fake_object_search
+        ):
+            result = self.module.summarize_sales_call_stats(
+                "kerren.fong@staffany.com",
+                countries=["Singapore", "Malaysia"],
+                owner_ids=["owner-1"],
+                start_local="2026-05-14 14:00",
+                end_local="2026-05-14 17:00",
+                timezone="Asia/Singapore",
+                status="COMPLETED",
+                thresholds=[60, 120],
+                association_mode="owner_level",
+            )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["answer"]["association_mode"], "owner_level")
+        self.assertFalse(result["answer"]["used_long_call_without_appointment_candidates"])
+        self.assertEqual(result["answer"]["totals"]["total_calls"], 5)
+        self.assertEqual(result["answer"]["totals"]["completed_calls"], 5)
+        self.assertEqual(result["answer"]["totals"]["completed_calls_gt_60s"], 4)
+        self.assertEqual(result["answer"]["totals"]["completed_calls_exactly_60s_excluded_from_gt_60s"], 1)
+        self.assertEqual(result["answer"]["totals"]["connected_calls_120s_guardrail"], 2)
+
+    def test_list_sales_call_events_shows_target_account_association_mode(self):
+        policy = {
+            "source": "test-policy",
+            "admins": set(),
+            "managers": {"kerren.fong@staffany.com": ("Singapore", "Malaysia")},
+            "sales_reps": {
+                "rep.slack@staffany.com": {
+                    "hubspot_owner_email": "rep.owner@staffany.com",
+                    "countries": ("Singapore",),
+                    "timezone": "Asia/Singapore",
+                }
+            },
+            "disabled": set(),
+            "aliases": {},
+        }
+        calls = [
+            {"id": "call-target", "properties": {"hs_timestamp": "2026-05-14T06:10:00Z", "hubspot_owner_id": "owner-1", "hs_call_status": "COMPLETED", "hs_call_duration": "121000"}},
+            {"id": "call-other", "properties": {"hs_timestamp": "2026-05-14T06:20:00Z", "hubspot_owner_id": "owner-1", "hs_call_status": "COMPLETED", "hs_call_duration": "121000"}},
+        ]
+
+        def fake_batch_association_ids(from_type, to_type, ids, deadline=None):
+            if from_type == "calls" and to_type == "companies":
+                return {"call-target": ["company-1"], "call-other": []}
+            return {str(object_id): [] for object_id in ids}
+
+        with patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
+            self.module, "_access_policy", return_value=policy
+        ), patch.object(
+            self.module, "_owner_by_email", return_value={"id": "owner-1", "email": "rep.owner@staffany.com", "firstName": "Rep", "lastName": "Owner"}
+        ), patch.object(
+            self.module, "_owner_lookup_by_id", return_value={"owner-1": {"id": "owner-1", "email": "rep.owner@staffany.com", "firstName": "Rep", "lastName": "Owner"}}
+        ), patch.object(
+            self.module,
+            "_object_search",
+            return_value={"results": calls, "total": 2, "requested_limit": 1000, "returned_count": 2, "has_more": False, "truncated": False},
+        ), patch.object(
+            self.module,
+            "_company_search",
+            return_value={"results": [{"id": "company-1", "properties": {"name": "Target", "hubspot_owner_id": "owner-1"}}], "total": 1, "requested_limit": 1000, "returned_count": 1, "has_more": False, "truncated": False},
+        ), patch.object(
+            self.module, "_batch_association_ids", side_effect=fake_batch_association_ids
+        ):
+            result = self.module.list_sales_call_events(
+                "kerren.fong@staffany.com",
+                countries=["Singapore"],
+                owner_ids=["owner-1"],
+                start_local="2026-05-14 14:00",
+                end_local="2026-05-14 17:00",
+                timezone="Asia/Singapore",
+                status="COMPLETED",
+                association_mode="target_account_associated",
+            )
+
+        self.assertEqual(result["answer"]["association_mode"], "target_account_associated")
+        self.assertEqual(result["scope"]["association_mode"], "target_account_associated")
+        self.assertEqual(result["answer"]["event_count"], 1)
+        self.assertEqual(result["answer"]["events"][0]["object_id"], "call-target")
+        self.assertEqual(result["answer"]["events"][0]["associated_company_ids"], ["company-1"])
+        self.assertFalse(result["answer"]["raw_body_returned"])
 
     def test_luma_company_name_match_does_not_match_single_token_plus_generic_suffix(self):
         self.assertFalse(self.module._luma_company_name_matches("Sundays Beach Club", "Sundays Cafe"))
@@ -2176,6 +2389,8 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         ) as company_search_mock, patch.object(
             self.module, "_object_search", side_effect=object_search
         ), patch.object(
+            self.module, "_list_sales_call_events_core", wraps=self.module._list_sales_call_events_core
+        ) as call_primitive_mock, patch.object(
             self.module, "_friday_review_stage_config", return_value={"configured": False}
         ), patch.object(
             self.module, "_priority_account_coverage"
@@ -2191,6 +2406,8 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
             )
 
         coverage_mock.assert_not_called()
+        call_primitive_mock.assert_called_once()
+        self.assertEqual(call_primitive_mock.call_args.args[7], "owner_level")
         self.assertEqual(company_search_mock.call_args.args[1], self.module.AE_COACHING_DEFAULT_LIMIT)
         self.assertFalse(result["answer"]["will_mutate_google_sheets"])
         self.assertEqual(result["answer"]["ae_weekly_checks"][0]["connected_call_count"], 1)
