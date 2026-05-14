@@ -83,6 +83,23 @@ When the external source checkout is absent, use `runtime/launchbot_e2e.py` as t
   - For ClubAny / Club Blue content, use `Product: StaffAny`.
   - For ClubAny brand/perk management, prefer one combined management article unless the user explicitly requests separate owner/staff articles.
 
+### Update Lane: Video-only Help Article Update
+
+- Input: Slack request such as `@Launch Bot update the Timesheet how-it-works video with <loom link>`.
+- Output before mutation: preview of article, registered slot, current video, new Loom embed URL, exact iframe patch summary, `will_publish: false`, and confidence.
+- Output after user confirmation with `draft it`: Intercom draft URL or draft article ID, `article_state: "draft"`, slot ID, video source, and `will_publish: false`.
+- Required behavior:
+  - Treat this as a sub-mode of the existing `help-article-generator` `Update` lane.
+  - Use `skills/help-article-generator/references/video-placement-registry.json` as the placement authority.
+  - Accept Loom share/embed URLs only and normalize them to an Intercom-safe Loom embed URL.
+  - Use `preview_help_article_video_update` before any mutation.
+  - Use `create_help_article_video_update_draft` only after explicit confirmation with `draft it`.
+  - Replace only the registered video block using `replace_next_video_after_anchor`.
+  - Block if the article hint, slot, anchor text, provider, or current video block does not validate exactly.
+  - Do not rewrite article text, generate Google Docs review drafts, publish, delete, tag, move collections, or mutate unregistered video blocks.
+  - Intercom body updates use HTML because the Articles API stores article body as HTML and accepts article updates through `PUT /articles/{article_id}`.
+  - Video embeds must use supported embed URLs; raw `.mp4`, Slack file URLs, unsupported hosts, missing video IDs, and ambiguous links are out of scope.
+
 ### Step 2: Google Docs Approval
 
 - Input: Step 1 issue/version manifest.
@@ -111,6 +128,7 @@ When the external source checkout is absent, use `runtime/launchbot_e2e.py` as t
   - Treat successful draft creation as success even if the API response has no URL.
   - Construct direct Intercom article URLs when IDs are available.
   - Create drafts only; public publishing remains outside this packet.
+  - For video-only updates, update existing articles with `state: "draft"` only and do not touch tags or collection placement.
 - Google Docs HTML export should normalize duplicate title headings, internal appendices, center alignment, bold spans, heading anchors, and body-level heading depth before Intercom insertion.
 
 ### Step 4: Launch Derivatives
@@ -175,6 +193,16 @@ Use the upgraded `help-article-generator` skill in this packet. The current Club
 - `FAQ`
 
 The content must explain that a brand is the business profile, a perk sits under a brand and contains redeemable perk details, and an active brand still does not appear in the mobile catalogue until it has at least one active perk.
+
+## Video Placement Registry
+
+V1 video-only updates support English Loom slots only. The registry seeds public StaffAny help article examples before touching real Intercom drafts:
+
+- `web-app-timesheet`: Timesheet how-it-works video.
+- `run-payroll`: Payroll how-it-works video.
+- `general-settings`: Settings navigation video.
+
+The registry fields are `article_key`, `locale`, `title`, `public_url`, `intercom_article_id`, and `slots[]`. Each slot stores `slot_id`, `purpose`, `anchor_text`, `provider: "loom"`, and `replace_policy: "replace_next_video_after_anchor"`.
 
 ## Known Gaps
 

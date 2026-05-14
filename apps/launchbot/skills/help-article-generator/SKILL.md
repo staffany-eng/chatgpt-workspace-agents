@@ -13,6 +13,7 @@ Use this skill to produce help articles in a repeatable format that is ready for
 - Mode intent:
   - `Create`
   - `Update`
+  - `Update -> Video-only update`
 - Optional:
   - Jira URL
   - PRD
@@ -34,7 +35,15 @@ Use this skill to produce help articles in a repeatable format that is ready for
    - Search live Intercom articles first using `npm run intercom:affected -- --topic "<topic>"`.
    - Scan English help center content under `https://help.staffany.com/en/` only as public fallback context.
    - Propose which article(s)/section(s) should be edited.
-5. Language rollout:
+5. If `Update -> Video-only update`:
+   - Treat this as a sub-mode of `Update`, not as a separate skill.
+   - Accept only Loom share/embed URLs.
+   - Use the placement registry at `references/video-placement-registry.json` to resolve the target article and slot.
+   - Preview the exact registered video-block patch before mutation.
+   - Create an Intercom draft only after the user confirms with `draft it`.
+   - Do not rewrite article text, create review docs, publish, delete, tag, move collections, or change unregistered video blocks.
+   - If no registry slot matches, block instead of guessing.
+6. Language rollout:
    - Default to English first.
    - Iterate Chinese and Bahasa Indonesia in later passes when requested.
 
@@ -73,6 +82,7 @@ Use this skill to produce help articles in a repeatable format that is ready for
 ## Launchbot Planning Rules
 
 - Handoff-upgraded rules in this Launchbot skill override the older Grimoire help-article skill where they conflict.
+- Video-only help article updates are registry-only and draft-only. The registry is the authority for placement; model inference can suggest a slot but cannot mutate without a registry match.
 - Before drafting, run article planning from the cached Intercom article-shape profile:
   - `npm run help-article:plan -- --topic "<topic>"`
 - `help-article:plan` includes an adaptive intake gate. It should infer article family, surface, audience, and desired outcome from explicit flags, topic text, cached family models, and cached inventory before asking anything.
@@ -206,6 +216,25 @@ Follow this exact high-level order:
    - numbered lists that restart per subsection
 4. Return only the requested article draft or structure. Do not add meta commentary such as "Structure complete" after the article body.
 
+For `Update -> Video-only update`, replace the normal article drafting output with:
+
+1. Preview output with:
+   - article
+   - slot
+   - current_video
+   - new_video
+   - patch_summary
+   - `will_publish: false`
+   - confidence
+2. Draft output only after confirmation with `draft it`:
+   - intercom_article_id
+   - draft_url
+   - `article_state: "draft"`
+   - slot_id
+   - video_src
+   - `will_publish: false`
+3. A blocked answer when the Loom URL, article hint, anchor, or current video block does not validate against the registry.
+
 ## Internal Notes Requirement
 
 Always keep these details outside the publishable article body:
@@ -236,3 +265,4 @@ Before finalizing:
 - FAQ has bold `Q:` questions and normal answers
 - Internal appendix is not in the publishable body
 - Tone is natural, concise, and user-centered
+- For video-only updates, the patch touches exactly one registered Loom iframe and the Intercom payload uses `state: "draft"` only

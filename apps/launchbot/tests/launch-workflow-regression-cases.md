@@ -29,6 +29,16 @@
 - The guide outline must be a numbered list, and numbered steps must restart at `1` for each subsection.
 - Internal notes must include source of truth, Pantheon evidence path, repo and branch or sha, key paths or symbols, API/data touchpoints, assumptions, and last verified commit outside the publishable body.
 
+## Video-only Help Article Updates
+
+- Given `@Launch Bot update the Timesheet how-it-works video with https://www.loom.com/share/...`, Launchbot should resolve `web-app-timesheet` and `how-timesheet-works-video` from the registry before any mutation.
+- Preview must return article, slot, current video, new video, exact patch summary, `will_publish: false`, and confidence.
+- Given a non-Loom URL, raw `.mp4`, Slack file URL, missing Loom ID, unsupported host, or ambiguous article hint, Launchbot should block before calling Intercom.
+- Given no registered slot match, Launchbot should block instead of using model inference to choose placement.
+- Given a missing or duplicated anchor/video block in the current Intercom HTML, Launchbot should block as drift.
+- Given user confirmation `draft it`, Launchbot should call `create_help_article_video_update_draft`, update only the registered Loom iframe, and send Intercom `state: "draft"` only.
+- Video-only updates must not rewrite article text, create Google Docs review docs, publish, delete, tag, move collections, or mutate unregistered videos.
+
 ## Pantheon Evidence Gate
 
 - Given a topic and explicit app scope, `help-article:pantheon-scan` should use `LAUNCH_PANTHEON_REPO` or the local default `/Users/leekaiyi/workspace/pantheon`, record branch/sha/dirty state, read app-local `AGENTS.md`, and output source files plus routes/screens, access levels, flags/gating, API/data touchpoints, statuses, labels, and edge cases.

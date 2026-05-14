@@ -1,0 +1,54 @@
+{
+  "version": 1,
+  "description": "Launchbot registry for video-only help article updates. This file is the authority for V1 placement; the model must not infer unregistered video slots.",
+  "articles": [
+    {
+      "article_key": "web-app-timesheet",
+      "locale": "en",
+      "title": "Web App: Timesheet",
+      "public_url": "https://help.staffany.com/en/articles/3458034-web-app-timesheet",
+      "intercom_article_id": "3458034",
+      "slots": [
+        {
+          "slot_id": "how-timesheet-works-video",
+          "purpose": "Show how Timesheet works before users read the detailed timesheet guide.",
+          "anchor_text": "Here's a video of how Timesheet works:",
+          "provider": "loom",
+          "replace_policy": "replace_next_video_after_anchor"
+        }
+      ]
+    },
+    {
+      "article_key": "run-payroll",
+      "locale": "en",
+      "title": "Run Payroll",
+      "public_url": "https://help.staffany.com/en/articles/8757273-run-payroll",
+      "intercom_article_id": "8757273",
+      "slots": [
+        {
+          "slot_id": "how-payroll-works-video",
+          "purpose": "Show how Payroll works before users run the payroll process.",
+          "anchor_text": "Here's a video of how Payroll works:",
+          "provider": "loom",
+          "replace_policy": "replace_next_video_after_anchor"
+        }
+      ]
+    },
+    {
+      "article_key": "general-settings",
+      "locale": "en",
+      "title": "General Settings",
+      "public_url": "https://help.staffany.com/en/articles/3158402-general-settings",
+      "intercom_article_id": "3158402",
+      "slots": [
+        {
+          "slot_id": "settings-navigation-video",
+          "purpose": "Show users how to navigate StaffAny settings.",
+          "anchor_text": "Learn how to navigate settings in this video.",
+          "provider": "loom",
+          "replace_policy": "replace_next_video_after_anchor"
+        }
+      ]
+    }
+  ]
+}
