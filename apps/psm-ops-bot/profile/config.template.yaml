@@ -36,6 +36,10 @@ kanban:
 
 slack:
   require_mention: true
+  # Smoke/API-authored checks may arrive with bot_id; accept only explicit
+  # mentions so generic bot chatter still cannot trigger PS WEE.
+  allow_bots: "mentions"
+  socket_raw_fallback: true
   reactions: false
   # Leave SLACK_ALLOWED_CHANNELS empty for public/open-channel usage.
   # Keep require_mention=true so the bot only replies when mentioned.

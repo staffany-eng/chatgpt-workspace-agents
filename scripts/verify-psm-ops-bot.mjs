@@ -229,6 +229,8 @@ for (const requiredText of [
   "PSM_OPS_ROI_JIRA_FIELD_REQUESTER",
   "CUSTOMER360_INTERNAL_API_TOKEN",
   "SLACK_BOT_TOKEN",
+  'allow_bots: "mentions"',
+  "socket_raw_fallback: true",
   "resolve_slack_user_identity",
   "PSM_OPS_CENTRAL_SLACK_CHANNEL_ID",
   "PSM_OPS_ADOPTION_METRICS_PATH",
