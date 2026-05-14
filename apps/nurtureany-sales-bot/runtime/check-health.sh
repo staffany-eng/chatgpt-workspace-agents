@@ -11,7 +11,7 @@ EXPECT_MODEL_PROVIDER="${EXPECT_MODEL_PROVIDER:-anthropic}"
 EXPECT_MODEL_DEFAULT="${EXPECT_MODEL_DEFAULT:-claude-sonnet-4-6}"
 EXPECT_SLACK_INTENT_TOOLS="${EXPECT_SLACK_INTENT_TOOLS:-1}"
 EXPECT_STAFFANY_BIGQUERY_TOOLS="${EXPECT_STAFFANY_BIGQUERY_TOOLS:-4}"
-EXPECT_HUBSPOT_TOOLS="${EXPECT_HUBSPOT_TOOLS:-41}"
+EXPECT_HUBSPOT_TOOLS="${EXPECT_HUBSPOT_TOOLS:-42}"
 EXPECT_GOOGLE_CALENDAR_TOOLS="${EXPECT_GOOGLE_CALENDAR_TOOLS:-2}"
 EXPECT_GOOGLE_DRIVE_TOOLS="${EXPECT_GOOGLE_DRIVE_TOOLS:-5}"
 EXPECT_EAZYBE_TOOLS="${EXPECT_EAZYBE_TOOLS:-4}"
@@ -244,6 +244,7 @@ expected_servers = {
         "build_sales_metric_actuals_query",
         "build_hubspot_revenue_funnel_metrics",
         "build_ae_coaching_audit",
+        "audit_owner_whatsapp_kns_window",
         "prepare_sales_navigator_decision_maker_queue",
         "build_friday_sales_review",
         "build_manager_chase_plan",
