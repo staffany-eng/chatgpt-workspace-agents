@@ -117,6 +117,13 @@ if (!existsSync(manifestPath)) {
     if (contract.clubany_management_article_default !== "combined_brands_and_perks_article") {
       fail("Manifest must prefer the combined ClubAny management article");
     }
+    if (contract.source_of_truth !== "pantheon_code_grounded_behavior") {
+      fail("Manifest help_article_contract.source_of_truth must be Pantheon code-grounded behavior");
+    }
+    if (contract.pantheon_remote !== "git@github.com:staffany-eng/pantheon.git") {
+      fail("Manifest help_article_contract must name Pantheon remote");
+    }
+    if (contract.pantheon_branch !== "develop") fail("Manifest help_article_contract must use Pantheon develop branch");
 
     for (const evidencePath of Object.values(manifest.evidence || {})) {
       const absolute = join(repoRoot, evidencePath);
@@ -154,7 +161,13 @@ for (const requiredText of [
   "A brand is the business profile",
   "A perk sits under a brand",
   "For ClubAny / Club Blue content, set Product to `StaffAny`",
-  "numbered steps from `1` for each subsection"
+  "numbered steps from `1` for each subsection",
+  "Pantheon as the StaffAny product behavior source of truth",
+  "git@github.com:staffany-eng/pantheon.git",
+  "Jira tickets and PRDs can explain launch intent",
+  "apps/kraken",
+  "apps/gryphon",
+  "apps/pixie"
 ]) {
   if (!skillText.includes(requiredText)) fail(`Skill missing required text: ${requiredText}`);
 }
@@ -173,7 +186,10 @@ for (const requiredText of [
   "You are not a general-purpose computer assistant in Slack",
   "what can you do",
   "Launch Superpower Bot packet",
-  "Step 4 launch derivatives are planned only"
+  "Step 4 launch derivatives are planned only",
+  "Pantheon Source Of Truth",
+  "git@github.com:staffany-eng/pantheon.git",
+  "Jira tickets and PRDs can explain launch intent"
 ]) {
   if (!soulText.includes(requiredText)) fail(`Profile SOUL missing required text: ${requiredText}`);
 }
@@ -217,7 +233,10 @@ for (const requiredText of [
   "#launch-bot-testing",
   "light cowboy voice",
   "Do not commit token values",
-  "Step 4 launch derivatives are not implemented"
+  "Step 4 launch derivatives are not implemented",
+  "VM-local Pantheon checkout",
+  "Jira tickets and PRDs can explain launch intent",
+  "git@github.com:staffany-eng/pantheon.git"
 ]) {
   if (!workflowText.includes(requiredText)) fail(`Workflow doc missing required text: ${requiredText}`);
 }
@@ -304,7 +323,10 @@ for (const requiredText of [
   "@Launch Bot",
   "U0ASVD79UT1",
   "B0ATPPEGBCH",
-  "light cowboy voice"
+  "light cowboy voice",
+  "VM-local Pantheon checkout",
+  "needs-check",
+  "apps/kraken"
 ]) {
   if (!regressionText.includes(requiredText)) fail(`Regression cases missing required text: ${requiredText}`);
 }

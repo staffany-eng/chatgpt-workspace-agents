@@ -34,6 +34,15 @@ if (!manifest) {
   for (const value of Object.values(manifest.paths || {})) {
     assertFile(value);
   }
+  if (manifest.source_repositories?.pantheon?.remote !== "git@github.com:staffany-eng/pantheon.git") {
+    fail("Manifest Pantheon remote must be staffany-eng/pantheon");
+  }
+  if (manifest.source_repositories?.pantheon?.branch !== "develop") {
+    fail("Manifest Pantheon branch must be develop");
+  }
+  const pantheonCron = (manifest.expected_crons || []).find((cron) => cron.name === "launchbot pantheon repo update");
+  if (pantheonCron?.schedule !== "0 22 * * *") fail("Manifest must define daily Pantheon repo update cron");
+  if (pantheonCron?.mode !== "no-agent") fail("Manifest Pantheon repo update cron must be no-agent");
 }
 
 for (const relPath of [
@@ -43,6 +52,7 @@ for (const relPath of [
   "runtime/health-checks.md",
   "runtime/check-health.sh",
   "runtime/audit-live-profile.sh",
+  "runtime/update-pantheon-repo.sh",
   "runtime/mcp/profile_env.py",
   "runtime/mcp/launchbot_ker_server.py",
   "runtime/mcp/test_helpers.py",
@@ -68,6 +78,11 @@ for (const requiredText of [
   "find_ker_ticket_from_slack_thread",
   "lookup_ker_ticket_by_key",
   "JIRA_API_TOKEN",
+  "sources:",
+  "pantheon:",
+  "git@github.com:staffany-eng/pantheon.git",
+  "LAUNCHBOT_PANTHEON_REPO_DIR",
+  "LAUNCHBOT_PANTHEON_SSH_KEY",
 ]) {
   if (!configText.includes(requiredText)) fail(`config.template.yaml missing required text: ${requiredText}`);
 }
@@ -82,8 +97,38 @@ for (const requiredText of [
   "find_ker_ticket_from_slack_thread",
   "KER-2109",
   "experimental",
+  "Pantheon Source Of Truth",
+  "git@github.com:staffany-eng/pantheon.git",
+  "Jira tickets and PRDs can explain launch intent",
 ]) {
   if (!soulText.includes(requiredText)) fail(`SOUL.md missing required text: ${requiredText}`);
+}
+
+const healthText = existsSync(join(appRoot, "runtime", "health-checks.md"))
+  ? readFileSync(join(appRoot, "runtime", "health-checks.md"), "utf8")
+  : "";
+for (const requiredText of [
+  "Pantheon is cloned",
+  "launchbot pantheon repo update",
+  "0 22 * * *",
+]) {
+  if (!healthText.includes(requiredText)) fail(`health-checks.md missing required text: ${requiredText}`);
+}
+
+const updatePantheonText = existsSync(join(appRoot, "runtime", "update-pantheon-repo.sh"))
+  ? readFileSync(join(appRoot, "runtime", "update-pantheon-repo.sh"), "utf8")
+  : "";
+for (const requiredText of [
+  "LAUNCHBOT_PANTHEON_REPO_DIR",
+  "git@github.com:staffany-eng/pantheon.git",
+  "develop",
+  "LAUNCHBOT_PANTHEON_SSH_KEY",
+  "GIT_SSH_COMMAND",
+  "git clone --branch",
+  "git -C \"$PANTHEON_REPO_DIR\" pull --ff-only origin \"$PANTHEON_BRANCH\"",
+  "pantheon-repo-status.json",
+]) {
+  if (!updatePantheonText.includes(requiredText)) fail(`update-pantheon-repo.sh missing required text: ${requiredText}`);
 }
 
 const mcpText = existsSync(join(appRoot, "runtime", "mcp", "launchbot_ker_server.py"))

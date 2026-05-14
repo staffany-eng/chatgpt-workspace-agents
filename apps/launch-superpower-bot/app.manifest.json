@@ -95,7 +95,11 @@
     "LAUNCH_STEP3_SLACK_AUTHORIZED_REVIEWER_IDS"
   ],
   "help_article_contract": {
-    "source_of_truth": "code_grounded_behavior",
+    "source_of_truth": "pantheon_code_grounded_behavior",
+    "pantheon_remote": "git@github.com:staffany-eng/pantheon.git",
+    "pantheon_branch": "develop",
+    "pantheon_default_checkout": "~/.hermes/profiles/launchbot/source/pantheon",
+    "jira_prd_role": "intent_and_release_context_not_behavior_override",
     "publishable_body_excludes_internal_appendix": true,
     "raw_html_in_markdown_body": false,
     "text_dividers_in_markdown_body": false,

@@ -164,6 +164,9 @@ profiles:
       - name: launchbot health check
         schedule: "*/5 * * * *"
         mode: no-agent
+      - name: launchbot pantheon repo update
+        schedule: "0 22 * * *"
+        mode: no-agent
     checks:
       health_command: apps/launchbot/runtime/check-health.sh
       audit_command: apps/launchbot/runtime/audit-live-profile.sh

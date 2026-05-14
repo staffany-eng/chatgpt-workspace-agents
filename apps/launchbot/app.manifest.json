@@ -9,12 +9,14 @@
   "model_provider": "anthropic",
   "model": "claude-sonnet-4-6",
   "paths": {
+    "todo": "TODO.md",
     "soul": "profile/SOUL.md",
     "config_template": "profile/config.template.yaml",
     "slack_runtime": "runtime/slack.md",
     "health_checks": "runtime/health-checks.md",
     "health_check_script": "runtime/check-health.sh",
     "live_profile_audit_script": "runtime/audit-live-profile.sh",
+    "pantheon_repo_update_script": "runtime/update-pantheon-repo.sh",
     "ker_mcp_server": "runtime/mcp/launchbot_ker_server.py",
     "ker_mcp_tests": "runtime/mcp/test_launchbot_ker_server.py"
   },
@@ -65,6 +67,29 @@
     "JIRA_EMAIL",
     "JIRA_API_TOKEN",
     "LAUNCHBOT_KER_ALLOWED_CHANNEL_IDS"
+  ],
+  "source_repositories": {
+    "pantheon": {
+      "purpose": "StaffAny product behavior source of truth for help article drafting",
+      "remote": "git@github.com:staffany-eng/pantheon.git",
+      "branch": "develop",
+      "default_checkout": "~/.hermes/profiles/launchbot/source/pantheon",
+      "deploy_key_path": "~/.hermes/profiles/launchbot/ssh/pantheon_deploy_key",
+      "status_json": "~/.hermes/profiles/launchbot/runtime/pantheon-repo-status.json",
+      "update_mode": "git pull --ff-only"
+    }
+  },
+  "expected_crons": [
+    {
+      "name": "launchbot health check",
+      "schedule": "*/5 * * * *",
+      "mode": "no-agent"
+    },
+    {
+      "name": "launchbot pantheon repo update",
+      "schedule": "0 22 * * *",
+      "mode": "no-agent"
+    }
   ],
   "secrets_copied": false,
   "status": "experimental"

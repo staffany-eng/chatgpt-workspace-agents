@@ -9,18 +9,21 @@ Minimal canonical Hermes app packet for the Launchbot Slack profile.
 - Surface: Slack mentions in `#launch-bot-testing` and explicitly configured project channels
 - Source packet: this directory
 - Live runtime state: `~/.hermes/profiles/launchbot/`
+- Pantheon source checkout: `~/.hermes/profiles/launchbot/source/pantheon`, refreshed daily from `git@github.com:staffany-eng/pantheon.git` branch `develop`
 - Status: experimental until it has real tools, owner, runbooks, and passing health cron.
 
 ## Packet Contents
 
 | Path | Purpose |
 | --- | --- |
+| `TODO.md` | Open operational follow-ups for Launchbot. |
 | `profile/SOUL.md` | Source-controlled profile instruction. |
 | `profile/config.template.yaml` | Non-secret profile config template. |
 | `runtime/slack.md` | Slack channel and identity rules. |
 | `runtime/health-checks.md` | Expected health checks and cron pattern. |
 | `runtime/check-health.sh` | Silent no-agent health check. |
 | `runtime/audit-live-profile.sh` | Live profile drift audit. |
+| `runtime/update-pantheon-repo.sh` | Daily no-agent Pantheon clone/update script for help article source truth. |
 | `runtime/mcp/launchbot_ker_server.py` | Read-only Slack thread to Jira KER lookup tool. |
 
 ## Restore Order
@@ -32,5 +35,6 @@ Minimal canonical Hermes app packet for the Launchbot Slack profile.
 5. Set Slack and model secrets from the approved secret store only.
 6. Set Jira read-only env vars (`JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN`) in the live profile `.env` before enabling KER lookup.
 7. Copy runtime scripts into `~/.hermes/profiles/launchbot/scripts/`.
-8. Start the managed gateway and install the no-agent health cron.
-9. Keep it experimental until the health check passes and the Slack smoke replies from `#launch-bot-testing`.
+8. Run `launchbot-update-pantheon-repo.sh` once and install the daily no-agent Pantheon repo update cron.
+9. Start the managed gateway and install the no-agent health cron.
+10. Keep it experimental until the health check passes and the Slack smoke replies from `#launch-bot-testing`.

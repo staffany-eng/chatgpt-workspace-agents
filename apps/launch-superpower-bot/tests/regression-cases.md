@@ -7,6 +7,9 @@
 
 ## Help Article Drafting
 
+- Given any StaffAny product behavior claim, LaunchBot should verify the VM-local Pantheon checkout before drafting; Jira and PRD content can explain intent but must not override code behavior.
+- If Pantheon is missing, stale, dirty, or conflicts with Jira/PRD, LaunchBot should return `needs-check` or blocked source status rather than inventing article steps.
+- Internal notes must include Pantheon branch/sha, checkout freshness, and key `apps/kraken`, `apps/gryphon`, or `apps/pixie` paths used as evidence when relevant.
 - Given `KER-1742` / ClubAny brand and perk management, Step 1 should prefer one combined management article with `Managing Brands`, `Managing Perks`, and `FAQ`.
 - Draft markdown must not include raw HTML tags, text divider lines, repeated title text in the body, or internal appendix content.
 - Audience block must include Tier, Product, Platform, and Access Level; ClubAny / Club Blue content must use `Product: StaffAny`.

@@ -17,6 +17,16 @@ slack:
   reactions: false
 cron:
   max_parallel_jobs: 1
+sources:
+  pantheon:
+    description: "StaffAny product behavior source of truth for help article drafting."
+    repo_url: "git@github.com:staffany-eng/pantheon.git"
+    branch: "develop"
+    checkout_env: "LAUNCHBOT_PANTHEON_REPO_DIR"
+    default_checkout: "~/.hermes/profiles/launchbot/source/pantheon"
+    deploy_key_env: "LAUNCHBOT_PANTHEON_SSH_KEY"
+    default_deploy_key: "~/.hermes/profiles/launchbot/ssh/pantheon_deploy_key"
+    status_json: "~/.hermes/profiles/launchbot/runtime/pantheon-repo-status.json"
 kanban:
   dispatch_in_gateway: false
 model:

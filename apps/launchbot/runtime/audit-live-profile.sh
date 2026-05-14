@@ -3,6 +3,9 @@ set -euo pipefail
 
 PROFILE="${HERMES_PROFILE:-launchbot}"
 PROFILE_DIR="${HERMES_PROFILE_DIR:-$HOME/.hermes/profiles/$PROFILE}"
+HERMES_AGENT_DIR="${HERMES_AGENT_DIR:-$HOME/.hermes/hermes-agent}"
+HERMES_PYTHON="${HERMES_PYTHON:-$HERMES_AGENT_DIR/venv/bin/python}"
+HERMES_BIN="${HERMES_BIN:-$HERMES_AGENT_DIR/hermes}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [ -n "${LAUNCHBOT_APP_ROOT:-}" ]; then
   APP_ROOT="$LAUNCHBOT_APP_ROOT"
@@ -18,7 +21,8 @@ fail() {
 }
 
 command -v cmp >/dev/null 2>&1 || fail "dependency:cmp:not-found"
-command -v hermes >/dev/null 2>&1 || fail "dependency:hermes:not-found"
+[ -x "$HERMES_PYTHON" ] || fail "dependency:hermes-python:not-found"
+[ -f "$HERMES_BIN" ] || fail "dependency:hermes-bin:not-found"
 
 [ -d "$PROFILE_DIR" ] || fail "profile:not-found"
 [ -d "$APP_ROOT" ] || fail "app-root:not-found"
@@ -26,10 +30,12 @@ command -v hermes >/dev/null 2>&1 || fail "dependency:hermes:not-found"
 cmp -s "$APP_ROOT/profile/SOUL.md" "$PROFILE_DIR/SOUL.md" || fail "profile-drift:soul"
 cmp -s "$APP_ROOT/runtime/check-health.sh" "$PROFILE_DIR/scripts/launchbot-check-health.sh" || fail "profile-drift:health-script"
 cmp -s "$APP_ROOT/runtime/audit-live-profile.sh" "$PROFILE_DIR/scripts/launchbot-audit-live-profile.sh" || fail "profile-drift:audit-script"
+cmp -s "$APP_ROOT/runtime/update-pantheon-repo.sh" "$PROFILE_DIR/scripts/launchbot-update-pantheon-repo.sh" || fail "profile-drift:pantheon-update-script"
 cmp -s "$APP_ROOT/runtime/mcp/launchbot_ker_server.py" "$PROFILE_DIR/source/launchbot/runtime/mcp/launchbot_ker_server.py" || fail "profile-drift:ker-mcp"
 "$PROFILE_DIR/scripts/launchbot-check-health.sh" >/dev/null
 
-cron_out="$(hermes -p "$PROFILE" cron list 2>&1)" || fail "cron:list-failed"
+cron_out="$("$HERMES_PYTHON" "$HERMES_BIN" -p "$PROFILE" cron list 2>&1)" || fail "cron:list-failed"
 printf '%s\n' "$cron_out" | grep -Fq "launchbot health check" || fail "cron:health-check-missing"
+printf '%s\n' "$cron_out" | grep -Fq "launchbot pantheon repo update" || fail "cron:pantheon-repo-update-missing"
 
 printf 'live-profile:audit-ok\n'

@@ -18,6 +18,7 @@ For repo-wide evidence or research claims, also follow the root `AGENTS.md`.
 
 - Repo source packet: durable workflow contract, reusable help-article skill, safety rules, known gaps, and regression cases.
 - Handoff evidence: `research/raw/launch-superpower-bot/2026-05-11-handoff/`.
+- StaffAny product behavior for help articles: Pantheon code from `git@github.com:staffany-eng/pantheon.git`, branch `develop`, refreshed in the LaunchBot cloud profile at `~/.hermes/profiles/launchbot/source/pantheon`.
 - Runtime source code: external `vk-super-productivity/launch-superpower-bot`; not present in this repo.
 - Secrets and live service credentials: password manager, Secret Manager, or local runtime environment only; never this repo.
 

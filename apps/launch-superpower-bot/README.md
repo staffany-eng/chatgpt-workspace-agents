@@ -7,6 +7,7 @@ Durable app packet for the Launch Superpower workflow described in the 2026-05-1
 - Runtime: local workflow scripts plus Slack review/reaction flow
 - Source workflow: `vk-super-productivity/launch-superpower-bot`
 - Current source status in this repo: source code is not present; this packet preserves the app contract and reusable skill behavior from the handoff
+- Help article behavior source: Pantheon `git@github.com:staffany-eng/pantheon.git` on branch `develop`, refreshed in the LaunchBot cloud profile at `~/.hermes/profiles/launchbot/source/pantheon`
 - Jira test feature: `KER-1742` / Club Blue / ClubAny brands, perks, and redemptions
 - Latest clean handoff version: `v005`
 - Review surfaces: Google Docs and Slack
