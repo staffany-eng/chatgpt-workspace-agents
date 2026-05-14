@@ -450,6 +450,37 @@ def _resolve_slack_user(value: str) -> dict[str, Any] | None:
     return matches[0] if len(matches) == 1 else None
 
 
+@mcp.tool()
+def resolve_slack_user_identity(value: str) -> dict[str, Any]:
+    """Resolve one Slack mention/name/email to safe identity fields using the bot token."""
+
+    raw = (value or "").strip()
+    scope = {"query": raw}
+    if not raw:
+        return _blocked("Slack user mention, name, or email is required.", scope)
+    try:
+        user = _resolve_slack_user(raw)
+    except JiraError as error:
+        return _blocked(str(error), scope)
+    if not user:
+        return _blocked("No unique Slack user matched the supplied value.", scope)
+    profile = user.get("profile") or {}
+    return {
+        "answer": {
+            "slack_user_id": str(user.get("id") or ""),
+            "slack_name": str(user.get("name") or ""),
+            "real_name": str(user.get("real_name") or profile.get("real_name") or "").strip(),
+            "display_name": str(profile.get("display_name") or "").strip(),
+            "email": _slack_user_email(user),
+            "is_bot": bool(user.get("is_bot")),
+        },
+        "source": "Slack users.list",
+        "scope": scope,
+        "confidence": "verified",
+        "caveat": "Single-user safe identity fields only; no bulk Slack export.",
+    }
+
+
 def _ps_team_options() -> list[dict[str, str]]:
     field_id = _ps_team_field_id()
     contexts = _request_json("GET", f"/rest/api/3/field/{field_id}/context")

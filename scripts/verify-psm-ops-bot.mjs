@@ -46,6 +46,7 @@ if (!existsSync(manifestPath)) {
 
     const expectedJiraTools = [
       "validate_jira_configuration",
+      "resolve_slack_user_identity",
       "list_my_pco_tasks",
       "find_ticket_by_slack_thread",
       "create_ps_wee_intake_ticket",
@@ -121,6 +122,7 @@ for (const requiredText of [
   "PSM_OPS_JIRA_FIELD_REMINDER_AT",
   "CUSTOMER360_INTERNAL_API_TOKEN",
   "SLACK_BOT_TOKEN",
+  "resolve_slack_user_identity",
   "create_ps_wee_intake_ticket",
   "find_ticket_by_slack_thread",
   "append_ps_wee_ticket_update",
@@ -138,6 +140,8 @@ for (const requiredText of [
   "Status transitions, Jira assignee updates, internal comments, and due-date reminder updates may execute directly",
   "PS Team = CS Duty",
   "customer reached out",
+  "task list",
+  "Calendar",
   "Slack profile email/name",
   "all customers",
   "Do not use personal `customer360_session` cookies",
@@ -151,7 +155,9 @@ for (const requiredText of [
   "PCO is the only task system",
   "PS WEE",
   "create_ps_wee_intake_ticket",
+  "resolve_slack_user_identity",
   "customer reached out",
+  "task list",
   "Slack thread permalink is the V1 idempotency key",
   "Task creation must be preview first",
   "Caller task ownership is Jira `PS Team`",
@@ -168,6 +174,7 @@ const jiraMcpText = textOf(appRoot, "runtime/mcp/psm_jira_server.py");
 for (const requiredText of [
   "@mcp.tool()",
   "validate_jira_configuration",
+  "resolve_slack_user_identity",
   "list_my_pco_tasks",
   "find_ticket_by_slack_thread",
   "create_ps_wee_intake_ticket",

@@ -19,6 +19,7 @@ Do not use local memory, Slack channel history, browser sessions, or guessed fie
 - In V1, PSMs may ask Customer 360 context for all customers.
 - In thin POC mode, "My tasks" and reminder filters resolve the caller to Jira `PS Team`, not Jira assignee.
 - Canonicalize caller identity from Slack users first. Use Slack profile email/name to auto-match the Jira `PS Team` option. Do not infer email spelling from display name.
+- For abbreviated person references such as `Jo`, `Jos`, or `Josica`, call `resolve_slack_user_identity` when the current Slack thread includes a nearby mention, name, or email candidate. Do not ask who the person is when Slack profile data can resolve it.
 - If no active Jira account exists but `PS Team` matches, read/list tasks by `PS Team` and keep Jira account ID as optional/best-effort. If `PS Team` cannot be matched, return `Confidence: blocked`.
 
 ## Jira Writes
@@ -26,8 +27,10 @@ Do not use local memory, Slack channel history, browser sessions, or guessed fie
 - PCO is the only task system.
 - Task creation is preview first. Create only after same-thread approval such as `create`, `approve create`, or `create this`.
 - Exception: explicit PS WEE ticketing requests are ticket-first, not preview-first. When PS asks to create, raise, log, or file a ticket, call `find_ticket_by_slack_thread` with the current Slack thread permalink. If no ticket exists for that thread, call `create_ps_wee_intake_ticket` immediately, even if information is incomplete. Post the returned ticket link in the same Slack thread and ask for missing fields there.
+- Ticket-first also applies to operational task-list requests such as `add to <person/team> task list`, `add to Jo/Jos/Josica`, `put on backlog`, `add to follow-up list`, or equivalent wording. Create or return the PCO intake ticket first, then collect missing fields in the thread.
 - Ticket-first also applies when the current thread has become a PS WEE/customer-ops intake even without the exact words "create ticket". If a user asks whether a customer reached out, hit a limit, needs follow-up, or should be handled, and a teammate confirms with Intercom/support/Slack evidence or an admin screenshot, treat that as approval to open the needs-info intake. Use the confirmed facts, include the current Slack thread permalink, and ask for only the missing fields after posting the ticket link.
 - The Slack thread permalink is the V1 idempotency key and must be included in the Jira ticket. Store it in source links, description, or an internal comment as available.
+- If the same request also asks for meeting timing or Calendar availability, handle Jira first. Calendar lookup is secondary and best-effort; quota/rate-limit errors must not block the PCO ticket-first reply.
 - Significant follow-up discussion in Slack must be synced with `append_ps_wee_ticket_update` as concise structured internal Jira comments. Do not sync every reply and do not paste raw Slack transcripts.
 - When customer/org, issue details, impact/urgency, affected outlet/user/date range, expected outcome, and evidence are complete, call `mark_ps_wee_ticket_ready`.
 - Status transitions, Jira assignee updates, internal comments, and due-date reminder updates may execute directly when the issue key and action are clear.

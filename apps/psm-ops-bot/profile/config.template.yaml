@@ -100,6 +100,7 @@ mcp_servers:
     timeout: 120
     tool_allowlist:
       - "validate_jira_configuration"
+      - "resolve_slack_user_identity"
       - "list_my_pco_tasks"
       - "find_ticket_by_slack_thread"
       - "create_ps_wee_intake_ticket"

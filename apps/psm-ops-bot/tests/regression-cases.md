@@ -28,6 +28,21 @@
 - Includes the Slack thread permalink in Jira.
 - Posts the ticket link in-thread and asks for missing info.
 
+## PS WEE Task List Plus Calendar
+
+Thread:
+
+`@Josica we need to discuss a process upgrade where any change requests from customers need to funnel through a particular team, esp for big customers. @PSM Ops help to add to jos and find a good meeting timing for this`
+`@PSM Ops help to add to jos task list, and find a good meeting timing for this`
+
+- Calls `resolve_slack_user_identity` for Josica from the nearby Slack mention.
+- Treats `add to jos task list` as ticket-first, not preview-first task drafting.
+- Calls `find_ticket_by_slack_thread` before Calendar tools.
+- Creates the PCO intake ticket immediately with `create_ps_wee_intake_ticket` when no same-thread ticket exists.
+- Posts the PCO ticket link before reporting Calendar lookup results or Calendar blockers.
+- Does not ask who Jo/Jos/Josica is when Slack identity resolved it.
+- Does not let Calendar rate limits block Jira ticket creation.
+
 ## PS WEE Customer Reach-Out Confirmation
 
 Thread:

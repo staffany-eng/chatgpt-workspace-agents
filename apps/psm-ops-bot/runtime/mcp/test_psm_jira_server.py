@@ -254,6 +254,57 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertEqual(calls[1][1], "/rest/api/3/issue/PCO-135/assignee")
         self.assertEqual(calls[1][2], {"accountId": "acct-alya"})
 
+    def test_resolve_slack_user_identity_returns_safe_single_user_fields(self):
+        def fake_slack_users():
+            return [
+                {
+                    "id": "U01C0PJD9HQ",
+                    "name": "josica.lim",
+                    "real_name": "Josica Lim",
+                    "profile": {
+                        "email": "josica@staffany.com",
+                        "real_name": "Josica Lim",
+                        "display_name": "Josica",
+                    },
+                }
+            ]
+
+        self.module._slack_users = fake_slack_users
+
+        result = self.module.resolve_slack_user_identity("<@U01C0PJD9HQ>")
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["source"], "Slack users.list")
+        self.assertEqual(result["answer"]["slack_user_id"], "U01C0PJD9HQ")
+        self.assertEqual(result["answer"]["real_name"], "Josica Lim")
+        self.assertEqual(result["answer"]["display_name"], "Josica")
+        self.assertEqual(result["answer"]["email"], "josica@staffany.com")
+        self.assertIn("no bulk Slack export", result["caveat"])
+
+    def test_resolve_slack_user_identity_blocks_ambiguous_short_name(self):
+        def fake_slack_users():
+            return [
+                {
+                    "id": "U1",
+                    "name": "jo.one",
+                    "real_name": "Jo One",
+                    "profile": {"email": "jo.one@staffany.com", "display_name": "Jo"},
+                },
+                {
+                    "id": "U2",
+                    "name": "jo.two",
+                    "real_name": "Jo Two",
+                    "profile": {"email": "jo.two@staffany.com", "display_name": "Jo"},
+                },
+            ]
+
+        self.module._slack_users = fake_slack_users
+
+        result = self.module.resolve_slack_user_identity("Jo")
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("No unique Slack user", result["caveat"])
+
     def test_set_pco_assignee_blocks_ambiguous_name(self):
         def fake_request(method, path, body=None):
             if path.startswith("/rest/api/3/user/assignable/search?"):

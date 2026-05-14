@@ -89,6 +89,7 @@ The access policy file maps Slack email to Jira account ID:
 ## Tool Rules
 
 - `validate_jira_configuration`: run in health checks and before broad enablement.
+- `resolve_slack_user_identity`: safe read; resolve one Slack mention, email, or exact name through `users.list` before asking avoidable owner questions.
 - `list_my_pco_tasks`: safe read, caller-scoped by Jira `PS Team`.
 - `find_ticket_by_slack_thread`: safe read; use the Slack thread permalink as the PS WEE idempotency key.
 - `create_ps_wee_intake_ticket`: mutation; creates an immediate needs-info intake ticket for explicit PS WEE ticketing requests without preview approval.

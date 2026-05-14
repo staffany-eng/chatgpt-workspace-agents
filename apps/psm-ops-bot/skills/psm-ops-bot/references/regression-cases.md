@@ -49,6 +49,25 @@ Expected:
 - Posts the ticket link in the same Slack thread and asks for missing info.
 - Does not paste the raw Slack transcript into Jira.
 
+## PS WEE Task List And Calendar Mixed Request
+
+Thread:
+
+```text
+Parent: @Josica we need to discuss a process upgrade where any change requests from customers need to funnel through a particular team, esp for big customers. @PS WEE help to add to jos and find a good meeting timing for this
+Kai Yi: help to add to jos task list, and find a good meeting timing for this
+```
+
+Expected:
+
+- Calls `resolve_slack_user_identity` for the Josica Slack mention before asking who `jos` is.
+- Treats `add to jos task list` as a PS WEE ticket-first intake trigger.
+- Calls `find_ticket_by_slack_thread` with the current Slack thread permalink before any Calendar lookup.
+- If no ticket exists for that Slack thread, calls `create_ps_wee_intake_ticket` immediately without preview approval.
+- Creates a needs-info PCO intake for the Rock Productions / big-customer change-request process.
+- Posts the ticket link in the same Slack thread first, then reports Calendar availability as secondary or blocked.
+- Does not let Calendar quota/rate-limit errors block the PCO ticket link.
+
 ## PS WEE Same Thread Dedupe
 
 Prompt:

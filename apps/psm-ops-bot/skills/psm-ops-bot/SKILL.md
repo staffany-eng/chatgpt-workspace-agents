@@ -28,7 +28,9 @@ Alias rule: `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` refer to this 
 ## Capabilities
 
 - List the caller's own open, overdue, due-this-week, or automatic reminder-due PCO tasks.
+- Resolve a single Slack mention, email, or exact name to safe identity fields before asking avoidable owner questions.
 - Create an immediate PS WEE intake ticket when PS asks to create, raise, log, or file a ticket.
+- Create an immediate PS WEE intake ticket when PS asks to add work to a person/team task list, backlog, or follow-up list.
 - Create an immediate PS WEE intake ticket when a customer-ops thread confirms a customer reached out or hit a limit, even if the human did not use the words "create ticket".
 - Find an existing ticket by Slack thread permalink and update it instead of creating duplicates.
 - Append structured internal Jira comments from meaningful Slack follow-up discussion.
@@ -46,11 +48,14 @@ Alias rule: `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` refer to this 
 - PCO is the only task system. Do not create duplicate local tasks.
 - Caller task ownership is Jira `PS Team`. For "my tasks" and scoped reminders, the MCP must fetch Slack users, canonicalize the caller's Slack profile email/name, auto-match that identity to the configured `PS Team` option, and query Jira by `PS Team`.
 - Do not trust model-guessed email spelling. A Slack/Jira account mismatch should not block task reads when `PS Team` can be matched.
+- For abbreviated owner names such as `Jo`, `Jos`, or `Josica`, call `resolve_slack_user_identity` when the current thread includes a nearby Slack mention, name, or email candidate. Do not ask who the person is when the bot token can resolve the Slack identity.
 - Task creation must be preview first. Do not call `create_approved_pco_task` until the same thread includes explicit create approval.
 - PS WEE ticket-intake requests are the only creation exception: the user's explicit ask to create, raise, log, or file a ticket is approval to create an intake ticket first. Call `find_ticket_by_slack_thread`, then `create_ps_wee_intake_ticket` if no same-thread ticket exists.
+- Operational task-list and backlog requests are also PS WEE ticket-intake requests. Phrases like `add to <person/team> task list`, `add to Jo/Jos/Josica`, `put on backlog`, and `add to follow-up list` must call `find_ticket_by_slack_thread` and create the needs-info intake before asking for missing details.
 - Customer reach-out confirmations in an active PS WEE/customer-ops thread are also ticket-intake requests. If the bot asked whether the customer reached out, hit a limit, or needs follow-up, and a teammate replies with Intercom/support/Slack evidence, an admin screenshot, or a clear yes, call `find_ticket_by_slack_thread` and create the needs-info intake if none exists. Do not ask "do you want me to log a ticket?" first.
 - Slack thread permalink is the V1 idempotency key for PS WEE ticket intake and must be passed into the ticket.
 - After creating the intake ticket, post the returned ticket link in the same Slack thread and ask for missing info there.
+- If the same Slack request asks for meeting timing or Calendar availability, create or return the PCO ticket first. Calendar lookup is secondary and best-effort; rate limits or quota failures must not block the ticket-first reply.
 - Sync significant Slack discussion with `append_ps_wee_ticket_update` only when it answers missing fields, changes impact/urgency, adds affected scope, adds evidence, changes expected outcome, or records a decision/handoff. Do not sync every reply or paste raw Slack transcripts.
 - When all required PS WEE info is complete, call `mark_ps_wee_ticket_ready`.
 - Status transitions, Jira assignee updates, internal comments, and due-date reminder updates may execute directly when issue key and action are clear.
@@ -92,7 +97,7 @@ Caveat: <only the material caveat>
 ## Common Pitfalls
 
 1. Creating a Jira task without a preview and approval.
-   - Exception: explicit PS WEE ticket-intake requests must create an intake ticket first through `create_ps_wee_intake_ticket`.
+   - Exception: explicit PS WEE ticket-intake requests, including task-list/backlog/follow-up requests, must create an intake ticket first through `create_ps_wee_intake_ticket`.
 2. Treating Customer 360 as a task store. It is context only; PCO owns tasks.
 3. Guessing Jira field IDs or transition IDs.
 4. Posting public JSM customer comments by default.
@@ -100,3 +105,4 @@ Caveat: <only the material caveat>
 6. Using personal Customer 360 cookies from Hermes.
 7. Treating `PS WEE` as a separate app/profile instead of the existing PSM Ops Bot.
 8. Using Jira assignee or a guessed Slack email as the source of truth for "my tasks" instead of Jira `PS Team`.
+9. Letting Calendar lookup run before Jira ticket creation when one Slack request asks for both scheduling and task-list work.
