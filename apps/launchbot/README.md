@@ -28,7 +28,9 @@ Canonical Hermes app packet for the Launchbot Slack profile.
 | `runtime/audit-live-profile.sh` | Live profile drift audit. |
 | `runtime/update-pantheon-repo.sh` | Daily Pantheon checkout refresher for code-grounded help article verification. |
 | `runtime/mcp/launchbot_ker_server.py` | Read-only Slack thread to Jira KER lookup tool. |
+| `runtime/mcp/launchbot_help_article_server.py` | Draft-only registered Loom video-slot updater for existing help articles. |
 | `skills/help-article-generator/` | Launchbot help-article drafting skill upgraded from the 2026-05-11 handoff. |
+| `skills/help-article-generator/references/video-placement-registry.json` | Registry authority for help article video placement. |
 | `runtime/launch-workflow.md` | Help-article, Google Docs review, Slack approval, and Intercom draft workflow contract. |
 | `runtime/launchbot_e2e.py` | Minimal VM-safe handoff runner when the external source checkout is absent. |
 | `runtime/intercom-format-gate.mjs` | Pantheon evidence scan/check, Intercom search, cached article-shape planning, curated format-profile pull, and pre-publish format check CLI. |
@@ -42,12 +44,13 @@ Canonical Hermes app packet for the Launchbot Slack profile.
 4. Use `profile/config.template.yaml` as the non-secret config guide.
 5. Set Slack and model secrets from the approved secret store only.
 6. Set Jira read-only env vars (`JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN`) in the live profile `.env` before enabling KER lookup.
-7. Copy `skills/help-article-generator/` into `~/.hermes/profiles/launchbot/skills/` when enabling article drafting.
+7. Copy `skills/help-article-generator/` into `~/.hermes/profiles/launchbot/skills/` when enabling article drafting and registered video-slot updates.
 8. Copy runtime scripts into `~/.hermes/profiles/launchbot/scripts/`.
-9. Seed `~/.hermes/profiles/launchbot/source/pantheon` for code-grounded article verification. Install the daily Pantheon updater cron only after the VM has GitHub SSH access to `staffany-eng/pantheon`.
-10. Start the managed gateway and install the no-agent health check cron.
-11. Confirm no Mac-local `launchbot` profile or gateway exists before live Slack testing. Only the cloud Launchbot runtime should be connected to Slack, otherwise stale local profile state can answer first.
-12. Treat the restore as verified only after the health check passes and the Slack smoke replies from Launchbot's bot identity in `#launch-bot-testing`.
+9. Copy `runtime/mcp/launchbot_help_article_server.py` into the live profile source tree before enabling the `launchbot_help_article` MCP server.
+10. Seed `~/.hermes/profiles/launchbot/source/pantheon` for code-grounded article verification. Install the daily Pantheon updater cron only after the VM has GitHub SSH access to `staffany-eng/pantheon`.
+11. Start the managed gateway and install the no-agent health check cron.
+12. Confirm no Mac-local `launchbot` profile or gateway exists before live Slack testing. Only the cloud Launchbot runtime should be connected to Slack, otherwise stale local profile state can answer first.
+13. Treat the restore as verified only after the health check passes and the Slack smoke replies from Launchbot's bot identity in `#launch-bot-testing`.
 
 ## Launch Workflow Skill
 
@@ -84,3 +87,5 @@ npm run help-article:format-check -- --draft <draft.md> --title "<article title>
 npm run intercom:affected -- --topic "<topic>"
 npm run intercom:stage-update -- --article-id <article_id> --draft <draft.md> --evidence <pantheon-evidence.json> --title "<article title>"
 ```
+
+Video-only help article updates are part of the existing Update lane. They are registry-only and draft-only: preview with `preview_help_article_video_update`, wait for `draft it`, then create the Intercom draft with `create_help_article_video_update_draft`. No public publish or article text rewrite is exposed.

@@ -95,6 +95,17 @@ if (!manifest) {
   if (contract.clubany_management_article_default !== "combined_brands_and_perks_article") {
     fail("Manifest must prefer the combined ClubAny management article");
   }
+  const videoLane = contract.video_only_update_lane || {};
+  if (videoLane.mode !== "Update -> Video-only update") fail("Manifest must register video-only help article update lane");
+  if (videoLane.registry !== "skills/help-article-generator/references/video-placement-registry.json") {
+    fail("Manifest video-only lane must point at the video placement registry");
+  }
+  if (videoLane.slot_match_required !== true) fail("Manifest video-only lane must require a slot match");
+  if (videoLane.supported_provider !== "loom") fail("Manifest video-only lane must be Loom-only");
+  if (videoLane.replace_policy !== "replace_next_video_after_anchor") fail("Manifest video-only lane must use registered anchor replace policy");
+  if (videoLane.draft_state_only !== true) fail("Manifest video-only lane must be draft-state only");
+  if (videoLane.article_text_rewrite !== false) fail("Manifest video-only lane must forbid article text rewrites");
+  if (videoLane.publish !== false) fail("Manifest video-only lane must forbid publishing");
   if (contract.source_of_truth !== "pantheon_code_grounded_behavior") {
     fail("Manifest launch_workflow.help_article_contract.source_of_truth must use Pantheon code-grounded behavior");
   }
@@ -139,6 +150,25 @@ if (!manifest) {
   if (manifest.source_repositories?.pantheon?.daily_update_requires !== "VM GitHub SSH access to staffany-eng/pantheon") {
     fail("Manifest Pantheon daily update must be gated on VM GitHub SSH access");
   }
+  const helpMcp = manifest.mcp?.launchbot_help_article || {};
+  if (helpMcp.mode !== "draft_only_registered_video_slots") fail("Manifest help article MCP must be draft-only registered video slots");
+  const helpTools = new Set(helpMcp.tools || []);
+  for (const tool of ["preview_help_article_video_update", "create_help_article_video_update_draft"]) {
+    if (!helpTools.has(tool)) fail(`Manifest help article MCP missing tool: ${tool}`);
+  }
+  if (helpMcp.registry !== "skills/help-article-generator/references/video-placement-registry.json") {
+    fail("Manifest help article MCP must point at the video placement registry");
+  }
+  if (helpMcp.intercom?.access_token_env_var !== "LAUNCH_STEP3_INTERCOM_ACCESS_TOKEN") {
+    fail("Manifest help article MCP must use LAUNCH_STEP3_INTERCOM_ACCESS_TOKEN");
+  }
+  if (helpMcp.intercom?.forced_state !== "draft") fail("Manifest help article MCP must force draft state");
+  for (const key of ["publish", "delete", "tag_mutation", "collection_mutation"]) {
+    if (helpMcp.intercom?.[key] !== false) fail(`Manifest help article MCP must forbid ${key}`);
+  }
+  if (helpMcp.video?.provider !== "loom") fail("Manifest help article MCP must be Loom-only");
+  if (helpMcp.video?.reject_raw_video_files !== true) fail("Manifest help article MCP must reject raw video files");
+  if (helpMcp.video?.reject_slack_file_urls !== true) fail("Manifest help article MCP must reject Slack file URLs");
   const healthCron = (manifest.expected_crons || []).find((cron) => cron.name === "launchbot health check");
   if (healthCron?.schedule !== "*/5 * * * *") fail("Manifest must define Launchbot health check cron");
   if (healthCron?.mode !== "no-agent") fail("Manifest health check cron must be no-agent");
@@ -162,13 +192,17 @@ for (const relPath of [
   "runtime/intercom-format-gate.test.mjs",
   "runtime/mcp/profile_env.py",
   "runtime/mcp/launchbot_ker_server.py",
+  "runtime/mcp/launchbot_help_article_server.py",
   "runtime/mcp/test_helpers.py",
   "runtime/mcp/test_launchbot_ker_server.py",
+  "runtime/mcp/test_launchbot_help_article_server.py",
+  "runtime/mcp/fixtures/help_article_video_fixtures.json",
   "skills/help-article-generator/SKILL.md",
   "skills/help-article-generator/references/help-article-skeleton.md",
   "skills/help-article-generator/references/intercom-format-profile.json",
   "skills/help-article-generator/references/article-planning-profile.json",
   "skills/help-article-generator/references/intercom-article-inventory.json",
+  "skills/help-article-generator/references/video-placement-registry.json",
   "runtime/launch-workflow.md",
   "runtime/launchbot_e2e.py",
   "tests/launch-workflow-regression-cases.md",
@@ -190,9 +224,18 @@ for (const requiredText of [
   "C0B32M34J3W",
   "C0AJAUNCEL8",
   "launchbot_ker",
+  "launchbot_help_article",
   "find_ker_ticket_from_slack_thread",
   "lookup_ker_ticket_by_key",
+  "preview_help_article_video_update",
+  "create_help_article_video_update_draft",
   "JIRA_API_TOKEN",
+  "LAUNCH_STEP3_INTERCOM_ACCESS_TOKEN",
+  "draft_only_registered_video_slots",
+  "allow_publish: false",
+  "allow_delete: false",
+  "allow_tag_mutation: false",
+  "allow_collection_mutation: false",
   "/home/leekaiyi/.hermes/profiles/launchbot/source/launchbot",
   "sources:",
   "pantheon:",
@@ -217,6 +260,7 @@ if (!launchbotProfileBlock) {
     "deploy_host: hermes-data-bot-poc",
     "local_profile_policy: cloud_only",
     "systemd_unit: hermes-gateway-launchbot.service",
+    "launchbot_help_article:",
   ]) {
     if (!launchbotProfileBlock.includes(requiredText)) {
       fail(`launchbot profile missing required cloud-only text: ${requiredText}`);
@@ -238,9 +282,15 @@ for (const requiredText of [
   "KER-2109",
   "cached Intercom article planning",
   "Pantheon-grounded help article drafts",
+  "registered video-slot update drafts",
   "Intercom format checks",
   "message.channels",
   "Intercom draft/staging articles",
+  "preview_help_article_video_update",
+  "create_help_article_video_update_draft",
+  "draft it",
+  "skills/help-article-generator/references/video-placement-registry.json",
+  "will_publish: false",
   "Launchbot packet",
   "Launch Superpower handoff is a Launchbot skill/workflow",
   "Never answer `Source: Launch Superpower Bot packet`",
@@ -272,12 +322,34 @@ for (const forbiddenText of ["chat.postMessage", "transitionIssue", "/comment", 
   if (mcpText.includes(forbiddenText)) fail(`launchbot_ker_server.py must not contain forbidden mutation surface: ${forbiddenText}`);
 }
 
+const helpArticleMcpText = textOf("runtime/mcp/launchbot_help_article_server.py");
+for (const requiredText of [
+  "LAUNCH_STEP3_INTERCOM_ACCESS_TOKEN",
+  "preview_help_article_video_update",
+  "create_help_article_video_update_draft",
+  "normalize_loom_embed_url",
+  "replace_next_video_after_anchor",
+  "LOOM_IFRAME_RE",
+  "PUT",
+  "\"state\": \"draft\"",
+  "will_publish",
+  "will_mutate_tags_or_collections",
+]) {
+  if (!helpArticleMcpText.includes(requiredText)) fail(`launchbot_help_article_server.py missing required text: ${requiredText}`);
+}
+for (const forbiddenText of ["\"state\": \"published\"", "method=\"DELETE\"", "method='DELETE'"]) {
+  if (helpArticleMcpText.includes(forbiddenText)) fail(`launchbot_help_article_server.py must not contain forbidden mutation surface: ${forbiddenText}`);
+}
+
 const healthText = textOf("runtime/check-health.sh");
 for (const requiredText of [
   "pantheon:checkout-missing",
   "pantheon:remote-unexpected",
   "pantheon:status-stale",
   "LAUNCHBOT_PANTHEON_REPO_DIR",
+  "mcp:launchbot_help_article",
+  "LAUNCH_STEP3_INTERCOM_ACCESS_TOKEN",
+  "help-article-video-registry",
 ]) {
   if (!healthText.includes(requiredText)) fail(`check-health.sh missing required Pantheon health text: ${requiredText}`);
 }
@@ -288,6 +360,8 @@ for (const requiredText of [
   "cron:pantheon-repo-update-missing",
   "cron:pantheon-repo-update-present-without-github-ssh",
   "GIT_TERMINAL_PROMPT=0 git ls-remote",
+  "profile-drift:help-article-mcp",
+  "profile-drift:help-article-video-registry",
 ]) {
   if (!auditText.includes(requiredText)) fail(`audit-live-profile.sh missing required cron/access text: ${requiredText}`);
 }
@@ -332,6 +406,11 @@ for (const requiredText of [
   "A perk sits under a brand",
   "For ClubAny / Club Blue content, set Product to `StaffAny`",
   "numbered steps from `1` for each subsection",
+  "Update -> Video-only update",
+  "references/video-placement-registry.json",
+  "will_publish: false",
+  "state: \"draft\"",
+  "registry-only and draft-only",
 ]) {
   if (!skillText.includes(requiredText)) fail(`Help article skill missing required text: ${requiredText}`);
 }
@@ -351,6 +430,34 @@ if (/^---$/m.test(skeletonText)) {
 }
 if (/<div|<br|align=|style=/.test(skeletonText)) {
   fail("Help article skeleton must not include raw HTML formatting examples");
+}
+
+const videoRegistryPath = join(appRoot, "skills", "help-article-generator", "references", "video-placement-registry.json");
+const videoRegistry = existsSync(videoRegistryPath) ? sharedReadJson(videoRegistryPath, fail) : null;
+if (!videoRegistry) {
+  fail("Missing video placement registry");
+} else {
+  if (videoRegistry.version !== 1) fail("Video placement registry must be version 1");
+  const articles = Array.isArray(videoRegistry.articles) ? videoRegistry.articles : [];
+  const articleKeys = new Set(articles.map((article) => article.article_key));
+  for (const key of ["web-app-timesheet", "run-payroll", "general-settings"]) {
+    if (!articleKeys.has(key)) fail(`Video placement registry missing fixture article: ${key}`);
+  }
+  for (const article of articles) {
+    for (const key of ["article_key", "locale", "title", "public_url", "intercom_article_id", "slots"]) {
+      if (!article[key]) fail(`Video placement registry article missing field: ${key}`);
+    }
+    if (article.locale !== "en") fail(`Video placement registry V1 must be English-only: ${article.article_key}`);
+    for (const slot of article.slots || []) {
+      for (const key of ["slot_id", "purpose", "anchor_text", "provider", "replace_policy"]) {
+        if (!slot[key]) fail(`Video placement registry slot missing field: ${key}`);
+      }
+      if (slot.provider !== "loom") fail(`Video placement registry slot must be Loom-only: ${slot.slot_id}`);
+      if (slot.replace_policy !== "replace_next_video_after_anchor") {
+        fail(`Video placement registry slot has unsupported policy: ${slot.slot_id}`);
+      }
+    }
+  }
 }
 
 const workflowText = textOf("runtime/launch-workflow.md");
@@ -394,6 +501,12 @@ for (const requiredText of [
   "apps/kraken",
   "apps/gryphon",
   "apps/pixie",
+  "Video-only Help Article Update",
+  "video-placement-registry.json",
+  "preview_help_article_video_update",
+  "create_help_article_video_update_draft",
+  "replace_next_video_after_anchor",
+  "raw `.mp4`, Slack file URLs",
 ]) {
   if (!workflowText.includes(requiredText)) fail(`Launch workflow doc missing required text: ${requiredText}`);
 }
@@ -562,6 +675,10 @@ for (const requiredText of [
   "needs-intake",
   "intake.questions",
   "article_shape_stale_check.status: needs-refresh",
+  "Video-only Help Article Updates",
+  "will_publish: false",
+  "state: \"draft\"",
+  "no registered slot match",
 ]) {
   if (!regressionText.includes(requiredText)) fail(`Launch workflow regression cases missing required text: ${requiredText}`);
 }

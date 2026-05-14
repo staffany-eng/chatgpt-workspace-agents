@@ -59,6 +59,29 @@ mcp_servers:
         - "C0AJAUNCEL8"
       no_slack_connector_fallback: true
       no_user_token_fallback: true
+  launchbot_help_article:
+    description: "Draft-only registered video-slot updater for StaffAny help articles."
+    command: "/home/leekaiyi/.hermes/hermes-agent/venv/bin/python"
+    args:
+      - "/home/leekaiyi/.hermes/profiles/launchbot/source/launchbot/runtime/mcp/launchbot_help_article_server.py"
+    timeout: 120
+    tool_allowlist:
+      - "preview_help_article_video_update"
+      - "create_help_article_video_update_draft"
+    auth_metadata:
+      intercom:
+        type: "bearer_token_env"
+        env: "LAUNCH_STEP3_INTERCOM_ACCESS_TOKEN"
+    access_policy:
+      mode: "draft_only_registered_video_slots"
+      registry_path: "/home/leekaiyi/.hermes/profiles/launchbot/source/launchbot/skills/help-article-generator/references/video-placement-registry.json"
+      supported_provider: "loom"
+      required_confirmation: "draft it"
+      allow_article_text_rewrite: false
+      allow_publish: false
+      allow_delete: false
+      allow_tag_mutation: false
+      allow_collection_mutation: false
 gateway:
   slack:
     enabled: true

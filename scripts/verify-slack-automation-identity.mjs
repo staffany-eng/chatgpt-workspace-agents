@@ -47,7 +47,10 @@ const checks = [
     path: join(repoRoot, "skills/verify-target-environment/SKILL.md"),
     required: [
       "profile's prefix from `ops/hermes/profiles.yaml`",
-      "Your Slack UI or user credential may send only the explicit human-authored trigger",
+      "Default to API, CLI, MCP, and bot-token checks for target-environment verification",
+      "Slack UI or a user credential is allowed only when the specific verification objective is to prove real Slack `app_mention` event delivery",
+      "Before using it, state that this is a human-authored trigger and why an API check is insufficient",
+      "Do not use Slack UI / Computer Use for routine target smoke",
       "Bot-token paths own Slack reads, result checks, and automation status delivery",
       "Visible automation status must come from the target bot/app identity",
       "Never post automation status as Kai Yi",
