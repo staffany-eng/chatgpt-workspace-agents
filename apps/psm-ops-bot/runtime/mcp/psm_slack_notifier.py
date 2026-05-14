@@ -17,6 +17,7 @@ from typing import Any
 DEFAULT_CENTRAL_CHANNEL = "#ps-weeman-bot-test"
 DEFAULT_MAX_MESSAGE_CHARS = 3800
 DEFAULT_SECTION_CHARS = 900
+SLACK_USER_ID_RE = re.compile(r"^U[A-Z0-9]{8,}$", re.IGNORECASE)
 
 
 def _env(name: str, default: str = "") -> str:
@@ -89,6 +90,59 @@ def _json_block(value: Any, limit: int = DEFAULT_SECTION_CHARS) -> str:
 def _line(label: str, value: Any) -> str:
     text = redact_text(value).strip()
     return f"{label}: {text}" if text else ""
+
+
+def _slack_user_id(value: Any) -> str:
+    raw = str(value or "").strip()
+    mention = re.fullmatch(r"<@([A-Z0-9]+)>", raw, flags=re.IGNORECASE)
+    if mention:
+        raw = mention.group(1)
+    if SLACK_USER_ID_RE.fullmatch(raw):
+        return raw.upper()
+    return ""
+
+
+def _format_slack_user(user: dict[str, Any]) -> str:
+    profile = user.get("profile") if isinstance(user.get("profile"), dict) else {}
+    user_id = str(user.get("id") or "").strip()
+    display = (
+        str(profile.get("real_name") or "").strip()
+        or str(user.get("real_name") or "").strip()
+        or str(profile.get("display_name") or "").strip()
+        or str(user.get("name") or "").strip()
+    )
+    email = str(profile.get("email") or "").strip()
+    pieces = [piece for piece in [display, f"<@{user_id}>" if user_id else "", email] if piece]
+    return " ".join(pieces)
+
+
+def _slack_user_display(user_id: str) -> str:
+    normalized = _slack_user_id(user_id)
+    if not normalized:
+        return ""
+    try:
+        user = _slack_get("users.info", {"user": normalized}).get("user") or {}
+    except Exception:  # noqa: BLE001 - requester enrichment must not block audit delivery.
+        return ""
+    if not isinstance(user, dict) or user.get("is_bot"):
+        return ""
+    return _format_slack_user(user)
+
+
+def _resolved_requester_text(requester: str, transcript: dict[str, Any] | None = None) -> str:
+    raw = str(requester or "").strip()
+    raw_user_id = _slack_user_id(raw)
+    if raw_user_id:
+        resolved = _slack_user_display(raw_user_id)
+        if resolved:
+            return resolved
+    if (not raw or raw_user_id) and transcript:
+        transcript_user_id = _slack_user_id(transcript.get("first_human_user_id"))
+        if transcript_user_id:
+            resolved = _slack_user_display(transcript_user_id)
+            if resolved:
+                return resolved
+    return raw
 
 
 def parse_slack_permalink(url: str) -> dict[str, str]:
@@ -184,17 +238,21 @@ def fetch_slack_thread_transcript(slack_thread_url: str, limit: int = 20) -> dic
         return {"status": "blocked", "reason": str(error)}
     messages = payload.get("messages") if isinstance(payload, dict) else []
     lines: list[str] = []
+    first_human_user_id = ""
     for message in messages if isinstance(messages, list) else []:
         if not isinstance(message, dict):
             continue
         ts = str(message.get("ts") or "")
         user = str(message.get("user") or message.get("bot_id") or "unknown")
+        if not first_human_user_id and message.get("user"):
+            first_human_user_id = str(message.get("user") or "")
         text = str(message.get("text") or "").replace("\n", " ").strip()
         if text:
             lines.append(f"[{ts}] {user}: {text}")
     return {
         "status": "verified",
         "message_count": len(lines),
+        "first_human_user_id": first_human_user_id,
         "transcript": "\n".join(lines) if lines else "(no text messages returned)",
     }
 
@@ -309,6 +367,7 @@ def post_ps_wee_audit(
     transcript = None
     if should_fetch and source_thread_url:
         transcript = fetch_slack_thread_transcript(source_thread_url)
+    requester = _resolved_requester_text(requester, transcript)
     text = build_ps_wee_audit_text(
         event_type,
         source_thread_url=source_thread_url,

@@ -82,6 +82,47 @@ class PsmSlackNotifierTest(unittest.TestCase):
         self.assertEqual(posts[0][1]["channel"], "C123")
         self.assertIn("ticket_ready", posts[0][1]["text"])
 
+    def test_post_replaces_unresolved_requester_id_with_source_thread_poster(self):
+        posts = []
+
+        def fake_get(method, params):
+            if method == "conversations.replies":
+                return {
+                    "ok": True,
+                    "messages": [
+                        {"ts": "1778766368.220149", "user": "U6E68280P", "text": "<@U0B39JHV8TG> please create ticket"}
+                    ],
+                }
+            if method == "users.info" and params.get("user") == "U04NWSJ0LJE":
+                raise RuntimeError("Slack API failed: user_not_found")
+            if method == "users.info" and params.get("user") == "U6E68280P":
+                return {
+                    "ok": True,
+                    "user": {
+                        "id": "U6E68280P",
+                        "real_name": "Kai Yi Lee",
+                        "profile": {"real_name": "Kai Yi Lee", "display_name": "Kai Yi", "email": "kaiyi@staffany.com"},
+                    },
+                }
+            raise AssertionError((method, params))
+
+        def fake_post(method, body):
+            posts.append((method, body))
+            return {"ok": True, "channel": body["channel"], "ts": "123.456"}
+
+        with patch.dict(os.environ, {"SLACK_BOT_TOKEN": "xoxb-test", "PSM_OPS_CENTRAL_SLACK_CHANNEL_ID": "C123"}, clear=True):
+            psm_slack_notifier._slack_get = fake_get
+            psm_slack_notifier._slack_post = fake_post
+            result = psm_slack_notifier.post_ps_wee_audit(
+                "ticket_created",
+                source_thread_url="https://staffany.slack.com/archives/C0AGERBVB0C/p1778766368220149",
+                requester="u04nwsj0lje",
+            )
+
+        self.assertTrue(result["ok"])
+        self.assertIn("Requester: Kai Yi Lee <@U6E68280P> kaiyi@staffany.com", posts[0][1]["text"])
+        self.assertNotIn("Requester: u04nwsj0lje", posts[0][1]["text"])
+
     def test_record_adoption_event_writes_only_when_path_configured(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             metrics_path = Path(tmpdir) / "adoption.jsonl"
