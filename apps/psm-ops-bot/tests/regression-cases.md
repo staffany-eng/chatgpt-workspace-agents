@@ -26,6 +26,15 @@
 - Calls `find_ticket_by_slack_thread`.
 - Creates the PCO intake ticket immediately with `create_ps_wee_intake_ticket` when no same-thread ticket exists.
 - Includes the Slack thread permalink in Jira.
+
+## PS WEE Customer Channel Auto-Tag
+
+Expected:
+
+- Customer-specific Slack channels use reviewed channel mappings only.
+- `create_ps_wee_intake_ticket` auto-fills customer and `StaffAny Org(s)` from the Slack thread channel.
+- Conflicting message customer vs mapped channel customer blocks before Jira creation.
+- Unmapped general channels still create a needs-info intake without org auto-tagging.
 - Posts the ticket link in-thread and asks for missing info.
 
 ## PS WEE Task List Plus Calendar

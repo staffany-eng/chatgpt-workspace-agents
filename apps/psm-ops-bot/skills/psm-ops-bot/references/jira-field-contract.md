@@ -46,6 +46,14 @@ Do not discover or guess these at answer time. `validate_jira_configuration` mus
 - `Eng duty` means Jira `PS Team = Eng Duty`.
 - These are PS Team values, not Jira person assignees. Do not ask who is on duty when the user asked for `CS duty`.
 
+## Customer Channel Routing
+
+- `PSM_OPS_CUSTOMER_CHANNEL_MAP_PATH` points to the reviewed Slack channel map in runtime/profile storage.
+- Each reviewed mapping must include `channel_id`, `channel_name`, `customer_key`, `customer_name`, `staffany_orgs`, and `status=reviewed`.
+- Use `resolve_customer_channel_org` for customer-specific Slack channels before creating a PS WEE intake ticket.
+- If the message names a different customer from the reviewed channel mapping, fail closed and ask for confirmation before creating the ticket.
+- Unmapped general Slack channels keep the existing needs-info intake behavior.
+
 ## Jira Assignee
 
 - Jira assignee is still available for explicit person-assignment requests such as `assign PCO-135 to @Alya`.

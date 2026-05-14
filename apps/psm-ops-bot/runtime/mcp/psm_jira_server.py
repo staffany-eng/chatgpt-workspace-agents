@@ -112,6 +112,10 @@ class JiraError(RuntimeError):
     pass
 
 
+class CustomerChannelMapMiss(JiraError):
+    pass
+
+
 def _env(name: str, default: str = "") -> str:
     return os.environ.get(name, default).strip()
 
@@ -208,6 +212,10 @@ def _normalize_label(value: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", (value or "").strip().lower()).strip()
 
 
+def _normalize_match_key(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "", (value or "").strip().lower())
+
+
 def _normalize_ps_team(value: str) -> str:
     raw = (value or "").strip()
     if not raw:
@@ -298,6 +306,126 @@ def _verified(answer: Any, scope: dict[str, Any], caveat: str = "None.") -> dict
         "confidence": "verified",
         "caveat": caveat,
     }
+
+
+def _slack_channel_id_from_permalink(slack_thread_url: str) -> str:
+    match = re.search(r"/archives/([A-Z0-9]+)/", slack_thread_url or "")
+    return match.group(1) if match else ""
+
+
+def _customer_channel_map_path() -> str:
+    return _env("PSM_OPS_CUSTOMER_CHANNEL_MAP_PATH")
+
+
+def _load_customer_channel_map() -> list[dict[str, Any]]:
+    path = _customer_channel_map_path()
+    if not path:
+        return []
+    map_path = Path(path)
+    if not map_path.exists():
+        raise JiraError("PSM_OPS_CUSTOMER_CHANNEL_MAP_PATH points to a missing file.")
+    try:
+        payload = json.loads(map_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise JiraError("Customer channel map could not be read as JSON.") from error
+
+    if isinstance(payload, list):
+        entries = payload
+    elif isinstance(payload, dict):
+        entries = payload.get("channels") or payload.get("mappings") or []
+    else:
+        raise JiraError("Customer channel map must be a list or an object with channels.")
+    if not isinstance(entries, list):
+        raise JiraError("Customer channel map channels must be a list.")
+    return [entry for entry in entries if isinstance(entry, dict)]
+
+
+def _customer_matches_mapping(customer: str, mapping: dict[str, Any]) -> bool:
+    supplied = _normalize_match_key(customer)
+    if not supplied:
+        return True
+    candidates = [
+        _normalize_match_key(str(mapping.get("customer_name") or "")),
+        _normalize_match_key(str(mapping.get("customer_key") or "")),
+    ]
+    for candidate in candidates:
+        if not candidate:
+            continue
+        if supplied == candidate:
+            return True
+        if len(supplied) >= 4 and supplied in candidate:
+            return True
+        if len(candidate) >= 4 and candidate in supplied:
+            return True
+    return False
+
+
+def _reviewed_customer_channel_mapping(slack_thread_url: str, customer: str = "") -> dict[str, Any]:
+    channel_id = _slack_channel_id_from_permalink(slack_thread_url)
+    if not channel_id:
+        raise JiraError("Slack thread URL must include a channel ID for customer-channel resolution.")
+
+    matches = [
+        entry
+        for entry in _load_customer_channel_map()
+        if str(entry.get("channel_id") or "").strip() == channel_id
+    ]
+    if not matches:
+        raise CustomerChannelMapMiss(f"No reviewed customer-channel mapping found for Slack channel {channel_id}.")
+
+    mapping = matches[0]
+    required = ["channel_id", "channel_name", "customer_key", "customer_name", "staffany_orgs", "status"]
+    missing = [key for key in required if not mapping.get(key)]
+    if missing:
+        raise JiraError(f"Customer-channel mapping for {channel_id} is incomplete: {', '.join(missing)}.")
+    if str(mapping.get("status") or "").strip().lower() != "reviewed":
+        raise JiraError(f"Customer-channel mapping for {channel_id} is not reviewed.")
+    if not _customer_matches_mapping(customer, mapping):
+        mapped = str(mapping.get("customer_name") or mapping.get("customer_key") or "").strip()
+        raise JiraError(f"Slack channel maps to {mapped}, but request named {customer.strip()}. Confirm the customer before creating the ticket.")
+
+    orgs = mapping.get("staffany_orgs")
+    if isinstance(orgs, str):
+        org_list = [org.strip() for org in orgs.split(",") if org.strip()]
+    elif isinstance(orgs, list):
+        org_list = [str(org).strip() for org in orgs if str(org).strip()]
+    else:
+        org_list = []
+    if not org_list:
+        raise JiraError(f"Customer-channel mapping for {channel_id} has no StaffAny org values.")
+
+    return {
+        "channel_id": channel_id,
+        "channel_name": str(mapping.get("channel_name") or "").strip(),
+        "customer_key": str(mapping.get("customer_key") or "").strip(),
+        "customer_name": str(mapping.get("customer_name") or "").strip(),
+        "staffany_orgs": org_list,
+        "status": str(mapping.get("status") or "").strip(),
+    }
+
+
+@mcp.tool()
+def resolve_customer_channel_org(slack_thread_url: str, customer: str = "") -> dict[str, Any]:
+    """Resolve a reviewed Slack customer channel mapping to Customer 360 customer and StaffAny orgs."""
+
+    source = (slack_thread_url or "").strip()
+    supplied_customer = (customer or "").strip()
+    scope = {
+        "slack_thread_url": source,
+        "channel_id": _slack_channel_id_from_permalink(source),
+        "customer": supplied_customer,
+    }
+    if not source:
+        return _blocked("Slack thread URL is required for customer-channel resolution.", scope)
+    try:
+        mapping = _reviewed_customer_channel_mapping(source, supplied_customer)
+    except JiraError as error:
+        return _blocked(str(error), scope)
+    return _verified(
+        mapping,
+        {**scope, "channel_id": mapping["channel_id"]},
+        "Only reviewed Slack channel mappings can auto-tag PCO tickets.",
+    )
 
 
 def _request_json(method: str, path: str, body: dict[str, Any] | None = None) -> Any:
@@ -1077,7 +1205,8 @@ def create_ps_wee_intake_ticket(
     """Create an immediate PCO intake ticket for PS WEE/PSM Manager Ops requests."""
 
     source = (slack_thread_url or "").strip()
-    normalized_customer = (customer or "").strip() or "Unknown customer"
+    supplied_customer = (customer or "").strip()
+    normalized_customer = supplied_customer or "Unknown customer"
     normalized_issue = (issue_summary or "").strip() or "PS request from Slack"
     scope = {
         "caller": (slack_user_email or "").strip().lower(),
@@ -1103,6 +1232,16 @@ def create_ps_wee_intake_ticket(
                 "jira_account_id": "",
                 "display_name": (slack_user_email or "").strip() or "Unresolved Slack requester",
             }
+        customer_channel_mapping: dict[str, Any] = {}
+        try:
+            customer_channel_mapping = _reviewed_customer_channel_mapping(source, supplied_customer)
+        except CustomerChannelMapMiss:
+            customer_channel_mapping = {}
+        if customer_channel_mapping:
+            normalized_customer = customer_channel_mapping["customer_name"]
+            scope["customer"] = normalized_customer
+            scope["channel_id"] = customer_channel_mapping["channel_id"]
+            scope["customer_channel_mapping"] = "reviewed"
         request_type_id = _request_type_id(request_type_key)
         _configured_fields()
     except JiraError as error:
@@ -1116,6 +1255,8 @@ def create_ps_wee_intake_ticket(
         "expected outcome",
         "screenshots/logs if relevant",
     ]
+    if customer_channel_mapping and missing_info is None:
+        default_missing = [item for item in default_missing if item != "customer/org"]
     missing = [str(item).strip() for item in (missing_info or default_missing) if str(item).strip()]
     source_links = [source]
     source_links.extend(str(link).strip() for link in (evidence_links or []) if str(link).strip())
@@ -1134,7 +1275,7 @@ def create_ps_wee_intake_ticket(
         "priority": (priority or "Medium").strip(),
         "risk_reason": "Needs info from Slack thread",
         "source_links": source_links,
-        "staffany_orgs": [],
+        "staffany_orgs": customer_channel_mapping.get("staffany_orgs", []),
         "ps_team": normalized_ps_team,
         "owner_psm": caller["display_name"],
         "owner_jira_account_id": caller.get("jira_account_id", ""),
@@ -1149,6 +1290,9 @@ def create_ps_wee_intake_ticket(
         "impact": (impact or "").strip(),
         "affected_scope": (affected_scope or "").strip(),
         "expected_outcome": (expected_outcome or "").strip(),
+        "customer_channel_id": customer_channel_mapping.get("channel_id", ""),
+        "customer_channel_name": customer_channel_mapping.get("channel_name", ""),
+        "customer_channel_customer_key": customer_channel_mapping.get("customer_key", ""),
         "add_needs_info_label": True,
     }
     result = _create_pco_task_from_draft(draft, scope)
@@ -1182,6 +1326,9 @@ def _metadata_comment_from_draft(draft: dict[str, Any]) -> str:
         ("Expected outcome", draft.get("expected_outcome")),
         ("Missing info", ", ".join(draft.get("missing_info") or [])),
         ("Source links", ", ".join(draft.get("source_links") or [])),
+        ("Customer channel", draft.get("customer_channel_id")),
+        ("Customer channel name", draft.get("customer_channel_name")),
+        ("Customer 360 customer key", draft.get("customer_channel_customer_key")),
     ]
     lines = [f"{label}: {value}" for label, value in metadata if value]
     if not lines:

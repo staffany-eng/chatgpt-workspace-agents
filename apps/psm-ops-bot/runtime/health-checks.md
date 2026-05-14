@@ -10,6 +10,7 @@ PSM Ops Bot needs deterministic cloud health checks because prompt correctness d
 - Model route is pinned to `anthropic` / `claude-sonnet-4-6`.
 - Slack gateway is mention-required and not restricted to a single public/open channel.
 - Slack bot token can call `users.list` with profile emails for `PS Team` identity matching.
+- Reviewed customer-channel map path is configured when customer-specific Slack channel auto-tagging is enabled.
 - `psm_jira` MCP lists exactly the expected tools.
 - `psm_c360` MCP lists exactly the expected tools.
 - `validate_jira_configuration` reports thin POC defaults or full configured fields and request types, including `PS Team`.
