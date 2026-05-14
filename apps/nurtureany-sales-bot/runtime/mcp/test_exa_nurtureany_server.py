@@ -114,7 +114,57 @@ class ExaNurtureAnyServerTest(unittest.TestCase):
                 self.assertNotIn("phone", candidate)
                 self.assertEqual(candidate["source_type"], "linkedin_manual_check")
                 self.assertTrue(candidate["decision_maker_match"]["matched"])
+                self.assertEqual(candidate["signal_count"], 2)
+                self.assertEqual(candidate["confidence_band"], "high")
+                self.assertIn("target_title_match", candidate["quality_signals"])
+                self.assertIn("linkedin_url_present", candidate["quality_signals"])
                 self.assertEqual(candidate["confidence"], "needs-check")
+            self.assertEqual(company_result["quality_summary"]["high"], self.module.MAX_CANDIDATES_PER_COMPANY)
+            self.assertEqual(
+                company_result["review_next_step"],
+                "Pass candidates through review_public_enrichment_evidence for HubSpot dedupe before AE handoff.",
+            )
+
+    def test_default_titles_are_curated_to_staffany_icp_personas(self):
+        titles = self.module._target_titles(None)
+
+        for expected in ["owner", "founder", "ceo", "hr manager", "hr director", "people & culture", "operations manager", "head of operations", "coo", "director of operations"]:
+            self.assertIn(expected, titles)
+        for generic in ["manager", "director", "general manager", "finance manager", "payroll manager"]:
+            self.assertNotIn(generic, titles)
+
+    def test_quality_gate_marks_single_signal_candidates_low_confidence(self):
+        candidate = self.module._candidate(
+            {
+                "id": "https://example.org/people/ada",
+                "title": "Ada Ng - HR Director - Acme Cafe",
+                "url": "https://example.org/people/ada",
+            },
+            self.scoped_company(domain="acme.example"),
+            ["hr director"],
+            1,
+        )
+
+        self.assertEqual(candidate["signal_count"], 1)
+        self.assertEqual(candidate["confidence_band"], "low")
+        self.assertIn("target_title_match", candidate["quality_signals"])
+        self.assertIn("no_linkedin_or_company_domain_result_url", candidate["quality_warnings"])
+
+    def test_quality_gate_marks_missing_domain_and_store_manager_noise(self):
+        candidate = self.module._candidate(
+            {
+                "id": "https://www.linkedin.com/in/store-manager",
+                "title": "Store Manager - Acme Cafe | LinkedIn",
+                "url": "https://www.linkedin.com/in/store-manager",
+            },
+            self.scoped_company(domain=""),
+            ["operations manager"],
+            1,
+        )
+
+        self.assertEqual(candidate["confidence_band"], "low")
+        self.assertIn("missing_company_domain_anchor", candidate["quality_warnings"])
+        self.assertIn("weak_store_or_junior_manager_title", candidate["quality_warnings"])
 
     def test_country_maps_to_user_location(self):
         self.assertEqual(self.module._user_location("Singapore"), "SG")

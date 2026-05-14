@@ -4449,6 +4449,54 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         self.assertIn("hiring_signal", reviewed["signals_found"])
         self.assertFalse(result["answer"]["will_mutate_hubspot"])
 
+    def test_review_public_evidence_accepts_exa_candidates_for_hubspot_dedupe(self):
+        raw_contacts = [
+            {
+                "id": "contact-1",
+                "properties": {
+                    "email": "",
+                    "firstname": "Ada",
+                    "lastname": "Ng",
+                    "jobtitle": "HR Director",
+                },
+            }
+        ]
+
+        with patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
+            self.module, "_company_context", return_value=company_context()
+        ), patch.object(self.module, "_raw_contacts_for_company", return_value=raw_contacts), patch.object(
+            self.module.urllib.request, "urlopen", side_effect=AssertionError("should not fetch LinkedIn URLs")
+        ):
+            result = self.module.review_public_enrichment_evidence(
+                "kerren.fong@staffany.com",
+                "123",
+                [
+                    {
+                        "source_type": "linkedin_manual_check",
+                        "url": "https://www.linkedin.com/in/ada-ng",
+                        "title": "Ada Ng - HR Director - Noci Bakehouse | LinkedIn",
+                        "inferred_name": "Ada Ng",
+                        "inferred_title": "HR Director",
+                        "confidence_band": "high",
+                        "signal_count": 2,
+                        "quality_signals": ["target_title_match", "linkedin_url_present"],
+                        "quality_warnings": [],
+                    }
+                ],
+            )
+
+        reviewed = result["answer"]["reviewed_evidence"][0]
+        self.assertEqual(reviewed["source_type"], "linkedin_manual")
+        self.assertEqual(reviewed["original_source_type"], "linkedin_manual_check")
+        self.assertEqual(reviewed["fetch_status"], "skipped_manual_source")
+        candidate = result["answer"]["candidate_contacts"][0]
+        self.assertEqual(candidate["display_name"], "Ada Ng")
+        self.assertEqual(candidate["persona"], "HR Director")
+        self.assertEqual(candidate["confidence_band"], "high")
+        self.assertEqual(candidate["signal_count"], 2)
+        self.assertEqual(candidate["dedupe"]["status"], "possible_existing_contact")
+        self.assertEqual(candidate["dedupe"]["matched_contact_id"], "contact-1")
+
     def test_scan_drive_event_photos_parses_drive_export_metadata(self):
         drive_files = [
             {

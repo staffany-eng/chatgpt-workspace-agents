@@ -29,10 +29,12 @@ The adapter sends an explicit `StaffAny-NurtureAny/1.0` User-Agent header so Exa
 - Sends `category: "people"`, `type: "auto"`, `numResults <= 5`, and `userLocation` mapped from company country (`SG`, `MY`, or `ID`).
 - Accepts up to 5 companies per call.
 - Defaults to 5 candidates per company and caps at 5.
-- Default title targets include owner/founder/CEO/MD/director/GM coverage plus SG operating roles: HR manager, people manager, operations manager, finance manager, and payroll manager.
-- Returns query, Exa request ID, candidate title, URL, source domain, source type, inferred name/title, decision-maker title match, and `cost_report`.
+- Default title targets are StaffAny ICP personas only: Owner, Founder, CEO, Chief Executive Officer, HR Manager, HR Director, Head of HR, People & Culture, People Operations, Chief People Officer, Operations Manager, Head of Operations, Director of Operations, Operations Director, COO, and Chief Operating Officer. Avoid generic `manager`, `director`, store/outlet manager, junior ops, finance-only, or payroll-only titles unless the user explicitly asks.
+- Returns query, Exa request ID, candidate title, URL, source domain, source type, inferred name/title, decision-maker title match, `signal_count`, `confidence_band`, quality signals/warnings, and `cost_report`.
 - Does not send `contents`, `includeDomains`, `excludeDomains`, crawl-date filters, or LinkedIn-specific fetch parameters.
 - Does not reveal email addresses or phone numbers.
+
+Prefer scoped HubSpot company records that include both `name` and `domain`. Domain-pinned queries reduce same-name ambiguity. Scoped HubSpot records without `domain` are still allowed, but candidates from those searches must carry a missing-domain warning and should be treated as weaker until public evidence or HubSpot confirms the entity.
 
 ## Cost Reporting
 
@@ -64,15 +66,25 @@ Source types:
 
 All Exa candidates remain `Confidence: needs-check` until an AE verifies or selects the person for a Lusha reveal.
 
+Candidate quality gate:
+
+- `high`: at least two core signals align, from target-title match, company-domain result URL, or LinkedIn result URL, with no weak-store/junior-manager or former-employee warning.
+- `medium`: at least two core signals align, but a material non-fatal warning remains, such as missing domain anchor.
+- `low`: single-signal, missing-title, no LinkedIn/company-domain URL, missing-domain-anchor, store/outlet/junior manager, or possible former-employee candidates.
+
+Do not hide low-confidence candidates, but label them clearly and do not present them as AE-ready handoff candidates.
+
 ## HubSpot And Lusha Flow
 
 Recommended flow:
 
 1. Use HubSpot to identify accounts with missing decision-maker coverage.
-2. Pass only the scoped HubSpot company records returned by NurtureAny into Exa.
-3. Ask the user to select one or more candidates.
-4. Use Lusha targeted reveal, or a future Prospeo pilot after adapter approval, only after explicit approval, scoped HubSpot company IDs, and cost estimate.
-5. Use `plan_hubspot_writeback` only to prepare a preview.
+2. For F&B/Retail outlet or brand names that do not clearly match the legal/group entity in scoped HubSpot, run `find_brand_parent_candidates`, then re-resolve the returned parent/group candidates back to scoped HubSpot before Exa. Do not run Exa on an unresolved outlet brand.
+3. Pass only the scoped HubSpot company records returned by NurtureAny into Exa, preferably with `domain`.
+4. Pass Exa candidate rows into `review_public_enrichment_evidence` for HubSpot contact dedupe before showing anything as a usable AE handoff candidate.
+5. Ask the user to select one or more reviewed candidates.
+6. Use Lusha targeted reveal, or a future Prospeo pilot after adapter approval, only after explicit approval, scoped HubSpot company IDs, and cost estimate.
+7. Use `plan_hubspot_writeback` only to prepare a preview.
 
 No Exa output mutates HubSpot directly.
 
