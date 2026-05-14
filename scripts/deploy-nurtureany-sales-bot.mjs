@@ -14,6 +14,7 @@ const DEFAULTS = {
   vm: "nurtureany-sales-bot-prod",
   profile: "nurtureanysalesbot",
   runtimeOwner: "leekaiyi",
+  ref: "origin/main",
 };
 
 const FORBIDDEN_RUNTIME_STATE_LABELS = [
@@ -42,30 +43,34 @@ const gcloudCommand = resolveCommand("gcloud", [
   "/usr/local/share/google-cloud-sdk/bin/gcloud",
 ]);
 
-log("Preparing NurtureAny Sales Bot deploy from origin/main");
+log(`Preparing NurtureAny Sales Bot deploy from ${args.ref}`);
 log(`Target: project=${args.project} zone=${args.zone} vm=${args.vm} profile=${args.profile} runtime_owner=${args.runtimeOwner}`);
 if (args.verbose) {
   log(`Preserved runtime state: ${FORBIDDEN_RUNTIME_STATE_LABELS.join(", ")}`);
 }
 
-run(gitCommand, ["fetch", "origin", "main"]);
-const deploySha = runCapture(gitCommand, ["rev-parse", "origin/main"]).trim();
+if (args.ref === "origin/main") {
+  run(gitCommand, ["fetch", "origin", "main"]);
+}
+const deploySha = runCapture(gitCommand, ["rev-parse", args.ref]).trim();
 if (!deploySha) {
-  throw new Error("Could not resolve origin/main deploy SHA.");
+  throw new Error(`Could not resolve ${args.ref} deploy SHA.`);
 }
 log(`Deploy SHA: ${deploySha}`);
 
 run(npmCommand, ["run", "nurtureany-sales-bot:verify"]);
 
-const archivePath = join(tmpRoot, "nurtureany-origin-main.tar.gz");
-const shaPath = join(tmpRoot, "nurtureany-origin-main.sha");
+const archiveName = `nurtureany-sales-bot-${deploySha}.tar.gz`;
+const shaName = `nurtureany-sales-bot-${deploySha}.sha`;
+const archivePath = join(tmpRoot, archiveName);
+const shaPath = join(tmpRoot, shaName);
 
 if (!args.apply) {
   log("Dry run only. No archive upload, remote sync, gateway restart, or production health checks were run.");
-  log("Use `npm run nurtureany-sales-bot:deploy -- --apply` to deploy this exact origin/main SHA.");
+  log(`Use \`npm run nurtureany-sales-bot:deploy -- --apply --ref ${args.ref}\` to deploy this exact ${args.ref} SHA.`);
   printSummary({
     deploySha,
-    deployRef: "origin/main",
+    deployRef: args.ref,
     timestamp: "",
     gateway: "not checked (dry run)",
     audit: "not run (dry run)",
@@ -77,14 +82,14 @@ if (!args.apply) {
 }
 
 writeFileSync(shaPath, `${deploySha}\n`);
-run(gitCommand, ["archive", "--format=tar.gz", "-o", archivePath, "origin/main"]);
+run(gitCommand, ["archive", "--format=tar.gz", "-o", archivePath, args.ref]);
 
 if (!args.skipUpload) {
   run(gcloudCommand, [
     "compute",
     "scp",
     archivePath,
-    `${args.vm}:/tmp/nurtureany-origin-main.tar.gz`,
+    `${args.vm}:/tmp/${archiveName}`,
     "--project",
     args.project,
     "--zone",
@@ -95,7 +100,7 @@ if (!args.skipUpload) {
     "compute",
     "scp",
     shaPath,
-    `${args.vm}:/tmp/nurtureany-origin-main.sha`,
+    `${args.vm}:/tmp/${shaName}`,
     "--project",
     args.project,
     "--zone",
@@ -103,7 +108,7 @@ if (!args.skipUpload) {
     "--tunnel-through-iap",
   ]);
 } else {
-  log("Skipping upload. Remote deploy will use existing /tmp/nurtureany-origin-main.tar.gz and .sha.");
+  log(`Skipping upload. Remote deploy will use existing /tmp/${archiveName} and /tmp/${shaName}.`);
 }
 
 const remoteOutput = runCapture(
@@ -120,7 +125,7 @@ const remoteOutput = runCapture(
     "--command",
     "bash -s",
   ],
-  { input: remoteDeployScript(args) },
+  { input: remoteDeployScript(args, deploySha, args.ref) },
 );
 
 process.stdout.write(remoteOutput);
@@ -128,7 +133,7 @@ process.stdout.write(remoteOutput);
 const remoteSummary = parseRemoteSummary(remoteOutput);
 printSummary({
   deploySha: remoteSummary.sha || deploySha,
-  deployRef: remoteSummary.ref || "main",
+  deployRef: remoteSummary.ref || args.ref,
   timestamp: remoteSummary.timestamp || "",
   gateway: remoteSummary.gateway || "unknown",
   audit: remoteSummary.audit || "unknown",
@@ -146,7 +151,7 @@ function parseArgs(argv) {
     verbose: false,
     help: false,
   };
-  const valueOptions = new Set(["project", "zone", "vm", "profile", "runtime-owner"]);
+  const valueOptions = new Set(["project", "zone", "vm", "profile", "runtime-owner", "ref"]);
   for (let index = 0; index < argv.length; index += 1) {
     const raw = argv[index];
     if (raw === "--apply") {
@@ -193,7 +198,7 @@ function parseArgs(argv) {
 function printHelp() {
   console.log(`Usage: node scripts/deploy-nurtureany-sales-bot.mjs [options]
 
-Deploys exact origin/main for NurtureAny Sales Bot to the production Hermes profile.
+Deploys an exact git ref for NurtureAny Sales Bot to the production Hermes profile.
 
 Options:
   --apply               Mutate production. Required for upload, sync, restart, and checks.
@@ -202,6 +207,7 @@ Options:
   --vm <name>           VM name. Default: ${DEFAULTS.vm}
   --profile <name>      Hermes profile. Default: ${DEFAULTS.profile}
   --runtime-owner <u>   Runtime OS user. Default: ${DEFAULTS.runtimeOwner}
+  --ref <git-ref>       Git ref to archive and deploy. Default: ${DEFAULTS.ref}
   --skip-upload         Reuse archive already uploaded to /tmp on the VM.
   --skip-restart        Sync and stamp version, but do not restart or run post-restart checks.
   --verbose             Print commands before running them.
@@ -250,21 +256,26 @@ function runProcess(command, commandArgs, options = {}) {
   return result;
 }
 
-function remoteDeployScript(options) {
+function remoteDeployScript(options, deploySha, deployRef) {
   const profile = shellQuote(options.profile);
   const runtimeOwner = shellQuote(options.runtimeOwner);
+  const deployShaExpected = shellQuote(deploySha);
+  const deployRefLabel = shellQuote(deployRef);
   const skipRestart = options.skipRestart ? "1" : "0";
   return `set -euo pipefail
 profile_name=${profile}
 runtime_owner=${runtimeOwner}
+deploy_sha_expected=${deployShaExpected}
+deploy_ref_label=${deployRefLabel}
 skip_restart=${skipRestart}
 profile="/home/$runtime_owner/.hermes/profiles/$profile_name"
 service="hermes-gateway-$profile_name.service"
-archive="/tmp/nurtureany-origin-main.tar.gz"
-sha_file="/tmp/nurtureany-origin-main.sha"
+archive="/tmp/nurtureany-sales-bot-$deploy_sha_expected.tar.gz"
+sha_file="/tmp/nurtureany-sales-bot-$deploy_sha_expected.sha"
 
 test -f "$archive" || { echo "deploy:error:archive-missing"; exit 1; }
 test -f "$sha_file" || { echo "deploy:error:sha-missing"; exit 1; }
+test "$(cat "$sha_file")" = "$deploy_sha_expected" || { echo "deploy:error:sha-mismatch"; exit 1; }
 
 active_owners=$(ps -ef | awk -v profile="$profile_name" '$0 ~ "hermes_cli.main" && $0 ~ "--profile " profile " gateway run" {print $1}' | sort -u | tr '\\n' ' ' | sed 's/[[:space:]]*$//')
 if [ "$skip_restart" = "0" ] && [ "$active_owners" != "$runtime_owner" ]; then
@@ -284,7 +295,7 @@ cd "$deploy_dir"
 npm run nurtureany-sales-bot:verify
 
 deploy_sha=$(cat "$sha_file")
-deploy_branch=main
+deploy_branch=$deploy_ref_label
 deploy_timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 copy_dir() {
