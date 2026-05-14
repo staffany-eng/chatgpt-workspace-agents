@@ -391,9 +391,9 @@ sleep 10
 run_post_deploy_check() {
   label="$1"
   shift
-  attempts="\${NURTUREANY_DEPLOY_CHECK_ATTEMPTS:-12}"
-  delay_seconds="\${NURTUREANY_DEPLOY_CHECK_RETRY_SECONDS:-20}"
-  command_timeout_seconds="\${NURTUREANY_DEPLOY_CHECK_COMMAND_TIMEOUT_SECONDS:-180}"
+  attempts="\${NURTUREANY_DEPLOY_CHECK_ATTEMPTS:-4}"
+  delay_seconds="\${NURTUREANY_DEPLOY_CHECK_RETRY_SECONDS:-15}"
+  command_timeout_seconds="\${NURTUREANY_DEPLOY_CHECK_COMMAND_TIMEOUT_SECONDS:-90}"
   attempt=1
   while [ "$attempt" -le "$attempts" ]; do
     if timeout "$command_timeout_seconds" "$@"; then
@@ -415,6 +415,11 @@ run_post_deploy_check() {
 }
 
 run_post_deploy_check audit sudo -H -u "$runtime_owner" HERMES_PROFILE_DIR="$profile" HERMES_HOME="$profile" NURTUREANY_APP_ROOT="$profile/source/nurtureany-sales-bot" RUN_NESTED_HEALTH_CHECK=0 XDG_RUNTIME_DIR="/run/user/$uid" "$profile/scripts/nurtureanysalesbot-audit-live-profile.sh"
+health_warmup_seconds="\${NURTUREANY_DEPLOY_HEALTH_WARMUP_SECONDS:-120}"
+if [ "$health_warmup_seconds" -gt 0 ]; then
+  echo "deploy:check:health=warmup:$health_warmup_seconds"
+  sleep "$health_warmup_seconds"
+fi
 run_post_deploy_check health sudo -H -u "$runtime_owner" HERMES_PROFILE_DIR="$profile" HERMES_HOME="$profile" XDG_RUNTIME_DIR="/run/user/$uid" "$profile/scripts/nurtureanysalesbot-check-health.sh"
 run_post_deploy_check cloud_doctor sudo -H -u "$runtime_owner" HERMES_PROFILE_DIR="$profile" HERMES_HOME="$profile" XDG_RUNTIME_DIR="/run/user/$uid" "$profile/scripts/nurtureanysalesbot-cloud-doctor.sh"
 sudo -H -u "$runtime_owner" XDG_RUNTIME_DIR="/run/user/$uid" systemctl --user status "$service" --no-pager

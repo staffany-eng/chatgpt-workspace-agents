@@ -717,6 +717,8 @@ for (const text of [
   "NURTUREANY_DEPLOY_CHECK_ATTEMPTS",
   "NURTUREANY_DEPLOY_CHECK_RETRY_SECONDS",
   "NURTUREANY_DEPLOY_CHECK_COMMAND_TIMEOUT_SECONDS",
+  "NURTUREANY_DEPLOY_HEALTH_WARMUP_SECONDS",
+  "deploy:check:health=warmup:$health_warmup_seconds",
   "else\n      status=\"$?\"\n    fi",
   "deploy:check:$label=retry:$attempt/$attempts",
   "deploy:check:$label=failed-after-$attempts-attempts",
