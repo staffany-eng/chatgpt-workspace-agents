@@ -70,6 +70,7 @@ if (!args.apply) {
     gateway: "not checked (dry run)",
     audit: "not run (dry run)",
     health: "not run (dry run)",
+    heartbeat: "not run (dry run)",
     cloudDoctor: "not run (dry run)",
   });
   process.exit(0);
@@ -132,6 +133,7 @@ printSummary({
   gateway: remoteSummary.gateway || "unknown",
   audit: remoteSummary.audit || "unknown",
   health: remoteSummary.health || "unknown",
+  heartbeat: remoteSummary.heartbeat || "unknown",
   cloudDoctor: remoteSummary.cloudDoctor || "unknown",
 });
 
@@ -368,6 +370,7 @@ if [ "$skip_restart" = "1" ]; then
   echo "deploy:summary:gateway=not checked (skip-restart)"
   echo "deploy:summary:audit=not run (skip-restart)"
   echo "deploy:summary:health=not run (skip-restart)"
+  echo "deploy:summary:heartbeat=not run (skip-restart)"
   echo "deploy:summary:cloud_doctor=not run (skip-restart)"
   exit 0
 fi
@@ -411,6 +414,7 @@ if [ "$health_warmup_seconds" -gt 0 ]; then
 fi
 run_post_deploy_check health sudo -H -u "$runtime_owner" HERMES_PROFILE_DIR="$profile" HERMES_HOME="$profile" XDG_RUNTIME_DIR="/run/user/$uid" "$profile/scripts/nurtureanysalesbot-check-health.sh"
 run_post_deploy_check cloud_doctor sudo -H -u "$runtime_owner" HERMES_PROFILE_DIR="$profile" HERMES_HOME="$profile" XDG_RUNTIME_DIR="/run/user/$uid" "$profile/scripts/nurtureanysalesbot-cloud-doctor.sh"
+run_post_deploy_check heartbeat sudo -H -u "$runtime_owner" HERMES_PROFILE_DIR="$profile" HERMES_HOME="$profile" XDG_RUNTIME_DIR="/run/user/$uid" "$profile/scripts/nurtureanysalesbot-check-cloud-heartbeat.sh"
 sudo -H -u "$runtime_owner" XDG_RUNTIME_DIR="/run/user/$uid" systemctl --user status "$service" --no-pager
 
 echo "deploy:summary:sha=$deploy_sha"
@@ -419,6 +423,7 @@ echo "deploy:summary:timestamp=$deploy_timestamp"
 echo "deploy:summary:gateway=active"
 echo "deploy:summary:audit=passed"
 echo "deploy:summary:health=passed"
+echo "deploy:summary:heartbeat=passed"
 echo "deploy:summary:cloud_doctor=passed"
 `;
 }
@@ -440,6 +445,7 @@ function parseRemoteSummary(output) {
     if (key === "gateway") summary.gateway = value;
     if (key === "audit") summary.audit = value;
     if (key === "health") summary.health = value;
+    if (key === "heartbeat") summary.heartbeat = value;
     if (key === "cloud_doctor") summary.cloudDoctor = value;
   }
   return summary;
@@ -453,6 +459,7 @@ function printSummary(summary) {
   console.log(`- gateway: ${summary.gateway}`);
   console.log(`- audit: ${summary.audit}`);
   console.log(`- health: ${summary.health}`);
+  console.log(`- heartbeat: ${summary.heartbeat}`);
   console.log(`- cloud_doctor: ${summary.cloudDoctor}`);
 }
 

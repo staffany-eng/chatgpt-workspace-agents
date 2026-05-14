@@ -754,7 +754,9 @@ for (const text of [
   "else\n      status=\"$?\"\n    fi",
   "deploy:check:$label=retry:$attempt/$attempts",
   "deploy:check:$label=failed-after-$attempts-attempts",
+  "run_post_deploy_check heartbeat",
   "deploy:summary:sha=",
+  "deploy:summary:heartbeat=passed",
   "deploy:summary:cloud_doctor=passed"
 ]) {
   if (!deployScriptText.includes(text)) fail(`${deployScriptRelPath} missing required text: ${text}`);
@@ -1835,13 +1837,15 @@ for (const text of [
   "nurtureanysalesbot local cloud heartbeat",
   "EXPECT_ENABLED_CRON_COUNT=\"${EXPECT_ENABLED_CRON_COUNT:-4}\"",
   "EXPECT_HUBSPOT_TOOLS=\"${EXPECT_HUBSPOT_TOOLS:-42}\"",
+  "EXPECT_PUBLIC_RESEARCH_TOOLS=\"${EXPECT_PUBLIC_RESEARCH_TOOLS:-2}\"",
   "nurtureanysalesbot-check-cloud-heartbeat.sh",
   "cron:enabled-count-unexpected",
   "event-roi-enabled",
   "unsafe-send-message",
   "nurtureanysalesbot-cloud-doctor.sh",
   "cloud-doctor:cron-unhealthy",
-  "mcp:hubspot_nurtureany:tools=$EXPECT_HUBSPOT_TOOLS"
+  "mcp:hubspot_nurtureany:tools=$EXPECT_HUBSPOT_TOOLS",
+  "mcp:public_research_nurtureany:tools=$EXPECT_PUBLIC_RESEARCH_TOOLS"
 ]) {
   if (!cloudHeartbeatScriptText.includes(text)) fail(`runtime/check-cloud-heartbeat.sh missing required text: ${text}`);
 }
