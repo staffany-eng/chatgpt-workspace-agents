@@ -329,17 +329,18 @@ config_path = Path(sys.argv[2])
 
 template = yaml.safe_load(template_path.read_text())
 config = yaml.safe_load(config_path.read_text())
-template_nurtureany = template.get("nurtureany") or {}
-config_nurtureany = config.setdefault("nurtureany", {})
-for key in ("quick_autorun", "honcho", "reviewed_lessons"):
-    if key in template_nurtureany and config_nurtureany.get(key) != template_nurtureany[key]:
-        config_nurtureany[key] = template_nurtureany[key]
-        changed = True
-
 template_servers = template.get("mcp_servers") or {}
 config_servers = config.get("mcp_servers") or {}
+template_nurtureany = template.get("nurtureany") or {}
+config_nurtureany = config.setdefault("nurtureany", {})
 
 changed = False
+for key in ("quick_autorun", "honcho", "reviewed_lessons"):
+    expected = template_nurtureany.get(key)
+    if expected is not None and config_nurtureany.get(key) != expected:
+        config_nurtureany[key] = expected
+        changed = True
+
 for server_name, template_server in template_servers.items():
     template_tools = template_server.get("tools") or {}
     expected = template_tools.get("include") or template_server.get("tool_allowlist") or []
