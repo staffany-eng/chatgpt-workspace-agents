@@ -24,7 +24,9 @@ When the external source checkout is absent, use `runtime/launchbot_e2e.py` as t
 - Current proven test: `KER-1742`, Club Blue, ClubAny brands, perks, and redemptions, version `v005`.
 - Output: one or more article records with slug, title, article markdown, internal notes, and manifest metadata.
 - Required drafting behavior:
-  - Use code-grounded evidence before writing.
+  - Use the VM-local Pantheon checkout as the StaffAny product behavior source of truth before writing.
+  - Jira tickets and PRDs can explain launch intent, but Pantheon code decides actual labels, screens, buttons, access, APIs, flags, and edge cases.
+  - Verify backend/API behavior in `apps/kraken`, web/admin behavior in `apps/gryphon`, mobile behavior in `apps/pixie`, and product labels or permissions in the actual code paths.
   - Keep implementation evidence, assumptions, source paths, and commit details outside the publishable article body.
   - Do not emit visible raw HTML, repeated titles, text divider lines, or internal appendix content in publishable markdown.
   - For ClubAny / Club Blue content, use `Product: StaffAny`.
@@ -82,6 +84,14 @@ Optional runtime environment name:
 - `LAUNCH_STEP2_SLACK_CHANNEL_ID`
 - `LAUNCH_STEP3_SLACK_APPROVAL_REACTION`
 - `LAUNCH_STEP3_SLACK_AUTHORIZED_REVIEWER_IDS`
+
+Launchbot also expects a local Pantheon source checkout for help article behavior verification:
+
+- Default path: `~/.hermes/profiles/launchbot/source/pantheon`
+- Remote: `git@github.com:staffany-eng/pantheon.git`
+- Branch: `develop`
+- Refresh script: `~/.hermes/profiles/launchbot/scripts/launchbot-update-pantheon-repo.sh`
+- Freshness status: `~/.hermes/profiles/launchbot/runtime/pantheon-repo-status.json`
 
 Secret values must come from the approved secret store or secure sharing path. Do not commit token values, service-account JSON, OAuth credentials, or `.env` files.
 

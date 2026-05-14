@@ -15,6 +15,7 @@
     "health_checks": "runtime/health-checks.md",
     "health_check_script": "runtime/check-health.sh",
     "live_profile_audit_script": "runtime/audit-live-profile.sh",
+    "pantheon_update_script": "runtime/update-pantheon-repo.sh",
     "ker_mcp_server": "runtime/mcp/launchbot_ker_server.py",
     "ker_mcp_tests": "runtime/mcp/test_launchbot_ker_server.py",
     "launch_workflow": "runtime/launch-workflow.md",
@@ -121,7 +122,15 @@
       "LAUNCH_STEP3_SLACK_AUTHORIZED_REVIEWER_IDS"
     ],
     "help_article_contract": {
-      "source_of_truth": "code_grounded_behavior",
+      "source_of_truth": "pantheon_code_grounded_behavior",
+      "code_source_checkout": {
+        "repo": "pantheon",
+        "remote": "git@github.com:staffany-eng/pantheon.git",
+        "branch": "develop",
+        "path": "~/.hermes/profiles/launchbot/source/pantheon",
+        "freshness_status": "~/.hermes/profiles/launchbot/runtime/pantheon-repo-status.json",
+        "daily_update_requires": "GitHub SSH access on the VM"
+      },
       "publishable_body_excludes_internal_appendix": true,
       "raw_html_in_markdown_body": false,
       "text_dividers_in_markdown_body": false,

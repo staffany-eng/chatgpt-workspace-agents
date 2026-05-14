@@ -21,6 +21,7 @@ Canonical Hermes app packet for the Launchbot Slack profile.
 | `runtime/health-checks.md` | Expected health checks and cron pattern. |
 | `runtime/check-health.sh` | Silent no-agent health check. |
 | `runtime/audit-live-profile.sh` | Live profile drift audit. |
+| `runtime/update-pantheon-repo.sh` | Daily Pantheon checkout refresher for code-grounded help article verification. |
 | `runtime/mcp/launchbot_ker_server.py` | Read-only Slack thread to Jira KER lookup tool. |
 | `skills/help-article-generator/` | Launchbot help-article drafting skill upgraded from the 2026-05-11 handoff. |
 | `runtime/launch-workflow.md` | Help-article, Google Docs review, Slack approval, and Intercom draft workflow contract. |
@@ -37,9 +38,10 @@ Canonical Hermes app packet for the Launchbot Slack profile.
 6. Set Jira read-only env vars (`JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN`) in the live profile `.env` before enabling KER lookup.
 7. Copy `skills/help-article-generator/` into `~/.hermes/profiles/launchbot/skills/` when enabling article drafting.
 8. Copy runtime scripts into `~/.hermes/profiles/launchbot/scripts/`.
-9. Start the managed gateway and install the no-agent health cron.
-10. Stop any non-cloud `launchbot` gateway before live Slack testing. Only one Launchbot runtime should be connected to Slack, otherwise stale local profile state can answer first.
-11. Keep it experimental until the health check passes and the Slack smoke replies from `#launch-bot-testing`.
+9. Seed `~/.hermes/profiles/launchbot/source/pantheon` for code-grounded article verification. Install the daily Pantheon updater cron only after the VM has GitHub SSH access to `staffany-eng/pantheon`.
+10. Start the managed gateway and install the no-agent health cron.
+11. Stop any non-cloud `launchbot` gateway before live Slack testing. Only one Launchbot runtime should be connected to Slack, otherwise stale local profile state can answer first.
+12. Keep it experimental until the health check passes and the Slack smoke replies from `#launch-bot-testing`.
 
 ## Launch Workflow Skill
 

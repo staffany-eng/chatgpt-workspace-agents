@@ -69,6 +69,12 @@ if (!manifest) {
   if (contract.clubany_management_article_default !== "combined_brands_and_perks_article") {
     fail("Manifest must prefer the combined ClubAny management article");
   }
+  if (contract.source_of_truth !== "pantheon_code_grounded_behavior") {
+    fail("Manifest launch_workflow.help_article_contract.source_of_truth must use Pantheon code-grounded behavior");
+  }
+  if (contract.code_source_checkout?.repo !== "pantheon") {
+    fail("Manifest launch_workflow.help_article_contract.code_source_checkout must describe Pantheon");
+  }
   for (const evidencePath of Object.values(manifest.launch_workflow?.evidence || {})) {
     const absolute = join(repoRoot, evidencePath);
     if (!existsSync(absolute)) fail(`Manifest launch_workflow evidence path is missing: ${evidencePath}`);
@@ -82,6 +88,7 @@ for (const relPath of [
   "runtime/health-checks.md",
   "runtime/check-health.sh",
   "runtime/audit-live-profile.sh",
+  "runtime/update-pantheon-repo.sh",
   "runtime/mcp/profile_env.py",
   "runtime/mcp/launchbot_ker_server.py",
   "runtime/mcp/test_helpers.py",
@@ -161,6 +168,27 @@ for (const forbiddenText of ["chat.postMessage", "transitionIssue", "/comment", 
   if (mcpText.includes(forbiddenText)) fail(`launchbot_ker_server.py must not contain forbidden mutation surface: ${forbiddenText}`);
 }
 
+const healthText = textOf("runtime/check-health.sh");
+for (const requiredText of [
+  "pantheon:checkout-missing",
+  "pantheon:remote-unexpected",
+  "pantheon:status-stale",
+  "LAUNCHBOT_PANTHEON_REPO_DIR",
+]) {
+  if (!healthText.includes(requiredText)) fail(`check-health.sh missing required Pantheon health text: ${requiredText}`);
+}
+
+const pantheonUpdateText = textOf("runtime/update-pantheon-repo.sh");
+for (const requiredText of [
+  "git clone --branch",
+  "pull --ff-only",
+  "pantheon:updated",
+  "LAUNCHBOT_PANTHEON_REPO_URL",
+  "pantheon-repo-status.json",
+]) {
+  if (!pantheonUpdateText.includes(requiredText)) fail(`update-pantheon-repo.sh missing required text: ${requiredText}`);
+}
+
 const skillText = textOf("skills/help-article-generator/SKILL.md");
 for (const requiredText of [
   "Handoff-upgraded rules in this Launchbot skill override the older Grimoire help-article skill",
@@ -212,6 +240,10 @@ for (const requiredText of [
   "light cowboy voice",
   "Do not commit token values",
   "Step 4 launch derivatives are not implemented",
+  "Pantheon checkout",
+  "apps/kraken",
+  "apps/gryphon",
+  "apps/pixie",
 ]) {
   if (!workflowText.includes(requiredText)) fail(`Launch workflow doc missing required text: ${requiredText}`);
 }
