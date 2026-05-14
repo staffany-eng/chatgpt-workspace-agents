@@ -29,7 +29,9 @@ If the prompt says "sales-manager" or "manager chase", route to `nurtureanysales
 
 ## Slack Identity Rules
 
-- Your Slack UI or user credential may send only the explicit human-authored trigger for a real smoke test. Label that evidence as `human-authored smoke trigger`.
+- Default to API, CLI, MCP, and bot-token checks for target-environment verification. Do not use Slack UI / Computer Use for routine target smoke when a deterministic API or backend check proves the same thing.
+- Slack UI or a user credential is allowed only when the specific verification objective is to prove real Slack `app_mention` event delivery through the gateway, because bot-token `chat.postMessage` does not reliably exercise that path. Before using it, state that this is a human-authored trigger and why an API check is insufficient.
+- Label any Slack UI / user-credential evidence as `human-authored smoke trigger`.
 - Bot-token paths own Slack reads, result checks, and automation status delivery.
 - Visible automation status must come from the target bot/app identity and start with the profile's prefix from `ops/hermes/profiles.yaml`.
 - Never post automation status as Kai Yi. Never use Slack connector writes for this flow.
@@ -60,6 +62,8 @@ npm run slack-automation-identity:verify
    - live-profile audit passes;
    - health check passes;
    - heartbeat, cloud doctor, or app-specific smoke passes when present;
+   - use bot-token/API readback for Slack evidence whenever possible;
+   - use a live Slack UI human-authored trigger only when real `app_mention` gateway delivery itself must be proven;
    - live Slack smoke proves the target bot identity answered or the repair path closed the original thread.
 8. If target verification fails, do not merge. Summarize the failed command/check, current deployed SHA if known, and rollback or recovery action taken.
 
@@ -69,6 +73,7 @@ npm run slack-automation-identity:verify
 2. Push `main`.
 3. Redeploy exact `origin/main` to the same target environment.
 4. Repeat the minimum target checks needed to prove the merged SHA is live: service active, app health/audit, and one targeted Slack or app smoke.
+   - Prefer non-UI target checks first. Use Slack UI only for explicit app-mention gateway verification.
 5. For linked Slack bugs, post the completion report in the original thread using the target bot identity. Use this shape:
 
 ```text
