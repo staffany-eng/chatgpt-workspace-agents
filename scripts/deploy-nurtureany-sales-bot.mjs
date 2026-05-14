@@ -394,6 +394,8 @@ if [ "$skip_restart" = "1" ]; then
   exit 0
 fi
 
+cd "$profile"
+
 uid=$(id -u "$runtime_owner")
 sudo -H -u "$runtime_owner" XDG_RUNTIME_DIR="/run/user/$uid" systemctl --user restart "$service"
 sudo -H -u "$runtime_owner" XDG_RUNTIME_DIR="/run/user/$uid" systemctl --user is-active "$service"
