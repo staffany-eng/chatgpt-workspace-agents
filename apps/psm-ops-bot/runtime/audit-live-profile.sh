@@ -22,7 +22,7 @@ cmp -s "$SOURCE_DIR/profile/SOUL.md" "$PROFILE_DIR/SOUL.md" || fail "profile:sou
 diff -qr "$SOURCE_DIR/skills/psm-ops-bot" "$PROFILE_DIR/skills/psm-ops-bot" >/dev/null || fail "profile:skill-drift"
 cmp -s "$SOURCE_DIR/runtime/check-cloud-heartbeat.sh" "$PROFILE_DIR/scripts/psmopsbot-check-cloud-heartbeat.sh" || fail "profile:cloud-heartbeat-script-drift"
 diff -qr -x __pycache__ "$SOURCE_DIR/runtime/hooks/psm-ops-adoption-telemetry" "$PROFILE_DIR/hooks/psm-ops-adoption-telemetry" >/dev/null || fail "profile:adoption-hook-drift"
-cmp -s "$SOURCE_DIR/runtime/scripts/psm_ops_adoption_digest.py" "$PROFILE_DIR/scripts/psm_ops_adoption_digest.py" || fail "profile:adoption-digest-script-drift"
+cmp -s "$SOURCE_DIR/runtime/psm_ops_adoption_digest.py" "$PROFILE_DIR/scripts/psm_ops_adoption_digest.py" || fail "profile:adoption-digest-script-drift"
 
 cron_out="$("$HERMES_PYTHON" "$HERMES_BIN" -p "$PROFILE" cron list 2>&1)" || fail "cron:list-failed"
 printf '%s\n' "$cron_out" | grep -Fq "$EXPECTED_CLOUD_HEARTBEAT_CRON_NAME" || fail "cron:cloud-heartbeat-missing"
