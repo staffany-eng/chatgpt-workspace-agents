@@ -40,6 +40,7 @@ See `deploy/gcp-vm-topology.md` before changing deployed bot placement or answer
 | `deploy/gcp-vm-topology.md` | Current GCP VM/profile/service ownership, including LaunchBot. |
 | `deploy/gce-onboarding-runbook.md` | GCE restore and bootstrap runbook. |
 | `tests/regression-cases.md` | Manual/eval regression cases for app behavior. |
+| `tests/prompt-evals.json` | Machine-readable static, tool-trace, answer-contract, and live-smoke prompt eval specs. |
 
 ## Restore Order
 

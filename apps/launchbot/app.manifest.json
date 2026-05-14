@@ -32,7 +32,8 @@
     "article_planning_profile": "skills/help-article-generator/references/article-planning-profile.json",
     "intercom_article_inventory": "skills/help-article-generator/references/intercom-article-inventory.json",
     "help_article_video_registry": "skills/help-article-generator/references/video-placement-registry.json",
-    "launch_workflow_regression_cases": "tests/launch-workflow-regression-cases.md"
+    "launch_workflow_regression_cases": "tests/launch-workflow-regression-cases.md",
+    "prompt_evals": "tests/prompt-evals.json"
   },
   "channels": [
     "Slack #launch-bot-testing",

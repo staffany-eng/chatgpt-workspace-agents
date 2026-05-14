@@ -683,7 +683,8 @@ const filesToScan = [
   "runtime/nurtureany-cloud-doctor.sh",
   "runtime/jobs/near_me_outlet_match_writer.py",
   "runtime/jobs/test_near_me_outlet_match_writer.py",
-  "tests/regression-cases.md"
+  "tests/regression-cases.md",
+  "tests/prompt-evals.json"
 ];
 
 for (const relPath of filesToScan) {

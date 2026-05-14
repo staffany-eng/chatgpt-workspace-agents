@@ -156,7 +156,8 @@ const filesToScan = [
   "runtime/hooks/psm-ops-adoption-telemetry/HOOK.yaml",
   "runtime/hooks/psm-ops-adoption-telemetry/handler.py",
   "deploy/gce-onboarding-runbook.md",
-  "tests/regression-cases.md"
+  "tests/regression-cases.md",
+  "tests/prompt-evals.json"
 ];
 
 for (const relPath of filesToScan) {

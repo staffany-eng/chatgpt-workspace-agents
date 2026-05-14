@@ -78,6 +78,7 @@ T-90 renewal answers must show both buckets: known T-90 accounts where `contract
 | `runtime/audit-live-profile.sh` | Live profile drift audit against the source packet. |
 | `runtime/nurtureany-cloud-doctor.sh` | Redacted cloud doctor for service state, cron state, MCP counts, drift, ledger, and daily-run persistence. |
 | `tests/regression-cases.md` | Manual/eval regression cases for app behavior. |
+| `tests/prompt-evals.json` | Machine-readable static, tool-trace, answer-contract, and live-smoke prompt eval specs. |
 
 ## Product Scope
 

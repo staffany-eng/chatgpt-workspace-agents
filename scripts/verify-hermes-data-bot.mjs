@@ -93,7 +93,8 @@ const filesToScan = [
   "runtime/review-honcho-memory.sh",
   "deploy/gcp-vm-topology.md",
   "deploy/gce-onboarding-runbook.md",
-  "tests/regression-cases.md"
+  "tests/regression-cases.md",
+  "tests/prompt-evals.json"
 ];
 
 for (const relPath of filesToScan) {

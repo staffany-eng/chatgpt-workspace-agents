@@ -39,6 +39,7 @@ Alias note: `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` refer to this 
 | `runtime/audit-live-profile.sh` | Source-packet drift audit. |
 | `deploy/gce-onboarding-runbook.md` | Cloud deployment runbook. |
 | `tests/regression-cases.md` | Manual/eval regression cases. |
+| `tests/prompt-evals.json` | Machine-readable static, tool-trace, answer-contract, and live-smoke prompt eval specs. |
 
 ## Runtime Secrets
 

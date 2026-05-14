@@ -35,6 +35,7 @@ Canonical Hermes app packet for the Launchbot Slack profile.
 | `runtime/launchbot_e2e.py` | Minimal VM-safe handoff runner when the external source checkout is absent. |
 | `runtime/intercom-format-gate.mjs` | Pantheon evidence scan/check, Intercom search, cached article-shape planning, curated format-profile pull, and pre-publish format check CLI. |
 | `tests/launch-workflow-regression-cases.md` | Manual/eval regression scenarios for the launch workflow. |
+| `tests/prompt-evals.json` | Machine-readable static, tool-trace, answer-contract, and live-smoke prompt eval specs. |
 
 ## Restore Order
 

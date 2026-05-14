@@ -206,6 +206,7 @@ for (const relPath of [
   "runtime/launch-workflow.md",
   "runtime/launchbot_e2e.py",
   "tests/launch-workflow-regression-cases.md",
+  "tests/prompt-evals.json",
 ]) {
   assertFile(relPath);
   scanForSecretPatterns(relPath);

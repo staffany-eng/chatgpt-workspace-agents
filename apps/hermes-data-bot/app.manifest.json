@@ -35,7 +35,8 @@
     "honcho_memory_review_script": "runtime/review-honcho-memory.sh",
     "gcp_vm_topology": "deploy/gcp-vm-topology.md",
     "deploy_runbook": "deploy/gce-onboarding-runbook.md",
-    "regression_cases": "tests/regression-cases.md"
+    "regression_cases": "tests/regression-cases.md",
+    "prompt_evals": "tests/prompt-evals.json"
   },
   "mcp": {
     "server_name": "staffany_bigquery",

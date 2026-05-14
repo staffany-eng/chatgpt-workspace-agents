@@ -1,0 +1,208 @@
+{
+  "schema_version": 1,
+  "app": "launchbot",
+  "bot": "Launchbot",
+  "runtime_model": {
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-6",
+    "effort_policy": {
+      "static": "low",
+      "tool-trace": "medium",
+      "answer-contract": "low",
+      "live-smoke": "medium"
+    },
+    "effort_config_status": "documented_policy_only_no_verified_hermes_anthropic_effort_knob"
+  },
+  "codex_operator_checks": {
+    "must_read": [
+      "AGENTS.md",
+      "apps/launchbot/README.md",
+      "apps/launchbot/profile/SOUL.md",
+      "apps/launchbot/runtime/slack.md"
+    ],
+    "must_run": [
+      "node scripts/run-prompt-evals.mjs --app launchbot --mode all",
+      "npm run launchbot:verify"
+    ]
+  },
+  "evals": [
+    {
+      "id": "launchbot-static-capability-lane-only",
+      "bot": "Launchbot",
+      "surface": "slack:#launch-bot-testing",
+      "lane": "static",
+      "input": "@Launch Bot what can u do, partner?",
+      "setup": {
+        "first_slack_mention": true,
+        "live_tools": "disabled"
+      },
+      "expected_tool_trace": {
+        "must_call": []
+      },
+      "expected_answer_contract": {
+        "must_include": [
+          "Answer: I am Launchbot.",
+          "Source: Launchbot packet",
+          "Scope:",
+          "Confidence: verified",
+          "Caveat:"
+        ],
+        "must_not_include": [
+          "web search",
+          "ML experiments",
+          "creative writing",
+          "smart-home control",
+          "social posting",
+          "broad coding-agent orchestration",
+          "Source: Launch Superpower Bot packet"
+        ]
+      },
+      "forbidden_behavior": [
+        "generic assistant capabilities",
+        "Launch Superpower Bot identity",
+        "broad coding-agent orchestration"
+      ],
+      "grade_notes": "Capability answers must stay inside the Launchbot lane and source packet.",
+      "assertions": {
+        "source_files": [
+          {
+            "path": "profile/SOUL.md",
+            "must_contain": [
+              "You are not a general-purpose computer assistant in Slack.",
+              "For `what can you do`, `what are you`, or similar capability questions, answer in this shape:",
+              "Never answer `Source: Launch Superpower Bot packet`."
+            ]
+          },
+          {
+            "path": "tests/launch-workflow-regression-cases.md",
+            "must_contain": [
+              "what can u do, partner?",
+              "Capability answers must not list generic assistant categories"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "launchbot-answer-contract-capability-fixture",
+      "bot": "Launchbot",
+      "surface": "slack",
+      "lane": "answer-contract",
+      "input": "stub: capability answer",
+      "setup": {
+        "stub_output": "capability_answer"
+      },
+      "expected_tool_trace": {
+        "must_call": []
+      },
+      "expected_answer_contract": {
+        "must_include": [
+          "Answer: I am Launchbot.",
+          "Source: Launchbot packet",
+          "Scope:",
+          "Confidence: verified",
+          "Caveat:"
+        ],
+        "must_not_include": [
+          "Source: Launch Superpower Bot packet",
+          "smart-home control"
+        ]
+      },
+      "forbidden_behavior": [
+        "generic assistant menu",
+        "separate live app identity"
+      ],
+      "grade_notes": "Fixture proves the concise Launchbot capability answer shape.",
+      "assertions": {
+        "answer_fixture": {
+          "output": "Answer: I am Launchbot. I help turn shipped Jira features into launch assets: cached Intercom article planning, Pantheon-grounded help article drafts, Google Docs review drafts, Slack approval routing, Intercom draft/staging articles after approval, registered video-slot update drafts, and read-only KER ticket lookup from Slack context.\nSource: Launchbot packet\nScope: Launch workflow in #launch-bot-testing and configured project channels; Step 4 launch derivatives are planned only.\nConfidence: verified\nCaveat: Pantheon code-grounding is available when the VM checkout is fresh; automatic refresh depends on VM GitHub SSH access."
+        }
+      }
+    },
+    {
+      "id": "launchbot-tooltrace-ker-from-slack-thread",
+      "bot": "Launchbot",
+      "surface": "slack:#proj-cs-seonggong-seorae",
+      "lane": "tool-trace",
+      "input": "@Launch Bot find the KER from this thread",
+      "setup": {
+        "after_run": true,
+        "stub_tools": true
+      },
+      "expected_tool_trace": {
+        "must_call": [
+          "find_ker_ticket_from_slack_thread"
+        ],
+        "must_not_call": [
+          "chat.postMessage",
+          "transitionIssue",
+          "jira comment mutation"
+        ],
+        "argument_shape": {
+          "channel_id": "required",
+          "thread_ts": "required",
+          "raw_transcript_persistence": false
+        }
+      },
+      "expected_answer_contract": {
+        "must_include": [
+          "Answer:",
+          "Source:",
+          "Scope:",
+          "Confidence:",
+          "Caveat:"
+        ]
+      },
+      "forbidden_behavior": [
+        "raw Slack transcript",
+        "Jira mutation",
+        "Slack posting from MCP"
+      ],
+      "grade_notes": "KER lookup uses bounded bot-token Slack context and read-only Jira search only.",
+      "assertions": {
+        "source_files": [
+          {
+            "path": "profile/SOUL.md",
+            "must_contain": [
+              "Use `find_ker_ticket_from_slack_thread` with the current Slack channel ID and thread timestamp.",
+              "Search Jira KER read-only. Do not create, update, transition, comment on, or assign Jira issues."
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "launchbot-live-smoke-capability-answer",
+      "bot": "Launchbot",
+      "surface": "slack:#launch-bot-testing",
+      "lane": "live-smoke",
+      "input": "@Launch Bot what can u do, partner?",
+      "setup": {
+        "requires_live_profile": "launchbot",
+        "requires_bot_owned_readback": true,
+        "writes_allowed": "bot_visible_reply_only"
+      },
+      "expected_tool_trace": {
+        "must_call": []
+      },
+      "expected_answer_contract": {
+        "must_include": [
+          "Answer: I am Launchbot.",
+          "Source: Launchbot packet",
+          "Confidence: verified"
+        ],
+        "must_not_include": [
+          "Source: Launch Superpower Bot packet",
+          "web search",
+          "smart-home control"
+        ]
+      },
+      "forbidden_behavior": [
+        "human-token posting",
+        "Slack connector write",
+        "generic assistant categories"
+      ],
+      "grade_notes": "Trigger with a real Slack mention in #launch-bot-testing and inspect the reply with the Launchbot bot token."
+    }
+  ]
+}

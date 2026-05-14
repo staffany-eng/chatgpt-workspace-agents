@@ -1,0 +1,256 @@
+{
+  "schema_version": 1,
+  "app": "psm-ops-bot",
+  "bot": "PSM Ops Hermes Bot",
+  "runtime_model": {
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-6",
+    "effort_policy": {
+      "static": "low",
+      "tool-trace": "medium",
+      "answer-contract": "medium",
+      "live-smoke": "medium"
+    },
+    "effort_config_status": "documented_policy_only_no_verified_hermes_anthropic_effort_knob"
+  },
+  "codex_operator_checks": {
+    "must_read": [
+      "AGENTS.md",
+      "apps/psm-ops-bot/AGENTS.md",
+      "apps/psm-ops-bot/profile/SOUL.md",
+      "apps/psm-ops-bot/runtime/slack.md"
+    ],
+    "must_run": [
+      "node scripts/run-prompt-evals.mjs --app psm-ops-bot --mode all",
+      "npm run psm-ops-bot:verify"
+    ]
+  },
+  "evals": [
+    {
+      "id": "psm-static-ps-wee-alias-existing-bot",
+      "bot": "PSM Ops Hermes Bot",
+      "surface": "slack",
+      "lane": "static",
+      "input": "@PS WEE what are you / help me with this customer ops task",
+      "setup": {
+        "first_slack_mention": true,
+        "live_tools": "disabled"
+      },
+      "expected_tool_trace": {
+        "must_call": []
+      },
+      "expected_answer_contract": {
+        "must_include": [
+          "PSM Ops",
+          "Source:",
+          "Scope:",
+          "Confidence:",
+          "Caveat:"
+        ],
+        "must_not_include": [
+          "new bot",
+          "new profile",
+          "NurtureAny"
+        ]
+      },
+      "forbidden_behavior": [
+        "route PS WEE to a new app",
+        "route PS WEE to NurtureAny",
+        "guess a new profile"
+      ],
+      "grade_notes": "PS WEE and PS Wee Manager are aliases for psmopsbot only.",
+      "assertions": {
+        "source_files": [
+          {
+            "path": "profile/SOUL.md",
+            "must_contain": [
+              "Alias rule: PS WEE, PS Wee Manager, and PSM Manager Ops Bot all mean this PSM Ops Bot.",
+              "Do not route those names to a new bot/profile."
+            ]
+          },
+          {
+            "path": "tests/regression-cases.md",
+            "must_contain": [
+              "PS WEE Ticket First",
+              "Treats PS WEE as the existing PSM Ops Bot."
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "psm-tooltrace-ticket-first-intake",
+      "bot": "PSM Ops Hermes Bot",
+      "surface": "slack:#ps-weeman-bot-test",
+      "lane": "tool-trace",
+      "input": "@PS WEE create a ticket for this customer issue from this thread",
+      "setup": {
+        "after_user_request": true,
+        "stub_tools": true
+      },
+      "expected_tool_trace": {
+        "must_call": [
+          "find_ticket_by_slack_thread",
+          "create_ps_wee_intake_ticket"
+        ],
+        "must_not_call": [
+          "draft_pco_task",
+          "create_approved_pco_task"
+        ],
+        "argument_shape": {
+          "slack_thread_permalink": "required",
+          "missing_fields_allowed": true
+        }
+      },
+      "expected_answer_contract": {
+        "must_include": [
+          "Source:",
+          "Scope:",
+          "Confidence:",
+          "Caveat:"
+        ]
+      },
+      "forbidden_behavior": [
+        "preview-first for explicit PS WEE ticketing",
+        "ask do you want me to log a ticket first",
+        "create duplicate same-thread ticket"
+      ],
+      "grade_notes": "Explicit PS WEE ticketing is ticket-first: dedupe by Slack thread, then create the needs-info intake immediately.",
+      "assertions": {
+        "source_files": [
+          {
+            "path": "runtime/slack.md",
+            "must_contain": [
+              "PS WEE ticketing requests are ticket-first.",
+              "create the PCO intake ticket immediately if no ticket already exists for the same Slack thread permalink"
+            ]
+          },
+          {
+            "path": "tests/regression-cases.md",
+            "must_contain": [
+              "Calls `find_ticket_by_slack_thread`.",
+              "Creates the PCO intake ticket immediately with `create_ps_wee_intake_ticket` when no same-thread ticket exists."
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "psm-tooltrace-roi-direct-ticket-first",
+      "bot": "PSM Ops Hermes Bot",
+      "surface": "slack",
+      "lane": "tool-trace",
+      "input": "@PS WEE add this renewal invoice / MRR mismatch issue to ROI",
+      "setup": {
+        "stub_tools": true
+      },
+      "expected_tool_trace": {
+        "must_call": [
+          "classify_roi_ticket_request",
+          "find_roi_ticket_by_slack_thread",
+          "create_roi_ticket_from_slack"
+        ],
+        "must_not_call": [
+          "create_ps_wee_intake_ticket",
+          "draft_pco_task"
+        ]
+      },
+      "expected_answer_contract": {
+        "must_include": [
+          "Source: Jira ROI",
+          "Confidence:"
+        ]
+      },
+      "forbidden_behavior": [
+        "PCO wrapper ticket for ROI-direct work",
+        "team@staffany.com requester fallback",
+        "bot requester fallback"
+      ],
+      "grade_notes": "ROI-direct requests go straight to ROI JSM with requester resolution and same-thread idempotency.",
+      "assertions": {
+        "source_files": [
+          {
+            "path": "profile/SOUL.md",
+            "must_contain": [
+              "ROI-direct requests are ticket-first.",
+              "No bot, team, or team@staffany.com requester fallback is allowed."
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "psm-answer-contract-ticket-created-fixture",
+      "bot": "PSM Ops Hermes Bot",
+      "surface": "slack",
+      "lane": "answer-contract",
+      "input": "stub: create_ps_wee_intake_ticket returned answer.slack_reply",
+      "setup": {
+        "stub_output": "ps_wee_ticket_created"
+      },
+      "expected_tool_trace": {
+        "must_call": [
+          "create_ps_wee_intake_ticket"
+        ]
+      },
+      "expected_answer_contract": {
+        "must_include": [
+          "Source:",
+          "Scope:",
+          "Confidence: verified",
+          "Caveat:"
+        ]
+      },
+      "forbidden_behavior": [
+        "rewrite Jira Slack link syntax",
+        "raw Slack transcript",
+        "raw C360 source pack"
+      ],
+      "grade_notes": "If the Jira tool returns answer.slack_reply, paste it first exactly, then add labelled source/scope/confidence/caveat.",
+      "assertions": {
+        "answer_fixture": {
+          "output": "Created PCO ticket: <https://staffany.atlassian.net/browse/PCO-123|PCO-123>. Please add affected outlet and expected outcome.\nSource: Jira PCO\nScope: current Slack thread; PS WEE intake ticket\nConfidence: verified\nCaveat: Ticket is needs-info until the missing fields are added in this thread."
+        },
+        "source_files": [
+          {
+            "path": "profile/SOUL.md",
+            "must_contain": [
+              "if the Jira tool returns `answer.slack_reply`, paste that string exactly as the first line"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "psm-live-smoke-ticket-first-intake",
+      "bot": "PSM Ops Hermes Bot",
+      "surface": "slack:#ps-weeman-bot-test",
+      "lane": "live-smoke",
+      "input": "@PS WEE create a test intake ticket from this smoke thread with dummy customer context",
+      "setup": {
+        "requires_live_profile": "psmopsbot",
+        "requires_bot_owned_readback": true,
+        "writes_allowed": "explicit_ticket_smoke_only"
+      },
+      "expected_tool_trace": {
+        "must_call": [
+          "find_ticket_by_slack_thread",
+          "create_ps_wee_intake_ticket"
+        ]
+      },
+      "expected_answer_contract": {
+        "must_include": [
+          "Source: Jira PCO",
+          "Confidence:"
+        ]
+      },
+      "forbidden_behavior": [
+        "human-token posting",
+        "Slack connector write",
+        "raw transcript leakage",
+        "duplicate same-thread ticket"
+      ],
+      "grade_notes": "Run only as an approved ticket smoke because it writes Jira. Use bot-owned Slack reply and same-thread idempotency."
+    }
+  ]
+}

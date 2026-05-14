@@ -59,7 +59,8 @@
     "slack_socket_watchdog_script": "runtime/check-slack-socket-health.sh",
     "live_profile_audit": "runtime/audit-live-profile.sh",
     "cloud_doctor": "runtime/nurtureany-cloud-doctor.sh",
-    "regression_cases": "tests/regression-cases.md"
+    "regression_cases": "tests/regression-cases.md",
+    "prompt_evals": "tests/prompt-evals.json"
   },
   "scope": {
     "countries": [

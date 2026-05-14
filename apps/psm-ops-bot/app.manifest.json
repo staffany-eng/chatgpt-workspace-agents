@@ -40,7 +40,8 @@
     "adoption_hook": "runtime/hooks/psm-ops-adoption-telemetry/HOOK.yaml",
     "adoption_hook_handler": "runtime/hooks/psm-ops-adoption-telemetry/handler.py",
     "deploy_runbook": "deploy/gce-onboarding-runbook.md",
-    "regression_cases": "tests/regression-cases.md"
+    "regression_cases": "tests/regression-cases.md",
+    "prompt_evals": "tests/prompt-evals.json"
   },
   "mcp": {
     "psm_jira": {

@@ -1,0 +1,419 @@
+{
+  "schema_version": 1,
+  "app": "nurtureany-sales-bot",
+  "bot": "NurtureAny Sales Bot",
+  "runtime_model": {
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-6",
+    "effort_policy": {
+      "static": "low",
+      "tool-trace": "medium",
+      "answer-contract": "medium",
+      "live-smoke": "medium"
+    },
+    "effort_config_status": "documented_policy_only_no_verified_hermes_anthropic_effort_knob"
+  },
+  "codex_operator_checks": {
+    "must_read": [
+      "AGENTS.md",
+      "apps/nurtureany-sales-bot/AGENTS.md",
+      "apps/nurtureany-sales-bot/profile/SOUL.md",
+      "apps/nurtureany-sales-bot/runtime/slack.md"
+    ],
+    "must_run": [
+      "node scripts/run-prompt-evals.mjs --app nurtureany-sales-bot --mode all",
+      "npm run nurtureany-sales-bot:verify"
+    ]
+  },
+  "evals": [
+    {
+      "id": "nurtureany-static-sg-lead-enrichment-route",
+      "bot": "NurtureAny Sales Bot",
+      "surface": "slack",
+      "lane": "static",
+      "input": "@NurtureAny build Singapore lead enrichment plan for Jeremy's fixed account list, compact sample",
+      "setup": {
+        "first_slack_mention": true,
+        "live_tools": "disabled"
+      },
+      "expected_tool_trace": {
+        "must_call_after_run": [
+          "build_singapore_lead_enrichment_plan"
+        ],
+        "must_not_call": [
+          "find_contact_gaps",
+          "score_nurture_accounts",
+          "generate_free_search_tasks"
+        ]
+      },
+      "expected_answer_contract": {
+        "must_include": [
+          "Interpreted question:",
+          "Reply \"run\" to start, or tell me what to change."
+        ],
+        "must_not_include": [
+          "Answer:"
+        ]
+      },
+      "forbidden_behavior": [
+        "find_contact_gaps",
+        "score_nurture_accounts",
+        "raw phone-number export",
+        "WhatsApp send"
+      ],
+      "grade_notes": "First response must plan the SG orchestrator. The compact/smoke wording does not permit a wrong shortcut.",
+      "assertions": {
+        "source_files": [
+          {
+            "path": "profile/SOUL.md",
+            "must_contain": [
+              "MUST plan and run `build_singapore_lead_enrichment_plan`",
+              "Do not route these prompts through `find_contact_gaps`, `score_nurture_accounts`, `generate_free_search_tasks`, Exa, or Lusha directly",
+              "output_mode=\"compact\""
+            ]
+          },
+          {
+            "path": "tests/regression-cases.md",
+            "must_contain": [
+              "After `run`, calls `build_singapore_lead_enrichment_plan` with `owner_email=jeremy.wong@staffany.com`"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "nurtureany-static-smoke-quick-still-needs-run",
+      "bot": "NurtureAny Sales Bot",
+      "surface": "slack",
+      "lane": "static",
+      "input": "@NurtureAny quick smoke compact check the SG/MY coverage, keep it short",
+      "setup": {
+        "first_slack_mention": true,
+        "quick_autorun_context": "not_proven"
+      },
+      "expected_tool_trace": {
+        "must_call": [],
+        "allowed_tools": [
+          "read_recent_slack_intent_context"
+        ],
+        "forbidden_tools": [
+          "audit_priority_account_coverage",
+          "list_team_target_accounts"
+        ]
+      },
+      "expected_answer_contract": {
+        "must_include": [
+          "Interpreted question:",
+          "Plan:",
+          "Reply \"run\" to start, or tell me what to change."
+        ],
+        "must_not_include": [
+          "Answer:"
+        ]
+      },
+      "forbidden_behavior": [
+        "auto-run because the prompt said smoke",
+        "auto-run because the prompt said quick",
+        "auto-run because the prompt said compact"
+      ],
+      "grade_notes": "Smoke/quick/compact words are not approval unless every quick-autorun criterion is satisfied.",
+      "assertions": {
+        "source_files": [
+          {
+            "path": "runtime/slack.md",
+            "must_contain": [
+              "Smoke/test/eval prompts follow the same quick-autorun gate.",
+              "do not bypass approval by themselves"
+            ]
+          },
+          {
+            "path": "tests/regression-cases.md",
+            "must_contain": [
+              "Slack Quick-Intent Smoke Prompt",
+              "Smoke/test prompts follow the same quick-intent gate as normal requests."
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "nurtureany-tooltrace-inbound-sla",
+      "bot": "NurtureAny Sales Bot",
+      "surface": "slack",
+      "lane": "tool-trace",
+      "input": "@NurtureAny audit inbound SLA from this Slack thread",
+      "setup": {
+        "after_run": true,
+        "stub_tools": true
+      },
+      "expected_tool_trace": {
+        "must_call": [
+          "audit_inbound_sla"
+        ],
+        "forbidden_tools": [
+          "manual_table_computation",
+          "list_inbound_threads_only"
+        ],
+        "argument_shape": {
+          "safe_slack_alert_metadata": "allowed",
+          "raw_slack_transcript": "forbidden"
+        }
+      },
+      "expected_answer_contract": {
+        "must_include": [
+          "Source:",
+          "Scope:",
+          "Confidence:",
+          "Caveat:",
+          "Context:"
+        ]
+      },
+      "forbidden_behavior": [
+        "manual table computation",
+        "raw Slack transcripts",
+        "phone numbers",
+        "raw HubSpot bodies"
+      ],
+      "grade_notes": "Any answer not sourced from audit_inbound_sla is a fail, even if the manual math looks right.",
+      "assertions": {
+        "source_files": [
+          {
+            "path": "profile/SOUL.md",
+            "must_contain": [
+              "For inbound SLA audits from Slack threads or recent HubSpot inbound, plan for `audit_inbound_sla`.",
+              "do not manually compute the final table as the source of truth"
+            ]
+          },
+          {
+            "path": "tests/regression-cases.md",
+            "must_contain": [
+              "@NurtureAny audit inbound SLA from this Slack thread"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "nurtureany-tooltrace-social-only-campaign",
+      "bot": "NurtureAny Sales Bot",
+      "surface": "slack",
+      "lane": "tool-trace",
+      "input": "@NurtureAny run social effectiveness for the podcast campaign only",
+      "setup": {
+        "after_run": true,
+        "stub_tools": true,
+        "scope": "social_only"
+      },
+      "expected_tool_trace": {
+        "must_call": [
+          "get_campaign_social_effectiveness"
+        ],
+        "must_not_call": [
+          "get_marketing_campaign_attribution"
+        ]
+      },
+      "expected_answer_contract": {
+        "must_include": [
+          "QO / closed-won attribution was not checked in this run",
+          "Source:",
+          "Scope:",
+          "Confidence:",
+          "Caveat:"
+        ],
+        "must_not_include": [
+          "no evidence linking to QO",
+          "no conversion evidence"
+        ]
+      },
+      "forbidden_behavior": [
+        "negative QO attribution claim from social-only data",
+        "native social scraping",
+        "raw social channel IDs"
+      ],
+      "grade_notes": "Social engagement and campaign attribution are separate source classes. Social-only must state not checked exactly.",
+      "assertions": {
+        "source_files": [
+          {
+            "path": "profile/SOUL.md",
+            "must_contain": [
+              "Social clicks are engagement evidence only, not QO, closed-won, pipeline, or revenue proof.",
+              "QO / closed-won attribution was not checked in this run"
+            ]
+          },
+          {
+            "path": "skills/nurtureany-sales-bot/references/sop-tool-coverage.md",
+            "must_contain": [
+              "`get_campaign_social_effectiveness`",
+              "no native social scraping or mutation is allowed"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "nurtureany-tooltrace-campaign-qo-attribution-preflight",
+      "bot": "NurtureAny Sales Bot",
+      "surface": "slack",
+      "lane": "tool-trace",
+      "input": "@NurtureAny did the Salary Benchmark campaign lead to QO or closed-won?",
+      "setup": {
+        "first_slack_mention": true,
+        "live_tools": "disabled"
+      },
+      "expected_tool_trace": {
+        "must_call_after_run": [
+          "list_marketing_campaigns",
+          "get_campaign_assets",
+          "get_marketing_campaign_attribution"
+        ],
+        "must_not_call_before_run": [
+          "list_marketing_campaigns",
+          "get_campaign_assets",
+          "get_marketing_campaign_attribution"
+        ]
+      },
+      "expected_answer_contract": {
+        "must_include": [
+          "list_marketing_campaigns",
+          "get_campaign_assets",
+          "get_marketing_campaign_attribution",
+          "Reply \"run\" to start, or tell me what to change."
+        ]
+      },
+      "forbidden_behavior": [
+        "generic QO totals as campaign attribution",
+        "campaign metadata as closed-won proof"
+      ],
+      "grade_notes": "QO/closed-won campaign prompts must name the three-tool path in preflight.",
+      "assertions": {
+        "source_files": [
+          {
+            "path": "runtime/slack.md",
+            "must_contain": [
+              "Campaign-effectiveness questions that ask whether a campaign led to QO, QO Met, closed-won, pipeline, or revenue must plan by name for `list_marketing_campaigns`, `get_campaign_assets`, and `get_marketing_campaign_attribution`."
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "nurtureany-tooltrace-google-slides-first",
+      "bot": "NurtureAny Sales Bot",
+      "surface": "slack",
+      "lane": "tool-trace",
+      "input": "@NurtureAny use this Google Slides deck to draft the KNS cadence",
+      "setup": {
+        "first_slack_mention": true,
+        "after_run": "deck_reader_first"
+      },
+      "expected_tool_trace": {
+        "must_call_after_run": [
+          "read_google_slides_deck"
+        ],
+        "must_call_first_after_run": [
+          "read_google_slides_deck"
+        ]
+      },
+      "expected_answer_contract": {
+        "must_include": [
+          "read_google_slides_deck",
+          "Reply \"run\" to start, or tell me what to change."
+        ]
+      },
+      "forbidden_behavior": [
+        "plan from the URL alone",
+        "ask for Anyone with the link sharing"
+      ],
+      "grade_notes": "Deck prompts must preflight and then read the deck before interpreting deck-backed content.",
+      "assertions": {
+        "source_files": [
+          {
+            "path": "runtime/slack.md",
+            "must_contain": [
+              "first response is still plan-only and must name `read_google_slides_deck` as the first source check after `run`"
+            ]
+          },
+          {
+            "path": "tests/regression-cases.md",
+            "must_contain": [
+              "First Slack response is plan-only and names `read_google_slides_deck` as the first tool after `run`."
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "nurtureany-answer-contract-social-only-fixture",
+      "bot": "NurtureAny Sales Bot",
+      "surface": "slack",
+      "lane": "answer-contract",
+      "input": "stub: get_campaign_social_effectiveness returned aggregate clicks only",
+      "setup": {
+        "stub_output": "social_only"
+      },
+      "expected_tool_trace": {
+        "must_call": [
+          "get_campaign_social_effectiveness"
+        ]
+      },
+      "expected_answer_contract": {
+        "must_include": [
+          "Answer:",
+          "Checked:",
+          "Not checked:",
+          "QO / closed-won attribution was not checked in this run",
+          "Source:",
+          "Scope:",
+          "Confidence:",
+          "Caveat:"
+        ]
+      },
+      "forbidden_behavior": [
+        "no evidence linking to QO",
+        "complete attribution"
+      ],
+      "grade_notes": "Final Slack answer must distinguish checked social metrics from unchecked revenue attribution.",
+      "assertions": {
+        "answer_fixture": {
+          "output": "Answer: Podcast social posts had aggregate HubSpot social clicks in the returned window.\nChecked: HubSpot SOCIAL_BROADCAST aggregate social metrics.\nNot checked: QO / closed-won attribution was not checked in this run.\nNext check: Run get_marketing_campaign_attribution if you want QO, QO Met, closed-won, pipeline, or revenue linkage.\nSource: get_campaign_social_effectiveness\nScope: selected campaign social assets only\nConfidence: needs-check\nCaveat: Social clicks are engagement evidence, not revenue attribution."
+        }
+      }
+    },
+    {
+      "id": "nurtureany-live-smoke-compact-sg-enrichment",
+      "bot": "NurtureAny Sales Bot",
+      "surface": "slack:#nurtureany-testing",
+      "lane": "live-smoke",
+      "input": "@NurtureAny build Singapore lead enrichment plan for Jeremy's fixed account list limit 3 compact",
+      "setup": {
+        "requires_live_profile": "nurtureanysalesbot",
+        "requires_bot_owned_readback": true,
+        "writes_allowed": false
+      },
+      "expected_tool_trace": {
+        "must_call_after_run": [
+          "build_singapore_lead_enrichment_plan"
+        ],
+        "must_not_call": [
+          "find_contact_gaps",
+          "score_nurture_accounts"
+        ]
+      },
+      "expected_answer_contract": {
+        "must_include": [
+          "Source:",
+          "Scope:",
+          "Confidence:",
+          "Caveat:"
+        ]
+      },
+      "forbidden_behavior": [
+        "human-token posting",
+        "Slack connector write",
+        "raw phone-number export",
+        "raw transcript persistence"
+      ],
+      "grade_notes": "Run only after local verifier passes and after the source packet is synced/deployed. Trigger via real Slack mention; inspect with bot token."
+    }
+  ]
+}

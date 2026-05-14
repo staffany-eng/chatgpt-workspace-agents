@@ -1,0 +1,261 @@
+{
+  "schema_version": 1,
+  "app": "hermes-data-bot",
+  "bot": "StaffAny Hermes Data Bot",
+  "runtime_model": {
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-6",
+    "effort_policy": {
+      "static": "low",
+      "tool-trace": "medium",
+      "answer-contract": "medium",
+      "live-smoke": "medium"
+    },
+    "effort_config_status": "documented_policy_only_no_verified_hermes_anthropic_effort_knob"
+  },
+  "codex_operator_checks": {
+    "must_read": [
+      "AGENTS.md",
+      "apps/hermes-data-bot/AGENTS.md",
+      "apps/hermes-data-bot/profile/SOUL.md",
+      "apps/hermes-data-bot/runtime/slack.md"
+    ],
+    "must_run": [
+      "node scripts/run-prompt-evals.mjs --app hermes-data-bot --mode all",
+      "npm run hermes-data-bot:verify"
+    ]
+  },
+  "evals": [
+    {
+      "id": "data-static-first-warehouse-ask-plan-first",
+      "bot": "StaffAny Hermes Data Bot",
+      "surface": "slack:#da-ta-hermz-testing",
+      "lane": "static",
+      "input": "@Da Ta Hermz first mention: can you check BigQuery and tell me attendance this month?",
+      "setup": {
+        "first_slack_mention": true,
+        "live_tools": "disabled"
+      },
+      "expected_tool_trace": {
+        "must_call": [],
+        "must_not_call_before_run": [
+          "staffany_bigquery.list_dataset_ids",
+          "staffany_bigquery.list_table_ids",
+          "staffany_bigquery.get_table_info",
+          "staffany_bigquery.execute_sql_readonly"
+        ]
+      },
+      "expected_answer_contract": {
+        "must_include": [
+          "Interpreted question:",
+          "Plan:",
+          "Estimate:",
+          "Caveat:",
+          "Reply \"run\" to start, or tell me what to change."
+        ],
+        "must_not_include": [
+          "Answer:"
+        ]
+      },
+      "forbidden_behavior": [
+        "tool execution before run",
+        "connector unavailable as first response",
+        "final answer contract on first mention"
+      ],
+      "grade_notes": "Slack first mention asking for warehouse/app data must return the preflight template, not execute BigQuery.",
+      "assertions": {
+        "source_files": [
+          {
+            "path": "skills/staffany-data-bot/SKILL.md",
+            "must_contain": [
+              "Hard rule for eval/prompt wording",
+              "the only acceptable response is the Interpreted question / Plan / Estimate / Caveat / Reply \"run\" template"
+            ]
+          },
+          {
+            "path": "tests/regression-cases.md",
+            "must_contain": [
+              "Does not start BigQuery, GitHub, or other slow tools on the first Slack mention."
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "data-tooltrace-bigquery-readonly-after-run",
+      "bot": "StaffAny Hermes Data Bot",
+      "surface": "slack:#da-ta-hermz-testing",
+      "lane": "tool-trace",
+      "input": "run",
+      "setup": {
+        "pending_preflight": "attendance metric BigQuery check",
+        "stub_tools": true
+      },
+      "expected_tool_trace": {
+        "allowed_tools": [
+          "staffany_bigquery.list_dataset_ids",
+          "staffany_bigquery.list_table_ids",
+          "staffany_bigquery.get_table_info",
+          "staffany_bigquery.execute_sql_readonly"
+        ],
+        "must_not_call": [
+          "DDL",
+          "DML",
+          "export",
+          "load",
+          "grant",
+          "revoke"
+        ]
+      },
+      "expected_answer_contract": {
+        "must_include": [
+          "Source:",
+          "Scope:",
+          "Confidence:",
+          "Caveat:"
+        ]
+      },
+      "forbidden_behavior": [
+        "SELECT * raw dump",
+        "employee-level payroll detail",
+        "mutation SQL"
+      ],
+      "grade_notes": "After run, use only the read-only StaffAny BigQuery MCP proxy and keep output aggregated.",
+      "assertions": {
+        "source_files": [
+          {
+            "path": "runtime/mcp/staffany-bigquery.md",
+            "must_contain": [
+              "Only these tools should be visible to the profile:",
+              "`execute_sql_readonly`",
+              "Do not expose generic HTTP fetch, write SQL, export, load, grant, revoke, DDL, DML, or admin tools."
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "data-answer-contract-partial-output-needs-check",
+      "bot": "StaffAny Hermes Data Bot",
+      "surface": "slack",
+      "lane": "answer-contract",
+      "input": "stub: BigQuery returned a candidate metric with unresolved definition",
+      "setup": {
+        "stub_output": "candidate_metric"
+      },
+      "expected_tool_trace": {
+        "may_call": [
+          "staffany_bigquery.get_table_info",
+          "staffany_bigquery.execute_sql_readonly"
+        ]
+      },
+      "expected_answer_contract": {
+        "must_include": [
+          "Answer:",
+          "Source:",
+          "Scope:",
+          "Confidence: needs-check",
+          "Caveat:"
+        ],
+        "must_not_include": [
+          "Confidence: verified"
+        ]
+      },
+      "forbidden_behavior": [
+        "claim complete from candidate metric",
+        "omit caveat"
+      ],
+      "grade_notes": "Candidate or unresolved metrics must stay needs-check until a registry row or source owner verifies them.",
+      "assertions": {
+        "answer_fixture": {
+          "output": "Answer: Candidate attendance count can be estimated from the returned table, but the metric definition is not owner-verified.\nSource: staffany-warehouse.analytics.fct_daily_attendance\nScope: current month; aggregate staff attendance grain\nConfidence: needs-check\nCaveat: Confirm the active metric definition before using this as an official number."
+        },
+        "source_files": [
+          {
+            "path": "tests/regression-cases.md",
+            "must_contain": [
+              "confidence: needs-check",
+              "owner-verified"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "data-static-post-final-ack-silent",
+      "bot": "StaffAny Hermes Data Bot",
+      "surface": "slack",
+      "lane": "static",
+      "input": "ok",
+      "setup": {
+        "previous_turn": "final_answer_delivered"
+      },
+      "expected_tool_trace": {
+        "must_call": []
+      },
+      "expected_answer_contract": {
+        "must_include": [],
+        "must_not_include": [
+          "marked",
+          "action needed",
+          "Reply yes",
+          "confirm"
+        ]
+      },
+      "forbidden_behavior": [
+        "post-answer acceptance workflow",
+        "mark-as-done task",
+        "reminder loop"
+      ],
+      "grade_notes": "A bare acknowledgement after a final answer produces no reply.",
+      "assertions": {
+        "source_files": [
+          {
+            "path": "runtime/slack.md",
+            "must_contain": [
+              "Plain acknowledgements after a final answer, such as `ok`, `done`, `yes`, or `thanks`, close the thread silently unless they include a new request."
+            ]
+          },
+          {
+            "path": "tests/regression-cases.md",
+            "must_contain": [
+              "Post-answer acknowledgement in the same Slack thread:",
+              "ok"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "data-live-smoke-plan-first-bigquery",
+      "bot": "StaffAny Hermes Data Bot",
+      "surface": "slack:#da-ta-hermz-testing",
+      "lane": "live-smoke",
+      "input": "@Da Ta Hermz smoke first mention: check BigQuery attendance this month",
+      "setup": {
+        "requires_live_profile": "staffanydatabot",
+        "requires_bot_owned_readback": true,
+        "writes_allowed": false
+      },
+      "expected_tool_trace": {
+        "must_call": [],
+        "must_not_call_before_run": [
+          "staffany_bigquery.execute_sql_readonly"
+        ]
+      },
+      "expected_answer_contract": {
+        "must_include": [
+          "Interpreted question:",
+          "Plan:",
+          "Reply \"run\" to start, or tell me what to change."
+        ]
+      },
+      "forbidden_behavior": [
+        "human-token posting",
+        "Slack connector write",
+        "raw query rows"
+      ],
+      "grade_notes": "Run only after local verifier passes and the profile has been synced/deployed. Trigger through real Slack, then inspect with bot token."
+    }
+  ]
+}
