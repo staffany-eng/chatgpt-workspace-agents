@@ -8061,6 +8061,11 @@ def _free_search_tasks_for_company(company: dict[str, Any], source_types: list[s
             "query": _job_board_query(company),
             "reason": "Job listings can reveal active hiring, role pressure, and HR contacts.",
         },
+        "news_article": {
+            "label": "Check public news and announcements",
+            "query": f'"{name}" news expansion hiring outlet launch {country}'.strip(),
+            "reason": "News and announcements can reveal expansion, leadership, and timing context.",
+        },
         "general_web": {
             "label": "Search for decision makers and HR context",
             "query": f'"{name}" "HR" OR founder OR owner OR "operations director" {country}'.strip(),
@@ -8094,7 +8099,9 @@ def _free_search_tasks_for_company(company: dict[str, Any], source_types: list[s
     }
     tasks = []
     for source_type in source_types:
-        template = task_templates[source_type]
+        template = task_templates.get(source_type)
+        if template is None:
+            continue
         query = template["query"]
         tasks.append(
             {

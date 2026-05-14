@@ -2304,7 +2304,7 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
             result = self.module.generate_free_search_tasks(
                 "kerren.fong@staffany.com",
                 company_ids=["123"],
-                source_types=["company_careers", "linkedin_manual"],
+                source_types=["company_careers", "news_article", "linkedin_manual"],
                 limit=99,
             )
 
@@ -2313,10 +2313,28 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         self.assertEqual(len(result["answer"]), 1)
         account = result["answer"][0]
         self.assertEqual(account["company_id"], "123")
-        self.assertEqual([task["source_type"] for task in account["tasks"]], ["company_careers", "linkedin_manual"])
+        self.assertEqual(
+            [task["source_type"] for task in account["tasks"]],
+            ["company_careers", "news_article", "linkedin_manual"],
+        )
         self.assertTrue(all(task["requires_manual_review"] for task in account["tasks"]))
         self.assertTrue(all(task["will_fetch_automatically"] is False for task in account["tasks"]))
         self.assertIn("No paid API", result["caveat"])
+
+    def test_generate_free_search_tasks_default_sources_include_news_article(self):
+        with patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
+            self.module, "_company_context", return_value=company_context()
+        ):
+            result = self.module.generate_free_search_tasks(
+                "kerren.fong@staffany.com",
+                company_ids=["123"],
+            )
+
+        account = result["answer"][0]
+        self.assertEqual([task["source_type"] for task in account["tasks"]], list(self.module.FREE_SEARCH_SOURCE_TYPES))
+        news_task = next(task for task in account["tasks"] if task["source_type"] == "news_article")
+        self.assertIn("news", news_task["query"])
+        self.assertTrue(news_task["requires_manual_review"])
 
     def test_sales_followup_tasks_are_deduped_owner_filtered_and_safe(self):
         company = {"id": "123", "properties": {"hubspot_owner_id": "owner-sales"}}
