@@ -83,7 +83,7 @@ if (!args.apply) {
 }
 
 writeFileSync(shaPath, `${deploySha}\n`);
-run(gitCommand, ["archive", "--format=tar.gz", "-o", archivePath, "origin/main"]);
+run(gitCommand, ["archive", "--format=tar.gz", "-o", archivePath, args.ref]);
 
 if (!args.skipUpload) {
   run(gcloudCommand, [
