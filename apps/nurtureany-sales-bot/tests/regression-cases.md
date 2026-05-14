@@ -999,10 +999,10 @@ Prompt:
 Expected behavior:
 
 - First response is plan-only and asks for `run`.
-- After `run`, calls `build_ae_coaching_audit` with `countries=["Indonesia"]`, `whatsapp_window_start_local="09:30"`, and `whatsapp_window_end_local="10:30"`.
+- After `run`, calls `audit_owner_whatsapp_kns_window` for each explicit owner, or returns a scoped owner-pick/owner-list clarification if the prompt asks for all reps without naming an owner.
 - Interprets the window in each rep's access-policy timezone: Jakarta reps use `Asia/Jakarta`; Bali reps use `Asia/Makassar`.
-- Returns `timezone`, `local_window`, `utc_window`, `first_message_local`, `in_window_message_count`, `late_by_minutes`, and `timezone_source` per rep.
-- Keeps K/N/S body quality as `needs-check` unless safe template/body evidence is available.
+- Returns `timezone`, `local_window`, `utc_window`, `target_account_whatsapp_sent_count`, `messages_missing_kns_count`, `messages_missing_kns`, `body_unavailable_count`, and `timezone_source` per audited owner.
+- Reads HubSpot WhatsApp bodies internally only for K/N/S flags and omits raw body text from the answer.
 - Does not answer with SGT-only manual remapping, raw WhatsApp bodies, or action-needed acceptance reminders.
 
 ### Sales Navigator Handoff Queue

@@ -217,6 +217,129 @@ class OwnerWhatsAppSentTodayTest(unittest.TestCase):
         self.assertEqual(result["scope"]["fast_path"], "owner_day_communications_first")
         self.assertEqual({row["object_id"] for row in result["answer"]["sample_evidence"]}, {"comm-1", "comm-2"})
 
+    def test_audits_owner_whatsapp_kns_window_without_returning_raw_bodies(self):
+        companies = [
+            {"id": "company-1", "properties": {"name": "Bubble Tea Lab", "company_country": "Singapore", "hubspot_owner_id": "owner-jeremy"}},
+        ]
+        communication_rows = [
+            {
+                "id": "comm-pass",
+                "properties": {
+                    "hs_timestamp": "2026-05-13T01:35:00Z",
+                    "hubspot_owner_id": "owner-jeremy",
+                    "hs_communication_channel_type": "WHATS_APP",
+                    "hs_communication_logged_from": "Eazybe",
+                    "hs_communication_body": "Sharing an industry scheduling benchmark from HR Happy Hour, happy to help with a quick demo.",
+                },
+            },
+            {
+                "id": "comm-missing-network",
+                "properties": {
+                    "hs_timestamp": "2026-05-13T01:50:00Z",
+                    "hubspot_owner_id": "owner-jeremy",
+                    "hs_communication_channel_type": "WHATSAPP",
+                    "hs_communication_logged_from": "CRM",
+                    "hs_communication_body": "Happy to help with a demo on scheduling benchmarks.",
+                },
+            },
+            {
+                "id": "comm-empty",
+                "properties": {
+                    "hs_timestamp": "2026-05-13T02:05:00Z",
+                    "hubspot_owner_id": "owner-jeremy",
+                    "hs_communication_channel_type": "WHATS_APP",
+                    "hs_communication_logged_from": "CRM",
+                    "hs_communication_body": "",
+                },
+            },
+        ]
+
+        def fake_object_search(object_type, filters, properties, limit=100, maximum=500, sorts=None):
+            self.assertEqual(object_type, "communications")
+            self.assertIn("hs_communication_body", properties)
+            filter_values = {item["propertyName"]: item["value"] for item in filters}
+            self.assertEqual(filter_values["hubspot_owner_id"], "owner-jeremy")
+            self.assertEqual(filter_values["hs_timestamp"], "2026-05-13T02:30:00Z")
+            self.assertEqual(filters[1]["value"], "2026-05-13T01:30:00Z")
+            return {"results": communication_rows, "total": 3, "returned_count": 3, "has_more": False, "truncated": False}
+
+        def fake_batch_association_ids(from_type, to_type, ids):
+            if from_type == "companies" and to_type == "contacts":
+                return {"company-1": ["contact-1"]}
+            if from_type == "companies" and to_type == "deals":
+                return {"company-1": []}
+            if from_type == "communications" and to_type == "companies":
+                return {"comm-pass": ["company-1"], "comm-missing-network": ["company-1"], "comm-empty": ["company-1"]}
+            if from_type == "communications" and to_type == "contacts":
+                return {"comm-pass": [], "comm-missing-network": [], "comm-empty": []}
+            if from_type == "communications" and to_type == "deals":
+                return {"comm-pass": [], "comm-missing-network": [], "comm-empty": []}
+            return {}
+
+        with patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
+            self.module, "_owner_by_email", return_value={"id": "owner-jeremy", "email": "jeremy.wong@staffany.com"}
+        ), patch.object(self.module, "_object_search", side_effect=fake_object_search), patch.object(
+            self.module,
+            "_company_search",
+            return_value={"results": companies, "total": 1, "returned_count": 1, "has_more": False, "truncated": False},
+        ), patch.object(self.module, "_batch_association_ids", side_effect=fake_batch_association_ids):
+            result = self.module.audit_owner_whatsapp_kns_window(
+                "kerren.fong@staffany.com",
+                owner_email="jeremy.wong@staffany.com",
+                for_date="2026-05-13",
+                countries=["Singapore"],
+                whatsapp_window_start_local="09:30",
+                whatsapp_window_end_local="10:30",
+                timezone_override_by_owner_email={"jeremy.wong@staffany.com": "Asia/Singapore"},
+            )
+
+        payload = json.dumps(result)
+        self.assertNotIn("quick demo", payload)
+        self.assertNotIn("scheduling benchmarks", payload)
+        self.assertEqual(result["answer"]["target_account_whatsapp_sent_count"], 3)
+        self.assertEqual(result["answer"]["messages_missing_kns_count"], 2)
+        self.assertEqual(result["answer"]["body_unavailable_count"], 1)
+        self.assertFalse(result["answer"]["raw_bodies_returned"])
+        self.assertEqual(result["answer"]["all_target_account_messages"][0]["kns_status"], "pass")
+        self.assertEqual(result["answer"]["messages_missing_kns"][0]["missing_kns_components"], ["network"])
+        self.assertEqual(result["answer"]["messages_missing_kns"][1]["kns_status"], "body_unavailable")
+        self.assertEqual(result["scope"]["timezone_source"], "override")
+
+    def test_whatsapp_kns_window_requires_timezone_before_querying(self):
+        with patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
+            self.module, "_owner_by_email", return_value={"id": "owner-jeremy", "email": "jeremy.wong@staffany.com"}
+        ), patch.object(self.module, "_coaching_timezone_for_owner", return_value=("", "missing")), patch.object(
+            self.module, "_object_search", side_effect=AssertionError("should not query without timezone")
+        ):
+            result = self.module.audit_owner_whatsapp_kns_window(
+                "kerren.fong@staffany.com",
+                owner_email="jeremy.wong@staffany.com",
+                for_date="2026-05-13",
+                countries=["Singapore"],
+                whatsapp_window_start_local="09:30",
+                whatsapp_window_end_local="10:30",
+            )
+
+        self.assertEqual(result["confidence"], "needs-check")
+        self.assertEqual(result["answer"]["count_status"], "blocked_timezone_missing_or_invalid")
+        self.assertEqual(result["answer"]["target_account_whatsapp_sent_count"], "needs-check")
+        self.assertIn("Slack and HubSpot owner records are identity sources", result["caveat"])
+
+    def test_whatsapp_kns_window_requires_manager_or_admin_scope(self):
+        with patch.object(self.module, "_caller_scope", return_value=JEREMY_SCOPE), patch.object(
+            self.module, "_object_search", side_effect=AssertionError("AE body audit should be blocked")
+        ):
+            result = self.module.audit_owner_whatsapp_kns_window(
+                "jeremy.wong@staffany.com",
+                owner_email="jeremy.wong@staffany.com",
+                for_date="2026-05-13",
+                countries=["Singapore"],
+                timezone_override_by_owner_email={"jeremy.wong@staffany.com": "Asia/Singapore"},
+            )
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("manager/admin", result["caveat"])
+
 
 class HubSpotNurtureAnyServerTest(unittest.TestCase):
     def setUp(self):

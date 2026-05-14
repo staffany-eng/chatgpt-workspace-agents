@@ -357,6 +357,7 @@
       "build_sales_metric_actuals_query",
       "build_hubspot_revenue_funnel_metrics",
       "build_ae_coaching_audit",
+      "audit_owner_whatsapp_kns_window",
       "prepare_sales_navigator_decision_maker_queue",
       "build_friday_sales_review",
       "build_manager_chase_plan",
