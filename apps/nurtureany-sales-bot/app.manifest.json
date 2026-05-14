@@ -21,6 +21,7 @@
       "skills/nurtureany-sales-bot/references/hubspot-fields.md",
       "skills/nurtureany-sales-bot/references/sales-best-practices.md",
       "skills/nurtureany-sales-bot/references/sop-tool-coverage.md",
+      "skills/nurtureany-sales-bot/references/reviewed-lessons.md",
       "skills/nurtureany-sales-bot/references/playbooks.md",
       "skills/nurtureany-sales-bot/references/pre-demo-game-plans.md",
       "skills/nurtureany-sales-bot/references/case-studies.md",
@@ -405,6 +406,9 @@
       "check_eazybe_send_status",
       "record_nurtureany_operation_checkpoint",
       "read_nurtureany_operation_ledger",
+      "record_nurtureany_lesson_candidate",
+      "list_nurtureany_lesson_candidates",
+      "read_nurtureany_lesson_candidate",
       "draft_nurture_message",
       "list_google_calendar_events",
       "audit_google_calendar_meeting_quality",
@@ -734,6 +738,27 @@
   "external_message_sending": "approval_gated_eazybe_templates",
   "whatsapp_auto_send": false,
   "honcho_enabled": false,
+  "reviewed_lessons": {
+    "enabled": true,
+    "runtime_candidates_env_var": "NURTUREANY_LESSON_CANDIDATES_DIR",
+    "runtime_default_dir": "lesson-candidates",
+    "repo_reference": "skills/nurtureany-sales-bot/references/reviewed-lessons.md",
+    "candidate_tools": [
+      "record_nurtureany_lesson_candidate",
+      "list_nurtureany_lesson_candidates",
+      "read_nurtureany_lesson_candidate"
+    ],
+    "record_status": "pending_review",
+    "valid_statuses": [
+      "pending_review",
+      "approved_for_repo_promotion",
+      "rejected",
+      "promoted"
+    ],
+    "honcho_used": false,
+    "auto_behavior_change": false,
+    "source_of_truth_overrides": false
+  },
   "secrets_copied": false,
   "evidence": {
     "target_account_counts_checked_at": "2026-05-09",

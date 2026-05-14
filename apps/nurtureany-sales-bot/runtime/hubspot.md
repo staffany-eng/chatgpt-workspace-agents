@@ -90,6 +90,11 @@ It exposes these tools:
 - `find_target_accounts_by_luma_match_keys`
 - `scan_drive_event_photos`
 - `propose_photo_people_matches`
+- `record_nurtureany_operation_checkpoint`
+- `read_nurtureany_operation_ledger`
+- `record_nurtureany_lesson_candidate`
+- `list_nurtureany_lesson_candidates`
+- `read_nurtureany_lesson_candidate`
 - `draft_nurture_message`
 - `plan_event_photo_followup`
 - `plan_hubspot_writeback`
@@ -399,6 +404,13 @@ Friday sales review uses the same scoped association discipline, plus HubSpot ca
 - Use after `get_luma_event_match_keys` for broad event-wide questions so the bot searches from Luma attendee keys into HubSpot instead of paging every target account.
 - Domain matches are stronger; company-name candidate matches return `Confidence: needs-check`.
 - Must not accept raw attendee exports, full Luma emails, phone numbers, or registration answers.
+
+Reviewed lesson tools:
+
+- `record_nurtureany_lesson_candidate` input: safe behavior-level correction summary, proposed rule, applicable workflow, target repo surface, risk class, and optional Slack permalink.
+- `record_nurtureany_lesson_candidate` output: a `pending_review` profile-runtime candidate only. It rejects raw Slack transcripts, raw HubSpot rows, phone numbers, contact exports, secrets, and tokens.
+- `list_nurtureany_lesson_candidates` and `read_nurtureany_lesson_candidate` are read-only review helpers. Candidate lessons do not change behavior until manually promoted into the repo packet, tested, merged, deployed, and live-checked.
+- These tools never mutate HubSpot, never use Honcho, and never override HubSpot truth, access policy, Slack identity rules, safety rules, or approved repo references.
 
 `draft_nurture_message`:
 

@@ -1104,3 +1104,19 @@ Expected behavior:
 - `truecaller_manual_lookup` stays candidate evidence unless paired with `nurtureany_phone_verification_status=called_connected`.
 - Returns field-level HubSpot mismatch reasons when rollups and associated contacts disagree.
 - Returns KNS talking points only; no HubSpot mutation, Lusha/Prospeo reveal, automated Truecaller lookup, raw phone-number export, or WhatsApp send.
+
+### Reviewed Lesson Candidate
+
+Prompt:
+
+```text
+@NurtureAny lesson: when I say KNS, always expand it as Knowledge, Network, Support
+```
+
+Expected behavior:
+
+- Records a `pending_review` candidate with `record_nurtureany_lesson_candidate` only if the correction is reusable and can be summarized safely.
+- Does not claim the lesson is already approved, promoted, or active behavior.
+- Does not use Honcho, mutate HubSpot, or store raw Slack transcripts.
+- Rejects lesson payloads that contain raw HubSpot rows, phone numbers, contact exports, secrets, or tokens.
+- Explains that durable behavior requires review, repo promotion, verification, deploy, and live check.

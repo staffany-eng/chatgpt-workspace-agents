@@ -52,6 +52,7 @@ T-90 renewal answers must show both buckets: known T-90 accounts where `contract
 | `profile/SOUL.md` | Source-controlled copy of the profile soul prompt. |
 | `profile/config.template.yaml` | Non-secret profile config template and access policy. |
 | `skills/nurtureany-sales-bot/` | Hermes skill and progressive-disclosure references. |
+| `skills/nurtureany-sales-bot/references/reviewed-lessons.md` | Reviewed lesson-candidate and promotion contract for runtime learning. |
 | `skills/target-account-news-scout/` | Add-on skill for scoped target-account news signals and manual-review outreach drafts. |
 | `runtime/slack.md` | Slack gateway behavior, commands, and run gate. |
 | `runtime/hubspot.md` | HubSpot API contract, fields, and write approval rules. |
@@ -152,7 +153,7 @@ Do not run a Mac-local NurtureAny Slack gateway with the production Slack app. L
 5. Copy `runtime/access-policy.template.json` outside the repo, classify real HubSpot owners there, and set `NURTUREANY_ACCESS_POLICY_PATH`.
 6. Copy NurtureAny skill directories under `skills/` into the profile skills directory.
 7. Set profile `.env` from Secret Manager only, normally `staffany-warehouse/nurtureany-sales-bot-prod-env`; do not commit or inline model-provider, Slack, HubSpot, Aircall, OpenAI, Luma, Lusha, Exa, Tavily, BigQuery, Google Places, or C360 credentials.
-8. Configure Slack gateway, HubSpot MCP/API adapter, optional Aircall MCP with `AIRCALL_API_ID`, `AIRCALL_API_TOKEN`, and `OPENAI_API_KEY`, StaffAny BigQuery MCP, optional near-me adapter with `GOOGLE_PLACES_API_KEY`, `NURTUREANY_KNOWN_AREAS_FILE`, `NURTUREANY_OUTLET_MATCHES_TABLE`, and optional Customer 360 URL template overrides, optional Google Calendar adapter with read-only `team@staffany.com` OAuth files, Google Drive material registry with `NURTUREANY_MATERIAL_REGISTRY_SPREADSHEET_ID`, optional Luma adapter, optional Tavily public research MCP with `TAVILY_API_KEY`, optional Exa MCP with `EXA_API_KEY`, optional Lusha MCP with `LUSHA_API_KEY`, optional Eazybe MCP with `EAZYBE_API_KEY` plus `EAZYBE_BROADCAST_API_URL`, `NURTUREANY_DAILY_RUNS_DIR`, and `NURTUREANY_OPERATION_LEDGER_DIR`.
+8. Configure Slack gateway, HubSpot MCP/API adapter, optional Aircall MCP with `AIRCALL_API_ID`, `AIRCALL_API_TOKEN`, and `OPENAI_API_KEY`, StaffAny BigQuery MCP, optional near-me adapter with `GOOGLE_PLACES_API_KEY`, `NURTUREANY_KNOWN_AREAS_FILE`, `NURTUREANY_OUTLET_MATCHES_TABLE`, and optional Customer 360 URL template overrides, optional Google Calendar adapter with read-only `team@staffany.com` OAuth files, Google Drive material registry with `NURTUREANY_MATERIAL_REGISTRY_SPREADSHEET_ID`, optional Luma adapter, optional Tavily public research MCP with `TAVILY_API_KEY`, optional Exa MCP with `EXA_API_KEY`, optional Lusha MCP with `LUSHA_API_KEY`, optional Eazybe MCP with `EAZYBE_API_KEY` plus `EAZYBE_BROADCAST_API_URL`, `NURTUREANY_DAILY_RUNS_DIR`, `NURTUREANY_OPERATION_LEDGER_DIR`, and optional `NURTUREANY_LESSON_CANDIDATES_DIR`.
 9. Run health checks and regression cases before adding sales channels.
 
 When syncing the prod profile runtime from this repo, preserve the runtime-only `runtime/access-policy.json` file or restore it from a profile backup after replacing `runtime/`. The repo contains only `runtime/access-policy.template.json`; deleting the live policy breaks Slack allowlist health.
@@ -160,3 +161,5 @@ When syncing the prod profile runtime from this repo, preserve the runtime-only 
 ## Canonical Source Rule
 
 The live Hermes profile may accumulate local state and runtime learning. Treat that as unreviewed drift until the specific useful change is copied back here and committed.
+
+Reviewed learning uses `record_nurtureany_lesson_candidate`, `list_nurtureany_lesson_candidates`, and `read_nurtureany_lesson_candidate`. These tools store runtime-only candidates; they do not change behavior until a human promotes the lesson into the repo packet, tests it, merges it, deploys it, and verifies prod. Honcho stays disabled.
