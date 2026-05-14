@@ -768,6 +768,8 @@ for (const text of [
   "profile/config.template.yaml",
   "config.yaml",
   "tool_allowlist",
+  "template_nurtureany",
+  "reviewed_lessons",
   "apply-live-config-overrides.py",
   ".env",
   "OAuth files",
