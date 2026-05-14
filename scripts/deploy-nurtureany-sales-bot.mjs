@@ -391,8 +391,8 @@ sleep 10
 run_post_deploy_check() {
   label="$1"
   shift
-  attempts="\${NURTUREANY_DEPLOY_CHECK_ATTEMPTS:-8}"
-  delay_seconds="\${NURTUREANY_DEPLOY_CHECK_RETRY_SECONDS:-15}"
+  attempts="\${NURTUREANY_DEPLOY_CHECK_ATTEMPTS:-12}"
+  delay_seconds="\${NURTUREANY_DEPLOY_CHECK_RETRY_SECONDS:-20}"
   command_timeout_seconds="\${NURTUREANY_DEPLOY_CHECK_COMMAND_TIMEOUT_SECONDS:-180}"
   attempt=1
   while [ "$attempt" -le "$attempts" ]; do
