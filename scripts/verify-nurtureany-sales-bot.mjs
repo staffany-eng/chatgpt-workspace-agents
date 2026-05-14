@@ -1764,6 +1764,7 @@ for (const text of [
   "quick-autorun:not-enabled",
   "slack_nurtureany",
   "EXPECT_SLACK_INTENT_TOOLS=\"${EXPECT_SLACK_INTENT_TOOLS:-3}\"",
+  "MCP_TEST_TIMEOUT_SECONDS=\"${MCP_TEST_TIMEOUT_SECONDS:-45}\"",
   "read_recent_slack_intent_context",
   "get_current_slack_thread_context",
   "get_selected_slack_thread_context",
@@ -1776,6 +1777,7 @@ for (const text of [
   "slack-allowlist:extra-users",
   "mcp_test public_research_nurtureany",
   "mcp_test slack_nurtureany",
+  "mcp:$name-test-timeout",
   "mcp_test eazybe_nurtureany",
   "mcp_test near_me_nurtureany"
 ]) {

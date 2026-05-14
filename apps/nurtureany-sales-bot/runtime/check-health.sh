@@ -21,6 +21,7 @@ EXPECT_EXA_TOOLS="${EXPECT_EXA_TOOLS:-1}"
 EXPECT_PUBLIC_RESEARCH_TOOLS="${EXPECT_PUBLIC_RESEARCH_TOOLS:-2}"
 EXPECT_NEAR_ME_TOOLS="${EXPECT_NEAR_ME_TOOLS:-6}"
 EXPECT_C360_SALES_PACKET="${EXPECT_C360_SALES_PACKET:-1}"
+MCP_TEST_TIMEOUT_SECONDS="${MCP_TEST_TIMEOUT_SECONDS:-45}"
 C360_SALES_PACKET_SMOKE_COMPANY_ID="${C360_SALES_PACKET_SMOKE_COMPANY_ID:-9003704457}"
 C360_SALES_PACKET_SMOKE_COMPANY_NAME="${C360_SALES_PACKET_SMOKE_COMPANY_NAME:-Stripes Australia}"
 GATEWAY_SERVICE_NAME="${NURTUREANY_GATEWAY_SERVICE_NAME:-hermes-gateway-$PROFILE.service}"
@@ -558,7 +559,37 @@ mcp_test() {
   local name="$1"
   local count="$2"
   local out="$tmp_dir/mcp-$name.out"
-  hermes -p "$PROFILE" mcp test "$name" >"$out" 2>&1 || fail "mcp:$name-test-failed"
+  if ! "$hermes_python" - "$PROFILE" "$name" "$out" "$MCP_TEST_TIMEOUT_SECONDS" <<'PY'
+import subprocess
+import sys
+
+profile, name, output_path, timeout_seconds = sys.argv[1:5]
+try:
+    timeout = float(timeout_seconds)
+except ValueError:
+    print("mcp:timeout-config-invalid")
+    raise SystemExit(1)
+
+with open(output_path, "w", encoding="utf-8") as handle:
+    try:
+        completed = subprocess.run(
+            ["hermes", "-p", profile, "mcp", "test", name],
+            stdout=handle,
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=timeout,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        handle.write(f"mcp:{name}:timeout-after-{timeout_seconds}s\n")
+        raise SystemExit(124)
+
+raise SystemExit(completed.returncode)
+PY
+  then
+    grep -q "mcp:$name:timeout-after-" "$out" && fail "mcp:$name-test-timeout"
+    fail "mcp:$name-test-failed"
+  fi
   grep -q "Tools discovered: $count" "$out" || fail "mcp:$name-tool-count-unexpected"
 }
 
