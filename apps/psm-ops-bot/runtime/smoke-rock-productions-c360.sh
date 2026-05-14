@@ -92,7 +92,13 @@ if not isinstance(org_matches, list):
     fail("missing-org-matches", result)
 
 org_names = {
-    str(item.get("name") or item.get("orgName") or item.get("organisationName") or "").strip().lower()
+    str(
+        item.get("matchedValue")
+        or item.get("name")
+        or item.get("orgName")
+        or item.get("organisationName")
+        or ""
+    ).strip().lower()
     for item in org_matches
     if isinstance(item, dict)
 }
