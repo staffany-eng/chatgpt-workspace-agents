@@ -13,6 +13,7 @@ import {
 const repoRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const appRoot = join(repoRoot, "apps", "psm-ops-bot");
 const manifestPath = join(appRoot, "app.manifest.json");
+const packageJsonPath = join(repoRoot, "package.json");
 const failures = [];
 
 function fail(message) {
@@ -29,6 +30,14 @@ function assertFile(relPath) {
 
 function scanForSecretPatterns(relPath) {
   sharedScanForSecretPatterns(appRoot, relPath, fail);
+}
+
+function profileBlock(profilesText, profileName) {
+  const marker = `  - name: ${profileName}`;
+  const start = profilesText.indexOf(marker);
+  if (start === -1) return "";
+  const next = profilesText.indexOf("\n  - name:", start + marker.length);
+  return profilesText.slice(start, next === -1 ? undefined : next);
 }
 
 if (!existsSync(manifestPath)) {
@@ -111,6 +120,45 @@ for (const relPath of filesToScan) {
   scanForSecretPatterns(relPath);
 }
 
+if (!existsSync(packageJsonPath)) {
+  fail("Missing package.json");
+} else {
+  const packageJson = readJson(packageJsonPath);
+  if (packageJson?.scripts?.["psm-ops-bot:deploy"] !== "node scripts/deploy-psm-ops-bot.mjs") {
+    fail("package.json must expose psm-ops-bot:deploy");
+  }
+}
+
+const deployScriptRelPath = "scripts/deploy-psm-ops-bot.mjs";
+const deployScriptPath = join(repoRoot, deployScriptRelPath);
+if (!existsSync(deployScriptPath)) {
+  fail("Missing scripts/deploy-psm-ops-bot.mjs");
+} else {
+  const deployScriptText = readFileSync(deployScriptPath, "utf8");
+  for (const requiredText of [
+    'vm: "hermes-psm-ops-bot-poc"',
+    'profile: "psmopsbot"',
+    "psm-ops-origin-main.tar.gz",
+    "psm-ops-origin-main.sha",
+    "scripts/verify-psm-ops-bot.mjs",
+    "apps/psm-ops-bot",
+    "source/psm-ops-bot",
+    "skills/psm-ops-bot",
+    "psmopsbot-check-health.sh",
+    "psmopsbot-check-cloud-heartbeat.sh",
+    "psmopsbot-audit-live-profile.sh",
+    "hermes-gateway-$profile_name.service",
+    "PSM_OPS_SOURCE_DIR",
+    'remote_verify="skipped:node-not-found"',
+    "FORBIDDEN_RUNTIME_STATE_LABELS"
+  ]) {
+    if (!deployScriptText.includes(requiredText)) fail(`${deployScriptRelPath} missing required text: ${requiredText}`);
+  }
+  if (/SLACK_BOT_TOKEN=.*xox|JIRA_API_TOKEN=.*[A-Za-z0-9_-]{20,}|CUSTOMER360_INTERNAL_API_TOKEN=.*[A-Za-z0-9_-]{20,}/.test(deployScriptText)) {
+    fail(`${deployScriptRelPath} appears to contain secret material`);
+  }
+}
+
 const configText = textOf(appRoot, "profile/config.template.yaml");
 for (const requiredText of [
   "psmopsbot",
@@ -142,6 +190,7 @@ for (const requiredText of [
   "customer reached out",
   "task list",
   "Calendar",
+  "Slack poster",
   "Slack profile email/name",
   "all customers",
   "Do not use personal `customer360_session` cookies",
@@ -159,6 +208,7 @@ for (const requiredText of [
   "customer reached out",
   "task list",
   "Slack thread permalink is the V1 idempotency key",
+  "Slack poster",
   "Task creation must be preview first",
   "Caller task ownership is Jira `PS Team`",
   "set_pco_assignee",
@@ -179,6 +229,7 @@ for (const requiredText of [
   "find_ticket_by_slack_thread",
   "create_ps_wee_intake_ticket",
   "append_ps_wee_ticket_update",
+  "Slack poster",
   "mark_ps_wee_ticket_ready",
   "create_approved_pco_task",
   "transition_pco_task",
@@ -201,9 +252,57 @@ for (const requiredText of [
   "get_c360_account_context",
   "ask_c360_customer_context",
   "CUSTOMER360_INTERNAL_API_TOKEN",
-  "Authorization"
+  "X-Customer360-Internal-Token",
+  "searched_variants",
+  "missing_mapping",
+  "No Customer 360 customer/org mapping"
 ]) {
   if (!c360McpText.includes(requiredText)) fail(`psm_c360_server.py missing required text: ${requiredText}`);
+}
+
+const profilesText = readFileSync(join(repoRoot, "ops", "hermes", "profiles.yaml"), "utf8");
+const nurtureProfileBlock = profileBlock(profilesText, "nurtureanysalesbot");
+if (!nurtureProfileBlock) {
+  fail("ops/hermes/profiles.yaml missing nurtureanysalesbot profile");
+} else if (/ps\s+wee\s+manager/i.test(nurtureProfileBlock)) {
+  fail("nurtureanysalesbot must not claim PS Wee Manager workflow aliases");
+}
+
+const psmOpsProfileBlock = profileBlock(profilesText, "psmopsbot");
+if (!psmOpsProfileBlock) {
+  fail("ops/hermes/profiles.yaml missing psmopsbot profile");
+} else {
+  for (const requiredText of [
+    "display_name: PSM Ops Bot",
+    "canonical_profile: psmopsbot",
+    "live_profile: psmopsbot",
+    "workflow_aliases: [PS WEE, PS Wee Manager, PSM manager ops bot]",
+    "app_packet: apps/psm-ops-bot",
+    "deploy_host: hermes-psm-ops-bot-poc",
+    "systemd_unit: hermes-gateway-psmopsbot.service",
+    "bot_name: ps_wee_manager",
+    "open_channel_mode: true",
+    "psm_jira: 14",
+    "psm_c360: 3",
+    "psmopsbot due-date reminders",
+    "psmopsbot local cloud heartbeat"
+  ]) {
+    if (!psmOpsProfileBlock.includes(requiredText)) {
+      fail(`psmopsbot profile missing required text: ${requiredText}`);
+    }
+  }
+}
+
+for (const [relPath, text] of [
+  ["README.md", readFileSync(join(repoRoot, "README.md"), "utf8")],
+  ["ops/hermes/channels.md", readFileSync(join(repoRoot, "ops", "hermes", "channels.md"), "utf8")]
+]) {
+  if (!/PS WEE[\s\S]*psmopsbot|psmopsbot[\s\S]*PS WEE/i.test(text)) {
+    fail(`${relPath} must document PS WEE as psmopsbot`);
+  }
+  if (/ps\s+wee\s+manager[^.\n]*(?:uses?|are)\s+NurtureAny|ps\s+wee\s+manager[^.\n]*NurtureAny\s+workflows/i.test(text)) {
+    fail(`${relPath} must not route PS Wee Manager to NurtureAny`);
+  }
 }
 
 const runbookText = textOf(appRoot, "deploy/gce-onboarding-runbook.md");
@@ -213,7 +312,10 @@ for (const requiredText of [
   "asia-southeast1",
   "hermes-gateway-psmopsbot.service",
   "Secret Manager",
-  "public/open channels"
+  "public/open channels",
+  "npm run psm-ops-bot:deploy",
+  "psm-ops-origin-main.tar.gz",
+  "preserves runtime secrets/state"
 ]) {
   if (!runbookText.includes(requiredText)) fail(`GCE runbook missing required text: ${requiredText}`);
 }
@@ -242,6 +344,17 @@ const shellCheck = spawnSync("bash", [
 });
 if (shellCheck.status !== 0) {
   fail(`Shell syntax check failed: ${shellCheck.stderr || shellCheck.stdout}`);
+}
+
+const deployScriptSyntaxCheck = spawnSync(process.execPath, [
+  "--check",
+  deployScriptPath
+], {
+  cwd: repoRoot,
+  encoding: "utf8"
+});
+if (deployScriptSyntaxCheck.status !== 0) {
+  fail(`Deploy script syntax check failed: ${deployScriptSyntaxCheck.stderr || deployScriptSyntaxCheck.stdout}`);
 }
 
 const pyCompile = spawnSync("python3", [

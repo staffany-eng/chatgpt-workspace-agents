@@ -11,20 +11,21 @@ const tmpRoot = existsSync("/private/tmp") ? "/private/tmp" : tmpdir();
 const DEFAULTS = {
   project: "staffany-warehouse",
   zone: "asia-southeast1-a",
-  vm: "nurtureany-sales-bot-prod",
-  profile: "nurtureanysalesbot",
+  vm: "hermes-psm-ops-bot-poc",
+  profile: "psmopsbot",
   runtimeOwner: "leekaiyi",
+  remoteSourceDir: "",
 };
 
 const FORBIDDEN_RUNTIME_STATE_LABELS = [
   ".env",
-  "OAuth files",
-  "NURTUREANY_ACCESS_POLICY_PATH",
+  "auth.json",
   "cron",
   "logs",
   "sessions",
-  "daily-runs",
-  "operation-ledger",
+  "state.db",
+  "gateway_state.json",
+  "runtime secrets",
 ];
 
 const args = parseArgs(process.argv.slice(2));
@@ -34,31 +35,34 @@ if (args.help) {
   process.exit(0);
 }
 
-for (const command of ["git", "npm", "gcloud"]) {
-  ensureCommand(command);
-}
+const gitCommand = resolveCommand("git", ["git"]);
+const gcloudCommand = resolveCommand("gcloud", [
+  "gcloud",
+  "/opt/homebrew/share/google-cloud-sdk/bin/gcloud",
+  "/usr/local/share/google-cloud-sdk/bin/gcloud",
+]);
 
-log("Preparing NurtureAny Sales Bot deploy from origin/main");
+log("Preparing PSM Ops Bot deploy from origin/main");
 log(`Target: project=${args.project} zone=${args.zone} vm=${args.vm} profile=${args.profile} runtime_owner=${args.runtimeOwner}`);
 if (args.verbose) {
   log(`Preserved runtime state: ${FORBIDDEN_RUNTIME_STATE_LABELS.join(", ")}`);
 }
 
-run("git", ["fetch", "origin", "main"]);
-const deploySha = runCapture("git", ["rev-parse", "origin/main"]).trim();
+run(gitCommand, ["fetch", "origin", "main"]);
+const deploySha = runCapture(gitCommand, ["rev-parse", "origin/main"]).trim();
 if (!deploySha) {
   throw new Error("Could not resolve origin/main deploy SHA.");
 }
 log(`Deploy SHA: ${deploySha}`);
 
-run("npm", ["run", "nurtureany-sales-bot:verify"]);
+run(process.execPath, ["scripts/verify-psm-ops-bot.mjs"]);
 
-const archivePath = join(tmpRoot, "nurtureany-origin-main.tar.gz");
-const shaPath = join(tmpRoot, "nurtureany-origin-main.sha");
+const archivePath = join(tmpRoot, "psm-ops-origin-main.tar.gz");
+const shaPath = join(tmpRoot, "psm-ops-origin-main.sha");
 
 if (!args.apply) {
   log("Dry run only. No archive upload, remote sync, gateway restart, or production health checks were run.");
-  log("Use `npm run nurtureany-sales-bot:deploy -- --apply` to deploy this exact origin/main SHA.");
+  log("Use `npm run psm-ops-bot:deploy -- --apply` to deploy this exact origin/main SHA.");
   printSummary({
     deploySha,
     deployRef: "origin/main",
@@ -66,31 +70,32 @@ if (!args.apply) {
     gateway: "not checked (dry run)",
     audit: "not run (dry run)",
     health: "not run (dry run)",
-    cloudDoctor: "not run (dry run)",
+    heartbeat: "not run (dry run)",
+    remoteVerify: "not run (dry run)",
   });
   process.exit(0);
 }
 
 writeFileSync(shaPath, `${deploySha}\n`);
-run("git", ["archive", "--format=tar.gz", "-o", archivePath, "origin/main"]);
+run(gitCommand, ["archive", "--format=tar.gz", "-o", archivePath, "origin/main"]);
 
 if (!args.skipUpload) {
-  run("gcloud", [
+  run(gcloudCommand, [
     "compute",
     "scp",
     archivePath,
-    `${args.vm}:/tmp/nurtureany-origin-main.tar.gz`,
+    `${args.vm}:/tmp/psm-ops-origin-main.tar.gz`,
     "--project",
     args.project,
     "--zone",
     args.zone,
     "--tunnel-through-iap",
   ]);
-  run("gcloud", [
+  run(gcloudCommand, [
     "compute",
     "scp",
     shaPath,
-    `${args.vm}:/tmp/nurtureany-origin-main.sha`,
+    `${args.vm}:/tmp/psm-ops-origin-main.sha`,
     "--project",
     args.project,
     "--zone",
@@ -98,11 +103,11 @@ if (!args.skipUpload) {
     "--tunnel-through-iap",
   ]);
 } else {
-  log("Skipping upload. Remote deploy will use existing /tmp/nurtureany-origin-main.tar.gz and .sha.");
+  log("Skipping upload. Remote deploy will use existing /tmp/psm-ops-origin-main.tar.gz and .sha.");
 }
 
 const remoteOutput = runCapture(
-  "gcloud",
+  gcloudCommand,
   [
     "compute",
     "ssh",
@@ -128,7 +133,8 @@ printSummary({
   gateway: remoteSummary.gateway || "unknown",
   audit: remoteSummary.audit || "unknown",
   health: remoteSummary.health || "unknown",
-  cloudDoctor: remoteSummary.cloudDoctor || "unknown",
+  heartbeat: remoteSummary.heartbeat || "unknown",
+  remoteVerify: remoteSummary.remoteVerify || "unknown",
 });
 
 function parseArgs(argv) {
@@ -140,7 +146,7 @@ function parseArgs(argv) {
     verbose: false,
     help: false,
   };
-  const valueOptions = new Set(["project", "zone", "vm", "profile", "runtime-owner"]);
+  const valueOptions = new Set(["project", "zone", "vm", "profile", "runtime-owner", "remote-source-dir"]);
   for (let index = 0; index < argv.length; index += 1) {
     const raw = argv[index];
     if (raw === "--apply") {
@@ -177,6 +183,8 @@ function parseArgs(argv) {
     }
     if (optionName === "runtime-owner") {
       parsed.runtimeOwner = optionValue;
+    } else if (optionName === "remote-source-dir") {
+      parsed.remoteSourceDir = optionValue;
     } else {
       parsed[optionName] = optionValue;
     }
@@ -185,29 +193,33 @@ function parseArgs(argv) {
 }
 
 function printHelp() {
-  console.log(`Usage: node scripts/deploy-nurtureany-sales-bot.mjs [options]
+  console.log(`Usage: node scripts/deploy-psm-ops-bot.mjs [options]
 
-Deploys exact origin/main for NurtureAny Sales Bot to the production Hermes profile.
+Deploys exact origin/main for PSM Ops Bot to the production Hermes profile.
 
 Options:
-  --apply               Mutate production. Required for upload, sync, restart, and checks.
-  --project <id>        GCP project. Default: ${DEFAULTS.project}
-  --zone <zone>         GCP zone. Default: ${DEFAULTS.zone}
-  --vm <name>           VM name. Default: ${DEFAULTS.vm}
-  --profile <name>      Hermes profile. Default: ${DEFAULTS.profile}
-  --runtime-owner <u>   Runtime OS user. Default: ${DEFAULTS.runtimeOwner}
-  --skip-upload         Reuse archive already uploaded to /tmp on the VM.
-  --skip-restart        Sync and stamp version, but do not restart or run post-restart checks.
-  --verbose             Print commands before running them.
-  --help                Show this help.
+  --apply                  Mutate production. Required for upload, sync, restart, and checks.
+  --project <id>           GCP project. Default: ${DEFAULTS.project}
+  --zone <zone>            GCP zone. Default: ${DEFAULTS.zone}
+  --vm <name>              VM name. Default: ${DEFAULTS.vm}
+  --profile <name>         Hermes profile. Default: ${DEFAULTS.profile}
+  --runtime-owner <u>      Runtime OS user. Default: ${DEFAULTS.runtimeOwner}
+  --remote-source-dir <p>  Remote source snapshot. Default: /home/<runtime-owner>/agent-builder
+  --skip-upload            Reuse archive already uploaded to /tmp on the VM.
+  --skip-restart           Sync and stamp version, but do not restart or run post-restart checks.
+  --verbose                Print commands before running them.
+  --help                   Show this help.
 `);
 }
 
-function ensureCommand(command) {
-  const result = spawnSync(command, ["--version"], { encoding: "utf8" });
-  if (result.error || result.status !== 0) {
-    throw new Error(`Required command not available: ${command}`);
+function resolveCommand(label, candidates) {
+  for (const candidate of candidates) {
+    const result = spawnSync(candidate, ["--version"], { encoding: "utf8" });
+    if (!result.error && result.status === 0) {
+      return candidate;
+    }
   }
+  throw new Error(`Required command not available: ${label}`);
 }
 
 function run(command, commandArgs, options = {}) {
@@ -244,39 +256,45 @@ function runProcess(command, commandArgs, options = {}) {
 function remoteDeployScript(options) {
   const profile = shellQuote(options.profile);
   const runtimeOwner = shellQuote(options.runtimeOwner);
+  const remoteSourceDir = shellQuote(options.remoteSourceDir || `/home/${options.runtimeOwner}/agent-builder`);
   const skipRestart = options.skipRestart ? "1" : "0";
   return `set -euo pipefail
 profile_name=${profile}
 runtime_owner=${runtimeOwner}
+remote_source_dir=${remoteSourceDir}
 skip_restart=${skipRestart}
 profile="/home/$runtime_owner/.hermes/profiles/$profile_name"
 service="hermes-gateway-$profile_name.service"
-archive="/tmp/nurtureany-origin-main.tar.gz"
-sha_file="/tmp/nurtureany-origin-main.sha"
+archive="/tmp/psm-ops-origin-main.tar.gz"
+sha_file="/tmp/psm-ops-origin-main.sha"
+source_app="$remote_source_dir/apps/psm-ops-bot"
 
 test -f "$archive" || { echo "deploy:error:archive-missing"; exit 1; }
 test -f "$sha_file" || { echo "deploy:error:sha-missing"; exit 1; }
+sudo test -d "$profile" || { echo "deploy:error:profile-not-found:$profile"; exit 1; }
 
 active_owners=$(ps -ef | awk -v profile="$profile_name" '$0 ~ "hermes_cli.main" && $0 ~ "--profile " profile " gateway run" {print $1}' | sort -u | tr '\\n' ' ' | sed 's/[[:space:]]*$//')
-if [ "$skip_restart" = "0" ] && [ "$active_owners" != "$runtime_owner" ]; then
+if [ "$skip_restart" = "0" ] && [ -n "$active_owners" ] && [ "$active_owners" != "$runtime_owner" ]; then
   echo "deploy:error:active-runtime-owner-mismatch:$active_owners"
   exit 1
 fi
-sudo test -d "$profile" || { echo "deploy:error:profile-not-found:$profile"; exit 1; }
 
-deploy_dir=$(mktemp -d /tmp/nurtureany-main.XXXXXX)
+deploy_dir=$(mktemp -d /tmp/psm-ops-main.XXXXXX)
 cleanup() {
   rm -rf "$deploy_dir"
 }
 trap cleanup EXIT
 
 tar -xzf "$archive" -C "$deploy_dir"
-cd "$deploy_dir"
-npm run nurtureany-sales-bot:verify
+
+test -f "$deploy_dir/package.json" || { echo "deploy:error:package-json-missing"; exit 1; }
+test -f "$deploy_dir/scripts/verify-psm-ops-bot.mjs" || { echo "deploy:error:verify-script-missing"; exit 1; }
+test -d "$deploy_dir/apps/psm-ops-bot" || { echo "deploy:error:app-packet-missing"; exit 1; }
 
 deploy_sha=$(cat "$sha_file")
 deploy_branch=main
 deploy_timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+remote_verify="skipped:node-not-found"
 
 copy_dir() {
   src="$1"
@@ -287,85 +305,38 @@ copy_dir() {
   tar -C "$src" -cf - . | sudo -u "$runtime_owner" tar -C "$dst" -xf -
 }
 
-sudo mkdir -p "$profile/scripts" "$profile/source" "$profile/runtime" "$profile/skills"
-sudo chown "$runtime_owner:$runtime_owner" "$profile/scripts" "$profile/source" "$profile/runtime" "$profile/skills"
+copy_file() {
+  src="$1"
+  dst="$2"
+  mode="$3"
+  sudo mkdir -p "$(dirname "$dst")"
+  sudo install -o "$runtime_owner" -g "$runtime_owner" -m "$mode" "$src" "$dst"
+}
 
-copy_dir "$deploy_dir/apps/nurtureany-sales-bot" "$profile/source/nurtureany-sales-bot"
-sudo install -o "$runtime_owner" -g "$runtime_owner" -m 0644 "$deploy_dir/apps/nurtureany-sales-bot/profile/SOUL.md" "$profile/SOUL.md"
-copy_dir "$deploy_dir/apps/nurtureany-sales-bot/skills/nurtureany-sales-bot" "$profile/skills/nurtureany-sales-bot"
-copy_dir "$deploy_dir/apps/nurtureany-sales-bot/skills/target-account-news-scout" "$profile/skills/target-account-news-scout"
-copy_dir "$deploy_dir/apps/nurtureany-sales-bot/runtime/mcp" "$profile/runtime/mcp"
-copy_dir "$deploy_dir/apps/nurtureany-sales-bot/runtime/data" "$profile/runtime/data"
-copy_dir "$deploy_dir/apps/nurtureany-sales-bot/runtime/jobs" "$profile/runtime/jobs"
-copy_dir "$deploy_dir/apps/nurtureany-sales-bot/runtime/sql" "$profile/runtime/sql"
+sudo mkdir -p "$remote_source_dir" "$remote_source_dir/apps" "$remote_source_dir/scripts" "$remote_source_dir/ops" "$profile/scripts" "$profile/source" "$profile/runtime" "$profile/skills"
+sudo chown "$runtime_owner:$runtime_owner" "$remote_source_dir" "$remote_source_dir/apps" "$remote_source_dir/scripts" "$remote_source_dir/ops" "$profile/scripts" "$profile/source" "$profile/runtime" "$profile/skills"
 
-sudo python3 - "$deploy_dir/apps/nurtureany-sales-bot/profile/config.template.yaml" "$profile/config.yaml" <<'PY'
-import sys
-from pathlib import Path
+copy_file "$deploy_dir/package.json" "$remote_source_dir/package.json" 0644
+copy_file "$deploy_dir/README.md" "$remote_source_dir/README.md" 0644
+copy_dir "$deploy_dir/scripts" "$remote_source_dir/scripts"
+copy_dir "$deploy_dir/ops/hermes" "$remote_source_dir/ops/hermes"
+copy_dir "$deploy_dir/apps/psm-ops-bot" "$source_app"
 
-template_path = Path(sys.argv[1])
-config_path = Path(sys.argv[2])
-template_lines = template_path.read_text().splitlines()
-config_lines = config_path.read_text().splitlines()
+copy_dir "$deploy_dir/apps/psm-ops-bot" "$profile/source/psm-ops-bot"
+copy_file "$deploy_dir/apps/psm-ops-bot/profile/SOUL.md" "$profile/SOUL.md" 0644
+copy_dir "$deploy_dir/apps/psm-ops-bot/skills/psm-ops-bot" "$profile/skills/psm-ops-bot"
+copy_dir "$deploy_dir/apps/psm-ops-bot/runtime/mcp" "$profile/runtime/mcp"
 
-expected = []
-in_block = False
-for line in template_lines:
-    if line.strip() == "tool_allowlist:":
-        in_block = True
-        continue
-    if in_block:
-        if line.startswith("    - "):
-            expected.append(line.split("- ", 1)[1].strip())
-            continue
-        if line.strip():
-            break
+copy_file "$deploy_dir/apps/psm-ops-bot/runtime/check-health.sh" "$profile/scripts/psmopsbot-check-health.sh" 0755
+copy_file "$deploy_dir/apps/psm-ops-bot/runtime/check-cloud-heartbeat.sh" "$profile/scripts/psmopsbot-check-cloud-heartbeat.sh" 0755
+copy_file "$deploy_dir/apps/psm-ops-bot/runtime/audit-live-profile.sh" "$profile/scripts/psmopsbot-audit-live-profile.sh" 0755
 
-if not expected:
-    raise SystemExit("deploy:error:template-tool-allowlist-not-found")
-
-config_tool_indexes = {}
-for index, line in enumerate(config_lines):
-    stripped = line.strip()
-    if stripped.startswith("- "):
-        tool = stripped[2:].strip()
-        config_tool_indexes.setdefault(tool, index)
-
-changed = False
-for tool in expected:
-    if tool in config_tool_indexes:
-        continue
-    expected_index = expected.index(tool)
-    previous_tools = expected[:expected_index]
-    insert_after = next((candidate for candidate in reversed(previous_tools) if candidate in config_tool_indexes), "")
-    if not insert_after:
-        raise SystemExit(f"deploy:error:cannot-place-tool:{tool}")
-    insert_index = config_tool_indexes[insert_after] + 1
-    indent = config_lines[config_tool_indexes[insert_after]].split("-", 1)[0]
-    config_lines.insert(insert_index, f"{indent}- {tool}")
-    config_tool_indexes = {
-        line.strip()[2:].strip(): index
-        for index, line in enumerate(config_lines)
-        if line.strip().startswith("- ")
-    }
-    changed = True
-
-if changed:
-    config_path.write_text("\\n".join(config_lines) + "\\n")
-PY
-sudo chown "$runtime_owner:$runtime_owner" "$profile/config.yaml"
-
-if [ -f "$deploy_dir/apps/nurtureany-sales-bot/runtime/apply-live-config-overrides.py" ]; then
-  python3 "$deploy_dir/apps/nurtureany-sales-bot/runtime/apply-live-config-overrides.py" --profile-dir "$profile"
+if command -v node >/dev/null 2>&1; then
+  (cd "$remote_source_dir" && node scripts/verify-psm-ops-bot.mjs)
+  remote_verify="passed"
 else
-  echo "deploy:config-overrides-skipped:apply-live-config-overrides.py-not-present"
+  echo "deploy:remote-verify=skipped:node-not-found"
 fi
-
-sudo install -o "$runtime_owner" -g "$runtime_owner" -m 0755 "$deploy_dir/apps/nurtureany-sales-bot/runtime/check-health.sh" "$profile/scripts/nurtureanysalesbot-check-health.sh"
-sudo install -o "$runtime_owner" -g "$runtime_owner" -m 0755 "$deploy_dir/apps/nurtureany-sales-bot/runtime/check-cloud-heartbeat.sh" "$profile/scripts/nurtureanysalesbot-check-cloud-heartbeat.sh"
-sudo install -o "$runtime_owner" -g "$runtime_owner" -m 0755 "$deploy_dir/apps/nurtureany-sales-bot/runtime/audit-live-profile.sh" "$profile/scripts/nurtureanysalesbot-audit-live-profile.sh"
-sudo install -o "$runtime_owner" -g "$runtime_owner" -m 0755 "$deploy_dir/apps/nurtureany-sales-bot/runtime/check-slack-socket-health.sh" "$profile/scripts/nurtureanysalesbot-check-slack-socket-health.sh"
-sudo install -o "$runtime_owner" -g "$runtime_owner" -m 0755 "$deploy_dir/apps/nurtureany-sales-bot/runtime/nurtureany-cloud-doctor.sh" "$profile/scripts/nurtureanysalesbot-cloud-doctor.sh"
 
 printf '%s | %s | %s\\n' "$deploy_sha" "$deploy_branch" "$deploy_timestamp" | sudo tee "$profile/VERSION" >/dev/null
 sudo chown "$runtime_owner:$runtime_owner" "$profile/VERSION"
@@ -379,7 +350,8 @@ if [ "$skip_restart" = "1" ]; then
   echo "deploy:summary:gateway=not checked (skip-restart)"
   echo "deploy:summary:audit=not run (skip-restart)"
   echo "deploy:summary:health=not run (skip-restart)"
-  echo "deploy:summary:cloud_doctor=not run (skip-restart)"
+  echo "deploy:summary:heartbeat=not run (skip-restart)"
+  echo "deploy:summary:remote_verify=$remote_verify"
   exit 0
 fi
 
@@ -391,8 +363,8 @@ sleep 10
 run_post_deploy_check() {
   label="$1"
   shift
-  attempts="\${NURTUREANY_DEPLOY_CHECK_ATTEMPTS:-3}"
-  delay_seconds="\${NURTUREANY_DEPLOY_CHECK_RETRY_SECONDS:-10}"
+  attempts="\${PSM_OPS_DEPLOY_CHECK_ATTEMPTS:-3}"
+  delay_seconds="\${PSM_OPS_DEPLOY_CHECK_RETRY_SECONDS:-10}"
   attempt=1
   while [ "$attempt" -le "$attempts" ]; do
     if "$@"; then
@@ -413,9 +385,9 @@ run_post_deploy_check() {
   done
 }
 
-run_post_deploy_check audit sudo -H -u "$runtime_owner" HERMES_PROFILE_DIR="$profile" HERMES_HOME="$profile" NURTUREANY_APP_ROOT="$profile/source/nurtureany-sales-bot" XDG_RUNTIME_DIR="/run/user/$uid" "$profile/scripts/nurtureanysalesbot-audit-live-profile.sh"
-run_post_deploy_check health sudo -H -u "$runtime_owner" HERMES_PROFILE_DIR="$profile" HERMES_HOME="$profile" XDG_RUNTIME_DIR="/run/user/$uid" "$profile/scripts/nurtureanysalesbot-check-health.sh"
-run_post_deploy_check cloud_doctor sudo -H -u "$runtime_owner" HERMES_PROFILE_DIR="$profile" HERMES_HOME="$profile" XDG_RUNTIME_DIR="/run/user/$uid" "$profile/scripts/nurtureanysalesbot-cloud-doctor.sh"
+run_post_deploy_check audit sudo -H -u "$runtime_owner" PSM_OPS_SOURCE_DIR="$source_app" HERMES_PROFILE_DIR="$profile" XDG_RUNTIME_DIR="/run/user/$uid" "$source_app/runtime/audit-live-profile.sh"
+run_post_deploy_check health sudo -H -u "$runtime_owner" HERMES_PROFILE_DIR="$profile" XDG_RUNTIME_DIR="/run/user/$uid" "$source_app/runtime/check-health.sh"
+run_post_deploy_check heartbeat sudo -H -u "$runtime_owner" HERMES_PROFILE_DIR="$profile" XDG_RUNTIME_DIR="/run/user/$uid" "$source_app/runtime/check-cloud-heartbeat.sh"
 sudo -H -u "$runtime_owner" XDG_RUNTIME_DIR="/run/user/$uid" systemctl --user status "$service" --no-pager
 
 echo "deploy:summary:sha=$deploy_sha"
@@ -424,7 +396,8 @@ echo "deploy:summary:timestamp=$deploy_timestamp"
 echo "deploy:summary:gateway=active"
 echo "deploy:summary:audit=passed"
 echo "deploy:summary:health=passed"
-echo "deploy:summary:cloud_doctor=passed"
+echo "deploy:summary:heartbeat=passed"
+echo "deploy:summary:remote_verify=$remote_verify"
 `;
 }
 
@@ -445,7 +418,8 @@ function parseRemoteSummary(output) {
     if (key === "gateway") summary.gateway = value;
     if (key === "audit") summary.audit = value;
     if (key === "health") summary.health = value;
-    if (key === "cloud_doctor") summary.cloudDoctor = value;
+    if (key === "heartbeat") summary.heartbeat = value;
+    if (key === "remote_verify") summary.remoteVerify = value;
   }
   return summary;
 }
@@ -458,9 +432,10 @@ function printSummary(summary) {
   console.log(`- gateway: ${summary.gateway}`);
   console.log(`- audit: ${summary.audit}`);
   console.log(`- health: ${summary.health}`);
-  console.log(`- cloud_doctor: ${summary.cloudDoctor}`);
+  console.log(`- heartbeat: ${summary.heartbeat}`);
+  console.log(`- remote_verify: ${summary.remoteVerify}`);
 }
 
 function log(message) {
-  console.log(`[nurtureany-deploy] ${message}`);
+  console.log(`[psm-ops-deploy] ${message}`);
 }

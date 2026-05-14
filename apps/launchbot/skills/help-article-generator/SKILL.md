@@ -39,17 +39,26 @@ Use this skill to produce help articles in a repeatable format that is ready for
 
 ## Repo + Evidence Workflow
 
-1. If tracing from codebase, pull latest repos first:
-   - `./vk-super-productivity/scripts/update_repos.sh`
-   - `./vk-super-productivity/scripts/repo_status.sh`
-2. Locate:
+1. Treat Pantheon as the StaffAny product behavior source of truth for help articles:
+   - Cloud LaunchBot path: `~/.hermes/profiles/launchbot/source/pantheon`
+   - Expected remote: `git@github.com:staffany-eng/pantheon.git`
+   - Expected branch: `develop`
+2. Before drafting product behavior, verify the Pantheon checkout is fresh and clean:
+   - `~/.hermes/profiles/launchbot/scripts/launchbot-update-pantheon-repo.sh`
+   - `git -C ~/.hermes/profiles/launchbot/source/pantheon status --short`
+   - `git -C ~/.hermes/profiles/launchbot/source/pantheon rev-parse --abbrev-ref HEAD`
+   - `git -C ~/.hermes/profiles/launchbot/source/pantheon rev-parse HEAD`
+3. Jira tickets and PRDs can explain launch intent, customer positioning, and release context, but Pantheon code decides actual product behavior.
+4. Locate behavior in Pantheon before writing:
    - feature entry points
    - user flow steps
    - access levels
    - flags/gating
    - API/data touchpoints
-3. Use only verified behavior in the article body.
-4. Keep assumptions explicit when evidence is incomplete.
+5. Trace backend/API behavior in `apps/kraken`, web/admin behavior in `apps/gryphon`, mobile behavior in `apps/pixie`, and product labels or permissions in the actual code paths.
+6. Use only verified behavior in the article body.
+7. If Pantheon is missing, stale, dirty, or conflicts with Jira/PRD, block or mark the draft `needs-check`; do not guess.
+8. Keep assumptions explicit when evidence is incomplete.
 
 ## Launchbot Planning Rules
 
@@ -157,6 +166,7 @@ Always keep these details outside the publishable article body:
 
 - Source of truth used
 - Repository and branch/sha
+- Pantheon checkout path and freshness status
 - Key file paths/symbols
 - API/data touchpoints
 - Assumptions

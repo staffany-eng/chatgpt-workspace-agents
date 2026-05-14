@@ -9,7 +9,7 @@ EXPECT_GATEWAY="${EXPECT_GATEWAY:-1}"
 EXPECT_MODEL_AUTH="${EXPECT_MODEL_AUTH:-1}"
 EXPECT_MODEL_PROVIDER="${EXPECT_MODEL_PROVIDER:-anthropic}"
 EXPECT_MODEL_DEFAULT="${EXPECT_MODEL_DEFAULT:-claude-sonnet-4-6}"
-EXPECT_SLACK_INTENT_TOOLS="${EXPECT_SLACK_INTENT_TOOLS:-1}"
+EXPECT_SLACK_INTENT_TOOLS="${EXPECT_SLACK_INTENT_TOOLS:-3}"
 EXPECT_STAFFANY_BIGQUERY_TOOLS="${EXPECT_STAFFANY_BIGQUERY_TOOLS:-4}"
 EXPECT_HUBSPOT_TOOLS="${EXPECT_HUBSPOT_TOOLS:-42}"
 EXPECT_GOOGLE_CALENDAR_TOOLS="${EXPECT_GOOGLE_CALENDAR_TOOLS:-2}"
@@ -226,7 +226,11 @@ if quick_autorun.get("no_user_token_fallback") is not True or quick_autorun.get(
     raise SystemExit(1)
 
 expected_servers = {
-    "slack_nurtureany": ["read_recent_slack_intent_context"],
+    "slack_nurtureany": [
+        "read_recent_slack_intent_context",
+        "get_current_slack_thread_context",
+        "get_selected_slack_thread_context",
+    ],
     "staffany_bigquery": ["list_dataset_ids", "list_table_ids", "get_table_info", "execute_sql_readonly"],
     "hubspot_nurtureany": [
         "list_inbound_threads",

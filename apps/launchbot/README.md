@@ -10,11 +10,13 @@ Canonical Hermes app packet for the Launchbot Slack profile.
 - Source packet: this directory
 - Live runtime state: `~/.hermes/profiles/launchbot/`
 - Status: cloud-primary; release gate is green managed gateway health plus a bot-owned Slack smoke in `#launch-bot-testing`. Scheduled Pantheon refresh still requires VM GitHub SSH access.
+- Pantheon source checkout: `~/.hermes/profiles/launchbot/source/pantheon`, refreshed from `git@github.com:staffany-eng/pantheon.git` branch `develop` after VM GitHub SSH access is authorized.
 
 ## Packet Contents
 
 | Path | Purpose |
 | --- | --- |
+| `TODO.md` | Open operational follow-ups for Launchbot. |
 | `profile/SOUL.md` | Source-controlled profile instruction. |
 | `profile/config.template.yaml` | Non-secret profile config template. |
 | `runtime/slack.md` | Slack channel and identity rules. |

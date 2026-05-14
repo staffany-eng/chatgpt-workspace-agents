@@ -13,6 +13,7 @@
     "hermes-caretaker:test": "node --test ops/hermes/test/*.test.mjs",
     "hermes-caretaker:dry-run": "node ops/hermes/caretaker.mjs --dry-run --json",
     "psm-ops-bot:verify": "node scripts/verify-psm-ops-bot.mjs",
+    "psm-ops-bot:deploy": "node scripts/deploy-psm-ops-bot.mjs",
     "slack-automation-identity:verify": "node scripts/verify-slack-automation-identity.mjs",
     "research:audit": "bash -lc 'set -euo pipefail; for f in research/wiki/sources/*.md; do bun research/tools/audit-agent-ingest.ts --wiki \"$f\" --fail-under 10; done'",
     "verify": "bash -lc 'set -euo pipefail; node scripts/verify-slack-automation-identity.mjs; node scripts/verify-hermes-data-bot.mjs; node scripts/verify-nurtureany-sales-bot.mjs; node scripts/verify-launchbot.mjs; node --test ops/hermes/test/*.test.mjs; node scripts/verify-psm-ops-bot.mjs; bun research/tools/build-source-inventories.ts; for f in research/wiki/sources/*.md; do bun research/tools/audit-agent-ingest.ts --wiki \"$f\" --fail-under 10; done; node --test apps/bq-mcp-proxy/test/*.test.js'"

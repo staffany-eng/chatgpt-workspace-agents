@@ -61,7 +61,7 @@ Thread:
 `@PSM Ops impact is payroll blocked for May payroll, affected outlet is central kitchen`
 
 - Calls `append_ps_wee_ticket_update` only for meaningful ticket context.
-- Adds a structured internal Jira comment with the Slack thread permalink.
+- Adds a structured internal Jira comment with the Slack thread permalink and `Slack poster:`.
 - Does not sync every reply or paste raw Slack transcripts.
 
 ## PS WEE Ready

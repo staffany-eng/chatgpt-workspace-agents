@@ -6,6 +6,7 @@ PROFILE_DIR="${HERMES_PROFILE_DIR:-$HOME/.hermes/profiles/$PROFILE}"
 PANTHEON_REPO_URL="${LAUNCHBOT_PANTHEON_REPO_URL:-git@github.com:staffany-eng/pantheon.git}"
 PANTHEON_BRANCH="${LAUNCHBOT_PANTHEON_BRANCH:-develop}"
 PANTHEON_REPO_DIR="${LAUNCHBOT_PANTHEON_REPO_DIR:-$PROFILE_DIR/source/pantheon}"
+PANTHEON_SSH_KEY="${LAUNCHBOT_PANTHEON_SSH_KEY:-$PROFILE_DIR/ssh/pantheon_deploy_key}"
 STATUS_PATH="${LAUNCHBOT_PANTHEON_STATUS_PATH:-$PROFILE_DIR/runtime/pantheon-repo-status.json}"
 
 PATH="$HOME/.local/bin:$PATH"
@@ -28,7 +29,11 @@ need_command git
 need_command date
 need_command mkdir
 
-mkdir -p "$(dirname "$PANTHEON_REPO_DIR")" "$(dirname "$STATUS_PATH")"
+if [ -r "$PANTHEON_SSH_KEY" ]; then
+  export GIT_SSH_COMMAND="ssh -i $PANTHEON_SSH_KEY -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+fi
+
+mkdir -p "$(dirname "$PANTHEON_REPO_DIR")" "$(dirname "$STATUS_PATH")" "$(dirname "$PANTHEON_SSH_KEY")"
 
 if [ -e "$PANTHEON_REPO_DIR" ] && [ ! -d "$PANTHEON_REPO_DIR/.git" ]; then
   fail "pantheon:path-exists-not-git:$PANTHEON_REPO_DIR"

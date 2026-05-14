@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { countMissingConfiguredPaths, decideActions, expandPath, parseProfilesYaml, summarizeFacts } from "../caretaker.mjs";
@@ -24,6 +24,22 @@ profiles:
     assert.deepEqual(profiles[0].aliases, ["old-demo"]);
     assert.equal(profiles[0].required_mcp.demo_mcp, 2);
     assert.equal(profiles[0].expected_crons[0].schedule, "*/5 * * * *");
+  });
+
+  it("routes PS WEE aliases to psmopsbot instead of NurtureAny", () => {
+    const profiles = parseProfilesYaml(readFileSync(new URL("../profiles.yaml", import.meta.url), "utf8"));
+    const nurtureAny = profiles.find((profile) => profile.name === "nurtureanysalesbot");
+    const psmOps = profiles.find((profile) => profile.name === "psmopsbot");
+
+    assert.ok(nurtureAny);
+    assert.ok(psmOps);
+    assert.equal((nurtureAny.workflow_aliases || []).some((alias) => /ps\s+wee/i.test(alias)), false);
+    assert.ok(psmOps.workflow_aliases.includes("PS WEE"));
+    assert.ok(psmOps.workflow_aliases.includes("PS Wee Manager"));
+    assert.equal(psmOps.app_packet, "apps/psm-ops-bot");
+    assert.equal(psmOps.deploy_host, "hermes-psm-ops-bot-poc");
+    assert.equal(psmOps.service.systemd_unit, "hermes-gateway-psmopsbot.service");
+    assert.equal(psmOps.slack.open_channel_mode, true);
   });
 
   it("expands home placeholders without touching other strings", () => {

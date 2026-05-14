@@ -107,6 +107,39 @@ systemctl --user daemon-reload
 systemctl --user restart hermes-gateway-psmopsbot.service
 ```
 
+## Routine Deploy Flow
+
+Routine deploys should use the source-controlled deploy script from the repo root. Without `--apply`, it performs preflight and prints the target/SHA without uploading, syncing, restarting, or running prod checks.
+
+```bash
+npm run psm-ops-bot:deploy
+```
+
+Deploy exact `origin/main` to the PSM Ops cloud host:
+
+```bash
+npm run psm-ops-bot:deploy -- --apply
+```
+
+The script:
+
+- fetches and deploys exact `origin/main`
+- runs `node scripts/verify-psm-ops-bot.mjs` locally before upload
+- uploads `/tmp/psm-ops-origin-main.tar.gz` and `/tmp/psm-ops-origin-main.sha`
+- syncs only deploy-owned source packet paths into `/home/leekaiyi/agent-builder` and `~/.hermes/profiles/psmopsbot`
+- preserves runtime secrets/state, including `.env`, auth, cron, logs, sessions, state DB, and gateway state
+- restarts only `hermes-gateway-psmopsbot.service`
+- runs live profile audit, health check, cloud heartbeat, and service status
+- stamps `$profile/VERSION` with the deployed SHA, branch, and UTC timestamp
+
+Useful options:
+
+```bash
+npm run psm-ops-bot:deploy -- --apply --verbose
+npm run psm-ops-bot:deploy -- --apply --skip-upload
+npm run psm-ops-bot:deploy -- --apply --skip-restart
+```
+
 ## Cron
 
 Install automatic due-date reminders on the cloud host only:

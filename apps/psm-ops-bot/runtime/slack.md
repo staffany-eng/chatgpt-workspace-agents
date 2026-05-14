@@ -17,7 +17,7 @@ The Slack surface is mention-required usage in public/open StaffAny Slack channe
 - A confirmed customer reach-out in a PS WEE/customer-ops thread is ticket-first even if nobody says "create ticket". Examples: "did they reach out?" followed by "yes, via Intercom", a support-thread permalink, an admin screenshot showing a limit hit, or a teammate confirming impact. Create or return the same-thread PCO intake ticket first, then ask for missing details.
 - If the same request asks for meeting timing, handle the Jira ticket first and treat Calendar lookup as best-effort follow-up. Calendar quota/rate-limit errors must not block the ticket link.
 - Post the created or existing ticket link in the same Slack thread, then ask for missing info there.
-- Sync meaningful follow-up discussion as structured internal Jira comments only. Do not sync every Slack reply and do not paste raw Slack transcripts into Jira.
+- Sync meaningful follow-up discussion as structured internal Jira comments only. Pass the Slack poster display name, user ID, and email when available; the Jira internal comment must include `Slack poster:` for traceability. Do not sync every Slack reply and do not paste raw Slack transcripts into Jira.
 - Status transitions, internal comments, and reminders may execute directly when the issue key and action are clear.
 - Automation reminders must start with `PSM Ops automation:`.
 

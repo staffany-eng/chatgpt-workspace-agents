@@ -9,6 +9,7 @@
   "model_provider": "anthropic",
   "model": "claude-sonnet-4-6",
   "paths": {
+    "todo": "TODO.md",
     "soul": "profile/SOUL.md",
     "config_template": "profile/config.template.yaml",
     "slack_runtime": "runtime/slack.md",
@@ -65,6 +66,31 @@
       }
     }
   },
+  "source_repositories": {
+    "pantheon": {
+      "purpose": "StaffAny product behavior source of truth for help article drafting",
+      "remote": "git@github.com:staffany-eng/pantheon.git",
+      "branch": "develop",
+      "default_checkout": "~/.hermes/profiles/launchbot/source/pantheon",
+      "deploy_key_path": "~/.hermes/profiles/launchbot/ssh/pantheon_deploy_key",
+      "status_json": "~/.hermes/profiles/launchbot/runtime/pantheon-repo-status.json",
+      "update_mode": "git pull --ff-only",
+      "daily_update_requires": "VM GitHub SSH access to staffany-eng/pantheon"
+    }
+  },
+  "expected_crons": [
+    {
+      "name": "launchbot health check",
+      "schedule": "*/5 * * * *",
+      "mode": "no-agent"
+    },
+    {
+      "name": "launchbot pantheon repo update",
+      "schedule": "0 22 * * *",
+      "mode": "no-agent",
+      "requires": "VM GitHub SSH access to staffany-eng/pantheon"
+    }
+  ],
   "launch_workflow": {
     "source_status": "skill_and_workflow_from_2026_05_11_handoff_source_code_not_present",
     "test_feature": {
@@ -158,5 +184,5 @@
     "LAUNCHBOT_KER_ALLOWED_CHANNEL_IDS"
   ],
   "secrets_copied": false,
-  "status": "experimental"
+  "status": "cloud_primary_review_ready"
 }

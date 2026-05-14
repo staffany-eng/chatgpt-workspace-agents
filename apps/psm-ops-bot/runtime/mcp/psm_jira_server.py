@@ -1371,6 +1371,9 @@ def append_ps_wee_ticket_update(
     update_summary: str,
     updated_fields: dict[str, Any] | None = None,
     evidence_links: list[str] | None = None,
+    slack_poster_name: str = "",
+    slack_poster_user_id: str = "",
+    slack_poster_email: str = "",
     slack_user_email: str = "",
 ) -> dict[str, Any]:
     """Append a structured internal JSM comment for meaningful Slack discussion updates."""
@@ -1387,6 +1390,32 @@ def append_ps_wee_ticket_update(
         return _blocked("A meaningful update summary, updated fields, or evidence link is required.", scope)
 
     lines = ["PS WEE Slack ticket update:", f"Source Slack thread: {source}"]
+    poster_name = slack_poster_name.strip()
+    poster_user_id = slack_poster_user_id.strip()
+    if poster_user_id.startswith("<@") and poster_user_id.endswith(">"):
+        poster_user_id = poster_user_id[2:-1]
+    poster_email = slack_poster_email.strip().lower()
+    if slack_user_email.strip() and (not poster_name or not poster_user_id or not poster_email):
+        slack_user = _resolve_slack_user(slack_user_email)
+        if slack_user:
+            profile = slack_user.get("profile") or {}
+            poster_name = poster_name or (
+                str(profile.get("real_name") or "").strip()
+                or str(slack_user.get("real_name") or "").strip()
+                or str(profile.get("display_name") or "").strip()
+            )
+            poster_user_id = poster_user_id or str(slack_user.get("id") or "").strip()
+            poster_email = poster_email or _slack_user_email(slack_user)
+        poster_email = poster_email or _normalize_slack_email(slack_user_email)
+    poster_parts = []
+    if poster_name:
+        poster_parts.append(poster_name)
+    if poster_user_id:
+        poster_parts.append(f"<@{poster_user_id}>")
+    if poster_email:
+        poster_parts.append(poster_email)
+    if poster_parts:
+        lines.append(f"Slack poster: {' '.join(poster_parts)}")
     if summary:
         lines.append(f"Summary: {summary}")
     if fields:

@@ -79,6 +79,24 @@ if (!manifest) {
     const absolute = join(repoRoot, evidencePath);
     if (!existsSync(absolute)) fail(`Manifest launch_workflow evidence path is missing: ${evidencePath}`);
   }
+  if (manifest.source_repositories?.pantheon?.remote !== "git@github.com:staffany-eng/pantheon.git") {
+    fail("Manifest Pantheon remote must be staffany-eng/pantheon");
+  }
+  if (manifest.source_repositories?.pantheon?.branch !== "develop") {
+    fail("Manifest Pantheon branch must be develop");
+  }
+  if (manifest.source_repositories?.pantheon?.daily_update_requires !== "VM GitHub SSH access to staffany-eng/pantheon") {
+    fail("Manifest Pantheon daily update must be gated on VM GitHub SSH access");
+  }
+  const healthCron = (manifest.expected_crons || []).find((cron) => cron.name === "launchbot health check");
+  if (healthCron?.schedule !== "*/5 * * * *") fail("Manifest must define Launchbot health check cron");
+  if (healthCron?.mode !== "no-agent") fail("Manifest health check cron must be no-agent");
+  const pantheonCron = (manifest.expected_crons || []).find((cron) => cron.name === "launchbot pantheon repo update");
+  if (pantheonCron?.schedule !== "0 22 * * *") fail("Manifest must define daily Pantheon repo update cron");
+  if (pantheonCron?.mode !== "no-agent") fail("Manifest Pantheon repo update cron must be no-agent");
+  if (pantheonCron?.requires !== "VM GitHub SSH access to staffany-eng/pantheon") {
+    fail("Manifest Pantheon repo update cron must document the GitHub SSH access gate");
+  }
 }
 
 for (const relPath of [
@@ -120,6 +138,11 @@ for (const requiredText of [
   "lookup_ker_ticket_by_key",
   "JIRA_API_TOKEN",
   "/home/leekaiyi/.hermes/profiles/launchbot/source/launchbot",
+  "sources:",
+  "pantheon:",
+  "git@github.com:staffany-eng/pantheon.git",
+  "LAUNCHBOT_PANTHEON_REPO_DIR",
+  "LAUNCHBOT_PANTHEON_SSH_KEY",
 ]) {
   if (!configText.includes(requiredText)) fail(`config.template.yaml missing required text: ${requiredText}`);
 }
@@ -195,6 +218,8 @@ for (const requiredText of [
   "pull --ff-only",
   "pantheon:updated",
   "LAUNCHBOT_PANTHEON_REPO_URL",
+  "LAUNCHBOT_PANTHEON_SSH_KEY",
+  "GIT_SSH_COMMAND",
   "pantheon-repo-status.json",
 ]) {
   if (!pantheonUpdateText.includes(requiredText)) fail(`update-pantheon-repo.sh missing required text: ${requiredText}`);
