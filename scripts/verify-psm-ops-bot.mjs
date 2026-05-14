@@ -152,6 +152,8 @@ for (const requiredText of [
   "Calendar",
   "Slack poster",
   "Slack profile email/name",
+  "Slack sender ID/mention",
+  "past due date",
   "all customers",
   "Do not use personal `customer360_session` cookies",
   "PSM Ops automation:"
@@ -171,6 +173,8 @@ for (const requiredText of [
   "Slack poster",
   "Task creation must be preview first",
   "Caller task ownership is Jira `PS Team`",
+  "current Slack sender ID/mention",
+  "past due date",
   "set_pco_assignee",
   "set_pco_ps_team",
   "Public customer-visible comments are blocked",
@@ -200,6 +204,9 @@ for (const requiredText of [
   "list_due_pco_reminders",
   "PSM_OPS_JIRA_FIELD_REMINDER_AT",
   "users.list",
+  "jira://request-types",
+  "PSM_OPS_TODAY",
+  "PSM_OPS_TIMEZONE",
   "PS Team",
   "Public customer-visible comments are disabled"
 ]) {

@@ -20,6 +20,7 @@ Do not use local memory, Slack channel history, browser sessions, or guessed fie
 - In thin POC mode, "My tasks" and reminder filters resolve the caller to Jira `PS Team`, not Jira assignee.
 - Canonicalize caller identity from Slack users first. Use Slack profile email/name to auto-match the Jira `PS Team` option. Do not infer email spelling from display name.
 - For abbreviated person references such as `Jo`, `Jos`, or `Josica`, call `resolve_slack_user_identity` when the current Slack thread includes a nearby mention, name, or email candidate. Do not ask who the person is when Slack profile data can resolve it.
+- Tool parameters named `slack_user_email` accept the current Slack sender user ID, Slack mention, or Slack profile email. Prefer the Slack sender ID/mention from the current event when email is not already present; never ask the user to type their Slack/Jira email just to create or list PCO work.
 - If no active Jira account exists but `PS Team` matches, read/list tasks by `PS Team` and keep Jira account ID as optional/best-effort. If `PS Team` cannot be matched, return `Confidence: blocked`.
 
 ## Jira Writes
@@ -39,6 +40,7 @@ Do not use local memory, Slack channel history, browser sessions, or guessed fie
 - Public customer-visible comments are blocked unless config explicitly enables them.
 - Thin POC uses existing PCO request types only: Customer Success Work, Onboarding, and Data Setup. Handoff Package is disabled until Jira adds that request type.
 - Thin POC writes only fields currently on the PCO request forms during request creation, then sets Jira's standard `duedate` field on the created issue. Missing metadata goes into an internal Jira comment after approved creation.
+- Do not create a PCO issue with a past due date. If the proposed date is before today, ask for a future due date before creating.
 - Automatic reminders are based on Jira `duedate`: remind one day before the task, on the day itself, and every day after until the task is Done. Do not require a separate `Reminder at` field in thin POC.
 - Do not guess Jira field IDs, service desk IDs, request type IDs, or status names. If config is missing outside the thin POC defaults, return `Confidence: blocked`.
 

@@ -12,10 +12,18 @@ class FakeMCP:
         self.args = args
         self.kwargs = kwargs
         self.tools = []
+        self.resources = []
 
     def tool(self):
         def decorate(func):
             self.tools.append(func)
+            return func
+
+        return decorate
+
+    def resource(self, uri: str, **kwargs: Any):
+        def decorate(func):
+            self.resources.append((uri, kwargs, func))
             return func
 
         return decorate

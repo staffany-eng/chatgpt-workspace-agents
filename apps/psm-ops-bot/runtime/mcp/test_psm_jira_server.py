@@ -31,6 +31,28 @@ class PsmJiraServerTest(unittest.TestCase):
                 self.assertEqual(module._jira_mode(), "thin_poc")
                 self.assertEqual(os.environ["JIRA_EMAIL"], "bot@staffany.com")
 
+    def test_request_types_resource_exposes_identity_contract(self):
+        module = load_mcp_module("psm_jira_server.py", "psm_jira_resource_test")
+        with patch.dict(
+            os.environ,
+            {
+                "PSM_OPS_JIRA_MODE": "thin_poc",
+                "PSM_OPS_JIRA_SERVICE_DESK_ID": "",
+                "PSM_OPS_JIRA_REQUEST_TYPE_CUSTOMER_NEXT_ACTION": "",
+                "PSM_OPS_JIRA_REQUEST_TYPE_ONBOARDING_TASK": "",
+                "PSM_OPS_JIRA_REQUEST_TYPE_DATA_HYGIENE": "",
+                "PSM_OPS_JIRA_REQUEST_TYPE_HANDOFF_PACKAGE": "",
+                "PSM_OPS_JIRA_FIELD_STAFFANY_ORGS": "",
+            },
+            clear=False,
+        ):
+            payload = json.loads(module.jira_request_types_resource())
+
+        self.assertEqual(payload["request_types"]["customer_next_action"], "81")
+        self.assertEqual(payload["request_types"]["handoff_package"], "disabled_until_request_type_exists")
+        self.assertIn("Slack sender user id", payload["caller_identity"]["accepted_values"])
+        self.assertIn("do not ask the user for email", payload["caller_identity"]["rule"])
+
     def setUp(self):
         self.module = load_mcp_module("psm_jira_server.py")
         self.tmpdir = tempfile.TemporaryDirectory()
@@ -789,6 +811,61 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertIn("query=kaiyi%40staffany.com", calls[0][1])
         self.assertIn("cf%5B10876%5D+%3D+%22Kai+Yi%22", calls[-1][1])
 
+    def test_thin_poc_slack_sender_mention_drafts_without_email_prompt(self):
+        calls = []
+        with patch.dict(
+            os.environ,
+            {
+                "PSM_OPS_JIRA_MODE": "thin_poc",
+                "PSM_OPS_ACCESS_POLICY_PATH": "",
+                "PSM_OPS_JIRA_FIELD_REMINDER_AT": "",
+            },
+            clear=False,
+        ), patch.object(
+            self.module,
+            "_slack_users",
+            return_value=[
+                {
+                    "id": "U6E68280P",
+                    "name": "kaiyilee",
+                    "real_name": "Kai Yi Lee",
+                    "profile": {"email": "kaiyi@staffany.com", "real_name": "Kai Yi Lee", "display_name": "Kai Yi"},
+                }
+            ],
+        ):
+            def fake_request(method, path, body=None):
+                calls.append((method, path, body))
+                if path.startswith("/rest/api/3/user/search?"):
+                    return [
+                        {
+                            "accountId": "acct-kaiyi",
+                            "displayName": "Kaiyi Lee",
+                            "emailAddress": "kaiyi@staffany.com",
+                            "active": True,
+                        }
+                    ]
+                if path == "/rest/api/3/field/customfield_10876/context":
+                    return {"values": [{"id": "context-1"}]}
+                if path.startswith("/rest/api/3/field/customfield_10876/context/context-1/option?"):
+                    return {"values": [{"id": "team-kaiyi", "value": "Kai Yi", "disabled": False}], "isLast": True}
+                return {"issues": []}
+
+            self.module._request_json = fake_request
+
+            result = self.module.draft_pco_task(
+                slack_user_email="<@U6E68280P>",
+                customer="Rock Productions",
+                summary="Follow up on PSM home page and What's New",
+                due_date="2026-07-15",
+            )
+
+        self.assertEqual(result["confidence"], "verified")
+        draft = result["answer"]["draft"]
+        self.assertEqual(result["scope"]["caller"], "kaiyi@staffany.com")
+        self.assertEqual(result["scope"]["ps_team"], "Kai Yi")
+        self.assertEqual(draft["owner_jira_account_id"], "acct-kaiyi")
+        self.assertEqual(draft["ps_team"], "Kai Yi")
+
     def test_thin_poc_create_retries_summary_only_comments_and_assigns(self):
         calls = []
         with patch.dict(
@@ -839,6 +916,43 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertEqual(calls[3][1], "/rest/servicedeskapi/request/PCO-456/comment")
         self.assertEqual(calls[4][1], "/rest/api/3/issue/PCO-456/assignee")
         self.assertIn("Optional PCO request fields were skipped", result["answer"]["warnings"][0])
+
+    def test_create_blocks_past_due_date_before_jira_write(self):
+        calls = []
+        with patch.dict(
+            os.environ,
+            {
+                "PSM_OPS_TODAY": "2026-05-14",
+                "PSM_OPS_JIRA_MODE": "thin_poc",
+            },
+            clear=False,
+        ):
+            def fake_request(method, path, body=None):
+                calls.append((method, path, deepcopy(body)))
+                return {"issueKey": "PCO-999"}
+
+            self.module._request_json = fake_request
+
+            result = self.module.create_approved_pco_task(
+                {
+                    "customer": "Rock Productions",
+                    "summary": "Follow up with product",
+                    "due_date": "2025-07-15",
+                    "request_type_id": "81",
+                },
+                "create",
+            )
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("before today", result["answer"]["message"])
+        self.assertEqual(calls, [])
+
+    def test_today_date_rejects_invalid_timezone(self):
+        with patch.dict(os.environ, {"PSM_OPS_TODAY": "", "PSM_OPS_TIMEZONE": "Not/AZone"}, clear=False):
+            with self.assertRaises(self.module.JiraError) as raised:
+                self.module._today_date()
+
+        self.assertIn("PSM_OPS_TIMEZONE", str(raised.exception))
 
     def test_thin_poc_reminder_uses_due_date_without_custom_field(self):
         with patch.dict(
