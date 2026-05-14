@@ -115,9 +115,11 @@ profiles:
       bot_name: launchbot
       home_channel_id: C0B32M34J3W
       home_channel_name: launch-bot-testing
-      allowed_channel_ids: [C0B32M34J3W]
+      allowed_channel_ids: [C0B32M34J3W, C0AJAUNCEL8]
       report_prefix: "Hermes repair automation:"
-    required_mcp: {}
+    required_mcp:
+      launchbot_ker:
+        tools: 2
     expected_crons:
       - name: launchbot health check
         schedule: "*/5 * * * *"

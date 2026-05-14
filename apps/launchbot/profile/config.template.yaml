@@ -13,7 +13,7 @@ display:
       tool_progress: "off"
 slack:
   require_mention: true
-  allowed_channels: "C0B32M34J3W"
+  allowed_channels: "C0B32M34J3W,C0AJAUNCEL8"
   reactions: false
 cron:
   max_parallel_jobs: 1
@@ -22,6 +22,33 @@ kanban:
 model:
   default: "claude-sonnet-4-6"
   provider: "anthropic"
+mcp_servers:
+  launchbot_ker:
+    description: "Read-only Slack thread to Jira KER lookup adapter for Launchbot."
+    command: "/Users/leekaiyi/.hermes/hermes-agent/venv/bin/python"
+    args:
+      - "/Users/leekaiyi/.hermes/profiles/launchbot/source/launchbot/runtime/mcp/launchbot_ker_server.py"
+    timeout: 120
+    tool_allowlist:
+      - "find_ker_ticket_from_slack_thread"
+      - "lookup_ker_ticket_by_key"
+    auth_metadata:
+      slack:
+        type: "bot_token_env"
+        env: "SLACK_BOT_TOKEN"
+      jira:
+        type: "basic_auth_env"
+        base_url_env: "JIRA_BASE_URL"
+        email_env: "JIRA_EMAIL"
+        api_token_env: "JIRA_API_TOKEN"
+    access_policy:
+      mode: "read_only"
+      configured_channel_ids_env: "LAUNCHBOT_KER_ALLOWED_CHANNEL_IDS"
+      default_channel_ids:
+        - "C0B32M34J3W"
+        - "C0AJAUNCEL8"
+      no_slack_connector_fallback: true
+      no_user_token_fallback: true
 gateway:
   slack:
     enabled: true
@@ -31,3 +58,4 @@ gateway:
     channel: "#launch-bot-testing"
 SLACK_HOME_CHANNEL: "C0B32M34J3W"
 SLACK_HOME_CHANNEL_NAME: "launch-bot-testing"
+LAUNCHBOT_KER_ALLOWED_CHANNEL_IDS: "C0B32M34J3W,C0AJAUNCEL8"

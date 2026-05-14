@@ -2,17 +2,26 @@
 set -euo pipefail
 
 PROFILE="${HERMES_PROFILE:-launchbot}"
-if [ -z "${HERMES_HOME:-}" ] && [ -d "$HOME/.hermes/profiles/$PROFILE" ]; then
-  export HERMES_HOME="$HOME/.hermes/profiles/$PROFILE"
+PROFILE_DIR="${HERMES_PROFILE_DIR:-$HOME/.hermes/profiles/$PROFILE}"
+if [ -z "${HERMES_HOME:-}" ] && [ -d "$PROFILE_DIR" ]; then
+  export HERMES_HOME="$PROFILE_DIR"
 fi
 EXPECT_MODEL_PROVIDER="${EXPECT_MODEL_PROVIDER:-anthropic}"
 EXPECT_MODEL_DEFAULT="${EXPECT_MODEL_DEFAULT:-claude-sonnet-4-6}"
 EXPECT_HOME_CHANNEL="${EXPECT_HOME_CHANNEL:-C0B32M34J3W}"
+EXPECT_ALLOWED_CHANNELS="${EXPECT_ALLOWED_CHANNELS:-C0B32M34J3W,C0AJAUNCEL8}"
 GATEWAY_LAUNCHD_LABEL="${LAUNCHBOT_GATEWAY_LAUNCHD_LABEL:-ai.hermes.gateway-$PROFILE}"
 GATEWAY_SERVICE_NAME="${LAUNCHBOT_GATEWAY_SERVICE_NAME:-hermes-gateway-$PROFILE.service}"
 HERMES_AGENT_DIR="${HERMES_AGENT_DIR:-$HOME/.hermes/hermes-agent}"
 PATH="$HOME/.local/bin:$HERMES_AGENT_DIR:$PATH"
 export PATH
+
+if [ -r "$PROFILE_DIR/.env" ]; then
+  set -a
+  # shellcheck disable=SC1090
+  . "$PROFILE_DIR/.env"
+  set +a
+fi
 
 fail() {
   printf '%s\n' "$1" >&2
@@ -44,13 +53,13 @@ case "$(uname -s)" in
     ;;
 esac
 
-"$hermes_python" - "$config_path" "$EXPECT_MODEL_PROVIDER" "$EXPECT_MODEL_DEFAULT" "$EXPECT_HOME_CHANNEL" <<'PY' || exit 1
+"$hermes_python" - "$config_path" "$EXPECT_MODEL_PROVIDER" "$EXPECT_MODEL_DEFAULT" "$EXPECT_HOME_CHANNEL" "$EXPECT_ALLOWED_CHANNELS" <<'PY' || exit 1
 import sys
 from pathlib import Path
 
 import yaml
 
-config_path, expected_provider, expected_model, expected_home_channel = sys.argv[1:5]
+config_path, expected_provider, expected_model, expected_home_channel, expected_allowed_channels = sys.argv[1:6]
 config = yaml.safe_load(Path(config_path).read_text(encoding="utf-8")) or {}
 
 def fail(message: str) -> None:
@@ -82,4 +91,28 @@ if slack.get("reactions") is not False:
     fail("slack:reactions-not-disabled")
 if str(config.get("SLACK_HOME_CHANNEL") or "").strip('"') != expected_home_channel:
     fail("slack:home-channel-unexpected")
+allowed = str(slack.get("allowed_channels") or "")
+for channel_id in [item.strip() for item in expected_allowed_channels.split(",") if item.strip()]:
+    if channel_id not in allowed:
+        fail(f"slack:allowed-channel-missing:{channel_id}")
+
+mcp_servers = config.get("mcp_servers") or {}
+launchbot_ker = mcp_servers.get("launchbot_ker") or {}
+tools = set(launchbot_ker.get("tool_allowlist") or [])
+expected_tools = {"find_ker_ticket_from_slack_thread", "lookup_ker_ticket_by_key"}
+if tools != expected_tools:
+    fail("mcp:launchbot_ker:tool-allowlist-unexpected")
 PY
+
+for key in \
+  SLACK_BOT_TOKEN \
+  JIRA_BASE_URL \
+  JIRA_EMAIL \
+  JIRA_API_TOKEN; do
+  value="${!key:-}"
+  [ -n "$value" ] || fail "env:$key:missing"
+done
+
+mcp_out="$(hermes -p "$PROFILE" mcp test launchbot_ker 2>&1)" || fail "mcp:launchbot_ker:test-failed"
+count="$(printf '%s\n' "$mcp_out" | sed -nE 's/.*Tools discovered: ([0-9]+).*/\1/p' | tail -1)"
+[ "$count" = "2" ] || fail "mcp:launchbot_ker:tools=${count:-unavailable}:expected=2"

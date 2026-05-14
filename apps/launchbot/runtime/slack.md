@@ -1,14 +1,17 @@
 # Slack Runtime
 
-Launchbot's current surface is `#launch-bot-testing`.
+Launchbot's current surfaces are `#launch-bot-testing` and explicitly configured project channels.
 
 ## Required Behavior
 
 - Require a mention.
-- Restrict the pilot to channel ID `C0B32M34J3W`.
+- Restrict normal replies to configured channel IDs. Current allowed IDs:
+  - `C0B32M34J3W` (`#launch-bot-testing`)
+  - `C0AJAUNCEL8` (`#proj-cs-seonggong-seorae`) for Seorae KER lookup.
 - Disable tool progress, streaming, interim assistant messages, and reactions.
 - Visible operational replies must come from the Launchbot app identity.
 - Do not use Kai Yi's user token or the Slack connector for bot/runtime inspection when the Launchbot bot token exists.
+- For ticket lookup, read bounded Slack thread context with the bot token and call read-only Jira KER search. Do not post from the MCP tool and do not mutate Jira.
 
 ## Output Contract
 

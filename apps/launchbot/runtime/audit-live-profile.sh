@@ -26,6 +26,7 @@ command -v hermes >/dev/null 2>&1 || fail "dependency:hermes:not-found"
 cmp -s "$APP_ROOT/profile/SOUL.md" "$PROFILE_DIR/SOUL.md" || fail "profile-drift:soul"
 cmp -s "$APP_ROOT/runtime/check-health.sh" "$PROFILE_DIR/scripts/launchbot-check-health.sh" || fail "profile-drift:health-script"
 cmp -s "$APP_ROOT/runtime/audit-live-profile.sh" "$PROFILE_DIR/scripts/launchbot-audit-live-profile.sh" || fail "profile-drift:audit-script"
+cmp -s "$APP_ROOT/runtime/mcp/launchbot_ker_server.py" "$PROFILE_DIR/source/launchbot/runtime/mcp/launchbot_ker_server.py" || fail "profile-drift:ker-mcp"
 "$PROFILE_DIR/scripts/launchbot-check-health.sh" >/dev/null
 
 cron_out="$(hermes -p "$PROFILE" cron list 2>&1)" || fail "cron:list-failed"

@@ -14,17 +14,58 @@
     "slack_runtime": "runtime/slack.md",
     "health_checks": "runtime/health-checks.md",
     "health_check_script": "runtime/check-health.sh",
-    "live_profile_audit_script": "runtime/audit-live-profile.sh"
+    "live_profile_audit_script": "runtime/audit-live-profile.sh",
+    "ker_mcp_server": "runtime/mcp/launchbot_ker_server.py",
+    "ker_mcp_tests": "runtime/mcp/test_launchbot_ker_server.py"
   },
   "channels": [
-    "Slack #launch-bot-testing"
+    "Slack #launch-bot-testing",
+    "Slack #proj-cs-seonggong-seorae"
   ],
   "slack": {
     "home_channel_id": "C0B32M34J3W",
     "home_channel_name": "launch-bot-testing",
+    "allowed_channel_ids": [
+      "C0B32M34J3W",
+      "C0AJAUNCEL8"
+    ],
     "require_mention": true,
     "reactions": false
   },
+  "mcp": {
+    "launchbot_ker": {
+      "mode": "read_only",
+      "tools": [
+        "find_ker_ticket_from_slack_thread",
+        "lookup_ker_ticket_by_key"
+      ],
+      "slack_context": {
+        "token_env_var": "SLACK_BOT_TOKEN",
+        "configured_channel_ids_env_var": "LAUNCHBOT_KER_ALLOWED_CHANNEL_IDS",
+        "default_channel_ids": [
+          "C0B32M34J3W",
+          "C0AJAUNCEL8"
+        ],
+        "raw_transcript_persistence": false,
+        "user_token_fallback": false,
+        "slack_connector_fallback": false
+      },
+      "jira": {
+        "project_key": "KER",
+        "base_url_env_var": "JIRA_BASE_URL",
+        "email_env_var": "JIRA_EMAIL",
+        "api_token_env_var": "JIRA_API_TOKEN",
+        "mutations": false
+      }
+    }
+  },
+  "required_env_names": [
+    "SLACK_BOT_TOKEN",
+    "JIRA_BASE_URL",
+    "JIRA_EMAIL",
+    "JIRA_API_TOKEN",
+    "LAUNCHBOT_KER_ALLOWED_CHANNEL_IDS"
+  ],
   "secrets_copied": false,
   "status": "experimental"
 }
