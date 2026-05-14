@@ -309,56 +309,38 @@ copy_dir "$deploy_dir/apps/nurtureany-sales-bot/runtime/sql" "$profile/runtime/s
 sudo python3 - "$deploy_dir/apps/nurtureany-sales-bot/profile/config.template.yaml" "$profile/config.yaml" <<'PY'
 import sys
 from pathlib import Path
+import yaml
 
 template_path = Path(sys.argv[1])
 config_path = Path(sys.argv[2])
-template_lines = template_path.read_text().splitlines()
-config_lines = config_path.read_text().splitlines()
 
-expected = []
-in_block = False
-for line in template_lines:
-    if line.strip() == "tool_allowlist:":
-        in_block = True
-        continue
-    if in_block:
-        if line.startswith("    - "):
-            expected.append(line.split("- ", 1)[1].strip())
-            continue
-        if line.strip():
-            break
-
-if not expected:
-    raise SystemExit("deploy:error:template-tool-allowlist-not-found")
-
-config_tool_indexes = {}
-for index, line in enumerate(config_lines):
-    stripped = line.strip()
-    if stripped.startswith("- "):
-        tool = stripped[2:].strip()
-        config_tool_indexes.setdefault(tool, index)
+template = yaml.safe_load(template_path.read_text())
+config = yaml.safe_load(config_path.read_text())
+template_servers = template.get("mcp_servers") or {}
+config_servers = config.get("mcp_servers") or {}
 
 changed = False
-for tool in expected:
-    if tool in config_tool_indexes:
+for server_name, template_server in template_servers.items():
+    template_tools = template_server.get("tools") or {}
+    expected = template_tools.get("include") or template_server.get("tool_allowlist") or []
+    if not expected:
         continue
-    expected_index = expected.index(tool)
-    previous_tools = expected[:expected_index]
-    insert_after = next((candidate for candidate in reversed(previous_tools) if candidate in config_tool_indexes), "")
-    if not insert_after:
-        raise SystemExit(f"deploy:error:cannot-place-tool:{tool}")
-    insert_index = config_tool_indexes[insert_after] + 1
-    indent = config_lines[config_tool_indexes[insert_after]].split("-", 1)[0]
-    config_lines.insert(insert_index, f"{indent}- {tool}")
-    config_tool_indexes = {
-        line.strip()[2:].strip(): index
-        for index, line in enumerate(config_lines)
-        if line.strip().startswith("- ")
-    }
-    changed = True
+    config_server = config_servers.get(server_name)
+    if not isinstance(config_server, dict):
+        raise SystemExit(f"deploy:error:mcp-server-missing:{server_name}")
+    config_tools = config_server.setdefault("tools", {})
+    if config_tools.get("include") != expected:
+        config_tools["include"] = list(expected)
+        changed = True
+    if config_server.pop("tool_allowlist", None) is not None:
+        changed = True
+    for key in ("resources", "prompts"):
+        if key in template_tools and config_tools.get(key) != template_tools[key]:
+            config_tools[key] = template_tools[key]
+            changed = True
 
 if changed:
-    config_path.write_text("\\n".join(config_lines) + "\\n")
+    config_path.write_text(yaml.safe_dump(config, sort_keys=False))
 PY
 sudo chown "$runtime_owner:$runtime_owner" "$profile/config.yaml"
 

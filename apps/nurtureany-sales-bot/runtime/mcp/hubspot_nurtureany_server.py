@@ -305,6 +305,12 @@ CALL_PROPERTIES = [
     "hs_call_title",
     "hs_call_status",
     "hs_call_duration",
+    "hs_call_external_id",
+    "hs_call_unique_external_id",
+    "hs_call_source",
+    "hs_call_app_id",
+    "hs_object_source_detail_1",
+    "hs_object_source_label",
     "hs_lastmodifieddate",
 ]
 
@@ -2654,6 +2660,7 @@ def _long_call_candidates_without_appointment(owner_id: str, companies: list[dic
                     "company_id": str(company_id),
                     "company_name": props.get("name") or "",
                     "call_id": item.get("object_id"),
+                    **({"aircall_call_id": item.get("aircall_call_id")} if item.get("aircall_call_id") else {}),
                     "call_at": item.get("timestamp"),
                     "duration_seconds": item.get("duration_seconds"),
                     "status": "needs-check",
@@ -4561,6 +4568,25 @@ def _is_connected_call(activity: dict[str, Any]) -> bool:
     return _is_completed_call(activity) and _call_duration_ms(activity) >= CONNECTED_CALL_MIN_DURATION_MS
 
 
+def _aircall_call_id_from_hubspot_call(activity: dict[str, Any]) -> str:
+    props = activity.get("properties", {})
+    source_text = " ".join(
+        str(props.get(key) or "")
+        for key in (
+            "hs_call_source",
+            "hs_call_app_id",
+            "hs_object_source_detail_1",
+            "hs_object_source_label",
+        )
+    ).lower()
+    if "aircall" not in source_text and str(props.get("hs_call_app_id") or "") != "36503":
+        return ""
+    call_id = str(props.get("hs_call_external_id") or "").strip()
+    if re.fullmatch(r"\d+", call_id):
+        return call_id
+    return ""
+
+
 def _is_completed_meeting(activity: dict[str, Any]) -> bool:
     outcome = str(activity.get("properties", {}).get("hs_meeting_outcome") or "").strip().upper()
     return outcome == "COMPLETED"
@@ -4604,6 +4630,9 @@ def _safe_friday_activity_evidence(
         evidence["status"] = props.get("hs_call_status") or ""
         evidence["duration_seconds"] = round(_call_duration_ms(activity) / 1000)
         evidence["connected_call"] = _is_connected_call(activity)
+        aircall_call_id = _aircall_call_id_from_hubspot_call(activity)
+        if aircall_call_id:
+            evidence["aircall_call_id"] = aircall_call_id
     elif evidence_type == "meeting":
         warm_label = _matching_warm_activity_label(activity)
         evidence["title"] = _safe_activity_label(props.get("hs_meeting_title"))
@@ -11870,14 +11899,16 @@ def _ae_owner_fast_coaching_audit(
         if not _is_completed_call(call) or _call_duration_ms(call) < AE_COACHING_LONG_CALL_MIN_DURATION_MS:
             continue
         props = call.get("properties", {})
-        long_call_candidates.append(
-            {
-                "call_id": str(call.get("id") or ""),
-                "timestamp": props.get("hs_timestamp") or props.get("hs_lastmodifieddate") or "",
-                "duration_seconds": round(_call_duration_ms(call) / 1000),
-                "appointment_evidence_status": "needs-check",
-            }
-        )
+        candidate = {
+            "call_id": str(call.get("id") or ""),
+            "timestamp": props.get("hs_timestamp") or props.get("hs_lastmodifieddate") or "",
+            "duration_seconds": round(_call_duration_ms(call) / 1000),
+            "appointment_evidence_status": "needs-check",
+        }
+        aircall_call_id = _aircall_call_id_from_hubspot_call(call)
+        if aircall_call_id:
+            candidate["aircall_call_id"] = aircall_call_id
+        long_call_candidates.append(candidate)
 
     communication_data = _object_search("communications", time_filters, COMMUNICATION_PROPERTIES, limit=500, maximum=500)
     communication_evidence = []

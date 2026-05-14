@@ -19,6 +19,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -32,19 +33,23 @@ OPENAI_TRANSCRIPTIONS_URL = "https://api.openai.com/v1/audio/transcriptions"
 USER_AGENT = "StaffAny-NurtureAny/1.0 (+https://staffany.com)"
 TIMEOUT_SECONDS = 30
 MAX_CALLS = 5
+MAX_LOOKUP_CALLS = 50
 MAX_AUDIO_BYTES = 25 * 1024 * 1024
 MAX_AUDIO_SECONDS = 60 * 60
 MAX_TRANSCRIPT_CHARS = 12000
 MAX_SEGMENTS = 80
 DEFAULT_MODEL = "gpt-4o-transcribe-diarize"
+DEFAULT_MATCH_TIMESTAMP_TOLERANCE_SECONDS = 5 * 60
+DEFAULT_MATCH_DURATION_TOLERANCE_SECONDS = 10
 
 
 mcp = FastMCP(
     "aircall_nurtureany",
     instructions=(
         "Read-only Aircall call review tools for NurtureAny. Fetch bounded call "
-        "metadata and selected-call transcription only. Never expose raw phone "
-        "numbers, recording URLs, audio bytes, or secrets."
+        "metadata, bounded selected-call matching, and selected-call "
+        "transcription only. Never expose raw phone numbers, recording URLs, "
+        "audio bytes, or secrets."
     ),
 )
 
@@ -97,13 +102,92 @@ def _bounded_int(value: int | str | None, default: int, minimum: int, maximum: i
     return max(minimum, min(parsed, maximum))
 
 
-def _clean_timestamp(value: str) -> str:
+def _optional_int(value: int | str | None, field_name: str, minimum: int, maximum: int) -> int | None:
+    if value in (None, ""):
+        return None
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError) as error:
+        raise AircallError(f"{field_name} must be an integer.") from error
+    return max(minimum, min(parsed, maximum))
+
+
+def _normalize_aircall_timestamp(value: str | int | float | None, field_name: str) -> str:
     text = str(value or "").strip()
     if not text:
         return ""
-    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}(?:[T ][0-9:.+-Z]+)?", text):
-        return ""
-    return text
+    if re.fullmatch(r"\d{10}", text):
+        return text
+    if re.fullmatch(r"\d{13}", text):
+        return str(int(text) // 1000)
+    if re.fullmatch(r"\d+(?:\.\d+)?", text):
+        parsed = float(text)
+        if parsed <= 0:
+            raise AircallError(f"{field_name} must be a positive UNIX timestamp or ISO datetime.")
+        return str(int(parsed))
+    normalized = text.replace("Z", "+00:00")
+    try:
+        parsed_dt = datetime.fromisoformat(normalized)
+    except ValueError as error:
+        raise AircallError(f"{field_name} must be a UNIX timestamp or ISO datetime.") from error
+    if parsed_dt.tzinfo is None:
+        parsed_dt = parsed_dt.replace(tzinfo=timezone.utc)
+    return str(int(parsed_dt.astimezone(timezone.utc).timestamp()))
+
+
+def _timestamp_int(value: str | int | float | None) -> int | None:
+    if value in (None, ""):
+        return None
+    try:
+        return int(_normalize_aircall_timestamp(value, "timestamp"))
+    except AircallError:
+        return None
+
+
+def _call_started_unix(call: dict[str, Any]) -> int | None:
+    return _timestamp_int(call.get("started_at") or call.get("answered_at") or call.get("created_at"))
+
+
+def _call_duration_seconds(call: dict[str, Any]) -> int | None:
+    duration = call.get("duration")
+    if isinstance(duration, (int, float)):
+        return int(duration)
+    try:
+        return int(str(duration))
+    except (TypeError, ValueError):
+        return None
+
+
+def _call_user_text(call: dict[str, Any]) -> str:
+    user = call.get("user") if isinstance(call.get("user"), dict) else {}
+    values = [user.get("name"), user.get("email"), user.get("id")]
+    return " ".join(str(value or "") for value in values).lower()
+
+
+def _filter_selected_call_matches(
+    calls: list[dict[str, Any]],
+    match_started_at_unix: str,
+    match_user_name: str,
+    match_duration_seconds: int | None,
+    timestamp_tolerance_seconds: int,
+    duration_tolerance_seconds: int,
+) -> list[dict[str, Any]]:
+    user_query = str(match_user_name or "").strip().lower()
+    target_started_at = _timestamp_int(match_started_at_unix)
+    matched: list[dict[str, Any]] = []
+    for call in calls:
+        if user_query and user_query not in _call_user_text(call):
+            continue
+        if target_started_at is not None:
+            started_at = _call_started_unix(call)
+            if started_at is None or abs(started_at - target_started_at) > timestamp_tolerance_seconds:
+                continue
+        if match_duration_seconds is not None:
+            duration = _call_duration_seconds(call)
+            if duration is None or abs(duration - match_duration_seconds) > duration_tolerance_seconds:
+                continue
+        matched.append(call)
+    return matched
 
 
 def _aircall_get(path: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -270,40 +354,105 @@ def find_aircall_calls(
     from_timestamp: str = "",
     to_timestamp: str = "",
     order: str = "desc",
+    match_started_at: str = "",
+    match_user_name: str = "",
+    match_duration_seconds: int | str | None = None,
+    timestamp_tolerance_seconds: int = DEFAULT_MATCH_TIMESTAMP_TOLERANCE_SECONDS,
+    duration_tolerance_seconds: int = DEFAULT_MATCH_DURATION_TOLERANCE_SECONDS,
 ) -> dict[str, Any]:
-    """Find recent Aircall calls and return safe metadata only."""
+    """Find recent Aircall calls and return safe metadata only.
+
+    Optional match_* fields perform a bounded selected-call lookup over safe
+    metadata when HubSpot has no Aircall external ID.
+    """
 
     safe_limit = _bounded_int(limit, 5, 1, MAX_CALLS)
+    safe_timestamp_tolerance = _bounded_int(
+        timestamp_tolerance_seconds,
+        DEFAULT_MATCH_TIMESTAMP_TOLERANCE_SECONDS,
+        0,
+        60 * 60,
+    )
+    safe_duration_tolerance = _bounded_int(
+        duration_tolerance_seconds,
+        DEFAULT_MATCH_DURATION_TOLERANCE_SECONDS,
+        0,
+        10 * 60,
+    )
+    selected_match_mode = bool(match_started_at or match_user_name or str(match_duration_seconds or "").strip())
     scope = {
         "caller_email": slack_user_email,
         "requested_limit": safe_limit,
-        "from_timestamp": _clean_timestamp(from_timestamp),
-        "to_timestamp": _clean_timestamp(to_timestamp),
+        "from_timestamp_input": str(from_timestamp or "").strip(),
+        "to_timestamp_input": str(to_timestamp or "").strip(),
+        "from_timestamp": "",
+        "to_timestamp": "",
         "order": "asc" if str(order).lower() == "asc" else "desc",
+        "selected_call_match": selected_match_mode,
+        "match_started_at_input": str(match_started_at or "").strip(),
+        "match_started_at": "",
+        "match_user_name": _redact(str(match_user_name or ""), 120),
+        "match_duration_seconds": None,
+        "timestamp_tolerance_seconds": safe_timestamp_tolerance,
+        "duration_tolerance_seconds": safe_duration_tolerance,
         "read_only": True,
         "raw_recording_urls_returned": False,
         "phone_numbers_returned": False,
     }
     try:
-        params: dict[str, Any] = {"per_page": safe_limit, "order": scope["order"]}
+        if from_timestamp:
+            scope["from_timestamp"] = _normalize_aircall_timestamp(from_timestamp, "from_timestamp")
+        if to_timestamp:
+            scope["to_timestamp"] = _normalize_aircall_timestamp(to_timestamp, "to_timestamp")
+        if match_started_at:
+            scope["match_started_at"] = _normalize_aircall_timestamp(match_started_at, "match_started_at")
+        scope["match_duration_seconds"] = _optional_int(
+            match_duration_seconds,
+            "match_duration_seconds",
+            0,
+            24 * 60 * 60,
+        )
+
+        if selected_match_mode and scope["match_started_at"] and not scope["from_timestamp"] and not scope["to_timestamp"]:
+            target_dt = datetime.fromtimestamp(int(scope["match_started_at"]), timezone.utc)
+            scope["from_timestamp"] = str(int((target_dt - timedelta(seconds=safe_timestamp_tolerance)).timestamp()))
+            scope["to_timestamp"] = str(int((target_dt + timedelta(seconds=safe_timestamp_tolerance)).timestamp()))
+            scope["order"] = "asc"
+
+        params: dict[str, Any] = {
+            "per_page": MAX_LOOKUP_CALLS if selected_match_mode else safe_limit,
+            "order": scope["order"],
+        }
         if scope["from_timestamp"]:
             params["from"] = scope["from_timestamp"]
         if scope["to_timestamp"]:
             params["to"] = scope["to_timestamp"]
         payload = _aircall_get("/calls", params)
         calls = payload.get("calls") if isinstance(payload.get("calls"), list) else []
+        candidate_count = len(calls)
+        if selected_match_mode:
+            calls = _filter_selected_call_matches(
+                calls,
+                scope["match_started_at"],
+                match_user_name,
+                scope["match_duration_seconds"],
+                safe_timestamp_tolerance,
+                safe_duration_tolerance,
+            )
         safe_calls = [_safe_call(call) for call in calls[:safe_limit]]
         return {
             "answer": {
                 "calls": safe_calls,
                 "call_count": len(safe_calls),
+                "candidate_call_count": candidate_count,
                 "recording_available_count": sum(1 for call in safe_calls if call.get("recording_available")),
+                "selected_call_match": selected_match_mode,
                 "will_mutate_aircall": False,
             },
             "source": "Aircall Public API /v1/calls",
             "scope": scope,
             "confidence": "verified" if safe_calls else "needs-check",
-            "caveat": "Safe metadata only. Raw phone numbers, recording URLs, audio bytes, and transcripts were not returned.",
+            "caveat": "Safe metadata only. Timestamps sent to Aircall use UNIX seconds. Raw phone numbers, recording URLs, audio bytes, and transcripts were not returned.",
         }
     except AircallError as error:
         return _blocked(str(error), scope)

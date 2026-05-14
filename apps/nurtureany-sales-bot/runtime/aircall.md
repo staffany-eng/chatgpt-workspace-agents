@@ -17,6 +17,8 @@ Do not commit or print secret values. The Aircall adapter uses Basic Auth for `h
 `find_aircall_calls`
 
 - Reads recent Aircall call metadata from `/v1/calls`.
+- Sends `from` / `to` to Aircall as UNIX timestamps. ISO input from Slack/HubSpot must be normalized before the API call; invalid timestamps block instead of falling back to latest calls.
+- Can do bounded selected-call matching by safe timestamp, user display text, and duration when HubSpot does not expose an Aircall external ID.
 - Caps output at 5 calls.
 - Returns safe call IDs, timestamps, status, direction, duration, user display metadata, and whether a recording exists.
 - Never returns raw phone numbers, raw recording URLs, audio bytes, or transcripts.
@@ -24,6 +26,7 @@ Do not commit or print secret values. The Aircall adapter uses Basic Auth for `h
 `transcribe_aircall_recording`
 
 - Reads one selected numeric Aircall call ID.
+- Prefer the Aircall ID synced into HubSpot `hs_call_external_id`; never pass a HubSpot call object ID as the Aircall call ID.
 - Downloads the recording transiently only when a recording exists.
 - Caps audio at 25 MB and 60 minutes.
 - Sends the transient audio to OpenAI audio transcription.

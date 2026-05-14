@@ -54,6 +54,104 @@ class AircallNurtureAnyServerTest(unittest.TestCase):
         self.assertIn("[email]", call["user_name"])
         self.assertIn("[phone]", call["number_name"])
 
+    def test_find_calls_normalizes_iso_timestamps_to_unix_params(self):
+        captured = {}
+
+        def fake_aircall_get(path, params):
+            captured["path"] = path
+            captured["params"] = params
+            return {"calls": []}
+
+        with patch.object(self.module, "_aircall_get", side_effect=fake_aircall_get):
+            result = self.module.find_aircall_calls(
+                "eugene@staffany.com",
+                from_timestamp="2026-05-14T06:55:00Z",
+                to_timestamp="2026-05-14 07:05:00+00:00",
+                order="asc",
+            )
+
+        self.assertEqual(captured["path"], "/calls")
+        self.assertEqual(captured["params"]["from"], "1778741700")
+        self.assertEqual(captured["params"]["to"], "1778742300")
+        self.assertEqual(result["scope"]["from_timestamp"], "1778741700")
+        self.assertEqual(result["scope"]["to_timestamp"], "1778742300")
+
+    def test_find_calls_preserves_unix_timestamp_params(self):
+        captured = {}
+
+        def fake_aircall_get(_path, params):
+            captured["params"] = params
+            return {"calls": []}
+
+        with patch.object(self.module, "_aircall_get", side_effect=fake_aircall_get):
+            result = self.module.find_aircall_calls(
+                "eugene@staffany.com",
+                from_timestamp="1778741700",
+                to_timestamp="1778742300",
+            )
+
+        self.assertEqual(captured["params"]["from"], "1778741700")
+        self.assertEqual(captured["params"]["to"], "1778742300")
+        self.assertEqual(result["scope"]["from_timestamp"], "1778741700")
+
+    def test_find_calls_blocks_invalid_timestamp_without_network(self):
+        with patch.object(self.module, "_aircall_get", side_effect=AssertionError("should not call Aircall")):
+            result = self.module.find_aircall_calls("eugene@staffany.com", from_timestamp="not-a-time")
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("from_timestamp", result["answer"])
+
+    def test_find_calls_selected_lookup_matches_safe_metadata(self):
+        payload = {
+            "calls": [
+                {
+                    "id": 111,
+                    "started_at": 1778741880,
+                    "duration": 90,
+                    "recording": "https://recordings.example.test/111.mp3",
+                    "user": {"id": 7, "name": "Someone Else", "email": "other@example.com"},
+                },
+                {
+                    "id": 3770565512,
+                    "started_at": 1778741950,
+                    "duration": 162,
+                    "recording": "https://recordings.example.test/3770565512.mp3",
+                    "user": {"id": 8, "name": "Jeffrey Wong", "email": "jeffrey@example.com"},
+                },
+                {
+                    "id": 333,
+                    "started_at": 1778742260,
+                    "duration": 162,
+                    "recording": "https://recordings.example.test/333.mp3",
+                    "user": {"id": 8, "name": "Jeffrey Wong", "email": "jeffrey@example.com"},
+                },
+            ]
+        }
+        captured = {}
+
+        def fake_aircall_get(_path, params):
+            captured["params"] = params
+            return payload
+
+        with patch.object(self.module, "_aircall_get", side_effect=fake_aircall_get):
+            result = self.module.find_aircall_calls(
+                "kaiyi@staffany.com",
+                match_started_at="2026-05-14T06:59:10Z",
+                match_user_name="Jeffrey Wong",
+                match_duration_seconds=162,
+                timestamp_tolerance_seconds=60,
+                duration_tolerance_seconds=5,
+            )
+
+        self.assertEqual(captured["params"]["from"], "1778741890")
+        self.assertEqual(captured["params"]["to"], "1778742010")
+        self.assertEqual(captured["params"]["per_page"], self.module.MAX_LOOKUP_CALLS)
+        self.assertEqual(result["confidence"], "verified")
+        self.assertTrue(result["answer"]["selected_call_match"])
+        self.assertEqual(result["answer"]["call_count"], 1)
+        self.assertEqual(result["answer"]["calls"][0]["aircall_call_id"], "3770565512")
+        self.assertNotIn("recordings.example", str(result))
+
     def test_transcribe_selected_call_deletes_temp_audio_and_redacts_output(self):
         with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as handle:
             temp_path = Path(handle.name)
