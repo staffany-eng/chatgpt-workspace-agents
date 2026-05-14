@@ -177,6 +177,10 @@ function launchdServiceDisabled(profile) {
   return result.ok && new RegExp(`"${label}"\\s*=>\\s*disabled`).test(result.stdout);
 }
 
+function isRemoteOnlyFromThisHost(profile) {
+  return process.platform === "darwin" && profile.deploy_host && profile.deploy_host !== "local-macos";
+}
+
 function cronFacts(profileDir, profile) {
   const jobsPath = join(profileDir, "cron", "jobs.json");
   const payload = readJsonFile(jobsPath, { jobs: [] });
@@ -228,6 +232,8 @@ export function countMissingConfiguredPaths(profileDir, profile = {}) {
 }
 
 export function decideActions(profile, facts) {
+  if (facts.remoteOnly) return [];
+
   const actions = [];
   if (facts.needsProfileAlias && profile.recovery?.create_profile_alias) {
     actions.push({ type: "create_profile_alias", severity: "repair", reason: "canonical profile dir is missing but live alias exists" });
@@ -269,6 +275,7 @@ export function summarizeFacts(profile, facts, actions) {
     profile: profile.name,
     live_profile: profile.live_profile || profile.name,
     status: profile.status,
+    remote_only: Boolean(facts.remoteOnly),
     gateway_running: facts.gatewayRunning,
     service_disabled: Boolean(facts.serviceDisabled),
     service_definition_stale: Boolean(facts.serviceDefinitionStale),
@@ -314,6 +321,30 @@ async function collectFacts(profile, options) {
   const liveProfile = profile.live_profile || profile.name;
   const canonicalDir = expandPath(profile.profile_dir);
   const liveDir = expandPath(profile.live_profile_dir || profile.profile_dir);
+  const remoteOnly = isRemoteOnlyFromThisHost(profile);
+  if (remoteOnly) {
+    const ledgerDir = join(process.env.HOME || repoRoot, ".hermes", "logs", "caretaker", profile.name);
+    return {
+      profileDir: canonicalDir,
+      ledgerDir,
+      canonicalDir,
+      liveDir,
+      remoteOnly: true,
+      needsProfileAlias: false,
+      serviceDisabled: false,
+      serviceDefinitionStale: false,
+      gatewayRunning: false,
+      socketStale: false,
+      healthOk: true,
+      healthError: "",
+      profileDrift: "",
+      missingConfiguredPathCount: 0,
+      unsafeCrons: [],
+      missingChannelMembership: [],
+      activeAgents: 0,
+      staleSessionCount: 0,
+    };
+  }
   const profileDir = existsSync(canonicalDir) ? canonicalDir : liveDir;
   const gateway = run("hermes", ["-p", liveProfile, "gateway", "status"], { timeout: 30000 });
   const gatewayRunning = gateway.ok && !/not loaded|not running|✗ Gateway service is not loaded/i.test(gateway.stdout + gateway.stderr);
@@ -456,7 +487,7 @@ async function runCaretaker(argv = process.argv.slice(2)) {
         const result = applyAction(profile, facts, action, options);
         actionResults.push({ action, result });
       }
-      writeLedger(facts.profileDir, {
+      writeLedger(facts.ledgerDir || facts.profileDir, {
         profile: profile.name,
         live_profile: profile.live_profile || profile.name,
         dry_run: options.dryRun,

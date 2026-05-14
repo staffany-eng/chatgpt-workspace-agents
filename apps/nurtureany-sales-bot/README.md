@@ -13,7 +13,7 @@ Canonical Hermes app packet for StaffAny's sales nurture bot.
 - V1 regions: Singapore, Malaysia, Indonesia
 - V1 safety mode: review-first, no external message auto-send; V2 Eazybe sends require approved template payloads and `approval_marker`
 - Source packet: this directory
-- Live runtime state: `~/.hermes/profiles/nurtureanysalesbot/`
+- Live runtime state: `~/.hermes/profiles/nurtureanysalesbot/` on `nurtureany-sales-bot-prod`
 
 ## Relationship To Da Ta Hermz
 
@@ -128,7 +128,7 @@ gcloud secrets add-iam-policy-binding nurtureany-sales-bot-prod-env \
   --role='roles/secretmanager.secretAccessor'
 ```
 
-To hydrate a local Hermes profile from prod secrets:
+To hydrate the prod VM Hermes profile from prod secrets, run on `nurtureany-sales-bot-prod`:
 
 ```bash
 mkdir -p ~/.hermes/profiles/nurtureanysalesbot
@@ -138,6 +138,8 @@ gcloud secrets versions access latest \
   > ~/.hermes/profiles/nurtureanysalesbot/.env
 chmod 600 ~/.hermes/profiles/nurtureanysalesbot/.env
 ```
+
+Do not run a Mac-local NurtureAny Slack gateway with the production Slack app. Local NurtureAny tests should use source-packet verification, dry-run tools, or a separate isolated Slack app/profile.
 
 ## Restore Order
 
@@ -150,6 +152,8 @@ chmod 600 ~/.hermes/profiles/nurtureanysalesbot/.env
 7. Set profile `.env` from Secret Manager only, normally `staffany-warehouse/nurtureany-sales-bot-prod-env`; do not commit or inline model-provider, Slack, HubSpot, Luma, Lusha, Exa, Tavily, BigQuery, Google Places, or C360 credentials.
 8. Configure Slack gateway, HubSpot MCP/API adapter, StaffAny BigQuery MCP, optional near-me adapter with `GOOGLE_PLACES_API_KEY`, `NURTUREANY_KNOWN_AREAS_FILE`, `NURTUREANY_OUTLET_MATCHES_TABLE`, and optional Customer 360 URL template overrides, optional Google Calendar adapter with read-only `team@staffany.com` OAuth files, Google Drive material registry with `NURTUREANY_MATERIAL_REGISTRY_SPREADSHEET_ID`, optional Luma adapter, optional Tavily public research MCP with `TAVILY_API_KEY`, optional Exa MCP with `EXA_API_KEY`, optional Lusha MCP with `LUSHA_API_KEY`, optional Eazybe MCP with `EAZYBE_API_KEY` plus `EAZYBE_BROADCAST_API_URL`, `NURTUREANY_DAILY_RUNS_DIR`, and `NURTUREANY_OPERATION_LEDGER_DIR`.
 9. Run health checks and regression cases before adding sales channels.
+
+When syncing the prod profile runtime from this repo, preserve the runtime-only `runtime/access-policy.json` file or restore it from a profile backup after replacing `runtime/`. The repo contains only `runtime/access-policy.template.json`; deleting the live policy breaks Slack allowlist health.
 
 ## Canonical Source Rule
 
