@@ -26,10 +26,13 @@ create task for Fei Siong to confirm payroll readiness by Friday
 Expected:
 
 - Searches/resolves C360 customer if needed.
+- Passes the current Slack sender ID/mention into Jira tools when email is not already present.
+- Does not ask the user for Slack/Jira email before drafting or creating.
 - Calls `draft_pco_task`.
 - Shows the Jira-ready draft and duplicate candidates.
 - Does not create yet.
 - After same-thread `create`, calls `create_approved_pco_task`.
+- Blocks creation if the resolved due date is before today's date.
 
 ## PS WEE Ticket First Intake
 
