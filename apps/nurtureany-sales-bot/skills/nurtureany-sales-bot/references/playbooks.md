@@ -79,7 +79,7 @@ Minimum fields: `material_id`, `category`, `title`, `url`, `status`, `country_sc
 
 Allowed material categories include podcast, case study, same-industry/same-concept proof, event invite, speaking opportunity, fireside speaker or podcast speaker ask, venue opportunity, salary benchmark, fireside chat learning, and warm peer intro. Approved public case studies can stay in the repo catalog; Sheet rows may reference case-study IDs for matching.
 
-For the Jeremy pilot, `build_daily_nurture_plan` selects 30 accounts per working day from the protected 150, expands every decision maker / influencer / champion, and produces Eazybe-template-ready previews. Do not silently replace accounts with missing contacts, roles, or material; surface the gap.
+Jeremy daily nurture automation is disabled pending refinement and confirmation. Do not advertise a ready daily-pack workflow, 09:00 cron, noon reminder, or Eazybe-ready automated run until the workflow is approved again.
 
 ## HubSpot Action Planning
 

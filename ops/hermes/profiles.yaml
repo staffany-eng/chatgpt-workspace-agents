@@ -78,12 +78,6 @@ profiles:
       - name: nurtureanysalesbot Slack socket watchdog
         schedule: "*/5 * * * *"
         mode: no-agent
-      - name: nurtureanysalesbot Jeremy daily nurture pack
-        schedule: "0 9 * * 1-5"
-        mode: agent
-      - name: nurtureanysalesbot Jeremy noon nurture reminder
-        schedule: "0 12 * * 1-5"
-        mode: agent
     unsafe_cron_name_prefixes: [event-roi-]
     checks:
       health_command: apps/nurtureany-sales-bot/runtime/check-health.sh

@@ -29,7 +29,6 @@ Read phase:
 - Search companies by target-account flag, owner, and country.
 - Read company, contact, deal, association, activity, task, and note context.
 - Read HubSpot follow-up activity associated to scoped target accounts through company, contact, or deal links: WhatsApp communications, notes, completed tasks, existing incomplete sales-owned tasks, and completed meeting logs where available.
-- Build the daily nurture plan from HubSpot target accounts, owner scope, contacts, buying roles, current tools, activity, and follow-up status. HubSpot remains source of truth; the material registry Sheet is read-only context.
 - Read HubSpot calls and meetings for the Friday sales review with safe properties only: completed calls, call duration, completed meeting outcome/title/type, and association paths. Do not read call bodies, meeting bodies, recordings, phone numbers, or attachments.
 - Read property metadata for field validation and option values.
 
@@ -44,7 +43,7 @@ Use a private app token from Secret Manager or the live profile `.env`. Do not s
 Use `NURTUREANY_ACCESS_POLICY_PATH` for the runtime-only access policy. Copy `runtime/access-policy.template.json` outside the repo and classify real people there; do not commit the full sales roster. Configure known Slack or Google email variants with `alias_for` or top-level `aliases`; the MCP adapter canonicalizes aliases before role lookup.
 
 `check_event_followup_status` also requires `LUMA_API_KEY` in the same runtime environment so the HubSpot adapter can resolve read-only Luma attendance before checking HubSpot/Eazybe follow-up evidence.
-`build_daily_nurture_plan` may use `NURTUREANY_DAILY_RUNS_DIR` to persist the 9am run payload for 12pm Eazybe status/reminder checks. If the env var is absent, return `Confidence: needs-check` instead of silently losing reminder continuity.
+Daily nurture and reminder automation are disabled pending refinement. Do not rely on 09:00 run persistence or 12:00 reminder continuity until the workflow is approved again.
 
 ## Local MCP Adapter
 
@@ -75,12 +74,10 @@ It exposes these tools:
 - `build_pre_demo_game_plans`
 - `find_sales_case_studies`
 - `build_singapore_lead_enrichment_plan`
-- `build_daily_nurture_plan`
 - `list_sales_followup_tasks`
 - `count_owner_whatsapp_sent_today`
 - `check_account_followup_status`
 - `check_event_followup_status`
-- `build_daily_nurture_plan`
 - `score_nurture_accounts`
 - `find_contact_gaps`
 - `find_t90_renewal_gaps`
@@ -379,14 +376,10 @@ Friday sales review uses the same scoped association discipline, plus HubSpot ca
 - Input: account context, segment, manual channel.
 - Output: draft only; no send action.
 
-`build_daily_nurture_plan`:
+Daily nurture workflow:
 
-- Input: AE Slack email, optional date, owner/country filters, daily account count, protected pool size, and rows from the read-only material registry Sheet.
-- Output: deterministic Monday-Friday bucket over the protected target-account pool, selected 30 accounts, every decision maker / influencer / champion per account, role gaps, material gaps, Eazybe-ready template payloads, and WhatsApp draft previews.
-- Decision makers are verified only from HubSpot `hs_buying_role=DECISION_MAKER`; title-only matches are `needs-check`.
-- Influencers use HubSpot buying role/persona when available, otherwise HR/Ops/Finance/Area/Outlet leadership title candidates are `needs-check`.
-- Champions use explicit HubSpot/persona signals when present, otherwise warm activity or reply evidence is `needs-check`.
-- Do not silently replace accounts when the pool, contacts, or roles are incomplete. Surface the gap.
+- Status: disabled pending refinement and confirmation.
+- Do not advertise a ready Jeremy daily-pack flow, call daily nurture planning tools, or require persisted 09:00/12:00 run continuity until the workflow is approved again.
 
 `plan_event_photo_followup`:
 

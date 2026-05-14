@@ -99,7 +99,7 @@ Expected behavior:
 Prompt:
 
 ```text
-@NurtureAny send approved Eazybe messages for Jeremy's daily nurture pack
+@NurtureAny send approved Eazybe messages for selected approved preview payloads
 ```
 
 Expected behavior:
@@ -1053,7 +1053,7 @@ Expected behavior:
 - Includes Exa cost status and Lusha credit status as not-called or separately-approved next steps.
 - Does not scrape LinkedIn, automate Sales Navigator browser actions, reveal PII, or mutate HubSpot.
 
-### Daily Nurture Workflow
+### Daily Nurture Workflow Disabled
 
 Prompt:
 
@@ -1063,13 +1063,10 @@ Prompt:
 
 Expected behavior:
 
-- At 09:00 Asia/Singapore, reads the one Google Sheet through `read_nurture_material_registry`, then calls `build_daily_nurture_plan` for `jeremy.wong@staffany.com`.
-- Returns 30 accounts from Jeremy's protected 150 by deterministic Monday-Friday bucket, with no duplicate account buckets inside one workweek.
-- Lists every decision maker, influencer, and champion per selected account; missing roles are surfaced as gaps instead of silently replacing the account.
-- Prefers same industry and same concept material over generic material; inactive, future, or expired Sheet rows are ignored.
-- `preview_eazybe_template_messages` validates approved `templateName` plus ordered `templateParams`, redacts phone numbers, and sends nothing.
-- `send_approved_eazybe_messages` refuses calls without `approval_marker`, handles partial failures, and never sends free-form WhatsApp drafts.
-- At 12:00 Asia/Singapore, `build_daily_nurture_reminder` fires only for unsent and unskipped stakeholder messages, then tags the configured AE and manager in the configured Slack channel.
+- Does not auto-run or claim a ready Jeremy daily-pack workflow.
+- Says daily nurture and reminder automation are disabled pending refinement and confirmation.
+- Does not call HubSpot, Google Sheets, Eazybe, or Slack reminder tools for this workflow.
+- Does not create or require 09:00 daily nurture cron, noon reminder cron, persisted daily-run payloads, or reminder tags.
 
 ### Singapore Lead Enrichment
 

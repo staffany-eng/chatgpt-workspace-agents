@@ -57,7 +57,6 @@ Use this reference with `sales-best-practices.md` before changing or answering f
 | `list_sales_followup_tasks` | Follow-up | Existing incomplete sales-owned HubSpot tasks only; safe task fields; no duplicate task creation. |
 | `check_account_followup_status` | Follow-up | HubSpot communications, notes, tasks, and meetings determine status; event attribution requires proof; raw bodies hidden. |
 | `check_event_followup_status` | Event follow-up | Luma/Sheet attendance identifies matched accounts; HubSpot owner and customer/prospect/unknown status travel with each account; HubSpot verifies event-specific WhatsApp/tasks; raw attendees and bodies hidden. |
-| `build_daily_nurture_plan` | Daily nurture | Jeremy-style 09:00 Asia/Singapore pack; HubSpot target accounts/contacts/roles are source of truth, Sheet material rows are read-only context, 30/150 rotation has no silent replacement, all decision makers/influencers/champions get draft rows. |
 | `record_nurtureany_operation_checkpoint` | Runtime continuity | Profile-runtime ledger checkpoint only; records resumable phase, approval marker presence, idempotency key, and side-effect class without performing any external send or HubSpot mutation. |
 | `read_nurtureany_operation_ledger` | Runtime continuity | Reads compact checkpoint state for restart-safe continuation; read-only resume is allowed, but repeated sends/writes stay blocked unless approval marker and idempotency key are both present. |
 | `score_nurture_accounts` | Queue scoring | HubSpot override fields and clean-lead completeness; access scope and pagination caveats; no mutation. |
@@ -90,7 +89,6 @@ Use this reference with `sales-best-practices.md` before changing or answering f
 | `preview_eazybe_template_messages` | Eazybe preview | Selected message IDs only; validates approved template payload and ordered params; phone numbers redacted; no send. |
 | `send_approved_eazybe_messages` | Approval-gated send | Requires `approval_marker`; sends only approved Eazybe `templateName` plus ordered `templateParams`; partial failures surfaced; no free-form drafts. |
 | `check_eazybe_send_status` | Eazybe status | Summarizes accepted/queued/sent/delivered/failed/pending states for the run; HubSpot WhatsApp evidence can also satisfy sent definition. |
-| `build_daily_nurture_reminder` | Slack reminder | 12:00 Asia/Singapore reminder; fires for unsent/unskipped stakeholder messages and tags the configured AE and manager. |
 | `resolve_known_area_for_near_me` | Near-me | Curated known areas outside HubSpot; no person GPS or employee movement; no mutation. |
 | `build_near_me_outlet_matches_query` | Near-me | Builds read-only SQL for curated outlet matches; BigQuery mutation is out of scope. |
 | `refresh_google_places_for_known_area` | Near-me | Google Places is live candidate discovery only; Google-only rows are not CRM truth; no mutation. |

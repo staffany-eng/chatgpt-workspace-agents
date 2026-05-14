@@ -65,6 +65,11 @@ function compareSortedArrays(label, actual, expected) {
   for (const item of extra) fail(`${label} unexpected: ${item}`);
 }
 
+const disabledPendingRefinementTools = new Set([
+  "build_daily_nurture_plan",
+  "build_daily_nurture_reminder"
+]);
+
 if (!existsSync(manifestPath)) {
   fail("Missing apps/nurtureany-sales-bot/app.manifest.json");
 } else {
@@ -227,7 +232,6 @@ if (!existsSync(manifestPath)) {
       "count_owner_whatsapp_sent_today",
       "check_account_followup_status",
       "check_event_followup_status",
-      "build_daily_nurture_plan",
       "find_target_accounts_by_luma_match_keys",
       "score_nurture_accounts",
       "find_contact_gaps",
@@ -242,7 +246,6 @@ if (!existsSync(manifestPath)) {
       "read_nurture_material_registry",
       "read_indonesia_event_registration_attendance",
       "check_eazybe_send_status",
-      "build_daily_nurture_reminder",
       "record_nurtureany_operation_checkpoint",
       "read_nurtureany_operation_ledger",
       "draft_nurture_message",
@@ -320,7 +323,8 @@ if (!existsSync(manifestPath)) {
       "runtime/mcp/exa_nurtureany_server.py",
       "runtime/mcp/lusha_nurtureany_server.py"
     ].flatMap((relPath) => decoratedMcpTools(relPath));
-    compareSortedArrays("Manifest callable tools vs MCP decorators", manifestCallableTools, actualMcpTools);
+    const activeMcpTools = actualMcpTools.filter((tool) => !disabledPendingRefinementTools.has(tool));
+    compareSortedArrays("Manifest callable tools vs MCP decorators", manifestCallableTools, activeMcpTools);
     for (const tool of plannedWriteTools) {
       if (actualMcpTools.includes(tool)) fail(`Planned write tool must not be exposed by MCP decorator in V1: ${tool}`);
     }
@@ -486,16 +490,10 @@ if (!existsSync(manifestPath)) {
     }
     if (manifest.google_drive?.file_downloads !== false) fail("Manifest Google Drive file_downloads must be false");
     if (manifest.google_drive?.drive_mutations !== false) fail("Manifest Google Drive drive_mutations must be false");
-    if (manifest.daily_nurture?.assumed_hubspot_owner_email !== "jeremy.wong@staffany.com") {
-      fail("Manifest daily_nurture must assume Jeremy hubspot owner email");
-    }
-    if (manifest.daily_nurture?.protected_pool_baseline !== 150) fail("Manifest daily_nurture protected pool must be 150");
-    if (manifest.daily_nurture?.daily_account_count !== 30) fail("Manifest daily_nurture daily account count must be 30");
-    if (manifest.daily_nurture?.timezone !== "Asia/Singapore") fail("Manifest daily_nurture timezone must be Asia/Singapore");
-    if (manifest.daily_nurture?.nine_am_cron_utc !== "0 1 * * 1-5") fail("Manifest daily_nurture 9am cron must be 01:00 UTC weekdays");
-    if (manifest.daily_nurture?.noon_reminder_cron_utc !== "0 4 * * 1-5") fail("Manifest daily_nurture 12pm cron must be 04:00 UTC weekdays");
-    if (manifest.daily_nurture?.nine_am_cron_local !== "0 9 * * 1-5") fail("Manifest daily_nurture 9am local cron must be 09:00 Asia/Singapore weekdays");
-    if (manifest.daily_nurture?.noon_reminder_cron_local !== "0 12 * * 1-5") fail("Manifest daily_nurture 12pm local cron must be 12:00 Asia/Singapore weekdays");
+    if (manifest.daily_nurture?.status !== "disabled_pending_refinement") fail("Manifest daily_nurture must be disabled pending refinement");
+    if (manifest.daily_nurture?.approved_runtime_workflow !== false) fail("Manifest daily_nurture must not be an approved runtime workflow");
+    if (manifest.daily_nurture?.cron_enabled !== false) fail("Manifest daily_nurture cron must be disabled");
+    if (manifest.daily_nurture?.reminder_cron_enabled !== false) fail("Manifest daily_nurture reminder cron must be disabled");
     if (manifest.eazybe?.auth_env_var !== "EAZYBE_API_KEY") fail("Manifest Eazybe missing EAZYBE_API_KEY auth env var");
     if (manifest.eazybe?.base_mode !== "approval_gated_template_send") fail("Manifest Eazybe base_mode must be approval_gated_template_send");
     if (manifest.eazybe?.approved_templates_only !== true) fail("Manifest Eazybe must require approved templates");
@@ -505,8 +503,7 @@ if (!existsSync(manifestPath)) {
     for (const tool of [
       "preview_eazybe_template_messages",
       "send_approved_eazybe_messages",
-      "check_eazybe_send_status",
-      "build_daily_nurture_reminder"
+      "check_eazybe_send_status"
     ]) {
       if (!manifest.eazybe?.allowed_tools?.includes(tool)) fail(`Manifest Eazybe missing allowed tool: ${tool}`);
     }
@@ -745,7 +742,6 @@ for (const text of [
   "cron",
   "logs",
   "sessions",
-  "daily-runs",
   "operation-ledger",
   "hermes-gateway-$profile_name.service",
   "run_post_deploy_check",
@@ -835,11 +831,9 @@ for (const text of [
   "list_sales_followup_tasks",
   "check_account_followup_status",
   "check_event_followup_status",
-  "build_daily_nurture_plan",
-  "daily_nurture",
-  "jeremy.wong@staffany.com",
-  "0 1 * * 1-5",
-  "0 4 * * 1-5",
+  "disabled_pending_refinement",
+  "approved_runtime_workflow",
+  "Workflow must be refined and confirmed before being advertised or scheduled.",
   "NURTUREANY_MATERIAL_REGISTRY_SPREADSHEET_ID",
   "get_campaign_social_effectiveness",
   "get_marketing_campaign_attribution",
@@ -871,7 +865,6 @@ for (const text of [
   "preview_eazybe_template_messages",
   "send_approved_eazybe_messages",
   "check_eazybe_send_status",
-  "build_daily_nurture_reminder",
   "approval_gated_v2_only",
   "registration_attendance_fallback",
   "Attend The Event",
@@ -1172,7 +1165,7 @@ for (const tool of [
   "runtime/mcp/public_research_nurtureany_server.py",
   "runtime/mcp/exa_nurtureany_server.py",
   "runtime/mcp/lusha_nurtureany_server.py"
-].flatMap((relPath) => decoratedMcpTools(relPath))) {
+].flatMap((relPath) => decoratedMcpTools(relPath)).filter((tool) => !disabledPendingRefinementTools.has(tool))) {
   if (!sopToolCoverageText.includes(`\`${tool}\``)) {
     fail(`sop-tool-coverage.md missing actual MCP tool: ${tool}`);
   }
@@ -1289,9 +1282,6 @@ for (const text of [
   "count_owner_whatsapp_sent_today",
   "check_account_followup_status",
   "check_event_followup_status",
-  "build_daily_nurture_plan",
-  "DAILY_NURTURE_DEFAULT_ACCOUNT_COUNT = 30",
-  "DAILY_NURTURE_PROTECTED_POOL_SIZE = 150",
   "COMMUNICATION_PROPERTIES",
   "calendar_audit_seed",
   "_hash_email",
@@ -1533,7 +1523,6 @@ for (const text of [
   "preview_eazybe_template_messages",
   "send_approved_eazybe_messages",
   "check_eazybe_send_status",
-  "build_daily_nurture_reminder",
   "approval_marker",
   "templateName",
   "ordered templateParams",
@@ -1555,7 +1544,6 @@ for (const text of [
   "preview_eazybe_template_messages",
   "send_approved_eazybe_messages",
   "check_eazybe_send_status",
-  "build_daily_nurture_reminder",
   "mcp.run(\"stdio\")"
 ]) {
   if (!eazybeServerText.includes(text)) fail(`runtime/mcp/eazybe_nurtureany_server.py missing required text: ${text}`);
@@ -1657,7 +1645,7 @@ for (const text of [
   "read_google_slides_deck",
   "Anyone with the link",
   "read_indonesia_event_registration_attendance",
-  "Daily nurture smoke check",
+  "Daily nurture and reminder automation are disabled pending refinement",
   "read_nurture_material_registry",
   "Eazybe approval-gated smoke check",
   "send_approved_eazybe_messages",
@@ -1890,8 +1878,7 @@ for (const text of [
   "gateway_duplicate_launchd:",
   "mcp:$server:tools=$count",
   "cron:enabled=",
-  "operation_ledger:",
-  "daily_runs:"
+  "operation_ledger:"
 ]) {
   if (!cloudDoctorScriptText.includes(text)) fail(`runtime/nurtureany-cloud-doctor.sh missing required text: ${text}`);
 }
@@ -1915,8 +1902,14 @@ for (const text of [
   "NURTUREANY_SLACK_SOCKET_THRESHOLD_SECONDS",
   "NURTUREANY_SLACK_SOCKET_RESTART_COOLDOWN_SECONDS",
   "NURTUREANY_SLACK_SOCKET_DRY_RUN",
+  "NURTUREANY_SLACK_INGRESS_CHECK_ENABLED",
+  "NURTUREANY_SLACK_INGRESS_LOOKBACK_SECONDS",
+  "NURTUREANY_SLACK_INGRESS_GRACE_SECONDS",
   "systemctl --user restart hermes-gateway-$PROFILE.service",
   "seems to be stale",
+  "conversations.history",
+  "conversations.replies",
+  "slack-ingress:missed-mention",
   "A new session .* has been established",
   "slack-socket:restart-needed",
   "slack-socket:restart-failed",
@@ -1944,6 +1937,7 @@ HERMES_PROFILE_DIR="$tmp_dir/profile" \\
 NURTUREANY_SLACK_SOCKET_STATE_DIR="$tmp_dir/state" \\
 NURTUREANY_SLACK_SOCKET_NOW_EPOCH=1778570400 \\
 NURTUREANY_SLACK_SOCKET_DRY_RUN=1 \\
+NURTUREANY_SLACK_INGRESS_CHECK_ENABLED=0 \\
 bash ${JSON.stringify(slackSocketScriptPath)}
 `], { encoding: "utf8" });
 if (staleSocketCheck.status !== 0 || !staleSocketCheck.stdout.includes("slack-socket:restart-needed")) {
@@ -1962,10 +1956,42 @@ HERMES_PROFILE_DIR="$tmp_dir/profile" \\
 NURTUREANY_SLACK_SOCKET_STATE_DIR="$tmp_dir/state" \\
 NURTUREANY_SLACK_SOCKET_NOW_EPOCH=1778570400 \\
 NURTUREANY_SLACK_SOCKET_DRY_RUN=1 \\
+NURTUREANY_SLACK_INGRESS_CHECK_ENABLED=0 \\
 bash ${JSON.stringify(slackSocketScriptPath)}
 `], { encoding: "utf8" });
 if (recoveredSocketCheck.status !== 0 || recoveredSocketCheck.stdout.trim() !== "") {
   fail(`Slack socket watchdog recovered dry-run failed: ${(recoveredSocketCheck.stderr || recoveredSocketCheck.stdout).trim()}`);
+}
+
+const missedMentionSocketCheck = spawnSync("bash", ["-lc", `
+tmp_dir="$(mktemp -d)"
+trap 'rm -rf "$tmp_dir"' EXIT
+mkdir -p "$tmp_dir/bin"
+cat >"$tmp_dir/bin/python3" <<'PY'
+#!/usr/bin/env bash
+printf '%s\\n' 'slack-ingress:missed-mention message_ts=1778769310.930519 age_seconds=180'
+exit 2
+PY
+chmod +x "$tmp_dir/bin/python3"
+cat >"$tmp_dir/agent.log" <<'LOG'
+2026-05-14 14:08:45,379 INFO gateway.platforms.slack: [Slack] Socket Mode connected (1 workspace(s))
+LOG
+PATH="$tmp_dir/bin:$PATH" \\
+SLACK_BOT_TOKEN=xoxb-fake \\
+SLACK_HOME_CHANNEL=C0B2UGK4DB6 \\
+NURTUREANY_SLACK_SOCKET_LOG="$tmp_dir/agent.log" \\
+HERMES_PROFILE_DIR="$tmp_dir/profile" \\
+NURTUREANY_SLACK_SOCKET_STATE_DIR="$tmp_dir/state" \\
+NURTUREANY_SLACK_SOCKET_NOW_EPOCH=1778769490 \\
+NURTUREANY_SLACK_SOCKET_DRY_RUN=1 \\
+bash ${JSON.stringify(slackSocketScriptPath)}
+`], { encoding: "utf8" });
+if (
+  missedMentionSocketCheck.status !== 0 ||
+  !missedMentionSocketCheck.stdout.includes("slack-socket:restart-needed missed-mention") ||
+  !missedMentionSocketCheck.stdout.includes("slack-ingress:missed-mention")
+) {
+  fail(`Slack socket watchdog missed-mention dry-run failed: ${(missedMentionSocketCheck.stderr || missedMentionSocketCheck.stdout).trim()}`);
 }
 
 const lushaText = textOf("runtime/lusha.md");

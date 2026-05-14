@@ -179,31 +179,11 @@ nurtureany:
     raw_audio_retained: false
     bulk_transcript_exports: false
   daily_nurture:
-    pilot: "Jeremy"
-    hubspot_owner_email: "jeremy.wong@staffany.com"
-    protected_pool_baseline: 150
-    daily_account_count: 30
-    timezone: "Asia/Singapore"
-    working_days: "Monday-Friday"
-    nine_am_cron_utc: "0 1 * * 1-5"
-    noon_reminder_cron_utc: "0 4 * * 1-5"
-    nine_am_cron_local: "0 9 * * 1-5"
-    noon_reminder_cron_local: "0 12 * * 1-5"
-    material_registry_spreadsheet_id_env: "NURTUREANY_MATERIAL_REGISTRY_SPREADSHEET_ID"
-    daily_runs_dir_env: "NURTUREANY_DAILY_RUNS_DIR"
-    sent_definition: "Eazybe accepted/queued approved template OR HubSpot matching WhatsApp communication after run start"
-    per_ae_runtime_config:
-      - name: "Jeremy"
-        slack_user_id: "U_JEREMY_PLACEHOLDER"
-        hubspot_owner_email: "jeremy.wong@staffany.com"
-        manager_slack_user_id: "U_MANAGER_PLACEHOLDER"
-        reminder_channel_id: "C_REMINDER_PLACEHOLDER"
-        supported_countries:
-          - "Singapore"
-        daily_account_count: 30
-        timezone: "Asia/Singapore"
-        eazybe_sender_ref: "EAZYBE_SENDER_REF_PLACEHOLDER"
-        default_template_name: "nurture_material_share_v1"
+    status: disabled_pending_refinement
+    approved_runtime_workflow: false
+    cron_enabled: false
+    reminder_cron_enabled: false
+    reason: "Workflow must be refined and confirmed before being advertised or scheduled."
   photo_matching:
     drive_folder_id: 1qXlFnr5TKFtsYNWk7ZywBBctDaae3RY-
     drive_folder_label: all-random
@@ -311,7 +291,6 @@ mcp_servers:
     - read_nurtureany_operation_ledger
     - draft_nurture_message
     - plan_hubspot_writeback
-    - build_daily_nurture_plan
     mutation_tools_disabled_until_write_phase:
     - create_hubspot_task
     - append_hubspot_note
@@ -638,7 +617,6 @@ mcp_servers:
       env: EAZYBE_API_KEY
       broadcast_api_url_env: EAZYBE_BROADCAST_API_URL
       status_api_url_env: EAZYBE_STATUS_API_URL
-      daily_runs_dir_env: NURTUREANY_DAILY_RUNS_DIR
     access_policy:
       mode: approval_gated_template_send
       approved_templates_only: true
@@ -650,7 +628,6 @@ mcp_servers:
     - preview_eazybe_template_messages
     - send_approved_eazybe_messages
     - check_eazybe_send_status
-    - build_daily_nurture_reminder
 gateway:
   slack:
     enabled: true

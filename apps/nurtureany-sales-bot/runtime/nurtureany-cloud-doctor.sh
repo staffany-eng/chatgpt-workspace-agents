@@ -134,11 +134,3 @@ if [ -r "$PROFILE_DIR/operation-ledger" ] || [ -d "$PROFILE_DIR/operation-ledger
 else
   line "operation_ledger:not-found"
 fi
-
-daily_runs_dir="${NURTUREANY_DAILY_RUNS_DIR:-$PROFILE_DIR/daily-runs}"
-if [ -d "$daily_runs_dir" ]; then
-  count="$(find "$daily_runs_dir" -type f -name '*.json' 2>/dev/null | wc -l | tr -d ' ')"
-  line "daily_runs:dir=$daily_runs_dir:files=$count"
-else
-  line "daily_runs:dir=$daily_runs_dir:not-found"
-fi

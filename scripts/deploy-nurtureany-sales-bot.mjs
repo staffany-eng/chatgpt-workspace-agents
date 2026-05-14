@@ -34,9 +34,13 @@ if (args.help) {
   process.exit(0);
 }
 
-for (const command of ["git", "npm", "gcloud"]) {
-  ensureCommand(command);
-}
+const gitCommand = resolveCommand("git", ["git"]);
+const npmCommand = resolveCommand("npm", ["npm", "/opt/homebrew/bin/npm", "/usr/local/bin/npm"]);
+const gcloudCommand = resolveCommand("gcloud", [
+  "gcloud",
+  "/opt/homebrew/share/google-cloud-sdk/bin/gcloud",
+  "/usr/local/share/google-cloud-sdk/bin/gcloud",
+]);
 
 log("Preparing NurtureAny Sales Bot deploy from origin/main");
 log(`Target: project=${args.project} zone=${args.zone} vm=${args.vm} profile=${args.profile} runtime_owner=${args.runtimeOwner}`);
@@ -44,14 +48,14 @@ if (args.verbose) {
   log(`Preserved runtime state: ${FORBIDDEN_RUNTIME_STATE_LABELS.join(", ")}`);
 }
 
-run("git", ["fetch", "origin", "main"]);
-const deploySha = runCapture("git", ["rev-parse", "origin/main"]).trim();
+run(gitCommand, ["fetch", "origin", "main"]);
+const deploySha = runCapture(gitCommand, ["rev-parse", "origin/main"]).trim();
 if (!deploySha) {
   throw new Error("Could not resolve origin/main deploy SHA.");
 }
 log(`Deploy SHA: ${deploySha}`);
 
-run("npm", ["run", "nurtureany-sales-bot:verify"]);
+run(npmCommand, ["run", "nurtureany-sales-bot:verify"]);
 
 const archivePath = join(tmpRoot, "nurtureany-origin-main.tar.gz");
 const shaPath = join(tmpRoot, "nurtureany-origin-main.sha");
@@ -72,10 +76,10 @@ if (!args.apply) {
 }
 
 writeFileSync(shaPath, `${deploySha}\n`);
-run("git", ["archive", "--format=tar.gz", "-o", archivePath, "origin/main"]);
+run(gitCommand, ["archive", "--format=tar.gz", "-o", archivePath, "origin/main"]);
 
 if (!args.skipUpload) {
-  run("gcloud", [
+  run(gcloudCommand, [
     "compute",
     "scp",
     archivePath,
@@ -86,7 +90,7 @@ if (!args.skipUpload) {
     args.zone,
     "--tunnel-through-iap",
   ]);
-  run("gcloud", [
+  run(gcloudCommand, [
     "compute",
     "scp",
     shaPath,
@@ -102,7 +106,7 @@ if (!args.skipUpload) {
 }
 
 const remoteOutput = runCapture(
-  "gcloud",
+  gcloudCommand,
   [
     "compute",
     "ssh",
@@ -203,11 +207,14 @@ Options:
 `);
 }
 
-function ensureCommand(command) {
-  const result = spawnSync(command, ["--version"], { encoding: "utf8" });
-  if (result.error || result.status !== 0) {
-    throw new Error(`Required command not available: ${command}`);
+function resolveCommand(label, candidates) {
+  for (const candidate of candidates) {
+    const result = spawnSync(candidate, ["--version"], { encoding: "utf8" });
+    if (!result.error && result.status === 0) {
+      return candidate;
+    }
   }
+  throw new Error(`Required command not available: ${label}`);
 }
 
 function run(command, commandArgs, options = {}) {
