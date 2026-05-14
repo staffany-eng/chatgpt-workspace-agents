@@ -26,7 +26,7 @@ class PsmC360ServerTest(unittest.TestCase):
         self.env.start()
         self.addCleanup(self.env.stop)
 
-    def test_search_customers_uses_internal_bearer_route(self):
+    def test_search_customers_uses_internal_token_header(self):
         calls = []
 
         def fake_http(method, path, body=None):
@@ -47,6 +47,12 @@ class PsmC360ServerTest(unittest.TestCase):
         self.assertEqual(calls, [("GET", "/api/companies?q=Fei", None)])
         self.assertEqual(result["confidence"], "verified")
         self.assertEqual(result["answer"][0]["companyName"], "Fei Siong")
+
+    def test_headers_use_custom_internal_token_header(self):
+        headers = self.module._headers()
+
+        self.assertEqual(headers["X-Customer360-Internal-Token"], "test-token")
+        self.assertNotIn("Authorization", headers)
 
     def test_customer_search_variants_expand_project_channel_hint(self):
         variants = self.module._customer_search_variants("proj-cs-rockproductions")

@@ -59,7 +59,8 @@ mcp = FastMCP(
     "psm_c360",
     instructions=(
         "Customer 360 internal API access for PSM Ops Bot. "
-        "Use bearer auth only; never use personal Customer 360 session cookies."
+        "Use the Customer 360 internal token header; never use personal "
+        "Customer 360 session cookies."
     ),
 )
 
@@ -85,7 +86,7 @@ def _token() -> str:
 def _headers() -> dict[str, str]:
     return {
         "Accept": "application/json, text/markdown",
-        "Authorization": f"Bearer {_token()}",
+        "X-Customer360-Internal-Token": _token(),
         "Content-Type": "application/json",
     }
 

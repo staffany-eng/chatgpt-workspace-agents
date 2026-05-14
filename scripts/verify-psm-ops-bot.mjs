@@ -209,7 +209,7 @@ for (const requiredText of [
   "get_c360_account_context",
   "ask_c360_customer_context",
   "CUSTOMER360_INTERNAL_API_TOKEN",
-  "Authorization",
+  "X-Customer360-Internal-Token",
   "searched_variants",
   "missing_mapping",
   "No Customer 360 customer/org mapping"
