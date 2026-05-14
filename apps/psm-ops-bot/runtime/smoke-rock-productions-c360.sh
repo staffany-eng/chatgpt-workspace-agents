@@ -97,6 +97,7 @@ org_names = {
         or item.get("name")
         or item.get("orgName")
         or item.get("organisationName")
+        or item.get("organizationName")
         or ""
     ).strip().lower()
     for item in org_matches

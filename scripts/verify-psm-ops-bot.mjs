@@ -332,6 +332,7 @@ for (const requiredText of [
   "8051493928",
   "Rock Productions",
   "missing_mapping",
+  "matchedValue",
   "StaffAny org",
   "c360:rock-productions:ok"
 ]) {
