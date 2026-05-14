@@ -15,6 +15,7 @@ const DEFAULTS = {
   profile: "psmopsbot",
   runtimeOwner: "leekaiyi",
   remoteSourceDir: "",
+  ref: "origin/main",
 };
 
 const FORBIDDEN_RUNTIME_STATE_LABELS = [
@@ -42,16 +43,18 @@ const gcloudCommand = resolveCommand("gcloud", [
   "/usr/local/share/google-cloud-sdk/bin/gcloud",
 ]);
 
-log("Preparing PSM Ops Bot deploy from origin/main");
+log(`Preparing PSM Ops Bot deploy from ${args.ref}`);
 log(`Target: project=${args.project} zone=${args.zone} vm=${args.vm} profile=${args.profile} runtime_owner=${args.runtimeOwner}`);
 if (args.verbose) {
   log(`Preserved runtime state: ${FORBIDDEN_RUNTIME_STATE_LABELS.join(", ")}`);
 }
 
-run(gitCommand, ["fetch", "origin", "main"]);
-const deploySha = runCapture(gitCommand, ["rev-parse", "origin/main"]).trim();
+if (args.ref === "origin/main") {
+  run(gitCommand, ["fetch", "origin", "main"]);
+}
+const deploySha = runCapture(gitCommand, ["rev-parse", args.ref]).trim();
 if (!deploySha) {
-  throw new Error("Could not resolve origin/main deploy SHA.");
+  throw new Error(`Could not resolve ${args.ref} deploy SHA.`);
 }
 log(`Deploy SHA: ${deploySha}`);
 
@@ -64,10 +67,10 @@ const shaPath = join(tmpRoot, shaName);
 
 if (!args.apply) {
   log("Dry run only. No archive upload, remote sync, gateway restart, or production health checks were run.");
-  log("Use `npm run psm-ops-bot:deploy -- --apply` to deploy this exact origin/main SHA.");
+  log(`Use \`npm run psm-ops-bot:deploy -- --apply --ref ${args.ref}\` to deploy this exact ${args.ref} SHA.`);
   printSummary({
     deploySha,
-    deployRef: "origin/main",
+    deployRef: args.ref,
     timestamp: "",
     gateway: "not checked (dry run)",
     audit: "not run (dry run)",
@@ -123,7 +126,7 @@ const remoteOutput = runCapture(
     "--command",
     "bash -s",
   ],
-  { input: remoteDeployScript(args, deploySha) },
+  { input: remoteDeployScript(args, deploySha, args.ref) },
 );
 
 process.stdout.write(remoteOutput);
@@ -131,7 +134,7 @@ process.stdout.write(remoteOutput);
 const remoteSummary = parseRemoteSummary(remoteOutput);
 printSummary({
   deploySha: remoteSummary.sha || deploySha,
-  deployRef: remoteSummary.ref || "main",
+  deployRef: remoteSummary.ref || args.ref,
   timestamp: remoteSummary.timestamp || "",
   gateway: remoteSummary.gateway || "unknown",
   audit: remoteSummary.audit || "unknown",
@@ -150,7 +153,7 @@ function parseArgs(argv) {
     verbose: false,
     help: false,
   };
-  const valueOptions = new Set(["project", "zone", "vm", "profile", "runtime-owner", "remote-source-dir"]);
+  const valueOptions = new Set(["project", "zone", "vm", "profile", "runtime-owner", "remote-source-dir", "ref"]);
   for (let index = 0; index < argv.length; index += 1) {
     const raw = argv[index];
     if (raw === "--apply") {
@@ -199,7 +202,7 @@ function parseArgs(argv) {
 function printHelp() {
   console.log(`Usage: node scripts/deploy-psm-ops-bot.mjs [options]
 
-Deploys exact origin/main for PSM Ops Bot to the production Hermes profile.
+Deploys an exact git ref for PSM Ops Bot to the production Hermes profile.
 
 Options:
   --apply                  Mutate production. Required for upload, sync, restart, and checks.
@@ -209,6 +212,7 @@ Options:
   --profile <name>         Hermes profile. Default: ${DEFAULTS.profile}
   --runtime-owner <u>      Runtime OS user. Default: ${DEFAULTS.runtimeOwner}
   --remote-source-dir <p>  Remote source snapshot. Default: /home/<runtime-owner>/agent-builder
+  --ref <git-ref>          Git ref to archive and deploy. Default: ${DEFAULTS.ref}
   --skip-upload            Reuse archive already uploaded to /tmp on the VM.
   --skip-restart           Sync and stamp version, but do not restart or run post-restart checks.
   --verbose                Print commands before running them.
@@ -257,17 +261,19 @@ function runProcess(command, commandArgs, options = {}) {
   return result;
 }
 
-function remoteDeployScript(options, deploySha) {
+function remoteDeployScript(options, deploySha, deployRef) {
   const profile = shellQuote(options.profile);
   const runtimeOwner = shellQuote(options.runtimeOwner);
   const remoteSourceDir = shellQuote(options.remoteSourceDir || `/home/${options.runtimeOwner}/agent-builder`);
   const deployShaExpected = shellQuote(deploySha);
+  const deployRefLabel = shellQuote(deployRef);
   const skipRestart = options.skipRestart ? "1" : "0";
   return `set -euo pipefail
 profile_name=${profile}
 runtime_owner=${runtimeOwner}
 remote_source_dir=${remoteSourceDir}
 deploy_sha_expected=${deployShaExpected}
+deploy_ref_label=${deployRefLabel}
 skip_restart=${skipRestart}
 profile="/home/$runtime_owner/.hermes/profiles/$profile_name"
 service="hermes-gateway-$profile_name.service"
@@ -299,7 +305,7 @@ test -d "$deploy_dir/apps/psm-ops-bot" || { echo "deploy:error:app-packet-missin
 
 deploy_sha=$(cat "$sha_file")
 [ "$deploy_sha" = "$deploy_sha_expected" ] || { echo "deploy:error:sha-mismatch:$deploy_sha:$deploy_sha_expected"; exit 1; }
-deploy_branch=main
+deploy_branch="$deploy_ref_label"
 deploy_timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 remote_verify="skipped:node-not-found"
 
