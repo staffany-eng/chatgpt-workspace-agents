@@ -50,6 +50,7 @@ def _headers() -> dict[str, str]:
     return {
         "Accept": "application/json, text/markdown",
         "Authorization": f"Bearer {_token()}",
+        "X-Customer360-Internal-Token": _token(),
         "Content-Type": "application/json",
     }
 

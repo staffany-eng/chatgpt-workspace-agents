@@ -41,7 +41,9 @@ Do not use local memory, Slack channel history, browser sessions, or guessed fie
 
 ## Customer 360
 
-- Use Customer 360 internal bearer-auth routes only.
+- Use Customer 360 internal token-auth routes only. The runtime sends
+  `X-Customer360-Internal-Token` plus a bearer fallback; never use personal
+  Customer 360 session cookies.
 - Do not use personal `customer360_session` cookies.
 - Do not read raw Slack, Intercom, WhatsApp, GCS source packs, or private notes directly.
 - If C360 cannot support an answer, say what source evidence is missing.

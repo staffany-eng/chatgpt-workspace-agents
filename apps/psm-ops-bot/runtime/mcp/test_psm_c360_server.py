@@ -21,7 +21,13 @@ class PsmC360ServerTest(unittest.TestCase):
         self.env.start()
         self.addCleanup(self.env.stop)
 
-    def test_search_customers_uses_internal_bearer_route(self):
+    def test_headers_include_cloud_run_safe_internal_token(self):
+        headers = self.module._headers()
+
+        self.assertEqual(headers["X-Customer360-Internal-Token"], "test-token")
+        self.assertEqual(headers["Authorization"], "Bearer test-token")
+
+    def test_search_customers_uses_internal_route(self):
         calls = []
 
         def fake_http(method, path, body=None):
