@@ -56,7 +56,7 @@ Alias rule: `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` refer to this 
 - Slack thread permalink is the V1 idempotency key for PS WEE ticket intake and must be passed into the ticket.
 - After creating the intake ticket, post the returned ticket link in the same Slack thread and ask for missing info there.
 - If the same Slack request asks for meeting timing or Calendar availability, create or return the PCO ticket first. Calendar lookup is secondary and best-effort; rate limits or quota failures must not block the ticket-first reply.
-- Sync significant Slack discussion with `append_ps_wee_ticket_update` only when it answers missing fields, changes impact/urgency, adds affected scope, adds evidence, changes expected outcome, or records a decision/handoff. Do not sync every reply or paste raw Slack transcripts.
+- Sync significant Slack discussion with `append_ps_wee_ticket_update` only when it answers missing fields, changes impact/urgency, adds affected scope, adds evidence, changes expected outcome, or records a decision/handoff. Pass Slack poster display name, user ID, and email when available so the internal Jira comment includes `Slack poster:`. Do not sync every reply or paste raw Slack transcripts.
 - When all required PS WEE info is complete, call `mark_ps_wee_ticket_ready`.
 - Status transitions, Jira assignee updates, internal comments, and due-date reminder updates may execute directly when issue key and action are clear.
 - For requests like `assign PCO-135 to @Alya`, call `set_pco_assignee`. Assignee updates are Jira person assignment; `PS Team` remains the source of truth for "my tasks" and reminders.

@@ -111,7 +111,7 @@ impact is payroll blocked for May payroll, affected outlet is central kitchen
 Expected:
 
 - Calls `append_ps_wee_ticket_update` only because the reply adds meaningful ticket context.
-- Adds a structured internal Jira comment with the Slack thread permalink and updated fields.
+- Adds a structured internal Jira comment with the Slack thread permalink, `Slack poster:`, and updated fields.
 - Does not sync every casual acknowledgement or paste raw Slack transcript text.
 
 ## PS WEE Ready For Triage

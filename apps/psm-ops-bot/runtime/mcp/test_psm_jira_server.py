@@ -441,6 +441,14 @@ class PsmJiraServerTest(unittest.TestCase):
             return {"id": "comment-790"}
 
         self.module._request_json = fake_request
+        self.module._slack_users = lambda: [
+            {
+                "id": "U03P4FU4CHG",
+                "name": "damba",
+                "real_name": "Damba CSE",
+                "profile": {"email": "damba@staffany.com", "real_name": "Damba CSE", "display_name": "Damba"},
+            }
+        ]
 
         result = self.module.append_ps_wee_ticket_update(
             issue_key="PCO-789",
@@ -448,12 +456,15 @@ class PsmJiraServerTest(unittest.TestCase):
             update_summary="PS confirmed impact and affected date range.",
             updated_fields={"impact": "Payroll blocked", "affected date range": "May payroll"},
             evidence_links=["https://example.com/screenshot"],
+            slack_poster_name="Damba CSE",
+            slack_user_email="damba@staffany.com",
         )
 
         self.assertEqual(result["confidence"], "verified")
         body = calls[0][2]["body"]
         self.assertIn("PS WEE Slack ticket update:", body)
         self.assertIn("Source Slack thread: https://staffany.slack.com/archives/C08SDJR03N1/p1778205303989579", body)
+        self.assertIn("Slack poster: Damba CSE <@U03P4FU4CHG> damba@staffany.com", body)
         self.assertIn("- impact: Payroll blocked", body)
         self.assertIn("- affected date range: May payroll", body)
         self.assertIn("- https://example.com/screenshot", body)
