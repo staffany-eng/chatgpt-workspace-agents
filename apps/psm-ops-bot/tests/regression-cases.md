@@ -44,6 +44,7 @@
 - Resolves requester from explicit `requested by` / `reported by` first, otherwise the Slack sender.
 - Blocks creation if requester cannot resolve; no bot or `team@staffany.com` requester fallback.
 - Discovers required ROI request fields from JSM metadata and blocks with exact missing field names if customer/org, category, requester, summary/details, source thread, or other required fields are missing.
+- Fills both `Company Name` and `StaffAny Organization` when the ROI request type exposes both fields.
 - Includes source Slack thread, original channel, and requester in the ROI payload or internal metadata.
 
 ## PS WEE Casual NYSS Question
@@ -129,6 +130,16 @@ Thread:
 - Calls `set_pco_assignee`.
 - Resolves `@Alya` through Slack/Jira identity before assignment.
 - Does not change Jira `PS Team`.
+
+## Link Engineering Issue
+
+`@PSM Ops link PCO-123 to KER-2109 as blocked by engineering release`
+
+- Calls `link_pco_to_engineering_issue`.
+- Requires source issue key to be `PCO-*`.
+- Allows only `KER-*` or `SCHE-*` as the engineering target.
+- Defaults to Jira `Blocks` direction so the PCO shows as blocked by the engineering issue.
+- Does not read or expose raw engineering issue descriptions, comments, or attachments.
 
 ## Reminder
 

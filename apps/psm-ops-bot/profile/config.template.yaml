@@ -100,6 +100,7 @@ psm_ops:
       idempotency_key: "Slack thread permalink"
       fields:
         customer: "PSM_OPS_ROI_JIRA_FIELD_CUSTOMER"
+        staffany_orgs: "PSM_OPS_ROI_JIRA_FIELD_STAFFANY_ORGS"
         request_category: "PSM_OPS_ROI_JIRA_FIELD_REQUEST_CATEGORY"
         source_links: "PSM_OPS_ROI_JIRA_FIELD_SOURCE_LINKS"
         requester: "PSM_OPS_ROI_JIRA_FIELD_REQUESTER"
@@ -150,6 +151,7 @@ mcp_servers:
       - "add_internal_pco_comment"
       - "set_pco_assignee"
       - "set_pco_ps_team"
+      - "link_pco_to_engineering_issue"
       - "set_pco_reminder"
       - "list_due_pco_reminders"
   psm_c360:

@@ -11,7 +11,7 @@ EXPECT_MODEL_PROVIDER="${EXPECT_MODEL_PROVIDER:-anthropic}"
 EXPECT_MODEL_DEFAULT="${EXPECT_MODEL_DEFAULT:-claude-sonnet-4-6}"
 EXPECT_SLACK_INTENT_TOOLS="${EXPECT_SLACK_INTENT_TOOLS:-3}"
 EXPECT_STAFFANY_BIGQUERY_TOOLS="${EXPECT_STAFFANY_BIGQUERY_TOOLS:-4}"
-EXPECT_HUBSPOT_TOOLS="${EXPECT_HUBSPOT_TOOLS:-42}"
+EXPECT_HUBSPOT_TOOLS="${EXPECT_HUBSPOT_TOOLS:-46}"
 EXPECT_AIRCALL_TOOLS="${EXPECT_AIRCALL_TOOLS:-2}"
 EXPECT_GOOGLE_CALENDAR_TOOLS="${EXPECT_GOOGLE_CALENDAR_TOOLS:-2}"
 EXPECT_GOOGLE_DRIVE_TOOLS="${EXPECT_GOOGLE_DRIVE_TOOLS:-5}"
@@ -246,6 +246,10 @@ expected_servers = {
         "list_my_target_accounts",
         "list_team_target_accounts",
         "audit_hubspot_owner_roster",
+        "resolve_nurture_scope",
+        "resolve_sales_owners",
+        "list_sales_call_events",
+        "summarize_sales_call_stats",
         "audit_priority_account_coverage",
         "build_sales_metric_actuals_query",
         "build_hubspot_revenue_funnel_metrics",

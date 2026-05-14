@@ -62,6 +62,10 @@ It exposes these tools:
 - `list_my_target_accounts`
 - `list_team_target_accounts`
 - `audit_hubspot_owner_roster`
+- `resolve_nurture_scope`
+- `resolve_sales_owners`
+- `list_sales_call_events`
+- `summarize_sales_call_stats`
 - `audit_priority_account_coverage`
 - `build_sales_metric_actuals_query`
 - `build_hubspot_revenue_funnel_metrics`
@@ -189,6 +193,31 @@ Friday sales review uses the same scoped association discipline, plus HubSpot ca
 - Dirty/unworkable means missing one or more clean-lead fields: industry, headcount, current tools, contract end date, at least one associated contact, and at least one verified decision maker. Role/title-only matches are returned as `needs-check` candidates, not audited clean coverage.
 - Must not expose call bodies, meeting bodies, recordings, phone numbers, raw note/task/communication bodies, attachments, or bulk exports.
 
+`resolve_nurture_scope`:
+
+- Input: Slack user email, optional countries, optional owner email.
+- Output: caller role, canonical email, allowed/requested countries, scoped owner if supplied, and access caveats.
+- Use this before team/rep metric primitives when the caller's scope or country boundary is unclear. It returns no business metrics.
+
+`resolve_sales_owners`:
+
+- Input: Slack user email, countries, optional owner email/name/IDs, and `classified_sales_reps_only`.
+- Output: scoped HubSpot owner IDs/emails/names/countries/timezones for active classified sales reps.
+- Use this before owner/team metric primitives. Do not hand-roll owner roster resolution inside workflow tools.
+
+`list_sales_call_events`:
+
+- Input: Slack user email, scoped countries, owner IDs/emails/name, local start/end window, timezone, status filter, and `association_mode`.
+- Output: normalized safe HubSpot call metadata rows with `event_type=call`, object ID, timestamp UTC, owner, status, duration, association IDs when requested, `raw_body_returned=false`, and truncation metadata.
+- Association mode must be explicit: `owner_level`, `target_account_associated`, or `selected_company_associated`.
+
+`summarize_sales_call_stats`:
+
+- Input: same scope/window filters as `list_sales_call_events`, optional thresholds, and association mode.
+- Output: deterministic counts by owner plus totals: `total_calls`, `completed_calls`, `completed_calls_gt_60s`, and `connected_calls_120s_guardrail`.
+- Direct call-stat prompts such as "calls between 2pm and 5pm" must use this tool. Do not route them through `build_ae_coaching_audit`, `build_friday_sales_review`, priority-account coverage, or capped `long_call_without_appointment_candidates`.
+- Threshold contract: `completed_calls_gt_60s` means duration strictly greater than 60 seconds; exactly 60 seconds is excluded. `connected_calls_120s_guardrail` means completed and duration at least 120 seconds.
+
 `build_sales_metric_actuals_query`:
 
 - Input: Slack user email, metric, date range or snapshot month, optional owner email/name, optional countries, and grain.
@@ -207,7 +236,7 @@ Friday sales review uses the same scoped association discipline, plus HubSpot ca
 `build_ae_coaching_audit`:
 
 - Input: manager/admin identity, week, optional owner/country, optional local WhatsApp window (`whatsapp_window_start_local`, `whatsapp_window_end_local`), optional `timezone_override_by_owner_email`, and optional `include_call_content`.
-- Output: per-AE weekly checks for 3 QOs set, target-account morning-message coverage, 40 connected calls, and calls above 1 minute that have no appointment evidence. Returns 1:1-sheet-ready preview rows with `will_mutate_google_sheets=false`.
+- Output: per-AE weekly checks for 3 QOs set, target-account morning-message coverage, 40 connected calls, and calls above 1 minute that have no appointment evidence. Call counts come from the shared `list_sales_call_events` primitive. Returns 1:1-sheet-ready preview rows with `will_mutate_google_sheets=false`.
 - Timezone contract: interpret user-specified WhatsApp windows in each rep's local timezone from `NURTUREANY_ACCESS_POLICY_PATH` or explicit override. Return `timezone`, `local_window`, `utc_window`, `first_message_local`, `in_window_message_count`, `late_by_minutes`, and `timezone_source`. Missing timezone is `needs-check`; do not silently fall back to SGT.
 - Runtime guard: default scan is the protected 150-account pool with a soft timeout; if the scan is partial, return `needs-check` rows rather than hanging.
 - Call content is guarded. If transcript/body access is requested, return metadata-only `needs-check`; do not read call bodies, recordings, or transcripts.

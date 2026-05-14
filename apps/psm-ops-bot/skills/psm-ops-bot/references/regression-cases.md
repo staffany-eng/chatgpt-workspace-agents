@@ -70,6 +70,7 @@ Expected:
 - Resolves requester from explicit `requested by` / `reported by` first, otherwise the Slack sender.
 - Blocks creation when requester cannot resolve to Slack/Jira identity; never uses a bot, team, or `team@staffany.com` fallback requester.
 - Discovers required ROI JSM fields at runtime and blocks with exact missing field names when required values are missing.
+- Fills both `Company Name` and `StaffAny Organization` when the ROI request type exposes both fields; a ticket with only the text company field is incomplete.
 - Includes source Slack thread, original channel, and requester in ROI request fields or internal metadata.
 
 ## Casual NYSS Question Does Not Create ROI
@@ -205,6 +206,22 @@ Expected:
 - Calls `set_pco_assignee`.
 - Resolves the Slack mention to an active Jira account.
 - Does not update Jira `PS Team`; "my tasks" and reminders remain PS Team scoped.
+
+## Link Engineering Issue
+
+Prompt:
+
+```text
+link PCO-123 to KER-2109 so this PCO is blocked by the engineering release
+```
+
+Expected:
+
+- Calls `link_pco_to_engineering_issue`.
+- Requires source issue key to be `PCO-*`.
+- Allows only `KER-*` or `SCHE-*` as the engineering target.
+- Defaults to Jira `Blocks` direction so the PCO shows as blocked by the engineering issue.
+- Does not read or expose raw engineering issue descriptions, comments, or attachments.
 
 ## Reminder
 

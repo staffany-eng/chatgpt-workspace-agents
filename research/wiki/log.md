@@ -94,6 +94,10 @@ Ingested the Launch Superpower Bot handoff and extracted help-article-generator 
 
 Corrected the app boundary: Launchbot is the main Hermes app, and the Launch Superpower handoff is now modeled as a Launchbot skill/workflow rather than a separate app packet. Raw handoff evidence remains under `research/raw/launch-superpower-bot/`.
 
+## [2026-05-14] ingest | PSM Ops PCO Release Watch
+
+Ingested the `KER-2109` PCO release-watch workflow as private PSM Ops operating evidence. Preserved safe links and implementation summaries only, synthesized the reusable PCO-to-KER/SCHE issue-link pattern, and promoted the rule that linked SCHE tickets with released `fixVersion` are the durable engineering release signal for PCO follow-up.
+
 ## [2026-05-14] ingest | StaffAny Intercom Help Article Shape
 
 Ingested a curated Intercom help-article shape profile for LaunchBot planning. Pulled 37 published reference articles across 10 article families, kept full Intercom JSON/HTML in ignored `.cache/`, and committed only normalized article IDs, titles, timestamps, headings, tags, split rules, and structural fingerprints.
