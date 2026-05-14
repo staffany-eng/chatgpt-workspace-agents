@@ -152,6 +152,16 @@ class PsmJiraServerTest(unittest.TestCase):
             fields.append({"fieldId": f"customfield_extra_{len(fields)}", "name": field_name, "required": True})
         return fields
 
+    def test_roi_urgent_field_defaults_to_no_when_required(self):
+        field = {
+            "fieldId": "customfield_10833",
+            "name": "Urgent?",
+            "required": True,
+            "validValues": [{"value": "11975", "label": "Yes"}, {"value": "11976", "label": "No"}],
+        }
+
+        self.assertEqual(self.module._roi_default_priority_for_field(field), "No")
+
     def test_list_my_tasks_is_ps_team_scoped_and_safe(self):
         calls = []
 
