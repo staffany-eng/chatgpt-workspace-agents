@@ -67,6 +67,7 @@ It exposes these tools:
 - `build_sales_metric_actuals_query`
 - `build_hubspot_revenue_funnel_metrics`
 - `build_ae_coaching_audit`
+- `audit_owner_whatsapp_kns_window`
 - `prepare_sales_navigator_decision_maker_queue`
 - `build_friday_sales_review`
 - `build_manager_chase_plan`
@@ -213,6 +214,14 @@ Friday sales review uses the same scoped association discipline, plus HubSpot ca
 - Timezone contract: interpret user-specified WhatsApp windows in each rep's local timezone from `NURTUREANY_ACCESS_POLICY_PATH` or explicit override. Return `timezone`, `local_window`, `utc_window`, `first_message_local`, `in_window_message_count`, `late_by_minutes`, and `timezone_source`. Missing timezone is `needs-check`; do not silently fall back to SGT.
 - Runtime guard: default scan is the protected 150-account pool with a soft timeout; if the scan is partial, return `needs-check` rows rather than hanging.
 - Call content is guarded. If transcript/body access is requested, return metadata-only `needs-check`; do not read call bodies, recordings, or transcripts.
+
+`audit_owner_whatsapp_kns_window`:
+
+- Input: manager/admin identity, one owner email, scoped countries, local WhatsApp window, optional date, optional `timezone_override_by_owner_email`, and limit.
+- Output: outbound WhatsApp count for the owner's scoped target accounts in the exact local window, plus per-message KNS flags (`has_knowledge`, `has_network`, `has_support`, `missing_kns_components`, `kns_status`) and safe HubSpot metadata.
+- Timezone contract: use the rep timezone from `NURTUREANY_ACCESS_POLICY_PATH`, or the explicit override for a one-off run. Slack and HubSpot owner records are identity sources only. If timezone is missing or invalid, do not run the UTC timestamp query and return `needs-check`.
+- Body safety: `hs_communication_body` may be read internally for this manager/admin audit only; raw message bodies must never be returned. Missing synced bodies return `body_unavailable` for manual review in HubSpot Conversations or Eazybe.
+- Use this when the user asks for both a WhatsApp time-window count and KNS framework flagging. Use `build_ae_coaching_audit` for coaching rhythm metrics and `count_owner_whatsapp_sent_today` for date-only counts.
 
 `prepare_sales_navigator_decision_maker_queue`:
 

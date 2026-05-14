@@ -232,6 +232,66 @@ COMMUNICATION_PROPERTIES = [
     "hs_lastmodifieddate",
 ]
 COMMUNICATION_EVENT_PROPERTIES = [*COMMUNICATION_PROPERTIES, "hs_communication_body"]
+WHATSAPP_KNS_AUDIT_DEFAULT_LIMIT = 500
+KNS_KNOWLEDGE_TERMS = (
+    "insight",
+    "benchmark",
+    "case study",
+    "article",
+    "guide",
+    "data",
+    "trend",
+    "playbook",
+    "resource",
+    "learning",
+    "sharing",
+    "industry",
+    "workforce",
+    "manpower",
+    "scheduling",
+    "payroll",
+    "attendance",
+    "roster",
+)
+KNS_NETWORK_TERMS = (
+    "event",
+    "hhh",
+    "hr happy hour",
+    "leaders lounge",
+    "community",
+    "network",
+    "intro",
+    "connect",
+    "peer",
+    "founder",
+    "operator",
+    "referral",
+    "invite",
+    "session",
+    "fireside",
+    "webinar",
+    "lunch",
+    "coffee",
+)
+KNS_SUPPORT_TERMS = (
+    "help",
+    "support",
+    "can i",
+    "would it be useful",
+    "happy to",
+    "chat",
+    "call",
+    "demo",
+    "share",
+    "show",
+    "connect you",
+    "next step",
+    "meet",
+    "discuss",
+    "follow up",
+    "recommend",
+    "workshop",
+)
 
 NOTE_PROPERTIES = [
     "hs_timestamp",
@@ -3667,6 +3727,51 @@ def _is_whatsapp_communication(activity: dict[str, Any]) -> bool:
     props = activity.get("properties", {})
     channel = str(props.get("hs_communication_channel_type") or "").strip().upper().replace("-", "_").replace(" ", "_")
     return channel in {"WHATS_APP", "WHATSAPP"}
+
+
+def _clean_activity_body_for_internal_checks(value: Any) -> str:
+    text = html.unescape(str(value or ""))
+    return re.sub(r"<[^>]+>", " ", text)
+
+
+def _kns_component_present(text: str, terms: tuple[str, ...]) -> bool:
+    return any(_text_contains_term(text, term) for term in terms)
+
+
+def _whatsapp_kns_audit_from_body(body: Any) -> dict[str, Any]:
+    text = _clean_activity_body_for_internal_checks(body).strip()
+    if not text:
+        return {
+            "body_available": False,
+            "has_knowledge": False,
+            "has_network": False,
+            "has_support": False,
+            "missing_kns_components": ["knowledge", "network", "support"],
+            "kns_status": "body_unavailable",
+            "confidence": "needs-check",
+            "body_policy": "raw_body_read_internal_only_omitted_from_response",
+        }
+
+    has_knowledge = _kns_component_present(text, KNS_KNOWLEDGE_TERMS)
+    has_network = _kns_component_present(text, KNS_NETWORK_TERMS)
+    has_support = _kns_component_present(text, KNS_SUPPORT_TERMS)
+    missing = []
+    if not has_knowledge:
+        missing.append("knowledge")
+    if not has_network:
+        missing.append("network")
+    if not has_support:
+        missing.append("support")
+    return {
+        "body_available": True,
+        "has_knowledge": has_knowledge,
+        "has_network": has_network,
+        "has_support": has_support,
+        "missing_kns_components": missing,
+        "kns_status": "pass" if not missing else "missing_component",
+        "confidence": "needs-check",
+        "body_policy": "raw_body_read_internal_only_omitted_from_response",
+    }
 
 
 def _event_followup_terms(event_context: dict[str, Any] | None) -> list[str]:
@@ -12786,6 +12891,218 @@ def list_sales_followup_tasks(
         return _blocked(str(error), {"caller_email": slack_user_email, "owner_email": owner_email})
     except HubSpotError as error:
         return _blocked(str(error), {"caller_email": slack_user_email})
+
+
+@mcp.tool()
+def audit_owner_whatsapp_kns_window(
+    slack_user_email: str,
+    owner_email: str = "",
+    for_date: str = "",
+    countries: list[str] | None = None,
+    whatsapp_window_start_local: str = AE_COACHING_DEFAULT_WINDOW_START,
+    whatsapp_window_end_local: str = AE_COACHING_DEFAULT_WINDOW_END,
+    timezone_override_by_owner_email: dict[str, str] | None = None,
+    limit: int = WHATSAPP_KNS_AUDIT_DEFAULT_LIMIT,
+) -> dict[str, Any]:
+    """Audit one owner's scoped target-account WhatsApp messages for KNS flags within a local window."""
+
+    try:
+        scope = _caller_scope(slack_user_email)
+        if scope["kind"] == "blocked":
+            return _blocked("Caller identity is not mapped to an allowed scope.", {"caller_email": slack_user_email})
+        if scope["kind"] not in {"admin", "manager"}:
+            return _blocked(
+                "KNS WhatsApp body checks require manager/admin scope.",
+                {"caller_email": slack_user_email, "owner_email": owner_email},
+            )
+
+        selected_countries = _safe_countries(countries, scope["countries"])
+        if not selected_countries:
+            return _blocked("Requested countries are outside caller scope.", _scope_response(scope, []))
+
+        target_owner_id, target_owner_email = _target_owner_id_for_scope(scope, owner_email or None)
+        if not target_owner_id:
+            return _blocked(
+                "Provide owner_email for manager/admin WhatsApp KNS window audits.",
+                _scope_response(scope, selected_countries),
+            )
+
+        reference_date = (_date_value(for_date) or datetime.now(SINGAPORE_TIMEZONE).date()).isoformat()
+        window = _coaching_window_contract(
+            target_owner_email or owner_email,
+            timezone_override_by_owner_email,
+            whatsapp_window_start_local,
+            whatsapp_window_end_local,
+            reference_date,
+        )
+        if window["timezone_source"] in {"missing", "invalid"} or not window["utc_window"]:
+            return {
+                "answer": {
+                    "owner_email": target_owner_email or owner_email,
+                    "owner_id": target_owner_id,
+                    "date": reference_date,
+                    "target_account_whatsapp_sent_count": "needs-check",
+                    "messages_missing_kns_count": "needs-check",
+                    "messages_missing_kns": [],
+                    "all_target_account_messages": [],
+                    "count_status": "blocked_timezone_missing_or_invalid",
+                    "kns_status": "not_checked",
+                    "will_mutate_hubspot": False,
+                },
+                "source": "HubSpot scoped target-account WhatsApp communications; query not executed because local window could not be converted to UTC",
+                "scope": {
+                    **_scope_response(scope, selected_countries, target_owner_id, target_owner_email),
+                    "for_date": reference_date,
+                    "whatsapp_local_window": window["local_window"],
+                    "whatsapp_utc_window": window["utc_window"],
+                    "timezone_source": window["timezone_source"],
+                },
+                "total": 0,
+                "requested_limit": limit,
+                "returned_count": 0,
+                "has_more": False,
+                "truncated": False,
+                "confidence": "needs-check",
+                "caveat": (
+                    "The owner's timezone is missing or invalid in the runtime access policy and no explicit override was provided. "
+                    "Set the rep timezone in the NurtureAny access policy, or pass timezone_override_by_owner_email for this run. "
+                    "Slack and HubSpot owner records are identity sources, not the timezone source of truth."
+                ),
+            }
+
+        requested_limit = _bounded_int(limit, default=WHATSAPP_KNS_AUDIT_DEFAULT_LIMIT, maximum=1000)
+        communication_filters = [
+            {"propertyName": "hubspot_owner_id", "operator": "EQ", "value": target_owner_id},
+            {"propertyName": "hs_timestamp", "operator": "GTE", "value": window["utc_window"]["start"]},
+            {"propertyName": "hs_timestamp", "operator": "LTE", "value": window["utc_window"]["end"]},
+        ]
+        communication_data = _object_search(
+            "communications",
+            communication_filters,
+            COMMUNICATION_EVENT_PROPERTIES,
+            limit=requested_limit,
+            maximum=1000,
+            sorts=[{"propertyName": "hs_timestamp", "direction": "ASCENDING"}],
+        )
+        owner_whatsapp_messages = [
+            communication for communication in communication_data.get("results", []) if _is_whatsapp_communication(communication)
+        ]
+        owner_whatsapp_ids = [str(communication.get("id") or "") for communication in owner_whatsapp_messages if communication.get("id")]
+
+        company_data = _company_search(
+            _target_filters(selected_countries, target_owner_id),
+            requested_limit,
+            maximum=HUBSPOT_SEARCH_TOTAL_LIMIT,
+            sorts=[{"propertyName": "name", "direction": "ASCENDING"}],
+        )
+        companies = company_data.get("results", [])
+        company_by_id = {str(company.get("id") or ""): company for company in companies if company.get("id")}
+        company_ids = list(company_by_id.keys())
+        selected_company_ids = set(company_ids)
+        contact_to_companies = _reverse_company_association_index(_batch_association_ids("companies", "contacts", company_ids))
+        deal_to_companies = _reverse_company_association_index(_batch_association_ids("companies", "deals", company_ids))
+        comm_company_index = _batch_association_ids("communications", "companies", owner_whatsapp_ids)
+        comm_contact_index = _batch_association_ids("communications", "contacts", owner_whatsapp_ids)
+        comm_deal_index = _batch_association_ids("communications", "deals", owner_whatsapp_ids)
+
+        target_linked_messages: list[dict[str, Any]] = []
+        target_company_ids_with_whatsapp: set[str] = set()
+        for communication in owner_whatsapp_messages:
+            communication_id = str(communication.get("id") or "")
+            if not communication_id:
+                continue
+            associated_target_company_ids: set[str] = set()
+            source_by_key: dict[tuple[str, str], dict[str, str]] = {}
+
+            def add_source(source_type: str, source_id: str, company_ids_for_source: list[str]) -> None:
+                matched_company_ids = [source_company_id for source_company_id in company_ids_for_source if source_company_id in selected_company_ids]
+                if not matched_company_ids:
+                    return
+                source_key = (source_type, str(source_id))
+                source_by_key.setdefault(source_key, {"object_type": source_type, "object_id": str(source_id)})
+                associated_target_company_ids.update(matched_company_ids)
+
+            for company_id in comm_company_index.get(communication_id, []):
+                if company_id in selected_company_ids:
+                    add_source("company", str(company_id), [str(company_id)])
+            for contact_id in comm_contact_index.get(communication_id, []):
+                add_source("contact", str(contact_id), contact_to_companies.get(str(contact_id), []))
+            for deal_id in comm_deal_index.get(communication_id, []):
+                add_source("deal", str(deal_id), deal_to_companies.get(str(deal_id), []))
+            if not associated_target_company_ids:
+                continue
+
+            props = communication.get("properties", {})
+            timestamp = _activity_timestamp(communication)
+            timestamp_dt = _datetime_value(timestamp)
+            kns = _whatsapp_kns_audit_from_body(props.get("hs_communication_body"))
+            target_company_ids = sorted(associated_target_company_ids)
+            target_company_ids_with_whatsapp.update(target_company_ids)
+            safe_message = {
+                **_safe_followup_evidence("communication", communication, {communication_id: list(source_by_key.values())}),
+                "timestamp_local": timestamp_dt.astimezone(window["zone"]).isoformat() if timestamp_dt and window["zone"] else "",
+                "target_company_ids": target_company_ids,
+                "target_accounts": [
+                    {
+                        "company_id": company_id,
+                        "company_name": company_by_id.get(company_id, {}).get("properties", {}).get("name") or "",
+                    }
+                    for company_id in target_company_ids
+                ],
+                **kns,
+            }
+            target_linked_messages.append(safe_message)
+
+        target_linked_messages = sorted(
+            target_linked_messages,
+            key=lambda item: _datetime_value(str(item.get("timestamp") or "")) or datetime.min.replace(tzinfo=timezone.utc),
+        )
+        messages_missing_kns = [message for message in target_linked_messages if message.get("kns_status") != "pass"]
+        body_unavailable_count = sum(1 for message in target_linked_messages if not message.get("body_available"))
+        truncated = bool(company_data.get("truncated") or communication_data.get("truncated"))
+        return {
+            "answer": {
+                "owner_email": target_owner_email or owner_email,
+                "owner_id": target_owner_id,
+                "date": reference_date,
+                "timezone": window["timezone"],
+                "timezone_source": window["timezone_source"],
+                "local_window": window["local_window"],
+                "utc_window": window["utc_window"],
+                "owner_whatsapp_sent_count": len(owner_whatsapp_messages),
+                "target_account_whatsapp_sent_count": len(target_linked_messages),
+                "target_account_count_scanned": len(companies),
+                "target_account_count_with_whatsapp": len(target_company_ids_with_whatsapp),
+                "messages_missing_kns_count": len(messages_missing_kns),
+                "body_unavailable_count": body_unavailable_count,
+                "messages_missing_kns": messages_missing_kns,
+                "all_target_account_messages": target_linked_messages,
+                "raw_bodies_returned": False,
+                "will_mutate_hubspot": False,
+            },
+            "source": "HubSpot owner-level WhatsApp communications plus scoped target-account association mapping; raw WhatsApp bodies read only internally for KNS flags",
+            "scope": {
+                **_scope_response(scope, selected_countries, target_owner_id, target_owner_email),
+                "for_date": reference_date,
+                "whatsapp_local_window": window["local_window"],
+                "whatsapp_utc_window": window["utc_window"],
+                "timezone_source": window["timezone_source"],
+            },
+            "total": communication_data.get("total"),
+            "requested_limit": requested_limit,
+            "returned_count": len(owner_whatsapp_messages),
+            "has_more": truncated,
+            "truncated": truncated,
+            "confidence": "needs-check",
+            "caveat": (
+                "KNS classification is heuristic and returns flags only; raw WhatsApp bodies are omitted from output. "
+                "Rows with missing body text remain body_unavailable and need manual review in HubSpot Conversations or Eazybe."
+            ),
+        }
+    except ScopeError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email, "owner_email": owner_email})
+    except HubSpotError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email, "owner_email": owner_email})
 
 
 @mcp.tool()
