@@ -14,9 +14,12 @@
 `@PSM Ops create task for Fei Siong to confirm payroll readiness by Friday`
 
 - Resolves customer through C360.
+- Passes the current Slack sender ID/mention into Jira tools when email is not already present.
+- Does not ask the user for Slack/Jira email before drafting or creating.
 - Calls `draft_pco_task`.
 - Shows a preview and waits for `create`.
 - Calls `create_approved_pco_task` only after approval.
+- Blocks creation if the resolved due date is before today's date.
 
 ## PS WEE Ticket First
 

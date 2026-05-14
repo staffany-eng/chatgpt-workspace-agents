@@ -49,6 +49,7 @@ Alias rule: `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` refer to this 
 - Caller task ownership is Jira `PS Team`. For "my tasks" and scoped reminders, the MCP must fetch Slack users, canonicalize the caller's Slack profile email/name, auto-match that identity to the configured `PS Team` option, and query Jira by `PS Team`.
 - Do not trust model-guessed email spelling. A Slack/Jira account mismatch should not block task reads when `PS Team` can be matched.
 - For abbreviated owner names such as `Jo`, `Jos`, or `Josica`, call `resolve_slack_user_identity` when the current thread includes a nearby Slack mention, name, or email candidate. Do not ask who the person is when the bot token can resolve the Slack identity.
+- When a tool parameter is named `slack_user_email`, pass the current Slack sender ID/mention or profile email. The MCP accepts all three. Do not ask the user for their email just because the parameter name says email.
 - Task creation must be preview first. Do not call `create_approved_pco_task` until the same thread includes explicit create approval.
 - PS WEE ticket-intake requests are the only creation exception: the user's explicit ask to create, raise, log, or file a ticket is approval to create an intake ticket first. Call `find_ticket_by_slack_thread`, then `create_ps_wee_intake_ticket` if no same-thread ticket exists.
 - Operational task-list and backlog requests are also PS WEE ticket-intake requests. Phrases like `add to <person/team> task list`, `add to Jo/Jos/Josica`, `put on backlog`, and `add to follow-up list` must call `find_ticket_by_slack_thread` and create the needs-info intake before asking for missing details.
@@ -65,6 +66,7 @@ Alias rule: `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` refer to this 
 - Use configured Jira field IDs and request type IDs only. If `validate_jira_configuration` blocks, block the user request.
 - In thin POC mode, Handoff Package is disabled until Jira adds the missing request type.
 - In thin POC mode, task creation writes only current PCO request fields and stores missing metadata as an internal Jira comment.
+- Do not create a PCO issue with a past due date. Ask for a corrected future due date before creation.
 - Do not expose raw Jira descriptions, raw comments, attachments, or bulk exports by default.
 
 ## Customer 360 Rules

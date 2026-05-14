@@ -10,9 +10,10 @@ import re
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from mcp.server.fastmcp import FastMCP
 
@@ -112,8 +113,68 @@ class JiraError(RuntimeError):
     pass
 
 
+@mcp.resource(
+    "jira://request-types",
+    name="PCO request types",
+    description="Configured PCO request types and PS Team identity rules for PSM Ops Bot.",
+    mime_type="application/json",
+)
+def jira_request_types_resource() -> str:
+    """Expose safe PCO request type metadata to prevent model-side guessing."""
+
+    payload = {
+        "project_key": _project_key(),
+        "mode": _jira_mode(),
+        "service_desk_id": _service_desk_id() if _env("PSM_OPS_JIRA_SERVICE_DESK_ID") or _is_thin_poc() else "",
+        "request_types": {
+            key: _request_type_id(key) if key != "handoff_package" or not _is_thin_poc() else "disabled_until_request_type_exists"
+            for key in REQUEST_TYPE_ENVS
+        },
+        "fields": {
+            "ps_team": _ps_team_field_id(),
+            "staffany_orgs": _optional_field_id("staffany_orgs"),
+            "due_date": "duedate",
+        },
+        "caller_identity": {
+            "tool_parameter": "slack_user_email",
+            "accepted_values": ["Slack sender user id", "Slack mention", "Slack profile email"],
+            "rule": "Pass the current Slack sender id or mention when email is not already provided; do not ask the user for email.",
+        },
+    }
+    return json.dumps(payload, sort_keys=True)
+
+
 def _env(name: str, default: str = "") -> str:
     return os.environ.get(name, default).strip()
+
+
+def _today_date() -> date:
+    override = _env("PSM_OPS_TODAY")
+    if override:
+        try:
+            return datetime.strptime(override, "%Y-%m-%d").date()
+        except ValueError as error:
+            raise JiraError("PSM_OPS_TODAY must be YYYY-MM-DD when configured.") from error
+    timezone_name = _env("PSM_OPS_TIMEZONE", "Asia/Singapore") or "Asia/Singapore"
+    try:
+        local_timezone = ZoneInfo(timezone_name)
+    except ZoneInfoNotFoundError as error:
+        raise JiraError("PSM_OPS_TIMEZONE must be a valid IANA timezone when configured.") from error
+    return datetime.now(local_timezone).date()
+
+
+def _validate_due_date_for_write(due_date: str) -> str:
+    value = (due_date or "").strip()
+    if not value:
+        return ""
+    try:
+        parsed = datetime.strptime(value, "%Y-%m-%d").date()
+    except ValueError as error:
+        raise JiraError("Due date must be YYYY-MM-DD before creating a PCO task.") from error
+    today = _today_date()
+    if parsed < today:
+        raise JiraError(f"Due date {value} is before today ({today.isoformat()}). Confirm a future due date before creating the PCO task.")
+    return value
 
 
 def _jira_mode() -> str:
@@ -977,6 +1038,7 @@ def _create_pco_task_from_draft(draft: dict[str, Any], scope: dict[str, Any]) ->
     """Create a PCO JSM request from an already-authorized draft."""
 
     try:
+        _validate_due_date_for_write(str(draft.get("due_date") or ""))
         request_type_id = str(draft.get("request_type_id") or _request_type_id(str(draft.get("request_type_key") or "customer_next_action")))
         request_values = _request_field_values(draft)
         payload = {
@@ -1280,7 +1342,7 @@ def set_pco_ps_team(
 
 
 def _set_issue_due_date(issue_key: str, due_date: str) -> None:
-    value = (due_date or "").strip()
+    value = _validate_due_date_for_write(due_date)
     if not value:
         return
     _request_json(

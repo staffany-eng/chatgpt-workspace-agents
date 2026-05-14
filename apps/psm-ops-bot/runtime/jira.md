@@ -38,9 +38,13 @@ Required env vars in thin POC:
 
 The bot resolves the caller by fetching Slack users, canonicalizing the caller's Slack profile email/name, and matching that identity to the Jira `PS Team` option. It must not trust model-guessed email spelling. For example, `kai.yi@staffany.com` can be canonicalized to the Slack profile email `kaiyi@staffany.com`, then matched to the `PS Team` option `Kai Yi`.
 
+MCP tool parameters named `slack_user_email` accept a Slack sender user ID, Slack mention, or Slack profile email. In Slack gateway requests, pass the current sender ID/mention when email is not already present. Do not ask the user to type their email before creating, listing, or updating PCO work.
+
 Task ownership and "my tasks" filters use Jira `PS Team`, not Jira assignee. Jira user search is optional in thin POC and is used only for best-effort assignment/API attribution when available. It does not require `SLACK_ALLOWED_USERS` or `PSM_OPS_ACCESS_POLICY_PATH` in thin POC.
 
 Task creation sends only fields that exist on today's PCO request forms, including `PS Team` when matched or explicitly provided. Due date is then written to Jira's standard `duedate` field after the request is created. Customer, priority, action type, risk reason, source links, and owner metadata are written as an internal Jira comment after approved creation.
+
+Task creation blocks past due dates before writing to Jira. Today is evaluated in `Asia/Singapore` by default, or `PSM_OPS_TIMEZONE` if configured. If a draft date is before today's date, ask for a corrected future due date.
 
 Automatic reminders use `duedate <= tomorrow` and `statusCategory != Done`. This means each task appears one day before it is due, on the due date, and every day after until it is marked Done. `set_pco_reminder` updates the issue due date because due date is the reminder source of truth in thin POC.
 
