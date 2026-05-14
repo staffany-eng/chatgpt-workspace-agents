@@ -89,6 +89,7 @@ class PsmJiraServerTest(unittest.TestCase):
                 "JIRA_API_TOKEN": "jira-token",
                 "SLACK_BOT_TOKEN": "xoxb-fake",
                 "PSM_OPS_JIRA_MODE": "full",
+                "PSM_OPS_TODAY": "2026-05-13",
                 "PSM_OPS_ACCESS_POLICY_PATH": str(policy_path),
                 "PSM_OPS_JIRA_SERVICE_DESK_ID": "10",
                 "PSM_OPS_JIRA_REQUEST_TYPE_CUSTOMER_NEXT_ACTION": "101",
