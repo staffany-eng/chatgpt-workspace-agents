@@ -1005,6 +1005,22 @@ Expected behavior:
 - Returns summary metrics plus deal-level audit rows.
 - Does not edit HubSpot or call BigQuery.
 
+### Direct Call Stats Primitive
+
+Prompt:
+
+```text
+@NurtureAny What is Singapore and Malaysia sales rep connected call of more than 1min between 2pm to 5pm today
+```
+
+Expected behavior:
+
+- Resolves caller scope and scoped sales owners, then calls `summarize_sales_call_stats`.
+- Does not call `build_ae_coaching_audit`, Friday review, priority-account coverage, or use `long_call_without_appointment_candidates`.
+- Shows whether counts are `owner_level`, `target_account_associated`, or `selected_company_associated`.
+- Treats `>1 min` as `duration_seconds > 60`; exactly 60 seconds is excluded.
+- Uses completed plus `duration_seconds >= 120` for default connected-call guardrail unless the user explicitly asks for a different threshold.
+
 ### AE Coaching Audit
 
 Prompt:
