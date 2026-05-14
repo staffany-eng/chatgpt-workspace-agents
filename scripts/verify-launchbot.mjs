@@ -56,6 +56,24 @@ if (!manifest) {
   if (manifest.launch_workflow?.test_feature?.latest_clean_version !== "v005") {
     fail("Manifest launch_workflow must preserve v005 clean test version");
   }
+  if (manifest.slack?.socket_mode !== true) {
+    fail("Manifest Slack socket_mode must be true");
+  }
+  for (const eventName of ["app_mention", "message.channels"]) {
+    if (!manifest.slack?.required_bot_events?.includes(eventName)) {
+      fail(`Manifest Slack required bot events missing ${eventName}`);
+    }
+  }
+  for (const scopeName of ["app_mentions:read", "channels:history", "channels:read", "chat:write"]) {
+    if (!manifest.slack?.required_oauth_scopes?.includes(scopeName)) {
+      fail(`Manifest Slack required OAuth scopes missing ${scopeName}`);
+    }
+  }
+  if (!manifest.slack?.event_subscription_drift_guard?.includes("message.channels")) {
+    fail("Manifest Slack event subscription drift guard must mention message.channels");
+  }
+  const step0 = (manifest.launch_workflow?.workflow_steps || []).find((step) => step.step === 0);
+  if (step0?.status !== "implemented_in_packet") fail("Manifest launch_workflow Step 0 must be implemented_in_packet");
   const step4 = (manifest.launch_workflow?.workflow_steps || []).find((step) => step.step === 4);
   if (step4?.status !== "planned_stub") fail("Manifest launch_workflow Step 4 must remain planned_stub");
   const contract = manifest.launch_workflow?.help_article_contract || {};
@@ -82,6 +100,31 @@ if (!manifest) {
   }
   if (contract.code_source_checkout?.repo !== "pantheon") {
     fail("Manifest launch_workflow.help_article_contract.code_source_checkout must describe Pantheon");
+  }
+  for (const key of [
+    "pantheon_evidence_required",
+    "pantheon_evidence_gate",
+    "pantheon_missing_or_dirty_blocks",
+    "pantheon_ambiguous_or_conflicting_blocks",
+    "article_planner_required_before_draft",
+    "adaptive_intake_gate_before_plan",
+    "article_inventory_metadata_only",
+    "article_inventory_used_before_live_search",
+    "article_shape_stale_check_before_staging",
+    "cached_intercom_planning_profile",
+    "pre_publish_format_gate",
+    "live_intercom_wins_on_conflict",
+  ]) {
+    if (contract[key] !== true) fail(`Manifest launch_workflow.help_article_contract.${key} must be true`);
+  }
+  if (contract.intercom_format_profile !== "skills/help-article-generator/references/intercom-format-profile.json") {
+    fail("Manifest must point to the Intercom format profile");
+  }
+  if (contract.article_planning_profile !== "skills/help-article-generator/references/article-planning-profile.json") {
+    fail("Manifest must point to the Intercom article planning profile");
+  }
+  if (contract.intercom_article_inventory !== "skills/help-article-generator/references/intercom-article-inventory.json") {
+    fail("Manifest must point to the Intercom article inventory");
   }
   for (const evidencePath of Object.values(manifest.launch_workflow?.evidence || {})) {
     const absolute = join(repoRoot, evidencePath);
@@ -115,12 +158,17 @@ for (const relPath of [
   "runtime/check-health.sh",
   "runtime/audit-live-profile.sh",
   "runtime/update-pantheon-repo.sh",
+  "runtime/intercom-format-gate.mjs",
+  "runtime/intercom-format-gate.test.mjs",
   "runtime/mcp/profile_env.py",
   "runtime/mcp/launchbot_ker_server.py",
   "runtime/mcp/test_helpers.py",
   "runtime/mcp/test_launchbot_ker_server.py",
   "skills/help-article-generator/SKILL.md",
   "skills/help-article-generator/references/help-article-skeleton.md",
+  "skills/help-article-generator/references/intercom-format-profile.json",
+  "skills/help-article-generator/references/article-planning-profile.json",
+  "skills/help-article-generator/references/intercom-article-inventory.json",
   "runtime/launch-workflow.md",
   "runtime/launchbot_e2e.py",
   "tests/launch-workflow-regression-cases.md",
@@ -188,8 +236,11 @@ for (const requiredText of [
   "Confidence: <verified | needs-check | blocked>",
   "find_ker_ticket_from_slack_thread",
   "KER-2109",
-  "code-grounded help article drafts",
-  "Intercom draft articles",
+  "cached Intercom article planning",
+  "Pantheon-grounded help article drafts",
+  "Intercom format checks",
+  "message.channels",
+  "Intercom draft/staging articles",
   "Launchbot packet",
   "Launch Superpower handoff is a Launchbot skill/workflow",
   "Never answer `Source: Launch Superpower Bot packet`",
@@ -263,6 +314,20 @@ for (const requiredText of [
   "Do not use raw HTML",
   "Do not place any visible divider lines",
   "Do not include the internal appendix",
+  "cached Intercom article-shape profile",
+  "needs-intake",
+  "missing high-impact questions",
+  "launchbot-with-secrets.mjs",
+  "help-article:shape-refresh",
+  "intercom:inventory",
+  "help-article:plan",
+  "help-article:format-check",
+  "intercom:affected",
+  "intercom:stage-update",
+  "help-article:pantheon-scan",
+  "help-article:evidence-check",
+  "Pantheon evidence",
+  "Public publishing stays manual in Intercom",
   "A brand is the business profile",
   "A perk sits under a brand",
   "For ClubAny / Club Blue content, set Product to `StaffAny`",
@@ -297,10 +362,30 @@ for (const requiredText of [
   "source code under `vk-super-productivity/launch-superpower-bot` is not present",
   "runtime/launchbot_e2e.py",
   "Intercom draft articles",
+  "Pantheon Evidence, Intercom Format Profile, And Pre-Publish Gates",
+  "Midas/Karpathy-style ingest",
+  "help-article:shape-refresh",
+  "help-article:shape-ingest",
+  "intercom:inventory",
+  "help-article:plan",
+  "intercom:format:pull",
+  "help-article:format-check",
+  "intercom:affected",
+  "intercom:stage-update",
+  "help-article:pantheon-scan",
+  "help-article:evidence-check",
+  "LAUNCH_INTERCOM_SHAPE_FAMILIES",
+  "intercom-article-inventory.json",
+  "cached inventory for affected article lookup",
+  "live Intercom wins",
+  "pre-stage target-article stale check",
+  "Public publishing stays manual in Intercom",
   "bot-owned posting credentials",
   "@Launch Bot",
   "U0ASVD79UT1",
   "B0ATPPEGBCH",
+  "message.channels",
+  "channels:history",
   "#launch-bot-testing",
   "light cowboy voice",
   "Do not commit token values",
@@ -339,8 +424,109 @@ for (const requiredText of [
   "intercom_direct_url",
   "LAUNCH_STEP3_INTERCOM_APP_ID",
   "omit_top_heading=True",
+  "run_intercom_format_gate",
+  "run_help_article_plan",
+  "run_pantheon_evidence_gate",
+  "help-article:plan",
+  "article_plan_status",
+  "pantheon_evidence_gate",
+  "help-article:format-check",
+  "help-article:evidence-check",
+  "NODE_BINARY",
+  "format_gate_status",
 ]) {
   if (!e2eRunnerText.includes(requiredText)) fail(`Launch workflow runner missing required text: ${requiredText}`);
+}
+
+const intercomGateText = textOf("runtime/intercom-format-gate.mjs");
+for (const requiredText of [
+  "intercom:format:pull",
+  "intercom:format:profile",
+  "intercom:inventory",
+  "help-article:shape-refresh",
+  "help-article:shape-ingest",
+  "help-article:plan",
+  "help-article:format-check",
+  "help-article:pantheon-scan",
+  "help-article:evidence-check",
+  "intercom:affected",
+  "intercom:stage-update",
+  "LAUNCH_PANTHEON_REPO",
+  "DEFAULT_ARTICLE_SHAPE_PROFILE_PATH",
+  "DEFAULT_ARTICLE_INVENTORY_PATH",
+  "buildArticleInventory",
+  "buildArticlePlanningProfile",
+  "planHelpArticles",
+  "evaluateHelpArticleIntake",
+  "needs-intake",
+  "--surface",
+  "--audience",
+  "--outcome",
+  "checkArticleShapeFreshness",
+  "LAUNCH_INTERCOM_SHAPE_FAMILIES",
+  "LAUNCH_INTERCOM_INVENTORY_STATE",
+  "affected_articles_from_cached_inventory",
+  "pre_stage_stale_check",
+  "needs-refresh",
+  "DEFAULT_PANTHEON_REPO",
+  "scanPantheonEvidence",
+  "checkPantheonEvidence",
+  "dirty_pantheon_repo",
+  "ambiguous_pantheon_app",
+  "unsupported_product_behavior_claim",
+  "internal_pantheon_app_name_leakage",
+  "LAUNCH_INTERCOM_HELP_CENTER_ID",
+  "LAUNCH_INTERCOM_FORMAT_SAMPLE_IDS",
+  "LAUNCH_STEP3_INTERCOM_ACCESS_TOKEN",
+  "INTERCOM_ACCESS_TOKEN",
+  "read_stage_only",
+  "draft_only",
+  "missing_audience_metadata",
+  "repeated_title_in_body",
+  "raw_html_or_markdown_leakage",
+  "text_divider_lines",
+  "internal_appendix",
+  "bad_list_numbering",
+  "missing_faq",
+  "missing_numbered_outline",
+  "state: \"draft\"",
+  "apiRequest(\"GET\", \"/articles/search\"",
+  "apiRequest(\"GET\", `/articles/${encodeURIComponent(id)}`",
+]) {
+  if (!intercomGateText.includes(requiredText)) fail(`Intercom format gate missing required text: ${requiredText}`);
+}
+if (/apiRequest\("PUT"|method:\s*"PUT"/.test(intercomGateText)) {
+  fail("Intercom format gate must not contain publish/update write paths");
+}
+
+const secretWrapperPath = join(repoRoot, "scripts/launchbot-with-secrets.mjs");
+if (!existsSync(secretWrapperPath)) fail("Missing LaunchBot Secret Manager wrapper");
+const secretWrapperText = existsSync(secretWrapperPath) ? readFileSync(secretWrapperPath, "utf8") : "";
+for (const requiredText of [
+  "launchbot-step3-intercom-access-token",
+  "LAUNCH_STEP3_INTERCOM_ACCESS_TOKEN",
+  "INTERCOM_ACCESS_TOKEN",
+  "staffany-warehouse",
+  "values_printed",
+  "gcloud",
+  "secrets",
+  "versions",
+  "access",
+  "latest",
+]) {
+  if (!secretWrapperText.includes(requiredText)) fail(`Secret Manager wrapper missing required text: ${requiredText}`);
+}
+if (/console\.log\(.*value|stdout\.write\(.*value/.test(secretWrapperText)) {
+  fail("Secret Manager wrapper must not print secret values");
+}
+
+const nodeTest = spawnSync(
+  process.execPath,
+  ["--test", join(appRoot, "runtime", "intercom-format-gate.test.mjs")],
+  { encoding: "utf8" }
+);
+if (nodeTest.status !== 0) {
+  fail(`Intercom format gate tests failed: ${(nodeTest.stderr || nodeTest.stdout || "").trim()}`);
 }
 
 const pyCompile = spawnSync(
@@ -358,6 +544,10 @@ if (pyCompile.status !== 0) {
 
 const sourceNotePath = join(repoRoot, "research/wiki/sources/launch-superpower-bot-handoff.md");
 if (!existsSync(sourceNotePath)) fail("Missing maintained Launch Superpower handoff source note");
+const intercomShapeSourceNotePath = join(repoRoot, "research/wiki/sources/staffany-intercom-help-article-shape.md");
+if (!existsSync(intercomShapeSourceNotePath)) fail("Missing maintained Intercom help article shape source note");
+const helpArticlePlanningSynthesisPath = join(repoRoot, "research/wiki/syntheses/help-article-planning-rules.md");
+if (!existsSync(helpArticlePlanningSynthesisPath)) fail("Missing help article planning rules synthesis");
 
 const regressionText = textOf("tests/launch-workflow-regression-cases.md");
 for (const requiredText of [
@@ -365,9 +555,42 @@ for (const requiredText of [
   "@Launch Bot",
   "U0ASVD79UT1",
   "B0ATPPEGBCH",
+  "message.channels",
   "light cowboy voice",
+  "help-article:shape-refresh",
+  "help-article:plan",
+  "needs-intake",
+  "intake.questions",
+  "article_shape_stale_check.status: needs-refresh",
 ]) {
   if (!regressionText.includes(requiredText)) fail(`Launch workflow regression cases missing required text: ${requiredText}`);
+}
+
+const packageJson = existsSync(join(repoRoot, "package.json"))
+  ? sharedReadJson(join(repoRoot, "package.json"), fail)
+  : null;
+if (packageJson) {
+  const intercomRuntimeScripts = [
+    "intercom:format:pull",
+    "intercom:format:profile",
+    "intercom:inventory",
+    "help-article:shape-refresh",
+    "help-article:shape-ingest",
+    "help-article:plan",
+    "help-article:format-check",
+    "intercom:affected",
+    "intercom:stage-update",
+    "help-article:pantheon-scan",
+    "help-article:evidence-check",
+  ];
+  for (const scriptName of intercomRuntimeScripts) {
+    if (!packageJson.scripts?.[scriptName]?.includes("apps/launchbot/runtime/intercom-format-gate.mjs")) {
+      fail(`package.json missing Launchbot script ${scriptName}`);
+    }
+  }
+  if (!packageJson.scripts?.["launchbot:with-secrets"]?.includes("launchbot-with-secrets.mjs")) {
+    fail("package.json missing script launchbot:with-secrets");
+  }
 }
 
 const testRun = spawnSync("python3", ["-m", "unittest", "discover", "-s", join(appRoot, "runtime", "mcp"), "-p", "test_*.py"], {

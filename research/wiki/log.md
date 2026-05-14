@@ -93,3 +93,15 @@ Ingested the Launch Superpower Bot handoff and extracted help-article-generator 
 ## [2026-05-14] decision | Launchbot owns Launch Superpower workflow
 
 Corrected the app boundary: Launchbot is the main Hermes app, and the Launch Superpower handoff is now modeled as a Launchbot skill/workflow rather than a separate app packet. Raw handoff evidence remains under `research/raw/launch-superpower-bot/`.
+
+## [2026-05-14] ingest | StaffAny Intercom Help Article Shape
+
+Ingested a curated Intercom help-article shape profile for LaunchBot planning. Pulled 37 published reference articles across 10 article families, kept full Intercom JSON/HTML in ignored `.cache/`, and committed only normalized article IDs, titles, timestamps, headings, tags, split rules, and structural fingerprints.
+
+## [2026-05-14] synthesis | Help Article Planning Rules
+
+Synthesized the cached Intercom shape profile into LaunchBot article-planning rules: plan before drafting, split by audience/platform/workflow, use Pantheon for behavior truth, use live Intercom for affected-article search and exact target stale checks, and block staging as `needs-refresh` when cached shape evidence disagrees with live Intercom.
+
+## [2026-05-14] ingest | StaffAny Intercom Article Inventory
+
+Ingested a metadata-only Intercom article inventory for LaunchBot. Pulled 328 articles into ignored cache, committed normalized metadata and derived content signals only, and wired the planner to use inventory lookup before live affected-article search.

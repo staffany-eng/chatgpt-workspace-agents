@@ -1,0 +1,7026 @@
+{
+  "version": 1,
+  "profile_status": "curated_intercom_shape_profile",
+  "generated_at": "2026-05-14T13:04:15.069Z",
+  "source_strategy": "karpathy_style_ingest_cached_profile_with_targeted_live_checks",
+  "live_intercom_usage": [
+    "shape_refresh",
+    "affected_article_search",
+    "pre_stage_stale_check"
+  ],
+  "write_boundary": "read_stage_only",
+  "publish_mode": "draft_only",
+  "rules": {
+    "planning_source_hierarchy": [
+      "live_target_intercom_article",
+      "pantheon_product_behavior",
+      "cached_intercom_planning_synthesis",
+      "slack_jira_prd_context"
+    ],
+    "require_cached_profile_before_draft": true,
+    "stale_cached_article_blocks_staging": true,
+    "raw_html_committed": false,
+    "default_language": "en"
+  },
+  "aggregate": {
+    "family_count": 10,
+    "reference_article_count": 37,
+    "audience_block_count": 22,
+    "guide_outline_count": 13,
+    "faq_count": 18
+  },
+  "planning_rules": [
+    "Split when audiences perform different jobs.",
+    "Split when platform flows differ materially.",
+    "Split marketplace or multi-sided workflows by actor view.",
+    "Keep one article when one audience completes one connected lifecycle.",
+    "Create or keep overview articles only when they coordinate related subflows.",
+    "Prefer updating an existing same-audience same-platform article over creating duplicates.",
+    "Use FAQ for LaunchBot-generated articles even when older articles are inconsistent."
+  ],
+  "families": [
+    {
+      "id": "new_joiner_onboarding",
+      "label": "New Joiner / Onboarding",
+      "keywords": [
+        "new joiner",
+        "onboarding",
+        "new hire",
+        "form",
+        "submit"
+      ],
+      "split_rule": "Split setup, onboarding review, and new-hire submission when HR and new hires perform different jobs.",
+      "default_mode": "mixed",
+      "planning_model": [
+        {
+          "title_pattern": "Creating and Managing New Joiner Form",
+          "audience": [
+            "Manager",
+            "Owner"
+          ],
+          "platform": [
+            "Web"
+          ],
+          "workflow": "form setup and management",
+          "create_or_update": "update_existing"
+        },
+        {
+          "title_pattern": "Onboarding New Hires",
+          "audience": [
+            "Manager",
+            "Owner"
+          ],
+          "platform": [
+            "Web"
+          ],
+          "workflow": "onboarding review",
+          "create_or_update": "update_existing"
+        },
+        {
+          "title_pattern": "Submitting New Joiner Form",
+          "audience": [
+            "Employee"
+          ],
+          "platform": [
+            "Web",
+            "Mobile"
+          ],
+          "workflow": "new hire form submission",
+          "create_or_update": "update_existing"
+        }
+      ],
+      "reference_article_ids": [
+        "14481424",
+        "14460084",
+        "14753121"
+      ],
+      "reference_articles": [
+        {
+          "id": "14481424",
+          "title": "Onboarding New Hires",
+          "url": "http://help.staffany.com/en/articles/14481424-onboarding-new-hires",
+          "state": "published",
+          "updated_at": 1778757327,
+          "direct_edit_url": "https://app.intercom.com/a/apps/y12ertqm/articles/articles/14481424/show",
+          "family": "new_joiner_onboarding",
+          "product_labels": [
+            "HRAny"
+          ],
+          "platform_labels": [
+            "Web"
+          ],
+          "audience_labels": [
+            "Owner",
+            "Manager",
+            "Employee",
+            "HR/Admin"
+          ],
+          "workflow_tags": [
+            "setup",
+            "create",
+            "submit",
+            "onboarding",
+            "permissions"
+          ],
+          "structure": {
+            "headings": [
+              {
+                "level": 1,
+                "text": "Onboard New Hires"
+              },
+              {
+                "level": 1,
+                "text": "Review Submitted Onboarding Details"
+              },
+              {
+                "level": 1,
+                "text": "FAQ"
+              }
+            ],
+            "heading_levels": [
+              1,
+              1,
+              1
+            ],
+            "block_sequence_sample": [
+              "p",
+              "b",
+              "p",
+              "b",
+              "p",
+              "b",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "ol",
+              "p",
+              "h1",
+              "b",
+              "h1",
+              "ol",
+              "li",
+              "p",
+              "b",
+              "p",
+              "li",
+              "p",
+              "b",
+              "a",
+              "b",
+              "p",
+              "li",
+              "ol",
+              "li",
+              "p",
+              "b",
+              "p",
+              "li",
+              "ol",
+              "ul",
+              "li",
+              "p",
+              "b",
+              "p",
+              "li",
+              "p",
+              "b",
+              "p",
+              "li",
+              "ul",
+              "p",
+              "img",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "li",
+              "p",
+              "b",
+              "p",
+              "li",
+              "ol",
+              "p",
+              "h1",
+              "b",
+              "h1",
+              "ol",
+              "li",
+              "p",
+              "b",
+              "p",
+              "li",
+              "p",
+              "b"
+            ],
+            "tag_counts": {
+              "h1": 3,
+              "h2": 0,
+              "h3": 0,
+              "h4": 0,
+              "p": 68,
+              "ol": 7,
+              "ul": 1,
+              "li": 27,
+              "strong": 0,
+              "b": 23,
+              "em": 0,
+              "a": 4,
+              "img": 2,
+              "table": 0,
+              "blockquote": 0,
+              "hr": 0
+            },
+            "has_audience_block": true,
+            "has_guide_outline": true,
+            "has_faq": true,
+            "word_count": 477,
+            "structural_fingerprint": "ff68eded65a801c50128b55607edaa808290c51070ece53545161dab22335d16"
+          }
+        },
+        {
+          "id": "14460084",
+          "title": "Creating and Managing New Joiner Form",
+          "url": "http://help.staffany.com/en/articles/14460084-creating-and-managing-new-joiner-form",
+          "state": "published",
+          "updated_at": 1778757112,
+          "direct_edit_url": "https://app.intercom.com/a/apps/y12ertqm/articles/articles/14460084/show",
+          "family": "new_joiner_onboarding",
+          "product_labels": [
+            "HRAny"
+          ],
+          "platform_labels": [
+            "Web"
+          ],
+          "audience_labels": [
+            "Owner",
+            "Manager",
+            "Employee",
+            "Payroll",
+            "HR/Admin"
+          ],
+          "workflow_tags": [
+            "create",
+            "manage",
+            "submit",
+            "payroll",
+            "onboarding",
+            "permissions"
+          ],
+          "structure": {
+            "headings": [
+              {
+                "level": 2,
+                "text": "Contents of this article are applicable to the following users"
+              },
+              {
+                "level": 1,
+                "text": "Create a new joiner form"
+              },
+              {
+                "level": 2,
+                "text": "Edit an Existing Form"
+              },
+              {
+                "level": 2,
+                "text": "Archive and Unarchive an Existing Form"
+              },
+              {
+                "level": 1,
+                "text": "FAQ"
+              }
+            ],
+            "heading_levels": [
+              2,
+              1,
+              2,
+              2,
+              1
+            ],
+            "block_sequence_sample": [
+              "p",
+              "h2",
+              "b",
+              "h2",
+              "p",
+              "b",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "a",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "ol",
+              "p",
+              "hr",
+              "li",
+              "ol",
+              "p",
+              "h1",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "li",
+              "p",
+              "li",
+              "p",
+              "img",
+              "li",
+              "p",
+              "img",
+              "li",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "li",
+              "p",
+              "li",
+              "p",
+              "li",
+              "p",
+              "li",
+              "ol",
+              "li",
+              "p",
+              "li",
+              "ol",
+              "p",
+              "h2",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "li",
+              "p",
+              "li",
+              "p",
+              "li",
+              "p",
+              "li",
+              "ol",
+              "img",
+              "p",
+              "img",
+              "p",
+              "h2",
+              "p",
+              "ol",
+              "li"
+            ],
+            "tag_counts": {
+              "h1": 2,
+              "h2": 3,
+              "h3": 0,
+              "h4": 0,
+              "p": 62,
+              "ol": 7,
+              "ul": 0,
+              "li": 24,
+              "strong": 0,
+              "b": 5,
+              "em": 0,
+              "a": 3,
+              "img": 4,
+              "table": 0,
+              "blockquote": 0,
+              "hr": 2
+            },
+            "has_audience_block": true,
+            "has_guide_outline": true,
+            "has_faq": true,
+            "word_count": 498,
+            "structural_fingerprint": "793be1a8f072db4c322b180f6fc57a5944007f20144e86600caf76c7fd37f5b4"
+          }
+        },
+        {
+          "id": "14753121",
+          "title": "Submitting New Joiner Form",
+          "url": "http://help.staffany.com/en/articles/14753121-submitting-new-joiner-form",
+          "state": "published",
+          "updated_at": 1777023534,
+          "direct_edit_url": "https://app.intercom.com/a/apps/y12ertqm/articles/articles/14753121/show",
+          "family": "new_joiner_onboarding",
+          "product_labels": [
+            "HRAny"
+          ],
+          "platform_labels": [
+            "Web",
+            "Mobile"
+          ],
+          "audience_labels": [],
+          "workflow_tags": [
+            "setup",
+            "create",
+            "submit",
+            "payroll",
+            "onboarding",
+            "permissions"
+          ],
+          "structure": {
+            "headings": [
+              {
+                "level": 1,
+                "text": "Filling and Submitting New Joiner Form"
+              },
+              {
+                "level": 1,
+                "text": ""
+              }
+            ],
+            "heading_levels": [
+              1,
+              1
+            ],
+            "block_sequence_sample": [
+              "p",
+              "b",
+              "p",
+              "b",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "a",
+              "p",
+              "hr",
+              "li",
+              "ol",
+              "p",
+              "h1",
+              "b",
+              "h1",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "b",
+              "p",
+              "li",
+              "p",
+              "b",
+              "p",
+              "li",
+              "p",
+              "b",
+              "p",
+              "li",
+              "p",
+              "b",
+              "p",
+              "li",
+              "ol",
+              "p",
+              "img",
+              "p",
+              "ul",
+              "li",
+              "p",
+              "li",
+              "p",
+              "li",
+              "p",
+              "li",
+              "ul",
+              "p",
+              "b",
+              "p",
+              "ul",
+              "li",
+              "p",
+              "li",
+              "p",
+              "li",
+              "ul",
+              "p",
+              "img",
+              "p",
+              "a",
+              "p"
+            ],
+            "tag_counts": {
+              "h1": 2,
+              "h2": 0,
+              "h3": 0,
+              "h4": 0,
+              "p": 30,
+              "ol": 2,
+              "ul": 2,
+              "li": 10,
+              "strong": 0,
+              "b": 8,
+              "em": 0,
+              "a": 2,
+              "img": 2,
+              "table": 0,
+              "blockquote": 0,
+              "hr": 1
+            },
+            "has_audience_block": true,
+            "has_guide_outline": true,
+            "has_faq": false,
+            "word_count": 259,
+            "structural_fingerprint": "d2e624b4e9323d9015bdfde804d9dd5090b9fbfbae82d855b1c19c5e3301ee67"
+          }
+        }
+      ]
+    },
+    {
+      "id": "company_documents",
+      "label": "Company Documents",
+      "keywords": [
+        "company document",
+        "documents",
+        "acknowledgement",
+        "document types",
+        "templates",
+        "signatures"
+      ],
+      "split_rule": "Split admin Web document management from employee Mobile acknowledgement/viewing.",
+      "default_mode": "mixed",
+      "planning_model": [
+        {
+          "title_pattern": "Creating and Managing Company Documents",
+          "audience": [
+            "Owner"
+          ],
+          "platform": [
+            "Web"
+          ],
+          "workflow": "company document setup and publishing",
+          "create_or_update": "update_existing"
+        },
+        {
+          "title_pattern": "Acknowledging and Viewing Company Documents",
+          "audience": [
+            "Employee",
+            "Supervisor",
+            "Manager",
+            "Owner"
+          ],
+          "platform": [
+            "Mobile"
+          ],
+          "workflow": "employee acknowledgement and viewing",
+          "create_or_update": "update_existing"
+        }
+      ],
+      "reference_article_ids": [
+        "13722083",
+        "13722074",
+        "11755931",
+        "14779347",
+        "14318367"
+      ],
+      "reference_articles": [
+        {
+          "id": "13722083",
+          "title": "Creating and Managing Company Documents",
+          "url": "http://help.staffany.com/en/articles/13722083-creating-and-managing-company-documents",
+          "state": "published",
+          "updated_at": 1770955951,
+          "direct_edit_url": "https://app.intercom.com/a/apps/y12ertqm/articles/articles/13722083/show",
+          "family": "company_documents",
+          "product_labels": [
+            "HRAny"
+          ],
+          "platform_labels": [
+            "Web"
+          ],
+          "audience_labels": [
+            "Owner",
+            "Employee",
+            "HR/Admin"
+          ],
+          "workflow_tags": [
+            "create",
+            "manage",
+            "view",
+            "publish",
+            "import_export",
+            "acknowledgement",
+            "permissions"
+          ],
+          "structure": {
+            "headings": [
+              {
+                "level": 2,
+                "text": "Contents of this article are applicable to the following users"
+              },
+              {
+                "level": 1,
+                "text": "Adding Company Documents"
+              },
+              {
+                "level": 1,
+                "text": "Publishing and unpublishing company documents"
+              },
+              {
+                "level": 2,
+                "text": "Publishing Company Documents"
+              },
+              {
+                "level": 2,
+                "text": "Unpublishing Company Documents"
+              },
+              {
+                "level": 1,
+                "text": "Managing Company Documents"
+              },
+              {
+                "level": 2,
+                "text": "Editing documents"
+              },
+              {
+                "level": 2,
+                "text": "Deleting documents"
+              },
+              {
+                "level": 2,
+                "text": "Downloading documents"
+              },
+              {
+                "level": 1,
+                "text": "FAQ"
+              }
+            ],
+            "heading_levels": [
+              2,
+              1,
+              1,
+              2,
+              2,
+              1,
+              2,
+              2,
+              2,
+              1
+            ],
+            "block_sequence_sample": [
+              "h2",
+              "b",
+              "h2",
+              "p",
+              "a",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "ol",
+              "li",
+              "p",
+              "a",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "ol",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "ol",
+              "hr",
+              "h1",
+              "b",
+              "h1",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "b",
+              "p",
+              "li",
+              "p",
+              "b",
+              "p",
+              "li",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "li",
+              "p",
+              "li",
+              "ol",
+              "li",
+              "p",
+              "b",
+              "p",
+              "img",
+              "p"
+            ],
+            "tag_counts": {
+              "h1": 4,
+              "h2": 6,
+              "h3": 0,
+              "h4": 0,
+              "p": 79,
+              "ol": 13,
+              "ul": 0,
+              "li": 38,
+              "strong": 0,
+              "b": 26,
+              "em": 0,
+              "a": 10,
+              "img": 10,
+              "table": 0,
+              "blockquote": 0,
+              "hr": 4
+            },
+            "has_audience_block": true,
+            "has_guide_outline": true,
+            "has_faq": true,
+            "word_count": 602,
+            "structural_fingerprint": "ccabd247447ce3ac8830897678afe0d3a7f08c9e06ba9e9ec26a7725dcc4ce57"
+          }
+        },
+        {
+          "id": "13722074",
+          "title": "Acknowledging and Viewing Company Documents",
+          "url": "http://help.staffany.com/en/articles/13722074-acknowledging-and-viewing-company-documents",
+          "state": "published",
+          "updated_at": 1770955464,
+          "direct_edit_url": "https://app.intercom.com/a/apps/y12ertqm/articles/articles/13722074/show",
+          "family": "company_documents",
+          "product_labels": [
+            "HRAny"
+          ],
+          "platform_labels": [
+            "Mobile"
+          ],
+          "audience_labels": [
+            "Owner",
+            "Manager",
+            "Supervisor",
+            "Employee"
+          ],
+          "workflow_tags": [
+            "view",
+            "acknowledgement",
+            "permissions"
+          ],
+          "structure": {
+            "headings": [
+              {
+                "level": 2,
+                "text": "Contents of this article are applicable to the following users"
+              },
+              {
+                "level": 1,
+                "text": "Acknowledging and Viewing Company Documents"
+              },
+              {
+                "level": 1,
+                "text": "FAQ"
+              }
+            ],
+            "heading_levels": [
+              2,
+              1,
+              1
+            ],
+            "block_sequence_sample": [
+              "p",
+              "h2",
+              "b",
+              "h2",
+              "p",
+              "a",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "ol",
+              "hr",
+              "p",
+              "h1",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "b",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "img",
+              "li",
+              "ol",
+              "p",
+              "li",
+              "p",
+              "img",
+              "p",
+              "li",
+              "p",
+              "b",
+              "p",
+              "img",
+              "p",
+              "li",
+              "p",
+              "img",
+              "li",
+              "ol",
+              "p",
+              "hr",
+              "h1",
+              "p",
+              "b",
+              "p",
+              "b",
+              "p"
+            ],
+            "tag_counts": {
+              "h1": 2,
+              "h2": 1,
+              "h3": 0,
+              "h4": 0,
+              "p": 28,
+              "ol": 3,
+              "ul": 0,
+              "li": 7,
+              "strong": 0,
+              "b": 6,
+              "em": 0,
+              "a": 3,
+              "img": 4,
+              "table": 0,
+              "blockquote": 0,
+              "hr": 2
+            },
+            "has_audience_block": true,
+            "has_guide_outline": false,
+            "has_faq": true,
+            "word_count": 236,
+            "structural_fingerprint": "3a621250e9a2c0f040a0f121bc39605c1a4abcc8f22611123fdbc704f562a526"
+          }
+        },
+        {
+          "id": "11755931",
+          "title": "Adding and Managing Documents",
+          "url": "http://help.staffany.com/en/articles/11755931-adding-and-managing-documents",
+          "state": "published",
+          "updated_at": 1774430753,
+          "direct_edit_url": "https://app.intercom.com/a/apps/y12ertqm/articles/articles/11755931/show",
+          "family": "company_documents",
+          "product_labels": [
+            "HireAny"
+          ],
+          "platform_labels": [
+            "Web"
+          ],
+          "audience_labels": [
+            "Owner",
+            "Employee",
+            "HR/Admin"
+          ],
+          "workflow_tags": [
+            "create",
+            "manage",
+            "onboarding",
+            "permissions"
+          ],
+          "structure": {
+            "headings": [
+              {
+                "level": 1,
+                "text": "Adding Documents"
+              },
+              {
+                "level": 1,
+                "text": "Managing Documents"
+              },
+              {
+                "level": 2,
+                "text": "Editing Documents"
+              },
+              {
+                "level": 2,
+                "text": "Downloading Documents"
+              },
+              {
+                "level": 2,
+                "text": "Deleting Documents"
+              },
+              {
+                "level": 1,
+                "text": "Managing Email Notification Reminders"
+              },
+              {
+                "level": 1,
+                "text": "FAQ"
+              }
+            ],
+            "heading_levels": [
+              1,
+              1,
+              2,
+              2,
+              2,
+              1,
+              1
+            ],
+            "block_sequence_sample": [
+              "p",
+              "b",
+              "p",
+              "a",
+              "p",
+              "a",
+              "p",
+              "hr",
+              "p",
+              "b",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "ol",
+              "li",
+              "p",
+              "li",
+              "p",
+              "li",
+              "ol",
+              "hr",
+              "h1",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "b",
+              "p",
+              "li",
+              "p",
+              "b",
+              "p",
+              "img",
+              "p",
+              "li",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "li",
+              "p",
+              "li",
+              "p",
+              "li",
+              "ol",
+              "img",
+              "p",
+              "li",
+              "p",
+              "b",
+              "p",
+              "img",
+              "p",
+              "li",
+              "p",
+              "img",
+              "li",
+              "ol",
+              "hr"
+            ],
+            "tag_counts": {
+              "h1": 4,
+              "h2": 3,
+              "h3": 0,
+              "h4": 0,
+              "p": 62,
+              "ol": 10,
+              "ul": 0,
+              "li": 26,
+              "strong": 0,
+              "b": 18,
+              "em": 0,
+              "a": 7,
+              "img": 13,
+              "table": 0,
+              "blockquote": 0,
+              "hr": 5
+            },
+            "has_audience_block": true,
+            "has_guide_outline": true,
+            "has_faq": true,
+            "word_count": 552,
+            "structural_fingerprint": "f526515424501be4492034ed3ad85eb40dd865aca094e08a2c2109867f1ad1cf"
+          }
+        },
+        {
+          "id": "14779347",
+          "title": "Generating Employee Documents",
+          "url": "http://help.staffany.com/en/articles/14779347-generating-employee-documents",
+          "state": "published",
+          "updated_at": 1777967213,
+          "direct_edit_url": "https://app.intercom.com/a/apps/y12ertqm/articles/articles/14779347/show",
+          "family": "company_documents",
+          "product_labels": [
+            "HRAny"
+          ],
+          "platform_labels": [
+            "Web"
+          ],
+          "audience_labels": [
+            "Owner",
+            "Manager",
+            "Employee",
+            "HR/Admin"
+          ],
+          "workflow_tags": [
+            "setup",
+            "create",
+            "manage",
+            "onboarding",
+            "permissions"
+          ],
+          "structure": {
+            "headings": [
+              {
+                "level": 1,
+                "text": "Create and Manage Templates"
+              },
+              {
+                "level": 2,
+                "text": "Create a New Template"
+              },
+              {
+                "level": 2,
+                "text": "Archive and Unarchive Templates"
+              },
+              {
+                "level": 1,
+                "text": "Generate A Document From A Template"
+              },
+              {
+                "level": 2,
+                "text": "Create a document from the Documents and Signatures page"
+              },
+              {
+                "level": 2,
+                "text": "Start from onboarding or an employee profile"
+              },
+              {
+                "level": 1,
+                "text": "FAQ"
+              }
+            ],
+            "heading_levels": [
+              1,
+              2,
+              2,
+              1,
+              2,
+              2,
+              1
+            ],
+            "block_sequence_sample": [
+              "p",
+              "b",
+              "p",
+              "b",
+              "p",
+              "ul",
+              "li",
+              "p",
+              "a",
+              "p",
+              "ul",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "ul",
+              "li",
+              "p",
+              "a",
+              "p",
+              "ul",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "ul",
+              "li",
+              "p",
+              "a",
+              "p",
+              "hr",
+              "li",
+              "ul",
+              "p",
+              "h1",
+              "b",
+              "h1",
+              "p",
+              "b",
+              "p",
+              "h2",
+              "b",
+              "h2",
+              "ol",
+              "li",
+              "p",
+              "b",
+              "p",
+              "li",
+              "p",
+              "b",
+              "p",
+              "li",
+              "p",
+              "b",
+              "p",
+              "img",
+              "li",
+              "p",
+              "b",
+              "p",
+              "img",
+              "li",
+              "p",
+              "b",
+              "p",
+              "li",
+              "p",
+              "li",
+              "p"
+            ],
+            "tag_counts": {
+              "h1": 3,
+              "h2": 4,
+              "h3": 0,
+              "h4": 0,
+              "p": 64,
+              "ol": 6,
+              "ul": 3,
+              "li": 32,
+              "strong": 0,
+              "b": 46,
+              "em": 0,
+              "a": 9,
+              "img": 14,
+              "table": 0,
+              "blockquote": 0,
+              "hr": 3
+            },
+            "has_audience_block": true,
+            "has_guide_outline": true,
+            "has_faq": true,
+            "word_count": 810,
+            "structural_fingerprint": "31f7023a710496700f0e0405f1f721bb1b515d0f0f4bf89101b202b05823cf1f"
+          }
+        },
+        {
+          "id": "14318367",
+          "title": "Managing Employee Document Types",
+          "url": "http://help.staffany.com/en/articles/14318367-managing-employee-document-types",
+          "state": "published",
+          "updated_at": 1774838010,
+          "direct_edit_url": "https://app.intercom.com/a/apps/y12ertqm/articles/articles/14318367/show",
+          "family": "company_documents",
+          "product_labels": [
+            "HRAny"
+          ],
+          "platform_labels": [
+            "Web"
+          ],
+          "audience_labels": [
+            "Owner",
+            "Manager",
+            "Employee"
+          ],
+          "workflow_tags": [
+            "setup",
+            "create",
+            "manage",
+            "onboarding",
+            "permissions"
+          ],
+          "structure": {
+            "headings": [
+              {
+                "level": 2,
+                "text": "Contents of this article are applicable to the following users"
+              },
+              {
+                "level": 1,
+                "text": "Create an employee document type"
+              },
+              {
+                "level": 1,
+                "text": "Edit an Existing Document Type"
+              },
+              {
+                "level": 1,
+                "text": "Archive and Unarchive an Existing Document Type"
+              },
+              {
+                "level": 4,
+                "text": "Archive a document type"
+              },
+              {
+                "level": 4,
+                "text": "Unarchive a document type"
+              },
+              {
+                "level": 1,
+                "text": "Use Employee Document Types in Staff Profile"
+              },
+              {
+                "level": 1,
+                "text": "Use Employee Document Types in New Joiner Form"
+              }
+            ],
+            "heading_levels": [
+              2,
+              1,
+              1,
+              1,
+              4,
+              4,
+              1,
+              1
+            ],
+            "block_sequence_sample": [
+              "h2",
+              "b",
+              "h2",
+              "p",
+              "b",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "hr",
+              "li",
+              "ol",
+              "p",
+              "h1",
+              "b",
+              "h1",
+              "ol",
+              "li",
+              "p",
+              "b",
+              "p",
+              "li",
+              "p",
+              "b",
+              "p",
+              "li",
+              "p",
+              "b",
+              "p",
+              "li",
+              "ol",
+              "p",
+              "img",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "b",
+              "p",
+              "li",
+              "p",
+              "b",
+              "p",
+              "li",
+              "p",
+              "b",
+              "p",
+              "li",
+              "ol",
+              "p",
+              "b",
+              "p",
+              "img",
+              "hr",
+              "h1",
+              "b",
+              "h1",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "b"
+            ],
+            "tag_counts": {
+              "h1": 5,
+              "h2": 1,
+              "h3": 0,
+              "h4": 2,
+              "p": 70,
+              "ol": 10,
+              "ul": 1,
+              "li": 33,
+              "strong": 0,
+              "b": 39,
+              "em": 0,
+              "a": 6,
+              "img": 7,
+              "table": 0,
+              "blockquote": 0,
+              "hr": 5
+            },
+            "has_audience_block": true,
+            "has_guide_outline": true,
+            "has_faq": false,
+            "word_count": 478,
+            "structural_fingerprint": "dc66243c7787d6a99500abcd56132b558e3c9eccbae00d5d6291cf7d1c15ad31"
+          }
+        }
+      ]
+    },
+    {
+      "id": "clubany",
+      "label": "ClubAny",
+      "keywords": [
+        "clubany",
+        "club blue",
+        "brands",
+        "perks",
+        "redeem",
+        "redemption"
+      ],
+      "split_rule": "Keep brand/perk management together for Web owners, and split Mobile redemption for staff.",
+      "default_mode": "mixed",
+      "planning_model": [
+        {
+          "title_pattern": "Managing Brands and Perks on ClubAny",
+          "audience": [
+            "Owner",
+            "Manager"
+          ],
+          "platform": [
+            "Web"
+          ],
+          "workflow": "brand and perk management",
+          "create_or_update": "update_existing"
+        },
+        {
+          "title_pattern": "Redeeming ClubAny Perks",
+          "audience": [
+            "Employee",
+            "Supervisor",
+            "Manager",
+            "Owner"
+          ],
+          "platform": [
+            "Mobile"
+          ],
+          "workflow": "perk browsing and redemption",
+          "create_or_update": "update_existing"
+        }
+      ],
+      "reference_article_ids": [
+        "14083228",
+        "14083405"
+      ],
+      "reference_articles": [
+        {
+          "id": "14083228",
+          "title": "Managing Brands and Perks on ClubAny",
+          "url": "http://help.staffany.com/en/articles/14083228-managing-brands-and-perks-on-clubany",
+          "state": "published",
+          "updated_at": 1773714171,
+          "direct_edit_url": "https://app.intercom.com/a/apps/y12ertqm/articles/articles/14083228/show",
+          "family": "clubany",
+          "product_labels": [],
+          "platform_labels": [
+            "Web"
+          ],
+          "audience_labels": [
+            "Owner",
+            "Manager",
+            "Employee"
+          ],
+          "workflow_tags": [
+            "create",
+            "manage",
+            "view",
+            "redeem",
+            "permissions"
+          ],
+          "structure": {
+            "headings": [
+              {
+                "level": 2,
+                "text": "Contents of this article are applicable to the following users"
+              },
+              {
+                "level": 2,
+                "text": "This guide will cover how to:"
+              },
+              {
+                "level": 1,
+                "text": "Managing Brands"
+              },
+              {
+                "level": 2,
+                "text": "Adding Brands"
+              },
+              {
+                "level": 2,
+                "text": "Editing Brands"
+              },
+              {
+                "level": 2,
+                "text": "Archiving / Unarchiving Brands"
+              },
+              {
+                "level": 1,
+                "text": "Managing Perks"
+              },
+              {
+                "level": 2,
+                "text": "Adding Perks"
+              },
+              {
+                "level": 2,
+                "text": "Editing Perks"
+              },
+              {
+                "level": 2,
+                "text": "Archiving / Unarchiving Perks"
+              },
+              {
+                "level": 1,
+                "text": "FAQ"
+              }
+            ],
+            "heading_levels": [
+              2,
+              2,
+              1,
+              2,
+              2,
+              2,
+              1,
+              2,
+              2,
+              2,
+              1
+            ],
+            "block_sequence_sample": [
+              "h2",
+              "b",
+              "h2",
+              "p",
+              "a",
+              "p",
+              "h2",
+              "b",
+              "h2",
+              "ol",
+              "li",
+              "p",
+              "a",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "ol",
+              "li",
+              "p",
+              "a",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "ol",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "ol",
+              "p",
+              "hr",
+              "p",
+              "h1",
+              "p",
+              "table",
+              "p",
+              "b",
+              "p",
+              "b",
+              "p",
+              "table",
+              "p",
+              "h2",
+              "ol",
+              "li",
+              "p",
+              "b",
+              "p",
+              "li",
+              "p",
+              "b",
+              "p",
+              "img",
+              "li",
+              "p"
+            ],
+            "tag_counts": {
+              "h1": 3,
+              "h2": 8,
+              "h3": 0,
+              "h4": 0,
+              "p": 77,
+              "ol": 13,
+              "ul": 0,
+              "li": 37,
+              "strong": 0,
+              "b": 38,
+              "em": 0,
+              "a": 10,
+              "img": 6,
+              "table": 1,
+              "blockquote": 0,
+              "hr": 3
+            },
+            "has_audience_block": true,
+            "has_guide_outline": true,
+            "has_faq": true,
+            "word_count": 617,
+            "structural_fingerprint": "42a2578a86667b3501774dd7e415d521c99b4f13e690ec324c3f0dcc91e74348"
+          }
+        },
+        {
+          "id": "14083405",
+          "title": "Redeeming ClubAny Perks",
+          "url": "http://help.staffany.com/en/articles/14083405-redeeming-clubany-perks",
+          "state": "published",
+          "updated_at": 1773714187,
+          "direct_edit_url": "https://app.intercom.com/a/apps/y12ertqm/articles/articles/14083405/show",
+          "family": "clubany",
+          "product_labels": [],
+          "platform_labels": [
+            "Mobile"
+          ],
+          "audience_labels": [
+            "Owner",
+            "Manager",
+            "Supervisor",
+            "Employee"
+          ],
+          "workflow_tags": [
+            "create",
+            "view",
+            "redeem",
+            "permissions"
+          ],
+          "structure": {
+            "headings": [
+              {
+                "level": 1,
+                "text": "Redeeming ClubAny Perks on Mobile"
+              },
+              {
+                "level": 2,
+                "text": "Browsing Perks"
+              },
+              {
+                "level": 2,
+                "text": "Redeeming Perks"
+              },
+              {
+                "level": 1,
+                "text": "FAQ"
+              }
+            ],
+            "heading_levels": [
+              1,
+              2,
+              2,
+              1
+            ],
+            "block_sequence_sample": [
+              "p",
+              "b",
+              "p",
+              "b",
+              "p",
+              "b",
+              "p",
+              "b",
+              "p",
+              "a",
+              "p",
+              "b",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "a",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "ol",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "ol",
+              "hr",
+              "p",
+              "h1",
+              "b",
+              "h1",
+              "p",
+              "h2",
+              "b",
+              "h2",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "b",
+              "p",
+              "img",
+              "p",
+              "li",
+              "p",
+              "b",
+              "p",
+              "img",
+              "li",
+              "p",
+              "b",
+              "p",
+              "img",
+              "li",
+              "ol",
+              "p",
+              "h2",
+              "b",
+              "h2",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "b",
+              "p",
+              "img",
+              "p",
+              "li",
+              "p",
+              "b",
+              "p"
+            ],
+            "tag_counts": {
+              "h1": 2,
+              "h2": 2,
+              "h3": 0,
+              "h4": 0,
+              "p": 37,
+              "ol": 4,
+              "ul": 0,
+              "li": 10,
+              "strong": 0,
+              "b": 21,
+              "em": 0,
+              "a": 5,
+              "img": 6,
+              "table": 0,
+              "blockquote": 0,
+              "hr": 2
+            },
+            "has_audience_block": true,
+            "has_guide_outline": true,
+            "has_faq": true,
+            "word_count": 330,
+            "structural_fingerprint": "f8e622ddec922042bb50c0d515984cfe709827b1239f744e53c75ac926d1aaea"
+          }
+        }
+      ]
+    },
+    {
+      "id": "claims",
+      "label": "Claims",
+      "keywords": [
+        "claims",
+        "claim",
+        "approval",
+        "cut off",
+        "payroll",
+        "submission"
+      ],
+      "split_rule": "Split claim setup, employee submission, approval management, payroll processing, and cutoff behavior.",
+      "default_mode": "mixed",
+      "planning_model": [
+        {
+          "title_pattern": "Creating and Managing Claims Types",
+          "audience": [
+            "Owner"
+          ],
+          "platform": [
+            "Web"
+          ],
+          "workflow": "claim type setup",
+          "create_or_update": "update_existing"
+        },
+        {
+          "title_pattern": "Submitting Claims on Mobile",
+          "audience": [
+            "Employee",
+            "Supervisor",
+            "Manager",
+            "Owner"
+          ],
+          "platform": [
+            "Mobile"
+          ],
+          "workflow": "claim submission",
+          "create_or_update": "update_existing"
+        },
+        {
+          "title_pattern": "Managing Claim Submissions",
+          "audience": [
+            "Owner",
+            "Manager"
+          ],
+          "platform": [
+            "Web"
+          ],
+          "workflow": "approval and export",
+          "create_or_update": "update_existing"
+        },
+        {
+          "title_pattern": "Managing Claims on Payroll",
+          "audience": [
+            "Owner"
+          ],
+          "platform": [
+            "Web"
+          ],
+          "workflow": "payroll processing",
+          "create_or_update": "update_existing"
+        }
+      ],
+      "reference_article_ids": [
+        "9550497",
+        "9550638",
+        "9550707",
+        "9550732",
+        "9550576"
+      ],
+      "reference_articles": [
+        {
+          "id": "9550497",
+          "title": "Creating and Managing Claims Types",
+          "url": "http://help.staffany.com/en/articles/9550497-creating-and-managing-claims-types",
+          "state": "published",
+          "updated_at": 1736914465,
+          "direct_edit_url": "https://app.intercom.com/a/apps/y12ertqm/articles/articles/9550497/show",
+          "family": "claims",
+          "product_labels": [
+            "StaffAny"
+          ],
+          "platform_labels": [
+            "Web"
+          ],
+          "audience_labels": [
+            "Owner",
+            "Manager",
+            "Employee",
+            "Payroll"
+          ],
+          "workflow_tags": [
+            "create",
+            "manage",
+            "submit",
+            "payroll",
+            "permissions",
+            "claims"
+          ],
+          "structure": {
+            "headings": [
+              {
+                "level": 1,
+                "text": "Creating a New Claim Yype"
+              },
+              {
+                "level": 3,
+                "text": "Claim Types as Payroll Pay Items (coming in mid Q3 2024)"
+              },
+              {
+                "level": 1,
+                "text": "Editing a Claim Type"
+              },
+              {
+                "level": 1,
+                "text": "Archiving a Claim Type"
+              },
+              {
+                "level": 3,
+                "text": "Archived Claim Types on Payroll Pay Items"
+              },
+              {
+                "level": 2,
+                "text": "Unarchiving a Claim Type"
+              }
+            ],
+            "heading_levels": [
+              1,
+              3,
+              1,
+              1,
+              3,
+              2
+            ],
+            "block_sequence_sample": [
+              "p",
+              "b",
+              "p",
+              "a",
+              "p",
+              "a",
+              "p",
+              "b",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "ol",
+              "li",
+              "ol",
+              "hr",
+              "p",
+              "h1",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "b",
+              "p",
+              "li",
+              "p",
+              "b",
+              "p",
+              "img",
+              "li",
+              "p",
+              "b",
+              "p",
+              "li",
+              "ol",
+              "img",
+              "p",
+              "b",
+              "p",
+              "table",
+              "p",
+              "b",
+              "p",
+              "b",
+              "p",
+              "table",
+              "p",
+              "h3",
+              "p",
+              "b",
+              "p",
+              "img",
+              "p",
+              "table",
+              "p",
+              "b",
+              "p",
+              "b",
+              "p",
+              "b",
+              "p",
+              "b",
+              "p",
+              "b"
+            ],
+            "tag_counts": {
+              "h1": 3,
+              "h2": 1,
+              "h3": 2,
+              "h4": 0,
+              "p": 68,
+              "ol": 5,
+              "ul": 0,
+              "li": 10,
+              "strong": 0,
+              "b": 24,
+              "em": 0,
+              "a": 7,
+              "img": 8,
+              "table": 2,
+              "blockquote": 0,
+              "hr": 3
+            },
+            "has_audience_block": true,
+            "has_guide_outline": false,
+            "has_faq": false,
+            "word_count": 540,
+            "structural_fingerprint": "97b85bedc7a6dd8acc0bdc92153eea8f4bdfc9f3f24744aa15dc0d02f2a4a070"
+          }
+        },
+        {
+          "id": "9550638",
+          "title": "Managing Claim Submissions",
+          "url": "http://help.staffany.com/en/articles/9550638-managing-claim-submissions",
+          "state": "published",
+          "updated_at": 1744615950,
+          "direct_edit_url": "https://app.intercom.com/a/apps/y12ertqm/articles/articles/9550638/show",
+          "family": "claims",
+          "product_labels": [
+            "StaffAny"
+          ],
+          "platform_labels": [
+            "Web"
+          ],
+          "audience_labels": [
+            "Owner",
+            "Manager",
+            "Employee",
+            "Payroll"
+          ],
+          "workflow_tags": [
+            "setup",
+            "create",
+            "manage",
+            "submit",
+            "approve",
+            "view",
+            "payroll",
+            "import_export",
+            "permissions",
+            "claims"
+          ],
+          "structure": {
+            "headings": [
+              {
+                "level": 1,
+                "text": "Managing Claims Submissions"
+              },
+              {
+                "level": 1,
+                "text": "Exporting Claims Submissions"
+              },
+              {
+                "level": 1,
+                "text": "FAQ"
+              }
+            ],
+            "heading_levels": [
+              1,
+              1,
+              1
+            ],
+            "block_sequence_sample": [
+              "p",
+              "b",
+              "p",
+              "a",
+              "p",
+              "a",
+              "p",
+              "a",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "ol",
+              "p",
+              "hr",
+              "p",
+              "h1",
+              "p",
+              "a",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "b",
+              "p",
+              "img",
+              "p",
+              "li",
+              "p",
+              "b",
+              "p",
+              "img",
+              "li",
+              "p",
+              "ul",
+              "li",
+              "p",
+              "img",
+              "p",
+              "li",
+              "p",
+              "b",
+              "p",
+              "img",
+              "li",
+              "ul",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "ul",
+              "li",
+              "p",
+              "li",
+              "ul",
+              "li",
+              "ol",
+              "img",
+              "p",
+              "img",
+              "p",
+              "table",
+              "p",
+              "b",
+              "p",
+              "b",
+              "p",
+              "table"
+            ],
+            "tag_counts": {
+              "h1": 3,
+              "h2": 0,
+              "h3": 0,
+              "h4": 0,
+              "p": 72,
+              "ol": 3,
+              "ul": 2,
+              "li": 12,
+              "strong": 0,
+              "b": 14,
+              "em": 0,
+              "a": 8,
+              "img": 9,
+              "table": 1,
+              "blockquote": 0,
+              "hr": 3
+            },
+            "has_audience_block": true,
+            "has_guide_outline": false,
+            "has_faq": false,
+            "word_count": 627,
+            "structural_fingerprint": "28f97287002f87017e94d59ad47b0d64ccc50deb6279cbe4169c0d60b9b27294"
+          }
+        },
+        {
+          "id": "9550707",
+          "title": "Submitting Claims on Mobile",
+          "url": "http://help.staffany.com/en/articles/9550707-submitting-claims-on-mobile",
+          "state": "published",
+          "updated_at": 1759200995,
+          "direct_edit_url": "https://app.intercom.com/a/apps/y12ertqm/articles/articles/9550707/show",
+          "family": "claims",
+          "product_labels": [
+            "StaffAny"
+          ],
+          "platform_labels": [
+            "Mobile"
+          ],
+          "audience_labels": [
+            "Owner",
+            "Manager",
+            "Supervisor",
+            "Employee",
+            "Payroll"
+          ],
+          "workflow_tags": [
+            "create",
+            "submit",
+            "approve",
+            "view",
+            "payroll",
+            "permissions",
+            "claims"
+          ],
+          "structure": {
+            "headings": [
+              {
+                "level": 1,
+                "text": "Submitting a Claim"
+              },
+              {
+                "level": 1,
+                "text": "Viewing Claim Submissions"
+              }
+            ],
+            "heading_levels": [
+              1,
+              1
+            ],
+            "block_sequence_sample": [
+              "p",
+              "b",
+              "p",
+              "a",
+              "p",
+              "a",
+              "p",
+              "b",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "ol",
+              "hr",
+              "h1",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "b",
+              "p",
+              "img",
+              "li",
+              "p",
+              "b",
+              "p",
+              "img",
+              "p",
+              "li",
+              "p",
+              "img",
+              "p",
+              "li",
+              "p",
+              "img",
+              "li",
+              "p",
+              "li",
+              "ol",
+              "table",
+              "p",
+              "b",
+              "p",
+              "b",
+              "p",
+              "a",
+              "p",
+              "table",
+              "p",
+              "hr",
+              "h1",
+              "p",
+              "b",
+              "p",
+              "img",
+              "p",
+              "b",
+              "p",
+              "img",
+              "p",
+              "img",
+              "p",
+              "img",
+              "p",
+              "b",
+              "p",
+              "b",
+              "p",
+              "img",
+              "p",
+              "img",
+              "p"
+            ],
+            "tag_counts": {
+              "h1": 2,
+              "h2": 0,
+              "h3": 0,
+              "h4": 0,
+              "p": 62,
+              "ol": 2,
+              "ul": 0,
+              "li": 7,
+              "strong": 0,
+              "b": 11,
+              "em": 0,
+              "a": 5,
+              "img": 10,
+              "table": 1,
+              "blockquote": 0,
+              "hr": 2
+            },
+            "has_audience_block": true,
+            "has_guide_outline": false,
+            "has_faq": false,
+            "word_count": 441,
+            "structural_fingerprint": "1a42857be607a5ab49d8e00de7f9da9619c3a5e37c0beaf1220af18e2b7ea7e8"
+          }
+        },
+        {
+          "id": "9550732",
+          "title": "Managing Claims on Payroll",
+          "url": "http://help.staffany.com/en/articles/9550732-managing-claims-on-payroll",
+          "state": "published",
+          "updated_at": 1736741086,
+          "direct_edit_url": "https://app.intercom.com/a/apps/y12ertqm/articles/articles/9550732/show",
+          "family": "claims",
+          "product_labels": [
+            "StaffAny"
+          ],
+          "platform_labels": [
+            "Web"
+          ],
+          "audience_labels": [
+            "Owner",
+            "Employee",
+            "Payroll"
+          ],
+          "workflow_tags": [
+            "setup",
+            "create",
+            "manage",
+            "view",
+            "payroll",
+            "import_export",
+            "permissions",
+            "claims"
+          ],
+          "structure": {
+            "headings": [
+              {
+                "level": 1,
+                "text": "Claims Processed with Monthly Payroll"
+              },
+              {
+                "level": 1,
+                "text": "Claims Processed Separately from Payroll"
+              },
+              {
+                "level": 2,
+                "text": "Ad-hoc Claims Outside Payroll"
+              },
+              {
+                "level": 2,
+                "text": "Process Monthly Payroll Without Claims"
+              },
+              {
+                "level": 1,
+                "text": "FAQ"
+              },
+              {
+                "level": 2,
+                "text": "What if I have multiple claims submissions for a claim type in a payrun?"
+              },
+              {
+                "level": 2,
+                "text": "What happens if I use the mass edit payroll CSV for the claims data in a payrun?"
+              },
+              {
+                "level": 2,
+                "text": "Where can I find the total amount for each claim type?"
+              },
+              {
+                "level": 2,
+                "text": ""
+              }
+            ],
+            "heading_levels": [
+              1,
+              1,
+              2,
+              2,
+              1,
+              2,
+              2,
+              2,
+              2
+            ],
+            "block_sequence_sample": [
+              "p",
+              "b",
+              "p",
+              "a",
+              "p",
+              "a",
+              "p",
+              "a",
+              "p",
+              "b",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "ul",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "ul",
+              "li",
+              "ol",
+              "hr",
+              "p",
+              "h1",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "b",
+              "p",
+              "li",
+              "p",
+              "b",
+              "p",
+              "li",
+              "p",
+              "li",
+              "p",
+              "b",
+              "p",
+              "img",
+              "p",
+              "li",
+              "p",
+              "b",
+              "p",
+              "img",
+              "p",
+              "li",
+              "p",
+              "b",
+              "p",
+              "img",
+              "p",
+              "li",
+              "p",
+              "b",
+              "p",
+              "li",
+              "ol",
+              "img",
+              "p",
+              "hr",
+              "p",
+              "h1",
+              "p",
+              "h2",
+              "ol"
+            ],
+            "tag_counts": {
+              "h1": 3,
+              "h2": 6,
+              "h3": 0,
+              "h4": 0,
+              "p": 77,
+              "ol": 4,
+              "ul": 1,
+              "li": 20,
+              "strong": 0,
+              "b": 14,
+              "em": 0,
+              "a": 8,
+              "img": 11,
+              "table": 0,
+              "blockquote": 0,
+              "hr": 2
+            },
+            "has_audience_block": true,
+            "has_guide_outline": false,
+            "has_faq": false,
+            "word_count": 621,
+            "structural_fingerprint": "96abad3e6dff668af96300149352143af0f9b9ab064d10a8da2a5faeecc03772"
+          }
+        },
+        {
+          "id": "9550576",
+          "title": "Claims Approval Cut Off Date",
+          "url": "http://help.staffany.com/en/articles/9550576-claims-approval-cut-off-date",
+          "state": "published",
+          "updated_at": 1736915951,
+          "direct_edit_url": "https://app.intercom.com/a/apps/y12ertqm/articles/articles/9550576/show",
+          "family": "claims",
+          "product_labels": [
+            "StaffAny"
+          ],
+          "platform_labels": [
+            "Web"
+          ],
+          "audience_labels": [
+            "Owner",
+            "Employee",
+            "Payroll"
+          ],
+          "workflow_tags": [
+            "setup",
+            "create",
+            "approve",
+            "payroll",
+            "permissions",
+            "claims"
+          ],
+          "structure": {
+            "headings": [
+              {
+                "level": 1,
+                "text": "Setting Cut Off Date For Approving Claims"
+              },
+              {
+                "level": 1,
+                "text": "FAQ"
+              },
+              {
+                "level": 2,
+                "text": "What happens the cut off date set exceeds the number of days in a month?"
+              },
+              {
+                "level": 2,
+                "text": "How should I set up my cut off date if I process claims separately from payroll?"
+              },
+              {
+                "level": 2,
+                "text": "What happened if I changed the cutoff date once the claims has been approved?"
+              }
+            ],
+            "heading_levels": [
+              1,
+              1,
+              2,
+              2,
+              2
+            ],
+            "block_sequence_sample": [
+              "p",
+              "b",
+              "p",
+              "a",
+              "p",
+              "a",
+              "p",
+              "b",
+              "p",
+              "hr",
+              "p",
+              "h1",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "b",
+              "p",
+              "li",
+              "p",
+              "li",
+              "ol",
+              "p",
+              "img",
+              "p",
+              "table",
+              "p",
+              "b",
+              "p",
+              "b",
+              "p",
+              "table",
+              "p",
+              "h1",
+              "h2",
+              "p",
+              "h2",
+              "p",
+              "b",
+              "p",
+              "a",
+              "p",
+              "h2",
+              "p"
+            ],
+            "tag_counts": {
+              "h1": 2,
+              "h2": 3,
+              "h3": 0,
+              "h4": 0,
+              "p": 33,
+              "ol": 1,
+              "ul": 0,
+              "li": 2,
+              "strong": 0,
+              "b": 6,
+              "em": 0,
+              "a": 3,
+              "img": 1,
+              "table": 1,
+              "blockquote": 0,
+              "hr": 1
+            },
+            "has_audience_block": true,
+            "has_guide_outline": false,
+            "has_faq": false,
+            "word_count": 277,
+            "structural_fingerprint": "05835ded1b4658bf145f98914943b097d7d2744760f23ef75d517138e2f5feb4"
+          }
+        }
+      ]
+    },
+    {
+      "id": "hireany",
+      "label": "HireAny",
+      "keywords": [
+        "hireany",
+        "casual",
+        "provider",
+        "vendor",
+        "customer view",
+        "worker view"
+      ],
+      "split_rule": "Split by marketplace side when customer, provider, and casual worker workflows differ.",
+      "default_mode": "mixed",
+      "planning_model": [
+        {
+          "title_pattern": "HireAny (Beta) - Customer View",
+          "audience": [
+            "Owner"
+          ],
+          "platform": [
+            "Web"
+          ],
+          "workflow": "customer order management",
+          "create_or_update": "update_existing"
+        },
+        {
+          "title_pattern": "HireAny (Beta) - Vendor / Provider View",
+          "audience": [
+            "Owner"
+          ],
+          "platform": [
+            "Web"
+          ],
+          "workflow": "provider fulfilment",
+          "create_or_update": "update_existing"
+        },
+        {
+          "title_pattern": "HireAny (Beta) - Casual Worker View",
+          "audience": [
+            "Employee"
+          ],
+          "platform": [
+            "Mobile"
+          ],
+          "workflow": "casual worker setup and attendance",
+          "create_or_update": "update_existing"
+        }
+      ],
+      "reference_article_ids": [
+        "10866862",
+        "10900205",
+        "11016372"
+      ],
+      "reference_articles": [
+        {
+          "id": "10866862",
+          "title": "HireAny (Beta) - Customer View",
+          "url": "http://help.staffany.com/en/articles/10866862-hireany-beta-customer-view",
+          "state": "published",
+          "updated_at": 1759718478,
+          "direct_edit_url": "https://app.intercom.com/a/apps/y12ertqm/articles/articles/10866862/show",
+          "family": "hireany",
+          "product_labels": [
+            "HireAny"
+          ],
+          "platform_labels": [
+            "Web"
+          ],
+          "audience_labels": [
+            "Owner",
+            "Manager",
+            "Supervisor",
+            "Employee",
+            "HR/Admin"
+          ],
+          "workflow_tags": [
+            "setup",
+            "create",
+            "manage",
+            "submit",
+            "approve",
+            "view",
+            "publish",
+            "import_export",
+            "permissions",
+            "scheduling",
+            "timesheet"
+          ],
+          "structure": {
+            "headings": [
+              {
+                "level": 1,
+                "text": "Set Up"
+              },
+              {
+                "level": 1,
+                "text": "Creating an Order"
+              },
+              {
+                "level": 1,
+                "text": "Approving / Declining Casuals"
+              },
+              {
+                "level": 1,
+                "text": "Time & Attendance"
+              },
+              {
+                "level": 2,
+                "text": "Before Shift Starts"
+              },
+              {
+                "level": 2,
+                "text": "Clocking In & Out"
+              },
+              {
+                "level": 2,
+                "text": "Timesheets"
+              },
+              {
+                "level": 1,
+                "text": "Billing"
+              },
+              {
+                "level": 1,
+                "text": "FAQ"
+              },
+              {
+                "level": 2,
+                "text": "Billing"
+              },
+              {
+                "level": 2,
+                "text": "Orders"
+              },
+              {
+                "level": 2,
+                "text": "Time & Attendance"
+              },
+              {
+                "level": 2,
+                "text": "Others"
+              }
+            ],
+            "heading_levels": [
+              1,
+              1,
+              1,
+              1,
+              2,
+              2,
+              2,
+              1,
+              1,
+              2,
+              2,
+              2,
+              2
+            ],
+            "block_sequence_sample": [
+              "p",
+              "b",
+              "p",
+              "a",
+              "p",
+              "a",
+              "p",
+              "b",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "ol",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "ol",
+              "hr",
+              "p",
+              "h1",
+              "ol",
+              "li",
+              "p",
+              "b",
+              "p",
+              "img",
+              "p",
+              "li",
+              "p",
+              "li",
+              "ol",
+              "hr",
+              "p",
+              "h1",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "b",
+              "p",
+              "li",
+              "p",
+              "li",
+              "p",
+              "b",
+              "p"
+            ],
+            "tag_counts": {
+              "h1": 6,
+              "h2": 7,
+              "h3": 0,
+              "h4": 0,
+              "p": 139,
+              "ol": 8,
+              "ul": 5,
+              "li": 38,
+              "strong": 0,
+              "b": 29,
+              "em": 0,
+              "a": 11,
+              "img": 9,
+              "table": 1,
+              "blockquote": 0,
+              "hr": 7
+            },
+            "has_audience_block": true,
+            "has_guide_outline": false,
+            "has_faq": true,
+            "word_count": 1411,
+            "structural_fingerprint": "3072a740461fd987a1a1a3722925ae2edca70bbd2b051a1c3143373c14983964"
+          }
+        },
+        {
+          "id": "10900205",
+          "title": "HireAny (Beta) - Vendor / Provider View",
+          "url": "http://help.staffany.com/en/articles/10900205-hireany-beta-vendor-provider-view",
+          "state": "published",
+          "updated_at": 1752048042,
+          "direct_edit_url": "https://app.intercom.com/a/apps/y12ertqm/articles/articles/10900205/show",
+          "family": "hireany",
+          "product_labels": [
+            "HireAny"
+          ],
+          "platform_labels": [
+            "Web"
+          ],
+          "audience_labels": [
+            "Owner",
+            "Employee",
+            "HR/Admin"
+          ],
+          "workflow_tags": [
+            "setup",
+            "create",
+            "manage",
+            "submit",
+            "approve",
+            "view",
+            "onboarding",
+            "permissions",
+            "scheduling",
+            "timesheet"
+          ],
+          "structure": {
+            "headings": [
+              {
+                "level": 1,
+                "text": "Set Up"
+              },
+              {
+                "level": 2,
+                "text": "Admin Information"
+              },
+              {
+                "level": 2,
+                "text": "Casual Worker Information"
+              },
+              {
+                "level": 1,
+                "text": "Submitting Casuals in Orders"
+              },
+              {
+                "level": 1,
+                "text": "Onboarding Casuals on StaffAny"
+              },
+              {
+                "level": 1,
+                "text": "Timesheets"
+              },
+              {
+                "level": 1,
+                "text": "Billing"
+              },
+              {
+                "level": 2,
+                "text": "Disputes"
+              },
+              {
+                "level": 1,
+                "text": "FAQ"
+              },
+              {
+                "level": 2,
+                "text": "Orders"
+              },
+              {
+                "level": 2,
+                "text": "Paying Casuals"
+              }
+            ],
+            "heading_levels": [
+              1,
+              2,
+              2,
+              1,
+              1,
+              1,
+              1,
+              2,
+              1,
+              2,
+              2
+            ],
+            "block_sequence_sample": [
+              "p",
+              "b",
+              "p",
+              "a",
+              "p",
+              "a",
+              "p",
+              "b",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "a",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "ol",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "ol",
+              "hr",
+              "h1",
+              "h2",
+              "ol",
+              "li",
+              "p",
+              "b",
+              "a",
+              "p",
+              "ul",
+              "li",
+              "p",
+              "li",
+              "p",
+              "ul",
+              "li",
+              "p",
+              "li",
+              "ul",
+              "li",
+              "p",
+              "li",
+              "ul",
+              "li",
+              "p",
+              "b",
+              "p",
+              "ul",
+              "li",
+              "p",
+              "ul",
+              "li",
+              "p",
+              "li",
+              "ul",
+              "li",
+              "ul"
+            ],
+            "tag_counts": {
+              "h1": 6,
+              "h2": 5,
+              "h3": 0,
+              "h4": 0,
+              "p": 111,
+              "ol": 9,
+              "ul": 14,
+              "li": 47,
+              "strong": 0,
+              "b": 19,
+              "em": 0,
+              "a": 17,
+              "img": 6,
+              "table": 0,
+              "blockquote": 0,
+              "hr": 6
+            },
+            "has_audience_block": true,
+            "has_guide_outline": false,
+            "has_faq": true,
+            "word_count": 1203,
+            "structural_fingerprint": "5e9b0a93ef87861b01a4e3a5ac3e3e4912229ed2dba196def5823967c97a31ac"
+          }
+        },
+        {
+          "id": "11016372",
+          "title": "HireAny (Beta) - Casual Worker View",
+          "url": "http://help.staffany.com/en/articles/11016372-hireany-beta-casual-worker-view",
+          "state": "published",
+          "updated_at": 1743564089,
+          "direct_edit_url": "https://app.intercom.com/a/apps/y12ertqm/articles/articles/11016372/show",
+          "family": "hireany",
+          "product_labels": [
+            "HireAny"
+          ],
+          "platform_labels": [
+            "Mobile"
+          ],
+          "audience_labels": [
+            "Manager",
+            "Employee",
+            "HR/Admin"
+          ],
+          "workflow_tags": [
+            "setup",
+            "create",
+            "manage",
+            "view",
+            "permissions",
+            "scheduling",
+            "timesheet"
+          ],
+          "structure": {
+            "headings": [
+              {
+                "level": 1,
+                "text": "Downloading and Setting Up StaffAny"
+              },
+              {
+                "level": 2,
+                "text": "Login"
+              },
+              {
+                "level": 2,
+                "text": "Create an Account"
+              },
+              {
+                "level": 1,
+                "text": "Time & Attendance"
+              },
+              {
+                "level": 2,
+                "text": "Clocking In & Out"
+              },
+              {
+                "level": 2,
+                "text": "Timesheets"
+              },
+              {
+                "level": 1,
+                "text": "FAQ"
+              },
+              {
+                "level": 2,
+                "text": "Time & Attendance"
+              }
+            ],
+            "heading_levels": [
+              1,
+              2,
+              2,
+              1,
+              2,
+              2,
+              1,
+              2
+            ],
+            "block_sequence_sample": [
+              "p",
+              "b",
+              "p",
+              "a",
+              "p",
+              "a",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "a",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "ol",
+              "li",
+              "p",
+              "a",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "ol",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "ol",
+              "hr",
+              "h1",
+              "b",
+              "h1",
+              "h2",
+              "p",
+              "img",
+              "p",
+              "a",
+              "p",
+              "h2",
+              "p",
+              "a",
+              "p",
+              "b",
+              "p",
+              "img",
+              "p",
+              "hr",
+              "h1",
+              "b",
+              "h1",
+              "h2",
+              "p",
+              "b",
+              "p",
+              "img",
+              "p",
+              "a",
+              "p",
+              "h2",
+              "p",
+              "img",
+              "p",
+              "img",
+              "p"
+            ],
+            "tag_counts": {
+              "h1": 3,
+              "h2": 5,
+              "h3": 0,
+              "h4": 0,
+              "p": 69,
+              "ol": 3,
+              "ul": 0,
+              "li": 7,
+              "strong": 0,
+              "b": 13,
+              "em": 0,
+              "a": 12,
+              "img": 5,
+              "table": 0,
+              "blockquote": 0,
+              "hr": 3
+            },
+            "has_audience_block": true,
+            "has_guide_outline": false,
+            "has_faq": true,
+            "word_count": 631,
+            "structural_fingerprint": "173c87bbf6ccb53d07934d65b72330d48cd6bfdcd9b54cb04aa5075567378b7c"
+          }
+        }
+      ]
+    },
+    {
+      "id": "leave",
+      "label": "Leave",
+      "keywords": [
+        "leave",
+        "leave calendar",
+        "leave request",
+        "approve leave"
+      ],
+      "split_rule": "Keep one combined article when the same manager workflow spans Web and Mobile; split approval/application flows when actor or platform changes.",
+      "default_mode": "update_existing",
+      "planning_model": [
+        {
+          "title_pattern": "Managing Leave with Leave Calendar",
+          "audience": [
+            "Owner",
+            "Manager",
+            "Supervisor"
+          ],
+          "platform": [
+            "Web",
+            "Mobile"
+          ],
+          "workflow": "leave calendar planning and approval",
+          "create_or_update": "update_existing"
+        }
+      ],
+      "reference_article_ids": [
+        "14715267",
+        "3589845",
+        "3542111",
+        "6015355"
+      ],
+      "reference_articles": [
+        {
+          "id": "14715267",
+          "title": "Managing Leave with Leave Calendar",
+          "url": "http://help.staffany.com/en/articles/14715267-managing-leave-with-leave-calendar",
+          "state": "published",
+          "updated_at": 1776830623,
+          "direct_edit_url": "https://app.intercom.com/a/apps/y12ertqm/articles/articles/14715267/show",
+          "family": "leave",
+          "product_labels": [
+            "StaffAny"
+          ],
+          "platform_labels": [
+            "Web",
+            "Mobile"
+          ],
+          "audience_labels": [
+            "Owner",
+            "Manager",
+            "Supervisor",
+            "Employee"
+          ],
+          "workflow_tags": [
+            "manage",
+            "approve",
+            "view",
+            "permissions",
+            "leave"
+          ],
+          "structure": {
+            "headings": [
+              {
+                "level": 1,
+                "text": "Accessing the Leave Calendar"
+              },
+              {
+                "level": 2,
+                "text": "Understand what the calendar shows"
+              },
+              {
+                "level": 1,
+                "text": "Accepting/Declining Pending Leaves from Leave Calendar"
+              },
+              {
+                "level": 1,
+                "text": "FAQ"
+              }
+            ],
+            "heading_levels": [
+              1,
+              2,
+              1,
+              1
+            ],
+            "block_sequence_sample": [
+              "p",
+              "b",
+              "p",
+              "b",
+              "p",
+              "ul",
+              "li",
+              "p",
+              "a",
+              "p",
+              "ul",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "ul",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "hr",
+              "li",
+              "ul",
+              "p",
+              "h1",
+              "b",
+              "h1",
+              "p",
+              "b",
+              "p",
+              "ul",
+              "li",
+              "p",
+              "b",
+              "p",
+              "li",
+              "p",
+              "b",
+              "p",
+              "li",
+              "p",
+              "li",
+              "ul",
+              "p",
+              "img",
+              "p",
+              "b",
+              "p",
+              "img",
+              "p",
+              "h2",
+              "b",
+              "h2",
+              "ul",
+              "li",
+              "p",
+              "li",
+              "p",
+              "li",
+              "p",
+              "b",
+              "p",
+              "li",
+              "p",
+              "b",
+              "p",
+              "li",
+              "p",
+              "b",
+              "p",
+              "li",
+              "ul",
+              "p",
+              "img",
+              "p"
+            ],
+            "tag_counts": {
+              "h1": 3,
+              "h2": 1,
+              "h3": 0,
+              "h4": 0,
+              "p": 60,
+              "ol": 0,
+              "ul": 6,
+              "li": 14,
+              "strong": 0,
+              "b": 22,
+              "em": 0,
+              "a": 5,
+              "img": 11,
+              "table": 0,
+              "blockquote": 0,
+              "hr": 3
+            },
+            "has_audience_block": false,
+            "has_guide_outline": true,
+            "has_faq": true,
+            "word_count": 479,
+            "structural_fingerprint": "b8e2b725afad5c428c2018d19807f7d745db7bcebe0a7f37261224bd67b00f2c"
+          }
+        },
+        {
+          "id": "3589845",
+          "title": "Web App: Approve Leave Requests",
+          "url": "http://help.staffany.com/en/articles/3589845-web-app-approve-leave-requests",
+          "state": "published",
+          "updated_at": 1764659820,
+          "direct_edit_url": "https://app.intercom.com/a/apps/y12ertqm/articles/articles/3589845/show",
+          "family": "leave",
+          "product_labels": [
+            "StaffAny"
+          ],
+          "platform_labels": [
+            "Web"
+          ],
+          "audience_labels": [
+            "Owner",
+            "Manager",
+            "Employee"
+          ],
+          "workflow_tags": [
+            "setup",
+            "manage",
+            "approve",
+            "view",
+            "permissions",
+            "scheduling",
+            "leave",
+            "timesheet"
+          ],
+          "structure": {
+            "headings": [
+              {
+                "level": 2,
+                "text": "Contents of this article is applicable to the following users"
+              },
+              {
+                "level": 1,
+                "text": "View and Approve/Decline Leave Applications"
+              },
+              {
+                "level": 2,
+                "text": "For Web App"
+              },
+              {
+                "level": 3,
+                "text": "Through Notifications"
+              },
+              {
+                "level": 3,
+                "text": "Through My Team"
+              },
+              {
+                "level": 3,
+                "text": "Through Leave Dashboard"
+              },
+              {
+                "level": 1,
+                "text": "Two-tier Leave Approver Methods"
+              },
+              {
+                "level": 1,
+                "text": "Edit Leave Application"
+              },
+              {
+                "level": 1,
+                "text": "View Uploaded Image of Leave"
+              },
+              {
+                "level": 1,
+                "text": "FAQs"
+              },
+              {
+                "level": 2,
+                "text": "Further Reading"
+              }
+            ],
+            "heading_levels": [
+              2,
+              1,
+              2,
+              3,
+              3,
+              3,
+              1,
+              1,
+              1,
+              1,
+              2
+            ],
+            "block_sequence_sample": [
+              "h2",
+              "b",
+              "h2",
+              "p",
+              "a",
+              "p",
+              "a",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "a",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "ol",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "ol",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "b",
+              "p",
+              "li",
+              "p",
+              "b",
+              "p",
+              "li",
+              "ol",
+              "hr",
+              "h1",
+              "b",
+              "h1",
+              "p",
+              "h2",
+              "b",
+              "h2",
+              "h3",
+              "b",
+              "h3",
+              "ol",
+              "li",
+              "p",
+              "b",
+              "p",
+              "li",
+              "p",
+              "li",
+              "p",
+              "b",
+              "p"
+            ],
+            "tag_counts": {
+              "h1": 5,
+              "h2": 3,
+              "h3": 3,
+              "h4": 0,
+              "p": 79,
+              "ol": 9,
+              "ul": 5,
+              "li": 32,
+              "strong": 0,
+              "b": 38,
+              "em": 0,
+              "a": 19,
+              "img": 8,
+              "table": 0,
+              "blockquote": 0,
+              "hr": 6
+            },
+            "has_audience_block": false,
+            "has_guide_outline": false,
+            "has_faq": false,
+            "word_count": 679,
+            "structural_fingerprint": "cfe8b4c9207e01c35c4c365f97af5a29240e06387d5ef9ca1152c4c6fb2fe19f"
+          }
+        },
+        {
+          "id": "3542111",
+          "title": "Leave Application",
+          "url": "http://help.staffany.com/en/articles/3542111-leave-application",
+          "state": "published",
+          "updated_at": 1762333827,
+          "direct_edit_url": "https://app.intercom.com/a/apps/y12ertqm/articles/articles/3542111/show",
+          "family": "leave",
+          "product_labels": [],
+          "platform_labels": [
+            "Mobile"
+          ],
+          "audience_labels": [
+            "Manager"
+          ],
+          "workflow_tags": [
+            "create",
+            "manage",
+            "submit",
+            "approve",
+            "view",
+            "permissions",
+            "leave"
+          ],
+          "structure": {
+            "headings": [
+              {
+                "level": 2,
+                "text": "Contents of this article is applicable to the following users"
+              },
+              {
+                "level": 1,
+                "text": "Apply for Leave"
+              },
+              {
+                "level": 1,
+                "text": "Update Your Pending Leave"
+              },
+              {
+                "level": 1,
+                "text": "Cancel Leave"
+              },
+              {
+                "level": 1,
+                "text": "View Balance/Pending/Approved/Declined/History of Leave"
+              }
+            ],
+            "heading_levels": [
+              2,
+              1,
+              1,
+              1,
+              1
+            ],
+            "block_sequence_sample": [
+              "h2",
+              "b",
+              "h2",
+              "p",
+              "a",
+              "p",
+              "a",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "ol",
+              "hr",
+              "h1",
+              "b",
+              "h1",
+              "ol",
+              "li",
+              "p",
+              "b",
+              "p",
+              "img",
+              "p",
+              "li",
+              "p",
+              "b",
+              "p",
+              "img",
+              "p",
+              "li",
+              "p",
+              "b",
+              "p",
+              "img",
+              "p",
+              "li",
+              "p",
+              "img",
+              "p",
+              "li",
+              "p",
+              "b",
+              "p",
+              "img",
+              "p",
+              "li",
+              "p",
+              "img",
+              "p",
+              "li",
+              "p",
+              "b",
+              "p",
+              "img",
+              "p",
+              "img",
+              "p",
+              "li",
+              "ol",
+              "p",
+              "a",
+              "p",
+              "hr",
+              "h1",
+              "b"
+            ],
+            "tag_counts": {
+              "h1": 4,
+              "h2": 1,
+              "h3": 0,
+              "h4": 0,
+              "p": 96,
+              "ol": 5,
+              "ul": 0,
+              "li": 24,
+              "strong": 0,
+              "b": 36,
+              "em": 0,
+              "a": 15,
+              "img": 21,
+              "table": 0,
+              "blockquote": 0,
+              "hr": 5
+            },
+            "has_audience_block": false,
+            "has_guide_outline": false,
+            "has_faq": false,
+            "word_count": 327,
+            "structural_fingerprint": "87c7551b91b673b7758426058ed562dec27934eb95cbb4b715097f95091a8657"
+          }
+        },
+        {
+          "id": "6015355",
+          "title": "Mobile App: Approve Leave Requests",
+          "url": "http://help.staffany.com/en/articles/6015355-mobile-app-approve-leave-requests",
+          "state": "published",
+          "updated_at": 1741259014,
+          "direct_edit_url": "https://app.intercom.com/a/apps/y12ertqm/articles/articles/6015355/show",
+          "family": "leave",
+          "product_labels": [],
+          "platform_labels": [
+            "Mobile"
+          ],
+          "audience_labels": [
+            "Owner",
+            "Manager",
+            "Employee"
+          ],
+          "workflow_tags": [
+            "manage",
+            "approve",
+            "view",
+            "permissions",
+            "scheduling",
+            "leave",
+            "timesheet"
+          ],
+          "structure": {
+            "headings": [
+              {
+                "level": 2,
+                "text": "Contents of this article is applicable to the following users"
+              },
+              {
+                "level": 1,
+                "text": "View and Approve/Decline Leave Application"
+              },
+              {
+                "level": 1,
+                "text": "Edit Leave Application"
+              },
+              {
+                "level": 1,
+                "text": "View Uploaded Image of Leave"
+              }
+            ],
+            "heading_levels": [
+              2,
+              1,
+              1,
+              1
+            ],
+            "block_sequence_sample": [
+              "h2",
+              "b",
+              "h2",
+              "p",
+              "a",
+              "p",
+              "a",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "ol",
+              "hr",
+              "h1",
+              "b",
+              "h1",
+              "ol",
+              "li",
+              "p",
+              "b",
+              "p",
+              "img",
+              "p",
+              "li",
+              "p",
+              "b",
+              "p",
+              "img",
+              "p",
+              "li",
+              "p",
+              "b",
+              "p",
+              "img",
+              "p",
+              "li",
+              "ol",
+              "p",
+              "a",
+              "p",
+              "hr",
+              "h1",
+              "b",
+              "h1",
+              "ol",
+              "li",
+              "p",
+              "b",
+              "p",
+              "img",
+              "p",
+              "li",
+              "p",
+              "b",
+              "p",
+              "img",
+              "p",
+              "li",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "img",
+              "p",
+              "li",
+              "p",
+              "img",
+              "p",
+              "li"
+            ],
+            "tag_counts": {
+              "h1": 3,
+              "h2": 1,
+              "h3": 0,
+              "h4": 0,
+              "p": 44,
+              "ol": 4,
+              "ul": 0,
+              "li": 13,
+              "strong": 0,
+              "b": 22,
+              "em": 0,
+              "a": 8,
+              "img": 11,
+              "table": 0,
+              "blockquote": 0,
+              "hr": 3
+            },
+            "has_audience_block": false,
+            "has_guide_outline": false,
+            "has_faq": false,
+            "word_count": 200,
+            "structural_fingerprint": "c1362d762e70bf2afa4b7e3c09cc55e294401ebf2be8239c0d97ee7c88a36bef"
+          }
+        }
+      ]
+    },
+    {
+      "id": "timesheet",
+      "label": "Timesheet",
+      "keywords": [
+        "timesheet",
+        "timesheet lock",
+        "lock",
+        "unlock",
+        "recalculation"
+      ],
+      "split_rule": "Update the existing lifecycle article when behavior belongs to the same owner payroll-control workflow.",
+      "default_mode": "update_existing",
+      "planning_model": [
+        {
+          "title_pattern": "Timesheet Lock",
+          "audience": [
+            "Owner"
+          ],
+          "platform": [
+            "Web"
+          ],
+          "workflow": "lock and unlock timesheets",
+          "create_or_update": "update_existing"
+        }
+      ],
+      "reference_article_ids": [
+        "4871108",
+        "3458034",
+        "7146545"
+      ],
+      "reference_articles": [
+        {
+          "id": "4871108",
+          "title": "Timesheet Lock",
+          "url": "http://help.staffany.com/en/articles/4871108-timesheet-lock",
+          "state": "published",
+          "updated_at": 1770958314,
+          "direct_edit_url": "https://app.intercom.com/a/apps/y12ertqm/articles/articles/4871108/show",
+          "family": "timesheet",
+          "product_labels": [],
+          "platform_labels": [
+            "Web"
+          ],
+          "audience_labels": [
+            "Owner",
+            "Manager",
+            "Employee",
+            "Payroll"
+          ],
+          "workflow_tags": [
+            "create",
+            "manage",
+            "approve",
+            "payroll",
+            "permissions",
+            "scheduling",
+            "leave",
+            "timesheet"
+          ],
+          "structure": {
+            "headings": [
+              {
+                "level": 1,
+                "text": "Individual Timesheet Lock"
+              },
+              {
+                "level": 2,
+                "text": "Locking and Unlocking Timesheets for Multiple Staff"
+              },
+              {
+                "level": 2,
+                "text": "Locking and Unlocking Timesheets for Individuals"
+              },
+              {
+                "level": 1,
+                "text": "FAQ"
+              }
+            ],
+            "heading_levels": [
+              1,
+              2,
+              2,
+              1
+            ],
+            "block_sequence_sample": [
+              "p",
+              "b",
+              "p",
+              "b",
+              "p",
+              "a",
+              "p",
+              "a",
+              "p",
+              "b",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "li",
+              "p",
+              "li",
+              "ol",
+              "li",
+              "p",
+              "li",
+              "ol",
+              "hr",
+              "h1",
+              "h2",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "b",
+              "p",
+              "img",
+              "p",
+              "li",
+              "p",
+              "b",
+              "p",
+              "img",
+              "p",
+              "li",
+              "p",
+              "b",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "li",
+              "ol",
+              "li",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "li",
+              "p",
+              "b",
+              "p",
+              "li",
+              "ol",
+              "li",
+              "ol",
+              "img",
+              "p",
+              "li",
+              "p",
+              "img",
+              "li",
+              "ol",
+              "p",
+              "h2",
+              "p",
+              "ol",
+              "li",
+              "p"
+            ],
+            "tag_counts": {
+              "h1": 2,
+              "h2": 2,
+              "h3": 0,
+              "h4": 0,
+              "p": 62,
+              "ol": 10,
+              "ul": 1,
+              "li": 26,
+              "strong": 0,
+              "b": 18,
+              "em": 0,
+              "a": 2,
+              "img": 8,
+              "table": 0,
+              "blockquote": 0,
+              "hr": 2
+            },
+            "has_audience_block": false,
+            "has_guide_outline": false,
+            "has_faq": true,
+            "word_count": 493,
+            "structural_fingerprint": "b49aead42f6f8a45c2801a8185ca36643a87e9241ae36e5af8d020786170b131"
+          }
+        },
+        {
+          "id": "3458034",
+          "title": "Web App: Timesheet",
+          "url": "http://help.staffany.com/en/articles/3458034-web-app-timesheet",
+          "state": "published",
+          "updated_at": 1770353989,
+          "direct_edit_url": "https://app.intercom.com/a/apps/y12ertqm/articles/articles/3458034/show",
+          "family": "timesheet",
+          "product_labels": [
+            "StaffAny"
+          ],
+          "platform_labels": [
+            "Web"
+          ],
+          "audience_labels": [
+            "Owner",
+            "Manager",
+            "Employee"
+          ],
+          "workflow_tags": [
+            "setup",
+            "create",
+            "manage",
+            "view",
+            "publish",
+            "import_export",
+            "permissions",
+            "scheduling",
+            "leave",
+            "timesheet"
+          ],
+          "structure": {
+            "headings": [
+              {
+                "level": 2,
+                "text": "Contents of this article are applicable to the following users"
+              },
+              {
+                "level": 1,
+                "text": "How It Works"
+              },
+              {
+                "level": 1,
+                "text": "Timesheet filters"
+              },
+              {
+                "level": 1,
+                "text": "Edit Clocked Records"
+              },
+              {
+                "level": 2,
+                "text": "Resetting Clock Records"
+              },
+              {
+                "level": 2,
+                "text": "Timecard History"
+              },
+              {
+                "level": 2,
+                "text": "View Location/Photo Taken When A Staff Clocked In/Out"
+              },
+              {
+                "level": 1,
+                "text": "Actual Overtime Indicator"
+              },
+              {
+                "level": 1,
+                "text": "Add Timesheets"
+              },
+              {
+                "level": 1,
+                "text": "Export Timesheets"
+              },
+              {
+                "level": 1,
+                "text": "FAQ"
+              }
+            ],
+            "heading_levels": [
+              2,
+              1,
+              1,
+              1,
+              2,
+              2,
+              2,
+              1,
+              1,
+              1,
+              1
+            ],
+            "block_sequence_sample": [
+              "h2",
+              "b",
+              "h2",
+              "p",
+              "a",
+              "p",
+              "a",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "ol",
+              "hr",
+              "h1",
+              "b",
+              "h1",
+              "p",
+              "b",
+              "p",
+              "img",
+              "hr",
+              "p",
+              "h1",
+              "b",
+              "h1",
+              "p",
+              "img",
+              "table",
+              "p",
+              "b",
+              "p",
+              "b",
+              "p",
+              "table",
+              "p",
+              "img",
+              "p",
+              "hr",
+              "h1",
+              "b",
+              "h1",
+              "ol",
+              "li",
+              "p",
+              "b",
+              "a",
+              "b",
+              "p",
+              "img"
+            ],
+            "tag_counts": {
+              "h1": 7,
+              "h2": 4,
+              "h3": 0,
+              "h4": 0,
+              "p": 151,
+              "ol": 9,
+              "ul": 1,
+              "li": 33,
+              "strong": 0,
+              "b": 46,
+              "em": 0,
+              "a": 23,
+              "img": 22,
+              "table": 1,
+              "blockquote": 0,
+              "hr": 10
+            },
+            "has_audience_block": false,
+            "has_guide_outline": false,
+            "has_faq": true,
+            "word_count": 1135,
+            "structural_fingerprint": "36e645369dc3c11ecccda23515c4fa202b560fca9a10ab5cd4aa4ba7419648c7"
+          }
+        },
+        {
+          "id": "7146545",
+          "title": "FAQ: Timesheets",
+          "url": "http://help.staffany.com/en/articles/7146545-faq-timesheets",
+          "state": "published",
+          "updated_at": 1770022585,
+          "direct_edit_url": "https://app.intercom.com/a/apps/y12ertqm/articles/articles/7146545/show",
+          "family": "timesheet",
+          "product_labels": [
+            "StaffAny"
+          ],
+          "platform_labels": [
+            "Mobile"
+          ],
+          "audience_labels": [
+            "Owner",
+            "Manager",
+            "Supervisor",
+            "Employee"
+          ],
+          "workflow_tags": [
+            "setup",
+            "create",
+            "manage",
+            "view",
+            "import_export",
+            "scheduling",
+            "leave",
+            "timesheet"
+          ],
+          "structure": {
+            "headings": [
+              {
+                "level": 4,
+                "text": "Q: What if the staff forgets to clock in or clock out?"
+              },
+              {
+                "level": 4,
+                "text": "Q: What does the exclamation points refer to in the Timesheet?"
+              },
+              {
+                "level": 4,
+                "text": "Q: Can I only amend the Timesheet on the day itself?"
+              },
+              {
+                "level": 4,
+                "text": "Q: Why are some timings highlighted in green?"
+              },
+              {
+                "level": 4,
+                "text": "Q: Can I amend the break in and break out time taken?"
+              },
+              {
+                "level": 4,
+                "text": "Q: When staff clocks in earlier than scheduled, can StaffAny count the clock in time as the scheduled shift start time?"
+              },
+              {
+                "level": 4,
+                "text": "Q: How frequently should I check the Timesheet to ensure all data are up to date?"
+              },
+              {
+                "level": 4,
+                "text": "Q: What is the difference between Summary Export and Individual Export?"
+              },
+              {
+                "level": 4,
+                "text": "Q: How do I prevent further changes on Timesheet?"
+              },
+              {
+                "level": 4,
+                "text": "Q: How is OT counted for my staff?"
+              },
+              {
+                "level": 4,
+                "text": "Q: Help! Why is there's no leave tag when I'm using the Section Hours filter?"
+              }
+            ],
+            "heading_levels": [
+              4,
+              4,
+              4,
+              4,
+              4,
+              4,
+              4,
+              4,
+              4,
+              4,
+              4
+            ],
+            "block_sequence_sample": [
+              "h4",
+              "b",
+              "h4",
+              "p",
+              "a",
+              "p",
+              "h4",
+              "b",
+              "h4",
+              "p",
+              "a",
+              "p",
+              "h4",
+              "b",
+              "h4",
+              "p",
+              "h4",
+              "b",
+              "h4",
+              "p",
+              "h4",
+              "b",
+              "h4",
+              "p",
+              "h4",
+              "b",
+              "h4",
+              "p",
+              "a",
+              "p",
+              "h4",
+              "b",
+              "h4",
+              "p",
+              "h4",
+              "b",
+              "h4",
+              "p",
+              "a",
+              "p",
+              "h4",
+              "b",
+              "h4",
+              "p",
+              "a",
+              "p",
+              "h4",
+              "b",
+              "h4",
+              "p",
+              "a",
+              "p",
+              "h4",
+              "p",
+              "b",
+              "p",
+              "b",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "li",
+              "p",
+              "li",
+              "ol",
+              "p",
+              "li",
+              "ol",
+              "p",
+              "b",
+              "p",
+              "b",
+              "p"
+            ],
+            "tag_counts": {
+              "h1": 0,
+              "h2": 0,
+              "h3": 0,
+              "h4": 11,
+              "p": 50,
+              "ol": 2,
+              "ul": 0,
+              "li": 4,
+              "strong": 0,
+              "b": 18,
+              "em": 0,
+              "a": 8,
+              "img": 1,
+              "table": 0,
+              "blockquote": 0,
+              "hr": 0
+            },
+            "has_audience_block": false,
+            "has_guide_outline": false,
+            "has_faq": false,
+            "word_count": 939,
+            "structural_fingerprint": "a19bbae23f08338d6f839db89bfd85756a61dd91efbdf257f7d54dffaff968b9"
+          }
+        }
+      ]
+    },
+    {
+      "id": "payroll_payments",
+      "label": "Payroll / Payments",
+      "keywords": [
+        "payroll",
+        "payment",
+        "payments",
+        "payslip",
+        "bank file",
+        "disbursement",
+        "wallet",
+        "iras"
+      ],
+      "split_rule": "Split by payroll operation when setup, disbursement, reports, statutory submission, and bank-file export have different workflows.",
+      "default_mode": "mixed",
+      "planning_model": [
+        {
+          "title_pattern": "Create and Manage Disbursement",
+          "audience": [
+            "Owner"
+          ],
+          "platform": [
+            "Web"
+          ],
+          "workflow": "disbursement setup and management",
+          "create_or_update": "update_existing"
+        },
+        {
+          "title_pattern": "Top Up Disbursement Wallet Balance",
+          "audience": [
+            "Owner"
+          ],
+          "platform": [
+            "Web"
+          ],
+          "workflow": "wallet top-up",
+          "create_or_update": "update_existing"
+        }
+      ],
+      "reference_article_ids": [
+        "13867429",
+        "13867569",
+        "9344548",
+        "10090085",
+        "8790142",
+        "8898655"
+      ],
+      "reference_articles": [
+        {
+          "id": "13867429",
+          "title": "Top Up Disbursement Wallet Balance",
+          "url": "http://help.staffany.com/en/articles/13867429-top-up-disbursement-wallet-balance",
+          "state": "published",
+          "updated_at": 1777881970,
+          "direct_edit_url": "https://app.intercom.com/a/apps/y12ertqm/articles/articles/13867429/show",
+          "family": "payroll_payments",
+          "product_labels": [
+            "PayrollAny"
+          ],
+          "platform_labels": [
+            "Web"
+          ],
+          "audience_labels": [
+            "Owner",
+            "Employee",
+            "Payroll"
+          ],
+          "workflow_tags": [
+            "payroll",
+            "permissions",
+            "scheduling"
+          ],
+          "structure": {
+            "headings": [
+              {
+                "level": 2,
+                "text": "Contents of this article are applicable to the following users"
+              },
+              {
+                "level": 1,
+                "text": "Top up methods"
+              },
+              {
+                "level": 2,
+                "text": "Top up from Disbursement Summary"
+              },
+              {
+                "level": 2,
+                "text": "Top up from Balance Dashboard"
+              },
+              {
+                "level": 1,
+                "text": "VA transfer methods"
+              },
+              {
+                "level": 2,
+                "text": "BCA (klikBCA)"
+              },
+              {
+                "level": 2,
+                "text": "Mandiri (Livin by Mandiri)"
+              },
+              {
+                "level": 2,
+                "text": "BRI"
+              },
+              {
+                "level": 2,
+                "text": "BNI (wondr by BNI)"
+              },
+              {
+                "level": 2,
+                "text": "Permata"
+              },
+              {
+                "level": 2,
+                "text": "OCBC"
+              },
+              {
+                "level": 2,
+                "text": "CIMB Niaga (Octo)"
+              },
+              {
+                "level": 2,
+                "text": "DBS (Digibank)"
+              },
+              {
+                "level": 1,
+                "text": "Disbursement balance auto-withdrawal"
+              },
+              {
+                "level": 1,
+                "text": "FAQ"
+              }
+            ],
+            "heading_levels": [
+              2,
+              1,
+              2,
+              2,
+              1,
+              2,
+              2,
+              2,
+              2,
+              2,
+              2,
+              2,
+              2,
+              1,
+              1
+            ],
+            "block_sequence_sample": [
+              "h2",
+              "b",
+              "h2",
+              "p",
+              "a",
+              "p",
+              "a",
+              "p",
+              "hr",
+              "p",
+              "b",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "a",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "ol",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "ol",
+              "hr",
+              "h1",
+              "b",
+              "h1",
+              "h2",
+              "b",
+              "h2",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "b",
+              "p",
+              "img",
+              "li",
+              "p",
+              "img",
+              "li",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "li",
+              "p",
+              "li",
+              "ol",
+              "li",
+              "p",
+              "img",
+              "li",
+              "p",
+              "li",
+              "p",
+              "li",
+              "ol",
+              "h2",
+              "b",
+              "h2"
+            ],
+            "tag_counts": {
+              "h1": 4,
+              "h2": 11,
+              "h3": 0,
+              "h4": 0,
+              "p": 280,
+              "ol": 7,
+              "ul": 3,
+              "li": 37,
+              "strong": 0,
+              "b": 57,
+              "em": 0,
+              "a": 8,
+              "img": 6,
+              "table": 8,
+              "blockquote": 0,
+              "hr": 5
+            },
+            "has_audience_block": true,
+            "has_guide_outline": false,
+            "has_faq": true,
+            "word_count": 1487,
+            "structural_fingerprint": "fc40a1acf7b1743382e96acc0bdc30d22134345aa118b8715ad1e850a801c89d"
+          }
+        },
+        {
+          "id": "13867569",
+          "title": "Create and Manage Disbursement",
+          "url": "http://help.staffany.com/en/articles/13867569-create-and-manage-disbursement",
+          "state": "published",
+          "updated_at": 1777881612,
+          "direct_edit_url": "https://app.intercom.com/a/apps/y12ertqm/articles/articles/13867569/show",
+          "family": "payroll_payments",
+          "product_labels": [
+            "PayrollAny"
+          ],
+          "platform_labels": [
+            "Web"
+          ],
+          "audience_labels": [
+            "Owner",
+            "Employee",
+            "Payroll"
+          ],
+          "workflow_tags": [
+            "setup",
+            "create",
+            "manage",
+            "view",
+            "payroll",
+            "import_export",
+            "permissions"
+          ],
+          "structure": {
+            "headings": [
+              {
+                "level": 1,
+                "text": "Create Disbursement"
+              },
+              {
+                "level": 2,
+                "text": "Start Disbursement"
+              },
+              {
+                "level": 2,
+                "text": "Manage General Setting"
+              },
+              {
+                "level": 2,
+                "text": "Review Employee Data"
+              },
+              {
+                "level": 3,
+                "text": "Eligible for Disbursement"
+              },
+              {
+                "level": 3,
+                "text": "Not eligible for Disbursement"
+              },
+              {
+                "level": 3,
+                "text": "Edit Bank Details"
+              },
+              {
+                "level": 2,
+                "text": "Review Summary"
+              },
+              {
+                "level": 2,
+                "text": "Top Up Balance"
+              },
+              {
+                "level": 1,
+                "text": "Manage Disbursement"
+              },
+              {
+                "level": 2,
+                "text": "View Entity Disbursement Status"
+              },
+              {
+                "level": 2,
+                "text": "Edit Draft Disbursement"
+              },
+              {
+                "level": 2,
+                "text": "View Employee Disbursement Status"
+              },
+              {
+                "level": 2,
+                "text": "Retry Failed Payments"
+              },
+              {
+                "level": 2,
+                "text": "View Disbursement History"
+              },
+              {
+                "level": 2,
+                "text": "Download Disbursement Report"
+              },
+              {
+                "level": 1,
+                "text": "View Wallet Balance"
+              },
+              {
+                "level": 1,
+                "text": "FAQ"
+              }
+            ],
+            "heading_levels": [
+              1,
+              2,
+              2,
+              2,
+              3,
+              3,
+              3,
+              2,
+              2,
+              1,
+              2,
+              2,
+              2,
+              2,
+              2,
+              2,
+              1,
+              1
+            ],
+            "block_sequence_sample": [
+              "p",
+              "b",
+              "p",
+              "a",
+              "p",
+              "a",
+              "p",
+              "hr",
+              "p",
+              "b",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "a",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "ol",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "ol",
+              "li",
+              "p",
+              "a",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li"
+            ],
+            "tag_counts": {
+              "h1": 4,
+              "h2": 11,
+              "h3": 3,
+              "h4": 0,
+              "p": 171,
+              "ol": 18,
+              "ul": 4,
+              "li": 81,
+              "strong": 0,
+              "b": 100,
+              "em": 0,
+              "a": 26,
+              "img": 27,
+              "table": 1,
+              "blockquote": 0,
+              "hr": 5
+            },
+            "has_audience_block": true,
+            "has_guide_outline": true,
+            "has_faq": true,
+            "word_count": 1618,
+            "structural_fingerprint": "bb4f411fd556877e5f82635b1f9b25d864bc08c76a104fe91a3bd05b5a43b1b4"
+          }
+        },
+        {
+          "id": "9344548",
+          "title": "Payroll Reports (SG)",
+          "url": "http://help.staffany.com/en/articles/9344548-payroll-reports-sg",
+          "state": "published",
+          "updated_at": 1774941785,
+          "direct_edit_url": "https://app.intercom.com/a/apps/y12ertqm/articles/articles/9344548/show",
+          "family": "payroll_payments",
+          "product_labels": [
+            "PayrollAny"
+          ],
+          "platform_labels": [
+            "Web"
+          ],
+          "audience_labels": [
+            "Owner",
+            "Employee",
+            "Payroll"
+          ],
+          "workflow_tags": [
+            "setup",
+            "manage",
+            "view",
+            "payroll",
+            "import_export",
+            "permissions"
+          ],
+          "structure": {
+            "headings": [
+              {
+                "level": 1,
+                "text": "How to Download"
+              },
+              {
+                "level": 2,
+                "text": "Monthly Payroll Report"
+              },
+              {
+                "level": 2,
+                "text": "Year-to-date (YTD) Payroll Report"
+              },
+              {
+                "level": 2,
+                "text": "Payment Listing Report"
+              },
+              {
+                "level": 1,
+                "text": "Definition of Column Headers (Monthly Payroll Report - Excel Format)"
+              },
+              {
+                "level": 1,
+                "text": "Monthly Payroll Report - PDF Format"
+              },
+              {
+                "level": 1,
+                "text": "Definition of Row & Column Headers (YTD Payroll Report)"
+              },
+              {
+                "level": 1,
+                "text": "Frequently Asked Questions"
+              }
+            ],
+            "heading_levels": [
+              1,
+              2,
+              2,
+              2,
+              1,
+              1,
+              1,
+              1
+            ],
+            "block_sequence_sample": [
+              "p",
+              "b",
+              "p",
+              "a",
+              "p",
+              "a",
+              "p",
+              "b",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "ol",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "ol",
+              "hr",
+              "h1",
+              "b",
+              "h1",
+              "h2",
+              "b",
+              "h2",
+              "ol",
+              "li",
+              "p",
+              "b",
+              "p",
+              "li",
+              "p",
+              "b",
+              "p",
+              "li",
+              "p",
+              "b",
+              "p",
+              "li",
+              "p",
+              "li",
+              "p",
+              "li",
+              "p",
+              "b",
+              "p",
+              "li",
+              "p",
+              "li",
+              "ol",
+              "table",
+              "p",
+              "b",
+              "p",
+              "b",
+              "p",
+              "b"
+            ],
+            "tag_counts": {
+              "h1": 5,
+              "h2": 3,
+              "h3": 0,
+              "h4": 0,
+              "p": 189,
+              "ol": 5,
+              "ul": 8,
+              "li": 45,
+              "strong": 0,
+              "b": 46,
+              "em": 0,
+              "a": 15,
+              "img": 8,
+              "table": 4,
+              "blockquote": 0,
+              "hr": 4
+            },
+            "has_audience_block": true,
+            "has_guide_outline": false,
+            "has_faq": false,
+            "word_count": 1261,
+            "structural_fingerprint": "3511e7f81320ec9d4889814e30782fe46cd38cac4301b349b22bf6c305669665"
+          }
+        },
+        {
+          "id": "10090085",
+          "title": "Submitting IR8A to IRAS",
+          "url": "http://help.staffany.com/en/articles/10090085-submitting-ir8a-to-iras",
+          "state": "published",
+          "updated_at": 1774941535,
+          "direct_edit_url": "https://app.intercom.com/a/apps/y12ertqm/articles/articles/10090085/show",
+          "family": "payroll_payments",
+          "product_labels": [],
+          "platform_labels": [
+            "Web"
+          ],
+          "audience_labels": [
+            "Owner",
+            "Employee",
+            "Payroll"
+          ],
+          "workflow_tags": [
+            "setup",
+            "create",
+            "manage",
+            "submit",
+            "view",
+            "payroll",
+            "import_export",
+            "permissions",
+            "leave"
+          ],
+          "structure": {
+            "headings": [
+              {
+                "level": 1,
+                "text": "Submitting IR8A to IRAS"
+              },
+              {
+                "level": 1,
+                "text": "How to create an IR8A submission"
+              },
+              {
+                "level": 1,
+                "text": "How to cross check the data in the form with payroll"
+              },
+              {
+                "level": 1,
+                "text": "Preparing Data not Captured by StaffAny"
+              },
+              {
+                "level": 1,
+                "text": "How to submit IR8A to IRAS"
+              },
+              {
+                "level": 2,
+                "text": "How to edit IR8A Form"
+              },
+              {
+                "level": 4,
+                "text": "To edit on staff’s form:"
+              },
+              {
+                "level": 4,
+                "text": "To edit employer’s data:"
+              },
+              {
+                "level": 4,
+                "text": "Click on Edit Employer Data"
+              },
+              {
+                "level": 2,
+                "text": "How to validate and submit IR8A form"
+              },
+              {
+                "level": 1,
+                "text": "How to amend submitted submission"
+              },
+              {
+                "level": 1,
+                "text": "Troubleshooting IR8A Submission Issues (FAQ)"
+              }
+            ],
+            "heading_levels": [
+              1,
+              1,
+              1,
+              1,
+              1,
+              2,
+              4,
+              4,
+              4,
+              2,
+              1,
+              1
+            ],
+            "block_sequence_sample": [
+              "h1",
+              "b",
+              "h1",
+              "p",
+              "a",
+              "p",
+              "b",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "b",
+              "p",
+              "li",
+              "p",
+              "a",
+              "b",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "b",
+              "a",
+              "b",
+              "p",
+              "li",
+              "p",
+              "b",
+              "a",
+              "b",
+              "p",
+              "li",
+              "ol",
+              "li",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "li",
+              "p",
+              "li",
+              "p",
+              "li",
+              "ol",
+              "li",
+              "ol",
+              "p",
+              "b",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "a",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li"
+            ],
+            "tag_counts": {
+              "h1": 7,
+              "h2": 2,
+              "h3": 0,
+              "h4": 3,
+              "p": 191,
+              "ol": 18,
+              "ul": 3,
+              "li": 78,
+              "strong": 0,
+              "b": 114,
+              "em": 0,
+              "a": 22,
+              "img": 43,
+              "table": 3,
+              "blockquote": 0,
+              "hr": 6
+            },
+            "has_audience_block": true,
+            "has_guide_outline": false,
+            "has_faq": true,
+            "word_count": 2206,
+            "structural_fingerprint": "299b3a97448af9fbee14d1a51366644e6098d4846cc2a9c3013f9a40e5553ff8"
+          }
+        },
+        {
+          "id": "8790142",
+          "title": "Employee Profile Setup for Payroll",
+          "url": "http://help.staffany.com/en/articles/8790142-employee-profile-setup-for-payroll",
+          "state": "published",
+          "updated_at": 1772447016,
+          "direct_edit_url": "https://app.intercom.com/a/apps/y12ertqm/articles/articles/8790142/show",
+          "family": "payroll_payments",
+          "product_labels": [],
+          "platform_labels": [
+            "Web"
+          ],
+          "audience_labels": [
+            "Owner",
+            "Manager",
+            "Employee",
+            "Payroll"
+          ],
+          "workflow_tags": [
+            "setup",
+            "create",
+            "manage",
+            "submit",
+            "view",
+            "payroll",
+            "permissions",
+            "scheduling",
+            "leave",
+            "timesheet"
+          ],
+          "structure": {
+            "headings": [
+              {
+                "level": 2,
+                "text": "Contents of this article apply to the following users"
+              },
+              {
+                "level": 1,
+                "text": "Complete Basic Information"
+              },
+              {
+                "level": 1,
+                "text": "Tag employee to Business Entity"
+              },
+              {
+                "level": 1,
+                "text": "Set up Identification Information"
+              },
+              {
+                "level": 1,
+                "text": "Set up Statutory & Payment"
+              },
+              {
+                "level": 1,
+                "text": "Set up Employee’s Wages"
+              },
+              {
+                "level": 1,
+                "text": "Add/Tag Additional Pay Item (Optional)"
+              },
+              {
+                "level": 1,
+                "text": "Frequently Asked Questions on Employee Profile Setup"
+              }
+            ],
+            "heading_levels": [
+              2,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1
+            ],
+            "block_sequence_sample": [
+              "h2",
+              "b",
+              "h2",
+              "p",
+              "a",
+              "p",
+              "a",
+              "p",
+              "a",
+              "p",
+              "a",
+              "b",
+              "p",
+              "b",
+              "p",
+              "ul",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "ul",
+              "p",
+              "hr",
+              "p",
+              "h1",
+              "b",
+              "h1",
+              "ol",
+              "li",
+              "p",
+              "b",
+              "p",
+              "li",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "li",
+              "p",
+              "li",
+              "p",
+              "li",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "ol",
+              "li",
+              "p",
+              "li",
+              "p",
+              "ol"
+            ],
+            "tag_counts": {
+              "h1": 7,
+              "h2": 1,
+              "h3": 0,
+              "h4": 0,
+              "p": 147,
+              "ol": 18,
+              "ul": 9,
+              "li": 74,
+              "strong": 0,
+              "b": 70,
+              "em": 0,
+              "a": 32,
+              "img": 40,
+              "table": 0,
+              "blockquote": 0,
+              "hr": 8
+            },
+            "has_audience_block": false,
+            "has_guide_outline": true,
+            "has_faq": false,
+            "word_count": 1839,
+            "structural_fingerprint": "cdb5799e264d0af069a350b31814def62d542ed03eb210e7ba079b9ffd6df34b"
+          }
+        },
+        {
+          "id": "8898655",
+          "title": "Uploading DBS Bank File (GIRO/FAST)",
+          "url": "http://help.staffany.com/en/articles/8898655-uploading-dbs-bank-file-giro-fast",
+          "state": "published",
+          "updated_at": 1770199118,
+          "direct_edit_url": "https://app.intercom.com/a/apps/y12ertqm/articles/articles/8898655/show",
+          "family": "payroll_payments",
+          "product_labels": [],
+          "platform_labels": [
+            "Web"
+          ],
+          "audience_labels": [
+            "Owner",
+            "Employee",
+            "Payroll",
+            "HR/Admin"
+          ],
+          "workflow_tags": [
+            "setup",
+            "manage",
+            "submit",
+            "approve",
+            "view",
+            "payroll",
+            "import_export",
+            "permissions",
+            "leave"
+          ],
+          "structure": {
+            "headings": [
+              {
+                "level": 1,
+                "text": "How to Upload DBS Bank File (GIRO/FAST)"
+              },
+              {
+                "level": 1,
+                "text": "Troubleshooting Errors Upon Uploading Bank File"
+              },
+              {
+                "level": 1,
+                "text": "Timeline for Payroll Transfers"
+              },
+              {
+                "level": 3,
+                "text": "GIRO Payment"
+              },
+              {
+                "level": 3,
+                "text": "FAST Payroll"
+              },
+              {
+                "level": 2,
+                "text": "Frequently Asked Question"
+              }
+            ],
+            "heading_levels": [
+              1,
+              1,
+              1,
+              3,
+              3,
+              2
+            ],
+            "block_sequence_sample": [
+              "p",
+              "b",
+              "p",
+              "a",
+              "p",
+              "a",
+              "p",
+              "b",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "ol",
+              "hr",
+              "h1",
+              "b",
+              "h1",
+              "p",
+              "b",
+              "a",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "a",
+              "b",
+              "p",
+              "img",
+              "li",
+              "p",
+              "b",
+              "p",
+              "li",
+              "p",
+              "b",
+              "p",
+              "img",
+              "li",
+              "p",
+              "b",
+              "p",
+              "img",
+              "p",
+              "li",
+              "p",
+              "b",
+              "p",
+              "img",
+              "li",
+              "p",
+              "b",
+              "p",
+              "img",
+              "li",
+              "p",
+              "b",
+              "p",
+              "img",
+              "li",
+              "p",
+              "b",
+              "p",
+              "li",
+              "p",
+              "b",
+              "p",
+              "li",
+              "p",
+              "b"
+            ],
+            "tag_counts": {
+              "h1": 3,
+              "h2": 1,
+              "h3": 2,
+              "h4": 0,
+              "p": 84,
+              "ol": 6,
+              "ul": 1,
+              "li": 23,
+              "strong": 0,
+              "b": 35,
+              "em": 0,
+              "a": 11,
+              "img": 11,
+              "table": 0,
+              "blockquote": 0,
+              "hr": 4
+            },
+            "has_audience_block": false,
+            "has_guide_outline": true,
+            "has_faq": false,
+            "word_count": 1103,
+            "structural_fingerprint": "66ad81e63f5c8636f01d7cc3b15c0ce4812e75f907e4794250a6716091593cba"
+          }
+        }
+      ]
+    },
+    {
+      "id": "scheduling",
+      "label": "Scheduling",
+      "keywords": [
+        "schedule",
+        "shift",
+        "schedule import",
+        "unscheduled shift"
+      ],
+      "split_rule": "Split manager Web scheduling from employee Mobile requests when the acting user and surface differ.",
+      "default_mode": "mixed",
+      "planning_model": [
+        {
+          "title_pattern": "Web App: Schedule",
+          "audience": [
+            "Owner",
+            "Manager"
+          ],
+          "platform": [
+            "Web"
+          ],
+          "workflow": "schedule management",
+          "create_or_update": "update_existing"
+        },
+        {
+          "title_pattern": "Schedule Import",
+          "audience": [
+            "Owner",
+            "Manager"
+          ],
+          "platform": [
+            "Web"
+          ],
+          "workflow": "schedule import",
+          "create_or_update": "update_existing"
+        }
+      ],
+      "reference_article_ids": [
+        "15082227",
+        "3180018",
+        "5900189",
+        "6014271"
+      ],
+      "reference_articles": [
+        {
+          "id": "15082227",
+          "title": "Schedule Import",
+          "url": "http://help.staffany.com/en/articles/15082227-schedule-import",
+          "state": "published",
+          "updated_at": 1778679119,
+          "direct_edit_url": "https://app.intercom.com/a/apps/y12ertqm/articles/articles/15082227/show",
+          "family": "scheduling",
+          "product_labels": [],
+          "platform_labels": [],
+          "audience_labels": [],
+          "workflow_tags": [
+            "import_export",
+            "scheduling"
+          ],
+          "structure": {
+            "headings": [],
+            "heading_levels": [],
+            "block_sequence_sample": [],
+            "tag_counts": {
+              "h1": 0,
+              "h2": 0,
+              "h3": 0,
+              "h4": 0,
+              "p": 0,
+              "ol": 0,
+              "ul": 0,
+              "li": 0,
+              "strong": 0,
+              "b": 0,
+              "em": 0,
+              "a": 0,
+              "img": 0,
+              "table": 0,
+              "blockquote": 0,
+              "hr": 0
+            },
+            "has_audience_block": false,
+            "has_guide_outline": false,
+            "has_faq": false,
+            "word_count": 0,
+            "structural_fingerprint": "f8524c11956e9baa2f5f719737a89afb080fcd4f61b76c5016b9472565ae7e2a"
+          }
+        },
+        {
+          "id": "3180018",
+          "title": "Web App: Schedule",
+          "url": "http://help.staffany.com/en/articles/3180018-web-app-schedule",
+          "state": "published",
+          "updated_at": 1763969034,
+          "direct_edit_url": "https://app.intercom.com/a/apps/y12ertqm/articles/articles/3180018/show",
+          "family": "scheduling",
+          "product_labels": [
+            "StaffAny"
+          ],
+          "platform_labels": [
+            "Web"
+          ],
+          "audience_labels": [
+            "Owner",
+            "Manager",
+            "Employee"
+          ],
+          "workflow_tags": [
+            "create",
+            "manage",
+            "view",
+            "publish",
+            "import_export",
+            "permissions",
+            "scheduling",
+            "leave",
+            "timesheet"
+          ],
+          "structure": {
+            "headings": [
+              {
+                "level": 2,
+                "text": "Contents of this article is applicable to the following users"
+              },
+              {
+                "level": 1,
+                "text": "How It Works"
+              },
+              {
+                "level": 1,
+                "text": "Overview of Schedule"
+              },
+              {
+                "level": 2,
+                "text": "Rearrange Your Staff"
+              },
+              {
+                "level": 1,
+                "text": "Scheduling with StaffAny"
+              },
+              {
+                "level": 1,
+                "text": "Create Shift Template"
+              },
+              {
+                "level": 1,
+                "text": "Assign Shift to Staff"
+              },
+              {
+                "level": 2,
+                "text": "Shift Notes"
+              },
+              {
+                "level": 1,
+                "text": "Create custom Shift for Staff"
+              },
+              {
+                "level": 1,
+                "text": "Edit Shift Slot"
+              },
+              {
+                "level": 1,
+                "text": "Move Shift to Another cell"
+              },
+              {
+                "level": 1,
+                "text": "Copy Shift to Another Cell"
+              },
+              {
+                "level": 1,
+                "text": "Assign Staff Another Shift"
+              },
+              {
+                "level": 1,
+                "text": "Assign Leave to Staff"
+              },
+              {
+                "level": 2,
+                "text": "FAQ"
+              },
+              {
+                "level": 1,
+                "text": "Copy Existing Schedules to Subsequent Weeks"
+              },
+              {
+                "level": 2,
+                "text": "FAQ:"
+              },
+              {
+                "level": 1,
+                "text": "Scheduled Overtime Indicator"
+              },
+              {
+                "level": 1,
+                "text": "Export Schedule"
+              },
+              {
+                "level": 1,
+                "text": "Publish Schedule"
+              },
+              {
+                "level": 1,
+                "text": "Unpublish Schedule"
+              },
+              {
+                "level": 1,
+                "text": "Other Shift Slot View Options"
+              }
+            ],
+            "heading_levels": [
+              2,
+              1,
+              1,
+              2,
+              1,
+              1,
+              1,
+              2,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1,
+              2,
+              1,
+              2,
+              1,
+              1,
+              1,
+              1,
+              1
+            ],
+            "block_sequence_sample": [
+              "h2",
+              "b",
+              "h2",
+              "p",
+              "a",
+              "p",
+              "a",
+              "p",
+              "b",
+              "p",
+              "hr",
+              "p",
+              "b",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "li",
+              "ol",
+              "hr"
+            ],
+            "tag_counts": {
+              "h1": 17,
+              "h2": 5,
+              "h3": 0,
+              "h4": 0,
+              "p": 193,
+              "ol": 15,
+              "ul": 8,
+              "li": 61,
+              "strong": 0,
+              "b": 84,
+              "em": 0,
+              "a": 29,
+              "img": 35,
+              "table": 0,
+              "blockquote": 0,
+              "hr": 18
+            },
+            "has_audience_block": false,
+            "has_guide_outline": false,
+            "has_faq": true,
+            "word_count": 1836,
+            "structural_fingerprint": "92fd2cd5637f88f0956e25fb0af8395d8d2518ff461fc0bfd85db2ff0557f3fb"
+          }
+        },
+        {
+          "id": "5900189",
+          "title": "Web App: Approve/Reject Unscheduled Shift Request",
+          "url": "http://help.staffany.com/en/articles/5900189-web-app-approve-reject-unscheduled-shift-request",
+          "state": "published",
+          "updated_at": 1757659616,
+          "direct_edit_url": "https://app.intercom.com/a/apps/y12ertqm/articles/articles/5900189/show",
+          "family": "scheduling",
+          "product_labels": [
+            "StaffAny"
+          ],
+          "platform_labels": [
+            "Web"
+          ],
+          "audience_labels": [
+            "Owner",
+            "Manager",
+            "Employee"
+          ],
+          "workflow_tags": [
+            "create",
+            "manage",
+            "approve",
+            "view",
+            "permissions",
+            "scheduling",
+            "timesheet"
+          ],
+          "structure": {
+            "headings": [
+              {
+                "level": 2,
+                "text": "Contents of this article are applicable to the following users"
+              },
+              {
+                "level": 1,
+                "text": "Web App via Notification"
+              },
+              {
+                "level": 1,
+                "text": "Web App via Timesheet"
+              },
+              {
+                "level": 2,
+                "text": "Approve Request"
+              },
+              {
+                "level": 2,
+                "text": "Reject Request"
+              }
+            ],
+            "heading_levels": [
+              2,
+              1,
+              1,
+              2,
+              2
+            ],
+            "block_sequence_sample": [
+              "h2",
+              "b",
+              "h2",
+              "p",
+              "a",
+              "p",
+              "a",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "ol",
+              "li",
+              "ol",
+              "hr",
+              "p",
+              "h1",
+              "b",
+              "h1",
+              "ol",
+              "li",
+              "p",
+              "b",
+              "p",
+              "img",
+              "p",
+              "li",
+              "p",
+              "b",
+              "p",
+              "li",
+              "p",
+              "img",
+              "p",
+              "li",
+              "p",
+              "img",
+              "p",
+              "li",
+              "p",
+              "li",
+              "ol",
+              "hr",
+              "p",
+              "h1",
+              "b",
+              "h1",
+              "ol",
+              "li",
+              "p",
+              "b",
+              "p",
+              "li",
+              "p",
+              "img",
+              "p",
+              "li",
+              "ol",
+              "h2",
+              "ol",
+              "li",
+              "p",
+              "img",
+              "p"
+            ],
+            "tag_counts": {
+              "h1": 2,
+              "h2": 3,
+              "h3": 0,
+              "h4": 0,
+              "p": 50,
+              "ol": 6,
+              "ul": 0,
+              "li": 15,
+              "strong": 0,
+              "b": 17,
+              "em": 0,
+              "a": 8,
+              "img": 9,
+              "table": 0,
+              "blockquote": 0,
+              "hr": 2
+            },
+            "has_audience_block": false,
+            "has_guide_outline": false,
+            "has_faq": false,
+            "word_count": 264,
+            "structural_fingerprint": "df76c271f61dd2de7cadc21a93acb9608ac7d45858695ab26ba9c57ea2654c1b"
+          }
+        },
+        {
+          "id": "6014271",
+          "title": "Mobile App: Approve/Reject Unscheduled Shift Request",
+          "url": "http://help.staffany.com/en/articles/6014271-mobile-app-approve-reject-unscheduled-shift-request",
+          "state": "published",
+          "updated_at": 1751273304,
+          "direct_edit_url": "https://app.intercom.com/a/apps/y12ertqm/articles/articles/6014271/show",
+          "family": "scheduling",
+          "product_labels": [],
+          "platform_labels": [
+            "Mobile"
+          ],
+          "audience_labels": [
+            "Owner",
+            "Manager",
+            "Employee"
+          ],
+          "workflow_tags": [
+            "create",
+            "approve",
+            "permissions",
+            "scheduling"
+          ],
+          "structure": {
+            "headings": [
+              {
+                "level": 2,
+                "text": "Contents of this article are applicable to the following users"
+              },
+              {
+                "level": 1,
+                "text": "Approve Unscheduled Shift Requests"
+              },
+              {
+                "level": 1,
+                "text": "Reject Unscheduled Shift Request"
+              }
+            ],
+            "heading_levels": [
+              2,
+              1,
+              1
+            ],
+            "block_sequence_sample": [
+              "h2",
+              "b",
+              "h2",
+              "p",
+              "a",
+              "p",
+              "a",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "ol",
+              "hr",
+              "h1",
+              "b",
+              "h1",
+              "ol",
+              "li",
+              "p",
+              "b",
+              "p",
+              "img",
+              "p",
+              "b",
+              "p",
+              "img",
+              "p",
+              "li",
+              "p",
+              "b",
+              "p",
+              "img",
+              "p",
+              "li",
+              "p",
+              "b",
+              "p",
+              "img",
+              "p",
+              "b",
+              "p",
+              "b",
+              "p",
+              "li",
+              "ol",
+              "img",
+              "p",
+              "a",
+              "p",
+              "hr",
+              "h1",
+              "b",
+              "h1",
+              "ol",
+              "li",
+              "p",
+              "b",
+              "p",
+              "img",
+              "p",
+              "b",
+              "p",
+              "img",
+              "p",
+              "li",
+              "p",
+              "b",
+              "p",
+              "li",
+              "ol",
+              "img",
+              "p",
+              "a"
+            ],
+            "tag_counts": {
+              "h1": 2,
+              "h2": 1,
+              "h3": 0,
+              "h4": 0,
+              "p": 43,
+              "ol": 3,
+              "ul": 0,
+              "li": 7,
+              "strong": 0,
+              "b": 27,
+              "em": 0,
+              "a": 6,
+              "img": 8,
+              "table": 0,
+              "blockquote": 0,
+              "hr": 2
+            },
+            "has_audience_block": false,
+            "has_guide_outline": false,
+            "has_faq": false,
+            "word_count": 202,
+            "structural_fingerprint": "968f163838f9e60eb715d03b9bd657cc68269da5325aee446f9b35a0576b66d8"
+          }
+        }
+      ]
+    },
+    {
+      "id": "permissions_access",
+      "label": "Permissions / Access",
+      "keywords": [
+        "permission",
+        "permissions",
+        "access",
+        "access level",
+        "user access",
+        "role"
+      ],
+      "split_rule": "Prefer updating the canonical access article unless the change introduces a separate setup workflow.",
+      "default_mode": "update_existing",
+      "planning_model": [
+        {
+          "title_pattern": "Permission Groups",
+          "audience": [
+            "Owner",
+            "Manager"
+          ],
+          "platform": [
+            "Web"
+          ],
+          "workflow": "permission setup",
+          "create_or_update": "update_existing"
+        }
+      ],
+      "reference_article_ids": [
+        "4865824",
+        "3728187"
+      ],
+      "reference_articles": [
+        {
+          "id": "4865824",
+          "title": "Permission Groups",
+          "url": "http://help.staffany.com/en/articles/4865824-permission-groups",
+          "state": "published",
+          "updated_at": 1774432564,
+          "direct_edit_url": "https://app.intercom.com/a/apps/y12ertqm/articles/articles/4865824/show",
+          "family": "permissions_access",
+          "product_labels": [
+            "StaffAny"
+          ],
+          "platform_labels": [
+            "Web"
+          ],
+          "audience_labels": [
+            "Owner"
+          ],
+          "workflow_tags": [
+            "setup",
+            "create",
+            "manage",
+            "submit",
+            "approve",
+            "view",
+            "publish",
+            "payroll",
+            "import_export",
+            "permissions",
+            "scheduling",
+            "leave",
+            "timesheet"
+          ],
+          "structure": {
+            "headings": [
+              {
+                "level": 1,
+                "text": "Setting up Permission Groups for your team"
+              },
+              {
+                "level": 2,
+                "text": "Creating Permission Groups"
+              },
+              {
+                "level": 2,
+                "text": "List of customizable permissions"
+              },
+              {
+                "level": 2,
+                "text": "Assign or tag staff to permission group"
+              },
+              {
+                "level": 1,
+                "text": "Creating and Assigning staff to Teams"
+              },
+              {
+                "level": 2,
+                "text": "Create Teams"
+              },
+              {
+                "level": 2,
+                "text": "Assign Teams with Mass Edit Staff"
+              },
+              {
+                "level": 1,
+                "text": "Seeing Permission Groups for your staff"
+              },
+              {
+                "level": 1,
+                "text": "Permission Group Templates"
+              },
+              {
+                "level": 3,
+                "text": "Owner access level with all access to the app"
+              },
+              {
+                "level": 3,
+                "text": "Owner access level not allowed to manage permission group"
+              },
+              {
+                "level": 3,
+                "text": "Default Manager Staff View"
+              },
+              {
+                "level": 3,
+                "text": "Manager with Owner access level is not allowed to see all owners salary"
+              },
+              {
+                "level": 3,
+                "text": "Manager with Owner access level is allowed to manage payroll for all staff under them (same section)"
+              },
+              {
+                "level": 3,
+                "text": "Supervisor with Manager access level is not allowed to edit their own, fellow manager level, and owner’s timesheets"
+              },
+              {
+                "level": 3,
+                "text": "Prevent Supervisor access level from sales data input"
+              },
+              {
+                "level": 1,
+                "text": "Frequently Asked Questions"
+              }
+            ],
+            "heading_levels": [
+              1,
+              2,
+              2,
+              2,
+              1,
+              2,
+              2,
+              1,
+              1,
+              3,
+              3,
+              3,
+              3,
+              3,
+              3,
+              3,
+              1
+            ],
+            "block_sequence_sample": [
+              "p",
+              "b",
+              "p",
+              "a",
+              "p",
+              "a",
+              "p",
+              "ul",
+              "li",
+              "p",
+              "li",
+              "p",
+              "li",
+              "ul",
+              "p",
+              "a",
+              "p",
+              "b",
+              "p",
+              "ul",
+              "li",
+              "p",
+              "ul",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "ul",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "ul",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "ul",
+              "li",
+              "p"
+            ],
+            "tag_counts": {
+              "h1": 5,
+              "h2": 5,
+              "h3": 7,
+              "h4": 0,
+              "p": 416,
+              "ol": 13,
+              "ul": 16,
+              "li": 115,
+              "strong": 0,
+              "b": 71,
+              "em": 0,
+              "a": 24,
+              "img": 28,
+              "table": 7,
+              "blockquote": 0,
+              "hr": 5
+            },
+            "has_audience_block": false,
+            "has_guide_outline": false,
+            "has_faq": false,
+            "word_count": 3143,
+            "structural_fingerprint": "714e1fc750ba1bb7d47fb48a6256eff56a30a1d46bbd97fcca1ce9cb1502b271"
+          }
+        },
+        {
+          "id": "3728187",
+          "title": "StaffAny User & Access Levels",
+          "url": "http://help.staffany.com/en/articles/3728187-staffany-user-access-levels",
+          "state": "published",
+          "updated_at": 1770621197,
+          "direct_edit_url": "https://app.intercom.com/a/apps/y12ertqm/articles/articles/3728187/show",
+          "family": "permissions_access",
+          "product_labels": [
+            "PayrollAny",
+            "EngageAny"
+          ],
+          "platform_labels": [
+            "Web",
+            "Mobile"
+          ],
+          "audience_labels": [
+            "Employee"
+          ],
+          "workflow_tags": [
+            "setup",
+            "create",
+            "manage",
+            "submit",
+            "approve",
+            "view",
+            "redeem",
+            "publish",
+            "payroll",
+            "import_export",
+            "permissions",
+            "scheduling",
+            "leave",
+            "claims",
+            "timesheet"
+          ],
+          "structure": {
+            "headings": [
+              {
+                "level": 1,
+                "text": "Functionalities across access levels"
+              },
+              {
+                "level": 1,
+                "text": "Functionalities across modules"
+              },
+              {
+                "level": 2,
+                "text": "Schedule Functionalities"
+              },
+              {
+                "level": 2,
+                "text": "Timesheet Functionalities"
+              },
+              {
+                "level": 2,
+                "text": "Leave Functionalities"
+              },
+              {
+                "level": 2,
+                "text": "Payroll Functionalities"
+              },
+              {
+                "level": 2,
+                "text": "Claims Functionalities"
+              },
+              {
+                "level": 2,
+                "text": "Engage Functionalities"
+              },
+              {
+                "level": 3,
+                "text": "Reward"
+              },
+              {
+                "level": 3,
+                "text": "Challenge"
+              },
+              {
+                "level": 3,
+                "text": "Feedback"
+              },
+              {
+                "level": 3,
+                "text": "Report"
+              },
+              {
+                "level": 3,
+                "text": "Coins Management"
+              },
+              {
+                "level": 2,
+                "text": "My Team Functionalities"
+              },
+              {
+                "level": 2,
+                "text": "A quick overview"
+              },
+              {
+                "level": 2,
+                "text": "General Functionalities"
+              },
+              {
+                "level": 1,
+                "text": "3. FAQ"
+              }
+            ],
+            "heading_levels": [
+              1,
+              1,
+              2,
+              2,
+              2,
+              2,
+              2,
+              2,
+              3,
+              3,
+              3,
+              3,
+              3,
+              2,
+              2,
+              2,
+              1
+            ],
+            "block_sequence_sample": [
+              "p",
+              "b",
+              "p",
+              "a",
+              "p",
+              "a",
+              "p",
+              "hr",
+              "p",
+              "ol",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "ul",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "ul",
+              "li",
+              "p",
+              "a",
+              "p",
+              "li",
+              "ol",
+              "hr",
+              "h1",
+              "p",
+              "b",
+              "p",
+              "ul",
+              "li",
+              "p",
+              "li",
+              "p",
+              "li",
+              "p",
+              "li",
+              "p",
+              "li",
+              "p",
+              "li",
+              "ul",
+              "p",
+              "b",
+              "p"
+            ],
+            "tag_counts": {
+              "h1": 3,
+              "h2": 9,
+              "h3": 5,
+              "h4": 0,
+              "p": 517,
+              "ol": 1,
+              "ul": 9,
+              "li": 37,
+              "strong": 0,
+              "b": 70,
+              "em": 0,
+              "a": 22,
+              "img": 2,
+              "table": 12,
+              "blockquote": 0,
+              "hr": 5
+            },
+            "has_audience_block": false,
+            "has_guide_outline": false,
+            "has_faq": false,
+            "word_count": 951,
+            "structural_fingerprint": "a3830b11c919ec83801d9fa2e11d7acb6b25c3cf8b57949ea8afc9e9f1cfb973"
+          }
+        }
+      ]
+    }
+  ]
+}
