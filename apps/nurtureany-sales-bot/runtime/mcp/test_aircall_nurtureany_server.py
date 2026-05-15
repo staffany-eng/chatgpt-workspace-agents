@@ -198,6 +198,77 @@ class AircallNurtureAnyServerTest(unittest.TestCase):
         self.assertEqual(result["answer"]["calls"][0]["aircall_call_id"], "3770565512")
         self.assertNotIn("recordings.example", str(result))
 
+    def test_resolve_call_uses_exact_aircall_id_and_returns_safe_metadata(self):
+        call_payload = {
+            "call": {
+                "id": 3770565512,
+                "started_at": 1778741950,
+                "duration": 162,
+                "recording": "https://recordings.example.test/3770565512.mp3",
+                "user": {"id": 8, "name": "Jeffrey Wong", "email": "jeffrey@example.com"},
+                "number": {"name": "+65 8123 4567"},
+            }
+        }
+
+        with patch.object(self.module, "_aircall_get", return_value=call_payload) as aircall_get:
+            result = self.module.resolve_aircall_call_for_coaching(
+                "kaiyi@staffany.com",
+                aircall_call_id="3770565512",
+            )
+
+        aircall_get.assert_called_once_with("/calls/3770565512")
+        self.assertEqual(result["confidence"], "verified")
+        self.assertTrue(result["answer"]["selected_call_resolved"])
+        self.assertEqual(result["answer"]["selected_aircall_call_id"], "3770565512")
+        self.assertFalse(result["answer"]["raw_recording_urls_returned"])
+        self.assertFalse(result["answer"]["phone_numbers_returned"])
+        self.assertNotIn("recordings.example", str(result))
+        self.assertNotIn("8123", str(result))
+
+    def test_resolve_call_blocks_non_numeric_aircall_id(self):
+        with patch.object(self.module, "_aircall_get", side_effect=AssertionError("should not call Aircall")):
+            result = self.module.resolve_aircall_call_for_coaching(
+                "kaiyi@staffany.com",
+                aircall_call_id="hubspot-call-123",
+            )
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("numeric Aircall call ID", result["answer"])
+
+    def test_resolve_call_uses_bounded_hints_when_exact_id_is_missing(self):
+        payload = {
+            "calls": [
+                {
+                    "id": 3770565512,
+                    "started_at": 1778741950,
+                    "duration": 162,
+                    "recording": "https://recordings.example.test/3770565512.mp3",
+                    "user": {"id": 8, "name": "Jeffrey Wong", "email": "jeffrey@example.com"},
+                }
+            ]
+        }
+
+        with patch.object(self.module, "_aircall_get", return_value=payload) as aircall_get:
+            result = self.module.resolve_aircall_call_for_coaching(
+                "kaiyi@staffany.com",
+                match_started_at="2026-05-14T06:59:10Z",
+                match_user_name="Jeffrey Wong",
+                match_duration_seconds=162,
+                timestamp_tolerance_seconds=60,
+                duration_tolerance_seconds=5,
+            )
+
+        _path, params = aircall_get.call_args.args
+        self.assertEqual(params["from"], "1778741890")
+        self.assertEqual(params["to"], "1778742010")
+        self.assertEqual(params["per_page"], self.module.MAX_LOOKUP_CALLS)
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["answer"]["resolution_method"], "bounded_aircall_match")
+        self.assertTrue(result["answer"]["selected_call_resolved"])
+        self.assertEqual(result["answer"]["selected_aircall_call_id"], "3770565512")
+        self.assertEqual(result["scope"]["lookup_scope"]["requested_limit"], self.module.MAX_RESOLVER_CANDIDATES)
+        self.assertNotIn("recordings.example", str(result))
+
     def test_transcribe_selected_call_deletes_temp_audio_and_redacts_output(self):
         with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as handle:
             temp_path = Path(handle.name)

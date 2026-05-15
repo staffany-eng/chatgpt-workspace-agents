@@ -384,6 +384,7 @@
       "build_friday_sales_review",
       "build_manager_chase_plan",
       "find_aircall_calls",
+      "resolve_aircall_call_for_coaching",
       "transcribe_aircall_recording",
       "analyze_aircall_call_coaching",
       "get_account_context",
@@ -518,6 +519,7 @@
     "elevenlabs_enabled": false,
     "allowed_tools": [
       "find_aircall_calls",
+      "resolve_aircall_call_for_coaching",
       "transcribe_aircall_recording",
       "analyze_aircall_call_coaching"
     ],
