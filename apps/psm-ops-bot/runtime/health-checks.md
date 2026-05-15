@@ -14,6 +14,7 @@ PSM Ops Bot needs deterministic cloud health checks because prompt correctness d
 - Non-critical `auxiliary.title_generation` is pinned to `anthropic` / `claude-haiku-4-5` with a short timeout so title-generation overloads are less likely to leak into Slack as visible auxiliary warnings.
 - Slack gateway is mention-required and not restricted to a single public/open channel.
 - Slack bot token can call `users.list` with profile emails for `PS Team` identity matching.
+- Slack bot token can call `conversations.join` on the public join-smoke channel, proving the app has `channels:join` for public/open-channel membership repair.
 - If `PSM_OPS_CENTRAL_SLACK_CHANNEL_ID` is configured, the Slack bot token can inspect that channel and the bot is a member.
 - Reviewed customer-channel map path is configured when customer-specific Slack channel auto-tagging is enabled.
 - `psm_jira` MCP lists exactly the expected tools.
@@ -86,9 +87,12 @@ cp apps/psm-ops-bot/runtime/scripts/psm_ops_due_date_reminders.py \
   ~/.hermes/profiles/psmopsbot/scripts/psm_ops_due_date_reminders_eod.py
 cp apps/psm-ops-bot/runtime/scripts/psm_ops_roi_tracker_sync.py \
   ~/.hermes/profiles/psmopsbot/scripts/psm_ops_roi_tracker_sync.py
+cp apps/psm-ops-bot/runtime/scripts/psm_ops_join_public_channels.py \
+  ~/.hermes/profiles/psmopsbot/scripts/psm_ops_join_public_channels.py
 chmod 755 ~/.hermes/profiles/psmopsbot/scripts/psm_ops_due_date_reminders.py \
   ~/.hermes/profiles/psmopsbot/scripts/psm_ops_due_date_reminders_eod.py \
-  ~/.hermes/profiles/psmopsbot/scripts/psm_ops_roi_tracker_sync.py
+  ~/.hermes/profiles/psmopsbot/scripts/psm_ops_roi_tracker_sync.py \
+  ~/.hermes/profiles/psmopsbot/scripts/psm_ops_join_public_channels.py
 
 hermes -p psmopsbot cron create "0 1 * * *" \
   --name "psmopsbot due-date reminders" \
@@ -141,6 +145,15 @@ hermes -p psmopsbot cron create "0 2 * * 1-5" \
 ```
 
 Set `PSM_OPS_CENTRAL_SLACK_CHANNEL_ID` to the central ops channel ID in the live profile `.env`; prefer the ID over the name.
+
+After Slack app reinstall or scope changes, repair public/open-channel membership with bot-owned auth:
+
+```bash
+~/.hermes/profiles/psmopsbot/scripts/psm_ops_join_public_channels.py --dry-run
+~/.hermes/profiles/psmopsbot/scripts/psm_ops_join_public_channels.py --apply
+```
+
+If this reports `slack:public-channel-join-failed:...:error=missing_scope`, the Slack app has not been reinstalled with `channels:join` yet.
 
 Optional reminder mention map:
 
