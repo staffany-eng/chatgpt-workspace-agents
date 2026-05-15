@@ -2029,6 +2029,7 @@ for (const text of [
   "conversations.history",
   "conversations.replies",
   "slack-ingress:missed-mention",
+  "Unauthorized user:",
   "A new session .* has been established",
   "slack-socket:restart-needed",
   "slack-socket:restart-failed",
@@ -2104,11 +2105,15 @@ NURTUREANY_SLACK_SOCKET_STATE_DIR="$tmp_dir/state" \\
 NURTUREANY_SLACK_SOCKET_NOW_EPOCH=1778769490 \\
 NURTUREANY_SLACK_SOCKET_DRY_RUN=1 \\
 bash ${JSON.stringify(slackSocketScriptPath)}
+grep -Fq 'last_stale_epoch=1778769310' "$tmp_dir/state/slack-socket-watchdog.state"
+grep -Fq 'last_restart_epoch=1778769490' "$tmp_dir/state/slack-socket-watchdog.state"
+printf '%s\\n' 'state:ok'
 `], { encoding: "utf8" });
 if (
   missedMentionSocketCheck.status !== 0 ||
   !missedMentionSocketCheck.stdout.includes("slack-socket:restart-needed missed-mention") ||
-  !missedMentionSocketCheck.stdout.includes("slack-ingress:missed-mention")
+  !missedMentionSocketCheck.stdout.includes("slack-ingress:missed-mention") ||
+  !missedMentionSocketCheck.stdout.includes("state:ok")
 ) {
   fail(`Slack socket watchdog missed-mention dry-run failed: ${(missedMentionSocketCheck.stderr || missedMentionSocketCheck.stdout).trim()}`);
 }
