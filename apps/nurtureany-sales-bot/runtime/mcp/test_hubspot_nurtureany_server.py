@@ -652,6 +652,21 @@ class OwnerWhatsAppSentTodayTest(unittest.TestCase):
         self.assertEqual(result["answer"]["messages_missing_kns"][1]["kns_status"], "body_unavailable")
         self.assertEqual(result["scope"]["timezone_source"], "override")
 
+    def test_kns_support_speaker_venue_offer_is_not_network_component(self):
+        support = self.module._whatsapp_kns_audit_from_body(
+            "Would the boss be open to be our speaker for the upcoming Leaders Lounge? "
+            "Can we support your venue and host a simple meal at your venue with 1-2 bosses?"
+        )
+        self.assertTrue(support["has_support"])
+        self.assertFalse(support["has_network"])
+        self.assertIn("network", support["missing_kns_components"])
+
+        network = self.module._whatsapp_kns_audit_from_body(
+            "You should meet 3 other Retail HR leaders solving similar manpower challenges at Happy HR Hour. "
+            "We can help with talent matching, warm introductions, and cross-brand collaboration."
+        )
+        self.assertTrue(network["has_network"])
+
     def test_whatsapp_kns_window_requires_timezone_before_querying(self):
         with patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
             self.module, "_owner_by_email", return_value={"id": "owner-jeremy", "email": "jeremy.wong@staffany.com"}

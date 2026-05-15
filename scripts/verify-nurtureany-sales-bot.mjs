@@ -1269,6 +1269,8 @@ for (const text of [
   "Terminology aliases",
   "KNS`, `K/N/S`, and `K N S` all mean Knowledge, Network, Support",
   "Do not expand KNS as Know-Nurture-Sell",
+  "Network: invite the buyer into relevant upcoming events",
+  "Support: support the buyer or account directly",
   "Do not build a new MCP"
 ]) {
   if (!salesBestPracticesText.includes(text)) {
@@ -1343,6 +1345,7 @@ for (const text of [
   "Local Reference Hydration Before Run",
   "KNS / K/N/S / K N S means Knowledge, Network, Support",
   "must not expand KNS as Know-Nurture-Sell",
+  "Support means direct support for the buyer/account",
   "Campaign Social Effectiveness Style",
   "Event Attribution Guardrail",
   "Mutation Disabled In V1",

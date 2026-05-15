@@ -157,6 +157,12 @@ Tone/audio cue rule:
 
 `KNS`, `K/N/S`, and `K N S` all mean Knowledge, Network, Support. Do not expand KNS as Know-Nurture-Sell.
 
+K/N/S pillar boundaries:
+
+- Knowledge: useful insight, benchmark, case study, guide, market signal, or operator learning that helps the buyer think better before product talk.
+- Network: invite the buyer into relevant upcoming events such as Happy HR Hour, Leaders Lounge, cozy dinners, overseas Leaders Lounge, or other community moments; create warm introductions to peers facing similar business challenges; suggest peer matches by role similarity, industry vertical, growth stage, hiring priorities, or expansion plans; offer talent matching when they are hiring or can recommend talent; ask who they want to hear from so StaffAny can invite relevant future speakers; identify customer collaboration such as cross-brand partnerships, fireside chats, case studies, employer branding campaigns, joint events, or operational learning sessions. Position StaffAny as the connector, not just the vendor.
+- Support: support the buyer or account directly. For a boss/owner, ask whether they are open to speak at Leaders Lounge, whether StaffAny can support or use their venue, whether we can host a simple meal at their venue with 1-2 bosses from other companies, or show real support by visiting the outlet, buying their product, or referencing a visible queue. For HR, ask whether they are open to speak at Happy HR Hour, whether StaffAny can support or use their venue, whether we can host a simple meal at their venue with 1-2 HR leaders from other companies, or show real support by visiting/buying from the venue. This is Support, not Network, when the core offer is to feature or support them/their venue.
+
 Use CCC:
 
 - Connect: short relevant opener plus a micro question.

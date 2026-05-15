@@ -143,8 +143,8 @@ Flag exact field-level reasons:
 KNS stays as `Knowledge / Network / Support`. Suggested angles:
 
 - salary benchmarking
-- HR/operator community
-- Malaysia launch/networking context
+- Network: event invites, peer/community matching, talent matching, and customer collaboration opportunities
+- Support: speaker, venue, simple-meal, or outlet/product support asks when the opportunity is real
 - approved customer proof only after `find_sales_case_studies` or the material registry confirms it
 
 No auto-send.

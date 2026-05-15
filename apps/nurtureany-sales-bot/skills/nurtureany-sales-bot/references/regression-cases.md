@@ -931,6 +931,21 @@ Expected behavior:
 - If the deck is inaccessible, returns `Confidence: blocked` for the Slides prerequisite and asks for viewer access to `team@staffany.com` or an approved StaffAny group.
 - Does not ask for "Anyone with the link" public sharing.
 
+### KNS Pillar Boundary
+
+Prompt:
+
+```text
+@NurtureAny use KNS to build a pre-demo nurture angle for this account
+```
+
+Expected behavior:
+
+- KNS / K/N/S / K N S means Knowledge, Network, Support.
+- The bot must not expand KNS as Know-Nurture-Sell.
+- Network means event invites, peer/talent matching, warm introductions, and customer collaboration opportunities that position StaffAny as the connector.
+- Support means direct support for the buyer/account, including boss/HR speaker asks, venue support, simple meals at their venue, buying their product, or validating visible outlet demand; do not label this as `Support Network`.
+
 ### Public Research Game Plan Guardrail
 
 Prompt:

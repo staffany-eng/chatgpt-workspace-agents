@@ -257,18 +257,51 @@ KNS_KNOWLEDGE_TERMS = (
     "roster",
 )
 KNS_NETWORK_TERMS = (
-    "event",
-    "hhh",
-    "hr happy hour",
-    "leaders lounge",
     "community",
     "network",
     "intro",
+    "introduction",
     "connect",
     "peer",
+    "industry peer",
+    "peer matching",
     "founder",
     "operator",
     "referral",
+    "matchmake",
+    "match make",
+    "talent matching",
+    "looking to hire",
+    "hire any role",
+    "recommend talent",
+    "role similarity",
+    "industry vertical",
+    "growth stage",
+    "hiring priorities",
+    "expansion plans",
+    "active supporters",
+    "product adoption",
+    "collaboration",
+    "collaborate",
+    "cross-brand",
+    "partnership",
+    "joint case study",
+    "case study collaboration",
+    "employer branding",
+    "joint event",
+    "operational learning",
+)
+KNS_NETWORK_EVENT_TERMS = (
+    "event",
+    "upcoming event",
+    "hhh",
+    "hr happy hour",
+    "happy hr hour",
+    "leaders lounge",
+    "leader lounge",
+    "overseas ll",
+    "cozy dinner",
+    "cosy dinner",
     "invite",
     "session",
     "fireside",
@@ -276,10 +309,33 @@ KNS_NETWORK_TERMS = (
     "lunch",
     "coffee",
 )
+KNS_SUPPORT_OPPORTUNITY_TERMS = (
+    "be our speaker",
+    "open to be our speaker",
+    "speaker opportunity",
+    "venue opportunity",
+    "fireside opportunity",
+    "speaker for upcoming",
+    "support their venue",
+    "support your venue",
+    "host at your venue",
+    "host at his venue",
+    "host at her venue",
+    "host a simple meal",
+    "simple meal at",
+    "buy their product",
+    "buy your product",
+    "support their product",
+    "support your product",
+    "walk past their shop",
+    "walk past your shop",
+    "long queue",
+)
 KNS_SUPPORT_TERMS = (
     "help",
     "support",
     "can i",
+    "are we able to support",
     "would it be useful",
     "happy to",
     "chat",
@@ -3796,8 +3852,11 @@ def _whatsapp_kns_audit_from_body(body: Any) -> dict[str, Any]:
         }
 
     has_knowledge = _kns_component_present(text, KNS_KNOWLEDGE_TERMS)
+    has_support_opportunity = _kns_component_present(text, KNS_SUPPORT_OPPORTUNITY_TERMS)
     has_network = _kns_component_present(text, KNS_NETWORK_TERMS)
-    has_support = _kns_component_present(text, KNS_SUPPORT_TERMS)
+    if not has_support_opportunity:
+        has_network = has_network or _kns_component_present(text, KNS_NETWORK_EVENT_TERMS)
+    has_support = has_support_opportunity or _kns_component_present(text, KNS_SUPPORT_TERMS)
     missing = []
     if not has_knowledge:
         missing.append("knowledge")
