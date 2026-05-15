@@ -16,7 +16,8 @@ def clean_domain(domain: str) -> str:
     for prefix in ("https://", "http://"):
         if text.startswith(prefix):
             text = text[len(prefix) :]
-    return text.split("/")[0].strip()
+    text = text.split("/")[0].strip()
+    return text[4:] if text.startswith("www.") else text
 
 
 def email_domain(email: str) -> str:

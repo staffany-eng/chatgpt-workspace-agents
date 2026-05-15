@@ -34,7 +34,7 @@ The adapter sends an explicit `StaffAny-NurtureAny/1.0` User-Agent header so Exa
 - Does not send `contents`, `includeDomains`, `excludeDomains`, crawl-date filters, or LinkedIn-specific fetch parameters.
 - Does not reveal email addresses or phone numbers.
 
-Prefer scoped HubSpot company records that include both `name` and `domain`. Domain-pinned queries reduce same-name ambiguity. Scoped HubSpot records without `domain` are still allowed, but candidates from those searches must carry a missing-domain warning and should be treated as weaker until public evidence or HubSpot confirms the entity.
+Prefer scoped HubSpot company records that include both `name` and resolved `domain`. The resolved domain must come from HubSpot company `domain` first, falling back to `website` only when `domain` is empty, normalized by removing scheme, path, and `www.` prefix. Domain-pinned queries reduce same-name ambiguity. Scoped HubSpot records without a resolved domain are still allowed only when the tool result carries a missing-domain warning; candidates from those searches should be treated as weaker until public evidence or HubSpot confirms the entity.
 
 ## Cost Reporting
 

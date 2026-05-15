@@ -38,6 +38,8 @@ Manager and AE access are explicit. Do not infer permissions from Slack profile 
 
 | Label / meaning | Internal property | Usage |
 | --- | --- | --- |
+| Company Domain Name | `domain` | Canonical HubSpot company domain. Use this first for Exa/public-research company input and dedupe. Normalize by removing scheme, path, and `www.` prefix. |
+| Website URL | `website` | Fallback company domain source only when `domain` is empty. Normalize before passing to Exa/public-research input. |
 | Target Account | `hs_is_target_account` | Required base filter, `true`. |
 | Company owner | `hubspot_owner_id` | AE ownership filter after Slack email maps to HubSpot owner. |
 | Country | `company_country` | Region filter. |
@@ -63,6 +65,7 @@ Manager and AE access are explicit. Do not infer permissions from Slack profile 
 When NurtureAny is asked what data sources it used, answer definitively from this map:
 
 - Target-account membership: HubSpot company property `hs_is_target_account`.
+- Company domain for Exa/public-research input: HubSpot company property `domain`, falling back to `website` only when `domain` is empty. If both are empty, surface the missing-domain warning instead of silently passing an empty domain.
 - Owner scope: HubSpot owners API plus HubSpot company property `hubspot_owner_id`.
 - Region scope: HubSpot company property `company_country`.
 - Renewal timing / T-90 windows: HubSpot company property `contract_end_date`; explicit date-window requests must pass `start_date` and `end_date`.

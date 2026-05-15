@@ -68,6 +68,7 @@ REGIONAL_MANAGERS = {
 COMPANY_PROPERTIES = [
     "name",
     "domain",
+    "website",
     "hs_is_target_account",
     "hubspot_owner_id",
     "company_country",
@@ -3046,6 +3047,8 @@ def _summarize_company(company: dict[str, Any]) -> dict[str, Any]:
     contract_date = props.get(RENEWAL_SOURCE_OF_TRUTH_PROPERTY) or ""
     owner_id = props.get("hubspot_owner_id") or ""
     company_id = company.get("id")
+    resolved_domain = _clean_domain(props.get("domain") or props.get("website") or "")
+    domain_source = "domain" if _clean_domain(props.get("domain") or "") else "website" if resolved_domain else ""
     account_status = _account_status_from_props(props)
     customer360_route_key = _customer360_route_key(
         company_id,
@@ -3067,7 +3070,9 @@ def _summarize_company(company: dict[str, Any]) -> dict[str, Any]:
         "hubspot_scoped": True,
         "scope_source": SCOPE_SOURCE,
         "name": props.get("name") or "",
-        "domain": props.get("domain") or "",
+        "domain": resolved_domain,
+        "domain_source": domain_source,
+        "website": props.get("website") or "",
         "country": props.get("company_country") or "",
         **owner,
         "headcount": props.get("numberofemployees") or "",
@@ -14681,6 +14686,11 @@ def _singapore_lead_enrichment_row(
         "scope_source": SCOPE_SOURCE,
         "name": company_summary.get("name"),
         "domain": company_summary.get("domain"),
+        "domain_source": company_summary.get("domain_source"),
+        "domain_required_for_exa": recommended_next_source == "exa_people_candidate_discovery",
+        "domain_warning": ""
+        if company_summary.get("domain")
+        else "HubSpot domain and website are both empty; Exa input needs a manual domain before people-candidate search.",
         "country": company_summary.get("country"),
         "owner_id": company_summary.get("owner_id"),
         "owner_email": company_summary.get("owner_email"),
@@ -15046,6 +15056,7 @@ def _singapore_bucket_row(row: dict[str, Any]) -> dict[str, Any]:
     return {
         "company_id": row.get("company_id"),
         "name": row.get("name"),
+        "domain": row.get("domain"),
         "owner_email": row.get("owner_email"),
         "gap_bucket": row.get("gap_bucket"),
         "recommended_next_source": row.get("recommended_next_source"),
@@ -15063,6 +15074,9 @@ def _singapore_compact_account_row(row: dict[str, Any]) -> dict[str, Any]:
     return {
         "company_id": row.get("company_id"),
         "name": row.get("name"),
+        "domain": row.get("domain"),
+        "domain_source": row.get("domain_source"),
+        "domain_warning": row.get("domain_warning"),
         "owner_email": row.get("owner_email"),
         "gap_bucket": row.get("gap_bucket"),
         "secondary_buckets": row.get("secondary_buckets", []),
