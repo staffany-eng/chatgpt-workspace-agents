@@ -27,9 +27,11 @@
     "memory_honcho": "runtime/memory-honcho.md",
     "slack_runtime": "runtime/slack.md",
     "slack_allowlist_update_script": "runtime/update-slack-allowlist.sh",
+    "slack_context_mcp": "runtime/mcp/staffany_slack_context_server.py",
     "health_checks": "runtime/health-checks.md",
     "health_check_script": "runtime/check-health.sh",
     "cloud_heartbeat_script": "runtime/check-cloud-heartbeat.sh",
+    "cloud_doctor_script": "runtime/staffanydatabot-cloud-doctor.sh",
     "live_profile_audit_script": "runtime/audit-live-profile.sh",
     "honcho_backup_script": "runtime/backup-honcho.sh",
     "honcho_memory_review_script": "runtime/review-honcho-memory.sh",
@@ -48,6 +50,20 @@
       "get_table_info",
       "execute_sql_readonly"
     ]
+  },
+  "slack_context_mcp": {
+    "server_name": "staffany_slack_context",
+    "auth_env_var": "SLACK_BOT_TOKEN",
+    "configured_channel_ids_env": "STAFFANY_DATA_BOT_SLACK_CONTEXT_CHANNEL_IDS",
+    "fallback_channel_ids_env": "SLACK_HOME_CHANNEL",
+    "expected_tools": [
+      "get_current_slack_thread_context",
+      "get_selected_slack_thread_context"
+    ],
+    "read_only": true,
+    "posts_to_slack": false,
+    "uses_user_token": false,
+    "uses_slack_connector": false
   },
   "channels": [
     "Slack #da-ta-hermz-testing"

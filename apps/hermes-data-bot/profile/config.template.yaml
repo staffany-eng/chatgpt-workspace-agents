@@ -27,6 +27,9 @@ model:
 agent:
   api_max_retries: 3
 
+cron:
+  max_parallel_jobs: 1
+
 kanban:
   dispatch_in_gateway: false
 
@@ -37,14 +40,57 @@ slack:
 mcp_servers:
   staffany_bigquery:
     url: "https://bq-mcp-proxy-1093387803298.asia-southeast1.run.app/mcp"
-    auth_metadata:
-      type: "bearer_env"
-      env: "MCP_STAFFANY_BIGQUERY_API_KEY"
+    headers:
+      Authorization: "Bearer ${MCP_STAFFANY_BIGQUERY_API_KEY}"
+    enabled: true
+    timeout: 180
+    connect_timeout: 60
+    tools:
+      include:
+        - "list_dataset_ids"
+        - "list_table_ids"
+        - "get_table_info"
+        - "execute_sql_readonly"
+      resources: false
+      prompts: false
     tool_allowlist:
       - "list_dataset_ids"
       - "list_table_ids"
       - "get_table_info"
       - "execute_sql_readonly"
+  staffany_slack_context:
+    description: "Read-only selected Slack thread context adapter for Da Ta Hermz."
+    command: "/home/leekaiyi/.hermes/hermes-agent/venv/bin/python"
+    args:
+      - "/home/leekaiyi/.hermes/profiles/staffanydatabot/source/hermes-data-bot/runtime/mcp/staffany_slack_context_server.py"
+    timeout: 60
+    env:
+      SLACK_BOT_TOKEN: "${SLACK_BOT_TOKEN}"
+      SLACK_HOME_CHANNEL: "${SLACK_HOME_CHANNEL}"
+      # Keep normal replies home-channel gated, but allow explicitly selected
+      # public source threads that the bot token can already read.
+      STAFFANY_DATA_BOT_SLACK_CONTEXT_CHANNEL_IDS: "C0AU19E6T0C,C0A0V39AK44"
+    auth_metadata:
+      type: "bot_token_env"
+      env: "SLACK_BOT_TOKEN"
+      configured_channel_ids_env: "STAFFANY_DATA_BOT_SLACK_CONTEXT_CHANNEL_IDS"
+      fallback_channel_ids_env: "SLACK_HOME_CHANNEL"
+    access_policy:
+      mode: "selected_thread_read_only"
+      configured_channels_only: true
+      public_channels_only: true
+      max_thread_context_messages: 50
+      safe_summaries_permalinks_only: true
+      raw_transcript_persistence: false
+      slack_posting: false
+      workspace_search: false
+      reactions: false
+      pins: false
+      user_token_fallback: false
+      slack_connector_fallback: false
+    tool_allowlist:
+      - "get_current_slack_thread_context"
+      - "get_selected_slack_thread_context"
 
 gateway:
   slack:

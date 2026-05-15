@@ -6,6 +6,7 @@ HONCHO_HEALTH_URL="${HONCHO_HEALTH_URL:-http://localhost:8000/health}"
 EXPECT_HONCHO="${EXPECT_HONCHO:-1}"
 EXPECT_GATEWAY="${EXPECT_GATEWAY:-1}"
 EXPECT_MCP_TOOLS="${EXPECT_MCP_TOOLS:-4}"
+EXPECT_SLACK_CONTEXT_MCP_TOOLS="${EXPECT_SLACK_CONTEXT_MCP_TOOLS:-2}"
 EXPECT_MODEL_AUTH="${EXPECT_MODEL_AUTH:-1}"
 EXPECT_MODEL_PROVIDER="${EXPECT_MODEL_PROVIDER:-anthropic}"
 EXPECT_MODEL_DEFAULT="${EXPECT_MODEL_DEFAULT:-claude-sonnet-4-6}"
@@ -74,6 +75,26 @@ if ((config.get("slack") or {}).get("reactions")) is not False:
 
 if ((config.get("kanban") or {}).get("dispatch_in_gateway")) is not False:
     print("kanban:dispatch-in-gateway-not-disabled")
+    raise SystemExit(1)
+
+cron = config.get("cron") or {}
+if cron.get("max_parallel_jobs") != 1:
+    print("cron:max-parallel-jobs-not-one")
+    raise SystemExit(1)
+
+slack_context = ((config.get("mcp_servers") or {}).get("staffany_slack_context") or {})
+slack_context_tools = slack_context.get("tools") or {}
+slack_context_allowlist = slack_context_tools.get("include") or slack_context.get("tool_allowlist") or []
+expected_slack_context_tools = [
+    "get_current_slack_thread_context",
+    "get_selected_slack_thread_context",
+]
+if slack_context_allowlist != expected_slack_context_tools:
+    print("mcp:staffany_slack_context-tool-allowlist-drift")
+    raise SystemExit(1)
+access_policy = slack_context.get("access_policy") or {}
+if access_policy.get("slack_posting") is not False or access_policy.get("workspace_search") is not False:
+    print("mcp:staffany_slack_context-unsafe-access-policy")
     raise SystemExit(1)
 PY
 then
@@ -149,6 +170,12 @@ if ! hermes -p "$PROFILE" mcp test staffany_bigquery >"$mcp_out" 2>&1; then
   fail "mcp:staffany_bigquery-test-failed"
 fi
 grep -q "Tools discovered: $EXPECT_MCP_TOOLS" "$mcp_out" || fail "mcp:staffany_bigquery-tool-count-unexpected"
+
+slack_context_mcp_out="$tmp_dir/slack-context-mcp.out"
+if ! hermes -p "$PROFILE" mcp test staffany_slack_context >"$slack_context_mcp_out" 2>&1; then
+  fail "mcp:staffany_slack_context-test-failed"
+fi
+grep -q "Tools discovered: $EXPECT_SLACK_CONTEXT_MCP_TOOLS" "$slack_context_mcp_out" || fail "mcp:staffany_slack_context-tool-count-unexpected"
 
 if [ "$EXPECT_HONCHO" = "1" ]; then
   need_command curl

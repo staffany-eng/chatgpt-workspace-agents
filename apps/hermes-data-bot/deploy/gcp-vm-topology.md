@@ -16,7 +16,7 @@ This file is the source-controlled map of live Hermes bot placement in GCP. Use 
 
 | VM | Machine | Internal IP | Running gateway service | Active profile | Slack surface | Purpose |
 | --- | --- | --- | --- | --- | --- | --- |
-| `hermes-data-bot-poc` | `e2-small` | `10.148.0.3` | `hermes-gateway-staffanydatabot.service` | `staffanydatabot` | `#kaiyi-bot-testing` | StaffAny Hermes Data Bot POC. |
+| `hermes-data-bot-poc` | `e2-small` | `10.148.0.3` | `hermes-gateway-staffanydatabot.service` | `staffanydatabot` | `#da-ta-hermz-testing` (`C0AU19E6T0C`) | StaffAny Hermes Data Bot POC. |
 | `hermes-data-bot-poc` | `e2-small` | `10.148.0.3` | `hermes-gateway-launchbot.service` | `launchbot` | `#launch-bot-testing` (`C0B32M34J3W`) | LaunchBot Slack runtime. |
 | `hermes-psm-ops-bot-poc` | `e2-small` | `10.148.0.4` | `hermes-gateway-psmopsbot.service` | `psmopsbot` | PSM ops bot Slack surface | PSM Ops Bot POC. |
 | `nurtureany-sales-bot-prod` | `e2-standard-2` | `10.148.0.5` | `hermes-gateway-nurtureanysalesbot.service` | `nurtureanysalesbot` | NurtureAny sales bot Slack surface | Production NurtureAny Sales Bot. |

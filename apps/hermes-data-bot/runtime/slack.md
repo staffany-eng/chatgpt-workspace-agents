@@ -5,10 +5,13 @@ Hermes Data Bot's first runtime surface is Slack POC usage in `#da-ta-hermz-test
 ## Required Behavior
 
 - Mention-only in the POC channel.
+- Normal replies stay home-channel gated for `#da-ta-hermz-testing`; selected public/source-thread reads are separate and allowed only for explicit Slack permalinks in configured channel IDs.
 - Operational Slack checks for bot/runtime work must use the relevant Slack bot token from the deployed Hermes profile or approved secret store whenever available.
 - Do not use the Slack connector or Kai Yi's user token for Slack inspection when the Hermes bot token exists.
 - User token or Slack UI evidence is allowed only for explicit human-authored smoke tests where a bot token cannot trigger the gateway; keep that evidence separate from bot-token checks.
 - First tool-backed data requests are plan-first.
+- `get_current_slack_thread_context` and `get_selected_slack_thread_context` may read one explicitly selected public/source thread before `run` only to interpret the request or write the preflight. They must use `SLACK_BOT_TOKEN`, configured channel IDs only, cap output at 50 messages, return safe redacted snippets/permalinks only, and persist no raw transcript.
+- The selected-thread tools must not post Slack messages, search workspace history, list users broadly, react, pin, join channels, read private channels by bypass, use a human token, or fall back to the Slack connector.
 - The bot should ask for `run` before the first confirmed plan.
 - Same-thread approval nudges such as bot mention only, `^`, `+1`, `yes`, `ok`, `go`, or `please proceed` count as approval when there is a pending preflight and no substantive plan change.
 - Clear same-thread corrections, fixes, and reruns after a delivered result are continuation work when scope is bounded.
@@ -25,6 +28,7 @@ Hermes Data Bot's first runtime surface is Slack POC usage in `#da-ta-hermz-test
 Runtime evidence shows the bot needs effective Slack scopes beyond prompt changes:
 
 - `files:read` for Slack file attachment hydration.
+- `channels:history` and `chat.getPermalink` access for configured public selected-thread reads where the bot is already a member.
 
 Do not add or request `groups:read` for this POC. Private-channel enumeration is intentionally out of scope. Hermes should fall back to public-channel/session-based directory discovery when `groups:read` is absent; on older runtimes, a missing-scope warning for private-channel directory enumeration is non-blocking when app mentions and configured-channel behavior work.
 
@@ -55,3 +59,12 @@ Caveat: <only the material caveat>
 ```
 
 For live Slack replies, emit the labelled lines as normal Slack text. Do not wrap the whole answer or preflight in a code fence.
+
+## Selected Source Threads
+
+Configured source-thread reads are controlled by `STAFFANY_DATA_BOT_SLACK_CONTEXT_CHANNEL_IDS`, falling back to `SLACK_HOME_CHANNEL` if unset. Current reviewed public/source channel IDs:
+
+- `C0AU19E6T0C` (`#da-ta-hermz-testing`) for home-channel threads.
+- `C0A0V39AK44` (`#team-ps-customer-appreciation-jkt`) for explicit selected thread context only.
+
+This is not open public-channel answering. If a thread is outside the configured IDs or the bot token cannot read it, return `Confidence: blocked` and ask for a permitted permalink or pasted non-sensitive excerpt.

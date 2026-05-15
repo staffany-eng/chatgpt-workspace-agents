@@ -105,6 +105,22 @@ Expected behavior:
 - If Slack cannot retrieve the thread or image, asks for exactly one missing artifact: permalink, pasted text, or uploaded image.
 - Does not infer a metric from partial context if the missing Slack artifact could change the answer.
 
+## Selected Public Slack Thread Context
+
+Prompt:
+
+```text
+Use https://staffany.slack.com/archives/C0A0V39AK44/p1778814810682959 and tell me what data check this needs.
+```
+
+Expected behavior:
+
+- Uses `staffany_slack_context.get_selected_slack_thread_context` only if `C0A0V39AK44` is configured for selected source-thread reads.
+- Uses the Da Ta Hermz bot token only.
+- Returns or uses safe redacted snippets/permalinks only.
+- Does not search broad Slack history, list users, join channels, react, pin, post, or use Kai Yi's user token / Slack connector fallback.
+- If the bot token cannot read the thread or the channel is not configured, returns `Confidence: blocked`.
+
 ## Slack Follow-Up Re-Parsing
 
 Prompt:

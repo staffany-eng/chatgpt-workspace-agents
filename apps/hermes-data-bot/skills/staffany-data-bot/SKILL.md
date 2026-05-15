@@ -32,8 +32,9 @@ Do not use this skill for generic coding, broad web research, or non-StaffAny pe
 2. Product and package lookups: `references/staffany-product-lookup-registry.md`.
 3. Known POC metrics: `references/staffany-data-bot-metric-registry.md`.
 4. Regression and safety expectations: `references/regression-cases.md`.
-5. BigQuery schema inspection through the `staffany_bigquery` MCP server.
-6. GitHub/Pantheon evidence only when registry evidence is missing, explicitly requires code verification, or the user asks for code evidence.
+5. Selected Slack thread context through the read-only `staffany_slack_context` MCP when the user gives an explicit configured Slack permalink.
+6. BigQuery schema inspection through the `staffany_bigquery` MCP server.
+7. GitHub/Pantheon evidence only when registry evidence is missing, explicitly requires code verification, or the user asks for code evidence.
 
 Registry rows are guidance, not automatic truth. Product Corrections prevent known wrong answers, but they do not become metric definitions.
 
@@ -82,6 +83,8 @@ Reply "run" to start, or tell me what to change.
 Once a result has already been delivered in the same thread, clear follow-up corrections, fixes, reruns, or “fix this” requests are continuation work. Do not require another `run` when the scope is clear and the work is a bounded correction to the previous result; use the relevant tools immediately. If the follow-up materially expands scope, changes the source class, or could become expensive/ambiguous, send a revised plan and ask for `run` again.
 
 Do not run a post-answer acceptance workflow. After a final answer, do not ask the user to confirm with yes/ok/done, do not mark the thread as action needed, and do not send reminders waiting for explicit acceptance. Plain acknowledgements after a final answer, such as `ok`, `done`, `yes`, `thanks`, or similar, close the thread silently unless they include a new request. The mark-as-done / action-needed pattern is for explicit task workflows with an assignee and completion state, not for answered data questions.
+
+For explicit selected Slack permalinks, `get_selected_slack_thread_context` and `get_current_slack_thread_context` may run before `run` only to understand the request and draft the preflight. They must use the Da Ta Hermz bot token, read one configured public/source thread, cap output at 50 messages, and return safe redacted snippets/permalinks only. They must not post Slack messages, search broad workspace history, list users broadly, react, pin, join channels, read private channels by bypass, use Kai Yi's user token, or use the Slack connector. If the thread is outside the configured channel IDs or the bot token cannot read it, return `Confidence: blocked` and ask for a permitted permalink or pasted non-sensitive excerpt.
 
 After `run` or a clear continuation request, execute only the confirmed/continued plan:
 

@@ -12,6 +12,7 @@ This runbook sets up the Hermes runtime StaffAny Data Bot on company infra. For 
 - OS: Debian or Ubuntu LTS
 - Runtime profile: `staffanydatabot`
 - Slack rollout: `#da-ta-hermz-testing` (`C0AU19E6T0C`), mention-only
+- Selected public/source-thread reads: configured channel IDs only through `staffany_slack_context`, using the bot token.
 
 ## Current Multi-Bot VM Topology
 
@@ -81,6 +82,14 @@ SLACK_APP_TOKEN=<xapp token>
 SLACK_ALLOWED_USERS=<comma-separated Slack member IDs>
 MCP_STAFFANY_BIGQUERY_API_KEY=<bq-mcp-proxy-shared-secret value>
 ```
+
+Selected Slack source-thread reads use non-secret channel allowlisting:
+
+```bash
+STAFFANY_DATA_BOT_SLACK_CONTEXT_CHANNEL_IDS=C0AU19E6T0C,C0A0V39AK44
+```
+
+If unset, the MCP falls back to `SLACK_HOME_CHANNEL`. Do not use this as an open-public-channel answering mode.
 
 Use the source-packet helper for live-profile allowlist updates instead of hand-editing `.env`:
 
@@ -219,6 +228,8 @@ display:
 slack:
   require_mention: true
   reactions: false
+cron:
+  max_parallel_jobs: 1
 ```
 
 Install the user-systemd env drop-in after `hermes gateway install`, because Hermes may regenerate the main service file:
@@ -257,6 +268,17 @@ mcp_servers:
         - execute_sql_readonly
       resources: false
       prompts: false
+  staffany_slack_context:
+    command: "/home/leekaiyi/.hermes/hermes-agent/venv/bin/python"
+    args:
+      - "/home/leekaiyi/.hermes/profiles/staffanydatabot/source/hermes-data-bot/runtime/mcp/staffany_slack_context_server.py"
+    env:
+      SLACK_BOT_TOKEN: "${SLACK_BOT_TOKEN}"
+      SLACK_HOME_CHANNEL: "${SLACK_HOME_CHANNEL}"
+      STAFFANY_DATA_BOT_SLACK_CONTEXT_CHANNEL_IDS: "C0AU19E6T0C,C0A0V39AK44"
+    tool_allowlist:
+      - get_current_slack_thread_context
+      - get_selected_slack_thread_context
 ```
 
 Verify:

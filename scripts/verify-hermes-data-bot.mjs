@@ -11,6 +11,7 @@ import {
 const repoRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const appRoot = join(repoRoot, "apps", "hermes-data-bot");
 const manifestPath = join(appRoot, "app.manifest.json");
+const packageJsonPath = join(repoRoot, "package.json");
 
 const failures = [];
 
@@ -66,7 +67,22 @@ if (!existsSync(manifestPath)) {
     for (const tool of actualTools) {
       if (!expectedTools.includes(tool)) fail(`Manifest has unexpected MCP tool: ${tool}`);
     }
+    const slackTools = manifest.slack_context_mcp?.expected_tools || [];
+    for (const tool of ["get_current_slack_thread_context", "get_selected_slack_thread_context"]) {
+      if (!slackTools.includes(tool)) fail(`Manifest missing Slack context MCP tool: ${tool}`);
+    }
+    if (manifest.slack_context_mcp?.read_only !== true) fail("Manifest Slack context MCP must be read_only");
+    if (manifest.slack_context_mcp?.uses_user_token !== false) fail("Manifest Slack context MCP must not use user token");
+    if (manifest.slack_context_mcp?.uses_slack_connector !== false) fail("Manifest Slack context MCP must not use Slack connector");
   }
+}
+
+const packageJson = existsSync(packageJsonPath) ? readJson(packageJsonPath) : null;
+if (packageJson?.scripts?.["hermes-data-bot:deploy"] !== "node scripts/deploy-hermes-data-bot.mjs") {
+  fail("package.json must expose hermes-data-bot:deploy");
+}
+if (!existsSync(join(repoRoot, "scripts", "deploy-hermes-data-bot.mjs"))) {
+  fail("Missing scripts/deploy-hermes-data-bot.mjs");
 }
 
 const filesToScan = [
@@ -79,6 +95,10 @@ const filesToScan = [
   "skills/staffany-data-bot/references/rbac-access-levels.md",
   "skills/staffany-data-bot/references/regression-cases.md",
   "runtime/mcp/staffany-bigquery.md",
+  "runtime/mcp/staffany_slack_context_server.py",
+  "runtime/mcp/profile_env.py",
+  "runtime/mcp/test_helpers.py",
+  "runtime/mcp/test_staffany_slack_context_server.py",
   "runtime/jira-release-sync.md",
   "runtime/sync-jira-release-registry.sh",
   "runtime/high-priority-feature-digest.md",
@@ -88,6 +108,7 @@ const filesToScan = [
   "runtime/health-checks.md",
   "runtime/check-health.sh",
   "runtime/check-cloud-heartbeat.sh",
+  "runtime/staffanydatabot-cloud-doctor.sh",
   "runtime/audit-live-profile.sh",
   "runtime/backup-honcho.sh",
   "runtime/review-honcho-memory.sh",
@@ -123,6 +144,23 @@ if (!configText.includes("interim_assistant_messages: false")) fail("config.temp
 if (!configText.includes('tool_progress: "off"')) fail("config.template.yaml must disable Slack tool progress");
 if (!configText.includes("streaming: false")) fail("config.template.yaml must disable Slack streaming");
 if (!configText.includes("reactions: false")) fail("config.template.yaml must disable Slack reactions");
+if (!configText.includes("max_parallel_jobs: 1")) fail("config.template.yaml must cap cron.max_parallel_jobs at 1");
+if (!configText.includes('Authorization: "Bearer ${MCP_STAFFANY_BIGQUERY_API_KEY}"')) fail("config.template.yaml must configure BigQuery MCP bearer header auth");
+if (!configText.includes("resources: false")) fail("config.template.yaml must disable MCP resources");
+if (!configText.includes("prompts: false")) fail("config.template.yaml must disable MCP prompts");
+for (const requiredText of [
+  "staffany_slack_context",
+  "get_current_slack_thread_context",
+  "get_selected_slack_thread_context",
+  "STAFFANY_DATA_BOT_SLACK_CONTEXT_CHANNEL_IDS",
+  "C0A0V39AK44",
+  "slack_connector_fallback: false",
+  "user_token_fallback: false",
+  "workspace_search: false",
+  "slack_posting: false"
+]) {
+  if (!configText.includes(requiredText)) fail(`config.template.yaml missing Slack context contract: ${requiredText}`);
+}
 if (configText.includes('all@staffany')) fail('config.template.yaml must not reference known-bad all@staffany model alias');
 if (configText.includes("OPENAI_API_KEY")) fail("config.template.yaml must not configure OpenAI API key routing");
 if (configText.includes('base_url: "https://api.openai.com/v1"')) fail("config.template.yaml must not configure OpenAI API base_url");
@@ -284,6 +322,7 @@ const shellCheck = spawnSync("bash", [
   "-n",
   join(appRoot, "runtime", "check-health.sh"),
   join(appRoot, "runtime", "check-cloud-heartbeat.sh"),
+  join(appRoot, "runtime", "staffanydatabot-cloud-doctor.sh"),
   join(appRoot, "runtime", "audit-live-profile.sh"),
   join(appRoot, "runtime", "backup-honcho.sh"),
   join(appRoot, "runtime", "review-honcho-memory.sh")
@@ -293,6 +332,50 @@ const shellCheck = spawnSync("bash", [
 });
 if (shellCheck.status !== 0) {
   fail(`Shell syntax check failed: ${shellCheck.stderr || shellCheck.stdout}`);
+}
+
+const deployScriptText = existsSync(join(repoRoot, "scripts", "deploy-hermes-data-bot.mjs"))
+  ? readFileSync(join(repoRoot, "scripts", "deploy-hermes-data-bot.mjs"), "utf8")
+  : "";
+for (const requiredText of [
+  "--apply",
+  "Dry run only",
+  "node scripts/verify-hermes-data-bot.mjs",
+  "node scripts/run-prompt-evals.mjs --app hermes-data-bot --mode all",
+  "staffanydatabot-cloud-doctor.sh",
+  "deploy:summary:cloud_doctor=passed",
+  "VERSION",
+  "staffany_slack_context"
+]) {
+  if (!deployScriptText.includes(requiredText)) fail(`deploy-hermes-data-bot.mjs missing required text: ${requiredText}`);
+}
+
+const cloudDoctorText = existsSync(join(appRoot, "runtime", "staffanydatabot-cloud-doctor.sh"))
+  ? readFileSync(join(appRoot, "runtime", "staffanydatabot-cloud-doctor.sh"), "utf8")
+  : "";
+for (const requiredText of [
+  "staffanydatabot-cloud-doctor:profile=$PROFILE",
+  "hermes-gateway-staffanydatabot.service",
+  "hermes-gateway-launchbot.service",
+  "deliver_null",
+  "check_mcp_tools \"staffany_bigquery\"",
+  "check_mcp_tools \"staffany_slack_context\"",
+  "slack:selected-thread:ok",
+  "C0A0V39AK44"
+]) {
+  if (!cloudDoctorText.includes(requiredText)) fail(`staffanydatabot-cloud-doctor.sh missing required text: ${requiredText}`);
+}
+
+const mcpTest = spawnSync("python3", [
+  "-m",
+  "unittest",
+  "apps/hermes-data-bot/runtime/mcp/test_staffany_slack_context_server.py"
+], {
+  cwd: repoRoot,
+  encoding: "utf8"
+});
+if (mcpTest.status !== 0) {
+  fail(`Slack context MCP unittest failed: ${mcpTest.stderr || mcpTest.stdout}`);
 }
 
 if (failures.length > 0) {

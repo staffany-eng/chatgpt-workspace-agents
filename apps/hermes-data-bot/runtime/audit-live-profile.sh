@@ -10,6 +10,7 @@ EXPECTED_CLOUD_HEARTBEAT_CRON_NAME="${EXPECTED_CLOUD_HEARTBEAT_CRON_NAME:-staffa
 EXPECTED_DIGEST_CRON_NAME="${EXPECTED_DIGEST_CRON_NAME:-staffanydatabot high-priority release feature usage digest}"
 EXPECT_DIGEST_CRON="${EXPECT_DIGEST_CRON:-0}"
 EXPECTED_MCP_TOOLS="${EXPECTED_MCP_TOOLS:-4}"
+EXPECTED_SLACK_CONTEXT_MCP_TOOLS="${EXPECTED_SLACK_CONTEXT_MCP_TOOLS:-2}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROFILE_DIR="${HERMES_PROFILE_DIR:-$HOME/.hermes/profiles/$PROFILE}"
@@ -45,6 +46,9 @@ cmp -s "$APP_ROOT/profile/SOUL.md" "$PROFILE_DIR/SOUL.md" || fail "profile-drift
 diff -qr "$APP_ROOT/skills/staffany-data-bot" "$PROFILE_DIR/skills/staffany-data-bot" >/dev/null || fail "profile-drift:staffany-data-bot-skill"
 cmp -s "$APP_ROOT/runtime/check-health.sh" "$PROFILE_DIR/scripts/staffanydatabot-check-health.sh" || fail "profile-drift:health-script"
 cmp -s "$APP_ROOT/runtime/check-cloud-heartbeat.sh" "$PROFILE_DIR/scripts/staffanydatabot-check-cloud-heartbeat.sh" || fail "profile-drift:cloud-heartbeat-script"
+cmp -s "$APP_ROOT/runtime/staffanydatabot-cloud-doctor.sh" "$PROFILE_DIR/scripts/staffanydatabot-cloud-doctor.sh" || fail "profile-drift:cloud-doctor-script"
+cmp -s "$APP_ROOT/runtime/mcp/staffany_slack_context_server.py" "$PROFILE_DIR/runtime/mcp/staffany_slack_context_server.py" || fail "profile-drift:staffany-slack-context-mcp"
+cmp -s "$APP_ROOT/runtime/mcp/profile_env.py" "$PROFILE_DIR/runtime/mcp/profile_env.py" || fail "profile-drift:staffany-slack-context-profile-env"
 
 hermes_python="$HERMES_AGENT_DIR/venv/bin/python"
 [ -x "$hermes_python" ] || fail "hermes:python-not-found"
@@ -98,6 +102,9 @@ if ((config.get("slack") or {}).get("reactions")) is not False:
 if ((config.get("kanban") or {}).get("dispatch_in_gateway")) is not False:
     print("kanban:dispatch-in-gateway-not-disabled")
     raise SystemExit(1)
+if ((config.get("cron") or {}).get("max_parallel_jobs")) != 1:
+    print("cron:max-parallel-jobs-not-one")
+    raise SystemExit(1)
 if ((config.get("security") or {}).get("redact_secrets")) is not True:
     print("security:redact-secrets-not-enabled")
     raise SystemExit(1)
@@ -117,6 +124,26 @@ if allowlist != expected_tools:
 if tools.get("resources") is not False or tools.get("prompts") is not False:
     print("mcp:staffany_bigquery-resources-prompts-enabled")
     raise SystemExit(1)
+
+slack_context = ((config.get("mcp_servers") or {}).get("staffany_slack_context") or {})
+slack_context_tools = slack_context.get("tools") or {}
+slack_context_allowlist = slack_context_tools.get("include") or slack_context.get("tool_allowlist") or []
+expected_slack_context_tools = [
+    "get_current_slack_thread_context",
+    "get_selected_slack_thread_context",
+]
+if slack_context_allowlist != expected_slack_context_tools:
+    print("mcp:staffany_slack_context-tool-allowlist-drift")
+    raise SystemExit(1)
+access_policy = slack_context.get("access_policy") or {}
+if (
+    access_policy.get("slack_posting") is not False
+    or access_policy.get("workspace_search") is not False
+    or access_policy.get("user_token_fallback") is not False
+    or access_policy.get("slack_connector_fallback") is not False
+):
+    print("mcp:staffany_slack_context-unsafe-access-policy")
+    raise SystemExit(1)
 PY
 then
   fail "$(cat "$config_check_out")"
@@ -131,5 +158,7 @@ fi
 
 mcp_out="$(hermes -p "$PROFILE" mcp test staffany_bigquery 2>&1)" || fail "mcp:staffany_bigquery-test-failed"
 printf '%s\n' "$mcp_out" | grep -q "Tools discovered: $EXPECTED_MCP_TOOLS" || fail "mcp:staffany_bigquery-tool-count-unexpected"
+slack_context_mcp_out="$(hermes -p "$PROFILE" mcp test staffany_slack_context 2>&1)" || fail "mcp:staffany_slack_context-test-failed"
+printf '%s\n' "$slack_context_mcp_out" | grep -q "Tools discovered: $EXPECTED_SLACK_CONTEXT_MCP_TOOLS" || fail "mcp:staffany_slack_context-tool-count-unexpected"
 
 printf 'live-profile:audit-ok\n'

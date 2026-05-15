@@ -8,6 +8,7 @@
     "hooks:install": "git config core.hooksPath .githooks",
     "hermes-data-bot:verify": "node scripts/verify-hermes-data-bot.mjs",
     "hermes-data-bot:prompt-evals": "node scripts/run-prompt-evals.mjs --app hermes-data-bot --mode all",
+    "hermes-data-bot:deploy": "node scripts/deploy-hermes-data-bot.mjs",
     "nurtureany-sales-bot:verify": "node scripts/verify-nurtureany-sales-bot.mjs",
     "nurtureany-sales-bot:prompt-evals": "node scripts/run-prompt-evals.mjs --app nurtureany-sales-bot --mode all",
     "nurtureany-sales-bot:deploy": "node scripts/deploy-nurtureany-sales-bot.mjs",
