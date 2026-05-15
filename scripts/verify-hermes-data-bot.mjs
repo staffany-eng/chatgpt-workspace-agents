@@ -162,6 +162,7 @@ for (const requiredText of [
   "get_selected_slack_thread_context",
   "STAFFANY_DATA_BOT_SLACK_CONTEXT_CHANNEL_IDS",
   "C0A0V39AK44",
+  "C0A0PETSFJS",
   "slack_connector_fallback: false",
   "user_token_fallback: false",
   "workspace_search: false",

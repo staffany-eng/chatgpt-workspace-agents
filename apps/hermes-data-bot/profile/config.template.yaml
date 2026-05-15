@@ -69,7 +69,7 @@ mcp_servers:
       SLACK_HOME_CHANNEL: "${SLACK_HOME_CHANNEL}"
       # Keep normal replies home-channel gated, but allow explicitly selected
       # public source threads that the bot token can already read.
-      STAFFANY_DATA_BOT_SLACK_CONTEXT_CHANNEL_IDS: "C0AU19E6T0C,C0A0V39AK44"
+      STAFFANY_DATA_BOT_SLACK_CONTEXT_CHANNEL_IDS: "C0AU19E6T0C,C0A0V39AK44,C0A0PETSFJS"
     auth_metadata:
       type: "bot_token_env"
       env: "SLACK_BOT_TOKEN"

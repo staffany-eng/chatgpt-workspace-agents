@@ -66,9 +66,6 @@ Configured source-thread reads are controlled by `STAFFANY_DATA_BOT_SLACK_CONTEX
 
 - `C0AU19E6T0C` (`#da-ta-hermz-testing`) for home-channel threads.
 - `C0A0V39AK44` (`#team-ps-customer-appreciation-jkt`) for explicit selected thread context only.
+- `C0A0PETSFJS` (`#team-ps-customer-appreciation-bali`) for explicit selected thread context only, after confirming the Da Ta Hermz bot token can read the channel.
 
-Known blocked source-thread candidate:
-
-- `C0A0PETSFJS` (`#team-ps-customer-appreciation-bali`) is public but must stay unconfigured until the Da Ta Hermz bot is explicitly invited and can read it with `SLACK_BOT_TOKEN`. Do not auto-join, use Kai Yi's user token, or use the Slack connector as fallback.
-
-This is not open public-channel answering. If a thread is outside the configured IDs or the bot token cannot read it, return `Confidence: blocked` and ask for a permitted permalink or pasted non-sensitive excerpt.
+This is not open public-channel answering. If a thread is outside the configured IDs or the bot token cannot read it, return `Confidence: blocked` and ask for a permitted permalink or pasted non-sensitive excerpt. Do not auto-join, use Kai Yi's user token, or use the Slack connector as fallback.

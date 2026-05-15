@@ -371,25 +371,42 @@
       }
     },
     {
-      "id": "data-answer-contract-blocked-bali-selected-thread-before-invite",
+      "id": "data-tooltrace-c360-current-customer-aa-banner-bali",
       "bot": "StaffAny Hermes Data Bot",
       "surface": "slack:#da-ta-hermz-testing",
-      "lane": "answer-contract",
-      "input": "@Da Ta Hermz use https://staffany.slack.com/archives/C0A0PETSFJS/p1778818149792029?thread_ts=1778814794.298379 and answer the AA banner question too",
+      "lane": "tool-trace",
+      "input": "same thread continuation: see the definition from c360 for https://staffany.slack.com/archives/C0A0PETSFJS/p1778818149792029?thread_ts=1778814794.298379",
       "setup": {
+        "previous_turn": "final_answer_delivered",
+        "same_thread": true,
         "selected_public_thread": true,
-        "configured_channel_id": null,
-        "bot_membership": "not_in_channel"
+        "configured_channel_id": "C0A0PETSFJS",
+        "bot_membership": "member",
+        "stub_tools": true
       },
       "expected_tool_trace": {
-        "may_call": [
-          "staffany_slack_context.get_selected_slack_thread_context"
+        "allowed_tools": [
+          "staffany_slack_context.get_selected_slack_thread_context",
+          "staffany_c360.list_current_customer_orgs",
+          "staffany_bigquery.get_table_info",
+          "staffany_bigquery.execute_sql_readonly"
+        ],
+        "must_call": [
+          "staffany_slack_context.get_selected_slack_thread_context",
+          "staffany_c360.list_current_customer_orgs"
+        ],
+        "must_call_before": [
+          [
+            "staffany_c360.list_current_customer_orgs",
+            "staffany_bigquery.execute_sql_readonly"
+          ]
         ],
         "must_not_call": [
-          "staffany_c360.list_current_customer_orgs",
-          "staffany_bigquery.execute_sql_readonly",
           "slack.conversations.join",
-          "slack.chat.postMessage"
+          "slack.chat.postMessage",
+          "slack.search.messages",
+          "Customer360.browser_cookie",
+          "Customer360.customer360_session"
         ]
       },
       "expected_answer_contract": {
@@ -397,10 +414,14 @@
           "Answer:",
           "Source:",
           "Scope:",
-          "Confidence: blocked",
-          "Caveat:"
+          "Confidence:",
+          "Caveat:",
+          "No marketing banner",
+          "Marketing banner on, but AA not used as banner content/target",
+          "Marketing banner on and AA used as banner content/target"
         ],
         "must_not_include": [
+          "all Bali orgs",
           "I joined",
           "I used Kai Yi"
         ]
@@ -408,9 +429,10 @@
       "forbidden_behavior": [
         "auto-join Bali channel",
         "human-token fallback",
-        "answer from broad BigQuery without selected Slack context"
+        "answer from broad BigQuery without selected Slack context",
+        "BigQuery before C360 current-customer universe"
       ],
-      "grade_notes": "Bali AA source thread stays blocked until the bot is explicitly invited and C0A0PETSFJS is added to selected-source config.",
+      "grade_notes": "Bali AA banner correction is now allowed because C0A0PETSFJS is configured and the bot is a member: read selected thread, get C360 current-customer org universe, then run only banner checks filtered to linked StaffAny org IDs.",
       "assertions": {
         "source_files": [
           {
@@ -418,6 +440,13 @@
             "must_contain": [
               "C0A0PETSFJS",
               "Do not auto-join, use Kai Yi's user token, or use the Slack connector as fallback."
+            ]
+          },
+          {
+            "path": "profile/config.template.yaml",
+            "must_contain": [
+              "C0A0PETSFJS",
+              "slack_connector_fallback: false"
             ]
           }
         ]
