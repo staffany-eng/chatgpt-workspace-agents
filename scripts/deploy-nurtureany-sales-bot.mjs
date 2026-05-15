@@ -365,6 +365,7 @@ copy_dir "$deploy_dir/apps/nurtureany-sales-bot/runtime/jobs" "$profile/runtime/
 copy_dir "$deploy_dir/apps/nurtureany-sales-bot/runtime/sql" "$profile/runtime/sql"
 
 sudo python3 - "$deploy_dir/apps/nurtureany-sales-bot/profile/config.template.yaml" "$profile/config.yaml" <<'PY'
+import copy
 import sys
 from pathlib import Path
 import yaml
@@ -375,7 +376,7 @@ config_path = Path(sys.argv[2])
 template = yaml.safe_load(template_path.read_text())
 config = yaml.safe_load(config_path.read_text())
 template_servers = template.get("mcp_servers") or {}
-config_servers = config.get("mcp_servers") or {}
+config_servers = config.setdefault("mcp_servers", {})
 template_nurtureany = template.get("nurtureany") or {}
 config_nurtureany = config.setdefault("nurtureany", {})
 
@@ -393,7 +394,10 @@ for server_name, template_server in template_servers.items():
         continue
     config_server = config_servers.get(server_name)
     if not isinstance(config_server, dict):
-        raise SystemExit(f"deploy:error:mcp-server-missing:{server_name}")
+        config_server = copy.deepcopy(template_server)
+        config_servers[server_name] = config_server
+        print(f"deploy:config-added-mcp-server:{server_name}")
+        changed = True
     config_tools = config_server.setdefault("tools", {})
     if config_tools.get("include") != expected:
         config_tools["include"] = list(expected)

@@ -39,6 +39,7 @@ Classify each proposed change into one primary surface before editing:
 - Keep behavior rules in the narrowest durable surface that can enforce them.
 - Do not duplicate the same long rule across `SOUL.md`, skills, runtime docs, and regression notes.
 - Add or narrow MCP capabilities before writing skill instructions that depend on those tools.
+- When adding a new MCP server, update every durable wiring surface in the same change: `profile/config.template.yaml`, `app.manifest.json`, health/cloud-heartbeat expected tool counts, runtime docs, verifier checks, and deploy/live-config migration behavior. Remember that live profile `config.yaml` is preserved runtime state, so deploy must either add the missing non-secret MCP server stanza from the template or document an explicit live migration before restart.
 - Keep secrets, raw Slack transcripts, raw HubSpot rows, OAuth files, memory dumps, and runtime logs out of the repo.
 - Treat runtime learning as unreviewed drift until it becomes a reviewed repo change with verification.
 
