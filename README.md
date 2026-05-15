@@ -17,6 +17,7 @@ Use the app packet as the source of truth for durable Hermes Data Bot behavior. 
 | Path | Status | Purpose |
 | --- | --- | --- |
 | `apps/hermes-data-bot/` | primary | Source packet for StaffAny Hermes Data Bot. |
+| `apps/product-ops-bot/` | app packet | Source packet scaffold for Product Ops Bot workflows. |
 | `apps/nurtureany-sales-bot/` | app packet | Source packet for StaffAny NurtureAny Sales Bot. |
 | `apps/launchbot/` | app packet | Source packet for Launchbot, including the help article, review, and Intercom draft workflow skill. |
 | `apps/hermes-shared/` | shared packet | Shared Hermes skills and MCPs reused by multiple StaffAny bots. |
