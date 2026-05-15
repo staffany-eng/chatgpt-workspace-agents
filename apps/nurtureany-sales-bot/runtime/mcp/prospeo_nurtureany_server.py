@@ -20,6 +20,7 @@ from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
+from nurtureany_common.profile_env import profile_env_value
 from nurtureany_common.responses import blocked_response
 from nurtureany_common.scoped_company import scoped_company_error as _shared_scoped_company_error
 from nurtureany_common.text import clean_domain as _clean_domain
@@ -76,7 +77,7 @@ _account_last_request_at = 0.0
 
 
 def _token() -> str:
-    token = os.environ.get("PROSPEO_API_KEY", "").strip()
+    token = profile_env_value("PROSPEO_API_KEY")
     if not token:
         raise ProspeoError("Missing PROSPEO_API_KEY.")
     return token
@@ -126,7 +127,7 @@ def _error_message(status_code: int, detail: str) -> str:
         message = _payload_error_message(parsed) if isinstance(parsed, dict) else detail
     except json.JSONDecodeError:
         message = detail
-    token = os.environ.get("PROSPEO_API_KEY", "").strip()
+    token = profile_env_value("PROSPEO_API_KEY")
     safe = str(message).replace(token, "[REDACTED_PROSPEO_API_KEY]") if token else str(message)
     return f"Prospeo API failed: {status_code} {safe[:300]}"
 

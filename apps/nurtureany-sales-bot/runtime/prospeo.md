@@ -4,7 +4,7 @@ Prospeo is an optional, cost-controlled paid-provider pilot beside Lusha for Nur
 
 ## Credentials
 
-Use `PROSPEO_API_KEY` from the live profile `.env` or Secret Manager. Do not commit the key, paste it into Slack, or store it in packet files.
+Use `PROSPEO_API_KEY` from the live profile `.env` hydrated from Secret Manager. The adapter falls back to reading `HERMES_HOME/.env` because stdio MCP child processes may not inherit every profile secret as `os.environ`. Do not commit the key, paste it into Slack, or store it in packet files.
 
 Recommend setting a low dashboard/API usage limit before enabling the connector in production.
 

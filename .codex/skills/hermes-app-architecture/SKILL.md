@@ -40,6 +40,7 @@ Classify each proposed change into one primary surface before editing:
 - Do not duplicate the same long rule across `SOUL.md`, skills, runtime docs, and regression notes.
 - Add or narrow MCP capabilities before writing skill instructions that depend on those tools.
 - When adding a new MCP server, update every durable wiring surface in the same change: `profile/config.template.yaml`, `app.manifest.json`, health/cloud-heartbeat expected tool counts, runtime docs, verifier checks, and deploy/live-config migration behavior. Remember that live profile `config.yaml` is preserved runtime state, so deploy must either add the missing non-secret MCP server stanza from the template or document an explicit live migration before restart.
+- When adding a secret-backed stdio MCP server, verify the adapter can read the hydrated profile `.env` after restart. Do not assume Secret Manager hydration alone injects variables into child MCP process environments; add a regression test for profile `.env` fallback or an explicit config-supported env injection path.
 - Keep secrets, raw Slack transcripts, raw HubSpot rows, OAuth files, memory dumps, and runtime logs out of the repo.
 - Treat runtime learning as unreviewed drift until it becomes a reviewed repo change with verification.
 

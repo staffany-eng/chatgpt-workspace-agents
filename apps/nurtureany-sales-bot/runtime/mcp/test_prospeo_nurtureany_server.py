@@ -1,5 +1,6 @@
 import os
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -227,6 +228,14 @@ class ProspeoNurtureAnyServerTest(unittest.TestCase):
 
         self.assertEqual(result["confidence"], "blocked")
         self.assertIn("PROSPEO_API_KEY", result["answer"])
+
+    def test_api_key_can_load_from_profile_env_file(self):
+        with tempfile.TemporaryDirectory() as profile_dir:
+            env_path = Path(profile_dir) / ".env"
+            env_path.write_text("PROSPEO_API_KEY=profile-env-key\n", encoding="utf-8")
+
+            with patch.dict(os.environ, {"HERMES_HOME": profile_dir}, clear=True):
+                self.assertEqual(self.module._token(), "profile-env-key")
 
     def test_unscoped_company_input_is_blocked_before_key_or_api_call(self):
         with patch.dict(os.environ, {"PROSPEO_API_KEY": "test-key"}), patch.object(
