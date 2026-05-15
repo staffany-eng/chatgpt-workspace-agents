@@ -10,6 +10,7 @@ Launchbot's current surfaces are `#launch-bot-testing` and explicitly configured
   - `C0AJAUNCEL8` (`#proj-cs-seonggong-seorae`) for Seorae KER lookup.
   - `CF8PK6V4J` (`#input-features-ux`) for confirmed feature intake.
 - Disable tool progress, streaming, interim assistant messages, and reactions.
+- Suppress gateway lifecycle notices with `platforms.slack.gateway_restart_notification=false`; restarts should not post `Gateway shutting down` into active Slack threads.
 - Slack Socket Mode event subscriptions must include bot events `app_mention` and `message.channels`. `message.channels` is required for channel thread/mention events to reach the Hermes gateway; without it, the service can be connected but never receive smoke messages.
 - Slack OAuth scopes must include `app_mentions:read`, `channels:history`, `channels:read`, and `chat:write`.
 - Visible operational replies must come from the Launchbot app identity.

@@ -108,6 +108,11 @@ if display.get("streaming") is not False:
 if display.get("tool_progress") != "off":
     fail("display:tool-progress-not-off")
 
+platforms = config.get("platforms") or {}
+slack_platform = platforms.get("slack") or {}
+if slack_platform.get("gateway_restart_notification") is not False:
+    fail("platforms:slack:gateway-restart-notification-not-disabled")
+
 slack = config.get("slack") or {}
 if slack.get("require_mention") is not True:
     fail("slack:require-mention-not-enabled")

@@ -7,7 +7,7 @@ Expected checks:
 - Hermes gateway service for `launchbot` is active.
 - Secret redaction remains enabled.
 - Model route is `model.provider=anthropic`, `model.default=claude-sonnet-4-6`.
-- Slack quiet settings are enabled: no streaming, no tool progress, no interim assistant messages, no reactions.
+- Slack quiet settings are enabled: no streaming, no tool progress, no interim assistant messages, no reactions, and no gateway restart notifications.
 - `SLACK_HOME_CHANNEL` is `C0B32M34J3W`.
 - Slack allowed channels include `C0B32M34J3W`, `C0AJAUNCEL8`, and `CF8PK6V4J`.
 - `launchbot_ker` MCP exposes only `find_ker_ticket_from_slack_thread` and `lookup_ker_ticket_by_key`.

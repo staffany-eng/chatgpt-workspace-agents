@@ -11,6 +11,9 @@ display:
     slack:
       streaming: false
       tool_progress: "off"
+platforms:
+  slack:
+    gateway_restart_notification: false
 slack:
   require_mention: true
   allowed_channels: "C0B32M34J3W,C0AJAUNCEL8,CF8PK6V4J"

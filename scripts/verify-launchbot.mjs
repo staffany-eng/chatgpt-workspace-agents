@@ -59,6 +59,9 @@ if (!manifest) {
   if (manifest.slack?.socket_mode !== true) {
     fail("Manifest Slack socket_mode must be true");
   }
+  if (manifest.slack?.gateway_restart_notification !== false) {
+    fail("Manifest Slack gateway restart notifications must be disabled");
+  }
   for (const eventName of ["app_mention", "message.channels"]) {
     if (!manifest.slack?.required_bot_events?.includes(eventName)) {
       fail(`Manifest Slack required bot events missing ${eventName}`);
@@ -256,6 +259,7 @@ for (const requiredText of [
   'tool_progress: "off"',
   "streaming: false",
   "reactions: false",
+  "gateway_restart_notification: false",
   "C0B32M34J3W",
   "C0AJAUNCEL8",
   "CF8PK6V4J",
@@ -419,6 +423,7 @@ for (const requiredText of [
   "pantheon:checkout-missing",
   "pantheon:remote-unexpected",
   "pantheon:status-stale",
+  "platforms:slack:gateway-restart-notification-not-disabled",
   "LAUNCHBOT_PANTHEON_REPO_DIR",
   "mcp:launchbot_help_article",
   "mcp:launchbot_feature_intake",

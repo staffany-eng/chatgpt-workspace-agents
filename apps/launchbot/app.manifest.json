@@ -52,6 +52,7 @@
     ],
     "require_mention": true,
     "reactions": false,
+    "gateway_restart_notification": false,
     "socket_mode": true,
     "required_bot_events": [
       "app_mention",
