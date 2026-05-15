@@ -15,9 +15,11 @@ Expected checks:
 - Feature-intake monitor channel IDs default to `CF8PK6V4J`, state path defaults to `~/.hermes/profiles/launchbot/runtime/feature-intake-monitor-state.json`, max messages per run defaults to `100`, and overlap defaults to `600` seconds.
 - Feature-intake monitor script is readable and compiles at `~/.hermes/profiles/launchbot/scripts/launchbot-monitor-feature-intake.py`.
 - `launchbot_ker` MCP exposes only `find_ker_ticket_from_slack_thread` and `lookup_ker_ticket_by_key`.
+- `launchbot_product_commitment` MCP exposes only `check_product_commitment_from_slack_thread`.
 - `launchbot_feature_intake` MCP exposes only `preview_feature_intake_from_slack_thread` and `create_feature_intake_from_slack_thread`.
 - `launchbot_help_article` MCP exposes only `preview_help_article_video_update` and `create_help_article_video_update_draft`.
-- KER lookup and feature intake have `SLACK_BOT_TOKEN`, `JIRA_BASE_URL`, `JIRA_EMAIL`, and `JIRA_API_TOKEN` in the live profile env.
+- KER lookup, product commitment checks, and feature intake have `SLACK_BOT_TOKEN`, `JIRA_BASE_URL`, `JIRA_EMAIL`, and `JIRA_API_TOKEN` in the live profile env.
+- Product commitment checks have `LAUNCHBOT_PRODUCT_COMMITMENT_ALLOWED_CHANNEL_IDS` in config or the live profile env. `LAUNCHBOT_PRODUCT_COMMITMENT_FIELD_IDS` is optional and must contain only reviewed Jira commitment field IDs.
 - The feature-intake monitor uses the same `SLACK_BOT_TOKEN`, `JIRA_BASE_URL`, `JIRA_EMAIL`, and `JIRA_API_TOKEN`, and uses Slack `chat.postMessage` only for Launchbot-owned `Launchbot automation:` previews/results.
 - Video-only help article updates have `LAUNCH_STEP3_INTERCOM_ACCESS_TOKEN` in the live profile env.
 - Help article video placement registry is readable at `~/.hermes/profiles/launchbot/source/launchbot/skills/help-article-generator/references/video-placement-registry.json`.

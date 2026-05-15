@@ -48,6 +48,18 @@
 - Bot messages, Launchbot automation messages, deleted/empty messages, and repeated source permalinks are ignored.
 - The monitor state stores safe summaries and source pointers only; raw Slack transcripts are not persisted.
 
+## Product Commitment Checks
+
+- Given `@Launch Bot check product commitment for this thread` in `#all-product-questions`, Launchbot should call only `check_product_commitment_from_slack_thread`.
+- Product commitment checks should be allowed by `LAUNCHBOT_PRODUCT_COMMITMENT_ALLOWED_CHANNEL_IDS` and should not widen the feature-intake channel allowlist.
+- The MCP should read bounded Slack context with the bot token, sanitize thread summaries, and never persist raw Slack transcripts.
+- The MCP should search Jira KER/JPD read-only and must not post Slack messages, create intake, create/update Jira issues, comment, transition, assign, delete, or bulk-update Jira.
+- Given no matching Jira issue, Launchbot should return `No matching KER/JPD issue found` with `Confidence: needs-check`.
+- Given a matching Jira issue without `fixVersions` or configured reviewed commitment fields, Launchbot should return `No committed Jira roadmap evidence found for <topic> yet` with `Confidence: needs-check`.
+- Given a matching Jira issue with `fixVersions`, Launchbot should return the issue key, summary, status, Jira link, and fixVersion commitment evidence with `Confidence: verified`.
+- Given a matching Jira issue with a non-empty field configured in `LAUNCHBOT_PRODUCT_COMMITMENT_FIELD_IDS`, Launchbot should treat that configured reviewed field as commitment evidence.
+- Launchbot must never infer an ETA from Slack wording, Jira status, assignee, priority, or model reasoning.
+
 ## Pantheon Evidence Gate
 
 - Given a topic and explicit app scope, `help-article:pantheon-scan` should use `LAUNCH_PANTHEON_REPO` or the local default `/Users/leekaiyi/workspace/pantheon`, record branch/sha/dirty state, read app-local `AGENTS.md`, and output source files plus routes/screens, access levels, flags/gating, API/data touchpoints, statuses, labels, and edge cases.

@@ -184,6 +184,31 @@ if (!manifest) {
   if (!kerMcp.slack_context?.default_channel_ids?.includes("C01RZ7SHC8K")) {
     fail("Manifest KER MCP default channels must include all-product-questions C01RZ7SHC8K");
   }
+  const productCommitmentMcp = manifest.mcp?.launchbot_product_commitment || {};
+  if (productCommitmentMcp.mode !== "read_only_commitment_check") fail("Manifest product commitment MCP must be read-only commitment check");
+  const productCommitmentTools = new Set(productCommitmentMcp.tools || []);
+  if (!productCommitmentTools.has("check_product_commitment_from_slack_thread")) {
+    fail("Manifest product commitment MCP missing tool: check_product_commitment_from_slack_thread");
+  }
+  if (productCommitmentMcp.slack_context?.configured_channel_ids_env_var !== "LAUNCHBOT_PRODUCT_COMMITMENT_ALLOWED_CHANNEL_IDS") {
+    fail("Manifest product commitment MCP must use LAUNCHBOT_PRODUCT_COMMITMENT_ALLOWED_CHANNEL_IDS");
+  }
+  if (!productCommitmentMcp.slack_context?.default_channel_ids?.includes("C01RZ7SHC8K")) {
+    fail("Manifest product commitment MCP default channels must include C01RZ7SHC8K");
+  }
+  if (productCommitmentMcp.slack_context?.raw_transcript_persistence !== false) {
+    fail("Manifest product commitment MCP must not persist raw Slack transcripts");
+  }
+  if (productCommitmentMcp.jira?.project_key !== "KER") fail("Manifest product commitment MCP must search KER");
+  if (productCommitmentMcp.jira?.reviewed_commitment_fields_env_var !== "LAUNCHBOT_PRODUCT_COMMITMENT_FIELD_IDS") {
+    fail("Manifest product commitment MCP must use LAUNCHBOT_PRODUCT_COMMITMENT_FIELD_IDS");
+  }
+  if (!productCommitmentMcp.jira?.standard_commitment_fields?.includes("fixVersions")) {
+    fail("Manifest product commitment MCP must count fixVersions as a standard commitment field");
+  }
+  for (const key of ["mutations", "comments", "transitions", "assignments", "timeline_inference", "intake_creation"]) {
+    if (productCommitmentMcp.jira?.[key] !== false) fail(`Manifest product commitment MCP must forbid Jira ${key}`);
+  }
   const featureIntakeMcp = manifest.mcp?.launchbot_feature_intake || {};
   if (featureIntakeMcp.mode !== "confirmed_jpd_intake_create") fail("Manifest feature intake MCP must be confirmed JPD intake create");
   const featureIntakeTools = new Set(featureIntakeMcp.tools || []);
@@ -253,6 +278,7 @@ for (const relPath of [
   "runtime/intercom-format-gate.test.mjs",
   "runtime/mcp/profile_env.py",
   "runtime/mcp/launchbot_ker_server.py",
+  "runtime/mcp/launchbot_product_commitment_server.py",
   "runtime/mcp/launchbot_feature_intake_core.py",
   "runtime/mcp/launchbot_feature_intake_server.py",
   "runtime/mcp/launchbot_help_article_server.py",
@@ -292,6 +318,7 @@ for (const requiredText of [
   "C01RZ7SHC8K",
   "CF8PK6V4J",
   "launchbot_ker",
+  "launchbot_product_commitment",
   "launchbot_feature_intake",
   "launchbot_help_article",
   "find_ker_ticket_from_slack_thread",
@@ -301,6 +328,11 @@ for (const requiredText of [
   "preview_help_article_video_update",
   "create_help_article_video_update_draft",
   "JIRA_API_TOKEN",
+  "LAUNCHBOT_PRODUCT_COMMITMENT_ALLOWED_CHANNEL_IDS",
+  "LAUNCHBOT_PRODUCT_COMMITMENT_FIELD_IDS",
+  "read_only_commitment_check",
+  "no_timeline_inference: true",
+  "no_intake_creation: true",
   "LAUNCHBOT_FEATURE_INTAKE_ALLOWED_CHANNEL_IDS",
   "LAUNCHBOT_FEATURE_INTAKE_MONITOR_CHANNEL_IDS",
   "LAUNCHBOT_FEATURE_INTAKE_MONITOR_STATE_PATH",
@@ -343,6 +375,7 @@ if (!launchbotProfileBlock) {
     "systemd_unit: hermes-gateway-launchbot.service",
     "C01RZ7SHC8K",
     "CF8PK6V4J",
+    "launchbot_product_commitment:",
     "launchbot feature intake monitor",
     "launchbot_feature_intake:",
     "launchbot_help_article:",
@@ -366,6 +399,9 @@ for (const requiredText of [
   "find_ker_ticket_from_slack_thread",
   "preview_feature_intake_from_slack_thread",
   "create_feature_intake_from_slack_thread",
+  "check_product_commitment_from_slack_thread",
+  "read-only product commitment checks from Jira KER/JPD",
+  "LAUNCHBOT_PRODUCT_COMMITMENT_FIELD_IDS",
   "create intake",
   "confirmed Slack-to-KER feature intake",
   "no-agent monitor",
@@ -415,6 +451,31 @@ for (const requiredText of [
 
 for (const forbiddenText of ["chat.postMessage", "transitionIssue", "/comment", "/transitions"]) {
   if (mcpText.includes(forbiddenText)) fail(`launchbot_ker_server.py must not contain forbidden mutation surface: ${forbiddenText}`);
+}
+
+const productCommitmentMcpText = textOf("runtime/mcp/launchbot_product_commitment_server.py");
+for (const requiredText of [
+  "SLACK_BOT_TOKEN",
+  "JIRA_BASE_URL",
+  "JIRA_EMAIL",
+  "JIRA_API_TOKEN",
+  "conversations.replies",
+  "/rest/api/3/search/jql",
+  "check_product_commitment_from_slack_thread",
+  "LAUNCHBOT_PRODUCT_COMMITMENT_ALLOWED_CHANNEL_IDS",
+  "LAUNCHBOT_PRODUCT_COMMITMENT_FIELD_IDS",
+  "C01RZ7SHC8K",
+  "fixVersions",
+  "will_mutate_jira",
+  "will_post_message",
+  "transcript_persisted",
+  "will_create_intake",
+  "will_estimate_timeline",
+]) {
+  if (!productCommitmentMcpText.includes(requiredText)) fail(`launchbot_product_commitment_server.py missing required text: ${requiredText}`);
+}
+for (const forbiddenText of ["chat.postMessage", "transitionIssue", "/comment", "/transitions", "/rest/api/3/issue?notifyUsers=false", "method=\"PUT\"", "method='PUT'", "DELETE"]) {
+  if (productCommitmentMcpText.includes(forbiddenText)) fail(`launchbot_product_commitment_server.py must not contain forbidden mutation surface: ${forbiddenText}`);
 }
 
 const featureIntakeMcpText = textOf("runtime/mcp/launchbot_feature_intake_server.py");
@@ -502,11 +563,15 @@ for (const requiredText of [
   "platforms:slack:gateway-restart-notification-not-disabled",
   "LAUNCHBOT_PANTHEON_REPO_DIR",
   "mcp:launchbot_help_article",
+  "mcp:launchbot_product_commitment",
   "mcp:launchbot_feature_intake",
   "EXPECT_KER_ALLOWED_CHANNELS",
   "mcp:launchbot_ker:default-channel-missing",
   "mcp:launchbot_ker:env-channel-missing",
   "mcp:launchbot_ker:process-env-channel-missing",
+  "LAUNCHBOT_PRODUCT_COMMITMENT_ALLOWED_CHANNEL_IDS",
+  "mcp:launchbot_product_commitment:default-channel-missing",
+  "mcp:launchbot_product_commitment:env-channel-missing",
   "feature-intake-monitor:script-missing",
   "feature-intake-monitor:py-compile-failed",
   "feature-intake-monitor:raw-transcript-persistence-not-disabled",
@@ -526,10 +591,13 @@ for (const requiredText of [
   "cron:pantheon-repo-update-present-without-github-ssh",
   "GIT_TERMINAL_PROMPT=0 git ls-remote",
   "profile-drift:help-article-mcp",
+  "profile-drift:product-commitment-mcp",
   "profile-drift:feature-intake-mcp",
   "profile-drift:feature-intake-core",
   "profile-drift:feature-intake-monitor-script",
   "profile-drift:help-article-video-registry",
+  "sessions:stale-system-prompt",
+  "sessions:active-session-json-missing",
 ]) {
   if (!auditText.includes(requiredText)) fail(`audit-live-profile.sh missing required cron/access text: ${requiredText}`);
 }

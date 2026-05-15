@@ -19,6 +19,8 @@
     "pantheon_update_script": "runtime/update-pantheon-repo.sh",
     "ker_mcp_server": "runtime/mcp/launchbot_ker_server.py",
     "ker_mcp_tests": "runtime/mcp/test_launchbot_ker_server.py",
+    "product_commitment_mcp_server": "runtime/mcp/launchbot_product_commitment_server.py",
+    "product_commitment_mcp_tests": "runtime/mcp/test_launchbot_product_commitment_server.py",
     "feature_intake_core": "runtime/mcp/launchbot_feature_intake_core.py",
     "feature_intake_mcp_server": "runtime/mcp/launchbot_feature_intake_server.py",
     "feature_intake_mcp_tests": "runtime/mcp/test_launchbot_feature_intake_server.py",
@@ -123,6 +125,39 @@
         "email_env_var": "JIRA_EMAIL",
         "api_token_env_var": "JIRA_API_TOKEN",
         "mutations": false
+      }
+    },
+    "launchbot_product_commitment": {
+      "mode": "read_only_commitment_check",
+      "tools": [
+        "check_product_commitment_from_slack_thread"
+      ],
+      "slack_context": {
+        "token_env_var": "SLACK_BOT_TOKEN",
+        "configured_channel_ids_env_var": "LAUNCHBOT_PRODUCT_COMMITMENT_ALLOWED_CHANNEL_IDS",
+        "default_channel_ids": [
+          "C0B32M34J3W",
+          "C01RZ7SHC8K"
+        ],
+        "raw_transcript_persistence": false,
+        "user_token_fallback": false,
+        "slack_connector_fallback": false
+      },
+      "jira": {
+        "project_key": "KER",
+        "base_url_env_var": "JIRA_BASE_URL",
+        "email_env_var": "JIRA_EMAIL",
+        "api_token_env_var": "JIRA_API_TOKEN",
+        "reviewed_commitment_fields_env_var": "LAUNCHBOT_PRODUCT_COMMITMENT_FIELD_IDS",
+        "standard_commitment_fields": [
+          "fixVersions"
+        ],
+        "mutations": false,
+        "comments": false,
+        "transitions": false,
+        "assignments": false,
+        "timeline_inference": false,
+        "intake_creation": false
       }
     },
     "launchbot_feature_intake": {

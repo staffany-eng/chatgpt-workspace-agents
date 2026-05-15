@@ -18,6 +18,19 @@ When the external source checkout is absent, use `runtime/launchbot_e2e.py` as t
   - State that Step 4 launch derivatives are planned only when relevant.
   - Do not list generic assistant categories such as web search, ML experiments, creative writing, smart-home control, social posting, broad email/calendar management, or generic coding-agent orchestration.
 
+### Product Commitment Questions
+
+- Input: Slack questions such as `check product commitment for this thread`, `is this committed on roadmap`, `any ETA`, or `can u check` in configured product-question channels.
+- Output: read-only commitment status from Jira KER/JPD safe fields.
+- Required behavior:
+  - Use `check_product_commitment_from_slack_thread`.
+  - Read bounded Slack thread context with the Launchbot bot token only.
+  - Search Jira KER/JPD read-only.
+  - Count only explicit Jira `fixVersions` or reviewed field IDs from `LAUNCHBOT_PRODUCT_COMMITMENT_FIELD_IDS` as commitment evidence.
+  - If no reviewed commitment field exists, say `No committed Jira roadmap evidence found for <topic> yet` with `Confidence: needs-check`.
+  - Do not infer ETA from Slack wording, Jira status, assignee, priority, or model reasoning.
+  - Do not create intake, create/update Jira issues, comment, transition, assign, delete, bulk-update Jira, or post from the MCP tool.
+
 ### Step 0: Article Planning, Pantheon Evidence, Intercom Format Profile, And Pre-Publish Gates
 
 - Input: curated English Intercom help article families, 8-12 curated Intercom format article IDs, a Pantheon topic/app/path scope, or a generated help article draft.
@@ -109,6 +122,7 @@ When the external source checkout is absent, use `runtime/launchbot_e2e.py` as t
 - Slack review messages require bot-owned posting credentials. Do not use a human user token for visible automation replies.
 - Launchbot Slack tests must use the `@Launch Bot` app profile (`user_id=U0ASVD79UT1`, `bot_id=B0ATPPEGBCH`). Do not use `@codexlaunchbot` / Kea Reloaded for Launchbot tests.
 - Launchbot tests default to Slack `#launch-bot-testing` (`C0B32M34J3W`). Use a different channel only when the user explicitly asks for it.
+- When verifying a SOUL-changing deploy in an existing Slack thread, run the live-profile audit and reset any reported `sessions:stale-system-prompt` session before smoke testing. Hermes persists per-thread system prompts, so a healthy restarted gateway can still answer from stale instructions if the thread session is left active.
 - Launchbot Slack Socket Mode event subscriptions must include bot events `app_mention` and `message.channels`. `message.channels` is required for channel thread/mention events to reach the Hermes gateway; without it, the service can be connected but never receive the smoke message.
 - Launchbot Slack OAuth scopes must include `app_mentions:read`, `channels:history`, `channels:read`, and `chat:write`.
 - Slack automation copy should keep the `Launchbot automation:` prefix and use a light cowboy voice, for example `Howdy, partner`, while keeping approval instructions factual.

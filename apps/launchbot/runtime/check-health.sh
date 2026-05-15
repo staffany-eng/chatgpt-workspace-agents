@@ -11,6 +11,7 @@ EXPECT_MODEL_DEFAULT="${EXPECT_MODEL_DEFAULT:-claude-sonnet-4-6}"
 EXPECT_HOME_CHANNEL="${EXPECT_HOME_CHANNEL:-C0B32M34J3W}"
 EXPECT_ALLOWED_CHANNELS="${EXPECT_ALLOWED_CHANNELS:-C0B32M34J3W,C0AJAUNCEL8,C01RZ7SHC8K,CF8PK6V4J}"
 EXPECT_KER_ALLOWED_CHANNELS="${EXPECT_KER_ALLOWED_CHANNELS:-C0B32M34J3W,C0AJAUNCEL8,C01RZ7SHC8K}"
+EXPECT_PRODUCT_COMMITMENT_ALLOWED_CHANNELS="${EXPECT_PRODUCT_COMMITMENT_ALLOWED_CHANNELS:-C0B32M34J3W,C01RZ7SHC8K}"
 GATEWAY_LAUNCHD_LABEL="${LAUNCHBOT_GATEWAY_LAUNCHD_LABEL:-ai.hermes.gateway-$PROFILE}"
 GATEWAY_SERVICE_NAME="${LAUNCHBOT_GATEWAY_SERVICE_NAME:-hermes-gateway-$PROFILE.service}"
 HERMES_AGENT_DIR="${HERMES_AGENT_DIR:-$HOME/.hermes/hermes-agent}"
@@ -79,14 +80,14 @@ case "$(uname -s)" in
     ;;
 esac
 
-"$hermes_python" - "$config_path" "$EXPECT_MODEL_PROVIDER" "$EXPECT_MODEL_DEFAULT" "$EXPECT_HOME_CHANNEL" "$EXPECT_ALLOWED_CHANNELS" "$EXPECT_KER_ALLOWED_CHANNELS" <<'PY' || exit 1
+"$hermes_python" - "$config_path" "$EXPECT_MODEL_PROVIDER" "$EXPECT_MODEL_DEFAULT" "$EXPECT_HOME_CHANNEL" "$EXPECT_ALLOWED_CHANNELS" "$EXPECT_KER_ALLOWED_CHANNELS" "$EXPECT_PRODUCT_COMMITMENT_ALLOWED_CHANNELS" <<'PY' || exit 1
 import os
 import sys
 from pathlib import Path
 
 import yaml
 
-config_path, expected_provider, expected_model, expected_home_channel, expected_allowed_channels, expected_ker_channels = sys.argv[1:7]
+config_path, expected_provider, expected_model, expected_home_channel, expected_allowed_channels, expected_ker_channels, expected_commitment_channels = sys.argv[1:8]
 config = yaml.safe_load(Path(config_path).read_text(encoding="utf-8")) or {}
 
 def fail(message: str) -> None:
@@ -168,6 +169,27 @@ for channel_id in [item.strip() for item in expected_ker_channels.split(",") if 
     if channel_id not in ker_process_env_channels:
         fail(f"mcp:launchbot_ker:process-env-channel-missing:{channel_id}")
 
+launchbot_product_commitment = mcp_servers.get("launchbot_product_commitment") or {}
+commitment_tools = set(launchbot_product_commitment.get("tool_allowlist") or [])
+expected_commitment_tools = {"check_product_commitment_from_slack_thread"}
+if commitment_tools != expected_commitment_tools:
+    fail("mcp:launchbot_product_commitment:tool-allowlist-unexpected")
+commitment_policy = launchbot_product_commitment.get("access_policy") or {}
+if commitment_policy.get("mode") != "read_only_commitment_check":
+    fail("mcp:launchbot_product_commitment:mode-unexpected")
+if commitment_policy.get("configured_channel_ids_env") != "LAUNCHBOT_PRODUCT_COMMITMENT_ALLOWED_CHANNEL_IDS":
+    fail("mcp:launchbot_product_commitment:configured-channels-env-unexpected")
+commitment_default_channels = set(commitment_policy.get("default_channel_ids") or [])
+commitment_config_channels = str(config.get("LAUNCHBOT_PRODUCT_COMMITMENT_ALLOWED_CHANNEL_IDS") or "")
+for channel_id in [item.strip() for item in expected_commitment_channels.split(",") if item.strip()]:
+    if channel_id not in commitment_default_channels:
+        fail(f"mcp:launchbot_product_commitment:default-channel-missing:{channel_id}")
+    if channel_id not in commitment_config_channels:
+        fail(f"mcp:launchbot_product_commitment:env-channel-missing:{channel_id}")
+for key in ["no_slack_post_from_mcp", "no_jira_mutation", "no_jira_comments", "no_jira_transitions", "no_jira_assignment", "no_timeline_inference", "no_intake_creation"]:
+    if commitment_policy.get(key) is not True:
+        fail(f"mcp:launchbot_product_commitment:{key}:must-be-true")
+
 launchbot_feature_intake = mcp_servers.get("launchbot_feature_intake") or {}
 feature_intake_tools = set(launchbot_feature_intake.get("tool_allowlist") or [])
 expected_feature_intake_tools = {"preview_feature_intake_from_slack_thread", "create_feature_intake_from_slack_thread"}
@@ -206,6 +228,7 @@ for key in \
 done
 
 check_mcp_server launchbot_ker 2 launchbot_ker_server.py
+check_mcp_server launchbot_product_commitment 1 launchbot_product_commitment_server.py
 check_mcp_server launchbot_feature_intake 2 launchbot_feature_intake_server.py
 check_mcp_server launchbot_help_article 2 launchbot_help_article_server.py
 

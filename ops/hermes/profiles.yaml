@@ -198,6 +198,8 @@ profiles:
     required_mcp:
       launchbot_ker:
         tools: 2
+      launchbot_product_commitment:
+        tools: 1
       launchbot_feature_intake:
         tools: 2
       launchbot_help_article:
