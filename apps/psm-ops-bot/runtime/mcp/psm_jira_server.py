@@ -121,6 +121,27 @@ ROI_ACTION_PATTERN = re.compile(
     r"\b(create|add|log|raise|file|handle|put|ticket|task|board)\b",
     re.IGNORECASE,
 )
+ROI_TRACKER_LABEL = "ps-wee-roi-tracker"
+ROI_TRACKER_DEFAULT_TERMS = {
+    "invoice",
+    "billing",
+    "discount",
+    "HC/deal check",
+    "HubSpot deal",
+    "ERP dashboard/data issue",
+    "linked BE",
+    "MRR mismatch",
+    "SLA dashboard",
+    "asset sync",
+}
+ROI_TRACKING_REQUEST_PATTERN = re.compile(
+    r"\b(track|tracking|follow[- ]?up|close\s+the\s+loop|customer\s+loop|pending\s+internal(?:\s+team)?)\b",
+    re.IGNORECASE,
+)
+SENSITIVE_INFO_PATTERN = re.compile(
+    r"\b(password|secret|token|api\s*key|credential)\b",
+    re.IGNORECASE,
+)
 
 PS_TEAM_ALIASES = {
     "cs": "CS Duty",
@@ -185,6 +206,11 @@ def jira_request_types_resource() -> str:
             "field_envs": ROI_FIELD_ENVS,
             "idempotency_key": "Slack thread permalink",
             "requester_rule": "Resolve explicit requested/reported-by first, else current Slack sender. Never fall back to bot/team identities.",
+            "pco_tracker": {
+                "label": ROI_TRACKER_LABEL,
+                "default_for_ps_team_billing": True,
+                "status": "Waiting Internal",
+            },
         },
         "caller_identity": {
             "tool_parameter": "slack_user_email",
@@ -739,10 +765,10 @@ def _request_json(method: str, path: str, body: dict[str, Any] | None = None) ->
         raise JiraError(f"Jira API unavailable: {error.reason}") from error
 
 
-def _issue_link_exists(pco_key: str, engineering_key: str, link_type: str) -> bool:
+def _issue_link_exists_between(issue_key: str, linked_issue_key: str, link_type: str) -> bool:
     payload = _request_json(
         "GET",
-        f"/rest/api/3/issue/{urllib.parse.quote(pco_key)}?fields=issuelinks",
+        f"/rest/api/3/issue/{urllib.parse.quote(issue_key)}?fields=issuelinks",
     )
     issue_links = ((payload.get("fields") or {}).get("issuelinks") or [])
     for issue_link in issue_links:
@@ -750,13 +776,13 @@ def _issue_link_exists(pco_key: str, engineering_key: str, link_type: str) -> bo
             continue
         inward_key = ((issue_link.get("inwardIssue") or {}).get("key") or "").upper()
         outward_key = ((issue_link.get("outwardIssue") or {}).get("key") or "").upper()
-        if link_type == "Blocks":
-            if engineering_key in {inward_key, outward_key}:
-                return True
-            continue
-        if engineering_key in {inward_key, outward_key}:
+        if linked_issue_key in {inward_key, outward_key}:
             return True
     return False
+
+
+def _issue_link_exists(pco_key: str, engineering_key: str, link_type: str) -> bool:
+    return _issue_link_exists_between(pco_key, engineering_key, link_type)
 
 
 def _looks_like_existing_issue_link_error(error: JiraError) -> bool:
@@ -1244,6 +1270,19 @@ def _ticket_by_slack_thread(slack_thread_url: str, max_results: int = 5) -> list
     return [_safe_issue(issue) for issue in _search_issues(jql, _search_fields(), max_results)]
 
 
+def _pco_roi_tracker_by_slack_thread(slack_thread_url: str, max_results: int = 5) -> list[dict[str, Any]]:
+    source = (slack_thread_url or "").strip()
+    if not source:
+        return []
+    jql = (
+        f"project = {_project_key()} "
+        f"AND labels = {_quote_jql(ROI_TRACKER_LABEL)} "
+        f"AND text ~ {_quote_jql(source[:180])} "
+        "ORDER BY updated DESC"
+    )
+    return [_safe_issue(issue) for issue in _search_issues(jql, _search_fields(), max_results)]
+
+
 def _safe_roi_issue(issue: dict[str, Any]) -> dict[str, Any]:
     fields = issue.get("fields") or {}
     return {
@@ -1287,15 +1326,24 @@ def _detect_roi_ticket_request(message_text: str) -> dict[str, Any]:
         if re.search(pattern, text, flags=re.IGNORECASE)
     ]
     has_action = bool(ROI_ACTION_PATTERN.search(text))
-    is_request = bool(matched_terms and has_action)
+    billing_tracker_terms = sorted(set(matched_terms) & ROI_TRACKER_DEFAULT_TERMS)
+    has_tracker_default = bool(billing_tracker_terms and not SENSITIVE_INFO_PATTERN.search(text))
+    tracking_requested = bool(ROI_TRACKING_REQUEST_PATTERN.search(text))
+    should_track_pco = has_tracker_default or tracking_requested
+    is_request = bool(matched_terms and (has_action or should_track_pco))
     caveat = "Actionable ROI/RevOps/BD Ops request." if is_request else "No ROI ticket should be created."
-    if matched_terms and not has_action:
+    if matched_terms and not has_action and not should_track_pco:
         caveat = "ROI/RevOps/BD Ops term found, but no create/add/log/handle/task action was requested."
+    if has_tracker_default:
+        caveat = "PS Team billing/ROI operational ask should create or reuse ROI and add a PCO customer-loop tracker."
     return {
         "is_roi_ticket_request": is_request,
         "matched_terms": sorted(set(matched_terms)),
-        "requires_action": True,
+        "requires_action": not has_tracker_default,
         "action_detected": has_action,
+        "pco_tracker_default": bool(is_request and should_track_pco),
+        "pco_tracker_reason": "billing_or_invoice_default" if has_tracker_default else ("explicit_tracking_request" if tracking_requested else ""),
+        "tracking_requested": tracking_requested,
         "caveat": caveat,
     }
 
@@ -2219,6 +2267,10 @@ def _metadata_comment_from_draft(draft: dict[str, Any]) -> str:
         ("Impact", draft.get("impact")),
         ("Affected scope", draft.get("affected_scope")),
         ("Expected outcome", draft.get("expected_outcome")),
+        ("ROI issue", draft.get("roi_issue_key")),
+        ("ROI URL", draft.get("roi_issue_url")),
+        ("Original channel", draft.get("original_channel")),
+        ("Tracker type", draft.get("tracker_type")),
         ("Missing info", ", ".join(draft.get("missing_info") or [])),
         ("Source links", ", ".join(draft.get("source_links") or [])),
         ("Customer channel", draft.get("customer_channel_id")),
@@ -2318,6 +2370,198 @@ def set_pco_ps_team(
         {"issue_key": key, "ps_team": normalized},
         scope,
         "PS Team was updated on the Jira issue.",
+    )
+
+
+def _normalize_roi_issue_key(value: str) -> str:
+    key = _normalize_issue_key(value)
+    project_key = _roi_project_key()
+    if not re.fullmatch(rf"{re.escape(project_key)}-\d+", key):
+        raise JiraError(f"roi_issue_key must look like {project_key}-123.")
+    return key
+
+
+def _link_roi_to_pco_tracker(roi_issue_key: str, pco_issue_key: str) -> dict[str, Any]:
+    roi_key = _normalize_roi_issue_key(roi_issue_key)
+    pco_key = _normalize_issue_key(pco_issue_key)
+    if not PCO_ISSUE_RE.fullmatch(pco_key):
+        raise JiraError("pco_issue_key must look like PCO-123.")
+    relationship = f"{pco_key} is blocked by {roi_key}"
+    if _issue_link_exists_between(pco_key, roi_key, "Blocks"):
+        return {
+            "pco_issue_key": pco_key,
+            "roi_issue_key": roi_key,
+            "link_type": "Blocks",
+            "relationship": relationship,
+            "already_exists": True,
+        }
+    try:
+        _request_json(
+            "POST",
+            "/rest/api/3/issueLink",
+            {
+                "type": {"name": "Blocks"},
+                "outwardIssue": {"key": roi_key},
+                "inwardIssue": {"key": pco_key},
+            },
+        )
+    except JiraError as error:
+        if not _looks_like_existing_issue_link_error(error):
+            raise
+        return {
+            "pco_issue_key": pco_key,
+            "roi_issue_key": roi_key,
+            "link_type": "Blocks",
+            "relationship": relationship,
+            "already_exists": True,
+        }
+    return {
+        "pco_issue_key": pco_key,
+        "roi_issue_key": roi_key,
+        "link_type": "Blocks",
+        "relationship": relationship,
+        "already_exists": False,
+    }
+
+
+@mcp.tool()
+def create_or_link_pco_roi_tracker(
+    slack_user_email: str,
+    slack_thread_url: str,
+    roi_issue_key: str,
+    customer: str = "",
+    staffany_orgs: list[str] | None = None,
+    summary: str = "",
+    requester: str = "",
+    original_channel: str = "",
+    evidence_links: list[str] | None = None,
+    ps_team: str = "",
+) -> dict[str, Any]:
+    """Create or reuse one PCO customer-loop tracker for a linked ROI ticket."""
+
+    source = (slack_thread_url or "").strip()
+    normalized_customer = (customer or "").strip() or "Unknown customer"
+    links = [str(link).strip() for link in (evidence_links or []) if str(link).strip()]
+    scope = {
+        "caller": (slack_user_email or "").strip().lower(),
+        "slack_thread_url": source,
+        "roi_issue_key": (roi_issue_key or "").strip().upper(),
+        "customer": normalized_customer,
+        "subsystem": "jira_pco_roi_tracker",
+    }
+    if not source:
+        return _blocked("Slack thread URL is required before creating a traceable PCO ROI tracker.", scope)
+
+    try:
+        roi_key = _normalize_roi_issue_key(roi_issue_key)
+        caller = _caller(slack_user_email, require_jira_account=False, require_ps_team=True)
+        normalized_ps_team = _normalize_ps_team(ps_team) or str(caller.get("ps_team") or "").strip()
+        if not normalized_ps_team:
+            raise JiraError("Caller must resolve to Jira PS Team before creating a PCO ROI tracker.")
+        existing = _pco_roi_tracker_by_slack_thread(source, 5)
+        warnings: list[str] = []
+        if existing:
+            pco_key = str(existing[0].get("issue_key") or "").strip().upper()
+            pco_url = str(existing[0].get("url") or _issue_url(pco_key))
+            already_exists = True
+        else:
+            request_type_id = _request_type_id("customer_next_action")
+            source_links = [source, _issue_url(roi_key), *links]
+            normalized_staffany_orgs = [
+                str(org).strip()
+                for org in (staffany_orgs or ([normalized_customer] if normalized_customer != "Unknown customer" else []))
+                if str(org).strip()
+            ]
+            tracker_summary = (summary or "").strip() or f"Customer follow-up waiting on {roi_key}"
+            draft = {
+                "customer": normalized_customer,
+                "summary": f"[Waiting internal] {normalized_customer} - {tracker_summary}",
+                "due_date": "",
+                "action_type": "ROI customer-loop tracker",
+                "priority": "Medium",
+                "risk_reason": f"Waiting Internal team via {roi_key}",
+                "source_links": source_links,
+                "staffany_orgs": normalized_staffany_orgs,
+                "ps_team": normalized_ps_team,
+                "owner_psm": caller.get("display_name") or caller.get("slack_email") or scope["caller"],
+                "owner_jira_account_id": caller.get("jira_account_id", ""),
+                "contributor_cse": "",
+                "request_type_key": "customer_next_action",
+                "request_type_id": request_type_id,
+                "approval_required": False,
+                "mode": _jira_mode(),
+                "slack_thread_url": source,
+                "known_details": (summary or "").strip(),
+                "missing_info": [],
+                "impact": "",
+                "affected_scope": "",
+                "expected_outcome": "Close the customer loop after ROI resolves the internal billing work.",
+                "roi_issue_key": roi_key,
+                "roi_issue_url": _issue_url(roi_key),
+                "original_channel": (original_channel or "").strip(),
+                "tracker_type": "PCO customer-loop tracker for ROI",
+                "customer_channel_id": "",
+                "customer_channel_name": "",
+                "customer_channel_customer_key": "",
+            }
+            result = _create_pco_task_from_draft(draft, scope)
+            if result.get("confidence") != "verified":
+                return result
+            answer = result.get("answer", {})
+            pco_key = str(answer.get("issue_key") or "").strip().upper()
+            pco_url = str(answer.get("url") or _issue_url(pco_key))
+            warnings.extend(answer.get("warnings") or [])
+            already_exists = False
+            try:
+                _update_issue_labels(pco_key, add=[ROI_TRACKER_LABEL])
+            except JiraError:
+                warnings.append(f"PCO tracker was created but the {ROI_TRACKER_LABEL} label could not be set.")
+
+        link = _link_roi_to_pco_tracker(roi_key, pco_key)
+        status = str((existing[0].get("status") if existing else "") or "").strip()
+        if status.lower() != "waiting internal":
+            transition = transition_pco_task(
+                pco_key,
+                "Waiting Internal",
+                slack_user_email,
+                f"PCO customer-loop tracker is waiting on linked ROI issue {roi_key}.",
+            )
+            if transition.get("confidence") != "verified":
+                warnings.append(f"PCO tracker exists but could not be moved to Waiting Internal: {transition.get('caveat')}")
+        ticket_ref = f"<{pco_url}|{pco_key}>" if pco_key and pco_url else pco_key
+        roi_ref = f"<{_issue_url(roi_key)}|{roi_key}>"
+        answer = {
+            "pco_issue_key": pco_key,
+            "pco_url": pco_url,
+            "roi_issue_key": roi_key,
+            "roi_url": _issue_url(roi_key),
+            "relationship": link["relationship"],
+            "already_exists": already_exists,
+            "link_already_exists": link["already_exists"],
+            "label": ROI_TRACKER_LABEL,
+            "ps_team": normalized_ps_team,
+            "warnings": warnings,
+            "slack_reply": f"Tracking customer loop on PCO: {ticket_ref} linked to {roi_ref} and set to Waiting Internal.",
+        }
+        answer["central_copy"] = post_ps_wee_audit(
+            "roi_tracker_linked",
+            source_thread_url=source,
+            issue_key=pco_key,
+            issue_url=pco_url,
+            requester=requester or caller.get("display_name") or scope["caller"],
+            customer=normalized_customer,
+            summary=summary or f"Customer loop waiting on {roi_key}",
+            status="Waiting Internal",
+            jira_payload=answer,
+            extra={"subsystem": "jira_pco_roi_tracker", "roi_issue_key": roi_key},
+        )
+    except JiraError as error:
+        return _blocked(str(error), scope)
+
+    return _verified(
+        answer,
+        {**scope, "roi_issue_key": roi_key, "pco_issue_key": pco_key},
+        "ROI remains source of truth; PCO tracker is only the customer-loop visibility task.",
     )
 
 

@@ -211,7 +211,8 @@
         "must_call": [
           "classify_roi_ticket_request",
           "find_roi_ticket_by_slack_thread",
-          "create_roi_ticket_from_slack"
+          "create_roi_ticket_from_slack",
+          "create_or_link_pco_roi_tracker"
         ],
         "must_not_call": [
           "create_ps_wee_intake_ticket",
@@ -221,21 +222,24 @@
       "expected_answer_contract": {
         "must_include": [
           "Source: Jira ROI",
+          "Jira PCO tracker",
           "Confidence:"
         ]
       },
       "forbidden_behavior": [
-        "PCO wrapper ticket for ROI-direct work",
+        "duplicate PCO execution wrapper for ROI-direct work",
         "team@staffany.com requester fallback",
         "bot requester fallback"
       ],
-      "grade_notes": "ROI-direct requests go straight to ROI JSM with requester resolution and same-thread idempotency.",
+      "grade_notes": "PS Team billing ROI-direct requests create/reuse ROI first, then add a linked PCO customer-loop tracker.",
       "assertions": {
         "source_files": [
           {
             "path": "profile/SOUL.md",
             "must_contain": [
               "ROI-direct requests are ticket-first.",
+              "pco_tracker_default=true",
+              "create_or_link_pco_roi_tracker",
               "No bot, team, or team@staffany.com requester fallback is allowed."
             ]
           }

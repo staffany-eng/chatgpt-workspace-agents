@@ -115,7 +115,7 @@ profiles:
       allowed_channel_ids: []
       report_prefix: "PSM Ops automation:"
     required_mcp:
-      psm_jira: 19
+      psm_jira: 22
       psm_c360: 3
     expected_crons:
       - name: psmopsbot due-date reminders
@@ -127,6 +127,11 @@ profiles:
         schedule: "0 9 * * *"
         mode: no-agent
         script: psm_ops_due_date_reminders_eod.py
+        deliver: slack:#ps-weeman-bot-test
+      - name: psmopsbot roi tracker sync
+        schedule: "*/30 1-10 * * 1-5"
+        mode: no-agent
+        script: psm_ops_roi_tracker_sync.py
         deliver: slack:#ps-weeman-bot-test
       - name: psmopsbot local cloud heartbeat
         schedule: "*/15 * * * *"

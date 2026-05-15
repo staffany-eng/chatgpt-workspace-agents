@@ -63,6 +63,7 @@ if (!existsSync(manifestPath)) {
       "find_ticket_by_slack_thread",
       "find_roi_ticket_by_slack_thread",
       "create_roi_ticket_from_slack",
+      "create_or_link_pco_roi_tracker",
       "create_ps_wee_intake_ticket",
       "append_ps_wee_ticket_update",
       "mark_ps_wee_ticket_ready",
@@ -152,6 +153,7 @@ const filesToScan = [
   "runtime/smoke-rock-productions-c360.sh",
   "runtime/psm_ops_adoption_digest.py",
   "runtime/scripts/psm_ops_due_date_reminders.py",
+  "runtime/scripts/psm_ops_roi_tracker_sync.py",
   "runtime/mcp/psm_slack_notifier.py",
   "runtime/mcp/psm_jira_server.py",
   "runtime/mcp/psm_c360_server.py",
@@ -160,6 +162,7 @@ const filesToScan = [
   "runtime/hooks/psm-ops-adoption-telemetry/HOOK.yaml",
   "runtime/hooks/psm-ops-adoption-telemetry/handler.py",
   "runtime/test_psm_ops_due_date_reminders.py",
+  "runtime/test_psm_ops_roi_tracker_sync.py",
   "deploy/gce-onboarding-runbook.md",
   "tests/regression-cases.md",
   "tests/prompt-evals.json"
@@ -252,6 +255,8 @@ for (const requiredText of [
     "classify_roi_ticket_request",
   "validate_roi_jira_configuration",
   "create_roi_ticket_from_slack",
+  "create_or_link_pco_roi_tracker",
+  "ps-wee-roi-tracker",
   "find_roi_ticket_by_slack_thread",
   "resolve_customer_channel_org",
   "PSM_OPS_CUSTOMER_CHANNEL_MAP_PATH",
@@ -276,6 +281,8 @@ const soulText = textOf(appRoot, "profile/SOUL.md");
 for (const requiredText of [
   "Task creation is preview first",
   "ROI-direct requests are ticket-first",
+  "pco_tracker_default=true",
+  "create_or_link_pco_roi_tracker",
   "No bot, team, or team@staffany.com requester fallback is allowed",
   "Status transitions, Jira assignee updates, internal comments, and due-date reminder updates may execute directly",
   "PS Team = CS Duty",
@@ -302,6 +309,8 @@ for (const requiredText of [
   "ROI is the source of truth for RevOps, BD Ops, NYSS, and ROI-board work",
   "PS WEE",
   "create_roi_ticket_from_slack",
+  "create_or_link_pco_roi_tracker",
+  "ps-wee-roi-tracker",
   "find_roi_ticket_by_slack_thread",
   "classify_roi_ticket_request",
   "create_ps_wee_intake_ticket",
@@ -343,6 +352,9 @@ for (const requiredText of [
   "find_ticket_by_slack_thread",
   "find_roi_ticket_by_slack_thread",
   "create_roi_ticket_from_slack",
+  "create_or_link_pco_roi_tracker",
+  "ROI_TRACKER_LABEL",
+  "pco_tracker_default",
   "create_ps_wee_intake_ticket",
   "append_ps_wee_ticket_update",
   "Slack poster",
@@ -430,10 +442,12 @@ if (!psmOpsProfileBlock) {
     "systemd_unit: hermes-gateway-psmopsbot.service",
     "bot_name: ps_wee_manager",
     "open_channel_mode: true",
-    "psm_jira: 19",
+    "psm_jira: 22",
     "psm_c360: 3",
     "psmopsbot due-date reminders",
     "psmopsbot due-date eod catch-up",
+    "psmopsbot roi tracker sync",
+    "psm_ops_roi_tracker_sync.py",
     "psm_ops_due_date_reminders.py",
     "psm_ops_due_date_reminders_eod.py",
     "psmopsbot local cloud heartbeat",
@@ -522,7 +536,9 @@ for (const requiredText of [
   "psm-ops-origin-main-<sha>.tar.gz",
   "preserves runtime secrets/state",
   "GOOGLE_CALENDAR_TOKEN_FILE",
-  "team@staffany.com"
+  "team@staffany.com",
+  "psm_ops_roi_tracker_sync.py",
+  "psmopsbot roi tracker sync"
 ]) {
   if (!runbookText.includes(requiredText)) fail(`GCE runbook missing required text: ${requiredText}`);
 }
@@ -532,8 +548,10 @@ for (const requiredText of [
   "hermes-gateway-psmopsbot.service",
     "psmopsbot due-date reminders",
     "psmopsbot due-date eod catch-up",
+    "psmopsbot roi tracker sync",
     "psm_ops_due_date_reminders.py",
     "psm_ops_due_date_reminders_eod.py",
+    "psm_ops_roi_tracker_sync.py",
     "psmopsbot local cloud heartbeat",
     "psmopsbot adoption digest",
     "EXPECTED_ENABLED_CRON_COUNT",
@@ -594,6 +612,20 @@ if (dueDateReminderText.includes("users.list")) {
   fail("Due-date reminder script must not call Slack users.list for inverse PS Team mapping");
 }
 
+const roiTrackerSyncText = textOf(appRoot, "runtime/scripts/psm_ops_roi_tracker_sync.py");
+for (const requiredText of [
+  "PSM Ops automation: ROI tracker sync",
+  "[SILENT] PSM Ops automation",
+  "ps-wee-roi-tracker",
+  "Waiting Internal",
+  "linked ROI ticket is Done",
+  "duedate",
+  "description",
+  "comment"
+]) {
+  if (!roiTrackerSyncText.includes(requiredText)) fail(`ROI tracker sync script missing required text: ${requiredText}`);
+}
+
 const shellCheck = spawnSync("bash", [
   "-n",
   join(appRoot, "runtime", "check-health.sh"),
@@ -629,7 +661,8 @@ const pyCompile = spawnSync("python3", [
   join(appRoot, "runtime/mcp/psm_google_calendar_server.py"),
   join(appRoot, "runtime/hooks/psm-ops-adoption-telemetry/handler.py"),
   join(appRoot, "runtime/psm_ops_adoption_digest.py"),
-  join(appRoot, "runtime/scripts/psm_ops_due_date_reminders.py")
+  join(appRoot, "runtime/scripts/psm_ops_due_date_reminders.py"),
+  join(appRoot, "runtime/scripts/psm_ops_roi_tracker_sync.py")
 ], {
   cwd: repoRoot,
   env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1" },
@@ -667,6 +700,19 @@ const reminderScriptUnitCheck = spawnSync("python3", [
 });
 if (reminderScriptUnitCheck.status !== 0) {
   fail(`Due-date reminder unit tests failed: ${reminderScriptUnitCheck.stderr || reminderScriptUnitCheck.stdout}`);
+}
+
+const roiTrackerScriptUnitCheck = spawnSync("python3", [
+  "-m",
+  "unittest",
+  join(appRoot, "runtime/test_psm_ops_roi_tracker_sync.py")
+], {
+  cwd: repoRoot,
+  env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1" },
+  encoding: "utf8"
+});
+if (roiTrackerScriptUnitCheck.status !== 0) {
+  fail(`ROI tracker sync unit tests failed: ${roiTrackerScriptUnitCheck.stderr || roiTrackerScriptUnitCheck.stdout}`);
 }
 
 if (failures.length > 0) {

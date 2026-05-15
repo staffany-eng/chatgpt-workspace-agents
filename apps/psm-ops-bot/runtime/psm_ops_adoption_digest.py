@@ -111,7 +111,15 @@ def main() -> int:
 
     ticket_events = Counter({
         name: event_counts.get(name, 0)
-        for name in ["ticket_created", "ticket_reused", "roi_ticket_created", "roi_ticket_reused", "ticket_update_synced", "ticket_ready"]
+        for name in [
+            "ticket_created",
+            "ticket_reused",
+            "roi_ticket_created",
+            "roi_ticket_reused",
+            "roi_tracker_linked",
+            "ticket_update_synced",
+            "ticket_ready",
+        ]
     })
     c360_events = Counter({
         name: event_counts.get(name, 0)

@@ -13,9 +13,11 @@ The Slack surface is mention-required usage in public/open StaffAny Slack channe
 - Route non-critical `auxiliary.title_generation` through the pinned short-timeout Haiku auxiliary config so title-generation overloads do not become visible Slack follow-up noise.
 - Suppress gateway lifecycle notices in the pilot channel with `platforms.slack.gateway_restart_notification=false`.
 - Task creation is preview first. Same-thread `create`, `approve create`, or `create this` approves the previously shown draft.
-- ROI-direct requests are ticket-first and must go straight to ROI JSM, not PCO. When PS Wee is asked to create, add, log, handle, ticket, task, or board work for ROI, RevOps, BD Ops, bdops, NYSS, n y s s, invoice/billing, renewal invoices, discounts, HC/deal checks, Stripe invoices, HubSpot deals, ERP dashboards/data issues, linked BE, accessible invoices, MRR mismatch, SLA dashboards, or asset sync, call `classify_roi_ticket_request`, then `find_roi_ticket_by_slack_thread`, then `create_roi_ticket_from_slack` if no same-thread ROI ticket exists.
+- ROI-direct requests are ticket-first and must create or reuse ROI JSM first. When PS Wee is asked to create, add, log, handle, ticket, task, or board work for ROI, RevOps, BD Ops, bdops, NYSS, n y s s, invoice/billing, renewal invoices, discounts, HC/deal checks, Stripe invoices, HubSpot deals, ERP dashboards/data issues, linked BE, accessible invoices, MRR mismatch, SLA dashboards, or asset sync, call `classify_roi_ticket_request`, then `find_roi_ticket_by_slack_thread`, then `create_roi_ticket_from_slack` if no same-thread ROI ticket exists.
+- For resolved PS Team callers, billing/invoice/renewal billing asks default to customer-loop tracking. If `classify_roi_ticket_request` returns `pco_tracker_default=true`, call `create_or_link_pco_roi_tracker` after ROI create/reuse so the linked PCO tracker appears in `Waiting Internal`.
 - Do not trigger ROI creation for casual `@nyss`, BD Ops, or RevOps questions unless the user asks PS Wee to create, add, log, handle, ticket, task, or board the work.
 - ROI requester is first-class. Explicit `requested by` / `reported by` wins; otherwise pass the current Slack sender ID/mention or email. If requester cannot resolve, block creation and ask for requester only. No bot, team, or `team@staffany.com` fallback.
+- Do not create duplicate PCO execution wrappers for ROI work. The PCO ROI tracker is allowed only for customer-loop visibility; ROI remains internal-team execution truth.
 - PS WEE ticketing requests are ticket-first. When PS asks to create, raise, log, or file a ticket, create the PCO intake ticket immediately if no ticket already exists for the same Slack thread permalink. Pass known facts into the Jira tool, paste its returned ticket reply exactly, and do not add numbered follow-up questionnaires.
 - Operational task-list requests are ticket-first. When PS asks to `add to <person/team> task list`, `add to Jo/Jos/Josica`, `put on backlog`, `add to follow-up list`, or equivalent, create or return the PCO intake ticket before asking for missing fields.
 - A confirmed customer reach-out in a PS WEE/customer-ops thread is ticket-first even if nobody says "create ticket". Examples: "did they reach out?" followed by "yes, via Intercom", a support-thread permalink, an admin screenshot showing a limit hit, or a teammate confirming impact. Create or return the same-thread PCO intake ticket first, then ask for missing details.
@@ -63,6 +65,16 @@ Source: Jira ROI
 Scope: <caller, Slack thread, customer/request category>
 Confidence: verified
 Caveat: ROI ticket is source of truth; Slack thread is evidence.
+```
+
+PCO ROI tracker output:
+
+```text
+Tracking customer loop on PCO: <url|PCO-key> linked to <url|ROI-key> and set to Waiting Internal.
+Source: Jira ROI + Jira PCO tracker
+Scope: <caller, Slack thread, customer>
+Confidence: verified
+Caveat: ROI ticket is source of truth; PCO tracker is only for customer-loop visibility.
 ```
 
 ## Slack Scopes

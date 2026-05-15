@@ -30,6 +30,7 @@ Alias note: `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` refer to this 
 | `runtime/hooks/psm-ops-adoption-telemetry/` | Hermes gateway hook for adoption metrics. |
 | `runtime/psm_ops_adoption_digest.py` | No-agent cron script for adoption digest delivery. |
 | `runtime/scripts/psm_ops_due_date_reminders.py` | No-agent Jira PCO due-date reminder digest script. |
+| `runtime/scripts/psm_ops_roi_tracker_sync.py` | No-agent ROI-to-PCO customer-loop tracker sync script. |
 | `runtime/jira.md` | Jira field, workflow, and safety contract. |
 | `runtime/c360.md` | Customer 360 internal API contract. |
 | `runtime/google-calendar.md` | Google Calendar read-only access contract. |
@@ -73,7 +74,7 @@ chmod 600 ~/.hermes/profiles/psmopsbot/.env
 5. Copy `skills/psm-ops-bot/` into the profile skills directory.
 6. Set profile `.env` from Secret Manager values only, including `psm-ops-bot-roi-jira-env` for ROI-direct routing.
 7. Configure Slack, `psm_jira`, `psm_c360`, and `psm_google_calendar` MCP servers.
-8. Install health, audit, and reminder cron jobs on the cloud host.
+8. Install health, audit, reminder, and ROI tracker sync cron jobs on the cloud host.
 9. Run health checks and regression cases before widening access.
 
 ## Verification

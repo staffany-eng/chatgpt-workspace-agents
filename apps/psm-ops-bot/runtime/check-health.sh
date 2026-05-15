@@ -30,7 +30,7 @@ if command -v hermes >/dev/null 2>&1; then
   for server in psm_jira psm_c360 psm_google_calendar; do
     out="$(hermes -p "$PROFILE" mcp test "$server" 2>&1 || true)"
     case "$server" in
-      psm_jira) expected=21 ;;
+      psm_jira) expected=22 ;;
       psm_c360) expected=3 ;;
       psm_google_calendar) expected=1 ;;
     esac
@@ -189,13 +189,14 @@ enabled = [job for job in jobs if isinstance(job, dict) and job.get("enabled") i
 names = {str(job.get("name") or "") for job in enabled}
 missing = [
     name
-    for name in ["psmopsbot due-date reminders", "psmopsbot due-date eod catch-up"]
+    for name in ["psmopsbot due-date reminders", "psmopsbot due-date eod catch-up", "psmopsbot roi tracker sync"]
     if name not in names
 ]
 scripts = {str(job.get("name") or ""): job for job in enabled}
 for name, expected_script in {
     "psmopsbot due-date reminders": "psm_ops_due_date_reminders.py",
     "psmopsbot due-date eod catch-up": "psm_ops_due_date_reminders_eod.py",
+    "psmopsbot roi tracker sync": "psm_ops_roi_tracker_sync.py",
 }.items():
     job = scripts.get(name)
     if not job:

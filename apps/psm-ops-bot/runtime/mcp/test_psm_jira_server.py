@@ -966,6 +966,15 @@ class PsmJiraServerTest(unittest.TestCase):
                 self.assertEqual(result["confidence"], "verified")
                 self.assertTrue(result["answer"]["is_roi_ticket_request"])
 
+    def test_roi_intent_defaults_billing_to_pco_tracker_without_action_word(self):
+        result = self.module.classify_roi_ticket_request("Dreamus renewal invoice has MRR mismatch")
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertTrue(result["answer"]["is_roi_ticket_request"])
+        self.assertTrue(result["answer"]["pco_tracker_default"])
+        self.assertFalse(result["answer"]["requires_action"])
+        self.assertEqual(result["answer"]["pco_tracker_reason"], "billing_or_invoice_default")
+
     def test_roi_intent_blocks_casual_nyss_question(self):
         result = self.module.classify_roi_ticket_request("@nyss what is the Stripe password")
 
@@ -1145,6 +1154,100 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertEqual(result["answer"]["existing_ticket"]["issue_key"], "ROI-555")
         self.assertEqual(len(calls), 1)
         self.assertEqual(audit_calls[0][0], "roi_ticket_reused")
+
+    def test_create_or_link_pco_roi_tracker_creates_waiting_internal_tracker(self):
+        calls = []
+        audit_calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
+                return {"issues": []}
+            if path.endswith("/requesttype/101/field"):
+                return {
+                    "requestTypeFields": [
+                        {
+                            "fieldId": "customfield_10876",
+                            "name": "PS Team",
+                            "validValues": [{"value": "team-ada", "label": "Ada PSM"}],
+                        }
+                    ]
+                }
+            if method == "POST" and path == "/rest/servicedeskapi/request":
+                return {"issueKey": "PCO-222", "requestTypeId": "101"}
+            if method == "POST" and path.endswith("/comment"):
+                return {"id": "comment-222"}
+            if method == "GET" and path == "/rest/api/3/issue/PCO-222?fields=issuelinks":
+                return {"fields": {"issuelinks": []}}
+            if method == "GET" and path == "/rest/api/3/issue/PCO-222/transitions":
+                return {"transitions": [{"id": "41", "name": "Waiting Internal", "to": {"name": "Waiting Internal"}}]}
+            return {}
+
+        self.module._request_json = fake_request
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: audit_calls.append((event_type, kwargs)) or {"ok": True}
+
+        result = self.module.create_or_link_pco_roi_tracker(
+            slack_user_email="psm@staffany.com",
+            slack_thread_url="https://staffany.slack.com/archives/C08SDJR03N1/p1778753307219144",
+            roi_issue_key="ROI-123",
+            customer="Dreamus",
+            summary="Renewal invoice mismatch",
+            original_channel="#team-rev-bd-ops",
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["answer"]["pco_issue_key"], "PCO-222")
+        self.assertEqual(result["answer"]["roi_issue_key"], "ROI-123")
+        self.assertEqual(result["answer"]["label"], "ps-wee-roi-tracker")
+        self.assertIn("ROI remains source of truth", result["caveat"])
+        create_payload = next(call[2] for call in calls if call[0] == "POST" and call[1] == "/rest/servicedeskapi/request")
+        self.assertEqual(create_payload["requestFieldValues"]["summary"], "[Waiting internal] Dreamus - Renewal invoice mismatch")
+        label_call = next(call for call in calls if call[0] == "PUT" and call[1] == "/rest/api/3/issue/PCO-222")
+        self.assertEqual(label_call[2]["update"]["labels"], [{"add": "ps-wee-roi-tracker"}])
+        link_call = next(call for call in calls if call[0] == "POST" and call[1] == "/rest/api/3/issueLink")
+        self.assertEqual(link_call[2]["type"], {"name": "Blocks"})
+        self.assertEqual(link_call[2]["outwardIssue"], {"key": "ROI-123"})
+        self.assertEqual(link_call[2]["inwardIssue"], {"key": "PCO-222"})
+        self.assertIn(("POST", "/rest/api/3/issue/PCO-222/transitions", {"transition": {"id": "41"}, "update": {"comment": [{"add": {"body": self.module._adf("PCO customer-loop tracker is waiting on linked ROI issue ROI-123.")}}]}}), calls)
+        self.assertEqual(audit_calls[0][0], "roi_tracker_linked")
+
+    def test_create_or_link_pco_roi_tracker_reuses_same_thread_tracker(self):
+        calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
+                return {
+                    "issues": [
+                        {
+                            "key": "PCO-333",
+                            "fields": {
+                                "summary": "Dreamus invoice tracker",
+                                "status": {"name": "Waiting Internal"},
+                                "priority": {"name": "Medium"},
+                                "customfield_10876": {"value": "Ada PSM"},
+                            },
+                        }
+                    ]
+                }
+            if method == "GET" and path == "/rest/api/3/issue/PCO-333?fields=issuelinks":
+                return {"fields": {"issuelinks": [{"type": {"name": "Blocks"}, "outwardIssue": {"key": "ROI-123"}}]}}
+            return {}
+
+        self.module._request_json = fake_request
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: {"ok": True}
+
+        result = self.module.create_or_link_pco_roi_tracker(
+            slack_user_email="psm@staffany.com",
+            slack_thread_url="https://staffany.slack.com/archives/C08SDJR03N1/p1778753307219144",
+            roi_issue_key="ROI-123",
+            customer="Dreamus",
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertTrue(result["answer"]["already_exists"])
+        self.assertTrue(result["answer"]["link_already_exists"])
+        self.assertEqual([call for call in calls if call[0] == "POST"], [])
 
     def test_append_ps_wee_ticket_update_posts_structured_comment_only(self):
         calls = []
