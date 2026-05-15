@@ -18,6 +18,7 @@ Hermes Data Bot needs deterministic runtime health checks because prompt correct
 - Cron concurrency is capped with `cron.max_parallel_jobs: 1`.
 - `staffany_bigquery` MCP lists only the expected read-only tools.
 - `staffany_slack_context` MCP lists only `get_current_slack_thread_context` and `get_selected_slack_thread_context`.
+- `staffany_c360` MCP lists only `list_current_customer_orgs` and uses `X-Customer360-Internal-Token`, not browser cookies or personal `customer360_session`.
 - Selected Slack-thread smoke can read a configured public/source thread with the bot token and returns only message counts/safe snippets/permalinks.
 - A tiny read-only BigQuery smoke query succeeds.
 - `hermes -p staffanydatabot auth status anthropic` reports logged in.
@@ -50,7 +51,7 @@ Use the redacted cloud doctor after deploy, profile drift, or Slack-context chan
 apps/hermes-data-bot/runtime/staffanydatabot-cloud-doctor.sh
 ```
 
-It checks systemd service state, live `VERSION`, cron metadata including malformed `deliver: null`, BigQuery and Slack-context MCP tool counts, and one configured selected Slack-thread read. It must not print tokens, raw Slack text, raw query rows, or Honcho memory contents.
+It checks systemd service state, live `VERSION`, cron metadata including malformed `deliver: null`, BigQuery, Slack-context, and C360 MCP tool counts, and one configured selected Slack-thread read. It must not print tokens, raw Slack text, raw query rows, or Honcho memory contents.
 
 Default checks:
 
@@ -67,6 +68,7 @@ Default checks:
 - recent model-auth gateway errors when `EXPECT_MODEL_PROVIDER=openai-codex`
 - `hermes -p staffanydatabot mcp test staffany_bigquery` with 4 expected tools
 - `hermes -p staffanydatabot mcp test staffany_slack_context` with 2 expected tools
+- `hermes -p staffanydatabot mcp test staffany_c360` with 1 expected tool
 - `curl -fsS http://localhost:8000/health`
 - `hermes -p staffanydatabot memory status`
 - `redact_secrets: true` in the live profile config
@@ -117,7 +119,7 @@ Run the packet audit after profile edits, script sync, model-route changes, or g
 apps/hermes-data-bot/runtime/audit-live-profile.sh
 ```
 
-It checks the live `SOUL.md`, StaffAny skill folder, health-check script sync, Anthropic model route, Slack quiet settings, secret redaction, BigQuery MCP allowlist, selected Slack-context MCP files, installed health cron, and MCP tool count.
+It checks the live `SOUL.md`, StaffAny skill folder, health-check script sync, Anthropic model route, Slack quiet settings, secret redaction, BigQuery MCP allowlist, selected Slack-context MCP files, C360 MCP files, installed health cron, and MCP tool count.
 It also checks the VM-local cloud heartbeat script, cloud doctor script, and cron when installed.
 
 After enabling the weekly high-priority feature usage digest, audit it with:

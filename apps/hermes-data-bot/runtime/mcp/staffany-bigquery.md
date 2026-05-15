@@ -33,6 +33,10 @@ Do not expose generic HTTP fetch, write SQL, export, load, grant, revoke, DDL, D
 
 Slack thread interpretation belongs to the separate read-only `staffany_slack_context` MCP. Do not add Slack read, Slack write, generic fetch, or workspace search capability to the BigQuery MCP.
 
+## Adjacent Customer 360 Boundary
+
+Current-customer universe checks belong to the separate read-only `staffany_c360` MCP. When the user asks for current customers, C360 definition, or a C360 correction, call `staffany_c360.list_current_customer_orgs` first and filter BigQuery metric queries to the returned linked StaffAny org IDs. Do not recreate Customer 360 renewal/billing definitions inside ad hoc BigQuery prompts.
+
 ## Smoke Check
 
 From the live profile, verify the MCP server lists only the allowed tools and can run a bounded read-only query such as `SELECT 1 AS ok`.

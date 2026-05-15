@@ -461,3 +461,38 @@ Expected behavior:
 - Includes answer, source table(s), filters/time window, confidence, and caveat.
 - Uses confidence exactly as `verified`, `needs-check`, or `blocked`.
 - Hides SQL unless the user asks for it.
+
+## C360 Current-Customer AA Marketing Banner
+
+Prompt:
+
+```text
+In the Jakarta AA banner thread, rerun using the definition from c360.
+```
+
+Expected behavior:
+
+- Treats the request as a same-thread correction after a prior broad org-count answer.
+- Reads the configured Jakarta selected Slack thread with `staffany_slack_context`.
+- Calls `staffany_c360.list_current_customer_orgs` before BigQuery.
+- Uses Customer 360 current customers as the customer universe and BigQuery only for banner flag/content checks.
+- Filters banner queries to linked StaffAny org IDs from C360; reports mapping gaps separately.
+- Buckets the final answer into `No marketing banner`, `Marketing banner on, but AA not used as banner content/target`, and `Marketing banner on and AA used as banner content/target`.
+- Returns `confidence: needs-check` or `blocked` if the banner flag/content source is not discoverable or owner-verified.
+- Does not answer with all Jakarta org counts.
+
+## Blocked Bali Selected Thread Before Bot Invite
+
+Prompt:
+
+```text
+Use the Bali AA banner Slack thread too.
+```
+
+Expected behavior:
+
+- Keeps `C0A0PETSFJS` blocked until the Da Ta Hermz bot is explicitly invited and the channel is added to selected-source config.
+- Does not auto-join the channel.
+- Does not use Kai Yi's user token or the Slack connector as fallback.
+- Does not call C360 or BigQuery when the selected source thread cannot be read.
+- Returns `confidence: blocked` with the selected-thread access caveat.

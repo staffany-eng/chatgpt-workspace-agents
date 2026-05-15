@@ -318,7 +318,7 @@ if "cron" in template:
 
 template_servers = template.get("mcp_servers") or {}
 config_servers = config.setdefault("mcp_servers", {})
-for server_name in ("staffany_bigquery", "staffany_slack_context"):
+for server_name in ("staffany_bigquery", "staffany_slack_context", "staffany_c360"):
     expected = template_servers.get(server_name)
     if expected is None:
         continue

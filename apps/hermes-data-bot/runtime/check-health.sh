@@ -7,6 +7,7 @@ EXPECT_HONCHO="${EXPECT_HONCHO:-1}"
 EXPECT_GATEWAY="${EXPECT_GATEWAY:-1}"
 EXPECT_MCP_TOOLS="${EXPECT_MCP_TOOLS:-4}"
 EXPECT_SLACK_CONTEXT_MCP_TOOLS="${EXPECT_SLACK_CONTEXT_MCP_TOOLS:-2}"
+EXPECT_C360_MCP_TOOLS="${EXPECT_C360_MCP_TOOLS:-1}"
 EXPECT_MODEL_AUTH="${EXPECT_MODEL_AUTH:-1}"
 EXPECT_MODEL_PROVIDER="${EXPECT_MODEL_PROVIDER:-anthropic}"
 EXPECT_MODEL_DEFAULT="${EXPECT_MODEL_DEFAULT:-claude-sonnet-4-6}"
@@ -96,6 +97,21 @@ access_policy = slack_context.get("access_policy") or {}
 if access_policy.get("slack_posting") is not False or access_policy.get("workspace_search") is not False:
     print("mcp:staffany_slack_context-unsafe-access-policy")
     raise SystemExit(1)
+
+c360 = ((config.get("mcp_servers") or {}).get("staffany_c360") or {})
+c360_allowlist = c360.get("tool_allowlist") or []
+if c360_allowlist != ["list_current_customer_orgs"]:
+    print("mcp:staffany_c360-tool-allowlist-drift")
+    raise SystemExit(1)
+c360_policy = c360.get("access_policy") or {}
+if (
+    c360_policy.get("custom_internal_header_only") is not True
+    or c360_policy.get("browser_cookie") is not False
+    or c360_policy.get("personal_customer360_session") is not False
+    or c360_policy.get("write_operations") is not False
+):
+    print("mcp:staffany_c360-unsafe-access-policy")
+    raise SystemExit(1)
 PY
 then
   fail "$(cat "$config_check_out")"
@@ -176,6 +192,12 @@ if ! hermes -p "$PROFILE" mcp test staffany_slack_context >"$slack_context_mcp_o
   fail "mcp:staffany_slack_context-test-failed"
 fi
 grep -q "Tools discovered: $EXPECT_SLACK_CONTEXT_MCP_TOOLS" "$slack_context_mcp_out" || fail "mcp:staffany_slack_context-tool-count-unexpected"
+
+c360_mcp_out="$tmp_dir/c360-mcp.out"
+if ! hermes -p "$PROFILE" mcp test staffany_c360 >"$c360_mcp_out" 2>&1; then
+  fail "mcp:staffany_c360-test-failed"
+fi
+grep -q "Tools discovered: $EXPECT_C360_MCP_TOOLS" "$c360_mcp_out" || fail "mcp:staffany_c360-tool-count-unexpected"
 
 if [ "$EXPECT_HONCHO" = "1" ]; then
   need_command curl

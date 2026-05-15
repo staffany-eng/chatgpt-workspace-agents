@@ -13,6 +13,7 @@ This runbook sets up the Hermes runtime StaffAny Data Bot on company infra. For 
 - Runtime profile: `staffanydatabot`
 - Slack rollout: `#da-ta-hermz-testing` (`C0AU19E6T0C`), mention-only
 - Selected public/source-thread reads: configured channel IDs only through `staffany_slack_context`, using the bot token.
+- Customer 360 current-customer universe reads: `staffany_c360`, using `X-Customer360-Internal-Token`.
 
 ## Current Multi-Bot VM Topology
 
@@ -71,6 +72,7 @@ Store these in Secret Manager, not in repo files:
 - `hermes-data-bot-slack-app-token`
 - `hermes-data-bot-slack-allowed-users`
 - `bq-mcp-proxy-shared-secret`
+- Customer 360 internal API token, if deployed via Secret Manager
 - Jira API token for the release-feature sync operator, if the Jira sync runs on the VM
 - Honcho server LLM provider key, if Honcho external memory is enabled
 
@@ -81,6 +83,8 @@ SLACK_BOT_TOKEN=<xoxb token>
 SLACK_APP_TOKEN=<xapp token>
 SLACK_ALLOWED_USERS=<comma-separated Slack member IDs>
 MCP_STAFFANY_BIGQUERY_API_KEY=<bq-mcp-proxy-shared-secret value>
+CUSTOMER360_BASE_URL=<Customer 360 base URL>
+CUSTOMER360_INTERNAL_API_TOKEN=<Customer 360 internal API token>
 ```
 
 Selected Slack source-thread reads use non-secret channel allowlisting:
@@ -279,15 +283,31 @@ mcp_servers:
     tool_allowlist:
       - get_current_slack_thread_context
       - get_selected_slack_thread_context
+  staffany_c360:
+    command: "/home/leekaiyi/.hermes/hermes-agent/venv/bin/python"
+    args:
+      - "/home/leekaiyi/.hermes/profiles/staffanydatabot/source/hermes-data-bot/runtime/mcp/staffany_c360_server.py"
+    env:
+      CUSTOMER360_BASE_URL: "${CUSTOMER360_BASE_URL}"
+      CUSTOMER360_INTERNAL_API_TOKEN: "${CUSTOMER360_INTERNAL_API_TOKEN}"
+    access_policy:
+      custom_internal_header_only: true
+      browser_cookie: false
+      personal_customer360_session: false
+      write_operations: false
+    tool_allowlist:
+      - list_current_customer_orgs
 ```
 
 Verify:
 
 ```bash
 hermes -p staffanydatabot mcp test staffany_bigquery
+hermes -p staffanydatabot mcp test staffany_slack_context
+hermes -p staffanydatabot mcp test staffany_c360
 ```
 
-Expected result: connected, 4 tools discovered.
+Expected result: BigQuery connected with 4 tools, Slack context with 2 tools, and C360 with 1 tool.
 
 ## Jira Release Registry Sync
 
@@ -435,6 +455,8 @@ hermes -p staffanydatabot gateway status
 - `hermes -p staffanydatabot doctor`
 - `hermes -p staffanydatabot skills list` shows `staffany-data-bot`
 - `hermes -p staffanydatabot mcp test staffany_bigquery` discovers 4 tools
+- `hermes -p staffanydatabot mcp test staffany_slack_context` discovers 2 tools
+- `hermes -p staffanydatabot mcp test staffany_c360` discovers 1 tool
 - `apps/hermes-data-bot/runtime/check-health.sh` prints nothing and exits 0 when gateway, MCP, redaction, and Honcho are healthy
 - Direct MCP `execute_sql_readonly` probe with `SELECT 1 AS ok` returns a JSON-RPC result and no error
 - `hermes -p staffanydatabot gateway status` is active after Slack and model auth are ready

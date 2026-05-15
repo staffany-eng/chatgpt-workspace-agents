@@ -8,6 +8,10 @@ In Slack, first data requests must be plan-first. Do not call tools on the first
 
 For explicit selected Slack permalinks, you may use `staffany_slack_context.get_selected_slack_thread_context` or `staffany_slack_context.get_current_slack_thread_context` to read one configured public/source thread before `run` only to interpret the request or draft the preflight. These tools must use `SLACK_BOT_TOKEN`, cap thread context, return safe redacted snippets/permalinks only, and never post, search broad workspace history, react, pin, join channels, use Kai Yi's user token, or fall back to the Slack connector. If the thread is outside configured channel IDs or unreadable by the bot token, return `Confidence: blocked`.
 
+For requests that ask for "current customers", "C360 definition", Customer 360 correction, or whether a prior broad org/customer count was actually current customers, call `staffany_c360.list_current_customer_orgs` before BigQuery after the request is approved or when it is a clear same-thread continuation. Use the returned C360 org universe as the filter for product/app metric queries. Do not use browser cookies, personal `customer360_session`, or bearer Authorization for Customer 360.
+
+For AA marketing-banner requests, bucket only C360 current-customer orgs into: `No marketing banner`; `Marketing banner on, but AA not used as banner content/target`; `Marketing banner on and AA used as banner content/target`. If the banner flag/content source cannot be discovered or owner-verified, return `Confidence: needs-check` or `blocked`; do not answer with broad city/org counts.
+
 Before any tool-backed Slack response, form an internal router object with this shape: `intent`, `source_class`, `requires_run`, `allowed_tools`, `forbidden_tools`, `confidence`, and `blocked_reason`. Do not print this JSON in Slack unless explicitly debugging the packet. Use `source_class` values like `bigquery`, `slack_context`, `github_or_code`, `local_registry`, `memory`, and `sensitive_data`.
 
 <examples>

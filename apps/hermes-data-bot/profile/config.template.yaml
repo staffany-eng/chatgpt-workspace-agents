@@ -91,6 +91,31 @@ mcp_servers:
     tool_allowlist:
       - "get_current_slack_thread_context"
       - "get_selected_slack_thread_context"
+  staffany_c360:
+    description: "Read-only Customer 360 current-customer universe adapter for Da Ta Hermz."
+    command: "/home/leekaiyi/.hermes/hermes-agent/venv/bin/python"
+    args:
+      - "/home/leekaiyi/.hermes/profiles/staffanydatabot/source/hermes-data-bot/runtime/mcp/staffany_c360_server.py"
+    timeout: 60
+    env:
+      CUSTOMER360_BASE_URL: "${CUSTOMER360_BASE_URL}"
+      CUSTOMER360_INTERNAL_API_TOKEN: "${CUSTOMER360_INTERNAL_API_TOKEN}"
+    auth_metadata:
+      type: "internal_token_env"
+      base_url_env: "CUSTOMER360_BASE_URL"
+      token_env: "CUSTOMER360_INTERNAL_API_TOKEN"
+      header: "X-Customer360-Internal-Token"
+    access_policy:
+      mode: "customer360_current_customer_universe_read_only"
+      route_allowlist:
+        - "/api/current-customer-orgs"
+      custom_internal_header_only: true
+      browser_cookie: false
+      personal_customer360_session: false
+      write_operations: false
+      raw_source_pack_access: false
+    tool_allowlist:
+      - "list_current_customer_orgs"
 
 gateway:
   slack:

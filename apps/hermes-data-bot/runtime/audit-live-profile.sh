@@ -11,6 +11,7 @@ EXPECTED_DIGEST_CRON_NAME="${EXPECTED_DIGEST_CRON_NAME:-staffanydatabot high-pri
 EXPECT_DIGEST_CRON="${EXPECT_DIGEST_CRON:-0}"
 EXPECTED_MCP_TOOLS="${EXPECTED_MCP_TOOLS:-4}"
 EXPECTED_SLACK_CONTEXT_MCP_TOOLS="${EXPECTED_SLACK_CONTEXT_MCP_TOOLS:-2}"
+EXPECTED_C360_MCP_TOOLS="${EXPECTED_C360_MCP_TOOLS:-1}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROFILE_DIR="${HERMES_PROFILE_DIR:-$HOME/.hermes/profiles/$PROFILE}"
@@ -48,6 +49,7 @@ cmp -s "$APP_ROOT/runtime/check-health.sh" "$PROFILE_DIR/scripts/staffanydatabot
 cmp -s "$APP_ROOT/runtime/check-cloud-heartbeat.sh" "$PROFILE_DIR/scripts/staffanydatabot-check-cloud-heartbeat.sh" || fail "profile-drift:cloud-heartbeat-script"
 cmp -s "$APP_ROOT/runtime/staffanydatabot-cloud-doctor.sh" "$PROFILE_DIR/scripts/staffanydatabot-cloud-doctor.sh" || fail "profile-drift:cloud-doctor-script"
 cmp -s "$APP_ROOT/runtime/mcp/staffany_slack_context_server.py" "$PROFILE_DIR/runtime/mcp/staffany_slack_context_server.py" || fail "profile-drift:staffany-slack-context-mcp"
+cmp -s "$APP_ROOT/runtime/mcp/staffany_c360_server.py" "$PROFILE_DIR/runtime/mcp/staffany_c360_server.py" || fail "profile-drift:staffany-c360-mcp"
 cmp -s "$APP_ROOT/runtime/mcp/profile_env.py" "$PROFILE_DIR/runtime/mcp/profile_env.py" || fail "profile-drift:staffany-slack-context-profile-env"
 
 hermes_python="$HERMES_AGENT_DIR/venv/bin/python"
@@ -144,6 +146,21 @@ if (
 ):
     print("mcp:staffany_slack_context-unsafe-access-policy")
     raise SystemExit(1)
+
+c360 = ((config.get("mcp_servers") or {}).get("staffany_c360") or {})
+c360_allowlist = c360.get("tool_allowlist") or []
+if c360_allowlist != ["list_current_customer_orgs"]:
+    print("mcp:staffany_c360-tool-allowlist-drift")
+    raise SystemExit(1)
+c360_policy = c360.get("access_policy") or {}
+if (
+    c360_policy.get("custom_internal_header_only") is not True
+    or c360_policy.get("browser_cookie") is not False
+    or c360_policy.get("personal_customer360_session") is not False
+    or c360_policy.get("write_operations") is not False
+):
+    print("mcp:staffany_c360-unsafe-access-policy")
+    raise SystemExit(1)
 PY
 then
   fail "$(cat "$config_check_out")"
@@ -160,5 +177,7 @@ mcp_out="$(hermes -p "$PROFILE" mcp test staffany_bigquery 2>&1)" || fail "mcp:s
 printf '%s\n' "$mcp_out" | grep -q "Tools discovered: $EXPECTED_MCP_TOOLS" || fail "mcp:staffany_bigquery-tool-count-unexpected"
 slack_context_mcp_out="$(hermes -p "$PROFILE" mcp test staffany_slack_context 2>&1)" || fail "mcp:staffany_slack_context-test-failed"
 printf '%s\n' "$slack_context_mcp_out" | grep -q "Tools discovered: $EXPECTED_SLACK_CONTEXT_MCP_TOOLS" || fail "mcp:staffany_slack_context-tool-count-unexpected"
+c360_mcp_out="$(hermes -p "$PROFILE" mcp test staffany_c360 2>&1)" || fail "mcp:staffany_c360-test-failed"
+printf '%s\n' "$c360_mcp_out" | grep -q "Tools discovered: $EXPECTED_C360_MCP_TOOLS" || fail "mcp:staffany_c360-tool-count-unexpected"
 
 printf 'live-profile:audit-ok\n'

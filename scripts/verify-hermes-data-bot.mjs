@@ -74,6 +74,12 @@ if (!existsSync(manifestPath)) {
     if (manifest.slack_context_mcp?.read_only !== true) fail("Manifest Slack context MCP must be read_only");
     if (manifest.slack_context_mcp?.uses_user_token !== false) fail("Manifest Slack context MCP must not use user token");
     if (manifest.slack_context_mcp?.uses_slack_connector !== false) fail("Manifest Slack context MCP must not use Slack connector");
+    const c360Tools = manifest.c360_mcp?.expected_tools || [];
+    if (!c360Tools.includes("list_current_customer_orgs")) fail("Manifest missing C360 MCP tool: list_current_customer_orgs");
+    if (manifest.c360_mcp?.read_only !== true) fail("Manifest C360 MCP must be read_only");
+    if (manifest.c360_mcp?.auth_header !== "X-Customer360-Internal-Token") fail("Manifest C360 MCP must use custom internal auth header");
+    if (manifest.c360_mcp?.uses_browser_cookie !== false) fail("Manifest C360 MCP must not use browser cookies");
+    if (manifest.c360_mcp?.uses_personal_customer360_session !== false) fail("Manifest C360 MCP must not use personal customer360_session");
   }
 }
 
@@ -96,9 +102,11 @@ const filesToScan = [
   "skills/staffany-data-bot/references/regression-cases.md",
   "runtime/mcp/staffany-bigquery.md",
   "runtime/mcp/staffany_slack_context_server.py",
+  "runtime/mcp/staffany_c360_server.py",
   "runtime/mcp/profile_env.py",
   "runtime/mcp/test_helpers.py",
   "runtime/mcp/test_staffany_slack_context_server.py",
+  "runtime/mcp/test_staffany_c360_server.py",
   "runtime/jira-release-sync.md",
   "runtime/sync-jira-release-registry.sh",
   "runtime/high-priority-feature-digest.md",
@@ -160,6 +168,19 @@ for (const requiredText of [
   "slack_posting: false"
 ]) {
   if (!configText.includes(requiredText)) fail(`config.template.yaml missing Slack context contract: ${requiredText}`);
+}
+for (const requiredText of [
+  "staffany_c360",
+  "list_current_customer_orgs",
+  "CUSTOMER360_BASE_URL",
+  "CUSTOMER360_INTERNAL_API_TOKEN",
+  "X-Customer360-Internal-Token",
+  "custom_internal_header_only: true",
+  "browser_cookie: false",
+  "personal_customer360_session: false",
+  "write_operations: false"
+]) {
+  if (!configText.includes(requiredText)) fail(`config.template.yaml missing C360 contract: ${requiredText}`);
 }
 if (configText.includes('all@staffany')) fail('config.template.yaml must not reference known-bad all@staffany model alias');
 if (configText.includes("OPENAI_API_KEY")) fail("config.template.yaml must not configure OpenAI API key routing");
@@ -235,7 +256,10 @@ for (const requiredText of [
   'Do not query Jira live',
   'Do not say the release-feature registry is missing unless that exact reference-file load fails',
   'needs-mapping',
-  'scheduled digest'
+  'scheduled digest',
+  'staffany_c360.list_current_customer_orgs',
+  'Customer 360 is the source of truth for the current-customer universe',
+  'Marketing banner on and AA used as banner content/target'
 ]) {
   if (!skillText.includes(requiredText)) fail(`staffany-data-bot skill missing required guardrail text: ${requiredText}`);
 }
@@ -345,7 +369,8 @@ for (const requiredText of [
   "staffanydatabot-cloud-doctor.sh",
   "deploy:summary:cloud_doctor=passed",
   "VERSION",
-  "staffany_slack_context"
+  "staffany_slack_context",
+  "staffany_c360"
 ]) {
   if (!deployScriptText.includes(requiredText)) fail(`deploy-hermes-data-bot.mjs missing required text: ${requiredText}`);
 }
@@ -360,6 +385,7 @@ for (const requiredText of [
   "deliver_null",
   "check_mcp_tools \"staffany_bigquery\"",
   "check_mcp_tools \"staffany_slack_context\"",
+  "check_mcp_tools \"staffany_c360\"",
   "slack:selected-thread:ok",
   "C0A0V39AK44"
 ]) {
@@ -369,13 +395,14 @@ for (const requiredText of [
 const mcpTest = spawnSync("python3", [
   "-m",
   "unittest",
-  "apps/hermes-data-bot/runtime/mcp/test_staffany_slack_context_server.py"
+  "apps/hermes-data-bot/runtime/mcp/test_staffany_slack_context_server.py",
+  "apps/hermes-data-bot/runtime/mcp/test_staffany_c360_server.py"
 ], {
   cwd: repoRoot,
   encoding: "utf8"
 });
 if (mcpTest.status !== 0) {
-  fail(`Slack context MCP unittest failed: ${mcpTest.stderr || mcpTest.stdout}`);
+  fail(`MCP unittest failed: ${mcpTest.stderr || mcpTest.stdout}`);
 }
 
 if (failures.length > 0) {

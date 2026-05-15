@@ -33,8 +33,9 @@ Do not use this skill for generic coding, broad web research, or non-StaffAny pe
 3. Known POC metrics: `references/staffany-data-bot-metric-registry.md`.
 4. Regression and safety expectations: `references/regression-cases.md`.
 5. Selected Slack thread context through the read-only `staffany_slack_context` MCP when the user gives an explicit configured Slack permalink.
-6. BigQuery schema inspection through the `staffany_bigquery` MCP server.
-7. GitHub/Pantheon evidence only when registry evidence is missing, explicitly requires code verification, or the user asks for code evidence.
+6. Customer 360 current-customer universe through the read-only `staffany_c360` MCP when the request asks for current customers, C360 definition, or a C360 correction.
+7. BigQuery schema inspection through the `staffany_bigquery` MCP server.
+8. GitHub/Pantheon evidence only when registry evidence is missing, explicitly requires code verification, or the user asks for code evidence.
 
 Registry rows are guidance, not automatic truth. Product Corrections prevent known wrong answers, but they do not become metric definitions.
 
@@ -63,6 +64,27 @@ Use BigQuery Standard SQL against `staffany-warehouse.analytics`.
 - Avoid `SELECT *` unless inspecting a tiny sample is genuinely necessary.
 
 If the MCP server, auth, schema access, or required context fails, return `Confidence: blocked` and state the connector/source issue plainly.
+
+## Customer 360 Current-Customer Rules
+
+Use `staffany_c360.list_current_customer_orgs` before BigQuery when a data request asks for "current customers", "C360 definition", "definition from c360", or a correction/rerun because an earlier answer counted all city/org records instead of current customers.
+
+- Customer 360 is the source of truth for the current-customer universe.
+- BigQuery remains the source of truth for product/app metric settings and usage.
+- Use `as_of_date` from the question when given; otherwise use today's Singapore date.
+- Pass the requested country when scoped, for example `Indonesia`.
+- Filter BigQuery product/app metric checks to the returned linked StaffAny org IDs only.
+- Report mapping gaps separately; do not join unmapped C360 companies to org-level metrics by name guessing.
+- If C360 auth/API fails, return `Confidence: blocked` before querying BigQuery.
+- Never use browser cookies, personal `customer360_session`, Slack context, Honcho memory, or HubSpot fields as a substitute for this current-customer universe.
+
+For AA marketing-banner questions, the final answer must bucket C360 current-customer orgs into:
+
+1. No marketing banner.
+2. Marketing banner on, but AA not used as banner content/target.
+3. Marketing banner on and AA used as banner content/target.
+
+If the banner enabled flag, banner content, or AA-target source cannot be discovered or owner-verified, return `Confidence: needs-check` or `blocked`; do not provide broad city/org counts as the answer.
 
 ## Slack Plan-First Workflow
 
