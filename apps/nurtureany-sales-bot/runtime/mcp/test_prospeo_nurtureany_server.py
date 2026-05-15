@@ -10,6 +10,7 @@ if str(MCP_DIR) not in sys.path:
     sys.path.insert(0, str(MCP_DIR))
 
 from test_helpers import load_mcp_module
+from nurtureany_common import profile_env
 
 
 def load_prospeo_module():
@@ -236,6 +237,18 @@ class ProspeoNurtureAnyServerTest(unittest.TestCase):
 
             with patch.dict(os.environ, {"HERMES_HOME": profile_dir}, clear=True):
                 self.assertEqual(self.module._token(), "profile-env-key")
+
+    def test_api_key_can_load_from_profile_env_near_runtime_path(self):
+        with tempfile.TemporaryDirectory() as profile_dir:
+            profile_path = Path(profile_dir)
+            runtime_common = profile_path / "runtime" / "mcp" / "nurtureany_common"
+            runtime_common.mkdir(parents=True)
+            helper_path = runtime_common / "profile_env.py"
+            helper_path.write_text("# deployed helper path\n", encoding="utf-8")
+            (profile_path / ".env").write_text("PROSPEO_API_KEY=path-derived-key\n", encoding="utf-8")
+
+            with patch.dict(os.environ, {}, clear=True), patch.object(profile_env, "__file__", str(helper_path)):
+                self.assertEqual(profile_env.profile_env_value("PROSPEO_API_KEY"), "path-derived-key")
 
     def test_unscoped_company_input_is_blocked_before_key_or_api_call(self):
         with patch.dict(os.environ, {"PROSPEO_API_KEY": "test-key"}), patch.object(
