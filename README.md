@@ -17,6 +17,7 @@ Use the app packet as the source of truth for durable Hermes Data Bot behavior. 
 | Path | Status | Purpose |
 | --- | --- | --- |
 | `apps/hermes-data-bot/` | primary | Source packet for StaffAny Hermes Data Bot. |
+| `apps/product-ops-bot/` | app packet | Source packet scaffold for Product Ops Bot workflows. |
 | `apps/nurtureany-sales-bot/` | app packet | Source packet for StaffAny NurtureAny Sales Bot. |
 | `apps/launch-superpower-bot/` | app packet | Source packet for the Launch Superpower help article, review, and Intercom draft workflow handoff. |
 | `apps/bq-mcp-proxy/` | supporting | StaffAny-controlled BigQuery MCP proxy used by the bot. |
