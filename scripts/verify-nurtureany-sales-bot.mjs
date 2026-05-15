@@ -305,8 +305,10 @@ if (!existsSync(manifestPath)) {
       "find_brand_parent_candidates",
       "search_exa_people_candidates",
       "search_lusha_decision_maker_candidates",
+      "search_lusha_candidates_by_linkedin_urls",
       "get_lusha_credit_usage",
       "search_prospeo_decision_maker_candidates",
+      "search_prospeo_candidates_by_linkedin_urls",
       "get_prospeo_credit_usage"
     ];
     const readTools = manifest.tools?.read || [];
@@ -395,10 +397,13 @@ if (!existsSync(manifestPath)) {
     if (manifest.prospeo?.auth_env_var !== "PROSPEO_API_KEY") fail("Manifest missing PROSPEO_API_KEY auth env var");
     if (manifest.prospeo?.max_search_companies !== 5) fail("Manifest Prospeo max_search_companies must be 5");
     if (manifest.prospeo?.max_candidates_per_company !== 5) fail("Manifest Prospeo max_candidates_per_company must be 5");
+    if (manifest.prospeo?.max_linkedin_urls !== 10) fail("Manifest Prospeo max_linkedin_urls must be 10");
+    if (manifest.prospeo?.max_candidates_per_linkedin_url !== 1) fail("Manifest Prospeo max_candidates_per_linkedin_url must be 1");
     if (manifest.prospeo?.max_reveal_contacts !== 3) fail("Manifest Prospeo max_reveal_contacts must be 3");
     if (manifest.prospeo?.selected_pii_in_slack !== true) fail("Manifest Prospeo selected_pii_in_slack must be true");
     if (manifest.prospeo?.bulk_contact_exports !== false) fail("Manifest Prospeo bulk_contact_exports must be false");
     if (manifest.prospeo?.allowed_search_endpoint !== "POST /search-person") fail("Manifest Prospeo allowed_search_endpoint must be POST /search-person");
+    if (manifest.prospeo?.allowed_linkedin_lookup_endpoint !== "POST /bulk-enrich-person") fail("Manifest Prospeo allowed_linkedin_lookup_endpoint must be POST /bulk-enrich-person");
     if (manifest.prospeo?.allowed_reveal_endpoint !== "POST /bulk-enrich-person") fail("Manifest Prospeo allowed_reveal_endpoint must be POST /bulk-enrich-person");
     if (manifest.prospeo?.usage_endpoint !== "GET /account-information") fail("Manifest Prospeo usage_endpoint must be GET /account-information");
     if (!manifest.aircall?.auth_env_vars?.includes("AIRCALL_API_ID")) fail("Manifest Aircall missing AIRCALL_API_ID");
@@ -845,6 +850,10 @@ for (const text of [
   "deploy:secrets=preserved",
   "deploy:secrets=hydrated-latest",
   "deploy:error:secret-manager-access-failed",
+  "ensure_gateway_envfile",
+  "EnvironmentFile=%s/.env",
+  "deploy:gateway-envfile=",
+  "systemctl --user daemon-reload",
   "install -o \"$runtime_owner\" -g \"$runtime_owner\" -m 0600",
   ".env",
   "OAuth files",
@@ -1028,11 +1037,13 @@ for (const text of [
   "lusha_nurtureany",
   "LUSHA_API_KEY",
   "search_lusha_decision_maker_candidates",
+  "search_lusha_candidates_by_linkedin_urls",
   "reveal_lusha_contact_details",
   "get_lusha_credit_usage",
   "prospeo_nurtureany",
   "PROSPEO_API_KEY",
   "search_prospeo_decision_maker_candidates",
+  "search_prospeo_candidates_by_linkedin_urls",
   "reveal_prospeo_contact_details",
   "get_prospeo_credit_usage",
   "reviewed_lessons:",
@@ -1231,9 +1242,11 @@ for (const text of [
   "kraken_rds.Locations",
   "search_exa_people_candidates",
   "search_lusha_decision_maker_candidates",
+  "search_lusha_candidates_by_linkedin_urls",
   "reveal_lusha_contact_details",
   "get_lusha_credit_usage",
   "search_prospeo_decision_maker_candidates",
+  "search_prospeo_candidates_by_linkedin_urls",
   "reveal_prospeo_contact_details",
   "get_prospeo_credit_usage",
   "cost_report",
@@ -1959,7 +1972,7 @@ for (const text of [
   "EXPECT_EAZYBE_TOOLS=\"${EXPECT_EAZYBE_TOOLS:-4}\"",
   "EXPECT_LUMA_TOOLS=\"${EXPECT_LUMA_TOOLS:-3}\"",
   "EXPECT_PUBLIC_RESEARCH_TOOLS=\"${EXPECT_PUBLIC_RESEARCH_TOOLS:-2}\"",
-  "EXPECT_PROSPEO_TOOLS=\"${EXPECT_PROSPEO_TOOLS:-3}\"",
+  "EXPECT_PROSPEO_TOOLS=\"${EXPECT_PROSPEO_TOOLS:-4}\"",
   "EXPECT_NEAR_ME_TOOLS=\"${EXPECT_NEAR_ME_TOOLS:-6}\"",
   "EXPECT_C360_SALES_PACKET=\"${EXPECT_C360_SALES_PACKET:-1}\"",
   "C360_SALES_PACKET_SMOKE_COMPANY_ID=\"${C360_SALES_PACKET_SMOKE_COMPANY_ID:-9003704457}\"",
@@ -2012,7 +2025,7 @@ for (const text of [
   "nurtureany_sales_task_reminders.py",
   "nurtureany_sales_task_reminders_eod.py",
   "EXPECT_PUBLIC_RESEARCH_TOOLS=\"${EXPECT_PUBLIC_RESEARCH_TOOLS:-2}\"",
-  "EXPECT_PROSPEO_TOOLS=\"${EXPECT_PROSPEO_TOOLS:-3}\"",
+  "EXPECT_PROSPEO_TOOLS=\"${EXPECT_PROSPEO_TOOLS:-4}\"",
   "nurtureanysalesbot-check-cloud-heartbeat.sh",
   "cron:enabled-count-unexpected",
   "event-roi-enabled",
@@ -2244,6 +2257,8 @@ for (const text of [
   "MAX_SEARCH_COMPANIES = 5",
   "MAX_CANDIDATES_PER_COMPANY = 5",
   "MAX_REVEAL_CONTACTS = 3",
+  "MAX_LINKEDIN_URLS = 10",
+  "POST\", \"/v2/contacts/search\"",
   "revealEmails",
   "revealPhones",
   "credit_report",
@@ -2257,6 +2272,7 @@ for (const text of [
 const prospeoText = textOf("runtime/prospeo.md");
 for (const text of [
   "POST /search-person",
+  "POST /bulk-enrich-person",
   "POST /bulk-enrich-person",
   "GET /account-information",
   "credit_report",
@@ -2276,6 +2292,8 @@ for (const text of [
   "PROSPEO_API_KEY",
   "PROSPEO_TIMEOUT_SECONDS = 15",
   "PROSPEO_USER_AGENT",
+  "MAX_LINKEDIN_URLS = 10",
+  "search_prospeo_candidates_by_linkedin_urls",
   "MAX_SEARCH_COMPANIES = 5",
   "MAX_CANDIDATES_PER_COMPANY = 5",
   "MAX_REVEAL_CONTACTS = 3",

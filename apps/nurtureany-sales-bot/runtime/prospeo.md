@@ -15,6 +15,7 @@ The stdio MCP adapter lives at `runtime/mcp/prospeo_nurtureany_server.py`.
 It exposes only:
 
 - `search_prospeo_decision_maker_candidates`
+- `search_prospeo_candidates_by_linkedin_urls`
 - `reveal_prospeo_contact_details`
 - `get_prospeo_credit_usage`
 
@@ -34,6 +35,15 @@ The adapter sends an explicit `StaffAny-NurtureAny/1.0` User-Agent header so Pro
 - Searches default title targets matching Lusha: owner/founder/CEO/MD/director/GM coverage plus SG operating roles: HR manager, people manager, operations manager, finance manager, and payroll manager.
 - Filters for verified email or mobile availability, but does not return email addresses or mobile numbers.
 - Returns Prospeo `person_id`, public profile/title/company context, pagination, and `credit_report`.
+
+`search_prospeo_candidates_by_linkedin_urls`:
+
+- Uses `POST /bulk-enrich-person` with `linkedin_url` because Prospeo's `/search-person` filters do not expose a LinkedIn URL filter.
+- Requires `scoped_company_ids` from prior NurtureAny HubSpot-scoped output, validates those IDs against HubSpot, and blocks before any Prospeo call if validation fails.
+- Accepts up to 10 LinkedIn profile URLs per call and returns at most 1 candidate per URL.
+- Accepts profile URLs under `/in/` only. It does not scrape or browser-automate LinkedIn.
+- Sends `only_verified_email=false` and `enrich_mobile=false`, strips any email/mobile fields from the returned candidate shape, and returns inferred name, title, Prospeo person ID, LinkedIn URL, confidence band, decision-maker match, quality warnings, company context, and `credit_report`.
+- Does not reveal email addresses or mobile numbers. Use `reveal_prospeo_contact_details` only after selected approval.
 
 `reveal_prospeo_contact_details`:
 
@@ -69,6 +79,7 @@ Every Prospeo tool response must include:
 Credit estimates:
 
 - Search: 1 credit per `POST /search-person` request that returns at least one person, unless Prospeo returns `free=true` for deduplication.
+- LinkedIn URL lookup: use Prospeo `total_cost` from `POST /bulk-enrich-person` when returned; otherwise report `unavailable`.
 - Email reveal: about 1 credit per selected matched person.
 - Mobile reveal: about 10 credits per selected matched person; email is included by Prospeo when mobile is requested, but NurtureAny still only returns email when `reveal_emails=true`.
 

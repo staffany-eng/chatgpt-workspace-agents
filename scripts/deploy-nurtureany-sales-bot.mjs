@@ -352,6 +352,30 @@ hydrate_secret_env() {
   echo "deploy:secrets=hydrated-latest project=$gcp_project secret=$secret_name env=$profile/.env"
 }
 
+ensure_gateway_envfile() {
+  if [ ! -f "$profile/.env" ]; then
+    echo "deploy:error:profile-env-missing:$profile/.env"
+    exit 1
+  fi
+  runtime_home="$(getent passwd "$runtime_owner" | cut -d: -f6)"
+  if [ -z "$runtime_home" ]; then
+    echo "deploy:error:runtime-home-not-found:$runtime_owner"
+    exit 1
+  fi
+  dropin_dir="$runtime_home/.config/systemd/user/$service.d"
+  dropin_tmp="$(mktemp "/tmp/$service.envfile.XXXXXX")"
+  {
+    printf '[Service]\\n'
+    printf 'EnvironmentFile=%s/.env\\n' "$profile"
+  } >"$dropin_tmp"
+  sudo -H -u "$runtime_owner" mkdir -p "$dropin_dir"
+  sudo install -o "$runtime_owner" -g "$runtime_owner" -m 0644 "$dropin_tmp" "$dropin_dir/10-profile-env.conf"
+  rm -f "$dropin_tmp"
+  uid=$(id -u "$runtime_owner")
+  sudo -H -u "$runtime_owner" XDG_RUNTIME_DIR="/run/user/$uid" systemctl --user daemon-reload
+  echo "deploy:gateway-envfile=$profile/.env"
+}
+
 sudo mkdir -p "$profile/scripts" "$profile/source" "$profile/runtime" "$profile/skills"
 sudo chown "$runtime_owner:$runtime_owner" "$profile/scripts" "$profile/source" "$profile/runtime" "$profile/skills"
 
@@ -433,6 +457,7 @@ sudo chown "$runtime_owner:$runtime_owner" "$profile/VERSION"
 sudo chmod 0644 "$profile/VERSION"
 
 hydrate_secret_env
+ensure_gateway_envfile
 
 if [ "$skip_restart" = "1" ]; then
   echo "deploy:restart=skipped"

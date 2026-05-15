@@ -452,6 +452,8 @@ mcp_servers:
     cost_policy:
       max_search_companies: 5
       max_candidates_per_company: 5
+      max_linkedin_urls: 10
+      max_candidates_per_linkedin_url: 5
       max_reveal_contacts: 3
       require_credit_report: true
       recommend_low_monthly_dashboard_limit: true
@@ -461,6 +463,7 @@ mcp_servers:
       phone_reveal_requires_flag: true
     tool_allowlist:
     - search_lusha_decision_maker_candidates
+    - search_lusha_candidates_by_linkedin_urls
     - reveal_lusha_contact_details
     - get_lusha_credit_usage
   prospeo_nurtureany:
@@ -475,10 +478,13 @@ mcp_servers:
     cost_policy:
       max_search_companies: 5
       max_candidates_per_company: 5
+      max_linkedin_urls: 10
+      max_candidates_per_linkedin_url: 1
       max_reveal_contacts: 3
       require_credit_report: true
       recommend_low_monthly_dashboard_limit: true
       search_endpoint: POST /search-person
+      linkedin_lookup_endpoint: POST /bulk-enrich-person
       reveal_endpoint: POST /bulk-enrich-person
       usage_endpoint: GET /account-information
     pii_policy:
@@ -488,6 +494,7 @@ mcp_servers:
       search_never_reveals_email_or_mobile: true
     tool_allowlist:
     - search_prospeo_decision_maker_candidates
+    - search_prospeo_candidates_by_linkedin_urls
     - reveal_prospeo_contact_details
     - get_prospeo_credit_usage
   exa_nurtureany:

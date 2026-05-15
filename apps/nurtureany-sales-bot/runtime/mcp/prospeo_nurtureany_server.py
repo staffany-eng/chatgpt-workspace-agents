@@ -29,8 +29,11 @@ from nurtureany_common.text import clean_domain as _clean_domain
 PROSPEO_BASE_URL = "https://api.prospeo.io"
 PROSPEO_USER_AGENT = "StaffAny-NurtureAny/1.0 (+https://staffany.com)"
 PROSPEO_TIMEOUT_SECONDS = 15
+HUBSPOT_BASE_URL = "https://api.hubapi.com"
 MAX_SEARCH_COMPANIES = 5
 MAX_CANDIDATES_PER_COMPANY = 5
+MAX_LINKEDIN_URLS = 10
+MAX_CANDIDATES_PER_LINKEDIN_URL = 1
 MAX_REVEAL_CONTACTS = 3
 ACCOUNT_CACHE_TTL_SECONDS = 12
 ACCOUNT_MIN_INTERVAL_SECONDS = 12
@@ -109,6 +112,38 @@ def _request_json(method: str, path: str, body: dict[str, Any] | None = None) ->
     except (urllib.error.URLError, socket.timeout, TimeoutError) as error:
         reason = getattr(error, "reason", error)
         raise ProspeoError(f"Prospeo API request timed out or failed: {reason}") from error
+
+
+def _hubspot_token() -> str:
+    return profile_env_value("HUBSPOT_PRIVATE_APP_TOKEN")
+
+
+def _hubspot_request_json(method: str, path: str, body: dict[str, Any] | None = None) -> dict[str, Any]:
+    token = _hubspot_token()
+    if not token:
+        raise ProspeoError("Missing HUBSPOT_PRIVATE_APP_TOKEN for scoped company validation.")
+    url = urllib.parse.urljoin(HUBSPOT_BASE_URL, path)
+    data = json.dumps(body).encode("utf-8") if body is not None else None
+    headers = {
+        "authorization": f"Bearer {token}",
+        "accept": "application/json",
+        "user-agent": PROSPEO_USER_AGENT,
+    }
+    if data is not None:
+        headers["content-type"] = "application/json"
+    request = urllib.request.Request(url, data=data, headers=headers, method=method)
+
+    try:
+        with urllib.request.urlopen(request, timeout=PROSPEO_TIMEOUT_SECONDS) as response:
+            raw = response.read().decode("utf-8")
+            return json.loads(raw) if raw else {}
+    except urllib.error.HTTPError as error:
+        detail = error.read().decode("utf-8", errors="replace")
+        message = detail[:300].replace(token, "[REDACTED_HUBSPOT_TOKEN]")
+        raise ProspeoError(f"HubSpot scoped company validation failed: {error.code} {message}", error.code) from error
+    except (urllib.error.URLError, socket.timeout, TimeoutError) as error:
+        reason = getattr(error, "reason", error)
+        raise ProspeoError(f"HubSpot scoped company validation timed out or failed: {reason}") from error
 
 
 def _headers(headers: Any) -> dict[str, str]:
@@ -251,6 +286,46 @@ def _has_scoped_company_ids(scoped_company_ids: list[str] | None) -> bool:
     return bool([str(company_id).strip() for company_id in (scoped_company_ids or []) if str(company_id).strip()])
 
 
+def _clean_scoped_company_ids(scoped_company_ids: list[str] | None) -> list[str]:
+    clean_ids: list[str] = []
+    for company_id in scoped_company_ids or []:
+        clean_id = str(company_id or "").strip()
+        if clean_id and clean_id not in clean_ids:
+            clean_ids.append(clean_id)
+    return clean_ids
+
+
+def _validate_scoped_company_ids(scoped_company_ids: list[str] | None) -> tuple[list[str], str]:
+    clean_ids = _clean_scoped_company_ids(scoped_company_ids)
+    if not clean_ids:
+        return [], "Prospeo LinkedIn URL lookup requires scoped HubSpot company_ids from prior NurtureAny HubSpot-scoped output."
+
+    payload = {
+        "properties": ["hs_object_id", "name", "domain"],
+        "inputs": [{"id": company_id} for company_id in clean_ids],
+    }
+    response = _hubspot_request_json("POST", "/crm/v3/objects/companies/batch/read", payload)
+    returned_ids = {str(company.get("id") or "").strip() for company in response.get("results", [])}
+    missing_ids = [company_id for company_id in clean_ids if company_id not in returned_ids]
+    if missing_ids:
+        return clean_ids, f"HubSpot scoped company validation failed for company_ids: {', '.join(missing_ids)}."
+    return clean_ids, ""
+
+
+def _normalize_linkedin_url(url: str) -> str:
+    value = str(url or "").strip()
+    if not value:
+        return ""
+    if "://" not in value:
+        value = f"https://{value}"
+    parsed = urllib.parse.urlparse(value)
+    host = parsed.netloc.lower().removeprefix("www.")
+    path = parsed.path.rstrip("/")
+    if not host.endswith("linkedin.com") or not path.startswith("/in/"):
+        return ""
+    return f"https://{host}{path}"
+
+
 def _search_payload(company: dict[str, str], limit_per_company: int) -> dict[str, Any]:
     company_filter: dict[str, Any] = {}
     if company["domain"]:
@@ -296,6 +371,42 @@ def _candidate(result: dict[str, Any], company: dict[str, str], rank: int) -> di
         "result_company_domain": _clean_domain(result_company.get("domain") or result_company.get("website") or ""),
         "contact_detail_filter": "search filtered for verified email or mobile availability; values are not revealed here",
         "confidence": "needs-check",
+    }
+
+
+def _is_decision_maker_title(title: str) -> bool:
+    normalized = str(title or "").lower()
+    return any(marker in normalized for marker in DECISION_MAKER_TITLES)
+
+
+def _linkedin_candidate(item: dict[str, Any], input_url: str, rank: int) -> dict[str, Any]:
+    person = item.get("person") if isinstance(item.get("person"), dict) else {}
+    company = item.get("company") if isinstance(item.get("company"), dict) else {}
+    linkedin_url = _normalize_linkedin_url(person.get("linkedin_url") or input_url)
+    full_name = person.get("full_name") or " ".join(
+        part for part in [person.get("first_name") or "", person.get("last_name") or ""] if part
+    ).strip()
+    title = person.get("current_job_title") or ""
+    warnings: list[str] = []
+    if linkedin_url and linkedin_url != input_url:
+        warnings.append("returned_linkedin_differs_from_input")
+    if not full_name:
+        warnings.append("missing_name")
+    if not title:
+        warnings.append("missing_title")
+    return {
+        "rank": rank,
+        "inferred_name": full_name,
+        "inferred_title": title,
+        "prospeo_person_id": person.get("person_id") or item.get("identifier") or "",
+        "linkedin_url": linkedin_url or input_url,
+        "confidence_band": "high" if not warnings or warnings == ["missing_title"] else "needs-check",
+        "decision_maker_match": _is_decision_maker_title(title),
+        "quality_warnings": warnings,
+        "company_context": {
+            "name": company.get("name") or "",
+            "domain": _clean_domain(company.get("domain") or company.get("website") or ""),
+        },
     }
 
 
@@ -475,6 +586,133 @@ def search_prospeo_decision_maker_candidates(
         "scope": scope,
         "confidence": "needs-check",
         "caveat": "Candidates require AE review before reveal or HubSpot preview. Email and mobile are not revealed by search.",
+        "credit_report": report,
+    }
+
+
+@mcp.tool()
+def search_prospeo_candidates_by_linkedin_urls(
+    slack_user_email: str,
+    linkedin_urls: list[str],
+    scoped_company_ids: list[str],
+    limit_per_url: int = 1,
+) -> dict[str, Any]:
+    """Search Prospeo by public LinkedIn profile URLs without returning email or mobile details."""
+
+    normalized_urls: list[str] = []
+    invalid_urls: list[str] = []
+    for raw_url in (linkedin_urls or [])[:MAX_LINKEDIN_URLS]:
+        normalized = _normalize_linkedin_url(str(raw_url or ""))
+        if normalized:
+            if normalized not in normalized_urls:
+                normalized_urls.append(normalized)
+        elif str(raw_url or "").strip():
+            invalid_urls.append(str(raw_url or "").strip())
+
+    scope = _scope(
+        slack_user_email,
+        {
+            "requested_linkedin_url_count": len(linkedin_urls or []),
+            "max_linkedin_url_count": MAX_LINKEDIN_URLS,
+            "scoped_company_ids": _clean_scoped_company_ids(scoped_company_ids),
+            "max_candidates_per_linkedin_url": MAX_CANDIDATES_PER_LINKEDIN_URL,
+            "invalid_linkedin_urls": invalid_urls,
+            "provider_endpoint": "POST /bulk-enrich-person",
+        },
+    )
+    if not normalized_urls:
+        return _blocked("At least one LinkedIn profile URL under /in/ is required.", scope)
+
+    try:
+        validated_company_ids, scoped_error = _validate_scoped_company_ids(scoped_company_ids)
+    except ProspeoError as error:
+        return _blocked(str(error), scope)
+    scope["scoped_company_ids"] = validated_company_ids
+    if scoped_error:
+        return _blocked(scoped_error, scope)
+
+    try:
+        _token()
+    except ProspeoError as error:
+        return _blocked(str(error), scope)
+
+    capped_limit = max(1, min(int(limit_per_url or 1), MAX_CANDIDATES_PER_LINKEDIN_URL))
+    selected_urls = normalized_urls[: max(1, min(len(normalized_urls), MAX_LINKEDIN_URLS))]
+    before, before_status = _account_snapshot()
+    headers: dict[str, str] = {}
+    payload = {
+        "only_verified_email": False,
+        "enrich_mobile": False,
+        "data": [
+            {
+                "identifier": f"linkedin-{index}",
+                "linkedin_url": linkedin_url,
+            }
+            for index, linkedin_url in enumerate(selected_urls, start=1)
+        ],
+    }
+
+    try:
+        response, headers = _request_json("POST", "/bulk-enrich-person", payload)
+    except ProspeoError as error:
+        after, _ = _account_snapshot()
+        report = _credit_report(
+            "unavailable",
+            before,
+            after,
+            headers,
+            "unavailable",
+            f"LinkedIn URL lookup failed. Usage before status: {before_status}.",
+        )
+        return _blocked(str(error), scope, report)
+
+    matched = response.get("matched") or []
+    input_url_by_identifier = {f"linkedin-{index}": linkedin_url for index, linkedin_url in enumerate(selected_urls, start=1)}
+    candidates_by_identifier = {
+        identifier: _linkedin_candidate(item, input_url_by_identifier.get(identifier, ""), 1)
+        for item in matched
+        if isinstance(item, dict)
+        for identifier in [str(item.get("identifier") or "")]
+        if identifier in input_url_by_identifier
+    }
+    lookup_results: list[dict[str, Any]] = []
+    all_candidates: list[dict[str, Any]] = []
+    for index, linkedin_url in enumerate(selected_urls, start=1):
+        identifier = f"linkedin-{index}"
+        candidate = candidates_by_identifier.get(identifier)
+        candidates = [candidate] if candidate else []
+        all_candidates.extend(candidates[:capped_limit])
+        lookup_results.append(
+            {
+                "input_linkedin_url": linkedin_url,
+                "identifier": identifier,
+                "returned_results": len(candidates),
+                "candidates": candidates[:capped_limit],
+            }
+        )
+
+    reported_cost = _number(response.get("total_cost"))
+    after, after_status = _account_snapshot()
+    report = _credit_report(
+        reported_cost if reported_cost is not None else "unavailable",
+        before,
+        after,
+        headers,
+        reported_cost if reported_cost is not None else "unavailable",
+        f"Search-shaped LinkedIn URL lookup; no email or mobile is returned. Usage snapshots: before={before_status}, after={after_status}.",
+    )
+    return {
+        "answer": {
+            "candidates": all_candidates,
+            "lookup_results": lookup_results,
+            "not_matched": response.get("not_matched") or [],
+            "invalid_datapoints": response.get("invalid_datapoints") or [],
+            "invalid_linkedin_urls": invalid_urls,
+        },
+        "source": "Prospeo LinkedIn URL Match",
+        "scope": scope,
+        "confidence": "needs-check",
+        "caveat": "Prospeo LinkedIn URL lookup uses the provider matching endpoint but returns candidate IDs/context only. Email and mobile require selected reveal approval.",
         "credit_report": report,
     }
 
