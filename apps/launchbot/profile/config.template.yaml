@@ -16,7 +16,7 @@ platforms:
     gateway_restart_notification: false
 slack:
   require_mention: true
-  allowed_channels: "C0B32M34J3W,C0AJAUNCEL8,CF8PK6V4J"
+  allowed_channels: "C0B32M34J3W,C0AJAUNCEL8,C01RZ7SHC8K,CF8PK6V4J"
   reactions: false
 cron:
   max_parallel_jobs: 1
@@ -60,6 +60,7 @@ mcp_servers:
       default_channel_ids:
         - "C0B32M34J3W"
         - "C0AJAUNCEL8"
+        - "C01RZ7SHC8K"
       no_slack_connector_fallback: true
       no_user_token_fallback: true
   launchbot_feature_intake:
@@ -129,5 +130,5 @@ gateway:
     channel: "#launch-bot-testing"
 SLACK_HOME_CHANNEL: "C0B32M34J3W"
 SLACK_HOME_CHANNEL_NAME: "launch-bot-testing"
-LAUNCHBOT_KER_ALLOWED_CHANNEL_IDS: "C0B32M34J3W,C0AJAUNCEL8"
+LAUNCHBOT_KER_ALLOWED_CHANNEL_IDS: "C0B32M34J3W,C0AJAUNCEL8,C01RZ7SHC8K"
 LAUNCHBOT_FEATURE_INTAKE_ALLOWED_CHANNEL_IDS: "C0B32M34J3W,CF8PK6V4J"

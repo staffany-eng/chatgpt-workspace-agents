@@ -9,7 +9,8 @@ Expected checks:
 - Model route is `model.provider=anthropic`, `model.default=claude-sonnet-4-6`.
 - Slack quiet settings are enabled: no streaming, no tool progress, no interim assistant messages, no reactions, and no gateway restart notifications.
 - `SLACK_HOME_CHANNEL` is `C0B32M34J3W`.
-- Slack allowed channels include `C0B32M34J3W`, `C0AJAUNCEL8`, and `CF8PK6V4J`.
+- Slack allowed channels include `C0B32M34J3W`, `C0AJAUNCEL8`, `C01RZ7SHC8K`, and `CF8PK6V4J`.
+- `LAUNCHBOT_KER_ALLOWED_CHANNEL_IDS` includes `C0B32M34J3W`, `C0AJAUNCEL8`, and `C01RZ7SHC8K`; `#all-product-questions` is read-only KER lookup only.
 - `launchbot_ker` MCP exposes only `find_ker_ticket_from_slack_thread` and `lookup_ker_ticket_by_key`.
 - `launchbot_feature_intake` MCP exposes only `preview_feature_intake_from_slack_thread` and `create_feature_intake_from_slack_thread`.
 - `launchbot_help_article` MCP exposes only `preview_help_article_video_update` and `create_help_article_video_update_draft`.

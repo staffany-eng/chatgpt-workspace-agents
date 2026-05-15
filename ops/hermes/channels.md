@@ -8,6 +8,7 @@ Use these channels for live Slack smoke tests and runtime checks.
 | NurtureAny | `nurtureanysalesbot` on `nurtureany-sales-bot-prod` | `#nurtureany-testing` | `C0B2UGK4DB6` | Sales nurture, HubSpot, manager, Eazybe-preview, event, and CRO smoke tests. |
 | PS WEE / PSM Ops Bot | `psmopsbot` | `#ps-weeman-bot-test` | `C0B2VT50YT1` | PSM Ops, Jira PCO, Customer 360, central ops audit, adoption digest, and public/open-channel smoke tests. |
 | Launchbot | `launchbot` | `#launch-bot-testing` | `C0B32M34J3W` | Launch/deploy ops smoke tests. Experimental until health cron is green. |
+| Launchbot | `launchbot` | `#all-product-questions` | `C01RZ7SHC8K` | Read-only product-commitment / KER lookup. No feature-intake creation. |
 
 `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` are PSM Ops workflows. Test them with `psmopsbot` in `#ps-weeman-bot-test` (`C0B2VT50YT1`). Sales-manager and manager-chase tests remain NurtureAny workflows in `#nurtureany-testing` (`C0B2UGK4DB6`).
 

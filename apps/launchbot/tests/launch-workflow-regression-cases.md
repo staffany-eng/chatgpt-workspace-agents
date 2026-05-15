@@ -77,6 +77,11 @@
 - Slack Socket Mode subscriptions must include bot events `app_mention` and `message.channels`; if the gateway is connected but receives no inbound smoke event, debug Slack event subscription drift first.
 - Slack automation copy should start with `Launchbot automation:` and use a light cowboy voice without weakening the approval instruction.
 
+## Read-only KER Lookup
+
+- `#all-product-questions` (`C01RZ7SHC8K`) is an allowed Launchbot channel only for read-only product-commitment / KER lookup.
+- KER lookup in `#all-product-questions` must read bounded Slack context with the Launchbot bot token, call Jira KER read-only, and never create feature intake, post from the MCP, or mutate Jira.
+
 ## Slack Approval To Intercom Draft
 
 - A configured approval reaction from an authorized reviewer should create one Intercom draft for the matching article slug.

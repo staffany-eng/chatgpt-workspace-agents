@@ -112,6 +112,7 @@ When the external source checkout is absent, use `runtime/launchbot_e2e.py` as t
 - Launchbot Slack Socket Mode event subscriptions must include bot events `app_mention` and `message.channels`. `message.channels` is required for channel thread/mention events to reach the Hermes gateway; without it, the service can be connected but never receive the smoke message.
 - Launchbot Slack OAuth scopes must include `app_mentions:read`, `channels:history`, `channels:read`, and `chat:write`.
 - Slack automation copy should keep the `Launchbot automation:` prefix and use a light cowboy voice, for example `Howdy, partner`, while keeping approval instructions factual.
+- Read-only product-commitment / KER lookup may run in `#all-product-questions` (`C01RZ7SHC8K`); Google Docs approval routing still defaults to `#launch-bot-testing`.
 
 ### Step 3: Intercom Draft Creation
 
@@ -183,6 +184,7 @@ node scripts/launchbot-with-secrets.mjs --only intercom -- node apps/launchbot/r
 The wrapper loads secrets from GCP Secret Manager into the child process only. The current Intercom secret source is `launchbot-step3-intercom-access-token` in project `staffany-warehouse`, mapped to `LAUNCH_STEP3_INTERCOM_ACCESS_TOKEN` and `INTERCOM_ACCESS_TOKEN`.
 
 Default test channel: `#launch-bot-testing` (`C0B32M34J3W`).
+Default read-only KER lookup channels: `#launch-bot-testing` (`C0B32M34J3W`), `#proj-cs-seonggong-seorae` (`C0AJAUNCEL8`), and `#all-product-questions` (`C01RZ7SHC8K`).
 
 ## Help Article Format Target
 

@@ -125,6 +125,73 @@ class LaunchbotKerServerTest(unittest.TestCase):
         self.assertFalse(result["answer"]["will_post_message"])
         self.assertFalse(result["answer"]["transcript_persisted"])
 
+    def test_all_product_questions_is_read_only_ker_lookup_channel(self):
+        jira_calls = []
+
+        def fake_slack_api(method, params):
+            self.assertEqual(method, "conversations.replies")
+            self.assertEqual(params["channel"], "C01RZ7SHC8K")
+            return {
+                "ok": True,
+                "messages": [
+                    {
+                        "ts": "1778816627.326029",
+                        "user": "U1",
+                        "text": "is there any plan to build payslip to email function? If so, how long might it take?",
+                    },
+                    {
+                        "ts": "1778820046.166339",
+                        "user": "U2",
+                        "text": "<@U0ASVD79UT1> check product commitment for this thread",
+                    },
+                ],
+            }
+
+        def fake_jira_post(path, body):
+            jira_calls.append(body["jql"])
+            if "payslip" in body["jql"] or "email" in body["jql"]:
+                return {
+                    "issues": [
+                        {
+                            "key": "KER-49",
+                            "_matched_phrases": ["payslip"],
+                            "fields": {
+                                "summary": "Payslip to email",
+                                "status": {"name": "Backlog"},
+                                "updated": "2026-04-21T10:43:58.764+0800",
+                                "assignee": None,
+                                "issuetype": {"name": "Idea"},
+                            },
+                        }
+                    ]
+                }
+            return {"issues": []}
+
+        with patch.dict(
+            os.environ,
+            {
+                "SLACK_BOT_TOKEN": "test-bot-token",
+                "JIRA_EMAIL": "bot@staffany.com",
+                "JIRA_API_TOKEN": "jira-token",
+            },
+            clear=True,
+        ), patch.object(self.module, "_slack_api", side_effect=fake_slack_api), patch.object(
+            self.module, "_jira_post", side_effect=fake_jira_post
+        ):
+            result = self.module.find_ker_ticket_from_slack_thread(
+                "C01RZ7SHC8K",
+                "1778816627.326029",
+                message_ts="1778820046.166339",
+            )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertTrue(any("payslip" in jql or "email" in jql for jql in jira_calls))
+        self.assertEqual(result["answer"]["top_candidate"]["issue_key"], "KER-49")
+        self.assertEqual(result["answer"]["top_candidate"]["status"], "Backlog")
+        self.assertFalse(result["answer"]["will_mutate_jira"])
+        self.assertFalse(result["answer"]["will_post_message"])
+        self.assertFalse(result["answer"]["transcript_persisted"])
+
     def test_lookup_by_key_returns_safe_fields(self):
         def fake_jira_get(path):
             self.assertIn("/rest/api/3/issue/KER-2109", path)

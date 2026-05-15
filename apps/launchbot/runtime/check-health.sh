@@ -9,7 +9,8 @@ fi
 EXPECT_MODEL_PROVIDER="${EXPECT_MODEL_PROVIDER:-anthropic}"
 EXPECT_MODEL_DEFAULT="${EXPECT_MODEL_DEFAULT:-claude-sonnet-4-6}"
 EXPECT_HOME_CHANNEL="${EXPECT_HOME_CHANNEL:-C0B32M34J3W}"
-EXPECT_ALLOWED_CHANNELS="${EXPECT_ALLOWED_CHANNELS:-C0B32M34J3W,C0AJAUNCEL8,CF8PK6V4J}"
+EXPECT_ALLOWED_CHANNELS="${EXPECT_ALLOWED_CHANNELS:-C0B32M34J3W,C0AJAUNCEL8,C01RZ7SHC8K,CF8PK6V4J}"
+EXPECT_KER_ALLOWED_CHANNELS="${EXPECT_KER_ALLOWED_CHANNELS:-C0B32M34J3W,C0AJAUNCEL8,C01RZ7SHC8K}"
 GATEWAY_LAUNCHD_LABEL="${LAUNCHBOT_GATEWAY_LAUNCHD_LABEL:-ai.hermes.gateway-$PROFILE}"
 GATEWAY_SERVICE_NAME="${LAUNCHBOT_GATEWAY_SERVICE_NAME:-hermes-gateway-$PROFILE.service}"
 HERMES_AGENT_DIR="${HERMES_AGENT_DIR:-$HOME/.hermes/hermes-agent}"
@@ -77,13 +78,13 @@ case "$(uname -s)" in
     ;;
 esac
 
-"$hermes_python" - "$config_path" "$EXPECT_MODEL_PROVIDER" "$EXPECT_MODEL_DEFAULT" "$EXPECT_HOME_CHANNEL" "$EXPECT_ALLOWED_CHANNELS" <<'PY' || exit 1
+"$hermes_python" - "$config_path" "$EXPECT_MODEL_PROVIDER" "$EXPECT_MODEL_DEFAULT" "$EXPECT_HOME_CHANNEL" "$EXPECT_ALLOWED_CHANNELS" "$EXPECT_KER_ALLOWED_CHANNELS" <<'PY' || exit 1
 import sys
 from pathlib import Path
 
 import yaml
 
-config_path, expected_provider, expected_model, expected_home_channel, expected_allowed_channels = sys.argv[1:6]
+config_path, expected_provider, expected_model, expected_home_channel, expected_allowed_channels, expected_ker_channels = sys.argv[1:7]
 config = yaml.safe_load(Path(config_path).read_text(encoding="utf-8")) or {}
 
 def fail(message: str) -> None:
@@ -131,6 +132,14 @@ tools = set(launchbot_ker.get("tool_allowlist") or [])
 expected_tools = {"find_ker_ticket_from_slack_thread", "lookup_ker_ticket_by_key"}
 if tools != expected_tools:
     fail("mcp:launchbot_ker:tool-allowlist-unexpected")
+ker_policy = launchbot_ker.get("access_policy") or {}
+ker_default_channels = set(ker_policy.get("default_channel_ids") or [])
+ker_env_channels = str(config.get("LAUNCHBOT_KER_ALLOWED_CHANNEL_IDS") or "")
+for channel_id in [item.strip() for item in expected_ker_channels.split(",") if item.strip()]:
+    if channel_id not in ker_default_channels:
+        fail(f"mcp:launchbot_ker:default-channel-missing:{channel_id}")
+    if channel_id not in ker_env_channels:
+        fail(f"mcp:launchbot_ker:env-channel-missing:{channel_id}")
 
 launchbot_feature_intake = mcp_servers.get("launchbot_feature_intake") or {}
 feature_intake_tools = set(launchbot_feature_intake.get("tool_allowlist") or [])

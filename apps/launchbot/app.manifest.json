@@ -40,6 +40,7 @@
   "channels": [
     "Slack #launch-bot-testing",
     "Slack #proj-cs-seonggong-seorae",
+    "Slack #all-product-questions",
     "Slack #input-features-ux"
   ],
   "slack": {
@@ -48,6 +49,7 @@
     "allowed_channel_ids": [
       "C0B32M34J3W",
       "C0AJAUNCEL8",
+      "C01RZ7SHC8K",
       "CF8PK6V4J"
     ],
     "require_mention": true,
@@ -78,7 +80,8 @@
         "configured_channel_ids_env_var": "LAUNCHBOT_KER_ALLOWED_CHANNEL_IDS",
         "default_channel_ids": [
           "C0B32M34J3W",
-          "C0AJAUNCEL8"
+          "C0AJAUNCEL8",
+          "C01RZ7SHC8K"
         ],
         "raw_transcript_persistence": false,
         "user_token_fallback": false,

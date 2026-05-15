@@ -6,7 +6,7 @@ Canonical Hermes app packet for the Launchbot Slack profile.
 
 - Runtime: Hermes Agent
 - Profile: `launchbot` on `hermes-data-bot-poc` only; do not create or run a Mac-local `launchbot` profile.
-- Surface: Slack mentions in `#launch-bot-testing` and explicitly configured project channels
+- Surface: Slack mentions in `#launch-bot-testing`, configured project channels, and read-only product-commitment / KER lookup in `#all-product-questions`
 - Source packet: this directory
 - Live runtime state: `~/.hermes/profiles/launchbot/` on `hermes-data-bot-poc`
 - Status: cloud-primary; release gate is green managed gateway health plus a bot-owned Slack smoke in `#launch-bot-testing`. Scheduled Pantheon refresh still requires VM GitHub SSH access.

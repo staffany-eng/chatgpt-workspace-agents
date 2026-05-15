@@ -62,6 +62,9 @@ if (!manifest) {
   if (manifest.slack?.gateway_restart_notification !== false) {
     fail("Manifest Slack gateway restart notifications must be disabled");
   }
+  if (!manifest.channels?.includes("Slack #all-product-questions")) {
+    fail("Manifest channels must include #all-product-questions for read-only KER lookup");
+  }
   for (const eventName of ["app_mention", "message.channels"]) {
     if (!manifest.slack?.required_bot_events?.includes(eventName)) {
       fail(`Manifest Slack required bot events missing ${eventName}`);
@@ -172,8 +175,14 @@ if (!manifest) {
   if (helpMcp.video?.provider !== "loom") fail("Manifest help article MCP must be Loom-only");
   if (helpMcp.video?.reject_raw_video_files !== true) fail("Manifest help article MCP must reject raw video files");
   if (helpMcp.video?.reject_slack_file_urls !== true) fail("Manifest help article MCP must reject Slack file URLs");
-  if (!manifest.slack?.allowed_channel_ids?.includes("CF8PK6V4J")) {
-    fail("Manifest Slack allowed channel IDs must include input-features-ux CF8PK6V4J");
+  for (const channelId of ["C0B32M34J3W", "C0AJAUNCEL8", "C01RZ7SHC8K", "CF8PK6V4J"]) {
+    if (!manifest.slack?.allowed_channel_ids?.includes(channelId)) {
+      fail(`Manifest Slack allowed channel IDs missing ${channelId}`);
+    }
+  }
+  const kerMcp = manifest.mcp?.launchbot_ker || {};
+  if (!kerMcp.slack_context?.default_channel_ids?.includes("C01RZ7SHC8K")) {
+    fail("Manifest KER MCP default channels must include all-product-questions C01RZ7SHC8K");
   }
   const featureIntakeMcp = manifest.mcp?.launchbot_feature_intake || {};
   if (featureIntakeMcp.mode !== "confirmed_jpd_intake_create") fail("Manifest feature intake MCP must be confirmed JPD intake create");
@@ -262,6 +271,7 @@ for (const requiredText of [
   "gateway_restart_notification: false",
   "C0B32M34J3W",
   "C0AJAUNCEL8",
+  "C01RZ7SHC8K",
   "CF8PK6V4J",
   "launchbot_ker",
   "launchbot_feature_intake",
@@ -306,6 +316,7 @@ if (!launchbotProfileBlock) {
     "deploy_host: hermes-data-bot-poc",
     "local_profile_policy: cloud_only",
     "systemd_unit: hermes-gateway-launchbot.service",
+    "C01RZ7SHC8K",
     "CF8PK6V4J",
     "launchbot_feature_intake:",
     "launchbot_help_article:",
@@ -346,6 +357,8 @@ for (const requiredText of [
   "Launchbot packet",
   "Launch Superpower handoff is a Launchbot skill/workflow",
   "Never answer `Source: Launch Superpower Bot packet`",
+  "#all-product-questions",
+  "read-only product-commitment / KER lookup",
   "cloud-primary",
   "Launchbot's bot identity",
 ]) {
@@ -366,6 +379,7 @@ for (const requiredText of [
   "will_post_message",
   "transcript_persisted",
   "C0AJAUNCEL8",
+  "C01RZ7SHC8K",
 ]) {
   if (!mcpText.includes(requiredText)) fail(`launchbot_ker_server.py missing required text: ${requiredText}`);
 }
@@ -427,6 +441,9 @@ for (const requiredText of [
   "LAUNCHBOT_PANTHEON_REPO_DIR",
   "mcp:launchbot_help_article",
   "mcp:launchbot_feature_intake",
+  "EXPECT_KER_ALLOWED_CHANNELS",
+  "mcp:launchbot_ker:default-channel-missing",
+  "mcp:launchbot_ker:env-channel-missing",
   "LAUNCH_STEP3_INTERCOM_ACCESS_TOKEN",
   "help-article-video-registry",
 ]) {
@@ -574,6 +591,8 @@ for (const requiredText of [
   "message.channels",
   "channels:history",
   "#launch-bot-testing",
+  "#all-product-questions",
+  "C01RZ7SHC8K",
   "light cowboy voice",
   "Do not commit token values",
   "Step 4 launch derivatives are not implemented",
@@ -745,6 +764,8 @@ if (!existsSync(helpArticlePlanningSynthesisPath)) fail("Missing help article pl
 const regressionText = textOf("tests/launch-workflow-regression-cases.md");
 for (const requiredText of [
   "#launch-bot-testing",
+  "#all-product-questions",
+  "C01RZ7SHC8K",
   "@Launch Bot",
   "U0ASVD79UT1",
   "B0ATPPEGBCH",
