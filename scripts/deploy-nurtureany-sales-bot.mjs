@@ -353,7 +353,7 @@ hydrate_secret_env() {
 }
 
 ensure_gateway_envfile() {
-  if [ ! -f "$profile/.env" ]; then
+  if ! sudo test -f "$profile/.env"; then
     echo "deploy:error:profile-env-missing:$profile/.env"
     exit 1
   fi

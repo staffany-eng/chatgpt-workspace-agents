@@ -851,6 +851,7 @@ for (const text of [
   "deploy:secrets=hydrated-latest",
   "deploy:error:secret-manager-access-failed",
   "ensure_gateway_envfile",
+  "sudo test -f \"$profile/.env\"",
   "EnvironmentFile=%s/.env",
   "deploy:gateway-envfile=",
   "systemctl --user daemon-reload",
