@@ -290,8 +290,10 @@ sudo mkdir -p "$profile/scripts" "$profile/source" "$profile/runtime" "$profile/
 sudo chown "$runtime_owner:$runtime_owner" "$profile/scripts" "$profile/source" "$profile/runtime" "$profile/skills"
 
 copy_dir "$deploy_dir/apps/hermes-data-bot" "$profile/source/hermes-data-bot"
+copy_dir "$deploy_dir/apps/hermes-shared/google-sheets-output" "$profile/source/hermes-shared/google-sheets-output"
 copy_file "$deploy_dir/apps/hermes-data-bot/profile/SOUL.md" "$profile/SOUL.md" 0644
 copy_dir "$deploy_dir/apps/hermes-data-bot/skills/staffany-data-bot" "$profile/skills/staffany-data-bot"
+copy_dir "$deploy_dir/apps/hermes-shared/google-sheets-output/skills/staffany-google-sheets-output" "$profile/skills/staffany-google-sheets-output"
 copy_dir "$deploy_dir/apps/hermes-data-bot/runtime/mcp" "$profile/runtime/mcp"
 
 python3 - "$deploy_dir/apps/hermes-data-bot/profile/config.template.yaml" "$profile/config.yaml" "$runtime_owner" <<'PY'
@@ -318,7 +320,7 @@ if "cron" in template:
 
 template_servers = template.get("mcp_servers") or {}
 config_servers = config.setdefault("mcp_servers", {})
-for server_name in ("staffany_bigquery", "staffany_slack_context", "staffany_c360"):
+for server_name in ("staffany_bigquery", "staffany_slack_context", "staffany_c360", "staffany_google_sheets"):
     expected = template_servers.get(server_name)
     if expected is None:
         continue

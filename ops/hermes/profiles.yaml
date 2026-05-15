@@ -20,6 +20,7 @@ profiles:
     required_mcp:
       staffany_bigquery: 4
       staffany_slack_context: 2
+      staffany_google_sheets: 2
     expected_crons:
       - name: staffanydatabot health check
         schedule: "0 1 * * 1-5"

@@ -8,6 +8,7 @@ EXPECT_GATEWAY="${EXPECT_GATEWAY:-1}"
 EXPECT_MCP_TOOLS="${EXPECT_MCP_TOOLS:-4}"
 EXPECT_SLACK_CONTEXT_MCP_TOOLS="${EXPECT_SLACK_CONTEXT_MCP_TOOLS:-2}"
 EXPECT_C360_MCP_TOOLS="${EXPECT_C360_MCP_TOOLS:-1}"
+EXPECT_GOOGLE_SHEETS_MCP_TOOLS="${EXPECT_GOOGLE_SHEETS_MCP_TOOLS:-2}"
 EXPECT_MODEL_AUTH="${EXPECT_MODEL_AUTH:-1}"
 EXPECT_MODEL_PROVIDER="${EXPECT_MODEL_PROVIDER:-anthropic}"
 EXPECT_MODEL_DEFAULT="${EXPECT_MODEL_DEFAULT:-claude-sonnet-4-6}"
@@ -112,6 +113,29 @@ if (
 ):
     print("mcp:staffany_c360-unsafe-access-policy")
     raise SystemExit(1)
+
+google_sheets = ((config.get("mcp_servers") or {}).get("staffany_google_sheets") or {})
+google_sheets_tools = google_sheets.get("tools") or {}
+google_sheets_allowlist = google_sheets_tools.get("include") or google_sheets.get("tool_allowlist") or []
+expected_google_sheets_tools = [
+    "check_google_sheets_output_access",
+    "create_spreadsheet_from_rows",
+]
+if google_sheets_allowlist != expected_google_sheets_tools:
+    print("mcp:staffany_google_sheets-tool-allowlist-drift")
+    raise SystemExit(1)
+google_sheets_policy = google_sheets.get("access_policy") or {}
+if (
+    google_sheets_policy.get("account_email") != "team@staffany.com"
+    or google_sheets_policy.get("service_account") is not False
+    or google_sheets_policy.get("requires_output_folder_or_share_target") is not True
+    or google_sheets_policy.get("edit_existing_spreadsheets") is not False
+    or google_sheets_policy.get("read_arbitrary_spreadsheets") is not False
+    or google_sheets_policy.get("user_token_fallback") is not False
+    or google_sheets_policy.get("slack_connector_fallback") is not False
+):
+    print("mcp:staffany_google_sheets-unsafe-access-policy")
+    raise SystemExit(1)
 PY
 then
   fail "$(cat "$config_check_out")"
@@ -198,6 +222,12 @@ if ! hermes -p "$PROFILE" mcp test staffany_c360 >"$c360_mcp_out" 2>&1; then
   fail "mcp:staffany_c360-test-failed"
 fi
 grep -q "Tools discovered: $EXPECT_C360_MCP_TOOLS" "$c360_mcp_out" || fail "mcp:staffany_c360-tool-count-unexpected"
+
+google_sheets_mcp_out="$tmp_dir/google-sheets-mcp.out"
+if ! hermes -p "$PROFILE" mcp test staffany_google_sheets >"$google_sheets_mcp_out" 2>&1; then
+  fail "mcp:staffany_google_sheets-test-failed"
+fi
+grep -q "Tools discovered: $EXPECT_GOOGLE_SHEETS_MCP_TOOLS" "$google_sheets_mcp_out" || fail "mcp:staffany_google_sheets-tool-count-unexpected"
 
 if [ "$EXPECT_HONCHO" = "1" ]; then
   need_command curl

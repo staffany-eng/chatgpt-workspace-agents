@@ -497,3 +497,23 @@ Expected behavior:
 - Uses Customer 360 current customers as the customer universe and BigQuery only for banner flag/content checks.
 - Buckets the final answer into `No marketing banner`, `Marketing banner on, but AA not used as banner content/target`, and `Marketing banner on and AA used as banner content/target`.
 - If the bot token cannot read the selected thread later, returns `confidence: blocked` and does not call C360 or BigQuery.
+
+## Google Sheets Output Follow-Up
+
+Prompt:
+
+```text
+google sheets
+```
+
+Context:
+
+- Same Slack thread already has a delivered bounded table answer.
+
+Expected behavior:
+
+- Treats this as continuation work, not a first-mention data query.
+- Calls `staffany_google_sheets.create_spreadsheet_from_rows` with the already-confirmed table rows.
+- Returns the created Google Sheets URL, underlying source, row count, tab count, confidence, and caveat.
+- Does not say the bot has no direct Google Sheets integration when `staffany_google_sheets` is healthy.
+- If the Sheets MCP blocks, returns `Confidence: blocked` with the connector/access issue and does not fall back to Kai Yi's user token or the Slack connector.
