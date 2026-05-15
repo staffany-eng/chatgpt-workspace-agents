@@ -256,6 +256,17 @@ KNS_KNOWLEDGE_TERMS = (
     "attendance",
     "roster",
 )
+KNS_NETWORK_SPEAKER_SOURCING_TERMS = (
+    "anyone u wanna hear from",
+    "anyone you wanna hear from",
+    "anyone you want to hear from",
+    "who u want to hear from",
+    "who you want to hear from",
+    "who they want to hear from",
+    "hear from the industry",
+    "invite relevant future speakers",
+    "future speaker",
+)
 KNS_NETWORK_TERMS = (
     "community",
     "network",
@@ -274,6 +285,7 @@ KNS_NETWORK_TERMS = (
     "looking to hire",
     "hire any role",
     "recommend talent",
+    *KNS_NETWORK_SPEAKER_SOURCING_TERMS,
     "role similarity",
     "industry vertical",
     "growth stage",
@@ -312,15 +324,6 @@ KNS_NETWORK_EVENT_TERMS = (
 KNS_SUPPORT_OPPORTUNITY_TERMS = (
     "be our speaker",
     "open to be our speaker",
-    "anyone u wanna hear from",
-    "anyone you wanna hear from",
-    "anyone you want to hear from",
-    "who u want to hear from",
-    "who you want to hear from",
-    "who they want to hear from",
-    "invite as our speaker",
-    "invite relevant future speakers",
-    "future speaker",
     "speaker opportunity",
     "venue opportunity",
     "fireside opportunity",
@@ -3862,10 +3865,13 @@ def _whatsapp_kns_audit_from_body(body: Any) -> dict[str, Any]:
 
     has_knowledge = _kns_component_present(text, KNS_KNOWLEDGE_TERMS)
     has_support_opportunity = _kns_component_present(text, KNS_SUPPORT_OPPORTUNITY_TERMS)
+    has_network_speaker_sourcing = _kns_component_present(text, KNS_NETWORK_SPEAKER_SOURCING_TERMS)
     has_network = _kns_component_present(text, KNS_NETWORK_TERMS)
     if not has_support_opportunity:
         has_network = has_network or _kns_component_present(text, KNS_NETWORK_EVENT_TERMS)
-    has_support = has_support_opportunity or _kns_component_present(text, KNS_SUPPORT_TERMS)
+    has_support = has_support_opportunity or (
+        not has_network_speaker_sourcing and _kns_component_present(text, KNS_SUPPORT_TERMS)
+    )
     missing = []
     if not has_knowledge:
         missing.append("knowledge")

@@ -794,13 +794,13 @@ def _whatsapp_batch_row(row: dict[str, Any]) -> dict[str, Any]:
             },
             {
                 "kns": "Network",
-                "angle": "community events, warm peer intros, talent matching, and collaboration opportunities",
-                "question": "Want me to connect you with a few similar operators, HR leaders, or hiring/collaboration matches?",
+                "angle": "community events, warm peer intros, talent matching, future-speaker sourcing, and collaboration opportunities",
+                "question": "Want me to connect you with a few similar operators, HR leaders, hiring/collaboration matches, or ask who you want to hear from next?",
             },
             {
                 "kns": "Support",
-                "angle": "speaker, future-speaker sourcing, venue, simple-meal, or outlet-support asks when the opportunity is real",
-                "question": "Would it be useful if we support your venue, feature you as a speaker, ask who you want to hear from next, or bring a small peer meal to your outlet?",
+                "angle": "speaker, venue, simple-meal, or outlet-support asks when the opportunity is real",
+                "question": "Would it be useful if we support your venue, feature you as a speaker, or bring a small peer meal to your outlet?",
             },
         ],
         "name_drop_policy": "Use find_sales_case_studies or approved material registry before naming a customer; otherwise keep the angle generic.",

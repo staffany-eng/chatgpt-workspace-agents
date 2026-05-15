@@ -1093,8 +1093,8 @@ Expected behavior:
 - Before `run`, the plan names local source-packet hydration from the skill references when the answer depends on playbooks, case studies, SOPs, or sales best practices.
 - KNS / K/N/S / K N S means Knowledge, Network, Support.
 - The bot must not expand KNS as Know-Nurture-Sell.
-- Network means event invites, peer/talent matching, warm introductions, and customer collaboration opportunities that position StaffAny as the connector.
-- Support means direct support for the buyer/account, including boss/HR speaker asks, asking who they want to hear from for future speakers, venue support, simple meals at their venue, buying their product, or validating visible outlet demand; do not label this as `Support Network`.
+- Network means event invites, peer/talent matching, warm introductions, future-speaker sourcing, and customer collaboration opportunities that position StaffAny as the connector.
+- Support means direct support for the buyer/account, including boss/HR speaker asks, venue support, simple meals at their venue, buying their product, or validating visible outlet demand; do not label this as `Support Network`.
 
 ### Public Research Game Plan Guardrail
 
