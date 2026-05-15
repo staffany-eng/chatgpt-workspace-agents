@@ -1967,6 +1967,90 @@ def create_roi_ticket_from_slack(
     return _verified(answer, scope, "ROI ticket is source of truth; Slack thread is evidence.", "Jira ROI")
 
 
+PS_WEE_DEFAULT_MISSING_INFO = [
+    "customer/org",
+    "issue details",
+    "impact/urgency",
+    "affected outlet/user/date range",
+    "expected outcome",
+    "screenshots/logs if relevant",
+]
+
+PS_WEE_SLACK_MISSING_INFO_LIMIT = 2
+
+
+def _has_any_text(*values: Any) -> bool:
+    return any(bool(str(value or "").strip()) for value in values)
+
+
+def _text_contains_any(text: str, needles: list[str]) -> bool:
+    lowered = (text or "").lower()
+    return any(needle in lowered for needle in needles)
+
+
+def _ps_wee_missing_info(
+    *,
+    supplied_missing_info: list[str] | None,
+    customer: str,
+    customer_channel_mapping: dict[str, Any],
+    issue_summary: str,
+    known_details: str,
+    impact: str,
+    affected_scope: str,
+    expected_outcome: str,
+    evidence_links: list[str] | None,
+) -> tuple[list[str], list[str]]:
+    candidates = [str(item).strip() for item in (supplied_missing_info or PS_WEE_DEFAULT_MISSING_INFO) if str(item).strip()]
+    known_text = " ".join(
+        str(value or "")
+        for value in [
+            customer,
+            issue_summary,
+            known_details,
+            impact,
+            affected_scope,
+            expected_outcome,
+            " ".join(str(link or "") for link in (evidence_links or [])),
+        ]
+    )
+    has_customer = _has_any_text(customer) or bool(customer_channel_mapping)
+    has_issue_details = _has_any_text(issue_summary, known_details)
+    has_impact = _has_any_text(impact) or _text_contains_any(
+        known_text,
+        ["blocked", "unable", "cannot", "can't", "not able", "failed", "limit", "error"],
+    )
+    has_affected_scope = _has_any_text(affected_scope) or _text_contains_any(
+        known_text,
+        ["affected", "outlet", "staff", "user", "profile", "employee", "date range"],
+    )
+    has_expected_outcome = _has_any_text(expected_outcome) or _text_contains_any(
+        known_text,
+        ["workaround", "resolve", "fix", "follow up", "check ", "advise", "expected outcome"],
+    )
+    has_evidence = bool([link for link in (evidence_links or []) if str(link or "").strip()]) or _text_contains_any(
+        known_text,
+        ["screenshot", "log", "intercom", "support thread", "slack thread", "attached"],
+    )
+    known_by_field = {
+        "customer/org": has_customer,
+        "issue details": has_issue_details,
+        "impact/urgency": has_impact,
+        "affected outlet/user/date range": has_affected_scope,
+        "expected outcome": has_expected_outcome,
+        "screenshots/logs if relevant": has_evidence,
+    }
+    missing = []
+    seen = set()
+    for item in candidates:
+        if item in seen:
+            continue
+        seen.add(item)
+        if known_by_field.get(item) is True:
+            continue
+        missing.append(item)
+    return missing, missing[:PS_WEE_SLACK_MISSING_INFO_LIMIT]
+
+
 @mcp.tool()
 def create_ps_wee_intake_ticket(
     slack_user_email: str,
@@ -2042,17 +2126,17 @@ def create_ps_wee_intake_ticket(
     except JiraError as error:
         return _blocked(str(error), scope)
 
-    default_missing = [
-        "customer/org",
-        "issue details",
-        "impact/urgency",
-        "affected outlet/user/date range",
-        "expected outcome",
-        "screenshots/logs if relevant",
-    ]
-    if customer_channel_mapping and missing_info is None:
-        default_missing = [item for item in default_missing if item != "customer/org"]
-    missing = [str(item).strip() for item in (missing_info or default_missing) if str(item).strip()]
+    full_missing, slack_missing = _ps_wee_missing_info(
+        supplied_missing_info=missing_info,
+        customer=normalized_customer if supplied_customer or customer_channel_mapping else "",
+        customer_channel_mapping=customer_channel_mapping,
+        issue_summary=normalized_issue if issue_summary else "",
+        known_details=known_details,
+        impact=impact,
+        affected_scope=affected_scope,
+        expected_outcome=expected_outcome,
+        evidence_links=evidence_links,
+    )
     source_links = [source]
     source_links.extend(str(link).strip() for link in (evidence_links or []) if str(link).strip())
     normalized_ps_team = _normalize_ps_team(ps_team) or _infer_ps_team_from_text(
@@ -2081,7 +2165,7 @@ def create_ps_wee_intake_ticket(
         "mode": _jira_mode(),
         "slack_thread_url": source,
         "known_details": (known_details or "").strip(),
-        "missing_info": missing,
+        "missing_info": full_missing,
         "impact": (impact or "").strip(),
         "affected_scope": (affected_scope or "").strip(),
         "expected_outcome": (expected_outcome or "").strip(),
@@ -2094,14 +2178,17 @@ def create_ps_wee_intake_ticket(
     if result.get("confidence") != "verified":
         return result
     answer = result.get("answer", {})
-    answer["missing_info"] = missing
+    answer["missing_info"] = slack_missing
     issue_key = str(answer.get("issue_key") or "").strip()
     issue_url = str(answer.get("url") or "").strip()
     ticket_ref = f"<{issue_url}|{issue_key}>" if issue_key and issue_url else issue_key or issue_url or "the ticket"
-    answer["slack_reply"] = (
-        f"Created first so this won't be missed: {ticket_ref}. "
-        f"I still need: {', '.join(missing)}."
-    )
+    if slack_missing:
+        answer["slack_reply"] = (
+            f"Created first so this won't be missed: {ticket_ref}. "
+            f"I still need: {', '.join(slack_missing)}."
+        )
+    else:
+        answer["slack_reply"] = f"Created first so this won't be missed: {ticket_ref}. No extra info needed from Slack right now."
     answer["central_copy"] = post_ps_wee_audit(
         "ticket_created",
         source_thread_url=source,
@@ -2111,7 +2198,7 @@ def create_ps_wee_intake_ticket(
         customer=normalized_customer,
         summary=normalized_issue,
         status="created",
-        missing_info=missing,
+        missing_info=full_missing,
         jira_payload={"draft": draft, "answer": answer},
         extra={"request_type_key": request_type_key},
     )

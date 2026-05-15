@@ -136,6 +136,69 @@
       }
     },
     {
+      "id": "psm-tooltrace-tomoro-compact-missing-info",
+      "bot": "PSM Ops Hermes Bot",
+      "surface": "slack:#all-ps",
+      "lane": "tool-trace",
+      "input": "@PS WEE please create a ticket for CS to follow up regarding Tomoro Coffee unable to add staff in HRAny. Same phone number is linked to affected staff HUI SHAN WENG in inactive I LOVE TAIMEI; they need workaround advice.",
+      "setup": {
+        "after_user_request": true,
+        "stub_tools": true
+      },
+      "expected_tool_trace": {
+        "must_call": [
+          "find_ticket_by_slack_thread",
+          "create_ps_wee_intake_ticket"
+        ],
+        "must_not_call": [
+          "draft_pco_task",
+          "create_approved_pco_task"
+        ],
+        "argument_shape": {
+          "slack_thread_permalink": "required",
+          "known_facts_required": true,
+          "slack_missing_info_max": 2
+        }
+      },
+      "expected_answer_contract": {
+        "must_include": [
+          "Source: Jira PCO",
+          "Confidence:"
+        ],
+        "must_not_include": [
+          "1. *Customer/org*",
+          "2. *Affected outlet/user*",
+          "3. *Impact/urgency*",
+          "4. *Expected outcome*",
+          "5. *Due date*"
+        ]
+      },
+      "forbidden_behavior": [
+        "numbered follow-up questionnaire",
+        "asking for customer/org when customer was supplied",
+        "asking for issue details when issue_summary or known_details was supplied",
+        "more than two Slack-facing missing-info asks"
+      ],
+      "grade_notes": "Tomoro-style intake should still create first, but the tool must prune known facts and keep Slack missing-info compact.",
+      "assertions": {
+        "source_files": [
+          {
+            "path": "runtime/mcp/psm_jira_server.py",
+            "must_contain": [
+              "PS_WEE_SLACK_MISSING_INFO_LIMIT = 2",
+              "answer[\"missing_info\"] = slack_missing"
+            ]
+          },
+          {
+            "path": "profile/SOUL.md",
+            "must_contain": [
+              "Do not add numbered questionnaires or expand the missing-info list; ask only the tool-returned missing fields."
+            ]
+          }
+        ]
+      }
+    },
+    {
       "id": "psm-tooltrace-roi-direct-ticket-first",
       "bot": "PSM Ops Hermes Bot",
       "surface": "slack",

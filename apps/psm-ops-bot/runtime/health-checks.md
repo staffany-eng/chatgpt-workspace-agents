@@ -10,6 +10,8 @@ PSM Ops Bot needs deterministic cloud health checks because prompt correctness d
 - Hermes gateway service `hermes-gateway-psmopsbot.service` is enabled on the GCE host.
 - Secret redaction remains enabled.
 - Model route is pinned to `anthropic` / `claude-sonnet-4-6`.
+- Slack quiet settings are enforced: `display.interim_assistant_messages=false`, Slack `tool_progress=off`, Slack `streaming=false`, and `slack.reactions=false`.
+- Non-critical `auxiliary.title_generation` is pinned to `anthropic` / `claude-haiku-4-5` with a short timeout so title-generation overloads are less likely to leak into Slack as visible auxiliary warnings.
 - Slack gateway is mention-required and not restricted to a single public/open channel.
 - Slack bot token can call `users.list` with profile emails for `PS Team` identity matching.
 - If `PSM_OPS_CENTRAL_SLACK_CHANNEL_ID` is configured, the Slack bot token can inspect that channel and the bot is a member.

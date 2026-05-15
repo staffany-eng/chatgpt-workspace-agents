@@ -225,6 +225,9 @@ for (const requiredText of [
   "SLACK_ALLOWED_CHANNELS empty",
   'provider: "anthropic"',
   'default: "claude-sonnet-4-6"',
+  "title_generation:",
+  'model: "claude-haiku-4-5"',
+  "timeout: 10",
   "max_parallel_jobs: 1",
   "PSM_OPS_JIRA_SERVICE_DESK_ID",
   "PSM_OPS_JIRA_FIELD_REMINDER_AT",
@@ -527,6 +530,19 @@ for (const requiredText of [
     "systemctl --user is-enabled"
 ]) {
   if (!heartbeatText.includes(requiredText)) fail(`Cloud heartbeat script missing required text: ${requiredText}`);
+}
+
+const healthCheckText = textOf(appRoot, "runtime/check-health.sh");
+for (const requiredText of [
+  "slack-display:interim-assistant-messages-not-disabled",
+  "slack-display:tool-progress-not-off",
+  "slack-display:streaming-not-disabled",
+  "slack:reactions-not-disabled",
+  "auxiliary:title-generation-provider-not-anthropic",
+  "auxiliary:title-generation-model-not-haiku",
+  "auxiliary:title-generation-timeout-too-high"
+]) {
+  if (!healthCheckText.includes(requiredText)) fail(`Health check script missing required text: ${requiredText}`);
 }
 
 const adoptionDigestText = textOf(appRoot, "runtime/psm_ops_adoption_digest.py");
