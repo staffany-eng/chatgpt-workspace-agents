@@ -20,7 +20,25 @@ def profile_env_value(name: str) -> str:
         value = dotenv_value(Path(base) / ".env", name)
         if value:
             return value
+    for path in _candidate_profile_env_paths():
+        value = dotenv_value(path, name)
+        if value:
+            return value
     return ""
+
+
+def _candidate_profile_env_paths() -> list[Path]:
+    paths: list[Path] = []
+    try:
+        module_path = Path(__file__).resolve()
+    except OSError:
+        return paths
+    for parent in module_path.parents:
+        if parent.name == "runtime":
+            paths.append(parent.parent / ".env")
+        elif parent.name == "mcp" and parent.parent.name == "runtime":
+            paths.append(parent.parent.parent / ".env")
+    return paths
 
 
 def dotenv_value(path: Path, name: str) -> str:
