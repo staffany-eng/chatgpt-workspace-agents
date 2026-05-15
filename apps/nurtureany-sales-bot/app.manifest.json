@@ -482,8 +482,10 @@
       "find_brand_parent_candidates",
       "search_exa_people_candidates",
       "search_lusha_decision_maker_candidates",
+      "search_lusha_candidates_by_linkedin_urls",
       "get_lusha_credit_usage",
       "search_prospeo_decision_maker_candidates",
+      "search_prospeo_candidates_by_linkedin_urls",
       "get_prospeo_credit_usage"
     ],
     "preview": [
@@ -545,22 +547,43 @@
     "auth_env_var": "LUSHA_API_KEY",
     "max_search_companies": 5,
     "max_candidates_per_company": 5,
+    "max_linkedin_urls": 10,
+    "max_candidates_per_linkedin_url": 5,
     "max_reveal_contacts": 3,
     "selected_pii_in_slack": true,
     "bulk_contact_exports": false,
-    "hubspot_writeback": "preview_only"
+    "hubspot_writeback": "preview_only",
+    "allowed_search_endpoints": [
+      "POST /prospecting/contact/search",
+      "POST /v2/contacts/search"
+    ],
+    "allowed_tools": [
+      "search_lusha_decision_maker_candidates",
+      "search_lusha_candidates_by_linkedin_urls",
+      "reveal_lusha_contact_details",
+      "get_lusha_credit_usage"
+    ]
   },
   "prospeo": {
     "auth_env_var": "PROSPEO_API_KEY",
     "max_search_companies": 5,
     "max_candidates_per_company": 5,
+    "max_linkedin_urls": 10,
+    "max_candidates_per_linkedin_url": 1,
     "max_reveal_contacts": 3,
     "selected_pii_in_slack": true,
     "bulk_contact_exports": false,
     "hubspot_writeback": "preview_only",
     "allowed_search_endpoint": "POST /search-person",
+    "allowed_linkedin_lookup_endpoint": "POST /bulk-enrich-person",
     "allowed_reveal_endpoint": "POST /bulk-enrich-person",
-    "usage_endpoint": "GET /account-information"
+    "usage_endpoint": "GET /account-information",
+    "allowed_tools": [
+      "search_prospeo_decision_maker_candidates",
+      "search_prospeo_candidates_by_linkedin_urls",
+      "reveal_prospeo_contact_details",
+      "get_prospeo_credit_usage"
+    ]
   },
   "aircall": {
     "auth_env_vars": [

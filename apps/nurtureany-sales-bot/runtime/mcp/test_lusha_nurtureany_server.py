@@ -90,6 +90,82 @@ class LushaNurtureAnyServerTest(unittest.TestCase):
         self.assertEqual(self.module._estimate_search_credits(26), 2)
         self.assertEqual(self.module._estimate_search_credits(51), 3)
 
+    def test_linkedin_url_lookup_validates_scoped_company_ids_and_does_not_reveal_pii(self):
+        calls = []
+
+        def fake_lusha_request(method, path, body=None):
+            calls.append((method, path, body))
+            return {
+                "requestId": "req-linkedin",
+                "contacts": [
+                    {
+                        "id": "contact-1",
+                        "firstName": "Mei Sin",
+                        "lastName": "Tan",
+                        "jobTitle": "HR Director",
+                        "socialLinks": {"linkedin": "https://sg.linkedin.com/in/meisin-tan-276a6170"},
+                        "emailAddresses": [{"email": "hidden@example.com"}],
+                        "phoneNumbers": [{"number": "+6512345678"}],
+                    }
+                ],
+            }, {"x-minute-requests-left": "41"}
+
+        with patch.dict(os.environ, {"LUSHA_API_KEY": "test-key", "HUBSPOT_PRIVATE_APP_TOKEN": "hubspot-key"}), patch.object(
+            self.module,
+            "_hubspot_request_json",
+            return_value={"results": [{"id": "hubspot-123", "properties": {"name": "Acme"}}]},
+        ) as hubspot_call, patch.object(
+            self.module, "_usage_snapshot", side_effect=[({"total_used": 10}, "fresh"), ({"total_used": 10}, "cached")]
+        ), patch.object(self.module, "_request_json", side_effect=fake_lusha_request):
+            result = self.module.search_lusha_candidates_by_linkedin_urls(
+                "ae@staffany.com",
+                ["sg.linkedin.com/in/meisin-tan-276a6170"],
+                scoped_company_ids=["hubspot-123"],
+            )
+
+        hubspot_call.assert_called_once()
+        self.assertEqual(result["confidence"], "needs-check")
+        self.assertEqual(result["credit_report"]["estimated_credits"], 1)
+        self.assertEqual(result["answer"]["candidates"][0]["inferred_name"], "Mei Sin Tan")
+        self.assertEqual(result["answer"]["candidates"][0]["lusha_contact_id"], "contact-1")
+        self.assertTrue(result["answer"]["candidates"][0]["decision_maker_match"])
+        self.assertNotIn("emailAddresses", result["answer"]["candidates"][0])
+        self.assertNotIn("phoneNumbers", result["answer"]["candidates"][0])
+
+        method, path, body = calls[0]
+        self.assertEqual(method, "POST")
+        self.assertEqual(path, "/v2/contacts/search")
+        self.assertEqual(body["filter"]["linkedin"], "sg.linkedin.com/in/meisin-tan-276a6170")
+        self.assertNotIn("revealEmails", body)
+        self.assertNotIn("revealPhones", body)
+
+    def test_linkedin_url_lookup_blocks_before_lusha_when_company_ids_are_missing(self):
+        with patch.dict(os.environ, {"LUSHA_API_KEY": "test-key"}), patch.object(
+            self.module, "_hubspot_request_json", side_effect=AssertionError("should not call HubSpot")
+        ), patch.object(self.module, "_request_json", side_effect=AssertionError("should not call Lusha")):
+            result = self.module.search_lusha_candidates_by_linkedin_urls(
+                "ae@staffany.com",
+                ["sg.linkedin.com/in/meisin-tan-276a6170"],
+                scoped_company_ids=[],
+            )
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("scoped HubSpot company_ids", result["answer"])
+        self.assertEqual(result["credit_report"]["estimated_credits"], 0)
+
+    def test_linkedin_url_lookup_blocks_invalid_linkedin_urls_before_paid_call(self):
+        with patch.dict(os.environ, {"LUSHA_API_KEY": "test-key"}), patch.object(
+            self.module, "_hubspot_request_json", side_effect=AssertionError("should not call HubSpot")
+        ), patch.object(self.module, "_request_json", side_effect=AssertionError("should not call Lusha")):
+            result = self.module.search_lusha_candidates_by_linkedin_urls(
+                "ae@staffany.com",
+                ["https://www.linkedin.com/company/acme"],
+                scoped_company_ids=["hubspot-123"],
+            )
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("LinkedIn profile URL", result["answer"])
+
     def test_reveal_refuses_missing_approval_marker_before_calling_lusha(self):
         with patch.dict(os.environ, {"LUSHA_API_KEY": "test-key"}), patch.object(
             self.module, "_request_json", side_effect=AssertionError("should not call Lusha")
@@ -195,6 +271,8 @@ class LushaNurtureAnyServerTest(unittest.TestCase):
 
     def test_missing_key_returns_blocked_without_calling_lusha(self):
         with patch.dict(os.environ, {}, clear=True), patch.object(
+            self.module, "profile_env_value", return_value=""
+        ), patch.object(
             self.module, "_request_json", side_effect=AssertionError("should not call Lusha")
         ):
             result = self.module.search_lusha_decision_maker_candidates(

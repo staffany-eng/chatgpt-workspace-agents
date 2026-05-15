@@ -87,8 +87,8 @@ NurtureAny needs deterministic runtime checks because prompt correctness does no
 - Target-account news brand fallback smoke check confirms unresolved brand/outlet names can call `find_brand_parent_candidates`, then must re-query scoped HubSpot target accounts before `research_public_company_signals`; `Eat 3 Bowls` should resolve via `The Better Kompany Pte Ltd` when that parent is in caller scope.
 - Target Account News Scout skill is installed in the live profile and uses scoped HubSpot company identity before public research.
 - Public research smoke blocks missing `TAVILY_API_KEY` before HTTP, requires scoped HubSpot company IDs, returns `cost_report`, and never mutates HubSpot.
-- Lusha MCP lists only `search_lusha_decision_maker_candidates`, `reveal_lusha_contact_details`, and `get_lusha_credit_usage` when Lusha is enabled.
-- Prospeo MCP lists only `search_prospeo_decision_maker_candidates`, `reveal_prospeo_contact_details`, and `get_prospeo_credit_usage` when Prospeo is enabled.
+- Lusha MCP lists only `search_lusha_decision_maker_candidates`, `search_lusha_candidates_by_linkedin_urls`, `reveal_lusha_contact_details`, and `get_lusha_credit_usage` when Lusha is enabled.
+- Prospeo MCP lists only `search_prospeo_decision_maker_candidates`, `search_prospeo_candidates_by_linkedin_urls`, `reveal_prospeo_contact_details`, and `get_prospeo_credit_usage` when Prospeo is enabled.
 - Lusha search and reveal smoke checks require scoped HubSpot company IDs before any paid/API call.
 - Lusha usage smoke check returns `credit_report` and does not block the gateway when `/account/usage` is rate-limited.
 - Honcho is disabled.

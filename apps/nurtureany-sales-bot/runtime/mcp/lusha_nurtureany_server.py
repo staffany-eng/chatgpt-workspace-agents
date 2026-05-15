@@ -21,6 +21,7 @@ from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
+from nurtureany_common.profile_env import profile_env_value
 from nurtureany_common.responses import blocked_response
 from nurtureany_common.scoped_company import scoped_company_error as _shared_scoped_company_error
 from nurtureany_common.text import clean_domain as _clean_domain
@@ -29,8 +30,11 @@ from nurtureany_common.text import clean_domain as _clean_domain
 LUSHA_BASE_URL = "https://api.lusha.com"
 LUSHA_USER_AGENT = "StaffAny-NurtureAny/1.0 (+https://staffany.com)"
 LUSHA_TIMEOUT_SECONDS = 15
+HUBSPOT_BASE_URL = "https://api.hubapi.com"
 MAX_SEARCH_COMPANIES = 5
 MAX_CANDIDATES_PER_COMPANY = 5
+MAX_LINKEDIN_URLS = 10
+MAX_CANDIDATES_PER_LINKEDIN_URL = 5
 MAX_REVEAL_CONTACTS = 3
 USAGE_CACHE_TTL_SECONDS = 12
 USAGE_MIN_INTERVAL_SECONDS = 12
@@ -77,7 +81,7 @@ _usage_last_request_at = 0.0
 
 
 def _token() -> str:
-    token = os.environ.get("LUSHA_API_KEY", "").strip()
+    token = profile_env_value("LUSHA_API_KEY")
     if not token:
         raise LushaError("Missing LUSHA_API_KEY.")
     return token
@@ -107,6 +111,38 @@ def _request_json(method: str, path: str, body: dict[str, Any] | None = None) ->
     except (urllib.error.URLError, socket.timeout, TimeoutError) as error:
         reason = getattr(error, "reason", error)
         raise LushaError(f"Lusha API request timed out or failed: {reason}") from error
+
+
+def _hubspot_token() -> str:
+    return profile_env_value("HUBSPOT_PRIVATE_APP_TOKEN")
+
+
+def _hubspot_request_json(method: str, path: str, body: dict[str, Any] | None = None) -> dict[str, Any]:
+    token = _hubspot_token()
+    if not token:
+        raise LushaError("Missing HUBSPOT_PRIVATE_APP_TOKEN for scoped company validation.")
+    url = urllib.parse.urljoin(HUBSPOT_BASE_URL, path)
+    data = json.dumps(body).encode("utf-8") if body is not None else None
+    headers = {
+        "authorization": f"Bearer {token}",
+        "accept": "application/json",
+        "user-agent": LUSHA_USER_AGENT,
+    }
+    if data is not None:
+        headers["content-type"] = "application/json"
+    request = urllib.request.Request(url, data=data, headers=headers, method=method)
+
+    try:
+        with urllib.request.urlopen(request, timeout=LUSHA_TIMEOUT_SECONDS) as response:
+            raw = response.read().decode("utf-8")
+            return json.loads(raw) if raw else {}
+    except urllib.error.HTTPError as error:
+        detail = error.read().decode("utf-8", errors="replace")
+        message = detail[:300].replace(token, "[REDACTED_HUBSPOT_TOKEN]")
+        raise LushaError(f"HubSpot scoped company validation failed: {error.code} {message}", error.code) from error
+    except (urllib.error.URLError, socket.timeout, TimeoutError) as error:
+        reason = getattr(error, "reason", error)
+        raise LushaError(f"HubSpot scoped company validation timed out or failed: {reason}") from error
 
 
 def _headers(headers: Any) -> dict[str, str]:
@@ -261,6 +297,55 @@ def _has_scoped_company_ids(scoped_company_ids: list[str] | None) -> bool:
     return bool([str(company_id).strip() for company_id in (scoped_company_ids or []) if str(company_id).strip()])
 
 
+def _clean_scoped_company_ids(scoped_company_ids: list[str] | None) -> list[str]:
+    clean_ids: list[str] = []
+    for company_id in scoped_company_ids or []:
+        clean_id = str(company_id or "").strip()
+        if clean_id and clean_id not in clean_ids:
+            clean_ids.append(clean_id)
+    return clean_ids
+
+
+def _validate_scoped_company_ids(scoped_company_ids: list[str] | None) -> tuple[list[str], str]:
+    clean_ids = _clean_scoped_company_ids(scoped_company_ids)
+    if not clean_ids:
+        return [], "Lusha LinkedIn URL lookup requires scoped HubSpot company_ids from prior NurtureAny HubSpot-scoped output."
+
+    payload = {
+        "properties": ["hs_object_id", "name", "domain"],
+        "inputs": [{"id": company_id} for company_id in clean_ids],
+    }
+    response = _hubspot_request_json("POST", "/crm/v3/objects/companies/batch/read", payload)
+    returned_ids = {str(company.get("id") or "").strip() for company in response.get("results", [])}
+    missing_ids = [company_id for company_id in clean_ids if company_id not in returned_ids]
+    if missing_ids:
+        return clean_ids, f"HubSpot scoped company validation failed for company_ids: {', '.join(missing_ids)}."
+    return clean_ids, ""
+
+
+def _normalize_linkedin_url(url: str) -> str:
+    value = str(url or "").strip()
+    if not value:
+        return ""
+    if "://" not in value:
+        value = f"https://{value}"
+    parsed = urllib.parse.urlparse(value)
+    host = parsed.netloc.lower().removeprefix("www.")
+    path = parsed.path.rstrip("/")
+    if not host.endswith("linkedin.com") or not path.startswith("/in/"):
+        return ""
+    return f"{host}{path}"
+
+
+def _linkedin_search_payload(linkedin_url: str, limit_per_url: int) -> dict[str, Any]:
+    return {
+        "filter": {
+            "linkedin": linkedin_url,
+        },
+        "pages": {"page": 0, "size": max(1, min(int(limit_per_url), MAX_CANDIDATES_PER_LINKEDIN_URL))},
+    }
+
+
 def _search_payload(company: dict[str, str], limit_per_company: int) -> dict[str, Any]:
     company_include: dict[str, Any] = {
         "locations": [{"country": company["country"]}],
@@ -300,6 +385,71 @@ def _candidate(contact: dict[str, Any], request_id: str, company: dict[str, str]
         "has_mobile_phone": bool(contact.get("hasMobilePhone")),
         "has_direct_phone": bool(contact.get("hasDirectPhone")),
         "confidence": "needs-check",
+    }
+
+
+def _linkedin_from_contact(contact: dict[str, Any]) -> str:
+    social_links = contact.get("socialLinks") or contact.get("social_links") or {}
+    return (
+        contact.get("linkedinUrl")
+        or contact.get("linkedin_url")
+        or contact.get("linkedin")
+        or social_links.get("linkedin")
+        or ""
+    )
+
+
+def _name_from_contact(contact: dict[str, Any]) -> str:
+    return (
+        contact.get("name")
+        or contact.get("fullName")
+        or " ".join(part for part in [contact.get("firstName") or "", contact.get("lastName") or ""] if part).strip()
+    )
+
+
+def _title_from_contact(contact: dict[str, Any]) -> str:
+    return contact.get("jobTitle") or contact.get("title") or contact.get("job_title") or ""
+
+
+def _is_decision_maker_title(title: str) -> bool:
+    normalized = str(title or "").lower()
+    return any(marker in normalized for marker in DECISION_MAKER_TITLES)
+
+
+def _extract_contacts(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    contacts = payload.get("contacts")
+    if isinstance(contacts, list):
+        return [contact for contact in contacts if isinstance(contact, dict)]
+    data = payload.get("data")
+    if isinstance(data, list):
+        return [contact for contact in data if isinstance(contact, dict)]
+    if isinstance(data, dict) and isinstance(data.get("contacts"), list):
+        return [contact for contact in data["contacts"] if isinstance(contact, dict)]
+    results = payload.get("results")
+    if isinstance(results, list):
+        return [contact for contact in results if isinstance(contact, dict)]
+    return []
+
+
+def _linkedin_candidate(contact: dict[str, Any], request_id: str, input_url: str, rank: int) -> dict[str, Any]:
+    returned_linkedin = _normalize_linkedin_url(_linkedin_from_contact(contact))
+    warnings: list[str] = []
+    if returned_linkedin and returned_linkedin != input_url:
+        warnings.append("returned_linkedin_differs_from_input")
+    if not _name_from_contact(contact):
+        warnings.append("missing_name")
+    if not _title_from_contact(contact):
+        warnings.append("missing_title")
+    return {
+        "rank": rank,
+        "request_id": request_id,
+        "inferred_name": _name_from_contact(contact),
+        "inferred_title": _title_from_contact(contact),
+        "lusha_contact_id": contact.get("contactId") or contact.get("id") or contact.get("lushaContactId") or "",
+        "linkedin_url": returned_linkedin or input_url,
+        "confidence_band": "high" if not warnings or warnings == ["missing_title"] else "needs-check",
+        "decision_maker_match": _is_decision_maker_title(_title_from_contact(contact)),
+        "quality_warnings": warnings,
     }
 
 
@@ -465,6 +615,111 @@ def search_lusha_decision_maker_candidates(
         "scope": scope,
         "confidence": "needs-check",
         "caveat": "Candidates require AE review before reveal or HubSpot preview. Email and phone are not revealed by search.",
+        "credit_report": report,
+    }
+
+
+@mcp.tool()
+def search_lusha_candidates_by_linkedin_urls(
+    slack_user_email: str,
+    linkedin_urls: list[str],
+    scoped_company_ids: list[str],
+    limit_per_url: int = 1,
+) -> dict[str, Any]:
+    """Search Lusha by public LinkedIn profile URLs without revealing email or phone details."""
+
+    normalized_urls: list[str] = []
+    invalid_urls: list[str] = []
+    for raw_url in (linkedin_urls or [])[:MAX_LINKEDIN_URLS]:
+        normalized = _normalize_linkedin_url(str(raw_url or ""))
+        if normalized:
+            if normalized not in normalized_urls:
+                normalized_urls.append(normalized)
+        elif str(raw_url or "").strip():
+            invalid_urls.append(str(raw_url or "").strip())
+
+    scope = _scope(
+        slack_user_email,
+        {
+            "requested_linkedin_url_count": len(linkedin_urls or []),
+            "max_linkedin_url_count": MAX_LINKEDIN_URLS,
+            "scoped_company_ids": _clean_scoped_company_ids(scoped_company_ids),
+            "max_candidates_per_linkedin_url": MAX_CANDIDATES_PER_LINKEDIN_URL,
+            "invalid_linkedin_urls": invalid_urls,
+        },
+    )
+    if not normalized_urls:
+        return _blocked("At least one LinkedIn profile URL under /in/ is required.", scope)
+
+    try:
+        validated_company_ids, scoped_error = _validate_scoped_company_ids(scoped_company_ids)
+    except LushaError as error:
+        return _blocked(str(error), scope)
+    scope["scoped_company_ids"] = validated_company_ids
+    if scoped_error:
+        return _blocked(scoped_error, scope)
+
+    try:
+        _token()
+    except LushaError as error:
+        return _blocked(str(error), scope)
+
+    before, before_status = _usage_snapshot()
+    headers: dict[str, str] = {}
+    estimated_credits = 0
+    capped_limit = max(1, min(int(limit_per_url or 1), MAX_CANDIDATES_PER_LINKEDIN_URL))
+    lookup_results: list[dict[str, Any]] = []
+    all_candidates: list[dict[str, Any]] = []
+
+    try:
+        for linkedin_url in normalized_urls:
+            payload = _linkedin_search_payload(linkedin_url, capped_limit)
+            response, headers = _request_json("POST", "/v2/contacts/search", payload)
+            request_id = response.get("requestId") or response.get("request_id") or ""
+            contacts = _extract_contacts(response)
+            estimated_credits += _estimate_search_credits(len(contacts))
+            candidates = [
+                _linkedin_candidate(contact, request_id, linkedin_url, rank)
+                for rank, contact in enumerate(contacts[:capped_limit], start=1)
+            ]
+            all_candidates.extend(candidates)
+            lookup_results.append(
+                {
+                    "input_linkedin_url": linkedin_url,
+                    "request_id": request_id,
+                    "returned_results": len(contacts),
+                    "candidates": candidates,
+                }
+            )
+    except LushaError as error:
+        after, _ = _usage_snapshot()
+        report = _credit_report(
+            estimated_credits or "unavailable",
+            before,
+            after,
+            headers,
+            f"LinkedIn URL lookup stopped early. Usage before status: {before_status}.",
+        )
+        return _blocked(str(error), scope, report)
+
+    after, after_status = _usage_snapshot()
+    report = _credit_report(
+        estimated_credits,
+        before,
+        after,
+        headers,
+        f"Search only; no email or phone was revealed. Usage snapshots: before={before_status}, after={after_status}.",
+    )
+    return {
+        "answer": {
+            "candidates": all_candidates,
+            "lookup_results": lookup_results,
+            "invalid_linkedin_urls": invalid_urls,
+        },
+        "source": "Lusha Contacts Search LinkedIn Filter",
+        "scope": scope,
+        "confidence": "needs-check",
+        "caveat": "LinkedIn URL lookup returns candidate IDs only. Email and phone require selected reveal approval.",
         "credit_report": report,
     }
 

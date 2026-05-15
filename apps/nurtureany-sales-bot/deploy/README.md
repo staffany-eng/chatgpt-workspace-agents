@@ -75,6 +75,7 @@ node scripts/nurtureany-prod-ssh.mjs --doctor
 - `skills/nurtureany-sales-bot/` and `skills/target-account-news-scout/` to the live profile skill directory
 - the app packet to `~/.hermes/profiles/nurtureanysalesbot/source/nurtureany-sales-bot/`
 - runtime health/audit/watchdog/cloud-doctor scripts and HubSpot Task reminder scripts to the live profile `scripts/`
+- a systemd user-service drop-in that loads the hydrated live profile `.env` as `EnvironmentFile` before gateway restart
 
 ## What Deploy Must Not Touch
 
@@ -107,6 +108,7 @@ Do not put real secrets or the real sales roster in this repo.
 - If `git pull --ff-only` fails, do not deploy; resolve the VM checkout state first.
 - If local changes are not merged to `main`, the VM cannot deploy them through the normal `git pull` path.
 - If gateway restart succeeds but health fails, use the first failing subsystem from `check-health.sh` or the redacted output from `nurtureany-cloud-doctor.sh`.
+- If Slack users are configured in Secret Manager but the gateway rejects them, verify the user service has `EnvironmentFiles=/home/leekaiyi/.hermes/profiles/nurtureanysalesbot/.env` and the gateway process contains `SLACK_ALLOWED_USERS`.
 - If Slack does not reply after a healthy service restart, check the gateway service and Slack Socket Mode health before changing source code.
 - If a newly added env var is missing after a deploy, rerun with `--hydrate-secrets` after confirming the latest Secret Manager version contains the key. The script prints only `deploy:secrets=hydrated-latest` metadata and never prints dotenv values.
 - If a newly added MCP server is missing in live `config.yaml`, deploy should print `deploy:config-added-mcp-server:<name>` and copy the non-secret template stanza before restart.

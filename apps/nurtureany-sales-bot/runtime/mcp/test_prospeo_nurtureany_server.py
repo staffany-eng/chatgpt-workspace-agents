@@ -108,6 +108,92 @@ class ProspeoNurtureAnyServerTest(unittest.TestCase):
 
         self.assertEqual(result["credit_report"]["estimated_credits"], 0)
 
+    def test_linkedin_url_lookup_validates_scoped_company_ids_and_does_not_return_pii(self):
+        calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, body))
+            return {
+                "error": False,
+                "total_cost": 1,
+                "not_matched": [],
+                "invalid_datapoints": [],
+                "matched": [
+                    {
+                        "identifier": "linkedin-1",
+                        "person": {
+                            "person_id": "person-1",
+                            "first_name": "Mei Sin",
+                            "last_name": "Tan",
+                            "full_name": "Mei Sin Tan",
+                            "current_job_title": "HR Director",
+                            "linkedin_url": "https://sg.linkedin.com/in/meisin-tan-276a6170",
+                            "email": {"email": "hidden@example.com"},
+                            "mobile": {"mobile": "+6512345678"},
+                        },
+                        "company": {"name": "Acme Cafe", "domain": "acme.example"},
+                    }
+                ],
+            }, {"x-ratelimit-remaining-minute": "40"}
+
+        with patch.dict(os.environ, {"PROSPEO_API_KEY": "test-key", "HUBSPOT_PRIVATE_APP_TOKEN": "hubspot-key"}), patch.object(
+            self.module,
+            "_hubspot_request_json",
+            return_value={"results": [{"id": "hubspot-123", "properties": {"name": "Acme"}}]},
+        ) as hubspot_call, patch.object(
+            self.module, "_account_snapshot", side_effect=[({"used_credits": 10}, "fresh"), ({"used_credits": 11}, "fresh")]
+        ), patch.object(self.module, "_request_json", side_effect=fake_request):
+            result = self.module.search_prospeo_candidates_by_linkedin_urls(
+                "ae@staffany.com",
+                ["sg.linkedin.com/in/meisin-tan-276a6170"],
+                scoped_company_ids=["hubspot-123"],
+            )
+
+        hubspot_call.assert_called_once()
+        self.assertEqual(result["confidence"], "needs-check")
+        self.assertEqual(result["credit_report"]["estimated_credits"], 1)
+        self.assertEqual(result["credit_report"]["reported_total_cost"], 1)
+        candidate = result["answer"]["candidates"][0]
+        self.assertEqual(candidate["inferred_name"], "Mei Sin Tan")
+        self.assertEqual(candidate["prospeo_person_id"], "person-1")
+        self.assertTrue(candidate["decision_maker_match"])
+        self.assertNotIn("email", candidate)
+        self.assertNotIn("mobile", candidate)
+
+        method, path, body = calls[0]
+        self.assertEqual(method, "POST")
+        self.assertEqual(path, "/bulk-enrich-person")
+        self.assertIs(body["only_verified_email"], False)
+        self.assertIs(body["enrich_mobile"], False)
+        self.assertEqual(body["data"][0]["linkedin_url"], "https://sg.linkedin.com/in/meisin-tan-276a6170")
+
+    def test_linkedin_url_lookup_blocks_before_prospeo_when_company_ids_are_missing(self):
+        with patch.dict(os.environ, {"PROSPEO_API_KEY": "test-key"}), patch.object(
+            self.module, "_hubspot_request_json", side_effect=AssertionError("should not call HubSpot")
+        ), patch.object(self.module, "_request_json", side_effect=AssertionError("should not call Prospeo")):
+            result = self.module.search_prospeo_candidates_by_linkedin_urls(
+                "ae@staffany.com",
+                ["sg.linkedin.com/in/meisin-tan-276a6170"],
+                scoped_company_ids=[],
+            )
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("scoped HubSpot company_ids", result["answer"])
+        self.assertEqual(result["credit_report"]["estimated_credits"], 0)
+
+    def test_linkedin_url_lookup_blocks_invalid_linkedin_urls_before_paid_call(self):
+        with patch.dict(os.environ, {"PROSPEO_API_KEY": "test-key"}), patch.object(
+            self.module, "_hubspot_request_json", side_effect=AssertionError("should not call HubSpot")
+        ), patch.object(self.module, "_request_json", side_effect=AssertionError("should not call Prospeo")):
+            result = self.module.search_prospeo_candidates_by_linkedin_urls(
+                "ae@staffany.com",
+                ["https://www.linkedin.com/company/acme"],
+                scoped_company_ids=["hubspot-123"],
+            )
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("LinkedIn profile URL", result["answer"])
+
     def test_reveal_refuses_missing_approval_marker_before_calling_prospeo(self):
         with patch.dict(os.environ, {"PROSPEO_API_KEY": "test-key"}), patch.object(
             self.module, "_request_json", side_effect=AssertionError("should not call Prospeo")
