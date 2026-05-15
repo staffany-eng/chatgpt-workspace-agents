@@ -12,6 +12,7 @@
     "soul": "profile/SOUL.md",
     "config_template": "profile/config.template.yaml",
     "skill": "skills/staffany-data-bot/SKILL.md",
+    "google_sheets_output_skill": "../hermes-shared/google-sheets-output/skills/staffany-google-sheets-output/SKILL.md",
     "references": [
       "skills/staffany-data-bot/references/staffany-data-bot-metric-registry.md",
       "skills/staffany-data-bot/references/staffany-product-lookup-registry.md",
@@ -29,6 +30,9 @@
     "slack_allowlist_update_script": "runtime/update-slack-allowlist.sh",
     "slack_context_mcp": "runtime/mcp/staffany_slack_context_server.py",
     "c360_mcp": "runtime/mcp/staffany_c360_server.py",
+    "google_sheets_output_runtime": "../hermes-shared/google-sheets-output/runtime/google-sheets-output.md",
+    "google_sheets_output_mcp": "../hermes-shared/google-sheets-output/runtime/mcp/staffany_google_sheets_server.py",
+    "google_sheets_output_oauth_helper": "../hermes-shared/google-sheets-output/runtime/mcp/google_oauth.py",
     "health_checks": "runtime/health-checks.md",
     "health_check_script": "runtime/check-health.sh",
     "cloud_heartbeat_script": "runtime/check-cloud-heartbeat.sh",
@@ -77,6 +81,40 @@
     "read_only": true,
     "uses_browser_cookie": false,
     "uses_personal_customer360_session": false
+  },
+  "google_sheets_output_mcp": {
+    "server_name": "staffany_google_sheets",
+    "account_email": "team@staffany.com",
+    "access_mode": "team_oauth_google_sheets_output",
+    "service_account": false,
+    "auth_env_vars": [
+      "GOOGLE_SHEETS_TOKEN_FILE",
+      "GOOGLE_SHEETS_CLIENT_SECRET_FILE",
+      "GOOGLE_SHEETS_ACCOUNT_EMAIL",
+      "GOOGLE_SHEETS_OUTPUT_FOLDER_ID",
+      "GOOGLE_SHEETS_OUTPUT_SHARE_EMAILS"
+    ],
+    "required_scopes": [
+      "https://www.googleapis.com/auth/spreadsheets",
+      "https://www.googleapis.com/auth/drive.file"
+    ],
+    "expected_tools": [
+      "check_google_sheets_output_access",
+      "create_spreadsheet_from_rows"
+    ],
+    "read_only_source_data": true,
+    "create_only": true,
+    "edits_existing_spreadsheets": false,
+    "uses_user_token": false,
+    "uses_slack_connector": false,
+    "requires_output_folder_or_share_target": true,
+    "limits": {
+      "max_tabs": 5,
+      "max_rows_per_tab": 5000,
+      "max_total_cells": 100000,
+      "max_cell_chars": 2000
+    },
+    "formula_like_cells_escaped": true
   },
   "channels": [
     "Slack #da-ta-hermz-testing"

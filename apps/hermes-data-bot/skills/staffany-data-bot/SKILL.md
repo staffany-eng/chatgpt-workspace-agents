@@ -7,7 +7,7 @@ license: Internal
 metadata:
   hermes:
     tags: [staffany, data, bigquery, slack, mcp]
-    related_skills: [native-mcp]
+    related_skills: [native-mcp, staffany-google-sheets-output]
 ---
 
 # StaffAny Data Bot
@@ -22,6 +22,7 @@ Use this skill for StaffAny internal data-bot work. It ports the ChatGPT Da Ta B
 - StaffAny product terms, package ownership, feature/form/page labels, APQ corrections, and internal concept lookups.
 - Jira-synced release-feature usage tracking, launch-priority classification, and weekly high-priority feature usage digests.
 - Slack threads where the user asks what metric or app-data question is being discussed.
+- Google Sheets output requests for an already-confirmed bounded table result.
 - Feedback that might become a confirmed metric definition, terminology mapping, or output preference.
 
 Do not use this skill for generic coding, broad web research, or non-StaffAny personal tasks.
@@ -35,7 +36,8 @@ Do not use this skill for generic coding, broad web research, or non-StaffAny pe
 5. Selected Slack thread context through the read-only `staffany_slack_context` MCP when the user gives an explicit configured Slack permalink.
 6. Customer 360 current-customer universe through the read-only `staffany_c360` MCP when the request asks for current customers, C360 definition, or a C360 correction.
 7. BigQuery schema inspection through the `staffany_bigquery` MCP server.
-8. GitHub/Pantheon evidence only when registry evidence is missing, explicitly requires code verification, or the user asks for code evidence.
+8. Google Sheets output through the creation-only `staffany_google_sheets` MCP only after the underlying result table is already approved or delivered.
+9. GitHub/Pantheon evidence only when registry evidence is missing, explicitly requires code verification, or the user asks for code evidence.
 
 Registry rows are guidance, not automatic truth. Product Corrections prevent known wrong answers, but they do not become metric definitions.
 
@@ -64,6 +66,27 @@ Use BigQuery Standard SQL against `staffany-warehouse.analytics`.
 - Avoid `SELECT *` unless inspecting a tiny sample is genuinely necessary.
 
 If the MCP server, auth, schema access, or required context fails, return `Confidence: blocked` and state the connector/source issue plainly.
+
+## Google Sheets Output Rules
+
+Use `staffany_google_sheets.create_spreadsheet_from_rows` when the user explicitly asks for `spreadsheet`, `Google Sheet`, or `sheet summary` for an already-confirmed bounded table result.
+
+- First Slack mentions still stay plan-first when data access is needed.
+- A clear same-thread follow-up after a delivered result, such as `google sheets`, is continuation work; do not ask for another `run` if the table scope is already clear.
+- Before creating large output, keep the table bounded and safe for sharing. If the requested rows exceed the Sheets output limits, summarize or ask one focused scope question.
+- Use only `staffany_google_sheets.check_google_sheets_output_access` and `staffany_google_sheets.create_spreadsheet_from_rows`.
+- Do not edit existing spreadsheets in v1.
+- Do not put raw Slack transcripts, employee-level payroll detail, phone numbers, NRIC/FIN, bank details, API keys, OAuth tokens, connector tokens, or unapproved raw query rows into a Sheet.
+- When `staffany_google_sheets` is healthy, create the Sheet directly.
+- Do not say the bot has no direct Google Sheets integration and do not make CSV import the main path.
+
+Final Google Sheets Slack result format:
+
+Answer: Google Sheet created: <spreadsheet_url>
+Source: <underlying source table/tool> + staffany_google_sheets.create_spreadsheet_from_rows
+Scope: <time range, filters, row count, tab count>
+Confidence: <verified | needs-check | blocked>
+Caveat: <only the material caveat>
 
 ## Customer 360 Current-Customer Rules
 

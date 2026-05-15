@@ -30,8 +30,10 @@ See `deploy/gcp-vm-topology.md` before changing deployed bot placement or answer
 | `profile/SOUL.md` | Source-controlled copy of the profile soul prompt. |
 | `profile/config.template.yaml` | Non-secret profile config template. |
 | `skills/staffany-data-bot/` | Hermes skill and progressive-disclosure references. |
+| `../hermes-shared/google-sheets-output/skills/staffany-google-sheets-output/` | Shared Google Sheets output skill synced into the Da Ta Hermz profile. |
 | `runtime/mcp/staffany-bigquery.md` | BigQuery MCP contract and restore notes. |
 | `runtime/mcp/staffany_slack_context_server.py` | Read-only selected Slack thread context MCP using `SLACK_BOT_TOKEN`. |
+| `../hermes-shared/google-sheets-output/runtime/mcp/staffany_google_sheets_server.py` | Creation-only Google Sheets output MCP using `team@staffany.com` OAuth. |
 | `runtime/jira-release-sync.md` | Jira release-feature registry sync and review workflow. |
 | `runtime/high-priority-feature-digest.md` | Weekly high-priority release-feature usage digest setup. |
 | `runtime/memory-honcho.md` | Honcho external-memory contract and boundaries. |
@@ -55,10 +57,11 @@ See `deploy/gcp-vm-topology.md` before changing deployed bot placement or answer
 6. Set profile `.env` from Secret Manager values only; do not commit model, Slack, or MCP credentials.
 7. Ensure Anthropic model auth is logged in, then configure Slack gateway and StaffAny BigQuery MCP.
 8. Configure the `staffany_slack_context` MCP only for selected public/source channel IDs; default to the home channel unless an explicit source-read channel is reviewed.
-9. Run the Jira release sync discovery and confirm the launch-priority field/value mapping before enabling feature usage tracking.
-10. Configure the weekly high-priority feature usage digest only after the registry dry run is reviewed.
-11. Configure Honcho only after its self-hosted API, embeddings provider, and profile-local config are healthy.
-12. Run the health checks and regression cases before widening access.
+9. Configure the shared `staffany_google_sheets` MCP only after the `team@staffany.com` OAuth files and either `GOOGLE_SHEETS_OUTPUT_FOLDER_ID` or `GOOGLE_SHEETS_OUTPUT_SHARE_EMAILS` are available.
+10. Run the Jira release sync discovery and confirm the launch-priority field/value mapping before enabling feature usage tracking.
+11. Configure the weekly high-priority feature usage digest only after the registry dry run is reviewed.
+12. Configure Honcho only after its self-hosted API, embeddings provider, and profile-local config are healthy.
+13. Run the health checks and regression cases before widening access.
 
 ## Deploy Flow
 

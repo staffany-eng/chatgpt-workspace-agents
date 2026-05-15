@@ -19,6 +19,7 @@ Hermes Data Bot needs deterministic runtime health checks because prompt correct
 - `staffany_bigquery` MCP lists only the expected read-only tools.
 - `staffany_slack_context` MCP lists only `get_current_slack_thread_context` and `get_selected_slack_thread_context`.
 - `staffany_c360` MCP lists only `list_current_customer_orgs` and uses `X-Customer360-Internal-Token`, not browser cookies or personal `customer360_session`.
+- `staffany_google_sheets` MCP lists only `check_google_sheets_output_access` and `create_spreadsheet_from_rows`, uses `team@staffany.com`, requires an output folder or share target, and cannot edit existing spreadsheets.
 - Selected Slack-thread smoke can read a configured public/source thread with the bot token and returns only message counts/safe snippets/permalinks.
 - A tiny read-only BigQuery smoke query succeeds.
 - `hermes -p staffanydatabot auth status anthropic` reports logged in.
@@ -69,6 +70,7 @@ Default checks:
 - `hermes -p staffanydatabot mcp test staffany_bigquery` with 4 expected tools
 - `hermes -p staffanydatabot mcp test staffany_slack_context` with 2 expected tools
 - `hermes -p staffanydatabot mcp test staffany_c360` with 1 expected tool
+- `hermes -p staffanydatabot mcp test staffany_google_sheets` with 2 expected tools
 - `curl -fsS http://localhost:8000/health`
 - `hermes -p staffanydatabot memory status`
 - `redact_secrets: true` in the live profile config

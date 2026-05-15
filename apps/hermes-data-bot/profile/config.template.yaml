@@ -116,6 +116,54 @@ mcp_servers:
       raw_source_pack_access: false
     tool_allowlist:
       - "list_current_customer_orgs"
+  staffany_google_sheets:
+    description: "Creation-only Google Sheets output adapter for Da Ta Hermz using team@staffany.com."
+    command: "/home/leekaiyi/.hermes/hermes-agent/venv/bin/python"
+    args:
+      - "/home/leekaiyi/.hermes/profiles/staffanydatabot/source/hermes-shared/google-sheets-output/runtime/mcp/staffany_google_sheets_server.py"
+    timeout: 120
+    env:
+      HERMES_PROFILE: "staffanydatabot"
+      GOOGLE_SHEETS_TOKEN_FILE: "${GOOGLE_SHEETS_TOKEN_FILE}"
+      GOOGLE_SHEETS_CLIENT_SECRET_FILE: "${GOOGLE_SHEETS_CLIENT_SECRET_FILE}"
+      GOOGLE_SHEETS_ACCOUNT_EMAIL: "team@staffany.com"
+      GOOGLE_SHEETS_OUTPUT_FOLDER_ID: "${GOOGLE_SHEETS_OUTPUT_FOLDER_ID}"
+      GOOGLE_SHEETS_OUTPUT_SHARE_EMAILS: "${GOOGLE_SHEETS_OUTPUT_SHARE_EMAILS}"
+      GOOGLE_SHEETS_OUTPUT_SHARE_ROLE: "${GOOGLE_SHEETS_OUTPUT_SHARE_ROLE}"
+    auth_metadata:
+      type: "oauth_token_file"
+      account: "team@staffany.com"
+      token_file_env: "GOOGLE_SHEETS_TOKEN_FILE"
+      client_secret_file_env: "GOOGLE_SHEETS_CLIENT_SECRET_FILE"
+      output_folder_id_env: "GOOGLE_SHEETS_OUTPUT_FOLDER_ID"
+      output_share_emails_env: "GOOGLE_SHEETS_OUTPUT_SHARE_EMAILS"
+    access_policy:
+      mode: "google_sheets_output_create_only"
+      account_email: "team@staffany.com"
+      service_account: false
+      required_scopes:
+        - "https://www.googleapis.com/auth/spreadsheets"
+        - "https://www.googleapis.com/auth/drive.file"
+      requires_output_folder_or_share_target: true
+      create_spreadsheets: true
+      edit_existing_spreadsheets: false
+      read_arbitrary_spreadsheets: false
+      user_token_fallback: false
+      slack_connector_fallback: false
+      max_tabs: 5
+      max_rows_per_tab: 5000
+      max_total_cells: 100000
+      max_cell_chars: 2000
+      formula_like_cells_escaped: true
+    tools:
+      include:
+        - "check_google_sheets_output_access"
+        - "create_spreadsheet_from_rows"
+      resources: false
+      prompts: false
+    tool_allowlist:
+      - "check_google_sheets_output_access"
+      - "create_spreadsheet_from_rows"
 
 gateway:
   slack:

@@ -73,6 +73,7 @@ Store these in Secret Manager, not in repo files:
 - `hermes-data-bot-slack-allowed-users`
 - `bq-mcp-proxy-shared-secret`
 - Customer 360 internal API token, if deployed via Secret Manager
+- Google Sheets output OAuth token/client secret files for `team@staffany.com`, if Google Sheets output is enabled
 - Jira API token for the release-feature sync operator, if the Jira sync runs on the VM
 - Honcho server LLM provider key, if Honcho external memory is enabled
 
@@ -85,12 +86,18 @@ SLACK_ALLOWED_USERS=<comma-separated Slack member IDs>
 MCP_STAFFANY_BIGQUERY_API_KEY=<bq-mcp-proxy-shared-secret value>
 CUSTOMER360_BASE_URL=<Customer 360 base URL>
 CUSTOMER360_INTERNAL_API_TOKEN=<Customer 360 internal API token>
+GOOGLE_SHEETS_TOKEN_FILE=<profile-local Google OAuth token JSON path>
+GOOGLE_SHEETS_CLIENT_SECRET_FILE=<profile-local Google OAuth client secret JSON path>
+GOOGLE_SHEETS_ACCOUNT_EMAIL=team@staffany.com
+GOOGLE_SHEETS_OUTPUT_FOLDER_ID=<optional Drive folder id>
+GOOGLE_SHEETS_OUTPUT_SHARE_EMAILS=<optional comma-separated StaffAny emails>
+GOOGLE_SHEETS_OUTPUT_SHARE_ROLE=reader
 ```
 
 Selected Slack source-thread reads use non-secret channel allowlisting:
 
 ```bash
-STAFFANY_DATA_BOT_SLACK_CONTEXT_CHANNEL_IDS=C0AU19E6T0C,C0A0V39AK44
+STAFFANY_DATA_BOT_SLACK_CONTEXT_CHANNEL_IDS=C0AU19E6T0C,C0A0V39AK44,C0A0PETSFJS
 ```
 
 If unset, the MCP falls back to `SLACK_HOME_CHANNEL`. Do not use this as an open-public-channel answering mode.
@@ -297,6 +304,30 @@ mcp_servers:
       write_operations: false
     tool_allowlist:
       - list_current_customer_orgs
+  staffany_google_sheets:
+    command: "/home/leekaiyi/.hermes/hermes-agent/venv/bin/python"
+    args:
+      - "/home/leekaiyi/.hermes/profiles/staffanydatabot/source/hermes-shared/google-sheets-output/runtime/mcp/staffany_google_sheets_server.py"
+    env:
+      HERMES_PROFILE: "staffanydatabot"
+      GOOGLE_SHEETS_TOKEN_FILE: "${GOOGLE_SHEETS_TOKEN_FILE}"
+      GOOGLE_SHEETS_CLIENT_SECRET_FILE: "${GOOGLE_SHEETS_CLIENT_SECRET_FILE}"
+      GOOGLE_SHEETS_ACCOUNT_EMAIL: "team@staffany.com"
+      GOOGLE_SHEETS_OUTPUT_FOLDER_ID: "${GOOGLE_SHEETS_OUTPUT_FOLDER_ID}"
+      GOOGLE_SHEETS_OUTPUT_SHARE_EMAILS: "${GOOGLE_SHEETS_OUTPUT_SHARE_EMAILS}"
+      GOOGLE_SHEETS_OUTPUT_SHARE_ROLE: "${GOOGLE_SHEETS_OUTPUT_SHARE_ROLE}"
+    access_policy:
+      mode: google_sheets_output_create_only
+      account_email: team@staffany.com
+      service_account: false
+      requires_output_folder_or_share_target: true
+      edit_existing_spreadsheets: false
+      read_arbitrary_spreadsheets: false
+      user_token_fallback: false
+      slack_connector_fallback: false
+    tool_allowlist:
+      - check_google_sheets_output_access
+      - create_spreadsheet_from_rows
 ```
 
 Verify:
@@ -305,9 +336,10 @@ Verify:
 hermes -p staffanydatabot mcp test staffany_bigquery
 hermes -p staffanydatabot mcp test staffany_slack_context
 hermes -p staffanydatabot mcp test staffany_c360
+hermes -p staffanydatabot mcp test staffany_google_sheets
 ```
 
-Expected result: BigQuery connected with 4 tools, Slack context with 2 tools, and C360 with 1 tool.
+Expected result: BigQuery connected with 4 tools, Slack context with 2 tools, C360 with 1 tool, and Google Sheets output with 2 tools.
 
 ## Jira Release Registry Sync
 
@@ -457,6 +489,7 @@ hermes -p staffanydatabot gateway status
 - `hermes -p staffanydatabot mcp test staffany_bigquery` discovers 4 tools
 - `hermes -p staffanydatabot mcp test staffany_slack_context` discovers 2 tools
 - `hermes -p staffanydatabot mcp test staffany_c360` discovers 1 tool
+- `hermes -p staffanydatabot mcp test staffany_google_sheets` discovers 2 tools
 - `apps/hermes-data-bot/runtime/check-health.sh` prints nothing and exits 0 when gateway, MCP, redaction, and Honcho are healthy
 - Direct MCP `execute_sql_readonly` probe with `SELECT 1 AS ok` returns a JSON-RPC result and no error
 - `hermes -p staffanydatabot gateway status` is active after Slack and model auth are ready
