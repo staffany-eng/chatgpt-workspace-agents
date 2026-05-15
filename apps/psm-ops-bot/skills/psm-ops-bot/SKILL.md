@@ -113,6 +113,8 @@ Alias rule: `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` refer to this 
 - The central 09:00 SGT reminder digest includes tasks due tomorrow, due today, and overdue tasks until they are Done.
 - The central 17:00 SGT EOD catch-up digest includes due-today and overdue tasks until they are Done.
 - Reminder cron output must start with `PSM Ops automation:`.
+- Reminder cron PS Team mentions come only from reviewed runtime `PSM_OPS_REMINDER_MENTION_MAP_PATH`; unmapped teams are listed as mention gaps and are not guessed.
+- Reminder customer-team mentions come only from reviewed `PSM_OPS_CUSTOMER_CHANNEL_MAP_PATH` matches against Jira source Slack permalinks; do not cross-post to customer channels.
 - Do not create local reminder state or require a separate reminder field in thin POC.
 
 ## Slack Output

@@ -149,6 +149,7 @@
   "central_audit": {
     "slack_channel_name": "ps-weeman-bot-test",
     "slack_channel_id_env_var": "PSM_OPS_CENTRAL_SLACK_CHANNEL_ID",
+    "reminder_mention_map_env_var": "PSM_OPS_REMINDER_MENTION_MAP_PATH",
     "message_prefix": "PSM Ops automation:",
     "events": [
       "ticket_created",

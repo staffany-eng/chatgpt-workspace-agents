@@ -69,6 +69,11 @@ psm_ops:
     fetch_slack_thread_env: "PSM_OPS_CENTRAL_FETCH_SLACK_THREAD"
     adoption_metrics_path_env: "PSM_OPS_ADOPTION_METRICS_PATH"
     default_channel_name: "#ps-weeman-bot-test"
+  reminders:
+    delivery: "central_digest_only"
+    source_of_truth: "jira_duedate"
+    mention_map_path_env: "PSM_OPS_REMINDER_MENTION_MAP_PATH"
+    customer_channel_map_path_env: "PSM_OPS_CUSTOMER_CHANNEL_MAP_PATH"
   jira:
     mode: "thin_poc"
     project_key: "PCO"

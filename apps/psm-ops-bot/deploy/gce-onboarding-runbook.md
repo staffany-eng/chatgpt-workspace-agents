@@ -76,10 +76,22 @@ systemctl --user restart hermes-gateway-psmopsbot.service
 ~/.hermes/profiles/psmopsbot/scripts/psmopsbot-check-health.sh
 ```
 - `PSM_OPS_CUSTOMER_CHANNEL_MAP_PATH` when customer-specific Slack channel auto-tagging is enabled
+- `PSM_OPS_REMINDER_MENTION_MAP_PATH` when central reminder digests should tag reviewed PS Team Slack users or usergroups
 
 Handoff Package intentionally returns a blocked response until PCO has the missing request type. Reminder automation uses Jira `duedate`; no separate reminder field is required in thin POC.
 
 Customer-specific Slack channel auto-tagging reads a reviewed JSON map from `PSM_OPS_CUSTOMER_CHANNEL_MAP_PATH`. Keep the map in profile/runtime storage, not in git. Each reviewed row must include `channel_id`, `channel_name`, `customer_key`, `customer_name`, `staffany_orgs`, and `status=reviewed`.
+
+Reminder PS Team tagging reads a reviewed JSON map from `PSM_OPS_REMINDER_MENTION_MAP_PATH`. Keep this map in profile/runtime storage, not in git. The reminder cron does not call Slack `users.list` or guess team membership:
+
+```json
+{
+  "ps_teams": {
+    "Kai Yi": [{"type": "user", "id": "U123", "label": "Kai Yi"}],
+    "CS Duty": [{"type": "usergroup", "id": "S123", "handle": "cs-duty"}]
+  }
+}
+```
 
 ## VM Bootstrap
 
@@ -248,7 +260,7 @@ Cloud smoke:
 2. Draft and approve-create one PCO test task.
 3. Transition it to Scheduled.
 4. Add an internal comment.
-5. Run `psm_ops_due_date_reminders.py --mode morning --dry-run` and `psm_ops_due_date_reminders.py --mode eod --dry-run`; verify both output only safe Jira PCO issue summaries and `[SILENT]` when empty.
+5. Run `psm_ops_due_date_reminders.py --mode morning --dry-run` and `psm_ops_due_date_reminders.py --mode eod --dry-run`; verify both output Slack-safe mrkdwn, optional reviewed PS Team mentions, reviewed customer-channel mentions from source links only, safe Jira PCO issue summaries, and `[SILENT]` when empty.
 6. Ask for Rock Productions from a channel-style hint such as `proj-cs-rockproductions`; verify the bot finds `Rock Productions Pte Ltd`, shows the searched variants safely, and does not say a generic customer cannot be found.
 7. Ask one calendar follow-up question and verify `psm_google_calendar.read_customer_calendar_context` returns bounded event metadata from `team@staffany.com` without descriptions, attendee emails, raw guest lists, or conference links.
 8. Ask one C360 customer question and verify a C360 link/citation appears.

@@ -27,6 +27,8 @@ PSM Ops Bot needs deterministic cloud health checks because prompt correctness d
 - Cron concurrency is capped with `cron.max_parallel_jobs: 1`.
 - Morning reminder cron is enabled in cloud as a no-agent script and uses Jira `duedate` only.
 - EOD reminder catch-up cron is enabled in cloud as a no-agent script and uses Jira `duedate` only.
+- Reminder Slack mentions use `PSM_OPS_REMINDER_MENTION_MAP_PATH` when configured; unmapped PS Team values remain visible as `Mention gaps` and are not guessed.
+- Reminder customer-team tags use reviewed `PSM_OPS_CUSTOMER_CHANNEL_MAP_PATH` source-link matches only and never cross-post to customer channels.
 - VM-local cloud heartbeat cron is enabled every 15 minutes with local delivery disabled.
 - PS WEE adoption digest cron is enabled as a no-agent weekday Slack automation with the `PSM Ops automation:` prefix.
 - PS WEE adoption telemetry hook is installed under the profile hooks directory.
@@ -129,6 +131,19 @@ hermes -p psmopsbot cron create "0 2 * * 1-5" \
 ```
 
 Set `PSM_OPS_CENTRAL_SLACK_CHANNEL_ID` to the central ops channel ID in the live profile `.env`; prefer the ID over the name.
+
+Optional reminder mention map:
+
+```json
+{
+  "ps_teams": {
+    "Kai Yi": [{"type": "user", "id": "U123", "label": "Kai Yi"}],
+    "CS Duty": [{"type": "usergroup", "id": "S123", "handle": "cs-duty"}]
+  }
+}
+```
+
+Store this runtime JSON outside git and point `PSM_OPS_REMINDER_MENTION_MAP_PATH` at it.
 
 ## Failure Behavior
 

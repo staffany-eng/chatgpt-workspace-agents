@@ -7,6 +7,7 @@ import argparse
 import base64
 import json
 import os
+import re
 import sys
 import urllib.parse
 import urllib.request
@@ -22,6 +23,10 @@ FORBIDDEN_FIELD_HINTS = ["description", "comment", "transcript"]
 DEFAULT_TIMEZONE = "Asia/Singapore"
 DEFAULT_CHANNEL = "#ps-weeman-bot-test"
 SILENT_PREFIX = "[SILENT] PSM Ops automation"
+URL_RE = re.compile(r"https?://[^\s<>\"]+")
+SLACK_USER_ID_RE = re.compile(r"^[UW][A-Z0-9]{2,}$", re.IGNORECASE)
+SLACK_USERGROUP_ID_RE = re.compile(r"^S[A-Z0-9]{2,}$", re.IGNORECASE)
+SLACK_HANDLE_RE = re.compile(r"^[A-Za-z0-9._-]{1,80}$")
 
 
 class ReminderError(RuntimeError):
@@ -119,6 +124,10 @@ def _ps_team_field_id() -> str:
     return _env("PSM_OPS_JIRA_FIELD_PS_TEAM") or "customfield_10876"
 
 
+def _source_links_field_id() -> str:
+    return _env("PSM_OPS_JIRA_FIELD_SOURCE_LINKS")
+
+
 def build_jql(mode: str, as_of: datetime) -> str:
     window = reminder_window(mode, as_of)
     upper = window["upper_due_date"].isoformat()
@@ -167,6 +176,9 @@ def _request_json(path: str) -> dict[str, Any]:
 
 def fetch_due_issues(mode: str, as_of: datetime, max_results: int) -> list[dict[str, Any]]:
     fields = [*SAFE_FIELDS, _ps_team_field_id()]
+    source_links_field = _source_links_field_id()
+    if source_links_field:
+        fields.append(source_links_field)
     query = urllib.parse.urlencode(
         {
             "jql": build_jql(mode, as_of),
@@ -189,9 +201,37 @@ def _field_value(value: Any) -> str:
     return str(value or "Not set")
 
 
-def safe_issue(issue: dict[str, Any]) -> dict[str, str]:
+def _extract_links(value: Any) -> list[str]:
+    links: list[str] = []
+
+    def add_link(raw_url: str) -> None:
+        url = raw_url.strip().rstrip(").,")
+        if url and url not in links:
+            links.append(url)
+
+    def walk(raw: Any) -> None:
+        if raw is None:
+            return
+        if isinstance(raw, str):
+            for match in URL_RE.finditer(raw):
+                add_link(match.group(0))
+            return
+        if isinstance(raw, list):
+            for item in raw:
+                walk(item)
+            return
+        if isinstance(raw, dict):
+            for nested in raw.values():
+                walk(nested)
+
+    walk(value)
+    return links
+
+
+def safe_issue(issue: dict[str, Any]) -> dict[str, Any]:
     fields = issue.get("fields") or {}
     key = str(issue.get("key") or "")
+    source_links_field = _source_links_field_id()
     return {
         "key": key,
         "url": f"{_jira_base_url()}/browse/{key}" if key else _jira_base_url(),
@@ -200,6 +240,7 @@ def safe_issue(issue: dict[str, Any]) -> dict[str, str]:
         "priority": _field_value(fields.get("priority")),
         "due_date": str(fields.get("duedate") or "Not set"),
         "ps_team": _field_value(fields.get(_ps_team_field_id())),
+        "source_links": _extract_links(fields.get(source_links_field)) if source_links_field else [],
     }
 
 
@@ -215,14 +256,168 @@ def _bucket(due_date: str, today: date) -> str:
     return "Due Tomorrow"
 
 
-def _format_issue(issue: dict[str, str]) -> list[str]:
+def _slack_escape(value: Any) -> str:
+    return str(value or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def _safe_slack_url(value: str) -> str:
+    raw = str(value or "").strip()
+    if not raw.startswith(("https://", "http://")):
+        return ""
+    return raw.replace("|", "%7C").replace("<", "").replace(">", "")
+
+
+def _format_link(url: str, label: str) -> str:
+    safe_url = _safe_slack_url(url)
+    if not safe_url:
+        return ""
+    return f"<{safe_url}|{_slack_escape(label)}>"
+
+
+def _slack_channel_id_from_permalink(url: str) -> str:
+    match = re.search(r"/archives/([A-Z0-9]+)/", url or "")
+    return match.group(1) if match else ""
+
+
+def _mention_map_path() -> str:
+    return _env("PSM_OPS_REMINDER_MENTION_MAP_PATH")
+
+
+def _customer_channel_map_path() -> str:
+    return _env("PSM_OPS_CUSTOMER_CHANNEL_MAP_PATH")
+
+
+def _load_json_file(path: str) -> Any:
+    return json.loads(Path(path).expanduser().read_text(encoding="utf-8"))
+
+
+def _format_mention_target(target: dict[str, Any]) -> str:
+    target_type = str(target.get("type") or "").strip().lower()
+    target_id = str(target.get("id") or "").strip().upper()
+    if target_type == "user" and SLACK_USER_ID_RE.fullmatch(target_id):
+        return f"<@{target_id}>"
+    if target_type == "usergroup" and SLACK_USERGROUP_ID_RE.fullmatch(target_id):
+        handle = str(target.get("handle") or target.get("label") or "team").strip().lstrip("@")
+        handle = handle if SLACK_HANDLE_RE.fullmatch(handle) else "team"
+        return f"<!subteam^{target_id}|{handle}>"
+    return ""
+
+
+def load_mention_map() -> tuple[dict[str, list[str]], str]:
+    path = _mention_map_path()
+    if not path:
+        return {}, ""
+    try:
+        payload = _load_json_file(path)
+    except (OSError, json.JSONDecodeError):
+        return {}, "PSM_OPS_REMINDER_MENTION_MAP_PATH could not be read; mentions disabled."
+    ps_teams = payload.get("ps_teams") if isinstance(payload, dict) else None
+    if not isinstance(ps_teams, dict):
+        return {}, "PSM_OPS_REMINDER_MENTION_MAP_PATH has invalid shape; mentions disabled."
+
+    mentions: dict[str, list[str]] = {}
+    for team, targets in ps_teams.items():
+        team_name = str(team or "").strip()
+        if not team_name:
+            continue
+        target_list = targets if isinstance(targets, list) else [targets]
+        rendered = [
+            mention
+            for target in target_list
+            if isinstance(target, dict)
+            for mention in [_format_mention_target(target)]
+            if mention
+        ]
+        if rendered:
+            mentions[team_name] = rendered
+    return mentions, ""
+
+
+def load_customer_channel_map() -> dict[str, dict[str, str]]:
+    path = _customer_channel_map_path()
+    if not path:
+        return {}
+    try:
+        payload = _load_json_file(path)
+    except (OSError, json.JSONDecodeError):
+        return {}
+    if isinstance(payload, list):
+        entries = payload
+    elif isinstance(payload, dict):
+        entries = payload.get("channels") or payload.get("mappings") or []
+    else:
+        return {}
+    if not isinstance(entries, list):
+        return {}
+
+    channels: dict[str, dict[str, str]] = {}
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        channel_id = str(entry.get("channel_id") or "").strip()
+        channel_name = str(entry.get("channel_name") or "").strip()
+        status = str(entry.get("status") or "").strip().lower()
+        if channel_id and channel_name and status == "reviewed":
+            channels[channel_id] = {"channel_id": channel_id, "channel_name": channel_name}
+    return channels
+
+
+def load_reminder_context() -> dict[str, Any]:
+    mentions, mention_warning = load_mention_map()
+    return {
+        "mentions": mentions,
+        "mention_warning": mention_warning,
+        "customer_channels": load_customer_channel_map(),
+    }
+
+
+def _format_source_links(issue: dict[str, Any]) -> str:
+    rendered: list[str] = []
+    for index, link in enumerate(issue.get("source_links") or [], start=1):
+        label = "source thread" if _slack_channel_id_from_permalink(str(link)) else f"source {index}"
+        formatted = _format_link(str(link), label)
+        if formatted:
+            rendered.append(formatted)
+    return ", ".join(rendered[:5])
+
+
+def _customer_channel_for_issue(issue: dict[str, Any], customer_channels: dict[str, dict[str, str]]) -> str:
+    for link in issue.get("source_links") or []:
+        channel_id = _slack_channel_id_from_permalink(str(link))
+        if not channel_id or channel_id not in customer_channels:
+            continue
+        channel = customer_channels[channel_id]
+        channel_name = _slack_escape(channel.get("channel_name") or channel_id)
+        return f"<#{channel_id}|{channel_name}>"
+    return ""
+
+
+def _format_issue(issue: dict[str, Any], customer_channels: dict[str, dict[str, str]]) -> list[str]:
+    source_links = _format_source_links(issue)
+    customer_channel = _customer_channel_for_issue(issue, customer_channels)
+    lines = [
+        f"- {_format_link(issue['url'], issue['key'])} - {_slack_escape(issue['summary'])}",
+        (
+            f"  Status: {_slack_escape(issue['status'])} | Priority: {_slack_escape(issue['priority'])} | "
+            f"Due: {_slack_escape(issue['due_date'])} | PS Team: {_slack_escape(issue['ps_team'])}"
+        ),
+    ]
+    if source_links:
+        lines.append(f"  Source: {source_links}")
+    if customer_channel:
+        lines.append(f"  Customer team: {customer_channel}")
     return [
-        f"- <{issue['url']}|{issue['key']}> - {issue['summary']}",
-        f"  Status: {issue['status']} | Priority: {issue['priority']} | Due: {issue['due_date']} | PS Team: {issue['ps_team']}",
+        line for line in lines if line
     ]
 
 
-def format_digest(issues: list[dict[str, str]], mode: str, as_of: datetime, dry_run: bool = False) -> str:
+def format_digest(
+    issues: list[dict[str, Any]],
+    mode: str,
+    as_of: datetime,
+    dry_run: bool = False,
+    context: dict[str, Any] | None = None,
+) -> str:
     window = reminder_window(mode, as_of)
     today = window["today"]
     if not issues:
@@ -232,29 +427,49 @@ def format_digest(issues: list[dict[str, str]], mode: str, as_of: datetime, dry_
             f"({mode}; {window['label']}).{dry}"
         )
 
-    grouped: dict[str, dict[str, list[dict[str, str]]]] = defaultdict(lambda: defaultdict(list))
+    reminder_context = context or load_reminder_context()
+    mentions = reminder_context.get("mentions") if isinstance(reminder_context.get("mentions"), dict) else {}
+    mention_warning = str(reminder_context.get("mention_warning") or "").strip()
+    customer_channels = (
+        reminder_context.get("customer_channels")
+        if isinstance(reminder_context.get("customer_channels"), dict)
+        else {}
+    )
+
+    grouped: dict[str, dict[str, list[dict[str, Any]]]] = defaultdict(lambda: defaultdict(list))
     for issue in issues:
         grouped[issue.get("ps_team") or "Not set"][_bucket(issue.get("due_date", ""), today)].append(issue)
 
+    mention_gaps = [
+        ps_team
+        for ps_team in sorted(grouped)
+        if ps_team != "Not set" and not mentions.get(ps_team)
+    ]
     dry_label = " DRY RUN" if dry_run else ""
     lines = [
         f"PSM Ops automation: PCO due-date reminder{dry_label} - {today.isoformat()}",
-        f"Mode: {mode}",
-        f"Window: {window['label']}",
-        "Source: Jira PCO duedate; central digest only",
-        f"Total issues: {len(issues)}",
+        f"*Mode:* {_slack_escape(mode)} | *Window:* {_slack_escape(window['label'])}",
+        "*Source:* Jira PCO `duedate`; central digest only",
+        f"*Total issues:* {len(issues)}",
     ]
     bucket_order = ["Overdue", "Due Today", "Due Tomorrow", "No Due Date"]
     for ps_team in sorted(grouped):
         lines.append("")
-        lines.append(f"PS Team: {ps_team}")
+        mention_text = " ".join(mentions.get(ps_team) or [])
+        suffix = f" {mention_text}" if mention_text else ""
+        lines.append(f"*PS Team: {_slack_escape(ps_team)}*{suffix}")
         for bucket_name in bucket_order:
             bucket_issues = grouped[ps_team].get(bucket_name) or []
             if not bucket_issues:
                 continue
-            lines.append(f"{bucket_name}:")
+            lines.append(f"*{_slack_escape(bucket_name)}*")
             for issue in bucket_issues:
-                lines.extend(_format_issue(issue))
+                lines.extend(_format_issue(issue, customer_channels))
+    if mention_gaps:
+        lines.append("")
+        lines.append(f"Mention gaps: {_slack_escape(', '.join(mention_gaps))}")
+    if mention_warning:
+        lines.append(f"Mention map warning: {_slack_escape(mention_warning)}")
     return "\n".join(lines)
 
 

@@ -50,6 +50,8 @@ Task creation blocks past due dates before writing to Jira. Today is evaluated i
 
 Automatic reminders use `duedate` and `statusCategory != Done`. The 09:00 SGT morning digest includes overdue, due-today, and due-tomorrow tasks. The 17:00 SGT EOD catch-up digest includes overdue and due-today tasks so same-day follow-ups created after the morning run still surface. `set_pco_reminder` updates the issue due date because due date is the reminder source of truth in thin POC; it does not create a separate Slack-thread reminder or local reminder record.
 
+Reminder Slack formatting is deterministic mrkdwn in the central digest only. `PSM_OPS_REMINDER_MENTION_MAP_PATH` may point to a reviewed runtime JSON map from Jira `PS Team` values to Slack user or usergroup targets. Unmapped `PS Team` values are not guessed; the digest should list them under `Mention gaps`. When `PSM_OPS_JIRA_FIELD_SOURCE_LINKS` is configured and a source Slack permalink belongs to a reviewed channel in `PSM_OPS_CUSTOMER_CHANNEL_MAP_PATH`, the central row may include `Customer team: <#CHANNEL_ID|channel-name>`. Do not infer customer channels from summary text or customer names.
+
 For portal/request-form visibility, add the field named `Due date` / field ID `duedate` to PCO request types `81` Customer Success Work, `82` Onboarding, and `83` Data Setup. The bot does not require the form field to be visible because it sets `duedate` after creation, but PSMs will see a cleaner form if Jira admins add it.
 
 ## Engineering Release Watch Pattern
@@ -105,6 +107,7 @@ Required env vars:
 - `PSM_OPS_JIRA_FIELD_RISK_REASON`
 - `PSM_OPS_JIRA_FIELD_SOURCE_LINKS`
 - `PSM_OPS_JIRA_FIELD_REMINDER_AT` if a separate reminder field is introduced later
+- `PSM_OPS_REMINDER_MENTION_MAP_PATH` for optional central-digest PS Team Slack mentions
 
 The access policy file maps Slack email to Jira account ID:
 

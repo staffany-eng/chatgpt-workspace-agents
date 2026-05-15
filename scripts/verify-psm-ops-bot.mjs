@@ -245,9 +245,11 @@ for (const requiredText of [
   'allow_bots: "mentions"',
   "socket_raw_fallback: true",
   "resolve_slack_user_identity",
-  "PSM_OPS_CENTRAL_SLACK_CHANNEL_ID",
-  "PSM_OPS_ADOPTION_METRICS_PATH",
-  "classify_roi_ticket_request",
+    "PSM_OPS_CENTRAL_SLACK_CHANNEL_ID",
+    "PSM_OPS_ADOPTION_METRICS_PATH",
+    "PSM_OPS_REMINDER_MENTION_MAP_PATH",
+    "central_digest_only",
+    "classify_roi_ticket_request",
   "validate_roi_jira_configuration",
   "create_roi_ticket_from_slack",
   "find_roi_ticket_by_slack_thread",
@@ -576,12 +578,20 @@ for (const requiredText of [
   "duedate is not EMPTY",
   "customfield_10876",
   "central digest only",
+  "PSM_OPS_REMINDER_MENTION_MAP_PATH",
+  "PSM_OPS_CUSTOMER_CHANNEL_MAP_PATH",
+  "PSM_OPS_JIRA_FIELD_SOURCE_LINKS",
+  "Mention gaps:",
+  "Customer team:",
   "choices=[\"morning\", \"eod\"]",
   "description",
   "comment",
   "transcript"
 ]) {
   if (!dueDateReminderText.includes(requiredText)) fail(`Due-date reminder script missing required text: ${requiredText}`);
+}
+if (dueDateReminderText.includes("users.list")) {
+  fail("Due-date reminder script must not call Slack users.list for inverse PS Team mapping");
 }
 
 const shellCheck = spawnSync("bash", [
