@@ -159,6 +159,7 @@ mcp_servers:
       - "validate_roi_jira_configuration"
       - "resolve_slack_user_identity"
       - "classify_roi_ticket_request"
+      - "find_engineering_issue"
       - "resolve_customer_channel_org"
       - "list_my_pco_tasks"
       - "find_ticket_by_slack_thread"

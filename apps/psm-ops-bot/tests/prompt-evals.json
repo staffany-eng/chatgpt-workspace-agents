@@ -247,6 +247,64 @@
       }
     },
     {
+      "id": "psm-tooltrace-engineering-issue-lookup-before-link",
+      "bot": "PSM Ops Hermes Bot",
+      "surface": "slack",
+      "lane": "tool-trace",
+      "input": "@PS WEE is there a home page ticket in KER? If yes, link it to PCO-146",
+      "setup": {
+        "stub_tools": true
+      },
+      "expected_tool_trace": {
+        "must_call": [
+          "find_engineering_issue",
+          "link_pco_to_engineering_issue"
+        ],
+        "must_not_call": [
+          "create_ps_wee_intake_ticket",
+          "draft_pco_task"
+        ],
+        "argument_shape": {
+          "find_engineering_issue.project_keys": [
+            "KER"
+          ],
+          "safe_fields_only": true,
+          "ambiguous_results_require_user_choice": true
+        }
+      },
+      "expected_answer_contract": {
+        "must_include": [
+          "Source: Jira",
+          "Confidence:"
+        ]
+      },
+      "forbidden_behavior": [
+        "answer that PS WEE cannot search KER",
+        "use Slack history as KER source of truth",
+        "use memory as KER source of truth",
+        "expose engineering issue descriptions, comments, or attachments"
+      ],
+      "grade_notes": "Natural-language KER lookup uses read-only Jira engineering search before linking; exact KER keys still link directly.",
+      "assertions": {
+        "source_files": [
+          {
+            "path": "skills/psm-ops-bot/SKILL.md",
+            "must_contain": [
+              "call read-only `find_engineering_issue` first",
+              "If multiple plausible matches are returned, ask the user to choose"
+            ]
+          },
+          {
+            "path": "runtime/mcp/psm_jira_server.py",
+            "must_contain": [
+              "def find_engineering_issue",
+              "ENGINEERING_SEARCH_SAFE_FIELDS"
+            ]
+          }
+        ]
+      }
+    },
+    {
       "id": "psm-answer-contract-ticket-created-fixture",
       "bot": "PSM Ops Hermes Bot",
       "surface": "slack",

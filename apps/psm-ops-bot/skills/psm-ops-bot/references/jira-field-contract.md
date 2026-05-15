@@ -89,6 +89,7 @@ For ROI urgency fields, match the field's configured options exactly. If the req
 
 ## Engineering Issue Links
 
+- Use `find_engineering_issue` for natural-language KER/SCHE lookup before linking. Search only allowlisted `KER` and `SCHE` projects and return only key, summary, status, issue type, updated timestamp, and URL.
 - Use `link_pco_to_engineering_issue` only for existing `PCO-*` issues that need release tracking against `KER-*` or `SCHE-*`.
 - Default link type is `Blocks`; the tool creates the link so the PCO shows as blocked by the engineering issue.
 - `Relates` is allowed as a fallback only when Jira does not support the standard Blocks link type.
