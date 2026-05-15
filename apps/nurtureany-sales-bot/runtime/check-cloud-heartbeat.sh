@@ -17,6 +17,7 @@ EXPECT_CLOUD_HEARTBEAT_CRON="${EXPECT_CLOUD_HEARTBEAT_CRON:-1}"
 EXPECT_ENABLED_CRON_COUNT="${EXPECT_ENABLED_CRON_COUNT:-4}"
 EXPECT_HUBSPOT_TOOLS="${EXPECT_HUBSPOT_TOOLS:-49}"
 EXPECT_PUBLIC_RESEARCH_TOOLS="${EXPECT_PUBLIC_RESEARCH_TOOLS:-2}"
+EXPECT_PROSPEO_TOOLS="${EXPECT_PROSPEO_TOOLS:-3}"
 EXPECT_CLOUD_DOCTOR="${EXPECT_CLOUD_DOCTOR:-1}"
 
 HERMES_AGENT_DIR="${HERMES_AGENT_DIR:-$HOME/.hermes/hermes-agent}"
@@ -151,6 +152,7 @@ if [ "$EXPECT_CLOUD_DOCTOR" = "1" ]; then
     "mcp:luma_nurtureany:tools=3" \
     "mcp:public_research_nurtureany:tools=$EXPECT_PUBLIC_RESEARCH_TOOLS" \
     "mcp:lusha_nurtureany:tools=3" \
+    "mcp:prospeo_nurtureany:tools=$EXPECT_PROSPEO_TOOLS" \
     "mcp:exa_nurtureany:tools=1" \
     "mcp:near_me_nurtureany:tools=6"; do
     grep -Fq "$expected" "$doctor_out" || fail "cloud-doctor:${expected}:missing"

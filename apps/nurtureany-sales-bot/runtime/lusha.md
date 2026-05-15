@@ -1,6 +1,6 @@
 # Lusha Runtime
 
-Lusha is an optional, cost-controlled enrichment source for NurtureAny decision-maker discovery. In the SG lead-enrichment pilot, it is the active selected-contact provider; Prospeo may be compared beside it later only after an approved adapter, approval gate, and cost-reporting contract exist. HubSpot remains the source of truth for accounts, ownership, existing contacts, and write-back approval.
+Lusha is an optional, cost-controlled enrichment source for NurtureAny decision-maker discovery. In the SG lead-enrichment pilot, it is one active selected-contact provider; Prospeo may be compared beside it when the Prospeo adapter and `PROSPEO_API_KEY` are configured. HubSpot remains the source of truth for accounts, ownership, existing contacts, and write-back approval.
 
 ## Credentials
 
@@ -101,7 +101,7 @@ No actual HubSpot mutation is allowed in V1.
 
 ## Prospeo Pilot Boundary
 
-Prospeo is a V1.1 paid-provider candidate, not an active runtime tool in this packet. Any Prospeo adapter must match the Lusha guardrails before use: scoped HubSpot company IDs, explicit approval marker before reveal, cost/credit reporting, selected contacts only, no bulk export, no raw phone in default Slack summaries, and no HubSpot mutation.
+Prospeo is a separate active paid-provider pilot adapter in this packet. It matches the Lusha guardrails: scoped HubSpot company IDs, explicit approval marker before reveal, cost/credit reporting, selected contacts only, no bulk export, no raw phone in default Slack summaries, and no HubSpot mutation.
 
 ## Timeout And Failure Handling
 

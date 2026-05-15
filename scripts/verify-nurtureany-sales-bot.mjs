@@ -297,7 +297,9 @@ if (!existsSync(manifestPath)) {
       "find_brand_parent_candidates",
       "search_exa_people_candidates",
       "search_lusha_decision_maker_candidates",
-      "get_lusha_credit_usage"
+      "get_lusha_credit_usage",
+      "search_prospeo_decision_maker_candidates",
+      "get_prospeo_credit_usage"
     ];
     const readTools = manifest.tools?.read || [];
     for (const tool of expectedReadTools) {
@@ -314,6 +316,9 @@ if (!existsSync(manifestPath)) {
     }
     if (!manifest.tools?.approval_gated_enrichment?.includes("reveal_lusha_contact_details")) {
       fail("Manifest missing approval-gated enrichment tool: reveal_lusha_contact_details");
+    }
+    if (!manifest.tools?.approval_gated_enrichment?.includes("reveal_prospeo_contact_details")) {
+      fail("Manifest missing approval-gated enrichment tool: reveal_prospeo_contact_details");
     }
     if (!manifest.tools?.approval_gated_external_message_sending?.includes("send_approved_eazybe_messages")) {
       fail("Manifest missing approval-gated Eazybe tool: send_approved_eazybe_messages");
@@ -353,7 +358,8 @@ if (!existsSync(manifestPath)) {
       "runtime/mcp/near_me_nurtureany_server.py",
       "runtime/mcp/public_research_nurtureany_server.py",
       "runtime/mcp/exa_nurtureany_server.py",
-      "runtime/mcp/lusha_nurtureany_server.py"
+      "runtime/mcp/lusha_nurtureany_server.py",
+      "runtime/mcp/prospeo_nurtureany_server.py"
     ].flatMap((relPath) => decoratedMcpTools(relPath));
     const activeMcpTools = actualMcpTools.filter((tool) => !disabledPendingRefinementTools.has(tool));
     compareSortedArrays("Manifest callable tools vs MCP decorators", manifestCallableTools, activeMcpTools);
@@ -366,6 +372,15 @@ if (!existsSync(manifestPath)) {
     if (manifest.lusha?.max_reveal_contacts !== 3) fail("Manifest Lusha max_reveal_contacts must be 3");
     if (manifest.lusha?.selected_pii_in_slack !== true) fail("Manifest Lusha selected_pii_in_slack must be true");
     if (manifest.lusha?.bulk_contact_exports !== false) fail("Manifest Lusha bulk_contact_exports must be false");
+    if (manifest.prospeo?.auth_env_var !== "PROSPEO_API_KEY") fail("Manifest missing PROSPEO_API_KEY auth env var");
+    if (manifest.prospeo?.max_search_companies !== 5) fail("Manifest Prospeo max_search_companies must be 5");
+    if (manifest.prospeo?.max_candidates_per_company !== 5) fail("Manifest Prospeo max_candidates_per_company must be 5");
+    if (manifest.prospeo?.max_reveal_contacts !== 3) fail("Manifest Prospeo max_reveal_contacts must be 3");
+    if (manifest.prospeo?.selected_pii_in_slack !== true) fail("Manifest Prospeo selected_pii_in_slack must be true");
+    if (manifest.prospeo?.bulk_contact_exports !== false) fail("Manifest Prospeo bulk_contact_exports must be false");
+    if (manifest.prospeo?.allowed_search_endpoint !== "POST /search-person") fail("Manifest Prospeo allowed_search_endpoint must be POST /search-person");
+    if (manifest.prospeo?.allowed_reveal_endpoint !== "POST /bulk-enrich-person") fail("Manifest Prospeo allowed_reveal_endpoint must be POST /bulk-enrich-person");
+    if (manifest.prospeo?.usage_endpoint !== "GET /account-information") fail("Manifest Prospeo usage_endpoint must be GET /account-information");
     if (!manifest.aircall?.auth_env_vars?.includes("AIRCALL_API_ID")) fail("Manifest Aircall missing AIRCALL_API_ID");
     if (!manifest.aircall?.auth_env_vars?.includes("AIRCALL_API_TOKEN")) fail("Manifest Aircall missing AIRCALL_API_TOKEN");
     if (manifest.aircall?.transcription_auth_env_var !== "OPENAI_API_KEY") fail("Manifest Aircall missing OPENAI_API_KEY");
@@ -708,6 +723,9 @@ const filesToScan = [
   "runtime/lusha.md",
   "runtime/mcp/lusha_nurtureany_server.py",
   "runtime/mcp/test_lusha_nurtureany_server.py",
+  "runtime/prospeo.md",
+  "runtime/mcp/prospeo_nurtureany_server.py",
+  "runtime/mcp/test_prospeo_nurtureany_server.py",
   "runtime/health-checks.md",
   "runtime/check-health.sh",
   "runtime/check-cloud-heartbeat.sh",
@@ -743,8 +761,12 @@ for (const text of [
   "profile: \"nurtureanysalesbot\"",
   "runtimeOwner: \"leekaiyi\"",
   "ref: \"origin/main\"",
+  "secretName: \"nurtureany-sales-bot-prod-env\"",
   "--apply",
   "--ref <git-ref>",
+  "--hydrate-secrets",
+  "--secret-name <name>",
+  "--hydrate-secrets cannot be combined with --skip-restart",
   "Dry run only. No archive upload, remote sync, gateway restart, or production health checks were run.",
   "/private/tmp",
   "nurtureany-sales-bot-${deploySha}.tar.gz",
@@ -778,6 +800,11 @@ for (const text of [
   "reviewed_lessons",
   "tool_allowlist",
   "apply-live-config-overrides.py",
+  "gcloud secrets versions access latest",
+  "deploy:secrets=preserved",
+  "deploy:secrets=hydrated-latest",
+  "deploy:error:secret-manager-access-failed",
+  "install -o \"$runtime_owner\" -g \"$runtime_owner\" -m 0600",
   ".env",
   "OAuth files",
   "NURTUREANY_ACCESS_POLICY_PATH",
@@ -954,6 +981,11 @@ for (const text of [
   "search_lusha_decision_maker_candidates",
   "reveal_lusha_contact_details",
   "get_lusha_credit_usage",
+  "prospeo_nurtureany",
+  "PROSPEO_API_KEY",
+  "search_prospeo_decision_maker_candidates",
+  "reveal_prospeo_contact_details",
+  "get_prospeo_credit_usage",
   "reviewed_lessons:",
   "runtime_candidates_env: NURTUREANY_LESSON_CANDIDATES_DIR",
   "record_nurtureany_lesson_candidate",
@@ -1145,6 +1177,9 @@ for (const text of [
   "search_lusha_decision_maker_candidates",
   "reveal_lusha_contact_details",
   "get_lusha_credit_usage",
+  "search_prospeo_decision_maker_candidates",
+  "reveal_prospeo_contact_details",
+  "get_prospeo_credit_usage",
   "cost_report",
   "credit_report",
   "lead source",
@@ -1228,7 +1263,8 @@ for (const tool of [
   "runtime/mcp/near_me_nurtureany_server.py",
   "runtime/mcp/public_research_nurtureany_server.py",
   "runtime/mcp/exa_nurtureany_server.py",
-  "runtime/mcp/lusha_nurtureany_server.py"
+  "runtime/mcp/lusha_nurtureany_server.py",
+  "runtime/mcp/prospeo_nurtureany_server.py"
 ].flatMap((relPath) => decoratedMcpTools(relPath)).filter((tool) => !disabledPendingRefinementTools.has(tool))) {
   if (!sopToolCoverageText.includes(`\`${tool}\``)) {
     fail(`sop-tool-coverage.md missing actual MCP tool: ${tool}`);
@@ -1829,6 +1865,7 @@ for (const text of [
   "check-cloud-heartbeat.sh",
   "check-slack-socket-health.sh",
   "nurtureany-cloud-doctor.sh",
+  "Prospeo MCP lists only",
   "*/5 * * * *",
   "--no-agent"
 ]) {
@@ -1853,6 +1890,7 @@ for (const text of [
   "EXPECT_EAZYBE_TOOLS=\"${EXPECT_EAZYBE_TOOLS:-4}\"",
   "EXPECT_LUMA_TOOLS=\"${EXPECT_LUMA_TOOLS:-3}\"",
   "EXPECT_PUBLIC_RESEARCH_TOOLS=\"${EXPECT_PUBLIC_RESEARCH_TOOLS:-2}\"",
+  "EXPECT_PROSPEO_TOOLS=\"${EXPECT_PROSPEO_TOOLS:-3}\"",
   "EXPECT_NEAR_ME_TOOLS=\"${EXPECT_NEAR_ME_TOOLS:-6}\"",
   "EXPECT_C360_SALES_PACKET=\"${EXPECT_C360_SALES_PACKET:-1}\"",
   "C360_SALES_PACKET_SMOKE_COMPANY_ID=\"${C360_SALES_PACKET_SMOKE_COMPANY_ID:-9003704457}\"",
@@ -1880,6 +1918,7 @@ for (const text of [
   "slack-allowlist:missing-policy-users",
   "slack-allowlist:extra-users",
   "mcp_test public_research_nurtureany",
+  "mcp_test prospeo_nurtureany",
   "mcp_test slack_nurtureany",
   "mcp:$name-test-timeout",
   "mcp_test eazybe_nurtureany",
@@ -1899,6 +1938,7 @@ for (const text of [
   "EXPECT_ENABLED_CRON_COUNT=\"${EXPECT_ENABLED_CRON_COUNT:-4}\"",
   "EXPECT_HUBSPOT_TOOLS=\"${EXPECT_HUBSPOT_TOOLS:-49}\"",
   "EXPECT_PUBLIC_RESEARCH_TOOLS=\"${EXPECT_PUBLIC_RESEARCH_TOOLS:-2}\"",
+  "EXPECT_PROSPEO_TOOLS=\"${EXPECT_PROSPEO_TOOLS:-3}\"",
   "nurtureanysalesbot-check-cloud-heartbeat.sh",
   "cron:enabled-count-unexpected",
   "event-roi-enabled",
@@ -1906,7 +1946,8 @@ for (const text of [
   "nurtureanysalesbot-cloud-doctor.sh",
   "cloud-doctor:cron-unhealthy",
   "mcp:hubspot_nurtureany:tools=$EXPECT_HUBSPOT_TOOLS",
-  "mcp:public_research_nurtureany:tools=$EXPECT_PUBLIC_RESEARCH_TOOLS"
+  "mcp:public_research_nurtureany:tools=$EXPECT_PUBLIC_RESEARCH_TOOLS",
+  "mcp:prospeo_nurtureany:tools=$EXPECT_PROSPEO_TOOLS"
 ]) {
   if (!cloudHeartbeatScriptText.includes(text)) fail(`runtime/check-cloud-heartbeat.sh missing required text: ${text}`);
 }
@@ -1942,6 +1983,8 @@ for (const text of [
   "gateway_service:launchctl",
   "gateway_duplicate_check:nurtureanysalesbot_processes=",
   "gateway_duplicate_launchd:",
+  "PROSPEO",
+  "prospeo_nurtureany",
   "mcp:$server:tools=$count",
   "cron:enabled=",
   "operation_ledger:",
@@ -2097,11 +2140,53 @@ for (const text of [
   if (!lushaServerText.includes(text)) fail(`runtime/mcp/lusha_nurtureany_server.py missing required text: ${text}`);
 }
 
+const prospeoText = textOf("runtime/prospeo.md");
+for (const text of [
+  "POST /search-person",
+  "POST /bulk-enrich-person",
+  "GET /account-information",
+  "credit_report",
+  "Requires NurtureAny scoped HubSpot company inputs",
+  "Requires scoped HubSpot `company_ids`",
+  "approval_marker",
+  "reveal_phones=true",
+  "15s hard timeout",
+  "Selected contact PII",
+  "No actual HubSpot mutation"
+]) {
+  if (!prospeoText.includes(text)) fail(`runtime/prospeo.md missing required text: ${text}`);
+}
+
+const prospeoServerText = textOf("runtime/mcp/prospeo_nurtureany_server.py");
+for (const text of [
+  "PROSPEO_API_KEY",
+  "PROSPEO_TIMEOUT_SECONDS = 15",
+  "PROSPEO_USER_AGENT",
+  "MAX_SEARCH_COMPANIES = 5",
+  "MAX_CANDIDATES_PER_COMPANY = 5",
+  "MAX_REVEAL_CONTACTS = 3",
+  "POST",
+  "bulk-enrich-person",
+  "credit_report",
+  "SCOPE_SOURCE = \"hubspot_nurtureany\"",
+  "scoped_company_ids",
+  "plan_hubspot_writeback"
+]) {
+  if (!prospeoServerText.includes(text)) fail(`runtime/mcp/prospeo_nurtureany_server.py missing required text: ${text}`);
+}
+
 const compileCheck = spawnSync("python3", ["-m", "py_compile", join(appRoot, "runtime/mcp/lusha_nurtureany_server.py")], {
   encoding: "utf8"
 });
 if (compileCheck.status !== 0) {
   fail(`Python compile failed for Lusha MCP: ${(compileCheck.stderr || compileCheck.stdout).trim()}`);
+}
+
+const prospeoCompileCheck = spawnSync("python3", ["-m", "py_compile", join(appRoot, "runtime/mcp/prospeo_nurtureany_server.py")], {
+  encoding: "utf8"
+});
+if (prospeoCompileCheck.status !== 0) {
+  fail(`Python compile failed for Prospeo MCP: ${(prospeoCompileCheck.stderr || prospeoCompileCheck.stdout).trim()}`);
 }
 
 const hubspotCompileCheck = spawnSync("python3", ["-m", "py_compile", join(appRoot, "runtime/mcp/hubspot_nurtureany_server.py")], {
@@ -2215,6 +2300,14 @@ const unitCheck = spawnSync("python3", ["-m", "unittest", "apps/nurtureany-sales
 });
 if (unitCheck.status !== 0) {
   fail(`Python unit tests failed for Lusha MCP: ${(unitCheck.stderr || unitCheck.stdout).trim()}`);
+}
+
+const prospeoUnitCheck = spawnSync("python3", ["-m", "unittest", "apps/nurtureany-sales-bot/runtime/mcp/test_prospeo_nurtureany_server.py"], {
+  cwd: repoRoot,
+  encoding: "utf8"
+});
+if (prospeoUnitCheck.status !== 0) {
+  fail(`Python unit tests failed for Prospeo MCP: ${(prospeoUnitCheck.stderr || prospeoUnitCheck.stdout).trim()}`);
 }
 
 if (failures.length > 0) {

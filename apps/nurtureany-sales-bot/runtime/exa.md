@@ -64,7 +64,7 @@ Source types:
 - `company_public_profile`: a result from the supplied company domain.
 - `public_people_result`: another public people-result URL.
 
-All Exa candidates remain `Confidence: needs-check` until an AE verifies or selects the person for a Lusha reveal.
+All Exa candidates remain `Confidence: needs-check` until an AE verifies or selects the person for a Lusha or Prospeo reveal.
 
 Candidate quality gate:
 
@@ -74,7 +74,7 @@ Candidate quality gate:
 
 Do not hide low-confidence candidates, but label them clearly and do not present them as AE-ready handoff candidates.
 
-## HubSpot And Lusha Flow
+## HubSpot, Lusha, And Prospeo Flow
 
 Recommended flow:
 
@@ -83,7 +83,7 @@ Recommended flow:
 3. Pass only the scoped HubSpot company records returned by NurtureAny into Exa, preferably with `domain`.
 4. Pass Exa candidate rows into `review_public_enrichment_evidence` for HubSpot contact dedupe before showing anything as a usable AE handoff candidate.
 5. Ask the user to select one or more reviewed candidates.
-6. Use Lusha targeted reveal, or a future Prospeo pilot after adapter approval, only after explicit approval, scoped HubSpot company IDs, and cost estimate.
+6. Use Lusha or Prospeo targeted reveal only after explicit approval, scoped HubSpot company IDs, and cost estimate.
 7. Use `plan_hubspot_writeback` only to prepare a preview.
 
 No Exa output mutates HubSpot directly.

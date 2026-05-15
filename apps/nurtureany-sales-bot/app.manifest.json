@@ -54,6 +54,8 @@
     "exa_mcp": "runtime/mcp/exa_nurtureany_server.py",
     "lusha_runtime": "runtime/lusha.md",
     "lusha_mcp": "runtime/mcp/lusha_nurtureany_server.py",
+    "prospeo_runtime": "runtime/prospeo.md",
+    "prospeo_mcp": "runtime/mcp/prospeo_nurtureany_server.py",
     "health_checks": "runtime/health-checks.md",
     "health_check_script": "runtime/check-health.sh",
     "cloud_heartbeat_script": "runtime/check-cloud-heartbeat.sh",
@@ -114,7 +116,7 @@
     "format": "dotenv",
     "version_policy": "latest",
     "secret_values_committed": false,
-    "expected_key_count": 25,
+    "expected_key_count": 26,
     "expected_keys": [
       "AIRCALL_API_ID",
       "AIRCALL_API_TOKEN",
@@ -134,6 +136,7 @@
       "NURTUREANY_REVENUE_NEW_BUSINESS_PIPELINE_IDS",
       "NURTUREANY_REVENUE_RENEWAL_PIPELINE_IDS",
       "OPENAI_API_KEY",
+      "PROSPEO_API_KEY",
       "SLACK_ALLOWED_USERS",
       "SLACK_APP_TOKEN",
       "SLACK_BOT_TOKEN",
@@ -426,7 +429,9 @@
       "find_brand_parent_candidates",
       "search_exa_people_candidates",
       "search_lusha_decision_maker_candidates",
-      "get_lusha_credit_usage"
+      "get_lusha_credit_usage",
+      "search_prospeo_decision_maker_candidates",
+      "get_prospeo_credit_usage"
     ],
     "preview": [
       "plan_hubspot_writeback",
@@ -434,7 +439,8 @@
       "preview_eazybe_template_messages"
     ],
     "approval_gated_enrichment": [
-      "reveal_lusha_contact_details"
+      "reveal_lusha_contact_details",
+      "reveal_prospeo_contact_details"
     ],
     "approval_gated_external_message_sending": [
       "send_approved_eazybe_messages"
@@ -484,6 +490,18 @@
     "selected_pii_in_slack": true,
     "bulk_contact_exports": false,
     "hubspot_writeback": "preview_only"
+  },
+  "prospeo": {
+    "auth_env_var": "PROSPEO_API_KEY",
+    "max_search_companies": 5,
+    "max_candidates_per_company": 5,
+    "max_reveal_contacts": 3,
+    "selected_pii_in_slack": true,
+    "bulk_contact_exports": false,
+    "hubspot_writeback": "preview_only",
+    "allowed_search_endpoint": "POST /search-person",
+    "allowed_reveal_endpoint": "POST /bulk-enrich-person",
+    "usage_endpoint": "GET /account-information"
   },
   "aircall": {
     "auth_env_vars": [

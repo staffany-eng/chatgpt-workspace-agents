@@ -59,7 +59,7 @@ Selected thread prompt:
 Expected behavior:
 
 - May call `get_selected_slack_thread_context` before `run` because the user explicitly selected a thread and the thread context is needed to write the preflight.
-- First response is plan-only unless this is a clear bounded continuation after a delivered result or the full quick-autorun gate is satisfied. The pre-run thread read must not trigger HubSpot, C360, BigQuery, Calendar, Drive, Luma, Exa, Lusha, public research, paid, write, or send tools before `run`.
+- First response is plan-only unless this is a clear bounded continuation after a delivered result or the full quick-autorun gate is satisfied. The pre-run thread read must not trigger HubSpot, C360, BigQuery, Calendar, Drive, Luma, Exa, Lusha, Prospeo, public research, paid, write, or send tools before `run`.
 - May call `get_selected_slack_thread_context` for public or configured thread-context channel permalinks only; if the public source channel is public and the bot is not in it, the adapter may join with `conversations.join` and retry.
 - Returns safe summaries/permalinks only, capped at 50 messages, and blocks malformed, unconfigured-channel, private-without-membership, or missing-scope permalinks cleanly.
 
@@ -67,7 +67,7 @@ Mutation/send/reveal expected behavior:
 
 - Does not auto-run from quick intent.
 - Requires explicit preview approval, `approval_marker`, or approved reveal selection depending on the workflow.
-- Does not send WhatsApp, mutate HubSpot, reveal Lusha, or use paid/public deep research on the first mention.
+- Does not send WhatsApp, mutate HubSpot, reveal Lusha/Prospeo, or use paid/public deep research on the first mention.
 
 ## AE Queue
 
@@ -654,9 +654,9 @@ Expected behavior:
 - After `run`, searches at most 5 companies and returns at most 5 public people candidates per company.
 - Requires scoped HubSpot company IDs before any paid/API call.
 - Search returns Exa request ID, source URL, source domain/type, inferred name/title, decision-maker match signal, and `cost_report`.
-- Search does not fetch LinkedIn/profile contents, reveal email or phone, mutate HubSpot, or call Lusha automatically.
+- Search does not fetch LinkedIn/profile contents, reveal email or phone, mutate HubSpot, or call Lusha/Prospeo automatically.
 - LinkedIn URLs are treated as manual-check evidence only.
-- Selected Exa candidates can feed a later targeted Lusha reveal plan after explicit cost estimate and approval.
+- Selected Exa candidates can feed a later targeted Lusha or Prospeo reveal plan after explicit cost estimate and approval.
 
 ## Revenue Planning And Metrics
 

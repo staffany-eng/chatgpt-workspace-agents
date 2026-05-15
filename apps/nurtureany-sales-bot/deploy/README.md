@@ -33,6 +33,7 @@ The script:
 - uploads `/private/tmp/nurtureany-origin-main.tar.gz` and `/private/tmp/nurtureany-origin-main.sha`
 - syncs only deploy-owned packet paths into `/home/leekaiyi/.hermes/profiles/nurtureanysalesbot`
 - preserves runtime secrets/state, including `.env`, OAuth files, access policy, cron, logs, sessions, daily-runs, and operation-ledger
+- optionally hydrates the live `.env` from the latest Secret Manager dotenv version when `--hydrate-secrets` is passed
 - idempotently mirrors missing non-secret tool allowlist entries from `profile/config.template.yaml` into live `config.yaml`
 - restarts only `hermes-gateway-nurtureanysalesbot.service`
 - runs live profile audit, health check, cloud doctor, and service status
@@ -42,6 +43,8 @@ Useful options:
 
 ```bash
 npm run nurtureany-sales-bot:deploy -- --apply --verbose
+npm run nurtureany-sales-bot:deploy -- --apply --hydrate-secrets
+npm run nurtureany-sales-bot:deploy -- --apply --hydrate-secrets --secret-name nurtureany-sales-bot-prod-env
 npm run nurtureany-sales-bot:deploy -- --apply --skip-upload
 npm run nurtureany-sales-bot:deploy -- --apply --skip-restart
 ```
@@ -75,12 +78,12 @@ node scripts/nurtureany-prod-ssh.mjs --doctor
 
 ## What Deploy Must Not Touch
 
-- `~/.hermes/profiles/nurtureanysalesbot/.env`
+- `~/.hermes/profiles/nurtureanysalesbot/.env`, except when `--hydrate-secrets` explicitly replaces it from Secret Manager latest
 - Secret Manager values
 - Slack bot/app tokens
 - HubSpot private app token
 - Google OAuth token/client secret files
-- Eazybe, Luma, Exa, Lusha, Tavily, Google Places, or Anthropic keys
+- Eazybe, Luma, Exa, Lusha, Prospeo, Tavily, Google Places, or Anthropic keys
 - the runtime-only access policy file pointed to by `NURTUREANY_ACCESS_POLICY_PATH`
 - raw Slack transcripts, HubSpot rows, contact exports, or other private runtime data
 
@@ -105,3 +108,4 @@ Do not put real secrets or the real sales roster in this repo.
 - If local changes are not merged to `main`, the VM cannot deploy them through the normal `git pull` path.
 - If gateway restart succeeds but health fails, use the first failing subsystem from `check-health.sh` or the redacted output from `nurtureany-cloud-doctor.sh`.
 - If Slack does not reply after a healthy service restart, check the gateway service and Slack Socket Mode health before changing source code.
+- If a newly added env var is missing after a deploy, rerun with `--hydrate-secrets` after confirming the latest Secret Manager version contains the key. The script prints only `deploy:secrets=hydrated-latest` metadata and never prints dotenv values.

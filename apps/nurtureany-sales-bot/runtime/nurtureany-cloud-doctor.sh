@@ -71,7 +71,7 @@ case "$(uname -s)" in
 esac
 
 if command -v pgrep >/dev/null 2>&1; then
-  pids="$(pgrep -af "hermes.*gateway.*$PROFILE" 2>/dev/null | sed -E 's/(SLACK|HUBSPOT|EAZYBE|LUSHA|EXA|TAVILY|GOOGLE)_[A-Z0-9_]*=[^ ]+/\1_[redacted]/g' | head -20 || true)"
+  pids="$(pgrep -af "hermes.*gateway.*$PROFILE" 2>/dev/null | sed -E 's/(SLACK|HUBSPOT|EAZYBE|LUSHA|PROSPEO|EXA|TAVILY|GOOGLE)_[A-Z0-9_]*=[^ ]+/\1_[redacted]/g' | head -20 || true)"
   if [ -n "$pids" ]; then
     line "gateway_pids:"
     printf '%s\n' "$pids"
@@ -94,7 +94,7 @@ if [ "$(uname -s)" = "Darwin" ] && command -v launchctl >/dev/null 2>&1; then
 fi
 
 if command -v hermes >/dev/null 2>&1; then
-  for server in staffany_bigquery hubspot_nurtureany aircall_nurtureany google_calendar_nurtureany google_drive_nurtureany eazybe_nurtureany luma_nurtureany public_research_nurtureany lusha_nurtureany exa_nurtureany near_me_nurtureany; do
+  for server in staffany_bigquery hubspot_nurtureany aircall_nurtureany google_calendar_nurtureany google_drive_nurtureany eazybe_nurtureany luma_nurtureany public_research_nurtureany lusha_nurtureany prospeo_nurtureany exa_nurtureany near_me_nurtureany; do
     out="$(hermes -p "$PROFILE" mcp test "$server" 2>&1 || true)"
     count="$(printf '%s\n' "$out" | sed -nE 's/.*Tools discovered: ([0-9]+).*/\1/p' | tail -1)"
     if [ -n "$count" ]; then
