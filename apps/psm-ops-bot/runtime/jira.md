@@ -48,7 +48,7 @@ Task creation sends only fields that exist on today's PCO request forms, includi
 
 Task creation blocks past due dates before writing to Jira. Today is evaluated in `Asia/Singapore` by default, or `PSM_OPS_TIMEZONE` if configured. If a draft date is before today's date, ask for a corrected future due date.
 
-Automatic reminders use `duedate <= tomorrow` and `statusCategory != Done`. This means each task appears one day before it is due, on the due date, and every day after until it is marked Done. `set_pco_reminder` updates the issue due date because due date is the reminder source of truth in thin POC.
+Automatic reminders use `duedate` and `statusCategory != Done`. The 09:00 SGT morning digest includes overdue, due-today, and due-tomorrow tasks. The 17:00 SGT EOD catch-up digest includes overdue and due-today tasks so same-day follow-ups created after the morning run still surface. `set_pco_reminder` updates the issue due date because due date is the reminder source of truth in thin POC; it does not create a separate Slack-thread reminder or local reminder record.
 
 For portal/request-form visibility, add the field named `Due date` / field ID `duedate` to PCO request types `81` Customer Success Work, `82` Onboarding, and `83` Data Setup. The bot does not require the form field to be visible because it sets `duedate` after creation, but PSMs will see a cleaner form if Jira admins add it.
 
@@ -183,7 +183,7 @@ Field rules:
 - `set_pco_assignee`: mutation; assigns an existing PCO issue to a Jira user resolved from a Slack mention, email, or exact name. This does not change `PS Team`.
 - `set_pco_ps_team`: mutation; updates only the configured Jira `PS Team` field. Treat "cs duty" as `CS Duty`, not a person assignee.
 - `link_pco_to_engineering_issue`: mutation; links an existing `PCO-*` issue to a `KER-*` or `SCHE-*` engineering issue. Default `Blocks` direction makes the PCO show as blocked by the engineering issue. `Relates` is allowed only as fallback when Jira lacks Blocks.
-- `set_pco_reminder`: mutation; updates Jira `duedate`, which drives automatic reminders.
+- `set_pco_reminder`: mutation; updates Jira `duedate`, which drives central 09:00 SGT and 17:00 SGT reminders.
 - `list_due_pco_reminders`: safe read for cron and user checks; user-scoped checks filter by Jira `PS Team`.
 
 ## Failure Behavior

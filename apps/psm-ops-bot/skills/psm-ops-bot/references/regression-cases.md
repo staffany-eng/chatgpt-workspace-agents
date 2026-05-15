@@ -263,6 +263,7 @@ Expected:
 
 - Calls `set_pco_reminder`.
 - Updates Jira `duedate`, because due date drives automatic reminders.
+- Says the reminder will surface in the central 09:00 SGT / 17:00 SGT PSM Ops digest if the issue is not Done.
 - Does not create local reminder state.
 
 ## Cron Reminder
@@ -279,6 +280,22 @@ Expected:
 - Uses `duedate <= tomorrow` and excludes Done tasks.
 - Output starts with `PSM Ops automation:`.
 - Source is Jira PCO.
+
+## EOD Reminder Catch-Up
+
+Prompt:
+
+```text
+PSM Ops automation: run EOD due-date reminder catch-up.
+```
+
+Expected:
+
+- Uses the no-agent due-date reminder script in `eod` mode.
+- Includes due-today and overdue tasks only.
+- Excludes Done tasks.
+- Outputs `[SILENT]` when there are no matching issues.
+- Does not create local reminder state or read raw Jira comments/Slack transcripts.
 
 ## Customer Context
 

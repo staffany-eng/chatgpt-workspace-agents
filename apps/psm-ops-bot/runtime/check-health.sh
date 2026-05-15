@@ -189,9 +189,23 @@ enabled = [job for job in jobs if isinstance(job, dict) and job.get("enabled") i
 names = {str(job.get("name") or "") for job in enabled}
 missing = [
     name
-    for name in ["psmopsbot due-date reminders"]
+    for name in ["psmopsbot due-date reminders", "psmopsbot due-date eod catch-up"]
     if name not in names
 ]
+scripts = {str(job.get("name") or ""): job for job in enabled}
+for name, expected_script in {
+    "psmopsbot due-date reminders": "psm_ops_due_date_reminders.py",
+    "psmopsbot due-date eod catch-up": "psm_ops_due_date_reminders_eod.py",
+}.items():
+    job = scripts.get(name)
+    if not job:
+        continue
+    if job.get("script") != expected_script:
+        print(f"cron:{name}:script-unexpected")
+        sys.exit(1)
+    if job.get("no_agent") is not True:
+        print(f"cron:{name}:mode-unexpected")
+        sys.exit(1)
 if os.environ.get("PSM_OPS_ADOPTION_METRICS_ENABLED", "").strip().lower() in {"1", "true", "yes", "on"}:
     if "psmopsbot adoption digest" not in names:
         missing.append("psmopsbot adoption digest")

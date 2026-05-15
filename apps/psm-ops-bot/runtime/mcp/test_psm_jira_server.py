@@ -1323,6 +1323,8 @@ class PsmJiraServerTest(unittest.TestCase):
             {"duedate": "2026-05-14"},
         )
         self.assertEqual(result["answer"]["due_date"], "2026-05-14")
+        self.assertIn("Central PSM Ops digests", result["answer"]["reminder_policy"])
+        self.assertIn("No separate Slack thread", result["answer"]["central_digest"])
 
     def test_due_reminders_use_due_date_one_day_before_and_overdue(self):
         calls = []

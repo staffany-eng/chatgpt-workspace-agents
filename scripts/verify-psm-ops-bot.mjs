@@ -151,6 +151,7 @@ const filesToScan = [
   "runtime/audit-live-profile.sh",
   "runtime/smoke-rock-productions-c360.sh",
   "runtime/psm_ops_adoption_digest.py",
+  "runtime/scripts/psm_ops_due_date_reminders.py",
   "runtime/mcp/psm_slack_notifier.py",
   "runtime/mcp/psm_jira_server.py",
   "runtime/mcp/psm_c360_server.py",
@@ -158,6 +159,7 @@ const filesToScan = [
   "runtime/mcp/psm_google_calendar_server.py",
   "runtime/hooks/psm-ops-adoption-telemetry/HOOK.yaml",
   "runtime/hooks/psm-ops-adoption-telemetry/handler.py",
+  "runtime/test_psm_ops_due_date_reminders.py",
   "deploy/gce-onboarding-runbook.md",
   "tests/regression-cases.md",
   "tests/prompt-evals.json"
@@ -199,6 +201,8 @@ if (!existsSync(deployScriptPath)) {
     "psmopsbot-audit-live-profile.sh",
     "psmopsbot-rock-productions-c360-smoke.sh",
     "psm_ops_adoption_digest.py",
+    "psm_ops_due_date_reminders.py",
+    "psm_ops_due_date_reminders_eod.py",
     "psm-ops-adoption-telemetry",
     "smoke-rock-productions-c360.sh",
     "rock_productions_c360",
@@ -427,6 +431,9 @@ if (!psmOpsProfileBlock) {
     "psm_jira: 19",
     "psm_c360: 3",
     "psmopsbot due-date reminders",
+    "psmopsbot due-date eod catch-up",
+    "psm_ops_due_date_reminders.py",
+    "psm_ops_due_date_reminders_eod.py",
     "psmopsbot local cloud heartbeat",
     "psmopsbot adoption digest"
   ]) {
@@ -522,6 +529,9 @@ const heartbeatText = textOf(appRoot, "runtime/check-cloud-heartbeat.sh");
 for (const requiredText of [
   "hermes-gateway-psmopsbot.service",
     "psmopsbot due-date reminders",
+    "psmopsbot due-date eod catch-up",
+    "psm_ops_due_date_reminders.py",
+    "psm_ops_due_date_reminders_eod.py",
     "psmopsbot local cloud heartbeat",
     "psmopsbot adoption digest",
     "EXPECTED_ENABLED_CRON_COUNT",
@@ -558,6 +568,22 @@ for (const requiredText of [
   if (!adoptionDigestText.includes(requiredText)) fail(`Adoption digest script missing required text: ${requiredText}`);
 }
 
+const dueDateReminderText = textOf(appRoot, "runtime/scripts/psm_ops_due_date_reminders.py");
+for (const requiredText of [
+  "PSM Ops automation: PCO due-date reminder",
+  "[SILENT] PSM Ops automation",
+  "statusCategory != Done",
+  "duedate is not EMPTY",
+  "customfield_10876",
+  "central digest only",
+  "choices=[\"morning\", \"eod\"]",
+  "description",
+  "comment",
+  "transcript"
+]) {
+  if (!dueDateReminderText.includes(requiredText)) fail(`Due-date reminder script missing required text: ${requiredText}`);
+}
+
 const shellCheck = spawnSync("bash", [
   "-n",
   join(appRoot, "runtime", "check-health.sh"),
@@ -592,7 +618,8 @@ const pyCompile = spawnSync("python3", [
   join(appRoot, "runtime/mcp/google_oauth.py"),
   join(appRoot, "runtime/mcp/psm_google_calendar_server.py"),
   join(appRoot, "runtime/hooks/psm-ops-adoption-telemetry/handler.py"),
-  join(appRoot, "runtime/psm_ops_adoption_digest.py")
+  join(appRoot, "runtime/psm_ops_adoption_digest.py"),
+  join(appRoot, "runtime/scripts/psm_ops_due_date_reminders.py")
 ], {
   cwd: repoRoot,
   env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1" },
@@ -617,6 +644,19 @@ const unitCheck = spawnSync("python3", [
 });
 if (unitCheck.status !== 0) {
   fail(`Python MCP unit tests failed: ${unitCheck.stderr || unitCheck.stdout}`);
+}
+
+const reminderScriptUnitCheck = spawnSync("python3", [
+  "-m",
+  "unittest",
+  join(appRoot, "runtime/test_psm_ops_due_date_reminders.py")
+], {
+  cwd: repoRoot,
+  env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1" },
+  encoding: "utf8"
+});
+if (reminderScriptUnitCheck.status !== 0) {
+  fail(`Due-date reminder unit tests failed: ${reminderScriptUnitCheck.stderr || reminderScriptUnitCheck.stdout}`);
 }
 
 if (failures.length > 0) {

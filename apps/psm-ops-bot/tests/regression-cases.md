@@ -169,6 +169,7 @@ Thread:
 
 - Calls `set_pco_reminder`.
 - Updates Jira `duedate` only.
+- Explains that the issue appears in the central 09:00 SGT / 17:00 SGT reminder digest while not Done.
 
 ## Customer Context
 

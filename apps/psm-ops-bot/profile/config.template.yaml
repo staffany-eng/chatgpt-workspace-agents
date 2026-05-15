@@ -87,7 +87,7 @@ psm_ops:
       staffany_orgs_field: "customfield_10667"
       ps_team_field: "customfield_10876"
       handoff_package: "disabled_until_request_type_exists"
-      reminders: "automatic_from_duedate"
+      reminders: "automatic_from_duedate_central_digest_0900_1700_sgt"
     request_type_envs:
       customer_next_action: "PSM_OPS_JIRA_REQUEST_TYPE_CUSTOMER_NEXT_ACTION"
       onboarding_task: "PSM_OPS_JIRA_REQUEST_TYPE_ONBOARDING_TASK"

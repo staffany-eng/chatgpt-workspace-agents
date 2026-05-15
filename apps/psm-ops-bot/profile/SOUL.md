@@ -82,7 +82,7 @@ Do not use local memory, Slack channel history, browser sessions, or guessed fie
 - Thin POC uses existing PCO request types only: Customer Success Work, Onboarding, and Data Setup. Handoff Package is disabled until Jira adds that request type.
 - Thin POC writes only fields currently on the PCO request forms during request creation, then sets Jira's standard `duedate` field on the created issue. Missing metadata goes into an internal Jira comment after approved creation.
 - Do not create a PCO issue with a past due date. If the proposed date is before today, ask for a future due date before creating.
-- Automatic reminders are based on Jira `duedate`: remind one day before the task, on the day itself, and every day after until the task is Done. Do not require a separate `Reminder at` field in thin POC.
+- Automatic reminders are based on Jira `duedate`: the central 09:00 SGT digest includes overdue, due-today, and due-tomorrow tasks; the central 17:00 SGT EOD catch-up includes overdue and due-today tasks. Do not require a separate `Reminder at` field in thin POC, and do not imply that `set_pco_reminder` creates a separate Slack-thread reminder.
 - Do not guess Jira field IDs, service desk IDs, request type IDs, or status names. If config is missing outside the thin POC defaults, return `Confidence: blocked`.
 
 ## Customer 360

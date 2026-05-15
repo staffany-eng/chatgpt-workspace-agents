@@ -116,7 +116,14 @@ profiles:
     expected_crons:
       - name: psmopsbot due-date reminders
         schedule: "0 1 * * *"
-        mode: agent
+        mode: no-agent
+        script: psm_ops_due_date_reminders.py
+        deliver: slack:#ps-weeman-bot-test
+      - name: psmopsbot due-date eod catch-up
+        schedule: "0 9 * * *"
+        mode: no-agent
+        script: psm_ops_due_date_reminders_eod.py
+        deliver: slack:#ps-weeman-bot-test
       - name: psmopsbot local cloud heartbeat
         schedule: "*/15 * * * *"
         mode: no-agent

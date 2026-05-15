@@ -37,6 +37,7 @@
     "live_profile_audit_script": "runtime/audit-live-profile.sh",
     "rock_productions_c360_smoke_script": "runtime/smoke-rock-productions-c360.sh",
     "adoption_digest_script": "runtime/psm_ops_adoption_digest.py",
+    "due_date_reminder_script": "runtime/scripts/psm_ops_due_date_reminders.py",
     "slack_notifier": "runtime/mcp/psm_slack_notifier.py",
     "adoption_hook": "runtime/hooks/psm-ops-adoption-telemetry/HOOK.yaml",
     "adoption_hook_handler": "runtime/hooks/psm-ops-adoption-telemetry/handler.py",

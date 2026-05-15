@@ -110,7 +110,8 @@ Alias rule: `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` refer to this 
 ## Reminder Rules
 
 - Reminder source of truth is Jira `duedate`.
-- Automatic reminders include tasks due tomorrow, due today, and overdue tasks until they are Done.
+- The central 09:00 SGT reminder digest includes tasks due tomorrow, due today, and overdue tasks until they are Done.
+- The central 17:00 SGT EOD catch-up digest includes due-today and overdue tasks until they are Done.
 - Reminder cron output must start with `PSM Ops automation:`.
 - Do not create local reminder state or require a separate reminder field in thin POC.
 

@@ -115,5 +115,6 @@ The MCP adapter must retrieve available transitions for the issue and choose the
 ## Reminder Policy
 
 - Use Jira `duedate` as the thin POC reminder source of truth.
-- Automatic reminder queries include tasks due tomorrow, due today, and overdue tasks until they are Done.
+- The 09:00 SGT central digest queries tasks due tomorrow, due today, and overdue tasks until they are Done.
+- The 17:00 SGT EOD catch-up digest queries due-today and overdue tasks until they are Done.
 - Do not store reminders in files, memory, cron prompts, Slack messages, or local databases.

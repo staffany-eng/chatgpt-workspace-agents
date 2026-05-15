@@ -2641,7 +2641,8 @@ def set_pco_reminder(
         {
             "issue_key": key,
             "due_date": due_date,
-            "reminder_policy": "Automatic reminders include tasks due tomorrow, due today, and overdue until Done.",
+            "reminder_policy": "Jira due date is the reminder source. Central PSM Ops digests run at 09:00 SGT and 17:00 SGT while the issue is not Done.",
+            "central_digest": "No separate Slack thread or local reminder was created.",
         },
         scope,
     )
