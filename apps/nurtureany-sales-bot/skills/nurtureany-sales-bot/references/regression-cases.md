@@ -595,6 +595,24 @@ Expected behavior:
 - Does not expose unmatched guests, raw registration answers, raw match-key lists, message bodies, raw guest lists, Luma mutations, HubSpot mutations, external sends, or attendee exports.
 - Uses `Confidence: needs-check` for company-name candidate matches or truncated event/guest reads.
 
+### Partnerships RSVP Breakdown With Sheets Export
+
+Prompt from `jan-e@staffany.com`:
+
+```text
+@NurtureAny analyze this Luma event for total RSVPs, clients vs prospects, and invited by: https://luma.com/06d6szo3
+```
+
+Expected behavior:
+
+- First response is plan-only unless quick-autorun is clearly satisfied.
+- Preflight says the run will export sanitized rows to the shared Google Sheets workbook in addition to the Slack summary.
+- After `run`, resolves Jan-E as `scope_kind=partnerships_viewer` with Singapore/Malaysia country scope and no HubSpot owner restriction.
+- Route: `list_luma_events` or selected Luma event lookup -> `get_luma_event_match_keys` -> `find_target_accounts_by_luma_match_keys` for SG/MY -> `get_luma_event_context` only for scoped matched candidate companies -> `preview_analysis_sheet_export` -> `apply_analysis_sheet_export`.
+- Output uses HubSpot `account_status` / `account_status_source`, owner fields, Luma match reason/confidence, RSVP status, invited-by label when safe, and source permalink.
+- Slack final answer includes short answer, key counts, Sheet link, source, scope, confidence, and caveat.
+- Does not mutate HubSpot, dump raw guest lists, expose phone numbers/full attendee emails/raw registration answers, run manager/coaching audits, or inspect raw WhatsApp/task/note bodies.
+
 ## Post-Event Follow-Up Status
 
 Prompt:

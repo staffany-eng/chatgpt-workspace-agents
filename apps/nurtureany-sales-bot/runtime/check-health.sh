@@ -15,6 +15,7 @@ EXPECT_HUBSPOT_TOOLS="${EXPECT_HUBSPOT_TOOLS:-60}"
 EXPECT_AIRCALL_TOOLS="${EXPECT_AIRCALL_TOOLS:-4}"
 EXPECT_GOOGLE_CALENDAR_TOOLS="${EXPECT_GOOGLE_CALENDAR_TOOLS:-2}"
 EXPECT_GOOGLE_DRIVE_TOOLS="${EXPECT_GOOGLE_DRIVE_TOOLS:-5}"
+EXPECT_GOOGLE_SHEETS_TOOLS="${EXPECT_GOOGLE_SHEETS_TOOLS:-2}"
 EXPECT_EAZYBE_TOOLS="${EXPECT_EAZYBE_TOOLS:-4}"
 EXPECT_LUMA_TOOLS="${EXPECT_LUMA_TOOLS:-3}"
 EXPECT_LUSHA_TOOLS="${EXPECT_LUSHA_TOOLS:-4}"
@@ -317,6 +318,7 @@ expected_servers = {
         "read_nurture_material_registry",
         "read_indonesia_event_registration_attendance",
     ],
+    "google_sheets_nurtureany": ["preview_analysis_sheet_export", "apply_analysis_sheet_export"],
     "eazybe_nurtureany": [
         "preview_eazybe_template_messages",
         "send_approved_eazybe_messages",
@@ -488,6 +490,12 @@ for entry in raw_policy.get("sales_reps", []):
     owner_email = str(entry.get("hubspot_owner_email") or "").strip().lower()
     if slack_email and slack_email not in disabled and owner_email not in disabled:
         policy_emails.append(slack_email)
+for entry in raw_policy.get("partnerships_viewers", []):
+    if not isinstance(entry, dict) or entry.get("active") is False:
+        continue
+    email = entry_email(entry)
+    if email and email not in disabled:
+        policy_emails.append(email)
 policy_emails = [email for email in policy_emails if email and email not in disabled]
 
 allowed_ids = {value.strip() for value in allowed_users_raw.split(",") if value.strip()}
@@ -771,6 +779,7 @@ mcp_test hubspot_nurtureany "$EXPECT_HUBSPOT_TOOLS"
 mcp_test aircall_nurtureany "$EXPECT_AIRCALL_TOOLS"
 mcp_test google_calendar_nurtureany "$EXPECT_GOOGLE_CALENDAR_TOOLS"
 mcp_test google_drive_nurtureany "$EXPECT_GOOGLE_DRIVE_TOOLS"
+mcp_test google_sheets_nurtureany "$EXPECT_GOOGLE_SHEETS_TOOLS"
 mcp_test eazybe_nurtureany "$EXPECT_EAZYBE_TOOLS"
 mcp_test luma_nurtureany "$EXPECT_LUMA_TOOLS"
 mcp_test public_research_nurtureany "$EXPECT_PUBLIC_RESEARCH_TOOLS"

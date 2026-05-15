@@ -80,6 +80,7 @@ NurtureAny needs deterministic runtime checks because prompt correctness does no
 - Google Calendar MCP lists only `list_google_calendar_events` and `audit_google_calendar_meeting_quality` when Google Calendar is enabled.
 - Google Calendar smoke check uses the `team@staffany.com` read-only OAuth token and returns bounded event metadata without attendee exports or event mutation tools.
 - Google Calendar meeting-quality smoke check uses HubSpot `calendar_audit_seed`, scans the resolved AE calendar through `team@staffany.com`, matches attendee email hashes internally, and returns no raw attendee emails, descriptions, guest lists, conference links, phone numbers, or raw HubSpot bodies.
+- Google Sheets MCP lists `preview_analysis_sheet_export` and `apply_analysis_sheet_export`. Preview does not call the Google Sheets API. Apply writes only sanitized rows to the configured shared workbook, upserts `Runs`, and rejects raw transcripts, phones, full emails, raw HubSpot bodies, or raw guest exports.
 - Luma MCP lists only `list_luma_events`, `get_luma_event_match_keys`, and `get_luma_event_context` when Luma is enabled.
 - Luma event-link smoke check confirms found/selected event output includes `<event.url|event.name>` plus date and event ID when `event.url` is present.
 - Event-first Luma smoke check confirms `get_luma_event_match_keys(include_contact_pii=true)` and `find_target_accounts_by_luma_match_keys(include_contact_pii=true)` are available for Jan-E/event-operator account breakdowns, broad event questions do not page every HubSpot target account, and matched contact PII appears only for scoped exact HubSpot contact-email matches.
@@ -173,7 +174,9 @@ cp apps/nurtureany-sales-bot/runtime/nurtureany-cloud-doctor.sh ~/.hermes/profil
 cp apps/nurtureany-sales-bot/runtime/scripts/nurtureany_slack_access_repair.py ~/.hermes/profiles/nurtureanysalesbot/scripts/nurtureany_slack_access_repair.py
 cp apps/nurtureany-sales-bot/runtime/scripts/nurtureany_sales_task_reminders.py ~/.hermes/profiles/nurtureanysalesbot/scripts/nurtureany_sales_task_reminders.py
 cp apps/nurtureany-sales-bot/runtime/scripts/nurtureany_sales_task_reminders_eod.py ~/.hermes/profiles/nurtureanysalesbot/scripts/nurtureany_sales_task_reminders_eod.py
+cp apps/nurtureany-sales-bot/runtime/scripts/nurtureany_inbound_monitor.py ~/.hermes/profiles/nurtureanysalesbot/scripts/nurtureany_inbound_monitor.py
 chmod +x ~/.hermes/profiles/nurtureanysalesbot/scripts/nurtureany_slack_access_repair.py
+chmod +x ~/.hermes/profiles/nurtureanysalesbot/scripts/nurtureany_inbound_monitor.py
 hermes -p nurtureanysalesbot cron create "0 1 * * 1-5" \
   --name "nurtureanysalesbot health check" \
   --script nurtureanysalesbot-check-health.sh \
@@ -200,9 +203,14 @@ hermes -p nurtureanysalesbot cron create "0 9 * * 1-5" \
   --script nurtureany_sales_task_reminders_eod.py \
   --deliver slack:#nurtureany-testing \
   --no-agent
+hermes -p nurtureanysalesbot cron create "*/2 * * * *" \
+  --name "nurtureanysalesbot HubSpot inbound monitor" \
+  --script nurtureany_inbound_monitor.py \
+  --deliver slack:#nurtureany-testing \
+  --no-agent
 ```
 
-Daily nurture is available as an on-demand workflow, not a required production cron. Eugene-owned WhatsApp Blitz is separate and intended. The runtime audit expects nine enabled recurring operational crons: health check, live profile audit, local cloud heartbeat, Slack socket watchdog, HubSpot task reminders, HubSpot task EOD catch-up, SG MY WhatsApp Morning Blitz Report, ID Morning WhatsApp Blitz Report, and ID WhatsApp Morning Blitz Report. Safe enabled one-shot report jobs are allowed and must not change the recurring cron count. The new saved SG/MY WhatsApp report schedule lives in profile-runtime JSON and is called by deterministic primitives; it does not remove or rename the existing WhatsApp Blitz cron records.
+Daily nurture is available as an on-demand workflow, not a required production cron. Eugene-owned WhatsApp Blitz is separate and intended. The runtime audit expects ten enabled recurring operational crons: health check, live profile audit, local cloud heartbeat, Slack socket watchdog, HubSpot task reminders, HubSpot task EOD catch-up, HubSpot inbound monitor, SG MY WhatsApp Morning Blitz Report, ID Morning WhatsApp Blitz Report, and ID WhatsApp Morning Blitz Report. Safe enabled one-shot report jobs are allowed and must not change the recurring cron count. The HubSpot inbound monitor is a read-only internal exception report to `#nurtureany-testing`; it must use `audit_inbound_sla`, never mutate HubSpot, and never send external messages. The new saved SG/MY WhatsApp report schedule lives in profile-runtime JSON and is called by deterministic primitives; it does not remove or rename the existing WhatsApp Blitz cron records.
 
 The current Hermes CLI uses the deployment host timezone for cron scheduling and does not expose a `--timezone` flag.
 

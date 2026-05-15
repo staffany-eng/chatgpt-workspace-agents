@@ -44,6 +44,8 @@ Use a private app token from Secret Manager or the live profile `.env`. Do not s
 
 Use `NURTUREANY_ACCESS_POLICY_PATH` for the runtime-only access policy. Copy `runtime/access-policy.template.json` outside the repo and classify real people there; do not commit the full sales roster. Configure managers, partnerships viewers, event-operator aliases, and sales reps explicitly. Configure known Slack or Google email variants with `alias_for` or top-level `aliases`; the MCP adapter canonicalizes aliases before role lookup.
 
+`partnerships_viewers` are SG/MY read-only team viewers without HubSpot owner restriction. They may resolve scope/owners, list scoped target accounts, match safe Luma RSVP keys to scoped HubSpot target accounts, and inspect selected account context. They cannot run manager/coaching audits, owner activity/body checks, inbound thread text reads, revenue metrics, follow-up status checks, HubSpot write-back previews, sends, or raw-body-derived tools.
+
 `check_event_followup_status` also requires `LUMA_API_KEY` in the same runtime environment so the HubSpot adapter can resolve read-only Luma attendance before checking HubSpot/Eazybe follow-up evidence.
 Daily nurture automation remains disabled pending refinement for the Jeremy daily-pack workflow. Do not rely on 09:00 Jeremy daily nurture run persistence or 12:00 Jeremy daily nurture reminder continuity until that workflow is approved again. This does not disable the Eugene-owned WhatsApp Morning Blitz report crons or the separate HubSpot Task reminder digest, whose source of truth is HubSpot Tasks.
 
