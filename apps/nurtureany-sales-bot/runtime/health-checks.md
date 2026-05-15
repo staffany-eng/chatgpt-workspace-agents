@@ -49,7 +49,8 @@ NurtureAny needs deterministic runtime checks because prompt correctness does no
 - HubSpot event-follow-up smoke check resolves Luma checked-in attendance, verifies event-specific Eazybe WhatsApp communications in HubSpot, marks generic WhatsApp as `needs_check`, and never exposes raw WhatsApp bodies, guest emails, phone numbers, or raw attendee lists.
 - Indonesia event-registration fallback smoke check confirms `read_indonesia_event_registration_attendance` is available, restricted to `ID REV - LL & HHH EVENTS`, uses `Attend The Event` as manual attendance only when Luma check-in is empty or not used, and never exposes phone numbers, full emails, or raw registration exports.
 - Google Slides deck-access smoke check confirms `read_google_slides_deck` is available, uses the `team@staffany.com` read-only Drive OAuth token, supports native Slides and Drive-hosted `.pptx` text extraction, never retains raw deck bytes, and never asks for "Anyone with the link" public sharing.
-- Daily nurture automation is disabled pending refinement. Health checks must not require a Jeremy daily pack, 09:00 daily nurture cron, noon daily nurture reminder, or `NURTUREANY_DAILY_RUNS_DIR`; `read_nurture_material_registry` remains read-only material context only.
+- Daily nurture automation is disabled pending refinement for the Jeremy daily-pack workflow. Health checks must not require a Jeremy daily pack, 09:00 daily nurture cron, noon daily nurture reminder, or `NURTUREANY_DAILY_RUNS_DIR`; `read_nurture_material_registry` remains read-only material context only.
+- Eugene-owned WhatsApp Morning Blitz report crons are intended production crons. They are separate from the paused Jeremy daily nurture workflow and must stay active for SG/MY and Indonesia manager reporting.
 - HubSpot Task reminder automation is separate from daily nurture: morning no-agent digest reads overdue/due-today/due-tomorrow incomplete HubSpot Tasks, EOD no-agent digest reads overdue/due-today incomplete HubSpot Tasks, both start with `NurtureAny automation:`, and HubSpot Task `hs_timestamp` remains the source of truth until `hs_task_status=COMPLETED`.
 - Operation ledger tools `record_nurtureany_operation_checkpoint` and `read_nurtureany_operation_ledger` are available for restart-safe Slack workflow continuation.
 - Reviewed lesson tools `record_nurtureany_lesson_candidate`, `list_nurtureany_lesson_candidates`, and `read_nurtureany_lesson_candidate` are available. They write/read runtime-only candidates, keep Honcho disabled, and do not change behavior before repo promotion.
@@ -177,7 +178,7 @@ hermes -p nurtureanysalesbot cron create "0 9 * * 1-5" \
   --no-agent
 ```
 
-Daily nurture is available as an on-demand workflow, not a required production cron. The runtime audit expects six enabled operational crons: health check, live profile audit, local cloud heartbeat, Slack socket watchdog, HubSpot task reminders, and HubSpot task EOD catch-up.
+Daily nurture is available as an on-demand workflow, not a required production cron. Eugene-owned WhatsApp Blitz is separate and intended. The runtime audit expects nine enabled recurring operational crons: health check, live profile audit, local cloud heartbeat, Slack socket watchdog, HubSpot task reminders, HubSpot task EOD catch-up, SG MY WhatsApp Morning Blitz Report, ID Morning WhatsApp Blitz Report, and ID WhatsApp Morning Blitz Report. Safe enabled one-shot report jobs are allowed and must not change the recurring cron count.
 
 The current Hermes CLI uses the deployment host timezone for cron scheduling and does not expose a `--timezone` flag.
 
