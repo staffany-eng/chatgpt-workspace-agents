@@ -170,7 +170,11 @@ nurtureany:
     source_of_truth: HubSpot remains account, owner, task, note, deal, contact, and nurture-field truth
     metadata_tool: find_aircall_calls
     transcription_tool: transcribe_aircall_recording
+    coaching_tool: analyze_aircall_call_coaching
+    coaching_provider: openai
     default_model: gpt-4o-transcribe-diarize
+    reasoning_model: gpt-5.5
+    elevenlabs_enabled: false
     max_calls: 5
     selected_call_only: true
     max_audio_bytes: 26214400
@@ -311,7 +315,7 @@ mcp_servers:
     - append_hubspot_note
     - update_nurture_fields
   aircall_nurtureany:
-    description: Read-only Aircall call metadata and selected-call OpenAI transcription adapter.
+    description: Read-only Aircall call metadata, selected-call OpenAI transcription, and selected-call coaching adapter.
     command: /Users/leekaiyi/.hermes/hermes-agent/venv/bin/python
     args:
     - /Users/leekaiyi/workspace/agent builder/apps/nurtureany-sales-bot/runtime/mcp/aircall_nurtureany_server.py
@@ -324,6 +328,12 @@ mcp_servers:
         type: bearer_env_from_profile_dotenv
         endpoint: https://api.openai.com/v1/audio/transcriptions
         default_model: gpt-4o-transcribe-diarize
+      coaching:
+        type: bearer_env_from_profile_dotenv
+        endpoint: https://api.openai.com/v1/responses
+        provider: openai
+        default_reasoning_model: gpt-5.5
+        elevenlabs_enabled: false
     access_policy:
       mode: read_only
       selected_call_only: true
@@ -338,6 +348,7 @@ mcp_servers:
     tool_allowlist:
     - find_aircall_calls
     - transcribe_aircall_recording
+    - analyze_aircall_call_coaching
   public_research_nurtureany:
     description: Read-only Tavily public company research for scoped HubSpot companies, plus brand-parent identity lookup before HubSpot re-query.
     command: /Users/leekaiyi/.hermes/hermes-agent/venv/bin/python

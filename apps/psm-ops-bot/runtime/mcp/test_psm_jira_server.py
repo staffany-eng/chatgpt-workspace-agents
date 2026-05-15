@@ -646,6 +646,86 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertEqual(audit_calls[0][1]["source_thread_url"], "https://staffany.slack.com/archives/C0B2VT50YT1/p1778205303989579")
         self.assertEqual(audit_calls[0][1]["issue_key"], "PCO-789")
 
+    def test_ps_wee_intake_prunes_known_fields_and_caps_slack_missing_info(self):
+        calls = []
+        audit_calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
+                return {"issues": []}
+            if path == "/rest/servicedeskapi/request":
+                return {"issueKey": "PCO-159", "requestTypeId": "101"}
+            if path.endswith("/comment"):
+                return {"id": "comment-159"}
+            return {}
+
+        self.module._request_json = fake_request
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: audit_calls.append((event_type, kwargs)) or {"ok": True}
+
+        result = self.module.create_ps_wee_intake_ticket(
+            slack_user_email="alya@staffany.com",
+            slack_thread_url="https://staffany.slack.com/archives/C01HQMYN4M9/p1778807520894139",
+            customer="Tomoro Coffee",
+            issue_summary="Unable to add a new staff in HRAny using a phone number already used in another org",
+            known_details="Affected staff HUI SHAN WENG has the same phone number linked to an inactive I LOVE TAIMEI profile; needs workaround advice.",
+            ps_team="CS Duty",
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertLessEqual(len(result["answer"]["missing_info"]), 2)
+        self.assertNotIn("customer/org", result["answer"]["missing_info"])
+        self.assertNotIn("issue details", result["answer"]["missing_info"])
+        self.assertNotIn("affected outlet/user/date range", result["answer"]["missing_info"])
+        self.assertNotIn("expected outcome", result["answer"]["missing_info"])
+        self.assertNotIn("1.", result["answer"]["slack_reply"])
+        self.assertNotIn("2.", result["answer"]["slack_reply"])
+        self.assertNotIn("Customer/org", result["answer"]["slack_reply"])
+        self.assertIn("<https://staffany.atlassian.net/browse/PCO-159|PCO-159>", result["answer"]["slack_reply"])
+        self.assertEqual(audit_calls[0][0], "ticket_created")
+        self.assertEqual(audit_calls[0][1]["customer"], "Tomoro Coffee")
+
+    def test_ps_wee_intake_keeps_full_jira_missing_info_but_slack_asks_top_two(self):
+        calls = []
+        audit_calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
+                return {"issues": []}
+            if path == "/rest/servicedeskapi/request":
+                return {"issueKey": "PCO-160", "requestTypeId": "101"}
+            if path.endswith("/comment"):
+                return {"id": "comment-160"}
+            return {}
+
+        self.module._request_json = fake_request
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: audit_calls.append((event_type, kwargs)) or {"ok": True}
+
+        result = self.module.create_ps_wee_intake_ticket(
+            slack_user_email="alya@staffany.com",
+            slack_thread_url="https://staffany.slack.com/archives/C01HQMYN4M9/p1778807520894139",
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["answer"]["missing_info"], ["customer/org", "issue details"])
+        self.assertIn("I still need: customer/org, issue details.", result["answer"]["slack_reply"])
+        self.assertIn(
+            "Missing info: customer/org, issue details, impact/urgency, affected outlet/user/date range, expected outcome, screenshots/logs if relevant",
+            calls[2][2]["body"],
+        )
+        self.assertEqual(
+            audit_calls[0][1]["missing_info"],
+            [
+                "customer/org",
+                "issue details",
+                "impact/urgency",
+                "affected outlet/user/date range",
+                "expected outcome",
+                "screenshots/logs if relevant",
+            ],
+        )
+
     def test_ps_wee_intake_auto_tags_reviewed_customer_channel_with_blank_customer(self):
         map_path = self._customer_channel_map(
             [

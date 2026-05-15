@@ -19,6 +19,8 @@
     "pantheon_update_script": "runtime/update-pantheon-repo.sh",
     "ker_mcp_server": "runtime/mcp/launchbot_ker_server.py",
     "ker_mcp_tests": "runtime/mcp/test_launchbot_ker_server.py",
+    "feature_intake_mcp_server": "runtime/mcp/launchbot_feature_intake_server.py",
+    "feature_intake_mcp_tests": "runtime/mcp/test_launchbot_feature_intake_server.py",
     "help_article_mcp_server": "runtime/mcp/launchbot_help_article_server.py",
     "help_article_mcp_tests": "runtime/mcp/test_launchbot_help_article_server.py",
     "help_article_video_fixtures": "runtime/mcp/fixtures/help_article_video_fixtures.json",
@@ -37,14 +39,16 @@
   },
   "channels": [
     "Slack #launch-bot-testing",
-    "Slack #proj-cs-seonggong-seorae"
+    "Slack #proj-cs-seonggong-seorae",
+    "Slack #input-features-ux"
   ],
   "slack": {
     "home_channel_id": "C0B32M34J3W",
     "home_channel_name": "launch-bot-testing",
     "allowed_channel_ids": [
       "C0B32M34J3W",
-      "C0AJAUNCEL8"
+      "C0AJAUNCEL8",
+      "CF8PK6V4J"
     ],
     "require_mention": true,
     "reactions": false,
@@ -85,6 +89,43 @@
         "email_env_var": "JIRA_EMAIL",
         "api_token_env_var": "JIRA_API_TOKEN",
         "mutations": false
+      }
+    },
+    "launchbot_feature_intake": {
+      "mode": "confirmed_jpd_intake_create",
+      "tools": [
+        "preview_feature_intake_from_slack_thread",
+        "create_feature_intake_from_slack_thread"
+      ],
+      "slack_context": {
+        "token_env_var": "SLACK_BOT_TOKEN",
+        "configured_channel_ids_env_var": "LAUNCHBOT_FEATURE_INTAKE_ALLOWED_CHANNEL_IDS",
+        "default_channel_ids": [
+          "C0B32M34J3W",
+          "CF8PK6V4J"
+        ],
+        "raw_transcript_persistence": false,
+        "user_token_fallback": false,
+        "slack_connector_fallback": false
+      },
+      "jira": {
+        "project_key": "KER",
+        "issue_type_id": "10043",
+        "base_url_env_var": "JIRA_BASE_URL",
+        "email_env_var": "JIRA_EMAIL",
+        "api_token_env_var": "JIRA_API_TOKEN",
+        "slack_prd_field_id": "customfield_10080",
+        "mutations": [
+          "create_issue"
+        ],
+        "comments": false,
+        "transitions": false,
+        "assignments": false
+      },
+      "confirmation": {
+        "required": true,
+        "phrase": "create intake",
+        "preview_first": true
       }
     },
     "launchbot_help_article": {

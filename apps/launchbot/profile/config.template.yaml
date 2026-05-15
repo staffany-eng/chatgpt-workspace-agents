@@ -13,7 +13,7 @@ display:
       tool_progress: "off"
 slack:
   require_mention: true
-  allowed_channels: "C0B32M34J3W,C0AJAUNCEL8"
+  allowed_channels: "C0B32M34J3W,C0AJAUNCEL8,CF8PK6V4J"
   reactions: false
 cron:
   max_parallel_jobs: 1
@@ -59,6 +59,41 @@ mcp_servers:
         - "C0AJAUNCEL8"
       no_slack_connector_fallback: true
       no_user_token_fallback: true
+  launchbot_feature_intake:
+    description: "Guarded Slack thread to Jira Product Discovery KER intake adapter for Launchbot."
+    command: "/home/leekaiyi/.hermes/hermes-agent/venv/bin/python"
+    args:
+      - "/home/leekaiyi/.hermes/profiles/launchbot/source/launchbot/runtime/mcp/launchbot_feature_intake_server.py"
+    timeout: 120
+    tool_allowlist:
+      - "preview_feature_intake_from_slack_thread"
+      - "create_feature_intake_from_slack_thread"
+    auth_metadata:
+      slack:
+        type: "bot_token_env"
+        env: "SLACK_BOT_TOKEN"
+      jira:
+        type: "basic_auth_env"
+        base_url_env: "JIRA_BASE_URL"
+        email_env: "JIRA_EMAIL"
+        api_token_env: "JIRA_API_TOKEN"
+    access_policy:
+      mode: "confirmed_jpd_intake_create"
+      configured_channel_ids_env: "LAUNCHBOT_FEATURE_INTAKE_ALLOWED_CHANNEL_IDS"
+      default_channel_ids:
+        - "C0B32M34J3W"
+        - "CF8PK6V4J"
+      project_key: "KER"
+      issue_type_id: "10043"
+      slack_prd_field_id: "customfield_10080"
+      required_confirmation: "create intake"
+      preview_first: true
+      no_slack_post_from_mcp: true
+      no_jira_comments: true
+      no_jira_transitions: true
+      no_jira_assignment: true
+      no_slack_connector_fallback: true
+      no_user_token_fallback: true
   launchbot_help_article:
     description: "Draft-only registered video-slot updater for StaffAny help articles."
     command: "/home/leekaiyi/.hermes/hermes-agent/venv/bin/python"
@@ -92,3 +127,4 @@ gateway:
 SLACK_HOME_CHANNEL: "C0B32M34J3W"
 SLACK_HOME_CHANNEL_NAME: "launch-bot-testing"
 LAUNCHBOT_KER_ALLOWED_CHANNEL_IDS: "C0B32M34J3W,C0AJAUNCEL8"
+LAUNCHBOT_FEATURE_INTAKE_ALLOWED_CHANNEL_IDS: "C0B32M34J3W,CF8PK6V4J"

@@ -27,6 +27,16 @@ fallback_providers:
   - provider: "anthropic"
     model: "claude-haiku-4-5"
 
+auxiliary:
+  # Hermes emits auxiliary title-generation failures through the same status
+  # path as user-visible Slack warnings. Keep this non-critical task off the
+  # main Sonnet route and fail quickly if the provider is overloaded.
+  title_generation:
+    provider: "anthropic"
+    model: "claude-haiku-4-5"
+    timeout: 10
+    extra_body: {}
+
 agent:
   api_max_retries: 3
 

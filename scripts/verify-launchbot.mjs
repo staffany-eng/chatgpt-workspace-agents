@@ -169,6 +169,38 @@ if (!manifest) {
   if (helpMcp.video?.provider !== "loom") fail("Manifest help article MCP must be Loom-only");
   if (helpMcp.video?.reject_raw_video_files !== true) fail("Manifest help article MCP must reject raw video files");
   if (helpMcp.video?.reject_slack_file_urls !== true) fail("Manifest help article MCP must reject Slack file URLs");
+  if (!manifest.slack?.allowed_channel_ids?.includes("CF8PK6V4J")) {
+    fail("Manifest Slack allowed channel IDs must include input-features-ux CF8PK6V4J");
+  }
+  const featureIntakeMcp = manifest.mcp?.launchbot_feature_intake || {};
+  if (featureIntakeMcp.mode !== "confirmed_jpd_intake_create") fail("Manifest feature intake MCP must be confirmed JPD intake create");
+  const featureIntakeTools = new Set(featureIntakeMcp.tools || []);
+  for (const tool of ["preview_feature_intake_from_slack_thread", "create_feature_intake_from_slack_thread"]) {
+    if (!featureIntakeTools.has(tool)) fail(`Manifest feature intake MCP missing tool: ${tool}`);
+  }
+  if (featureIntakeMcp.slack_context?.configured_channel_ids_env_var !== "LAUNCHBOT_FEATURE_INTAKE_ALLOWED_CHANNEL_IDS") {
+    fail("Manifest feature intake MCP must use LAUNCHBOT_FEATURE_INTAKE_ALLOWED_CHANNEL_IDS");
+  }
+  if (!featureIntakeMcp.slack_context?.default_channel_ids?.includes("CF8PK6V4J")) {
+    fail("Manifest feature intake MCP default channels must include CF8PK6V4J");
+  }
+  if (featureIntakeMcp.slack_context?.raw_transcript_persistence !== false) {
+    fail("Manifest feature intake MCP must not persist raw Slack transcripts");
+  }
+  if (featureIntakeMcp.jira?.project_key !== "KER") fail("Manifest feature intake MCP must create in KER");
+  if (featureIntakeMcp.jira?.issue_type_id !== "10043") fail("Manifest feature intake MCP must use KER Idea issue type");
+  if (featureIntakeMcp.jira?.slack_prd_field_id !== "customfield_10080") {
+    fail("Manifest feature intake MCP must use Slack / PRD customfield_10080");
+  }
+  if (!featureIntakeMcp.jira?.mutations?.includes("create_issue")) {
+    fail("Manifest feature intake MCP must expose only create_issue mutation");
+  }
+  for (const key of ["comments", "transitions", "assignments"]) {
+    if (featureIntakeMcp.jira?.[key] !== false) fail(`Manifest feature intake MCP must forbid Jira ${key}`);
+  }
+  if (featureIntakeMcp.confirmation?.phrase !== "create intake") {
+    fail("Manifest feature intake MCP confirmation phrase must be create intake");
+  }
   const healthCron = (manifest.expected_crons || []).find((cron) => cron.name === "launchbot health check");
   if (healthCron?.schedule !== "*/5 * * * *") fail("Manifest must define Launchbot health check cron");
   if (healthCron?.mode !== "no-agent") fail("Manifest health check cron must be no-agent");
@@ -192,9 +224,11 @@ for (const relPath of [
   "runtime/intercom-format-gate.test.mjs",
   "runtime/mcp/profile_env.py",
   "runtime/mcp/launchbot_ker_server.py",
+  "runtime/mcp/launchbot_feature_intake_server.py",
   "runtime/mcp/launchbot_help_article_server.py",
   "runtime/mcp/test_helpers.py",
   "runtime/mcp/test_launchbot_ker_server.py",
+  "runtime/mcp/test_launchbot_feature_intake_server.py",
   "runtime/mcp/test_launchbot_help_article_server.py",
   "runtime/mcp/fixtures/help_article_video_fixtures.json",
   "skills/help-article-generator/SKILL.md",
@@ -224,13 +258,20 @@ for (const requiredText of [
   "reactions: false",
   "C0B32M34J3W",
   "C0AJAUNCEL8",
+  "CF8PK6V4J",
   "launchbot_ker",
+  "launchbot_feature_intake",
   "launchbot_help_article",
   "find_ker_ticket_from_slack_thread",
   "lookup_ker_ticket_by_key",
+  "preview_feature_intake_from_slack_thread",
+  "create_feature_intake_from_slack_thread",
   "preview_help_article_video_update",
   "create_help_article_video_update_draft",
   "JIRA_API_TOKEN",
+  "LAUNCHBOT_FEATURE_INTAKE_ALLOWED_CHANNEL_IDS",
+  "confirmed_jpd_intake_create",
+  "required_confirmation: \"create intake\"",
   "LAUNCH_STEP3_INTERCOM_ACCESS_TOKEN",
   "draft_only_registered_video_slots",
   "allow_publish: false",
@@ -261,6 +302,8 @@ if (!launchbotProfileBlock) {
     "deploy_host: hermes-data-bot-poc",
     "local_profile_policy: cloud_only",
     "systemd_unit: hermes-gateway-launchbot.service",
+    "CF8PK6V4J",
+    "launchbot_feature_intake:",
     "launchbot_help_article:",
   ]) {
     if (!launchbotProfileBlock.includes(requiredText)) {
@@ -280,6 +323,10 @@ for (const requiredText of [
   "Kai Yi's user token",
   "Confidence: <verified | needs-check | blocked>",
   "find_ker_ticket_from_slack_thread",
+  "preview_feature_intake_from_slack_thread",
+  "create_feature_intake_from_slack_thread",
+  "create intake",
+  "confirmed Slack-to-KER feature intake",
   "KER-2109",
   "cached Intercom article planning",
   "Pantheon-grounded help article drafts",
@@ -323,6 +370,31 @@ for (const forbiddenText of ["chat.postMessage", "transitionIssue", "/comment", 
   if (mcpText.includes(forbiddenText)) fail(`launchbot_ker_server.py must not contain forbidden mutation surface: ${forbiddenText}`);
 }
 
+const featureIntakeMcpText = textOf("runtime/mcp/launchbot_feature_intake_server.py");
+for (const requiredText of [
+  "SLACK_BOT_TOKEN",
+  "JIRA_BASE_URL",
+  "JIRA_EMAIL",
+  "JIRA_API_TOKEN",
+  "conversations.replies",
+  "/rest/api/3/search/jql",
+  "/rest/api/3/issue?notifyUsers=false",
+  "preview_feature_intake_from_slack_thread",
+  "create_feature_intake_from_slack_thread",
+  "CONFIRMATION_PHRASES",
+  "create intake",
+  "customfield_10080",
+  "CF8PK6V4J",
+  "will_mutate_jira",
+  "will_post_message",
+  "transcript_persisted",
+]) {
+  if (!featureIntakeMcpText.includes(requiredText)) fail(`launchbot_feature_intake_server.py missing required text: ${requiredText}`);
+}
+for (const forbiddenText of ["chat.postMessage", "transitionIssue", "/comment", "/transitions", "DELETE"]) {
+  if (featureIntakeMcpText.includes(forbiddenText)) fail(`launchbot_feature_intake_server.py must not contain forbidden mutation surface: ${forbiddenText}`);
+}
+
 const helpArticleMcpText = textOf("runtime/mcp/launchbot_help_article_server.py");
 for (const requiredText of [
   "LAUNCH_STEP3_INTERCOM_ACCESS_TOKEN",
@@ -349,6 +421,7 @@ for (const requiredText of [
   "pantheon:status-stale",
   "LAUNCHBOT_PANTHEON_REPO_DIR",
   "mcp:launchbot_help_article",
+  "mcp:launchbot_feature_intake",
   "LAUNCH_STEP3_INTERCOM_ACCESS_TOKEN",
   "help-article-video-registry",
 ]) {
@@ -362,6 +435,7 @@ for (const requiredText of [
   "cron:pantheon-repo-update-present-without-github-ssh",
   "GIT_TERMINAL_PROMPT=0 git ls-remote",
   "profile-drift:help-article-mcp",
+  "profile-drift:feature-intake-mcp",
   "profile-drift:help-article-video-registry",
 ]) {
   if (!auditText.includes(requiredText)) fail(`audit-live-profile.sh missing required cron/access text: ${requiredText}`);

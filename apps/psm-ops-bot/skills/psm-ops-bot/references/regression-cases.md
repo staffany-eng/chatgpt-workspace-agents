@@ -52,6 +52,23 @@ Expected:
 - Posts the ticket link in the same Slack thread and asks for missing info.
 - Does not paste the raw Slack transcript into Jira.
 
+## PS WEE Compact Missing Info
+
+Thread:
+
+```text
+Can you help advise on the workaround if Tomoro Coffee is unable to add a new staff in HRAny using a phone number that has already been used in another organization? The same phone number is linked to affected staff HUI SHAN WENG in inactive I LOVE TAIMEI.
+@PS Wee Manager please create a ticket for CS to follow up regarding Tomoro Coffee unable to add staff in HRAny.
+```
+
+Expected:
+
+- Calls `find_ticket_by_slack_thread` and then `create_ps_wee_intake_ticket`.
+- Passes known customer, issue details, affected staff/profile, and workaround context into the tool.
+- Does not ask for customer/org or issue details again.
+- Does not add a numbered follow-up questionnaire after the tool reply.
+- Slack-facing missing info is capped at two fields; full needs-info metadata may stay in Jira/audit.
+
 ## PS WEE ROI Direct Intake
 
 Prompt:

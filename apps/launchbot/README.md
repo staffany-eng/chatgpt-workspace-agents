@@ -13,6 +13,7 @@ Canonical Hermes app packet for the Launchbot Slack profile.
 - Pantheon source checkout: `~/.hermes/profiles/launchbot/source/pantheon`, refreshed from `git@github.com:staffany-eng/pantheon.git` branch `develop` after VM GitHub SSH access is authorized.
 - Slack Socket Mode event subscriptions: `app_mention` and `message.channels`; OAuth scopes must include `app_mentions:read`, `channels:history`, `channels:read`, and `chat:write`.
 - Help article planning: cached Intercom article-shape profile plus metadata inventory first, then live Intercom only for affected search and pre-stage stale checks.
+- Feature intake: guarded Slack thread to Jira Product Discovery KER preview/create in configured channels, with explicit confirmation before Jira mutation.
 - Publish surface: Intercom draft/staging output only; public publish stays manual in Intercom.
 
 ## Packet Contents
@@ -28,6 +29,7 @@ Canonical Hermes app packet for the Launchbot Slack profile.
 | `runtime/audit-live-profile.sh` | Live profile drift audit. |
 | `runtime/update-pantheon-repo.sh` | Daily Pantheon checkout refresher for code-grounded help article verification. |
 | `runtime/mcp/launchbot_ker_server.py` | Read-only Slack thread to Jira KER lookup tool. |
+| `runtime/mcp/launchbot_feature_intake_server.py` | Confirmed Slack thread to Jira Product Discovery KER intake tool. |
 | `runtime/mcp/launchbot_help_article_server.py` | Draft-only registered Loom video-slot updater for existing help articles. |
 | `skills/help-article-generator/` | Launchbot help-article drafting skill upgraded from the 2026-05-11 handoff. |
 | `skills/help-article-generator/references/video-placement-registry.json` | Registry authority for help article video placement. |
@@ -44,7 +46,7 @@ Canonical Hermes app packet for the Launchbot Slack profile.
 3. Copy `profile/SOUL.md` to `~/.hermes/profiles/launchbot/SOUL.md`.
 4. Use `profile/config.template.yaml` as the non-secret config guide.
 5. Set Slack and model secrets from the approved secret store only.
-6. Set Jira read-only env vars (`JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN`) in the live profile `.env` before enabling KER lookup.
+6. Set Jira env vars (`JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN`) in the live profile `.env` before enabling KER lookup or confirmed feature intake.
 7. Copy `skills/help-article-generator/` into `~/.hermes/profiles/launchbot/skills/` when enabling article drafting and registered video-slot updates.
 8. Copy runtime scripts into `~/.hermes/profiles/launchbot/scripts/`.
 9. Copy `runtime/mcp/launchbot_help_article_server.py` into the live profile source tree before enabling the `launchbot_help_article` MCP server.
@@ -90,3 +92,5 @@ npm run intercom:stage-update -- --article-id <article_id> --draft <draft.md> --
 ```
 
 Video-only help article updates are part of the existing Update lane. They are registry-only and draft-only: preview with `preview_help_article_video_update`, wait for `draft it`, then create the Intercom draft with `create_help_article_video_update_draft`. No public publish or article text rewrite is exposed.
+
+Feature intake is a guarded Jira Product Discovery lane. Preview with `preview_feature_intake_from_slack_thread`, wait for `create intake`, then create one KER idea with `create_feature_intake_from_slack_thread`. The Slack permalink is written to `Slack / PRD` and used as the duplicate key; the MCP never posts Slack messages, comments on Jira, transitions issues, or assigns owners.

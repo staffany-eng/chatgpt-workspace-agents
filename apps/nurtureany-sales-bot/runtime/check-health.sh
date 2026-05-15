@@ -12,7 +12,7 @@ EXPECT_MODEL_DEFAULT="${EXPECT_MODEL_DEFAULT:-claude-sonnet-4-6}"
 EXPECT_SLACK_INTENT_TOOLS="${EXPECT_SLACK_INTENT_TOOLS:-3}"
 EXPECT_STAFFANY_BIGQUERY_TOOLS="${EXPECT_STAFFANY_BIGQUERY_TOOLS:-4}"
 EXPECT_HUBSPOT_TOOLS="${EXPECT_HUBSPOT_TOOLS:-49}"
-EXPECT_AIRCALL_TOOLS="${EXPECT_AIRCALL_TOOLS:-2}"
+EXPECT_AIRCALL_TOOLS="${EXPECT_AIRCALL_TOOLS:-3}"
 EXPECT_GOOGLE_CALENDAR_TOOLS="${EXPECT_GOOGLE_CALENDAR_TOOLS:-2}"
 EXPECT_GOOGLE_DRIVE_TOOLS="${EXPECT_GOOGLE_DRIVE_TOOLS:-5}"
 EXPECT_EAZYBE_TOOLS="${EXPECT_EAZYBE_TOOLS:-4}"
@@ -295,7 +295,7 @@ expected_servers = {
         "draft_nurture_message",
         "plan_hubspot_writeback",
     ],
-    "aircall_nurtureany": ["find_aircall_calls", "transcribe_aircall_recording"],
+    "aircall_nurtureany": ["find_aircall_calls", "transcribe_aircall_recording", "analyze_aircall_call_coaching"],
     "google_calendar_nurtureany": ["list_google_calendar_events", "audit_google_calendar_meeting_quality"],
     "google_drive_nurtureany": [
         "list_drive_folder_images",

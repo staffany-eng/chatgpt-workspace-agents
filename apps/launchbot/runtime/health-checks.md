@@ -9,10 +9,11 @@ Expected checks:
 - Model route is `model.provider=anthropic`, `model.default=claude-sonnet-4-6`.
 - Slack quiet settings are enabled: no streaming, no tool progress, no interim assistant messages, no reactions.
 - `SLACK_HOME_CHANNEL` is `C0B32M34J3W`.
-- Slack allowed channels include `C0B32M34J3W` and `C0AJAUNCEL8`.
+- Slack allowed channels include `C0B32M34J3W`, `C0AJAUNCEL8`, and `CF8PK6V4J`.
 - `launchbot_ker` MCP exposes only `find_ker_ticket_from_slack_thread` and `lookup_ker_ticket_by_key`.
+- `launchbot_feature_intake` MCP exposes only `preview_feature_intake_from_slack_thread` and `create_feature_intake_from_slack_thread`.
 - `launchbot_help_article` MCP exposes only `preview_help_article_video_update` and `create_help_article_video_update_draft`.
-- KER lookup has `SLACK_BOT_TOKEN`, `JIRA_BASE_URL`, `JIRA_EMAIL`, and `JIRA_API_TOKEN` in the live profile env.
+- KER lookup and feature intake have `SLACK_BOT_TOKEN`, `JIRA_BASE_URL`, `JIRA_EMAIL`, and `JIRA_API_TOKEN` in the live profile env.
 - Video-only help article updates have `LAUNCH_STEP3_INTERCOM_ACCESS_TOKEN` in the live profile env.
 - Help article video placement registry is readable at `~/.hermes/profiles/launchbot/source/launchbot/skills/help-article-generator/references/video-placement-registry.json`.
 - Pantheon is cloned at `~/.hermes/profiles/launchbot/source/pantheon`, with remote `git@github.com:staffany-eng/pantheon.git`, branch `develop`, clean worktree, and a fresh update status JSON.

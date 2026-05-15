@@ -30,6 +30,19 @@
 - Creates the PCO intake ticket immediately with `create_ps_wee_intake_ticket` when no same-thread ticket exists.
 - Includes the Slack thread permalink in Jira.
 
+## PS WEE Compact Missing Info
+
+Thread:
+
+`Can you help advise on the workaround if Tomoro Coffee is unable to add a new staff in HRAny using a phone number that has already been used in another organization? The same phone number is linked to affected staff HUI SHAN WENG in inactive I LOVE TAIMEI.`
+`@PSM Ops please create a ticket for CS to follow up regarding Tomoro Coffee unable to add staff in HRAny.`
+
+- Creates or reuses the PCO intake ticket first.
+- Passes known customer, issue details, affected staff/profile, and workaround context into `create_ps_wee_intake_ticket`.
+- Does not ask for customer/org or issue details again.
+- Does not add a numbered questionnaire after the tool reply.
+- Slack-facing missing info is capped at two fields; full needs-info metadata may stay in Jira/audit.
+
 ## PS WEE Customer Channel Auto-Tag
 
 Expected:

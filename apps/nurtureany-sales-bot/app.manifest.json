@@ -385,6 +385,7 @@
       "build_manager_chase_plan",
       "find_aircall_calls",
       "transcribe_aircall_recording",
+      "analyze_aircall_call_coaching",
       "get_account_context",
       "build_pre_demo_game_plans",
       "find_sales_case_studies",
@@ -510,11 +511,15 @@
     ],
     "transcription_auth_env_var": "OPENAI_API_KEY",
     "read_only": true,
-    "provider": "Aircall Public API plus OpenAI audio transcriptions",
+    "provider": "Aircall Public API plus OpenAI audio transcriptions and Responses coaching",
+    "call_coach_provider": "openai",
     "default_transcription_model": "gpt-4o-transcribe-diarize",
+    "default_reasoning_model": "gpt-5.5",
+    "elevenlabs_enabled": false,
     "allowed_tools": [
       "find_aircall_calls",
-      "transcribe_aircall_recording"
+      "transcribe_aircall_recording",
+      "analyze_aircall_call_coaching"
     ],
     "max_calls": 5,
     "selected_call_only": true,

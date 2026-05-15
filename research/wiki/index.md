@@ -33,6 +33,9 @@ This directory is the maintained research wiki for designing ChatGPT workspace a
 - [NurtureAny Target Market And User Journey](./sources/nurtureany-target-market-user-journey.md)
 - [NurtureAny Mobile Number Rollout](./sources/nurtureany-mobile-number-rollout.md)
 - [PSM Ops PCO Release Watch](./sources/psm-ops-pco-release-watch.md)
+- [Gong Coaching Public Docs](./sources/gong-coaching-public-docs.md)
+- [OpenAI Voice Intelligence](./sources/openai-voice-intelligence.md)
+- [ElevenLabs Voice Stack](./sources/elevenlabs-voice-stack.md)
 
 ## Syntheses
 
@@ -48,6 +51,9 @@ This directory is the maintained research wiki for designing ChatGPT workspace a
 - [StaffAny Revenue Operating Model](./syntheses/staffany-revenue-operating-model.md)
 - [PSM Ops Release Watch](./syntheses/psm-ops-release-watch.md)
 - [Help Article Planning Rules](./syntheses/help-article-planning-rules.md)
+- [Gong-Inspired Call Coaching](./syntheses/gong-inspired-call-coaching.md)
+- [OpenAI Voice For Call Coaching](./syntheses/openai-voice-for-call-coaching.md)
+- [ElevenLabs Voice For Call Coaching](./syntheses/elevenlabs-voice-for-call-coaching.md)
 
 ## Maintenance
 

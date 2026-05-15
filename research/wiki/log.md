@@ -113,3 +113,27 @@ Ingested a metadata-only Intercom article inventory for LaunchBot. Pulled 328 ar
 ## [2026-05-15] ingest | Hermes Agent live docs full refresh
 
 Refreshed the Hermes source note from live `llms.txt` and `llms-full.txt`. Captured current retrieval metadata, hashes, 98 curated index links, 153 source pages, six added pages since the May 10 refresh, thematic coverage counts, and short paraphrased extracts only. Promoted the refresh into a shared Hermes runtime bot operating model and wired it into Da Ta Hermz, NurtureAny, and Launchbot app guides.
+
+## [2026-05-15] ingest | Gong Coaching Public Docs
+
+Ingested official Gong public coaching docs as design-pattern evidence for NurtureAny selected-call coaching. Captured call-page, AI Call Reviewer, scorecard, search, tracker, topic, and interaction-stat patterns while explicitly keeping Gong as inspiration only, not a data source, integration, or parity claim.
+
+## [2026-05-15] synthesis | Gong-Inspired Call Coaching
+
+Synthesized Gong's public coaching workflow into a NurtureAny selected-call output contract: answer, 0/1/2 scorecard, timestamped coachable moments, observable tone/interaction cues, manager coaching note, next action, and source/scope/confidence/caveat.
+
+## [2026-05-15] ingest | OpenAI Voice Intelligence
+
+Ingested official OpenAI voice sources covering the May 2026 realtime voice release, developer voice-agent architecture docs, realtime transcription docs, gpt-realtime production context, next-generation audio models, Whisper, GPT-4o voice safety, realtime prompting, and Advanced Voice Mode affective-use research.
+
+## [2026-05-15] synthesis | OpenAI Voice For Call Coaching
+
+Synthesized OpenAI voice capability and safety evidence into NurtureAny call-coaching architecture guidance: current selected-call review stays post-call Aircall/OpenAI transcription, while future live coaching requires consented live audio routing, realtime transcription or voice-agent design, safety guardrails, and real-call evals.
+
+## [2026-05-15] ingest | ElevenLabs Voice Stack
+
+Ingested official ElevenLabs public docs and articles covering Scribe v2, Scribe v2 Realtime, realtime STT commit strategies, ElevenAgents analysis, post-call webhooks, Twilio/SIP telephony, batch calling, retention, Zero Retention Mode, Voice Isolator, Voice Changer, and Dubbing.
+
+## [2026-05-15] synthesis | ElevenLabs Voice For Call Coaching
+
+Synthesized ElevenLabs voice-stack evidence into NurtureAny call-coaching architecture guidance: ElevenLabs is future/alternative technical evidence only, not a current provider, integration, source of truth, or live-call access proof.
