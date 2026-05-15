@@ -34,6 +34,7 @@ cmp -s "$APP_ROOT/runtime/check-health.sh" "$PROFILE_DIR/scripts/launchbot-check
 cmp -s "$APP_ROOT/runtime/audit-live-profile.sh" "$PROFILE_DIR/scripts/launchbot-audit-live-profile.sh" || fail "profile-drift:audit-script"
 cmp -s "$APP_ROOT/runtime/update-pantheon-repo.sh" "$PROFILE_DIR/scripts/launchbot-update-pantheon-repo.sh" || fail "profile-drift:pantheon-update-script"
 cmp -s "$APP_ROOT/runtime/mcp/launchbot_ker_server.py" "$PROFILE_DIR/source/launchbot/runtime/mcp/launchbot_ker_server.py" || fail "profile-drift:ker-mcp"
+cmp -s "$APP_ROOT/runtime/mcp/launchbot_feature_intake_server.py" "$PROFILE_DIR/source/launchbot/runtime/mcp/launchbot_feature_intake_server.py" || fail "profile-drift:feature-intake-mcp"
 cmp -s "$APP_ROOT/runtime/mcp/launchbot_help_article_server.py" "$PROFILE_DIR/source/launchbot/runtime/mcp/launchbot_help_article_server.py" || fail "profile-drift:help-article-mcp"
 cmp -s "$APP_ROOT/skills/help-article-generator/references/video-placement-registry.json" "$PROFILE_DIR/source/launchbot/skills/help-article-generator/references/video-placement-registry.json" || fail "profile-drift:help-article-video-registry"
 "$PROFILE_DIR/scripts/launchbot-check-health.sh" >/dev/null

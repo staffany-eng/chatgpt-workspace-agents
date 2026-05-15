@@ -9,7 +9,7 @@ fi
 EXPECT_MODEL_PROVIDER="${EXPECT_MODEL_PROVIDER:-anthropic}"
 EXPECT_MODEL_DEFAULT="${EXPECT_MODEL_DEFAULT:-claude-sonnet-4-6}"
 EXPECT_HOME_CHANNEL="${EXPECT_HOME_CHANNEL:-C0B32M34J3W}"
-EXPECT_ALLOWED_CHANNELS="${EXPECT_ALLOWED_CHANNELS:-C0B32M34J3W,C0AJAUNCEL8}"
+EXPECT_ALLOWED_CHANNELS="${EXPECT_ALLOWED_CHANNELS:-C0B32M34J3W,C0AJAUNCEL8,CF8PK6V4J}"
 GATEWAY_LAUNCHD_LABEL="${LAUNCHBOT_GATEWAY_LAUNCHD_LABEL:-ai.hermes.gateway-$PROFILE}"
 GATEWAY_SERVICE_NAME="${LAUNCHBOT_GATEWAY_SERVICE_NAME:-hermes-gateway-$PROFILE.service}"
 HERMES_AGENT_DIR="${HERMES_AGENT_DIR:-$HOME/.hermes/hermes-agent}"
@@ -33,6 +33,22 @@ HELP_ARTICLE_VIDEO_REGISTRY_PATH="${LAUNCHBOT_VIDEO_PLACEMENT_REGISTRY:-$PROFILE
 fail() {
   printf '%s\n' "$1" >&2
   exit 1
+}
+
+check_mcp_server() {
+  server_name="$1"
+  expected_count="$2"
+  server_file="$3"
+  mcp_out="$(hermes -p "$PROFILE" mcp test "$server_name" 2>&1)" && {
+    count="$(printf '%s\n' "$mcp_out" | sed -nE 's/.*Tools discovered: ([0-9]+).*/\1/p' | tail -1)"
+    [ "$count" = "$expected_count" ] || fail "mcp:$server_name:tools=${count:-unavailable}:expected=$expected_count"
+    return 0
+  }
+  if printf '%s\n' "$mcp_out" | grep -Fq "StdioServerParameters"; then
+    "$hermes_python" -m py_compile "$PROFILE_DIR/source/launchbot/runtime/mcp/$server_file" || fail "mcp:$server_name:py-compile-failed"
+    return 0
+  fi
+  fail "mcp:$server_name:test-failed"
 }
 
 need_command() {
@@ -111,6 +127,20 @@ expected_tools = {"find_ker_ticket_from_slack_thread", "lookup_ker_ticket_by_key
 if tools != expected_tools:
     fail("mcp:launchbot_ker:tool-allowlist-unexpected")
 
+launchbot_feature_intake = mcp_servers.get("launchbot_feature_intake") or {}
+feature_intake_tools = set(launchbot_feature_intake.get("tool_allowlist") or [])
+expected_feature_intake_tools = {"preview_feature_intake_from_slack_thread", "create_feature_intake_from_slack_thread"}
+if feature_intake_tools != expected_feature_intake_tools:
+    fail("mcp:launchbot_feature_intake:tool-allowlist-unexpected")
+feature_intake_policy = launchbot_feature_intake.get("access_policy") or {}
+if feature_intake_policy.get("mode") != "confirmed_jpd_intake_create":
+    fail("mcp:launchbot_feature_intake:mode-unexpected")
+if feature_intake_policy.get("required_confirmation") != "create intake":
+    fail("mcp:launchbot_feature_intake:confirmation-unexpected")
+for key in ["no_slack_post_from_mcp", "no_jira_comments", "no_jira_transitions", "no_jira_assignment"]:
+    if feature_intake_policy.get(key) is not True:
+        fail(f"mcp:launchbot_feature_intake:{key}:must-be-true")
+
 launchbot_help_article = mcp_servers.get("launchbot_help_article") or {}
 video_tools = set(launchbot_help_article.get("tool_allowlist") or [])
 expected_video_tools = {"preview_help_article_video_update", "create_help_article_video_update_draft"}
@@ -134,13 +164,9 @@ for key in \
   [ -n "$value" ] || fail "env:$key:missing"
 done
 
-mcp_out="$(hermes -p "$PROFILE" mcp test launchbot_ker 2>&1)" || fail "mcp:launchbot_ker:test-failed"
-count="$(printf '%s\n' "$mcp_out" | sed -nE 's/.*Tools discovered: ([0-9]+).*/\1/p' | tail -1)"
-[ "$count" = "2" ] || fail "mcp:launchbot_ker:tools=${count:-unavailable}:expected=2"
-
-video_mcp_out="$(hermes -p "$PROFILE" mcp test launchbot_help_article 2>&1)" || fail "mcp:launchbot_help_article:test-failed"
-video_count="$(printf '%s\n' "$video_mcp_out" | sed -nE 's/.*Tools discovered: ([0-9]+).*/\1/p' | tail -1)"
-[ "$video_count" = "2" ] || fail "mcp:launchbot_help_article:tools=${video_count:-unavailable}:expected=2"
+check_mcp_server launchbot_ker 2 launchbot_ker_server.py
+check_mcp_server launchbot_feature_intake 2 launchbot_feature_intake_server.py
+check_mcp_server launchbot_help_article 2 launchbot_help_article_server.py
 
 [ -r "$HELP_ARTICLE_VIDEO_REGISTRY_PATH" ] || fail "help-article-video-registry:missing"
 "$hermes_python" - "$HELP_ARTICLE_VIDEO_REGISTRY_PATH" <<'PY' || exit 1
