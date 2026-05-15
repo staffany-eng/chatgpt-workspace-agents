@@ -252,6 +252,7 @@ if (!existsSync(manifestPath)) {
       "build_manager_chase_plan",
       "find_aircall_calls",
       "transcribe_aircall_recording",
+      "analyze_aircall_call_coaching",
       "get_account_context",
       "build_pre_demo_game_plans",
       "find_sales_case_studies",
@@ -373,6 +374,9 @@ if (!existsSync(manifestPath)) {
     if (manifest.aircall?.default_transcription_model !== "gpt-4o-transcribe-diarize") {
       fail("Manifest Aircall default model must be gpt-4o-transcribe-diarize");
     }
+    if (manifest.aircall?.call_coach_provider !== "openai") fail("Manifest Aircall call_coach_provider must be openai");
+    if (manifest.aircall?.default_reasoning_model !== "gpt-5.5") fail("Manifest Aircall reasoning model must be gpt-5.5");
+    if (manifest.aircall?.elevenlabs_enabled !== false) fail("Manifest Aircall must keep ElevenLabs disabled in V1");
     if (manifest.aircall?.max_calls !== 5) fail("Manifest Aircall max_calls must be 5");
     if (manifest.aircall?.selected_call_only !== true) fail("Manifest Aircall must be selected_call_only");
     if (manifest.aircall?.max_audio_bytes !== 26214400) fail("Manifest Aircall max_audio_bytes must be 26214400");
@@ -380,7 +384,7 @@ if (!existsSync(manifestPath)) {
     if (manifest.aircall?.raw_recording_urls_returned !== false) fail("Manifest Aircall must not return raw recording URLs");
     if (manifest.aircall?.raw_audio_retained !== false) fail("Manifest Aircall must not retain raw audio");
     if (manifest.aircall?.bulk_transcript_exports !== false) fail("Manifest Aircall must block bulk transcript exports");
-    for (const tool of ["find_aircall_calls", "transcribe_aircall_recording"]) {
+    for (const tool of ["find_aircall_calls", "transcribe_aircall_recording", "analyze_aircall_call_coaching"]) {
       if (!manifest.aircall?.allowed_tools?.includes(tool)) fail(`Manifest Aircall missing allowed tool: ${tool}`);
     }
     if (manifest.exa?.auth_env_var !== "EXA_API_KEY") fail("Manifest missing EXA_API_KEY auth env var");

@@ -11,6 +11,9 @@ This synthesis combines the Leadership Tactical Pause folder and Sales Training 
 - Sales Onboarding Master Template: [source note](../sources/nurtureany-sales-onboarding-master-template.md), [raw record](../../raw/nurtureany-sales-best-practices/sales-onboarding-master-template-linked-files.md).
 - Target Market And User Journey: [source note](../sources/nurtureany-target-market-user-journey.md), [raw record](../../raw/google-drive/2026-05-12-target-market-user-journey/source-extract.md).
 - Mobile Number Rollout: [source note](../sources/nurtureany-mobile-number-rollout.md), [raw record](../../raw/google-drive/2026-05-12-mobile-number-memo/source-extract.md).
+- Gong Coaching Public Docs: [source note](../sources/gong-coaching-public-docs.md), [raw record](../../raw/gong-coaching/source-extract.md).
+- OpenAI Voice Intelligence: [source note](../sources/openai-voice-intelligence.md), [raw record](../../raw/openai-voice-intelligence/source-extract.md).
+- ElevenLabs Voice Stack: [source note](../sources/elevenlabs-voice-stack.md), [raw record](../../raw/elevenlabs-voice-stack/source-extract.md).
 
 ## Source Hierarchy
 
@@ -20,7 +23,10 @@ This synthesis combines the Leadership Tactical Pause folder and Sales Training 
 4. Current onboarding plans, master templates, and assessment sheets are supporting evidence for ramp, certification, and scoring.
 5. Current target-market/persona training guides ICP, JTBD, and value framing for drafts and pre-demo planning.
 6. Current mobile-number rollout planning guides conversation-capture readiness, but rollout status needs live verification.
-7. Archive, old, copy, outdated, and trainee files are lower-authority context. Surface conflicts when material.
+7. Gong public coaching docs are design inspiration only for selected-call scorecard structure, interaction-stat language, and manager feedback loops.
+8. OpenAI voice docs are technical capability and safety evidence for transcription/realtime architecture, not StaffAny live-call access proof.
+9. ElevenLabs voice docs are alternative/future technical capability evidence for STT, realtime transcription, telephony agents, post-call analysis, and retention controls; they are not StaffAny live-call access proof or an active provider.
+10. Archive, old, copy, outdated, and trainee files are lower-authority context. Surface conflicts when material.
 
 ## Operating Rhythm
 
@@ -98,6 +104,7 @@ This synthesis combines the Leadership Tactical Pause folder and Sales Training 
 - Coaching and Friday review should distinguish real HubSpot activity gaps from capture-infrastructure gaps where reps may be using personal numbers or unverified logging paths.
 - Onboarding and offboarding checks should include number assignment, WhatsApp Business setup, Eazybe linkage, HubSpot logging test, central access, and reassignment.
 - Sales-call evidence remains weaker unless HubSpot call logging or an approved telephony integration is verified.
+- ElevenLabs Scribe, Agents, Twilio, and SIP docs are alternative/future architecture evidence only. They require approved consent, routing, credential, retention, and eval work before any NurtureAny runtime use.
 
 ## AI And Data Readiness
 
@@ -120,3 +127,6 @@ This synthesis combines the Leadership Tactical Pause folder and Sales Training 
 - The bot should surface lower-authority old/archive guidance when it conflicts with current/final/instructor material.
 - Nurture drafts and pre-demo plans should select persona-specific value angles instead of generic feature lists.
 - Friday review and coaching answers should flag conversation-capture readiness when WhatsApp/HubSpot evidence is missing or untrusted.
+- Selected Aircall call reviews should use the Gong-inspired structure while keeping HubSpot as account truth and Aircall/OpenAI as selected-call artifact enrichment only.
+- OpenAI realtime voice releases should be treated as future architecture evidence; they do not make NurtureAny live coaching possible without approved live audio, consent, routing, and eval work.
+- ElevenLabs voice docs should be treated the same way: future/alternative architecture evidence only, not a current NurtureAny provider, credential path, source of truth, or live-call capability.

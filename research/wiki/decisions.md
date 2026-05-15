@@ -72,6 +72,14 @@ This page stores accepted research-backed learnings before promotion into future
 - Planning implication: The durable app reference belongs under `apps/nurtureany-sales-bot/skills/nurtureany-sales-bot/references/`; it should not be implemented as a new MCP server.
 - Caveat: HubSpot still overrides training or tactical sources for live account, owner, country, contract end date, current tools, follow-up, calls, meetings, and deal facts.
 
+### Make OpenAI Post-Call Aircall Coaching The NurtureAny V1 Path
+
+- Status: accepted for the NurtureAny Sales Bot source packet.
+- Evidence: [Gong-Inspired Call Coaching](./syntheses/gong-inspired-call-coaching.md), [OpenAI Voice For Call Coaching](./syntheses/openai-voice-for-call-coaching.md), and [ElevenLabs Voice For Call Coaching](./syntheses/elevenlabs-voice-for-call-coaching.md).
+- Learning: The first useful call-coaching product is selected post-call Aircall review: resolve one Aircall call from HubSpot `hs_call_external_id` or bounded Aircall matching, transcribe the selected recording with OpenAI, compute transcript/timing interaction evidence locally, and use a structured OpenAI coaching pass to return manager-quality coaching instead of a transcript.
+- Planning implication: Runtime implementation belongs in `analyze_aircall_call_coaching` under the Aircall MCP. Gong shapes the workflow only, ElevenLabs remains future/benchmark evidence only, and live coaching remains a separate consented audio-stream architecture.
+- Caveat: HubSpot remains source of truth for account, owner, contact, deal, activity, CRM hygiene, and follow-up state. No raw transcript, raw audio, recording URL, phone number, Gong data, ElevenLabs data, or HubSpot mutation should be returned by default.
+
 ### Separate Rev Planning Targets From Warehouse Actuals
 
 - Status: accepted for StaffAny Rev metric answers.

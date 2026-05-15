@@ -8,7 +8,10 @@ Use this reference before answering NurtureAny sales workflow requests involving
 2. Current/final Leadership Tactical Pause material is the source of truth for operating rhythm, account coverage, QO quality, warm activity, event discipline, and Friday correction.
 3. Current instructor-copy training material and current sales rubrics are the source of truth for outreach, pre-demo, demo, post-demo, and coaching standards.
 4. Current onboarding plans, master templates, and assessment materials are supporting evidence for ramp, testing, certification, and coaching.
-5. Old, copy, archived, outdated, or trainee files are lower-authority context. If they conflict with current/final/instructor material, surface the conflict and use the higher-authority source.
+5. Gong public coaching docs are design inspiration only for selected-call review structure, scorecard UX, interaction-stat language, and manager feedback loops. They are not a Gong integration, data source, source of truth, or parity claim.
+6. OpenAI voice docs are technical capability evidence for transcription, realtime voice, and voice-safety boundaries. They do not prove live-call access, telephony streaming, or permission to listen in.
+7. ElevenLabs voice docs are alternative/future technical evidence for Scribe STT, realtime transcription, telephony agents, post-call analysis, and retention controls. They are not an active NurtureAny provider, data source, source of truth, or live-call access proof.
+8. Old, copy, archived, outdated, or trainee files are lower-authority context. If they conflict with current/final/instructor material, surface the conflict and use the higher-authority source.
 
 Do not build a new MCP for this guidance. In Hermes, configured MCP servers are discovered from `mcp_servers` and registered as first-class tools. This document is a Hermes skill reference, not a native MCP server.
 
@@ -114,7 +117,39 @@ Events are outbound demand generation. Track registrations, attendance, follow-u
 - Coaching and Friday review answers should separate real HubSpot activity gaps from capture-infrastructure gaps where WhatsApp evidence may be missing because reps use personal numbers or unverified logging paths.
 - Onboarding/offboarding checks should include number assignment, WhatsApp Business setup, Eazybe linkage, HubSpot logging test, central access, and reassignment.
 - Sales-call evidence remains weaker unless HubSpot call logging or an approved telephony integration is verified.
-- When Aircall is configured, selected recordings can improve coaching and call-quality evidence through `find_aircall_calls` and `transcribe_aircall_recording`. Use this as call enrichment only: summarize redacted bounded transcript evidence, do not expose raw recording links/audio/phone numbers, and do not override HubSpot activity truth.
+- When Aircall is configured, selected recordings can improve coaching and call-quality evidence through `find_aircall_calls`, lower-level `transcribe_aircall_recording`, and composed `analyze_aircall_call_coaching`. Use this as call enrichment only: compute transcript/timing interaction evidence locally, summarize safe coaching output, do not expose raw transcript blocks/recording links/audio/phone numbers, and do not override HubSpot activity truth.
+- OpenAI realtime voice models are future architecture evidence only. Do not claim NurtureAny can live-listen, live-coach, or join WhatsApp/Aircall calls unless an approved live audio source, consent policy, and realtime routing adapter exist.
+- ElevenLabs Scribe, Agents, Twilio, and SIP docs are alternative/future architecture evidence only. Do not claim NurtureAny uses ElevenLabs, can route Aircall/WhatsApp audio through ElevenLabs, or can live-coach from ElevenLabs docs without approved consent, routing, credentials, retention, and evals.
+
+## Selected Call Coaching Rubric
+
+Use this Gong-inspired structure for selected Aircall call reviews, while keeping StaffAny sales standards and HubSpot source truth above Gong public docs.
+
+Score each dimension as:
+
+- `0 = missed`
+- `1 = partial`
+- `2 = strong`
+
+Rubric dimensions:
+
+- Discovery: Did the rep ask open-ended questions, surface current workflow, pain, impact, and why-now?
+- I-C-BANT: Did the rep cover Introduction, Connect, Budget, Authority, Need, and Timeline without turning the call into an interrogation?
+- Talk ratio: Did the rep avoid dominating the call and leave enough space for the customer/prospect?
+- Interactivity: Did the call switch naturally between rep and customer, with follow-up questions instead of long one-way explanation?
+- Patience: Did the rep wait after customer statements instead of interrupting or rushing the answer?
+- Monologue length: Did the rep avoid long product monologues and keep explanations tied to the stated pain?
+- Objections: Did the rep acknowledge, clarify, and handle pricing, competitor, incumbent-tool, AI/custom-build, timing, or internal-approval concerns?
+- Next step: Did the rep secure a clear owner, action, date, and decision path?
+- CRM hygiene: Is the resulting HubSpot evidence complete enough for account truth, follow-up, QO/QO Met review, and manager coaching?
+- Customer reaction moments: Identify moments where customer/prospect behavior changes, such as shorter answers, new questions, explicit concern, or stronger engagement.
+- StaffAny value framing: Did the rep connect StaffAny to cost savings, time savings, visibility/accountability, accuracy, compliance, trust, flexibility, or retention?
+
+Tone/audio cue rule:
+
+- With transcript/timing-only evidence, write `Interaction cues checked from transcript/timing` and `Tone/audio cues: audio-native tone not checked`.
+- With approved audio-native analysis, write `Tone/audio cues checked from recording` and describe only observable cues.
+- Do not infer hidden emotion as fact. Use evidence phrasing such as `answers shortened after pricing`, `rep overlapped after the objection`, or `customer asked three follow-up questions after payroll-risk framing`.
 
 ## Outreach And Nurture Drafting
 

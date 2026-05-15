@@ -294,7 +294,7 @@ expected_servers = {
         "draft_nurture_message",
         "plan_hubspot_writeback",
     ],
-    "aircall_nurtureany": ["find_aircall_calls", "transcribe_aircall_recording"],
+    "aircall_nurtureany": ["find_aircall_calls", "transcribe_aircall_recording", "analyze_aircall_call_coaching"],
     "google_calendar_nurtureany": ["list_google_calendar_events", "audit_google_calendar_meeting_quality"],
     "google_drive_nurtureany": [
         "list_drive_folder_images",
