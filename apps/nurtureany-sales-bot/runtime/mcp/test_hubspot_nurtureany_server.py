@@ -655,11 +655,19 @@ class OwnerWhatsAppSentTodayTest(unittest.TestCase):
     def test_kns_support_speaker_venue_offer_is_not_network_component(self):
         support = self.module._whatsapp_kns_audit_from_body(
             "Would the boss be open to be our speaker for the upcoming Leaders Lounge? "
-            "Can we support your venue and host a simple meal at your venue with 1-2 bosses?"
+            "Can we support your venue and host a simple meal at your venue with 1-2 bosses? "
+            "Anyone u wanna hear from the industry so we can invite as our speaker in the future event?"
         )
         self.assertTrue(support["has_support"])
         self.assertFalse(support["has_network"])
         self.assertIn("network", support["missing_kns_components"])
+
+        future_speaker = self.module._whatsapp_kns_audit_from_body(
+            "For HR, anyone you want to hear from the industry so we can invite as our speaker in the future event?"
+        )
+        self.assertTrue(future_speaker["has_support"])
+        self.assertFalse(future_speaker["has_network"])
+        self.assertIn("network", future_speaker["missing_kns_components"])
 
         network = self.module._whatsapp_kns_audit_from_body(
             "You should meet 3 other Retail HR leaders solving similar manpower challenges at Happy HR Hour. "

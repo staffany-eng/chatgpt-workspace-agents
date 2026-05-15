@@ -799,8 +799,8 @@ def _whatsapp_batch_row(row: dict[str, Any]) -> dict[str, Any]:
             },
             {
                 "kns": "Support",
-                "angle": "speaker, venue, simple-meal, or outlet-support asks when the opportunity is real",
-                "question": "Would it be useful if we support your venue, feature you as a speaker, or bring a small peer meal to your outlet?",
+                "angle": "speaker, future-speaker sourcing, venue, simple-meal, or outlet-support asks when the opportunity is real",
+                "question": "Would it be useful if we support your venue, feature you as a speaker, ask who you want to hear from next, or bring a small peer meal to your outlet?",
             },
         ],
         "name_drop_policy": "Use find_sales_case_studies or approved material registry before naming a customer; otherwise keep the angle generic.",
