@@ -66,7 +66,7 @@ For ROI urgency fields, match the field's configured options exactly. If the req
 - Jira `PS Team` is the task-owner source of truth for "my tasks" and scoped reminders.
 - Thin POC fetches Slack users, canonicalizes profile email/name, and auto-matches the caller to the configured `PS Team` option.
 - Do not trust model-guessed email spelling; use Slack profile data before matching Jira.
-- Use `resolve_slack_user_identity` to resolve one Slack mention, email, or exact name before asking who an abbreviated owner such as `Jo`, `Jos`, or `Josica` means.
+- Use `resolve_slack_user_identity` to resolve one Slack mention, email, or exact name before asking who a person reference such as `Jo`, `Jos`, `Josica`, or `Barra` means. If the resolved user includes `ps_team`, PS WEE intake/task-list wording like `tag to <person>` or `track this for <person>` should use Jira `PS Team`.
 - If no `PS Team` option matches the caller, fail closed with `Confidence: blocked`.
 - `CS duty`, `cs duty`, and equivalent spelling variants mean Jira `PS Team = CS Duty`.
 - `Eng duty` means Jira `PS Team = Eng Duty`.

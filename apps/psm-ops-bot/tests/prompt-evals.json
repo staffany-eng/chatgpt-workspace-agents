@@ -199,6 +199,79 @@
       }
     },
     {
+      "id": "psm-tooltrace-nearby-mention-to-ps-team",
+      "bot": "PSM Ops Hermes Bot",
+      "surface": "slack:#ft-hrany-documents-signatures-onboarding",
+      "lane": "tool-trace",
+      "input": "<@U0A6RLTV5EG> can we have a training for HRAny for PS team so they are equipped to onboard? cc @PS WEE help to track this and tag to barra",
+      "setup": {
+        "after_user_request": true,
+        "stub_tools": true,
+        "nearby_slack_mentions": [
+          {
+            "mention": "<@U0A6RLTV5EG>",
+            "real_name": "Ahmad Nur Barraza",
+            "ps_team": "Barra"
+          }
+        ]
+      },
+      "expected_tool_trace": {
+        "must_call": [
+          "resolve_slack_user_identity",
+          "find_ticket_by_slack_thread",
+          "create_ps_wee_intake_ticket"
+        ],
+        "must_not_call": [
+          "set_pco_assignee"
+        ],
+        "argument_shape": {
+          "resolved_identity_query": "<@U0A6RLTV5EG>",
+          "create_ps_wee_intake_ticket.ps_team": "Barra"
+        }
+      },
+      "expected_answer_contract": {
+        "must_include": [
+          "Source: Jira PCO",
+          "Confidence:"
+        ],
+        "must_not_include": [
+          "tag them with a Slack mention",
+          "Barra's Slack identity"
+        ]
+      },
+      "forbidden_behavior": [
+        "ask the user to tag Barra again when the thread already has the mention",
+        "use Jira assignee for PS WEE intake ownership",
+        "skip same-thread ticket idempotency"
+      ],
+      "grade_notes": "Nearby Slack mentions should resolve person shorthand for PS WEE intake and map to Jira PS Team when available.",
+      "assertions": {
+        "source_files": [
+          {
+            "path": "profile/SOUL.md",
+            "must_contain": [
+              "Nearby Slack mentions beat bare-name uncertainty.",
+              "This is Jira `PS Team` ownership, not Jira assignee."
+            ]
+          },
+          {
+            "path": "runtime/mcp/psm_jira_server.py",
+            "must_contain": [
+              "answer[\"ps_team\"] = ps_team_option[\"value\"]",
+              "answer[\"ps_team_option_id\"] = ps_team_option[\"id\"]"
+            ]
+          },
+          {
+            "path": "tests/regression-cases.md",
+            "must_contain": [
+              "PS WEE Nearby Mention To PS Team",
+              "Creates or reuses the PCO intake ticket with `ps_team=\"Barra\"`."
+            ]
+          }
+        ]
+      }
+    },
+    {
       "id": "psm-tooltrace-roi-direct-ticket-first",
       "bot": "PSM Ops Hermes Bot",
       "surface": "slack",

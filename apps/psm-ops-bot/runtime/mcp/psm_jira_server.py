@@ -917,46 +917,86 @@ def resolve_slack_user_identity(value: str) -> dict[str, Any]:
     if not user:
         return _blocked("No unique Slack user matched the supplied value.", scope)
     profile = user.get("profile") or {}
+    email = _slack_user_email(user)
+    real_name = str(user.get("real_name") or profile.get("real_name") or "").strip()
+    display_name = str(profile.get("display_name") or "").strip()
+    answer = {
+        "slack_user_id": str(user.get("id") or ""),
+        "slack_name": str(user.get("name") or ""),
+        "real_name": real_name,
+        "display_name": display_name,
+        "email": email,
+        "is_bot": bool(user.get("is_bot")),
+    }
+    try:
+        ps_team_option = _ps_team_option_for_identity(
+            {
+                "slack_email": email,
+                "display_name": real_name or display_name,
+                "slack_user": user,
+            }
+        )
+    except JiraError:
+        ps_team_option = None
+    if ps_team_option:
+        answer["ps_team"] = ps_team_option["value"]
+        answer["ps_team_option_id"] = ps_team_option["id"]
     return {
-        "answer": {
-            "slack_user_id": str(user.get("id") or ""),
-            "slack_name": str(user.get("name") or ""),
-            "real_name": str(user.get("real_name") or profile.get("real_name") or "").strip(),
-            "display_name": str(profile.get("display_name") or "").strip(),
-            "email": _slack_user_email(user),
-            "is_bot": bool(user.get("is_bot")),
-        },
+        "answer": answer,
         "source": "Slack users.list",
         "scope": scope,
         "confidence": "verified",
-        "caveat": "Single-user safe identity fields only; no bulk Slack export.",
+        "caveat": "Single-user safe identity fields only; optional PS Team match comes from Jira field options; no bulk Slack export.",
     }
 
 
 def _ps_team_options() -> list[dict[str, str]]:
-    field_id = _ps_team_field_id()
-    contexts = _request_json("GET", f"/rest/api/3/field/{field_id}/context")
+    seen: set[tuple[str, str]] = set()
     options: list[dict[str, str]] = []
-    for context in contexts.get("values", []) if isinstance(contexts, dict) else []:
-        context_id = context.get("id")
-        if not context_id:
+
+    def add_option(option_id: Any, value: Any) -> None:
+        normalized_value = str(value or "").strip()
+        normalized_id = str(option_id or "").strip()
+        if not normalized_value:
+            return
+        key = (normalized_id, normalized_value)
+        if key in seen:
+            return
+        seen.add(key)
+        options.append({"id": normalized_id, "value": normalized_value})
+
+    field_id = _ps_team_field_id()
+    try:
+        contexts = _request_json("GET", f"/rest/api/3/field/{field_id}/context")
+        for context in contexts.get("values", []) if isinstance(contexts, dict) else []:
+            context_id = context.get("id")
+            if not context_id:
+                continue
+            start_at = 0
+            while True:
+                payload = _request_json(
+                    "GET",
+                    f"/rest/api/3/field/{field_id}/context/{context_id}/option?startAt={start_at}&maxResults=100",
+                )
+                values = payload.get("values", []) if isinstance(payload, dict) else []
+                for option in values:
+                    if not isinstance(option, dict) or option.get("disabled"):
+                        continue
+                    add_option(option.get("id"), option.get("value"))
+                if not values or payload.get("isLast", True):
+                    break
+                start_at += len(values)
+    except JiraError:
+        pass
+    for request_type_key in ["customer_next_action", "onboarding_task", "data_hygiene"]:
+        try:
+            request_type_id = _request_type_id(request_type_key)
+        except JiraError:
             continue
-        start_at = 0
-        while True:
-            payload = _request_json(
-                "GET",
-                f"/rest/api/3/field/{field_id}/context/{context_id}/option?startAt={start_at}&maxResults=100",
-            )
-            values = payload.get("values", []) if isinstance(payload, dict) else []
-            for option in values:
-                if not isinstance(option, dict) or option.get("disabled"):
-                    continue
-                value = str(option.get("value") or "").strip()
-                if value:
-                    options.append({"id": str(option.get("id") or ""), "value": value})
-            if not values or payload.get("isLast", True):
-                break
-            start_at += len(values)
+        if not request_type_id or request_type_id == "disabled_until_request_type_exists":
+            continue
+        for option in _ps_team_valid_values(request_type_id):
+            add_option(option.get("value") or option.get("id"), option.get("label") or option.get("value") or option.get("name"))
     return options
 
 

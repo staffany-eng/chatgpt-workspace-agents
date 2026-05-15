@@ -92,6 +92,19 @@ Thread:
 - Does not ask who Jo/Jos/Josica is when Slack identity resolved it.
 - Does not let Calendar rate limits block Jira ticket creation.
 
+## PS WEE Nearby Mention To PS Team
+
+Thread:
+
+`<@Alya> <@Barra> can we have a training for HRAny for PS team so they are equipped to onboard? cc @PS WEE help to track this and tag to barra`
+
+- Calls `resolve_slack_user_identity` for the nearby Barra Slack mention before asking who `barra` is.
+- Treats `tag to barra` / `track this` as PS WEE ticket-first intake.
+- Calls `find_ticket_by_slack_thread`.
+- Creates or reuses the PCO intake ticket with `ps_team="Barra"`.
+- Does not ask the user to tag Barra again when the thread already has the Slack mention.
+- Does not use Jira assignee; PS WEE intake ownership is Jira `PS Team`.
+
 ## PS WEE Customer Reach-Out Confirmation
 
 Thread:

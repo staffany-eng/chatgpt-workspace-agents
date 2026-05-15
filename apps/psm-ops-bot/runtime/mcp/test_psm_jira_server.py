@@ -462,7 +462,15 @@ class PsmJiraServerTest(unittest.TestCase):
                 }
             ]
 
+        def fake_request(method, path, body=None):
+            if path == "/rest/api/3/field/customfield_10876/context":
+                return {"values": [{"id": "ctx-1"}]}
+            if path == "/rest/api/3/field/customfield_10876/context/ctx-1/option?startAt=0&maxResults=100":
+                return {"values": [{"id": "team-josica", "value": "Josica"}], "isLast": True}
+            return {}
+
         self.module._slack_users = fake_slack_users
+        self.module._request_json = fake_request
 
         result = self.module.resolve_slack_user_identity("<@U01C0PJD9HQ>")
 
@@ -472,7 +480,49 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertEqual(result["answer"]["real_name"], "Josica Lim")
         self.assertEqual(result["answer"]["display_name"], "Josica")
         self.assertEqual(result["answer"]["email"], "josica@staffany.com")
+        self.assertEqual(result["answer"]["ps_team"], "Josica")
+        self.assertEqual(result["answer"]["ps_team_option_id"], "team-josica")
         self.assertIn("no bulk Slack export", result["caveat"])
+
+    def test_resolve_slack_user_identity_maps_nearby_barra_mention_to_ps_team(self):
+        def fake_slack_users():
+            return [
+                {
+                    "id": "U0A6RLTV5EG",
+                    "name": "barraza",
+                    "real_name": "Ahmad Nur Barraza",
+                    "profile": {
+                        "email": "barraza@staffany.com",
+                        "real_name": "Ahmad Nur Barraza",
+                        "display_name": "Ahmad Nur Barraza",
+                    },
+                }
+            ]
+
+        def fake_request(method, path, body=None):
+            if path == "/rest/api/3/field/customfield_10876/context":
+                return {"values": []}
+            if path.endswith("/requesttype/101/field"):
+                return {
+                    "requestTypeFields": [
+                        {
+                            "fieldId": "customfield_10876",
+                            "name": "PS Team",
+                            "validValues": [{"value": "12020", "label": "Barra"}],
+                        }
+                    ]
+                }
+            return {}
+
+        self.module._slack_users = fake_slack_users
+        self.module._request_json = fake_request
+
+        result = self.module.resolve_slack_user_identity("<@U0A6RLTV5EG>")
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["answer"]["slack_user_id"], "U0A6RLTV5EG")
+        self.assertEqual(result["answer"]["ps_team"], "Barra")
+        self.assertEqual(result["answer"]["ps_team_option_id"], "12020")
 
     def test_resolve_slack_user_identity_blocks_ambiguous_short_name(self):
         def fake_slack_users():
@@ -684,6 +734,47 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertIn("<https://staffany.atlassian.net/browse/PCO-159|PCO-159>", result["answer"]["slack_reply"])
         self.assertEqual(audit_calls[0][0], "ticket_created")
         self.assertEqual(audit_calls[0][1]["customer"], "Tomoro Coffee")
+
+    def test_ps_wee_intake_uses_resolved_barra_ps_team(self):
+        calls = []
+        audit_calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
+                return {"issues": []}
+            if method == "GET" and path.endswith("/requesttype/101/field"):
+                return {
+                    "requestTypeFields": [
+                        {
+                            "fieldId": "customfield_10876",
+                            "name": "PS Team",
+                            "validValues": [{"value": "12020", "label": "Barra"}],
+                        }
+                    ]
+                }
+            if path == "/rest/servicedeskapi/request":
+                return {"issueKey": "PCO-162", "requestTypeId": "101"}
+            if path.endswith("/comment"):
+                return {"id": "comment-162"}
+            return {}
+
+        self.module._request_json = fake_request
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: audit_calls.append((event_type, kwargs)) or {"ok": True}
+
+        result = self.module.create_ps_wee_intake_ticket(
+            slack_user_email="psm@staffany.com",
+            slack_thread_url="https://staffany.slack.com/archives/C07MY64UZR9/p1778816305539599?thread_ts=1778816305.539599",
+            issue_summary="HRanY training for PS team to equip them for onboarding",
+            known_details="Thread root asked to help track this and tag to Barra; nearby Slack mention resolved to PS Team Barra.",
+            ps_team="Barra",
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        request_values = calls[2][2]["requestFieldValues"]
+        self.assertEqual(request_values["customfield_10876"], "12020")
+        self.assertNotIn("Barra's Slack identity", result["answer"]["slack_reply"])
+        self.assertEqual(audit_calls[0][1]["jira_payload"]["draft"]["ps_team"], "Barra")
 
     def test_ps_wee_intake_keeps_full_jira_missing_info_but_slack_asks_top_two(self):
         calls = []
