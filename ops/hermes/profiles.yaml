@@ -63,7 +63,7 @@ profiles:
       report_prefix: "NurtureAny automation:"
     required_mcp:
       staffany_bigquery: 4
-      hubspot_nurtureany: 41
+      hubspot_nurtureany: 54
       google_calendar_nurtureany: 2
       google_drive_nurtureany: 5
       eazybe_nurtureany: 4
@@ -82,6 +82,16 @@ profiles:
       - name: nurtureanysalesbot Slack socket watchdog
         schedule: "*/5 * * * *"
         mode: no-agent
+      - name: nurtureanysalesbot HubSpot task reminders
+        schedule: "0 1 * * 1-5"
+        mode: no-agent
+        script: nurtureany_sales_task_reminders.py
+        deliver: slack:#nurtureany-testing
+      - name: nurtureanysalesbot HubSpot task EOD catch-up
+        schedule: "0 9 * * 1-5"
+        mode: no-agent
+        script: nurtureany_sales_task_reminders_eod.py
+        deliver: slack:#nurtureany-testing
     unsafe_cron_name_prefixes: [event-roi-]
     checks:
       health_command: apps/nurtureany-sales-bot/runtime/check-health.sh

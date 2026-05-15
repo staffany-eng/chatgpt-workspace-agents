@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """HubSpot MCP adapter for NurtureAny Sales Bot.
 
-This server is intentionally V1-safe: read tools and dry-run previews only.
-HubSpot write tools are not exposed until the write-back phase is approved.
+This server is intentionally V1-safe: read tools, previews, selected paid
+enrichment, and narrow approval-gated HubSpot Task primitives only.
 """
 
 from __future__ import annotations
@@ -137,6 +137,7 @@ TASK_PROPERTIES = [
     "hs_task_status",
     "hs_task_priority",
     "hs_task_type",
+    "hs_task_reminders",
     "hs_lastmodifieddate",
 ]
 
@@ -443,6 +444,16 @@ LUMA_MATCH_CANDIDATE_FIELDS = (
 )
 TASK_SEARCH_RESULT_LIMIT = 300
 TASK_SEARCH_AIRTIGHT_RESULT_LIMIT = 10_000
+TASK_CREATE_APPROVAL_MARKERS = {"create task", "confirm task"}
+TASK_RESCHEDULE_APPROVAL_MARKERS = {"update task", "confirm reminder"}
+TASK_COMPLETE_APPROVAL_MARKERS = {"mark done", "complete task"}
+TASK_ASSOCIATION_TYPE_IDS = {
+    "company": 192,
+    "contact": 204,
+    "deal": 216,
+}
+TASK_DEFAULT_DUE_HOUR_LOCAL = 10
+TASK_DUPLICATE_WINDOW_DAYS = 1
 HUBSPOT_SOFT_TIMEOUT_SECONDS_ENV_VAR = "NURTUREANY_HUBSPOT_SOFT_TIMEOUT_SECONDS"
 HUBSPOT_SOFT_TIMEOUT_SECONDS_DEFAULT = 270
 HUBSPOT_SOFT_TIMEOUT_SECONDS_MAX = 300
@@ -730,8 +741,8 @@ EVENT_FOLLOWUP_PHRASES = (
 mcp = FastMCP(
     "hubspot_nurtureany",
     instructions=(
-        "Read-only HubSpot target-account tools for NurtureAny. "
-        "Mutation tools are intentionally not exposed in V1."
+        "HubSpot target-account tools for NurtureAny. Generic mutation tools are disabled; "
+        "only preview-first, exact-approval HubSpot Task primitives may mutate tasks."
     ),
 )
 
@@ -990,6 +1001,10 @@ def _get(path: str, params: dict[str, str] | None = None) -> dict[str, Any]:
 
 def _post(path: str, body: dict[str, Any]) -> dict[str, Any]:
     return _request_json("POST", path, body)
+
+
+def _patch(path: str, body: dict[str, Any]) -> dict[str, Any]:
+    return _request_json("PATCH", path, body)
 
 
 def _blocked(message: str, scope: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -4305,6 +4320,7 @@ def _safe_task_summary(task: dict[str, Any], task_sources: dict[str, list[dict[s
         "status": props.get("hs_task_status") or "",
         "priority": props.get("hs_task_priority") or "",
         "type": props.get("hs_task_type") or "",
+        "native_reminder_at": props.get("hs_task_reminders") or "",
         "last_modified_at": props.get("hs_lastmodifieddate") or "",
         "associated_via": task_sources.get(task_id, []),
     }
@@ -6805,6 +6821,353 @@ def _assert_company_access(company_id: str, scope: dict[str, Any]) -> dict[str, 
     if not _has_company_access(company, scope):
         raise ScopeError("Company is outside caller scope or is not a HubSpot target account.")
     return company
+
+
+def _task_marker(value: Any) -> str:
+    return re.sub(r"\s+", " ", str(value or "").strip().lower())
+
+
+def _is_task_approval_marker(value: Any, allowed: set[str]) -> bool:
+    return _task_marker(value) in allowed
+
+
+def _task_local_timezone() -> ZoneInfo | timezone:
+    try:
+        return ZoneInfo("Asia/Singapore")
+    except ZoneInfoNotFoundError:
+        return SINGAPORE_TIMEZONE
+
+
+def _parse_task_due_datetime(value: Any) -> datetime:
+    raw = str(value or "").strip()
+    if not raw:
+        raise ScopeError("Task due_at is required.")
+    local_tz = _task_local_timezone()
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", raw):
+        try:
+            due_date = date.fromisoformat(raw)
+        except ValueError as error:
+            raise ScopeError("Task due_at must be an ISO date or timestamp.") from error
+        parsed = datetime.combine(due_date, datetime_time(TASK_DEFAULT_DUE_HOUR_LOCAL, 0), tzinfo=local_tz)
+        return parsed.astimezone(timezone.utc)
+    try:
+        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError as error:
+        raise ScopeError("Task due_at must be an ISO date or timestamp.") from error
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=local_tz)
+    return parsed.astimezone(timezone.utc)
+
+
+def _task_due_iso(value: Any) -> str:
+    return _parse_task_due_datetime(value).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def _assert_not_past_task_due(due_dt: datetime) -> None:
+    local_due = due_dt.astimezone(_task_local_timezone()).date()
+    today = datetime.now(_task_local_timezone()).date()
+    if local_due < today:
+        raise ScopeError("Task due_at cannot be in the past.")
+
+
+def _task_native_reminder_ms(due_dt: datetime) -> str:
+    reminder_dt = due_dt - timedelta(days=1)
+    if reminder_dt <= datetime.now(timezone.utc):
+        return ""
+    return str(int(reminder_dt.timestamp() * 1000))
+
+
+def _normalize_task_subject(value: Any) -> str:
+    text = html.unescape(str(value or "")).lower()
+    text = re.sub(r"[^a-z0-9]+", " ", text)
+    return " ".join(text.split())
+
+
+def _safe_slack_permalink(value: Any) -> str:
+    permalink = str(value or "").strip()
+    if not permalink:
+        return ""
+    parsed = urllib.parse.urlparse(permalink)
+    if parsed.scheme != "https" or parsed.netloc != "staffany.slack.com" or not parsed.path.startswith("/archives/"):
+        raise ScopeError("Slack permalink must be a staffany.slack.com /archives/ URL.")
+    return permalink
+
+
+def _safe_task_body(source_summary: Any = "", slack_permalink: Any = "") -> str:
+    lines: list[str] = []
+    summary = _short_text(str(source_summary or ""), 1000)
+    permalink = _safe_slack_permalink(slack_permalink)
+    if summary:
+        lines.append(f"NurtureAny source summary: {summary}")
+    if permalink:
+        lines.append(f"Slack source: {permalink}")
+    lines.append("Created by NurtureAny after explicit Slack task approval.")
+    return "\n".join(lines)[:4000]
+
+
+def _hubspot_task_association(object_type: str, object_id: Any) -> dict[str, Any]:
+    association_type_id = TASK_ASSOCIATION_TYPE_IDS[object_type]
+    return {
+        "to": {"id": str(object_id)},
+        "types": [{"associationCategory": "HUBSPOT_DEFINED", "associationTypeId": association_type_id}],
+    }
+
+
+def _assert_object_associated_to_company(object_type: str, object_id: Any, company_id: str) -> None:
+    normalized_id = str(object_id or "").strip()
+    if not normalized_id:
+        return
+    from_type = "contacts" if object_type == "contact" else "deals"
+    company_ids = _association_ids(from_type, normalized_id, "companies", 20)
+    if str(company_id) not in [str(candidate) for candidate in company_ids]:
+        raise ScopeError(f"Selected {object_type}_id is not associated to the scoped HubSpot company.")
+
+
+def _task_account_ref(company: dict[str, Any]) -> dict[str, Any]:
+    summary = _summarize_company(company)
+    return {
+        "company_id": summary.get("company_id"),
+        "company_name": summary.get("name"),
+        "country": summary.get("country"),
+        "owner_id": summary.get("owner_id"),
+        "owner_email": summary.get("owner_email"),
+    }
+
+
+def _resolve_scoped_task_company(company_id: Any, company_name: Any, scope: dict[str, Any]) -> dict[str, Any]:
+    normalized_company_id = _company_id_from_ref(company_id)
+    if normalized_company_id:
+        return _assert_company_access(normalized_company_id, scope)
+    name = _company_name_ref(company_name)
+    if not name:
+        raise ScopeError("Provide a scoped HubSpot company_id or exact company_name.")
+    resolved = _resolve_scoped_company_name(name, scope, limit=5)
+    if resolved.get("status") == "resolved" and resolved.get("company_id"):
+        return _assert_company_access(str(resolved["company_id"]), scope)
+    if resolved.get("status") == "ambiguous":
+        raise ScopeError("Company name is ambiguous; provide the exact scoped HubSpot company_id.")
+    raise ScopeError("Scoped HubSpot target account was not found.")
+
+
+def _sales_task_owner_for_company(company: dict[str, Any], scope: dict[str, Any], owner_email: Any = "") -> tuple[str, str]:
+    company_owner_id = str(company.get("properties", {}).get("hubspot_owner_id") or "")
+    if not company_owner_id:
+        raise ScopeError("Scoped HubSpot company has no owner; cannot create a sales-owned task.")
+    company_owner_email = _owner_email_by_id(company_owner_id)
+    target_email = _normalize_email(str(owner_email or ""))
+    if target_email:
+        target_owner_id, target_owner_email = _target_owner_id_for_scope(scope, target_email)
+        if str(target_owner_id or "") != company_owner_id:
+            raise ScopeError(
+                "Task owner must match the scoped HubSpot company owner. Fix HubSpot ownership before assigning a different AE."
+            )
+        return company_owner_id, target_owner_email or company_owner_email
+    if scope.get("kind") == "ae" and str(scope.get("owner_id") or "") != company_owner_id:
+        raise ScopeError("Caller is not authorized to create tasks for another owner's account.")
+    return company_owner_id, company_owner_email
+
+
+def _task_duplicate_window(due_dt: datetime) -> tuple[str, str]:
+    local_due = due_dt.astimezone(_task_local_timezone()).date()
+    start = local_due - timedelta(days=TASK_DUPLICATE_WINDOW_DAYS)
+    end = local_due + timedelta(days=TASK_DUPLICATE_WINDOW_DAYS)
+    return start.isoformat(), end.isoformat()
+
+
+def _task_sources_include_selected(
+    sources: list[dict[str, str]],
+    contact_id: str = "",
+    deal_id: str = "",
+) -> bool:
+    if contact_id:
+        return any(source.get("object_type") == "contact" and str(source.get("object_id")) == str(contact_id) for source in sources)
+    if deal_id:
+        return any(source.get("object_type") == "deal" and str(source.get("object_id")) == str(deal_id) for source in sources)
+    return True
+
+
+def _find_duplicate_sales_tasks(
+    company: dict[str, Any],
+    owner_id: str,
+    subject: str,
+    due_dt: datetime,
+    contact_id: str = "",
+    deal_id: str = "",
+) -> list[dict[str, Any]]:
+    company_id = str(company.get("id") or "")
+    if not company_id:
+        return []
+    due_start, due_end = _task_duplicate_window(due_dt)
+    task_data = _task_search(_task_search_filters(owner_id, due_start, due_end), limit=100)
+    task_ids = [str(task.get("id") or "") for task in task_data.get("results", []) if task.get("id")]
+    task_links = _task_company_links_for_tasks(task_ids)
+    subject_key = _normalize_task_subject(subject)
+    duplicates: list[dict[str, Any]] = []
+    for task in task_data.get("results", []):
+        task_id = str(task.get("id") or "")
+        if not task_id or not _is_incomplete_task(task):
+            continue
+        props = task.get("properties", {})
+        if str(props.get("hubspot_owner_id") or "") != str(owner_id):
+            continue
+        if _normalize_task_subject(props.get("hs_task_subject")) != subject_key:
+            continue
+        links = task_links.get(task_id, {})
+        if company_id not in [str(candidate) for candidate in links.get("company_ids", [])]:
+            continue
+        sources = links.get("company_sources", {}).get(company_id, [])
+        if not _task_sources_include_selected(sources, contact_id, deal_id):
+            continue
+        duplicates.append(_safe_task_summary(task, {task_id: sources}))
+    return _sort_tasks_by_due_at(duplicates)
+
+
+def _build_sales_task_preview(
+    slack_user_email: str,
+    company_id: Any = "",
+    company_name: Any = "",
+    subject: Any = "",
+    due_at: Any = "",
+    contact_id: Any = "",
+    deal_id: Any = "",
+    owner_email: Any = "",
+    source_summary: Any = "",
+    slack_permalink: Any = "",
+    priority: str = "HIGH",
+    task_type: str = "TODO",
+) -> dict[str, Any]:
+    scope = _caller_scope(slack_user_email)
+    if scope["kind"] == "blocked":
+        raise ScopeError("Caller identity is not mapped to an allowed scope.")
+    company = _resolve_scoped_task_company(company_id, company_name, scope)
+    normalized_company_id = str(company.get("id") or "")
+    normalized_contact_id = str(contact_id or "").strip()
+    normalized_deal_id = str(deal_id or "").strip()
+    _assert_object_associated_to_company("contact", normalized_contact_id, normalized_company_id)
+    _assert_object_associated_to_company("deal", normalized_deal_id, normalized_company_id)
+
+    due_dt = _parse_task_due_datetime(due_at)
+    _assert_not_past_task_due(due_dt)
+    due_iso = due_dt.replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    owner_id, resolved_owner_email = _sales_task_owner_for_company(company, scope, owner_email)
+    safe_subject = _short_text(str(subject or "").strip(), 180)
+    if not safe_subject:
+        raise ScopeError("Task subject is required.")
+    safe_priority = str(priority or "HIGH").strip().upper()
+    if safe_priority not in {"LOW", "MEDIUM", "HIGH"}:
+        safe_priority = "HIGH"
+    safe_type = str(task_type or "TODO").strip().upper()
+    if safe_type not in {"TODO", "CALL", "EMAIL"}:
+        safe_type = "TODO"
+
+    body = _safe_task_body(source_summary, slack_permalink)
+    properties = {
+        "hs_timestamp": due_iso,
+        "hs_task_body": body,
+        "hubspot_owner_id": owner_id,
+        "hs_task_subject": safe_subject,
+        "hs_task_status": "NOT_STARTED",
+        "hs_task_priority": safe_priority,
+        "hs_task_type": safe_type,
+    }
+    reminder_ms = _task_native_reminder_ms(due_dt)
+    if reminder_ms:
+        properties["hs_task_reminders"] = reminder_ms
+
+    associations = [_hubspot_task_association("company", normalized_company_id)]
+    if normalized_contact_id:
+        associations.append(_hubspot_task_association("contact", normalized_contact_id))
+    if normalized_deal_id:
+        associations.append(_hubspot_task_association("deal", normalized_deal_id))
+
+    duplicates = _find_duplicate_sales_tasks(
+        company,
+        owner_id,
+        safe_subject,
+        due_dt,
+        contact_id=normalized_contact_id,
+        deal_id=normalized_deal_id,
+    )
+    preview_properties = {key: value for key, value in properties.items() if key != "hs_task_body"}
+    preview_properties["hs_task_body_summary"] = _short_text(body, 260)
+    return {
+        "scope": scope,
+        "company": company,
+        "owner_id": owner_id,
+        "owner_email": resolved_owner_email,
+        "properties": properties,
+        "preview_properties": preview_properties,
+        "associations": associations,
+        "duplicate_active_tasks": duplicates,
+        "contact_id": normalized_contact_id,
+        "deal_id": normalized_deal_id,
+    }
+
+
+def _task_access_context(task_id: Any, scope: dict[str, Any], company_id: Any = "") -> dict[str, Any]:
+    normalized_task_id = str(task_id or "").strip()
+    if not normalized_task_id:
+        raise ScopeError("Task ID is required.")
+    task = _get(
+        f"/crm/v3/objects/tasks/{urllib.parse.quote(normalized_task_id, safe='')}",
+        {"properties": ",".join(TASK_PROPERTIES)},
+    )
+    links = _task_company_links_for_tasks([normalized_task_id]).get(
+        normalized_task_id, {"company_ids": [], "company_sources": {}, "truncated": False}
+    )
+    requested_company_id = _company_id_from_ref(company_id)
+    if requested_company_id:
+        company = _assert_company_access(requested_company_id, scope)
+        if requested_company_id not in [str(candidate) for candidate in links.get("company_ids", [])]:
+            raise ScopeError("Task is not associated to the requested scoped HubSpot company.")
+        return {"task": task, "company": company, "links": links}
+
+    companies = _batch_read("companies", [str(candidate) for candidate in links.get("company_ids", [])], COMPANY_PROPERTIES)
+    accessible = [company for company in companies if _has_company_access(company, scope)]
+    if not accessible:
+        raise ScopeError("Task is outside caller scope or is not associated to a scoped HubSpot target account.")
+    return {"task": task, "company": accessible[0], "links": links}
+
+
+def _task_update_preview_properties(action: Any, due_at: Any = "") -> tuple[str, dict[str, str], list[str]]:
+    normalized_action = _task_marker(action or "reschedule")
+    if normalized_action in {"complete", "mark done", "done", "completed"}:
+        return "complete", {"hs_task_status": "COMPLETED"}, sorted(TASK_COMPLETE_APPROVAL_MARKERS)
+    if normalized_action in {"reschedule", "update", "update task", "reminder", "due", "due date", "due-date"}:
+        due_dt = _parse_task_due_datetime(due_at)
+        _assert_not_past_task_due(due_dt)
+        properties = {"hs_timestamp": due_dt.replace(microsecond=0).isoformat().replace("+00:00", "Z")}
+        reminder_ms = _task_native_reminder_ms(due_dt)
+        if reminder_ms:
+            properties["hs_task_reminders"] = reminder_ms
+        return "reschedule", properties, sorted(TASK_RESCHEDULE_APPROVAL_MARKERS)
+    raise ScopeError("Task update action must be reschedule or complete.")
+
+
+def _parse_task_reminder_as_of(value: Any) -> datetime:
+    raw = str(value or "").strip()
+    local_tz = _task_local_timezone()
+    if not raw:
+        return datetime.now(local_tz)
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", raw):
+        return datetime.combine(date.fromisoformat(raw), datetime.min.time(), tzinfo=local_tz)
+    parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=local_tz)
+    return parsed.astimezone(local_tz)
+
+
+def _task_due_bucket(due_at: Any, today: date, include_tomorrow: bool) -> str:
+    due_date = _date_value(str(due_at or ""))
+    if not due_date:
+        return ""
+    if due_date < today:
+        return "overdue"
+    if due_date == today:
+        return "due_today"
+    if include_tomorrow and due_date == today + timedelta(days=1):
+        return "due_tomorrow"
+    return ""
 
 
 def _summarize_company_with_contacts(
@@ -13632,6 +13995,362 @@ def list_sales_followup_tasks(
 
 
 @mcp.tool()
+def preview_hubspot_sales_task(
+    slack_user_email: str,
+    company_id: str = "",
+    company_name: str = "",
+    subject: str = "",
+    due_at: str = "",
+    contact_id: str = "",
+    deal_id: str = "",
+    owner_email: str = "",
+    source_summary: str = "",
+    slack_permalink: str = "",
+    priority: str = "HIGH",
+    task_type: str = "TODO",
+    approval_marker: str = "",
+) -> dict[str, Any]:
+    """Preview a scoped HubSpot sales task create payload. This tool does not mutate HubSpot."""
+
+    try:
+        preview = _build_sales_task_preview(
+            slack_user_email=slack_user_email,
+            company_id=company_id,
+            company_name=company_name,
+            subject=subject,
+            due_at=due_at,
+            contact_id=contact_id,
+            deal_id=deal_id,
+            owner_email=owner_email,
+            source_summary=source_summary,
+            slack_permalink=slack_permalink,
+            priority=priority,
+            task_type=task_type,
+        )
+        scope = preview["scope"]
+        marker_ok = _is_task_approval_marker(approval_marker, TASK_CREATE_APPROVAL_MARKERS)
+        return {
+            "answer": {
+                "operation": "create_hubspot_task",
+                "will_mutate_hubspot": False,
+                "company": _task_account_ref(preview["company"]),
+                "contact_id": preview["contact_id"],
+                "deal_id": preview["deal_id"],
+                "owner_id": preview["owner_id"],
+                "owner_email": preview["owner_email"],
+                "properties": preview["preview_properties"],
+                "association_type_ids": TASK_ASSOCIATION_TYPE_IDS,
+                "duplicate_active_tasks": preview["duplicate_active_tasks"],
+                "duplicate_suppressed": bool(preview["duplicate_active_tasks"]),
+                "required_approval_markers": sorted(TASK_CREATE_APPROVAL_MARKERS),
+                "approval_marker_received": _task_marker(approval_marker),
+                "approval_ready": marker_ok and not preview["duplicate_active_tasks"],
+            },
+            "source": "NurtureAny HubSpot task create preview over scoped HubSpot target account",
+            "scope": _scope_response(scope, list(scope.get("countries", ()))),
+            "confidence": "needs-check" if preview["duplicate_active_tasks"] else "verified",
+            "caveat": (
+                "Preview only. HubSpot Task hs_timestamp is the due/reminder source; raw task bodies are not returned. "
+                "Reply exactly `create task` or `confirm task` to approve creation."
+            ),
+        }
+    except ScopeError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email, "company_id": company_id, "company_name": company_name})
+    except HubSpotError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email})
+
+
+@mcp.tool()
+def create_approved_hubspot_sales_task(
+    slack_user_email: str,
+    company_id: str = "",
+    company_name: str = "",
+    subject: str = "",
+    due_at: str = "",
+    approval_marker: str = "",
+    contact_id: str = "",
+    deal_id: str = "",
+    owner_email: str = "",
+    source_summary: str = "",
+    slack_permalink: str = "",
+    priority: str = "HIGH",
+    task_type: str = "TODO",
+) -> dict[str, Any]:
+    """Create one scoped HubSpot sales task after exact preview approval."""
+
+    try:
+        if not _is_task_approval_marker(approval_marker, TASK_CREATE_APPROVAL_MARKERS):
+            return _blocked(
+                "HubSpot task creation requires exact approval marker: create task or confirm task.",
+                {"caller_email": slack_user_email, "approval_marker": _task_marker(approval_marker)},
+            )
+        preview = _build_sales_task_preview(
+            slack_user_email=slack_user_email,
+            company_id=company_id,
+            company_name=company_name,
+            subject=subject,
+            due_at=due_at,
+            contact_id=contact_id,
+            deal_id=deal_id,
+            owner_email=owner_email,
+            source_summary=source_summary,
+            slack_permalink=slack_permalink,
+            priority=priority,
+            task_type=task_type,
+        )
+        if preview["duplicate_active_tasks"]:
+            return _blocked(
+                "Duplicate active HubSpot task found for this scoped account, owner, subject, and due window.",
+                {
+                    "caller_email": slack_user_email,
+                    "company": _task_account_ref(preview["company"]),
+                    "duplicate_active_tasks": preview["duplicate_active_tasks"],
+                },
+            )
+        created = _post(
+            "/crm/v3/objects/tasks",
+            {"properties": preview["properties"], "associations": preview["associations"]},
+        )
+        created_task = created if created.get("properties") else {"id": created.get("id"), "properties": preview["properties"]}
+        created_task_id = str(created_task.get("id") or "")
+        source_map = {created_task_id: [{"object_type": "company", "object_id": str(preview["company"].get("id") or "")}]}
+        return {
+            "answer": {
+                "operation": "create_hubspot_task",
+                "will_mutate_hubspot": True,
+                "created_task": _safe_task_summary(created_task, source_map),
+                "company": _task_account_ref(preview["company"]),
+                "contact_id": preview["contact_id"],
+                "deal_id": preview["deal_id"],
+                "approval_marker": _task_marker(approval_marker),
+            },
+            "source": "HubSpot Tasks API POST /crm/v3/objects/tasks",
+            "scope": _scope_response(preview["scope"], list(preview["scope"].get("countries", ()))),
+            "confidence": "verified",
+            "caveat": "Created one approved HubSpot Task. Task body was written as safe summary/provenance only and is not returned.",
+        }
+    except ScopeError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email, "company_id": company_id, "company_name": company_name})
+    except HubSpotError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email})
+
+
+@mcp.tool()
+def preview_hubspot_task_update(
+    slack_user_email: str,
+    task_id: str,
+    action: str = "reschedule",
+    due_at: str = "",
+    company_id: str = "",
+    approval_marker: str = "",
+) -> dict[str, Any]:
+    """Preview a scoped HubSpot task reschedule/reminder update or completion."""
+
+    try:
+        scope = _caller_scope(slack_user_email)
+        if scope["kind"] == "blocked":
+            return _blocked("Caller identity is not mapped to an allowed scope.", {"caller_email": slack_user_email})
+        context = _task_access_context(task_id, scope, company_id)
+        normalized_action, properties, markers = _task_update_preview_properties(action, due_at)
+        if normalized_action == "complete":
+            marker_ok = _is_task_approval_marker(approval_marker, TASK_COMPLETE_APPROVAL_MARKERS)
+        else:
+            marker_ok = _is_task_approval_marker(approval_marker, TASK_RESCHEDULE_APPROVAL_MARKERS)
+        links = context["links"]
+        return {
+            "answer": {
+                "operation": f"{normalized_action}_hubspot_task",
+                "will_mutate_hubspot": False,
+                "task": _safe_task_summary(context["task"], {str(task_id): links.get("company_sources", {}).get(str(context["company"].get("id")), [])}),
+                "company": _task_account_ref(context["company"]),
+                "properties": properties,
+                "required_approval_markers": markers,
+                "approval_marker_received": _task_marker(approval_marker),
+                "approval_ready": marker_ok,
+            },
+            "source": "NurtureAny HubSpot task update preview over scoped HubSpot target account",
+            "scope": _scope_response(scope, list(scope.get("countries", ()))),
+            "confidence": "verified",
+            "caveat": "Preview only. Use exact approval marker before PATCH. `run`, `ok`, `yes`, `+1`, and `^` do not approve HubSpot task writes.",
+        }
+    except ScopeError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email, "task_id": task_id})
+    except HubSpotError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email, "task_id": task_id})
+
+
+@mcp.tool()
+def apply_approved_hubspot_task_update(
+    slack_user_email: str,
+    task_id: str,
+    action: str = "reschedule",
+    approval_marker: str = "",
+    due_at: str = "",
+    company_id: str = "",
+) -> dict[str, Any]:
+    """Apply an approved scoped HubSpot task reschedule/reminder update or completion."""
+
+    try:
+        normalized_action, properties, _markers = _task_update_preview_properties(action, due_at)
+        if normalized_action == "complete":
+            allowed = TASK_COMPLETE_APPROVAL_MARKERS
+            marker_label = "mark done or complete task"
+        else:
+            allowed = TASK_RESCHEDULE_APPROVAL_MARKERS
+            marker_label = "update task or confirm reminder"
+        if not _is_task_approval_marker(approval_marker, allowed):
+            return _blocked(
+                f"HubSpot task {normalized_action} requires exact approval marker: {marker_label}.",
+                {"caller_email": slack_user_email, "task_id": task_id, "approval_marker": _task_marker(approval_marker)},
+            )
+        scope = _caller_scope(slack_user_email)
+        if scope["kind"] == "blocked":
+            return _blocked("Caller identity is not mapped to an allowed scope.", {"caller_email": slack_user_email})
+        context = _task_access_context(task_id, scope, company_id)
+        updated = _patch(
+            f"/crm/v3/objects/tasks/{urllib.parse.quote(str(task_id), safe='')}",
+            {"properties": properties},
+        )
+        updated_task = updated if updated.get("properties") else {
+            "id": str(task_id),
+            "properties": {**context["task"].get("properties", {}), **properties},
+        }
+        links = context["links"]
+        return {
+            "answer": {
+                "operation": f"{normalized_action}_hubspot_task",
+                "will_mutate_hubspot": True,
+                "updated_task": _safe_task_summary(updated_task, {str(task_id): links.get("company_sources", {}).get(str(context["company"].get("id")), [])}),
+                "company": _task_account_ref(context["company"]),
+                "approval_marker": _task_marker(approval_marker),
+                "updated_properties": properties,
+            },
+            "source": "HubSpot Tasks API PATCH /crm/v3/objects/tasks/{taskId}",
+            "scope": _scope_response(scope, list(scope.get("countries", ()))),
+            "confidence": "verified",
+            "caveat": "Updated only approved HubSpot Task fields. Raw task body was not read or returned.",
+        }
+    except ScopeError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email, "task_id": task_id})
+    except HubSpotError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email, "task_id": task_id})
+
+
+@mcp.tool()
+def list_due_hubspot_sales_task_reminders(
+    slack_user_email: str,
+    mode: str = "morning",
+    as_of: str = "",
+    countries: list[str] | None = None,
+    owner_email: str | None = None,
+    limit: int = 100,
+) -> dict[str, Any]:
+    """List incomplete scoped HubSpot sales tasks due for reminder digest windows."""
+
+    try:
+        scope = _caller_scope(slack_user_email)
+        if scope["kind"] == "blocked":
+            return _blocked("Caller identity is not mapped to an allowed scope.", {"caller_email": slack_user_email})
+        selected = _safe_countries(countries, scope["countries"])
+        if not selected:
+            return _blocked("Requested countries are outside caller scope.", _scope_response(scope, []))
+        normalized_mode = "eod" if _task_marker(mode) in {"eod", "end of day", "evening"} else "morning"
+        local_as_of = _parse_task_reminder_as_of(as_of)
+        today = local_as_of.date()
+        include_tomorrow = normalized_mode == "morning"
+        upper_due = today + timedelta(days=1 if include_tomorrow else 0)
+        requested_limit = _bounded_int(limit, default=100, maximum=TASK_RETURN_LIMIT)
+        target_owner_id, target_owner_email = _target_owner_id_for_scope(scope, owner_email)
+        search_limit = min(TASK_SEARCH_RESULT_LIMIT, max(requested_limit * 5, 50))
+        task_data = _task_search(_task_search_filters(target_owner_id, due_end=upper_due.isoformat()), search_limit)
+        task_ids = [str(task.get("id") or "") for task in task_data.get("results", []) if task.get("id")]
+        task_links = _task_company_links_for_tasks(task_ids)
+        candidate_company_ids: list[str] = []
+        for links in task_links.values():
+            for linked_company_id in links.get("company_ids", []):
+                if linked_company_id not in candidate_company_ids:
+                    candidate_company_ids.append(linked_company_id)
+        companies = {
+            str(company.get("id")): company
+            for company in _batch_read("companies", candidate_company_ids, COMPANY_PROPERTIES)
+            if company.get("id")
+        }
+        buckets: dict[str, list[dict[str, Any]]] = {"overdue": [], "due_today": [], "due_tomorrow": []}
+        seen_task_ids: set[str] = set()
+        association_truncated = False
+        for task in task_data.get("results", []):
+            task_id = str(task.get("id") or "")
+            if not task_id or task_id in seen_task_ids or not _is_incomplete_task(task):
+                continue
+            props = task.get("properties", {})
+            bucket = _task_due_bucket(props.get("hs_timestamp"), today, include_tomorrow)
+            if not bucket:
+                continue
+            links = task_links.get(task_id, {})
+            association_truncated = association_truncated or bool(links.get("truncated"))
+            task_owner_id = str(props.get("hubspot_owner_id") or "")
+            for linked_company_id in links.get("company_ids", []):
+                company = companies.get(str(linked_company_id))
+                if not company or not _has_company_access(company, scope):
+                    continue
+                company_props = company.get("properties", {})
+                if company_props.get("company_country") not in selected:
+                    continue
+                company_owner_id = str(company_props.get("hubspot_owner_id") or "")
+                if target_owner_id and company_owner_id != str(target_owner_id):
+                    continue
+                if task_owner_id and company_owner_id != task_owner_id:
+                    continue
+                task_summary = _safe_task_summary(
+                    task,
+                    {task_id: links.get("company_sources", {}).get(str(linked_company_id), [])},
+                )
+                summary = _summarize_company(company)
+                buckets[bucket].append(
+                    {
+                        "company_id": summary.get("company_id"),
+                        "company_name": summary.get("name"),
+                        "country": summary.get("country"),
+                        "owner_email": summary.get("owner_email"),
+                        **task_summary,
+                    }
+                )
+                seen_task_ids.add(task_id)
+                break
+
+        total_tasks = sum(len(items) for items in buckets.values())
+        truncated = bool(_search_metadata(task_data).get("truncated") or association_truncated or total_tasks > requested_limit)
+        remaining = requested_limit
+        returned_buckets: dict[str, list[dict[str, Any]]] = {}
+        for bucket_name in ["overdue", "due_today", "due_tomorrow"]:
+            sorted_items = _sort_tasks_by_due_at(buckets[bucket_name])
+            returned_buckets[bucket_name] = sorted_items[:remaining]
+            remaining = max(0, remaining - len(returned_buckets[bucket_name]))
+        return {
+            "answer": {
+                "mode": normalized_mode,
+                "date": today.isoformat(),
+                "window": "overdue, due today, due tomorrow" if include_tomorrow else "overdue, due today",
+                "buckets": returned_buckets,
+                "total_task_count": total_tasks,
+                "returned_task_count": sum(len(items) for items in returned_buckets.values()),
+                "will_mutate_hubspot": False,
+                "recurring_reminder_source": "HubSpot Task hs_timestamp; incomplete until hs_task_status=COMPLETED",
+            },
+            "source": "HubSpot Tasks API search over incomplete scoped sales-owned tasks",
+            "scope": _scope_response(scope, selected, target_owner_id, target_owner_email),
+            **_search_metadata(task_data),
+            "task_truncated": truncated,
+            "confidence": "needs-check" if truncated else "verified",
+            "caveat": "Reminder read only. Native hs_task_reminders is optional UI nudge, not recurring reminder truth.",
+        }
+    except (ScopeError, ValueError) as error:
+        return _blocked(str(error), {"caller_email": slack_user_email, "owner_email": owner_email or ""})
+    except HubSpotError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email})
+
+
+@mcp.tool()
 def audit_owner_whatsapp_kns_window(
     slack_user_email: str,
     owner_email: str = "",
@@ -15792,7 +16511,10 @@ def plan_hubspot_writeback(
             "source": "NurtureAny HubSpot write-back dry run",
             "scope": _scope_response(scope, list(scope.get("countries", ()))),
             "confidence": "verified",
-            "caveat": "Preview only. Managers are read-only, and mutation tools are disabled in V1 until explicit write phase approval.",
+            "caveat": (
+                "Preview only for generic write-back. Managers are blocked from generic team write-back previews; "
+                "HubSpot Task writes use the separate exact-approval task primitives."
+            ),
         }
     except ScopeError as error:
         return _blocked(str(error), {"caller_email": slack_user_email})

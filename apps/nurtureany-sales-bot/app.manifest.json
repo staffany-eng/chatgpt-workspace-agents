@@ -60,6 +60,8 @@
     "health_check_script": "runtime/check-health.sh",
     "cloud_heartbeat_script": "runtime/check-cloud-heartbeat.sh",
     "slack_socket_watchdog_script": "runtime/check-slack-socket-health.sh",
+    "hubspot_task_reminder_script": "runtime/scripts/nurtureany_sales_task_reminders.py",
+    "hubspot_task_reminder_eod_script": "runtime/scripts/nurtureany_sales_task_reminders_eod.py",
     "live_profile_audit": "runtime/audit-live-profile.sh",
     "cloud_doctor": "runtime/nurtureany-cloud-doctor.sh",
     "regression_cases": "tests/regression-cases.md",
@@ -105,7 +107,7 @@
     "owner_mapping_source": "hubspot_owners_api",
     "unclassified_hubspot_owners": "blocked",
     "sales_rep_scope": "own_hubspot_target_accounts_only",
-    "manager_scope": "country_scoped_team_read_only",
+    "manager_scope": "country_scoped_team_view_plus_approved_hubspot_task_write",
     "full_roster_committed": false
   },
   "runtime_secrets": {
@@ -207,6 +209,7 @@
       "hs_task_status",
       "hs_task_priority",
       "hs_task_type",
+      "hs_task_reminders",
       "hs_lastmodifieddate"
     ],
     "communication_properties": [
@@ -288,6 +291,53 @@
       "missing_date_source": "hs_is_target_account=true companies with no contract_end_date",
       "date_window_inputs": "optional ISO start_date and end_date for explicit renewal-window requests",
       "missing_date_limit": "independent of known-T90 display limit; bounded default 250 unless explicitly widened"
+    },
+    "task_management": {
+      "enabled": true,
+      "task_queue_source_of_truth": "HubSpot Tasks",
+      "due_source_property": "hs_timestamp",
+      "completion_property": "hs_task_status=COMPLETED",
+      "native_reminder_property": "hs_task_reminders",
+      "native_reminder_policy": "optional due-minus-one-day HubSpot UI nudge only; not recurring reminder truth",
+      "associations": {
+        "company_required_type_id": 192,
+        "contact_optional_type_id": 204,
+        "deal_optional_type_id": 216
+      },
+      "duplicate_check": "scoped account/contact/deal, owner, incomplete status, normalized subject/action, due window",
+      "approval_policy": {
+        "create": [
+          "create task",
+          "confirm task"
+        ],
+        "reschedule": [
+          "update task",
+          "confirm reminder"
+        ],
+        "complete": [
+          "mark done",
+          "complete task"
+        ],
+        "not_approval": [
+          "run",
+          "ok",
+          "yes",
+          "+1",
+          "^"
+        ]
+      },
+      "allowed_writers": [
+        "overall_admin",
+        "regional_manager",
+        "scoped_ae"
+      ],
+      "reminder_digest": {
+        "source": "HubSpot Tasks API search over incomplete hs_task_status by hs_timestamp",
+        "prefix": "NurtureAny automation:",
+        "morning_window": "overdue, due today, due tomorrow",
+        "eod_window": "overdue, due today",
+        "no_local_task_truth": true
+      }
     }
   },
   "customer360": {
@@ -393,6 +443,7 @@
       "build_singapore_lead_enrichment_plan",
       "list_active_deals_missing_next_meeting",
       "list_sales_followup_tasks",
+      "list_due_hubspot_sales_task_reminders",
       "count_owner_whatsapp_sent_today",
       "check_account_followup_status",
       "check_event_followup_status",
@@ -438,7 +489,13 @@
     "preview": [
       "plan_hubspot_writeback",
       "plan_event_photo_followup",
+      "preview_hubspot_sales_task",
+      "preview_hubspot_task_update",
       "preview_eazybe_template_messages"
+    ],
+    "approval_gated_hubspot_task_writes": [
+      "create_approved_hubspot_sales_task",
+      "apply_approved_hubspot_task_update"
     ],
     "approval_gated_enrichment": [
       "reveal_lusha_contact_details",

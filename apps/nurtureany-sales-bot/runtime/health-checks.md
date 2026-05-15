@@ -27,7 +27,7 @@ NurtureAny needs deterministic runtime checks because prompt correctness does no
 - HubSpot company property metadata includes `hs_is_target_account`, `hubspot_owner_id`, and `company_country`.
 - HubSpot company property metadata includes durable NurtureAny fields `contract_end_date` and `current_tools`; `current_tool_renewal_date` is present only as secondary context.
 - HubSpot `company_country` options include `Singapore`, `Malaysia`, and `Indonesia`.
-- HubSpot MCP lists inbound Conversations, Marketing Campaigns, campaign social effectiveness, marketing campaign attribution, `resolve_nurture_scope`, `resolve_sales_owners`, `list_sales_call_events`, `summarize_sales_call_stats`, `audit_priority_account_coverage`, `build_sales_metric_actuals_query`, `build_hubspot_revenue_funnel_metrics`, `build_ae_coaching_audit`, `prepare_sales_navigator_decision_maker_queue`, `build_friday_sales_review`, `build_manager_chase_plan`, `build_pre_demo_game_plans`, `build_singapore_lead_enrichment_plan`, `list_sales_followup_tasks`, `check_account_followup_status`, `check_event_followup_status`, `generate_free_search_tasks`, and `review_public_enrichment_evidence` in addition to the existing queue, gap, draft, and preview tools.
+- HubSpot MCP lists inbound Conversations, Marketing Campaigns, campaign social effectiveness, marketing campaign attribution, `resolve_nurture_scope`, `resolve_sales_owners`, `list_sales_call_events`, `summarize_sales_call_stats`, `audit_priority_account_coverage`, `build_sales_metric_actuals_query`, `build_hubspot_revenue_funnel_metrics`, `build_ae_coaching_audit`, `prepare_sales_navigator_decision_maker_queue`, `build_friday_sales_review`, `build_manager_chase_plan`, `build_pre_demo_game_plans`, `build_singapore_lead_enrichment_plan`, `list_sales_followup_tasks`, `preview_hubspot_sales_task`, `create_approved_hubspot_sales_task`, `preview_hubspot_task_update`, `apply_approved_hubspot_task_update`, `list_due_hubspot_sales_task_reminders`, `check_account_followup_status`, `check_event_followup_status`, `generate_free_search_tasks`, and `review_public_enrichment_evidence` in addition to the existing queue, gap, draft, and preview tools.
 - HubSpot campaign social-effectiveness smoke check uses `get_campaign_social_effectiveness`, reports aggregate `SOCIAL_BROADCAST` clicks separately from pipeline proof, redacts raw social channel IDs, and does not bulk-export all posts.
 - HubSpot marketing attribution smoke check uses `get_marketing_campaign_attribution` to search bounded campaign/source fields, counts QO/QO Met/closed-won only with configured HubSpot stage IDs, and does not use generic QO totals as campaign attribution.
 - HubSpot Friday review smoke check returns Hygiene Summary, Funnel Snapshot, optional warehouse metric follow-up SQL, Top Coaching Observations, Actions for Next Week, and Support Needed; blocks AE callers; enforces Kerren SG/MY and Sarah ID scope; and still returns hygiene/account coverage with `Confidence: needs-check` when QO/QO Met/deal stage config is missing.
@@ -42,13 +42,15 @@ NurtureAny needs deterministic runtime checks because prompt correctness does no
 - HubSpot pre-demo game plan smoke check accepts selected scoped company IDs, company links, or exact company names, caps at 5 accounts, returns candidate company IDs instead of guessing ambiguous names, returns approved case-study matches when available, returns `pricing needed` and `case-study match needed` when missing, and does not expose raw task bodies or mutation tools.
 - HubSpot account-context smoke check returns `company.c360_url` for verified customer accounts and names Customer 360 link context in the source.
 - C360 sales-packet smoke check calls `GET /api/companies/{customer360_route_key_or_hubspot_company_id}/sales-packet` with `NURTUREANY_C360_INTERNAL_API_TOKEN`, expects HTTP 200 plus `status=ok`, and fails with only subsystem/reason such as `c360-sales-packet:http-401`; it must not print token values or raw auth bodies.
-- HubSpot task smoke check returns safe sales-owned follow-up task summaries only and does not expose task body or mutation tools.
+- HubSpot task smoke check returns safe sales-owned follow-up task summaries only, exposes the narrow preview-first task primitives, keeps generic `create_hubspot_task` / `append_hubspot_note` / `update_nurture_fields` disabled, and does not expose raw task body.
+- HubSpot task-write smoke check confirms task creation needs `preview_hubspot_sales_task` plus exact `create task` or `confirm task`, reschedule needs `update task` or `confirm reminder`, completion needs `mark done` or `complete task`, and `run`, `ok`, `yes`, `+1`, and `^` are not HubSpot Task write approvals.
 - HubSpot T-90 smoke check returns a primary answer object with known T-90 `contract_end_date` accounts and a separate missing `contract_end_date` classification bucket.
 - HubSpot follow-up-status smoke check returns safe WhatsApp communication, note, and task evidence only and does not expose raw communication bodies, note bodies, task bodies, phone numbers, unmatched attendees, or mutation tools.
 - HubSpot event-follow-up smoke check resolves Luma checked-in attendance, verifies event-specific Eazybe WhatsApp communications in HubSpot, marks generic WhatsApp as `needs_check`, and never exposes raw WhatsApp bodies, guest emails, phone numbers, or raw attendee lists.
 - Indonesia event-registration fallback smoke check confirms `read_indonesia_event_registration_attendance` is available, restricted to `ID REV - LL & HHH EVENTS`, uses `Attend The Event` as manual attendance only when Luma check-in is empty or not used, and never exposes phone numbers, full emails, or raw registration exports.
 - Google Slides deck-access smoke check confirms `read_google_slides_deck` is available, uses the `team@staffany.com` read-only Drive OAuth token, supports native Slides and Drive-hosted `.pptx` text extraction, never retains raw deck bytes, and never asks for "Anyone with the link" public sharing.
-- Daily nurture and reminder automation are disabled pending refinement. Health checks must not require a Jeremy daily pack, 09:00 cron, noon reminder, or `NURTUREANY_DAILY_RUNS_DIR`; `read_nurture_material_registry` remains read-only material context only.
+- Daily nurture automation is disabled pending refinement. Health checks must not require a Jeremy daily pack, 09:00 daily nurture cron, noon daily nurture reminder, or `NURTUREANY_DAILY_RUNS_DIR`; `read_nurture_material_registry` remains read-only material context only.
+- HubSpot Task reminder automation is separate from daily nurture: morning no-agent digest reads overdue/due-today/due-tomorrow incomplete HubSpot Tasks, EOD no-agent digest reads overdue/due-today incomplete HubSpot Tasks, both start with `NurtureAny automation:`, and HubSpot Task `hs_timestamp` remains the source of truth until `hs_task_status=COMPLETED`.
 - Operation ledger tools `record_nurtureany_operation_checkpoint` and `read_nurtureany_operation_ledger` are available for restart-safe Slack workflow continuation.
 - Reviewed lesson tools `record_nurtureany_lesson_candidate`, `list_nurtureany_lesson_candidates`, and `read_nurtureany_lesson_candidate` are available. They write/read runtime-only candidates, keep Honcho disabled, and do not change behavior before repo promotion.
 - Eazybe approval-gated smoke check confirms `preview_eazybe_template_messages`, `send_approved_eazybe_messages`, and `check_eazybe_send_status` are available; sends require `approval_marker`, `templateName`, ordered `templateParams`, and phone-number redaction.
@@ -145,6 +147,8 @@ cp apps/nurtureany-sales-bot/runtime/check-cloud-heartbeat.sh ~/.hermes/profiles
 cp apps/nurtureany-sales-bot/runtime/audit-live-profile.sh ~/.hermes/profiles/nurtureanysalesbot/scripts/nurtureanysalesbot-audit-live-profile.sh
 cp apps/nurtureany-sales-bot/runtime/check-slack-socket-health.sh ~/.hermes/profiles/nurtureanysalesbot/scripts/nurtureanysalesbot-check-slack-socket-health.sh
 cp apps/nurtureany-sales-bot/runtime/nurtureany-cloud-doctor.sh ~/.hermes/profiles/nurtureanysalesbot/scripts/nurtureanysalesbot-cloud-doctor.sh
+cp apps/nurtureany-sales-bot/runtime/scripts/nurtureany_sales_task_reminders.py ~/.hermes/profiles/nurtureanysalesbot/scripts/nurtureany_sales_task_reminders.py
+cp apps/nurtureany-sales-bot/runtime/scripts/nurtureany_sales_task_reminders_eod.py ~/.hermes/profiles/nurtureanysalesbot/scripts/nurtureany_sales_task_reminders_eod.py
 hermes -p nurtureanysalesbot cron create "0 1 * * 1-5" \
   --name "nurtureanysalesbot health check" \
   --script nurtureanysalesbot-check-health.sh \
@@ -161,9 +165,19 @@ hermes -p nurtureanysalesbot cron create "*/5 * * * *" \
   --name "nurtureanysalesbot Slack socket watchdog" \
   --script nurtureanysalesbot-check-slack-socket-health.sh \
   --no-agent
+hermes -p nurtureanysalesbot cron create "0 1 * * 1-5" \
+  --name "nurtureanysalesbot HubSpot task reminders" \
+  --script nurtureany_sales_task_reminders.py \
+  --deliver slack:#nurtureany-testing \
+  --no-agent
+hermes -p nurtureanysalesbot cron create "0 9 * * 1-5" \
+  --name "nurtureanysalesbot HubSpot task EOD catch-up" \
+  --script nurtureany_sales_task_reminders_eod.py \
+  --deliver slack:#nurtureany-testing \
+  --no-agent
 ```
 
-Daily nurture is available as an on-demand workflow, not a required production cron. The runtime audit expects four enabled operational crons: health check, live profile audit, local cloud heartbeat, and Slack socket watchdog.
+Daily nurture is available as an on-demand workflow, not a required production cron. The runtime audit expects six enabled operational crons: health check, live profile audit, local cloud heartbeat, Slack socket watchdog, HubSpot task reminders, and HubSpot task EOD catch-up.
 
 The current Hermes CLI uses the deployment host timezone for cron scheduling and does not expose a `--timezone` flag.
 

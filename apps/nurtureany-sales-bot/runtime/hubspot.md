@@ -13,6 +13,7 @@ Field-level durable sources:
 - Current-customer account-background packets: C360 sales packet is StaffAny product/Payroll truth. If C360 is unavailable, return `Confidence: needs-check` and do not infer Payroll status from stale HubSpot `current_tools` / `contract_end_date`.
 - Decision-maker coverage: company `hs_num_decision_makers` plus contact `hs_buying_role=DECISION_MAKER` are verified HubSpot decision-maker sources. `hs_num_contacts_with_buying_roles` is reported separately as buying-role hygiene, but it does not satisfy decision-maker coverage by itself. NurtureAny does not read Eazybe directly for these counts.
 - Phone verification: contact `nurtureany_phone_verification_status`, `nurtureany_phone_verified_at`, `nurtureany_phone_verified_by`, `nurtureany_phone_verification_source`, and `nurtureany_phone_verification_notes`. Valid phone verification requires `called_connected`; `truecaller_manual_lookup` is manual candidate evidence only unless paired with a connected-call outcome.
+- Task queue and recurring reminder truth: HubSpot Task `hs_timestamp`; completed tasks are excluded by `hs_task_status=COMPLETED`. `hs_task_reminders` may be set as a native due-minus-one-day HubSpot UI nudge, but no Slack reminder loop should treat it as the recurring source of truth.
 
 `current_tool_renewal_date` is secondary context only. C360, Google Calendar, Luma, the Indonesia event registration Sheet fallback, Tavily public research, Exa, Lusha, Prospeo, Slack, and public evidence enrich the answer but do not override the durable HubSpot fields above. Prospeo is an active paid-provider pilot adapter when `PROSPEO_API_KEY` is configured; it follows Lusha-style approval, selected-contact, credit-reporting, and no-write guardrails.
 
@@ -34,7 +35,7 @@ Read phase:
 
 Write phase:
 
-- Create HubSpot tasks only after preview approval.
+- Create or update HubSpot Tasks only through the narrow task primitives after preview approval and exact markers.
 - Append HubSpot notes only after preview approval.
 - Update company/contact nurture fields only after preview approval.
 
@@ -43,7 +44,7 @@ Use a private app token from Secret Manager or the live profile `.env`. Do not s
 Use `NURTUREANY_ACCESS_POLICY_PATH` for the runtime-only access policy. Copy `runtime/access-policy.template.json` outside the repo and classify real people there; do not commit the full sales roster. Configure known Slack or Google email variants with `alias_for` or top-level `aliases`; the MCP adapter canonicalizes aliases before role lookup.
 
 `check_event_followup_status` also requires `LUMA_API_KEY` in the same runtime environment so the HubSpot adapter can resolve read-only Luma attendance before checking HubSpot/Eazybe follow-up evidence.
-Daily nurture and reminder automation are disabled pending refinement. Do not rely on 09:00 run persistence or 12:00 reminder continuity until the workflow is approved again.
+Daily nurture automation remains disabled pending refinement. Do not rely on 09:00 daily nurture run persistence or 12:00 daily nurture reminder continuity until that workflow is approved again. This does not disable the separate HubSpot Task reminder digest, whose source of truth is HubSpot Tasks.
 
 ## Local MCP Adapter
 
@@ -79,6 +80,11 @@ It exposes these tools:
 - `find_sales_case_studies`
 - `build_singapore_lead_enrichment_plan`
 - `list_sales_followup_tasks`
+- `preview_hubspot_sales_task`
+- `create_approved_hubspot_sales_task`
+- `preview_hubspot_task_update`
+- `apply_approved_hubspot_task_update`
+- `list_due_hubspot_sales_task_reminders`
 - `count_owner_whatsapp_sent_today`
 - `check_account_followup_status`
 - `check_event_followup_status`
@@ -99,7 +105,7 @@ It exposes these tools:
 - `plan_event_photo_followup`
 - `plan_hubspot_writeback`
 
-It intentionally does not expose mutation tools in V1.
+It intentionally does not expose generic HubSpot mutation tools in V1. The only HubSpot write path here is the narrow, preview-first, exact-approval Task primitive set; `create_hubspot_task`, `append_hubspot_note`, and `update_nurture_fields` remain disabled planned tools.
 
 The near-me stdio MCP adapter lives separately at `runtime/mcp/near_me_nurtureany_server.py`. It builds BigQuery outlet-match and C360 SQL, refreshes Google Places, and never mutates HubSpot.
 
@@ -315,6 +321,17 @@ Friday sales review uses the same scoped association discipline, plus HubSpot ca
 - Output: existing incomplete sales-owned HubSpot follow-up tasks with safe task fields only.
 - Must not create tasks, mutate HubSpot, trigger write-back preview, or recommend duplicate task creation when an open sales-owned task already exists.
 
+HubSpot Task management:
+
+- `preview_hubspot_sales_task` resolves the scoped account/contact/deal, requires a non-past `due_at`, checks active duplicates by scoped account/contact/deal, owner, incomplete status, normalized subject, and due window, and returns a safe create payload preview without raw task body.
+- `create_approved_hubspot_sales_task` recomputes the preview and creates the task only when the approval marker is exactly `create task` or `confirm task`.
+- `preview_hubspot_task_update` checks that the task is associated to a scoped target account and previews only `hs_timestamp`/`hs_task_reminders` reschedules or `hs_task_status=COMPLETED`.
+- `apply_approved_hubspot_task_update` PATCHes only the approved fields. Reschedules require `update task` or `confirm reminder`; completion requires `mark done` or `complete task`.
+- `list_due_hubspot_sales_task_reminders` reads incomplete scoped sales-owned HubSpot Tasks for automation/user reminder windows. Morning includes overdue, due today, and due tomorrow. EOD includes overdue and due today.
+- Create-time associations must include the scoped company with HubSpot-defined task-to-company association type ID `192`; contact `204` and deal `216` are optional only when already associated to the scoped company.
+- `run`, `ok`, `yes`, `+1`, and `^` are never HubSpot Task write approvals. Managers/admins and AEs can manage tasks only inside their scoped accounts through these primitives.
+- Reminder automation uses `runtime/scripts/nurtureany_sales_task_reminders.py` and `runtime/scripts/nurtureany_sales_task_reminders_eod.py`. Every digest starts with `NurtureAny automation:` and reads incomplete HubSpot Tasks directly; no Sheet, memory, Honcho, Slack reaction, or JSON file becomes task truth.
+
 `count_owner_whatsapp_sent_today`:
 
 - Input: Slack user email, one owner email for manager/admin scope, optional countries, optional Asia/Singapore date, and limit.
@@ -426,18 +443,18 @@ Daily nurture workflow:
 
 - Input: a human-confirmed photo match with `contact_id`, scoped `company_id`, photo source pointer, event name, optional due date, and optional `approval_marker`.
 - Output: preview-only HubSpot note summary, WhatsApp follow-up task, default due date of next business day 10:00 Asia/Singapore, draft WhatsApp copy, and custom object preview.
-- Must never auto-send WhatsApp. HubSpot note/task creation remains approval-gated through the normal write-back phase.
+- Must never auto-send WhatsApp. If the user approves task creation, route the task through `preview_hubspot_sales_task` and `create_approved_hubspot_sales_task`; HubSpot notes and custom object writes remain disabled planned write-back work.
 
 `plan_hubspot_writeback`:
 
 - Input: selected accounts and proposed actions.
 - Output: dry-run task/note/field update preview.
 - Preserve public/Exa/Lusha/Prospeo source evidence, source type, source URL, and confidence in preview actions.
-- Refuse manager callers because manager team scope is read-only.
+- Refuse manager callers for generic write-back previews. Manager/admin task writes use the separate task primitives only.
 - Refuse actions without scoped HubSpot `company_id` or outside the caller's target-account scope.
 
-Mutation tools:
+Generic planned mutation tools:
 
-- Must reject calls without approved preview ID or explicit selected-action approval.
+- `create_hubspot_task`, `append_hubspot_note`, and `update_nurture_fields` remain disabled planned tools.
 - Must write concise source summaries, not raw Slack transcripts.
 - Must return created/updated object IDs without dumping sensitive fields.

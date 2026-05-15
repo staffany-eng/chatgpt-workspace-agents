@@ -2,7 +2,7 @@
 
 Server name: `eazybe_nurtureany`
 
-Purpose: approval-gated WhatsApp template delivery for approved NurtureAny preview flows. No free-form WhatsApp sends are allowed. Daily nurture and reminder automation are disabled pending refinement.
+Purpose: approval-gated WhatsApp template delivery for approved NurtureAny preview flows. No free-form WhatsApp sends are allowed. Daily nurture automation is disabled pending refinement; HubSpot Task reminder digests are separate no-agent automation and do not send WhatsApp.
 
 ## Environment
 

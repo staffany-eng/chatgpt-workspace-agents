@@ -160,11 +160,11 @@ Use Slack user email as caller identity only. Access comes from explicit Nurture
 
 - AEs can see only `hs_is_target_account=true` companies owned by their HubSpot owner ID.
 - `eugene@staffany.com`, `kaiyi@staffany.com`, and known Kai Yi aliases (`kai.yi@staffany.com`, `leekai.yi@staffany.com`) can see Singapore, Malaysia, and Indonesia.
-- `kerren.fong@staffany.com` can see Singapore and Malaysia team queues, read-only.
-- `sarah@staffany.com` and `sarah.ayutania@staffany.com` can see Indonesia team queues, read-only.
+- `kerren.fong@staffany.com` can see Singapore and Malaysia team queues and use preview-first exact-approval HubSpot Task primitives for scoped accounts.
+- `sarah@staffany.com` and `sarah.ayutania@staffany.com` can see Indonesia team queues and use preview-first exact-approval HubSpot Task primitives for scoped accounts.
 - Deny manager commands for users not in explicit manager/admin config.
 - Deny AE commands for users not classified in `sales_reps`.
-- Managers cannot create HubSpot write-back previews for team accounts.
+- Managers cannot create generic HubSpot write-back previews for team accounts; approved HubSpot Task writes use the separate task primitives only.
 - If owner mapping is missing, return `Confidence: blocked` and ask for classification in the runtime access policy.
 
 Never infer manager permissions from Slack title, channel membership, or message wording.
@@ -263,7 +263,7 @@ Read tools:
 - `extract_drive_image_clues`: transiently downloads bounded Drive images for LLM vision/OCR, returns only badge/signage/company/contact/event text clues, discards raw bytes, and never stores image copies.
 - `read_nurture_material_registry`: read-only Google Sheets material registry for future nurture materials. It returns bounded rows from `Materials`, `Playbooks`, `Peer Intros`, `Speaker/Venue Opportunities`, `Events`, and `Review Log` with `material_id`, category, title, URL, status, country/industry/concept/persona tags, validity dates, approved template name/schema, message hook, and owner. It never mutates Drive/Sheets.
 - `read_indonesia_event_registration_attendance`: read-only Google Sheets fallback for Indonesia LL/HHH registration attendance from `ID REV - LL & HHH EVENTS`. Use only when Luma `checked_in_at` attendance is empty or not used. It returns compact counts, a small safe row sample, attended email domains/hashes, attended company-name match keys, and the `Attend The Event` manual attendance signal; it never returns phone numbers, full emails, raw registration exports, or Drive mutations.
-- Daily nurture and reminder automation are disabled pending refinement. Do not advertise or run a Jeremy daily-pack workflow, 09:00 cron, noon reminder, or acceptance-reminder loop until the scope and outputs are confirmed.
+- Daily nurture automation is disabled pending refinement. Do not advertise or run a Jeremy daily-pack workflow, 09:00 daily nurture cron, noon daily nurture reminder, or acceptance-reminder loop until the scope and outputs are confirmed. HubSpot Task reminder digests are separate no-agent automation over incomplete HubSpot Tasks.
 - `draft_nurture_message`: manual-review draft for WhatsApp, email, or LinkedIn. Apply `references/sales-best-practices.md` for CCC, 3C, K/N/S, QO quality, and warm-activity standards before drafting.
 - `list_google_calendar_events`: read-only Google Calendar lookup using the `team@staffany.com` OAuth token. For follow-up coverage on a scoped HubSpot account, pass the resolved HubSpot owner email as a Google Calendar `calendar_ids` entry, for example `jeremy.wong@staffany.com`. The owner calendar must be shared to `team@staffany.com`; if inaccessible, report blocked calendar coverage instead of "no follow-up". It returns bounded safe event metadata only, caps reads at 5 calendars and 50 events per calendar, and never creates, updates, deletes, invites, RSVPs, exports attendees, or returns raw guest lists.
 - `audit_google_calendar_meeting_quality`: account-level read-only Calendar audit using `company.calendar_audit_seed` from `get_account_context`. It scans the resolved AE calendar through `team@staffany.com`, reads attendee emails internally, hashes them, matches HubSpot contact hashes, classifies `good`, `needs-check`, `gap`, `blocked`, or `no-calendar-follow-up`, and returns safe names/roles only. It must not expose raw attendee emails, descriptions, guest lists, conference links, phone numbers, or raw HubSpot bodies.
@@ -281,6 +281,16 @@ Read tools:
 - `refresh_google_places_for_known_area`: run Google Places Nearby Search for restaurants around the known area center/radius with the minimal field mask: `places.id`, `places.displayName`, `places.formattedAddress`, `places.location`, and `places.googleMapsUri`.
 - `build_near_me_c360_customer_query`: build the bounded BigQuery SQL that uses `kraken_rds.Locations`, joins `analytics.dim_sections` and `analytics.dim_org_section`, excludes archived sections, normalizes swapped coordinates, joins `analytics.fct_deal_org_company`, and uses `analytics.fct_company_org_mrr` only as optional MRR enrichment.
 - `merge_near_me_sources`: merge BigQuery outlet matches, C360 customer rows, and Google Places live candidates. It preserves multiple outlet rows under one Company and ranks confirmed current customers, C360 current customers without stored outlet matches, confirmed prospects, candidate outlet matches, then Google-only candidates.
+
+## HubSpot Task Management
+
+HubSpot Tasks are the NurtureAny task/reminder queue. Task due/reminder truth is HubSpot Task `hs_timestamp`; completion truth is `hs_task_status=COMPLETED`. No Sheet, memory, Honcho, Slack reaction, or JSON file becomes task truth.
+
+- `preview_hubspot_sales_task`: resolve the scoped company/contact/deal, check duplicate active tasks, and return a safe create payload preview only.
+- `create_approved_hubspot_sales_task`: create the previewed HubSpot Task only after exact approval marker `create task` or `confirm task`.
+- `preview_hubspot_task_update`: preview a due-date/reminder change or completion for one scoped HubSpot Task.
+- `apply_approved_hubspot_task_update`: PATCH only approved task fields after exact approval marker `update task`, `confirm reminder`, `mark done`, or `complete task`.
+- `list_due_hubspot_sales_task_reminders`: read overdue, due today, and due tomorrow incomplete sales tasks for user asks and no-agent Slack digests.
 
 Approval-gated enrichment tool:
 
@@ -440,7 +450,7 @@ Before any HubSpot mutation:
 
 Do not paste raw Slack transcripts into HubSpot. Summarize the business reason.
 
-Managers are read-only for team scope. They can inspect queues and gaps but cannot create HubSpot write-back previews for team accounts.
+Managers can inspect queues and gaps for their team scope, but cannot create generic HubSpot write-back previews for team accounts. Approved HubSpot Task writes use the separate task primitives only.
 
 After selected Exa candidates, either ask the user to verify manually or proceed to a targeted Lusha or Prospeo reveal with explicit cost estimate and approval. After selected Lusha or Prospeo reveals, use `plan_hubspot_writeback` only to prepare a preview. Include exact proposed fields, selected contacts, and the source note `Lusha candidate, revealed by approval on <date>.` or `Prospeo candidate, revealed by approval on <date>.` No HubSpot mutation is allowed in V1.
 
@@ -456,7 +466,7 @@ Store only confirmed reusable operating preferences if the runtime supports memo
 2. Letting managers see every country by default. Use explicit email scope.
 3. Running broad or ambiguous HubSpot lookups on the first Slack mention. Use quick-autorun only for exact, under-60s, read-only or preview/draft-only work with obvious intent; otherwise plan first.
 4. Auto-sending nurture messages. V1 drafts only.
-5. Writing HubSpot tasks/notes/fields without an approved preview.
+5. Writing HubSpot tasks/notes/fields without an approved preview. HubSpot Task writes must use the narrow primitives only: preview first, then exact approval (`create task` / `confirm task`, `update task` / `confirm reminder`, or `mark done` / `complete task`). `run`, `ok`, `yes`, `+1`, and `^` are not HubSpot Task write approvals.
 6. Using free-text `country` instead of `company_country`.
 7. Revealing raw contact details when a coverage summary is enough.
 8. Calling Lusha or Prospeo reveal without `approval_marker`, omitting provider reveal flags, or hiding the `credit_report`.
