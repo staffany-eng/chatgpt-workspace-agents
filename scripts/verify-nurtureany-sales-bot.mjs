@@ -1845,6 +1845,7 @@ for (const text of [
   "export HERMES_HOME=\"$HOME/.hermes/profiles/$PROFILE\"",
   "EXPECT_SLACK_INTENT_TOOLS=\"${EXPECT_SLACK_INTENT_TOOLS:-3}\"",
   "EXPECT_HUBSPOT_TOOLS=\"${EXPECT_HUBSPOT_TOOLS:-49}\"",
+  "EXPECT_AIRCALL_TOOLS=\"${EXPECT_AIRCALL_TOOLS:-3}\"",
   "NURTUREANY_GATEWAY_SERVICE_NAME",
   "systemctl --user is-active --quiet \"$GATEWAY_SERVICE_NAME\"",
   "GATEWAY_LAUNCHD_LABEL",
@@ -1885,6 +1886,7 @@ for (const text of [
   "slack-allowlist:extra-users",
   "mcp_test public_research_nurtureany",
   "mcp_test slack_nurtureany",
+  "mcp_test aircall_nurtureany",
   "mcp:$name-test-timeout",
   "mcp_test eazybe_nurtureany",
   "mcp_test near_me_nurtureany"
