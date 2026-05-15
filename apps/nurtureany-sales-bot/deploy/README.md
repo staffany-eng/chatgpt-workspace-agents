@@ -34,7 +34,7 @@ The script:
 - syncs only deploy-owned packet paths into `/home/leekaiyi/.hermes/profiles/nurtureanysalesbot`
 - preserves runtime secrets/state, including `.env`, OAuth files, access policy, cron, logs, sessions, daily-runs, and operation-ledger
 - optionally hydrates the live `.env` from the latest Secret Manager dotenv version when `--hydrate-secrets` is passed
-- idempotently mirrors missing non-secret tool allowlist entries from `profile/config.template.yaml` into live `config.yaml`
+- idempotently mirrors missing non-secret MCP server stanzas and tool allowlist entries from `profile/config.template.yaml` into live `config.yaml`
 - restarts only `hermes-gateway-nurtureanysalesbot.service`
 - runs live profile audit, health check, cloud doctor, and service status
 - stamps `$profile/VERSION` with the deployed SHA, branch, and UTC timestamp
@@ -109,3 +109,4 @@ Do not put real secrets or the real sales roster in this repo.
 - If gateway restart succeeds but health fails, use the first failing subsystem from `check-health.sh` or the redacted output from `nurtureany-cloud-doctor.sh`.
 - If Slack does not reply after a healthy service restart, check the gateway service and Slack Socket Mode health before changing source code.
 - If a newly added env var is missing after a deploy, rerun with `--hydrate-secrets` after confirming the latest Secret Manager version contains the key. The script prints only `deploy:secrets=hydrated-latest` metadata and never prints dotenv values.
+- If a newly added MCP server is missing in live `config.yaml`, deploy should print `deploy:config-added-mcp-server:<name>` and copy the non-secret template stanza before restart.

@@ -804,6 +804,8 @@ for (const text of [
   "reviewed_lessons",
   "tool_allowlist",
   "apply-live-config-overrides.py",
+  "copy.deepcopy(template_server)",
+  "deploy:config-added-mcp-server:",
   "gcloud secrets versions access latest",
   "deploy:secrets=preserved",
   "deploy:secrets=hydrated-latest",
