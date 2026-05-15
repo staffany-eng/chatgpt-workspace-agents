@@ -169,6 +169,7 @@ nurtureany:
     source_role: selected_call_enrichment_only
     source_of_truth: HubSpot remains account, owner, task, note, deal, contact, and nurture-field truth
     metadata_tool: find_aircall_calls
+    resolver_tool: resolve_aircall_call_for_coaching
     transcription_tool: transcribe_aircall_recording
     coaching_tool: analyze_aircall_call_coaching
     coaching_provider: openai
@@ -347,6 +348,7 @@ mcp_servers:
       hubspot_source_of_truth: true
     tool_allowlist:
     - find_aircall_calls
+    - resolve_aircall_call_for_coaching
     - transcribe_aircall_recording
     - analyze_aircall_call_coaching
   public_research_nurtureany:

@@ -251,6 +251,7 @@ if (!existsSync(manifestPath)) {
       "build_friday_sales_review",
       "build_manager_chase_plan",
       "find_aircall_calls",
+      "resolve_aircall_call_for_coaching",
       "transcribe_aircall_recording",
       "analyze_aircall_call_coaching",
       "get_account_context",
@@ -399,7 +400,7 @@ if (!existsSync(manifestPath)) {
     if (manifest.aircall?.raw_recording_urls_returned !== false) fail("Manifest Aircall must not return raw recording URLs");
     if (manifest.aircall?.raw_audio_retained !== false) fail("Manifest Aircall must not retain raw audio");
     if (manifest.aircall?.bulk_transcript_exports !== false) fail("Manifest Aircall must block bulk transcript exports");
-    for (const tool of ["find_aircall_calls", "transcribe_aircall_recording", "analyze_aircall_call_coaching"]) {
+    for (const tool of ["find_aircall_calls", "resolve_aircall_call_for_coaching", "transcribe_aircall_recording", "analyze_aircall_call_coaching"]) {
       if (!manifest.aircall?.allowed_tools?.includes(tool)) fail(`Manifest Aircall missing allowed tool: ${tool}`);
     }
     if (manifest.exa?.auth_env_var !== "EXA_API_KEY") fail("Manifest missing EXA_API_KEY auth env var");
@@ -1884,7 +1885,7 @@ for (const text of [
   "export HERMES_HOME=\"$HOME/.hermes/profiles/$PROFILE\"",
   "EXPECT_SLACK_INTENT_TOOLS=\"${EXPECT_SLACK_INTENT_TOOLS:-3}\"",
   "EXPECT_HUBSPOT_TOOLS=\"${EXPECT_HUBSPOT_TOOLS:-49}\"",
-  "EXPECT_AIRCALL_TOOLS=\"${EXPECT_AIRCALL_TOOLS:-3}\"",
+  "EXPECT_AIRCALL_TOOLS=\"${EXPECT_AIRCALL_TOOLS:-4}\"",
   "NURTUREANY_GATEWAY_SERVICE_NAME",
   "systemctl --user is-active --quiet \"$GATEWAY_SERVICE_NAME\"",
   "GATEWAY_LAUNCHD_LABEL",

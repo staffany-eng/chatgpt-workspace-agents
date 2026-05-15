@@ -34,6 +34,14 @@ ElevenLabs docs are future/alternative voice-stack evidence only. This Aircall a
 - Returns safe call IDs, timestamps, status, direction, duration, user display metadata, and whether a recording exists.
 - Never returns raw phone numbers, raw recording URLs, audio bytes, or transcripts.
 
+`resolve_aircall_call_for_coaching`
+
+- Resolves a natural-language selected-call request or safe hint payload to one numeric Aircall call ID.
+- Accepts an exact Aircall call ID, or bounded hints such as rep name, timestamp, and duration.
+- Returns safe selected-call metadata only.
+- Never returns raw recording URLs, audio bytes, transcript text, phone numbers, or mutation.
+- If multiple candidates remain, asks the user to select one candidate before coaching.
+
 `transcribe_aircall_recording`
 
 - Reads one selected numeric Aircall call ID.
