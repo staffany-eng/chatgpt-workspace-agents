@@ -92,6 +92,21 @@ profiles:
         mode: no-agent
         script: nurtureany_sales_task_reminders_eod.py
         deliver: slack:#nurtureany-testing
+      - name: SG MY WhatsApp Morning Blitz Report
+        schedule: "35 2 * * 1-5"
+        mode: agent
+        owner: eugene@staffany.com
+        deliver: slack:C04HYF0NM8A
+      - name: ID Morning WhatsApp Blitz Report
+        schedule: "45 3 * * 1-5"
+        mode: agent
+        owner: eugene@staffany.com
+        deliver: slack:C0B2UGK4DB6
+      - name: ID WhatsApp Morning Blitz Report
+        schedule: "35 3 * * 1-5"
+        mode: agent
+        owner: eugene@staffany.com
+        deliver: slack:C04MSJ1BGF9
     unsafe_cron_name_prefixes: [event-roi-]
     checks:
       health_command: apps/nurtureany-sales-bot/runtime/check-health.sh
@@ -189,6 +204,9 @@ profiles:
     expected_crons:
       - name: launchbot health check
         schedule: "*/5 * * * *"
+        mode: no-agent
+      - name: launchbot feature intake monitor
+        schedule: "* * * * *"
         mode: no-agent
       - name: launchbot pantheon repo update
         schedule: "0 22 * * *"

@@ -39,6 +39,15 @@
 - Given user confirmation `draft it`, Launchbot should call `create_help_article_video_update_draft`, update only the registered Loom iframe, and send Intercom `state: "draft"` only.
 - Video-only updates must not rewrite article text, create Google Docs review docs, publish, delete, tag, move collections, or mutate unregistered videos.
 
+## Feature Intake Channel Monitor
+
+- A feature-like message in `#input-features-ux` causes at most one `Launchbot automation: Potential KER intake detected.` preview in the source thread.
+- A duplicate Slack source permalink returns the existing KER link instead of another create prompt.
+- Exact `create intake` or `create KER intake` in the previewed thread creates one KER Idea.
+- Replies such as `yes`, `ok`, `create`, and `+1` do not create Jira issues.
+- Bot messages, Launchbot automation messages, deleted/empty messages, and repeated source permalinks are ignored.
+- The monitor state stores safe summaries and source pointers only; raw Slack transcripts are not persisted.
+
 ## Pantheon Evidence Gate
 
 - Given a topic and explicit app scope, `help-article:pantheon-scan` should use `LAUNCH_PANTHEON_REPO` or the local default `/Users/leekaiyi/workspace/pantheon`, record branch/sha/dirty state, read app-local `AGENTS.md`, and output source files plus routes/screens, access levels, flags/gating, API/data touchpoints, statuses, labels, and edge cases.

@@ -116,10 +116,20 @@ import sys
 payload = json.loads(open(sys.argv[1], "r", encoding="utf-8").read())
 jobs = payload.get("jobs") if isinstance(payload, dict) else payload
 enabled = [job for job in jobs if isinstance(job, dict) and job.get("enabled") is True]
-missing_tz = [str(job.get("name") or "") for job in enabled if not job.get("timezone")]
+enabled_recurring = [
+    job
+    for job in enabled
+    if (job.get("schedule") if isinstance(job.get("schedule"), dict) else {}).get("kind") != "once"
+]
+enabled_once = [
+    job
+    for job in enabled
+    if (job.get("schedule") if isinstance(job.get("schedule"), dict) else {}).get("kind") == "once"
+]
+missing_tz = [str(job.get("name") or "") for job in enabled_recurring if not job.get("timezone")]
 event_roi_enabled = [str(job.get("name") or "") for job in enabled if str(job.get("name") or "").startswith("event-roi-")]
 unsafe_send = [str(job.get("name") or "") for job in enabled if "send_message" in str(job.get("prompt") or "")]
-print(f"cron:enabled={len(enabled)}:missing_timezone={len(missing_tz)}:event_roi_enabled={len(event_roi_enabled)}:unsafe_send_message={len(unsafe_send)}")
+print(f"cron:enabled={len(enabled)}:enabled_recurring={len(enabled_recurring)}:enabled_once={len(enabled_once)}:missing_timezone={len(missing_tz)}:event_roi_enabled={len(event_roi_enabled)}:unsafe_send_message={len(unsafe_send)}")
 for label, values in [("cron_missing_timezone", missing_tz), ("cron_event_roi_enabled", event_roi_enabled), ("cron_unsafe_send_message", unsafe_send)]:
     if values:
         print(f"{label}:{','.join(values[:10])}")

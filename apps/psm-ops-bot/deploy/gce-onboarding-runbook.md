@@ -34,6 +34,18 @@ configuration only; do not copy those values into this repo.
 
 Thin POC does not require `SLACK_ALLOWED_USERS`, `SLACK_ALLOWED_CHANNELS`, or a PSM Ops access-policy file. The bot resolves the caller by fetching Slack users, canonicalizing profile email/name, and matching that identity to Jira `PS Team`. Jira user search is optional best-effort attribution, not the task-owner filter. Keep `slack.require_mention=true` so public/open-channel usage does not become free-response mode.
 
+Required Slack bot scopes for public/open-channel mode:
+
+- `app_mentions:read`
+- `channels:read`
+- `channels:history`
+- `channels:join`
+- `chat:write`
+- `users:read`
+- `users:read.email`
+
+`channels:join` is required so the bot can repair membership for public/open channels through bot-owned auth. If the app is missing this scope, `conversations.join` fails with `missing_scope` and the bot cannot read or reply in unjoined public channels. Reinstall the Slack app after scope changes, then run the public-channel join repair script from the cloud profile.
+
 Thin POC Jira IDs must also be present in the profile `.env`:
 
 - `PSM_OPS_JIRA_MODE=thin_poc`
@@ -142,10 +154,12 @@ cp apps/psm-ops-bot/runtime/psm_ops_adoption_digest.py ~/.hermes/profiles/psmops
 cp apps/psm-ops-bot/runtime/scripts/psm_ops_due_date_reminders.py ~/.hermes/profiles/psmopsbot/scripts/psm_ops_due_date_reminders.py
 cp apps/psm-ops-bot/runtime/scripts/psm_ops_due_date_reminders.py ~/.hermes/profiles/psmopsbot/scripts/psm_ops_due_date_reminders_eod.py
 cp apps/psm-ops-bot/runtime/scripts/psm_ops_roi_tracker_sync.py ~/.hermes/profiles/psmopsbot/scripts/psm_ops_roi_tracker_sync.py
+cp apps/psm-ops-bot/runtime/scripts/psm_ops_join_public_channels.py ~/.hermes/profiles/psmopsbot/scripts/psm_ops_join_public_channels.py
 chmod 755 ~/.hermes/profiles/psmopsbot/scripts/psm_ops_adoption_digest.py \
   ~/.hermes/profiles/psmopsbot/scripts/psm_ops_due_date_reminders.py \
   ~/.hermes/profiles/psmopsbot/scripts/psm_ops_due_date_reminders_eod.py \
-  ~/.hermes/profiles/psmopsbot/scripts/psm_ops_roi_tracker_sync.py
+  ~/.hermes/profiles/psmopsbot/scripts/psm_ops_roi_tracker_sync.py \
+  ~/.hermes/profiles/psmopsbot/scripts/psm_ops_join_public_channels.py
 ```
 
 Write the approved `team@staffany.com` OAuth files from Secret Manager to the paths configured above. Do not commit or paste those JSON files into the repo.
@@ -274,3 +288,11 @@ Cloud smoke:
 8. Ask one C360 customer question and verify a C360 link/citation appears.
 9. Create a PS WEE intake ticket from a non-home public channel and verify the same Slack thread gets the ticket link while the central ops channel gets a `PSM Ops automation:` audit copy with the source thread permalink.
 10. Run `hermes -p psmopsbot insights --days 30 --source slack` and `hermes -p psmopsbot sessions stats` for native Hermes adoption checks.
+
+Before step 1, verify and repair public/open-channel membership after Slack app install or scope changes:
+
+```bash
+~/.hermes/profiles/psmopsbot/scripts/psm_ops_join_public_channels.py --dry-run
+~/.hermes/profiles/psmopsbot/scripts/psm_ops_join_public_channels.py --apply
+~/.hermes/profiles/psmopsbot/scripts/psmopsbot-check-health.sh
+```

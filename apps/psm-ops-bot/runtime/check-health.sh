@@ -165,6 +165,30 @@ if central_channel:
     if channel.get("is_member") is False:
         print("slack:central-channel-bot-not-member")
         sys.exit(1)
+public_join_smoke_channel = os.environ.get("PSM_OPS_PUBLIC_CHANNEL_JOIN_SMOKE_CHANNEL_ID", "").strip() or central_channel
+if public_join_smoke_channel:
+    data = urllib.parse.urlencode({"channel": public_join_smoke_channel}).encode("utf-8")
+    request = urllib.request.Request(
+        "https://slack.com/api/conversations.join",
+        data=data,
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/x-www-form-urlencoded",
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=20) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except Exception:
+        print("slack:public-channel-join-smoke-unavailable")
+        sys.exit(1)
+    if not payload.get("ok"):
+        error = payload.get("error", "unknown_error")
+        if error == "missing_scope":
+            print("slack:public-channel-join-scope-missing")
+        else:
+            print(f"slack:public-channel-join-smoke:{error}")
+        sys.exit(1)
 PY
 
 if [ "${PSM_OPS_JIRA_MODE:-}" != "thin_poc" ]; then

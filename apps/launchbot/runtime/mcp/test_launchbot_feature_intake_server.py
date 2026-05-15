@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 import os
+import sys
 import unittest
+from pathlib import Path
 from unittest.mock import patch
+
+sys.path.insert(0, str(Path(__file__).parent))
 
 from test_helpers import load_mcp_module
 
@@ -34,7 +38,7 @@ class LaunchbotFeatureIntakeServerTest(unittest.TestCase):
                 "LAUNCHBOT_FEATURE_INTAKE_ALLOWED_CHANNEL_IDS": "C123",
             },
             clear=True,
-        ), patch.object(self.module, "_slack_api", side_effect=AssertionError("should not call Slack")):
+        ), patch.object(self.module.core, "slack_api", side_effect=AssertionError("should not call Slack")):
             result = self.module.preview_feature_intake_from_slack_thread(slack_permalink=SOURCE_PERMALINK)
 
         self.assertEqual(result["confidence"], "blocked")
@@ -72,8 +76,8 @@ class LaunchbotFeatureIntakeServerTest(unittest.TestCase):
                 "LAUNCHBOT_FEATURE_INTAKE_ALLOWED_CHANNEL_IDS": "CF8PK6V4J",
             },
             clear=True,
-        ), patch.object(self.module, "_slack_api", side_effect=fake_slack_api), patch.object(
-            self.module, "_jira_post", side_effect=fake_jira_post
+        ), patch.object(self.module.core, "slack_api", side_effect=fake_slack_api), patch.object(
+            self.module.core, "jira_post", side_effect=fake_jira_post
         ):
             result = self.module.preview_feature_intake_from_slack_thread(slack_permalink=SOURCE_PERMALINK)
 
@@ -96,7 +100,7 @@ class LaunchbotFeatureIntakeServerTest(unittest.TestCase):
             os.environ,
             {"LAUNCHBOT_FEATURE_INTAKE_ALLOWED_CHANNEL_IDS": "CF8PK6V4J"},
             clear=True,
-        ), patch.object(self.module, "_slack_api", side_effect=AssertionError("should not call Slack")):
+        ), patch.object(self.module.core, "slack_api", side_effect=AssertionError("should not call Slack")):
             result = self.module.create_feature_intake_from_slack_thread(
                 slack_permalink=SOURCE_PERMALINK,
                 confirmation="yes",
@@ -139,9 +143,9 @@ class LaunchbotFeatureIntakeServerTest(unittest.TestCase):
                 "LAUNCHBOT_FEATURE_INTAKE_ALLOWED_CHANNEL_IDS": "CF8PK6V4J",
             },
             clear=True,
-        ), patch.object(self.module, "_slack_api", side_effect=fake_slack_api), patch.object(
-            self.module, "_jira_post", side_effect=fake_jira_post
-        ), patch.object(self.module, "_jira_get", side_effect=AssertionError("should not fetch myself")):
+        ), patch.object(self.module.core, "slack_api", side_effect=fake_slack_api), patch.object(
+            self.module.core, "jira_post", side_effect=fake_jira_post
+        ), patch.object(self.module.core, "jira_get", side_effect=AssertionError("should not fetch myself")):
             result = self.module.create_feature_intake_from_slack_thread(
                 slack_permalink=SOURCE_PERMALINK,
                 confirmation="create intake",
@@ -184,9 +188,9 @@ class LaunchbotFeatureIntakeServerTest(unittest.TestCase):
                 "LAUNCHBOT_FEATURE_INTAKE_ALLOWED_CHANNEL_IDS": "CF8PK6V4J",
             },
             clear=True,
-        ), patch.object(self.module, "_slack_api", side_effect=fake_slack_api), patch.object(
-            self.module, "_jira_get", side_effect=fake_jira_get
-        ), patch.object(self.module, "_jira_post", side_effect=fake_jira_post):
+        ), patch.object(self.module.core, "slack_api", side_effect=fake_slack_api), patch.object(
+            self.module.core, "jira_get", side_effect=fake_jira_get
+        ), patch.object(self.module.core, "jira_post", side_effect=fake_jira_post):
             result = self.module.create_feature_intake_from_slack_thread(
                 slack_permalink=SOURCE_PERMALINK,
                 confirmation="create intake",

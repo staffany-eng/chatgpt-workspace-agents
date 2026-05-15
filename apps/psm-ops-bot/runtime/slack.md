@@ -80,9 +80,28 @@ Caveat: ROI ticket is source of truth; PCO tracker is only for customer-loop vis
 
 ## Slack Scopes
 
-Use the minimum Hermes Slack gateway scopes required for app mentions and caller identity. The PSM Jira MCP needs `users:read` and `users:read.email` so it can fetch Slack users, canonicalize profile email/name, and match the caller to Jira `PS Team`.
+Use the minimum Hermes Slack gateway scopes required for app mentions, public-channel membership, thread reads, replies, and caller identity:
+
+- `app_mentions:read`
+- `channels:read`
+- `channels:history`
+- `channels:join`
+- `chat:write`
+- `users:read`
+- `users:read.email`
+
+The PSM Jira MCP needs `users:read` and `users:read.email` so it can fetch Slack users, canonicalize profile email/name, and match the caller to Jira `PS Team`.
 
 Central audit copies need bot-owned `chat:write`. If raw source-thread excerpt fetch is enabled, the bot also needs `channels:history` for public channels it is in and `groups:history` only for private channels where the bot has explicitly been invited. Do not request broad private-channel enumeration for V1.
+
+Open public-channel mode is not proven by `SLACK_ALLOWED_CHANNELS=""` alone. The Slack app must have `channels:join`, then the bot-owned public-channel join script must be run from the cloud profile:
+
+```bash
+~/.hermes/profiles/psmopsbot/scripts/psm_ops_join_public_channels.py --dry-run
+~/.hermes/profiles/psmopsbot/scripts/psm_ops_join_public_channels.py --apply
+```
+
+If `conversations.join` returns `missing_scope`, reinstall the Slack app with the required bot scopes above before retrying. Do not use Kai Yi's user token or the Slack connector to invite or post as a workaround.
 
 ## Channel Access
 
