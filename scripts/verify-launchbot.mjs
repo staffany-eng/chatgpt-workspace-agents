@@ -444,6 +444,7 @@ for (const requiredText of [
   "EXPECT_KER_ALLOWED_CHANNELS",
   "mcp:launchbot_ker:default-channel-missing",
   "mcp:launchbot_ker:env-channel-missing",
+  "mcp:launchbot_ker:process-env-channel-missing",
   "LAUNCH_STEP3_INTERCOM_ACCESS_TOKEN",
   "help-article-video-registry",
 ]) {

@@ -79,6 +79,7 @@ case "$(uname -s)" in
 esac
 
 "$hermes_python" - "$config_path" "$EXPECT_MODEL_PROVIDER" "$EXPECT_MODEL_DEFAULT" "$EXPECT_HOME_CHANNEL" "$EXPECT_ALLOWED_CHANNELS" "$EXPECT_KER_ALLOWED_CHANNELS" <<'PY' || exit 1
+import os
 import sys
 from pathlib import Path
 
@@ -134,12 +135,15 @@ if tools != expected_tools:
     fail("mcp:launchbot_ker:tool-allowlist-unexpected")
 ker_policy = launchbot_ker.get("access_policy") or {}
 ker_default_channels = set(ker_policy.get("default_channel_ids") or [])
-ker_env_channels = str(config.get("LAUNCHBOT_KER_ALLOWED_CHANNEL_IDS") or "")
+ker_config_channels = str(config.get("LAUNCHBOT_KER_ALLOWED_CHANNEL_IDS") or "")
+ker_process_env_channels = str(os.environ.get("LAUNCHBOT_KER_ALLOWED_CHANNEL_IDS") or "")
 for channel_id in [item.strip() for item in expected_ker_channels.split(",") if item.strip()]:
     if channel_id not in ker_default_channels:
         fail(f"mcp:launchbot_ker:default-channel-missing:{channel_id}")
-    if channel_id not in ker_env_channels:
+    if channel_id not in ker_config_channels:
         fail(f"mcp:launchbot_ker:env-channel-missing:{channel_id}")
+    if channel_id not in ker_process_env_channels:
+        fail(f"mcp:launchbot_ker:process-env-channel-missing:{channel_id}")
 
 launchbot_feature_intake = mcp_servers.get("launchbot_feature_intake") or {}
 feature_intake_tools = set(launchbot_feature_intake.get("tool_allowlist") or [])
