@@ -44,7 +44,7 @@ Use a private app token from Secret Manager or the live profile `.env`. Do not s
 Use `NURTUREANY_ACCESS_POLICY_PATH` for the runtime-only access policy. Copy `runtime/access-policy.template.json` outside the repo and classify real people there; do not commit the full sales roster. Configure known Slack or Google email variants with `alias_for` or top-level `aliases`; the MCP adapter canonicalizes aliases before role lookup.
 
 `check_event_followup_status` also requires `LUMA_API_KEY` in the same runtime environment so the HubSpot adapter can resolve read-only Luma attendance before checking HubSpot/Eazybe follow-up evidence.
-Daily nurture automation remains disabled pending refinement. Do not rely on 09:00 daily nurture run persistence or 12:00 daily nurture reminder continuity until that workflow is approved again. This does not disable the separate HubSpot Task reminder digest, whose source of truth is HubSpot Tasks.
+Daily nurture automation remains disabled pending refinement for the Jeremy daily-pack workflow. Do not rely on 09:00 Jeremy daily nurture run persistence or 12:00 Jeremy daily nurture reminder continuity until that workflow is approved again. This does not disable the Eugene-owned WhatsApp Morning Blitz report crons or the separate HubSpot Task reminder digest, whose source of truth is HubSpot Tasks.
 
 ## Local MCP Adapter
 

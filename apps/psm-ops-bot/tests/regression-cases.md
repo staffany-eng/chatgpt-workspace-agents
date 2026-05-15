@@ -174,6 +174,13 @@ Thread:
 - Defaults to Jira `Blocks` direction so the PCO shows as blocked by the engineering issue.
 - Does not read or expose raw engineering issue descriptions, comments, or attachments.
 
+`@PSM Ops is there a home page ticket in KER? If yes, link it to PCO-146`
+
+- Calls read-only `find_engineering_issue` with KER scope before linking.
+- If there is one clear match such as `KER-2117`, calls `link_pco_to_engineering_issue` with that key.
+- If multiple plausible KER matches are returned, asks the user to choose the issue key.
+- Does not use Slack history, memory, descriptions, comments, attachments, or Jira bulk exports for KER discovery.
+
 ## Reminder
 
 `@PSM Ops remind me tomorrow 9am on PCO-123`

@@ -30,6 +30,7 @@ PANTHEON_REPO_DIR="${LAUNCHBOT_PANTHEON_REPO_DIR:-$PROFILE_DIR/source/pantheon}"
 PANTHEON_STATUS_PATH="${LAUNCHBOT_PANTHEON_STATUS_PATH:-$PROFILE_DIR/runtime/pantheon-repo-status.json}"
 PANTHEON_STATUS_MAX_AGE_SECONDS="${LAUNCHBOT_PANTHEON_STATUS_MAX_AGE_SECONDS:-172800}"
 HELP_ARTICLE_VIDEO_REGISTRY_PATH="${LAUNCHBOT_VIDEO_PLACEMENT_REGISTRY:-$PROFILE_DIR/source/launchbot/skills/help-article-generator/references/video-placement-registry.json}"
+FEATURE_INTAKE_MONITOR_SCRIPT="${LAUNCHBOT_FEATURE_INTAKE_MONITOR_SCRIPT:-$PROFILE_DIR/scripts/launchbot-monitor-feature-intake.py}"
 
 fail() {
   printf '%s\n' "$1" >&2
@@ -127,6 +128,28 @@ for channel_id in [item.strip() for item in expected_allowed_channels.split(",")
     if channel_id not in allowed:
         fail(f"slack:allowed-channel-missing:{channel_id}")
 
+monitor = config.get("feature_intake_monitor") or {}
+if monitor.get("mode") != "no_agent_slack_poll":
+    fail("feature-intake-monitor:mode-unexpected")
+if monitor.get("configured_channel_ids_env") != "LAUNCHBOT_FEATURE_INTAKE_MONITOR_CHANNEL_IDS":
+    fail("feature-intake-monitor:channel-env-unexpected")
+if monitor.get("state_path_env") != "LAUNCHBOT_FEATURE_INTAKE_MONITOR_STATE_PATH":
+    fail("feature-intake-monitor:state-path-env-unexpected")
+if monitor.get("required_confirmation") != "create intake":
+    fail("feature-intake-monitor:confirmation-unexpected")
+if monitor.get("no_raw_transcript_persistence") is not True:
+    fail("feature-intake-monitor:raw-transcript-persistence-not-disabled")
+if monitor.get("normal_gateway_require_mention") is not True:
+    fail("feature-intake-monitor:normal-gateway-require-mention-not-enabled")
+if str(config.get("LAUNCHBOT_FEATURE_INTAKE_MONITOR_CHANNEL_IDS") or "").strip('"') != "CF8PK6V4J":
+    fail("feature-intake-monitor:channels-unexpected")
+if str(config.get("LAUNCHBOT_FEATURE_INTAKE_MONITOR_STATE_PATH") or "").strip('"') != "~/.hermes/profiles/launchbot/runtime/feature-intake-monitor-state.json":
+    fail("feature-intake-monitor:state-path-unexpected")
+if str(config.get("LAUNCHBOT_FEATURE_INTAKE_MONITOR_MAX_MESSAGES_PER_RUN") or "").strip('"') != "100":
+    fail("feature-intake-monitor:max-messages-unexpected")
+if str(config.get("LAUNCHBOT_FEATURE_INTAKE_MONITOR_OVERLAP_SECONDS") or "").strip('"') != "600":
+    fail("feature-intake-monitor:overlap-unexpected")
+
 mcp_servers = config.get("mcp_servers") or {}
 launchbot_ker = mcp_servers.get("launchbot_ker") or {}
 tools = set(launchbot_ker.get("tool_allowlist") or [])
@@ -185,6 +208,10 @@ done
 check_mcp_server launchbot_ker 2 launchbot_ker_server.py
 check_mcp_server launchbot_feature_intake 2 launchbot_feature_intake_server.py
 check_mcp_server launchbot_help_article 2 launchbot_help_article_server.py
+
+[ -r "$FEATURE_INTAKE_MONITOR_SCRIPT" ] || fail "feature-intake-monitor:script-missing"
+"$hermes_python" -m py_compile "$FEATURE_INTAKE_MONITOR_SCRIPT" || fail "feature-intake-monitor:py-compile-failed"
+"$hermes_python" -m py_compile "$PROFILE_DIR/source/launchbot/runtime/mcp/launchbot_feature_intake_core.py" || fail "mcp:launchbot_feature_intake_core:py-compile-failed"
 
 [ -r "$HELP_ARTICLE_VIDEO_REGISTRY_PATH" ] || fail "help-article-video-registry:missing"
 "$hermes_python" - "$HELP_ARTICLE_VIDEO_REGISTRY_PATH" <<'PY' || exit 1

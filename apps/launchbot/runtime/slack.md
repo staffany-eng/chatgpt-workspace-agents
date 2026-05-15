@@ -20,6 +20,10 @@ Launchbot's current surfaces are `#launch-bot-testing`, explicitly configured pr
 - For ticket lookup in configured KER channels, read bounded Slack thread context with the bot token and call read-only Jira KER search. Do not post from the MCP tool and do not mutate Jira.
 - For feature intake, read bounded Slack thread context with the bot token, preview the KER Idea payload, require exact `create intake` confirmation, then create only one Jira Product Discovery KER Idea. Do not post from the MCP tool, comment, transition, assign, delete, or bulk-update Jira.
 - Feature intake Slack replies must start with `Launchbot automation:` and come from Launchbot's bot identity.
+- For channel monitoring, keep `slack.require_mention=true` for the Hermes gateway. Use the no-agent `launchbot feature intake monitor` cron to poll configured public channels instead of sending every channel message through the agent.
+- The monitor default channel is `CF8PK6V4J` (`#input-features-ux`) via `LAUNCHBOT_FEATURE_INTAKE_MONITOR_CHANNEL_IDS`. It may post one `Launchbot automation:` preview per source permalink, then create only after exact `create intake` or `create KER intake` in the same thread.
+- The monitor state path is `~/.hermes/profiles/launchbot/runtime/feature-intake-monitor-state.json`. It stores channel IDs, timestamps, source permalinks, safe summaries, status, and issue keys only; it must not persist raw Slack transcripts.
+- The monitor needs Slack bot-token access to `conversations.history`, `conversations.replies`, and `chat.postMessage` for configured channels, plus the existing Jira read/create credentials.
 
 ## Output Contract
 

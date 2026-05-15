@@ -33,7 +33,9 @@ cmp -s "$APP_ROOT/profile/SOUL.md" "$PROFILE_DIR/SOUL.md" || fail "profile-drift
 cmp -s "$APP_ROOT/runtime/check-health.sh" "$PROFILE_DIR/scripts/launchbot-check-health.sh" || fail "profile-drift:health-script"
 cmp -s "$APP_ROOT/runtime/audit-live-profile.sh" "$PROFILE_DIR/scripts/launchbot-audit-live-profile.sh" || fail "profile-drift:audit-script"
 cmp -s "$APP_ROOT/runtime/update-pantheon-repo.sh" "$PROFILE_DIR/scripts/launchbot-update-pantheon-repo.sh" || fail "profile-drift:pantheon-update-script"
+cmp -s "$APP_ROOT/runtime/monitor-feature-intake.py" "$PROFILE_DIR/scripts/launchbot-monitor-feature-intake.py" || fail "profile-drift:feature-intake-monitor-script"
 cmp -s "$APP_ROOT/runtime/mcp/launchbot_ker_server.py" "$PROFILE_DIR/source/launchbot/runtime/mcp/launchbot_ker_server.py" || fail "profile-drift:ker-mcp"
+cmp -s "$APP_ROOT/runtime/mcp/launchbot_feature_intake_core.py" "$PROFILE_DIR/source/launchbot/runtime/mcp/launchbot_feature_intake_core.py" || fail "profile-drift:feature-intake-core"
 cmp -s "$APP_ROOT/runtime/mcp/launchbot_feature_intake_server.py" "$PROFILE_DIR/source/launchbot/runtime/mcp/launchbot_feature_intake_server.py" || fail "profile-drift:feature-intake-mcp"
 cmp -s "$APP_ROOT/runtime/mcp/launchbot_help_article_server.py" "$PROFILE_DIR/source/launchbot/runtime/mcp/launchbot_help_article_server.py" || fail "profile-drift:help-article-mcp"
 cmp -s "$APP_ROOT/skills/help-article-generator/references/video-placement-registry.json" "$PROFILE_DIR/source/launchbot/skills/help-article-generator/references/video-placement-registry.json" || fail "profile-drift:help-article-video-registry"
@@ -41,6 +43,7 @@ cmp -s "$APP_ROOT/skills/help-article-generator/references/video-placement-regis
 
 cron_out="$("$HERMES_PYTHON" "$HERMES_BIN" -p "$PROFILE" cron list 2>&1)" || fail "cron:list-failed"
 printf '%s\n' "$cron_out" | grep -Fq "launchbot health check" || fail "cron:health-check-missing"
+printf '%s\n' "$cron_out" | grep -Fq "launchbot feature intake monitor" || fail "cron:feature-intake-monitor-missing"
 if GIT_TERMINAL_PROMPT=0 git ls-remote "$EXPECT_PANTHEON_REPO_URL" HEAD >/dev/null 2>&1; then
   printf '%s\n' "$cron_out" | grep -Fq "launchbot pantheon repo update" || fail "cron:pantheon-repo-update-missing"
 elif printf '%s\n' "$cron_out" | grep -Fq "launchbot pantheon repo update"; then

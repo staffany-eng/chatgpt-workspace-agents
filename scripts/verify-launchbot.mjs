@@ -222,6 +222,21 @@ if (!manifest) {
   if (pantheonCron?.requires !== "VM GitHub SSH access to staffany-eng/pantheon") {
     fail("Manifest Pantheon repo update cron must document the GitHub SSH access gate");
   }
+  const monitorCron = (manifest.expected_crons || []).find((cron) => cron.name === "launchbot feature intake monitor");
+  if (monitorCron?.schedule !== "* * * * *") fail("Manifest must define feature intake monitor cron");
+  if (monitorCron?.mode !== "no-agent") fail("Manifest feature intake monitor cron must be no-agent");
+  const monitor = manifest.feature_intake_monitor || {};
+  if (monitor.mode !== "no_agent_slack_poll") fail("Manifest feature intake monitor mode must be no_agent_slack_poll");
+  if (!monitor.default_channel_ids?.includes("CF8PK6V4J")) fail("Manifest feature intake monitor default channels must include CF8PK6V4J");
+  if (monitor.channel_ids_env_var !== "LAUNCHBOT_FEATURE_INTAKE_MONITOR_CHANNEL_IDS") fail("Manifest monitor channel env unexpected");
+  if (monitor.state_path_env_var !== "LAUNCHBOT_FEATURE_INTAKE_MONITOR_STATE_PATH") fail("Manifest monitor state path env unexpected");
+  if (monitor.default_state_path !== "~/.hermes/profiles/launchbot/runtime/feature-intake-monitor-state.json") fail("Manifest monitor state path unexpected");
+  if (monitor.default_max_messages_per_run !== 100) fail("Manifest monitor max messages default unexpected");
+  if (monitor.default_overlap_seconds !== 600) fail("Manifest monitor overlap default unexpected");
+  if (monitor.normal_gateway_require_mention !== true) fail("Manifest monitor must keep normal gateway mention-gated");
+  if (monitor.raw_transcript_persistence !== false) fail("Manifest monitor must not persist raw transcripts");
+  if (monitor.posts_slack_previews !== true) fail("Manifest monitor must post Launchbot-owned previews");
+  if (monitor.slack_reply_prefix !== "Launchbot automation:") fail("Manifest monitor must use Launchbot automation prefix");
 }
 
 for (const relPath of [
@@ -232,10 +247,13 @@ for (const relPath of [
   "runtime/check-health.sh",
   "runtime/audit-live-profile.sh",
   "runtime/update-pantheon-repo.sh",
+  "runtime/monitor-feature-intake.py",
+  "runtime/test_monitor_feature_intake.py",
   "runtime/intercom-format-gate.mjs",
   "runtime/intercom-format-gate.test.mjs",
   "runtime/mcp/profile_env.py",
   "runtime/mcp/launchbot_ker_server.py",
+  "runtime/mcp/launchbot_feature_intake_core.py",
   "runtime/mcp/launchbot_feature_intake_server.py",
   "runtime/mcp/launchbot_help_article_server.py",
   "runtime/mcp/test_helpers.py",
@@ -284,6 +302,13 @@ for (const requiredText of [
   "create_help_article_video_update_draft",
   "JIRA_API_TOKEN",
   "LAUNCHBOT_FEATURE_INTAKE_ALLOWED_CHANNEL_IDS",
+  "LAUNCHBOT_FEATURE_INTAKE_MONITOR_CHANNEL_IDS",
+  "LAUNCHBOT_FEATURE_INTAKE_MONITOR_STATE_PATH",
+  "LAUNCHBOT_FEATURE_INTAKE_MONITOR_MAX_MESSAGES_PER_RUN",
+  "LAUNCHBOT_FEATURE_INTAKE_MONITOR_OVERLAP_SECONDS",
+  "feature_intake_monitor",
+  "no_agent_slack_poll",
+  "no_raw_transcript_persistence: true",
   "confirmed_jpd_intake_create",
   "required_confirmation: \"create intake\"",
   "LAUNCH_STEP3_INTERCOM_ACCESS_TOKEN",
@@ -318,6 +343,7 @@ if (!launchbotProfileBlock) {
     "systemd_unit: hermes-gateway-launchbot.service",
     "C01RZ7SHC8K",
     "CF8PK6V4J",
+    "launchbot feature intake monitor",
     "launchbot_feature_intake:",
     "launchbot_help_article:",
   ]) {
@@ -342,6 +368,9 @@ for (const requiredText of [
   "create_feature_intake_from_slack_thread",
   "create intake",
   "confirmed Slack-to-KER feature intake",
+  "no-agent monitor",
+  "Broad channel monitoring must run through the no-agent feature-intake monitor",
+  "It must not store raw Slack transcripts",
   "KER-2109",
   "cached Intercom article planning",
   "Pantheon-grounded help article drafts",
@@ -390,6 +419,20 @@ for (const forbiddenText of ["chat.postMessage", "transitionIssue", "/comment", 
 
 const featureIntakeMcpText = textOf("runtime/mcp/launchbot_feature_intake_server.py");
 for (const requiredText of [
+  "launchbot_feature_intake_core",
+  "preview_feature_intake_from_slack_thread",
+  "create_feature_intake_from_slack_thread",
+  "CONFIRMATION_PHRASES",
+  "create intake",
+]) {
+  if (!featureIntakeMcpText.includes(requiredText)) fail(`launchbot_feature_intake_server.py missing required text: ${requiredText}`);
+}
+for (const forbiddenText of ["chat.postMessage", "transitionIssue", "/comment", "/transitions", "DELETE"]) {
+  if (featureIntakeMcpText.includes(forbiddenText)) fail(`launchbot_feature_intake_server.py must not contain forbidden mutation surface: ${forbiddenText}`);
+}
+
+const featureIntakeCoreText = textOf("runtime/mcp/launchbot_feature_intake_core.py");
+for (const requiredText of [
   "SLACK_BOT_TOKEN",
   "JIRA_BASE_URL",
   "JIRA_EMAIL",
@@ -407,10 +450,29 @@ for (const requiredText of [
   "will_post_message",
   "transcript_persisted",
 ]) {
-  if (!featureIntakeMcpText.includes(requiredText)) fail(`launchbot_feature_intake_server.py missing required text: ${requiredText}`);
+  if (!featureIntakeCoreText.includes(requiredText)) fail(`launchbot_feature_intake_core.py missing required text: ${requiredText}`);
 }
 for (const forbiddenText of ["chat.postMessage", "transitionIssue", "/comment", "/transitions", "DELETE"]) {
-  if (featureIntakeMcpText.includes(forbiddenText)) fail(`launchbot_feature_intake_server.py must not contain forbidden mutation surface: ${forbiddenText}`);
+  if (featureIntakeCoreText.includes(forbiddenText)) fail(`launchbot_feature_intake_core.py must not contain forbidden mutation surface: ${forbiddenText}`);
+}
+
+const featureIntakeMonitorText = textOf("runtime/monitor-feature-intake.py");
+for (const requiredText of [
+  "conversations.history",
+  "conversations.replies",
+  "chat.postMessage",
+  "LAUNCHBOT_FEATURE_INTAKE_MONITOR_CHANNEL_IDS",
+  "LAUNCHBOT_FEATURE_INTAKE_MONITOR_STATE_PATH",
+  "LAUNCHBOT_FEATURE_INTAKE_MONITOR_MAX_MESSAGES_PER_RUN",
+  "LAUNCHBOT_FEATURE_INTAKE_MONITOR_OVERLAP_SECONDS",
+  "LAUNCHBOT_FEATURE_INTAKE_APPROVER_USER_IDS",
+  "Launchbot automation: Potential KER intake detected.",
+  "create intake",
+  "create ker intake",
+  "will_post_message",
+  "transcript_persisted",
+]) {
+  if (!featureIntakeMonitorText.includes(requiredText)) fail(`monitor-feature-intake.py missing required text: ${requiredText}`);
 }
 
 const helpArticleMcpText = textOf("runtime/mcp/launchbot_help_article_server.py");
@@ -445,6 +507,11 @@ for (const requiredText of [
   "mcp:launchbot_ker:default-channel-missing",
   "mcp:launchbot_ker:env-channel-missing",
   "mcp:launchbot_ker:process-env-channel-missing",
+  "feature-intake-monitor:script-missing",
+  "feature-intake-monitor:py-compile-failed",
+  "feature-intake-monitor:raw-transcript-persistence-not-disabled",
+  "LAUNCHBOT_FEATURE_INTAKE_MONITOR_CHANNEL_IDS",
+  "launchbot_feature_intake_core",
   "LAUNCH_STEP3_INTERCOM_ACCESS_TOKEN",
   "help-article-video-registry",
 ]) {
@@ -454,11 +521,14 @@ for (const requiredText of [
 const auditText = textOf("runtime/audit-live-profile.sh");
 for (const requiredText of [
   "cron:health-check-missing",
+  "cron:feature-intake-monitor-missing",
   "cron:pantheon-repo-update-missing",
   "cron:pantheon-repo-update-present-without-github-ssh",
   "GIT_TERMINAL_PROMPT=0 git ls-remote",
   "profile-drift:help-article-mcp",
   "profile-drift:feature-intake-mcp",
+  "profile-drift:feature-intake-core",
+  "profile-drift:feature-intake-monitor-script",
   "profile-drift:help-article-video-registry",
 ]) {
   if (!auditText.includes(requiredText)) fail(`audit-live-profile.sh missing required cron/access text: ${requiredText}`);
@@ -778,6 +848,10 @@ for (const requiredText of [
   "intake.questions",
   "article_shape_stale_check.status: needs-refresh",
   "Video-only Help Article Updates",
+  "Feature Intake Channel Monitor",
+  "Launchbot automation: Potential KER intake detected.",
+  "create KER intake",
+  "raw Slack transcripts",
   "will_publish: false",
   "state: \"draft\"",
   "no registered slot match",
@@ -818,6 +892,14 @@ const testRun = spawnSync("python3", ["-m", "unittest", "discover", "-s", join(a
 });
 if (testRun.status !== 0) {
   fail(`Launchbot MCP unit tests failed:\n${testRun.stdout || ""}${testRun.stderr || ""}`);
+}
+
+const monitorTestRun = spawnSync("python3", ["-m", "unittest", join(appRoot, "runtime", "test_monitor_feature_intake.py")], {
+  cwd: repoRoot,
+  encoding: "utf8",
+});
+if (monitorTestRun.status !== 0) {
+  fail(`Launchbot feature intake monitor tests failed:\n${monitorTestRun.stdout || ""}${monitorTestRun.stderr || ""}`);
 }
 
 if (failures.length > 0) {

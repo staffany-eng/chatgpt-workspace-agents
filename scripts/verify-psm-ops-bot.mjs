@@ -58,6 +58,7 @@ if (!existsSync(manifestPath)) {
       "validate_roi_jira_configuration",
       "resolve_slack_user_identity",
       "classify_roi_ticket_request",
+      "find_engineering_issue",
       "resolve_customer_channel_org",
       "list_my_pco_tasks",
       "find_ticket_by_slack_thread",
@@ -129,6 +130,25 @@ if (!existsSync(manifestPath)) {
     if (manifest.google_calendar?.private_field_exports !== false) {
       fail("Manifest Google Calendar private_field_exports must be false");
     }
+    const expectedSlackScopes = [
+      "app_mentions:read",
+      "channels:read",
+      "channels:history",
+      "channels:join",
+      "chat:write",
+      "users:read",
+      "users:read.email"
+    ];
+    const actualSlackScopes = manifest.slack?.required_bot_scopes || [];
+    for (const scope of expectedSlackScopes) {
+      if (!actualSlackScopes.includes(scope)) fail(`Manifest missing Slack bot scope: ${scope}`);
+    }
+    if (manifest.slack?.allowed_channels_expected_empty !== true) {
+      fail("Manifest Slack contract must require empty SLACK_ALLOWED_CHANNELS for open public-channel mode");
+    }
+    if (manifest.slack?.join_public_channels_script !== "runtime/scripts/psm_ops_join_public_channels.py") {
+      fail("Manifest Slack contract must point to psm_ops_join_public_channels.py");
+    }
   }
 }
 
@@ -154,6 +174,7 @@ const filesToScan = [
   "runtime/psm_ops_adoption_digest.py",
   "runtime/scripts/psm_ops_due_date_reminders.py",
   "runtime/scripts/psm_ops_roi_tracker_sync.py",
+  "runtime/scripts/psm_ops_join_public_channels.py",
   "runtime/mcp/psm_slack_notifier.py",
   "runtime/mcp/psm_jira_server.py",
   "runtime/mcp/psm_c360_server.py",
@@ -163,6 +184,7 @@ const filesToScan = [
   "runtime/hooks/psm-ops-adoption-telemetry/handler.py",
   "runtime/test_psm_ops_due_date_reminders.py",
   "runtime/test_psm_ops_roi_tracker_sync.py",
+  "runtime/test_psm_ops_join_public_channels.py",
   "deploy/gce-onboarding-runbook.md",
   "tests/regression-cases.md",
   "tests/prompt-evals.json"
@@ -206,6 +228,7 @@ if (!existsSync(deployScriptPath)) {
     "psm_ops_adoption_digest.py",
     "psm_ops_due_date_reminders.py",
     "psm_ops_due_date_reminders_eod.py",
+    "psm_ops_join_public_channels.py",
     "psm-ops-adoption-telemetry",
     "smoke-rock-productions-c360.sh",
     "rock_productions_c360",
@@ -226,6 +249,17 @@ if (!existsSync(deployScriptPath)) {
 const configText = textOf(appRoot, "profile/config.template.yaml");
 if (configText.includes('      - "list_google_calendar_events"')) {
   fail("config.template.yaml must not expose broad list_google_calendar_events");
+}
+
+const slackRuntimeText = textOf(appRoot, "runtime/slack.md");
+for (const requiredText of [
+  "channels:join",
+  "conversations.join",
+  "psm_ops_join_public_channels.py --dry-run",
+  "psm_ops_join_public_channels.py --apply",
+  "Do not use Kai Yi's user token or the Slack connector to invite or post as a workaround"
+]) {
+  if (!slackRuntimeText.includes(requiredText)) fail(`runtime/slack.md missing required text: ${requiredText}`);
 }
 for (const requiredText of [
   "psmopsbot",
@@ -253,6 +287,7 @@ for (const requiredText of [
     "PSM_OPS_REMINDER_MENTION_MAP_PATH",
     "central_digest_only",
     "classify_roi_ticket_request",
+  "find_engineering_issue",
   "validate_roi_jira_configuration",
   "create_roi_ticket_from_slack",
   "create_or_link_pco_roi_tracker",
@@ -328,6 +363,7 @@ for (const requiredText of [
   "past due date",
   "set_pco_assignee",
   "set_pco_ps_team",
+  "find_engineering_issue",
   "link_pco_to_engineering_issue",
   "Public customer-visible comments are blocked",
   "Reminder source of truth is Jira",
@@ -364,6 +400,7 @@ for (const requiredText of [
   "add_internal_pco_comment",
   "set_pco_assignee",
   "set_pco_ps_team",
+  "find_engineering_issue",
   "link_pco_to_engineering_issue",
   "set_pco_reminder",
   "list_due_pco_reminders",
@@ -442,7 +479,7 @@ if (!psmOpsProfileBlock) {
     "systemd_unit: hermes-gateway-psmopsbot.service",
     "bot_name: ps_wee_manager",
     "open_channel_mode: true",
-    "psm_jira: 22",
+    "psm_jira: 23",
     "psm_c360: 3",
     "psmopsbot due-date reminders",
     "psmopsbot due-date eod catch-up",
@@ -532,6 +569,8 @@ for (const requiredText of [
   "hermes-gateway-psmopsbot.service",
   "Secret Manager",
   "public/open channels",
+  "channels:join",
+  "psm_ops_join_public_channels.py --apply",
   "npm run psm-ops-bot:deploy",
   "psm-ops-origin-main-<sha>.tar.gz",
   "preserves runtime secrets/state",
@@ -562,17 +601,40 @@ for (const requiredText of [
   if (!heartbeatText.includes(requiredText)) fail(`Cloud heartbeat script missing required text: ${requiredText}`);
 }
 
+const auditText = textOf(appRoot, "runtime/audit-live-profile.sh");
+for (const requiredText of [
+  "profile:health-script-drift",
+  "profile:public-channel-join-script-drift",
+  "psm_ops_join_public_channels.py"
+]) {
+  if (!auditText.includes(requiredText)) fail(`Audit script missing required text: ${requiredText}`);
+}
+
 const healthCheckText = textOf(appRoot, "runtime/check-health.sh");
 for (const requiredText of [
   "slack-display:interim-assistant-messages-not-disabled",
   "slack-display:tool-progress-not-off",
   "slack-display:streaming-not-disabled",
   "slack:reactions-not-disabled",
+  "conversations.join",
+  "slack:public-channel-join-scope-missing",
   "auxiliary:title-generation-provider-not-anthropic",
   "auxiliary:title-generation-model-not-haiku",
   "auxiliary:title-generation-timeout-too-high"
 ]) {
   if (!healthCheckText.includes(requiredText)) fail(`Health check script missing required text: ${requiredText}`);
+}
+
+const joinPublicChannelsText = textOf(appRoot, "runtime/scripts/psm_ops_join_public_channels.py");
+for (const requiredText of [
+  "conversations.list",
+  "conversations.join",
+  "missing_scope",
+  "--apply",
+  "--dry-run",
+  "SLACK_BOT_TOKEN"
+]) {
+  if (!joinPublicChannelsText.includes(requiredText)) fail(`Public-channel join script missing required text: ${requiredText}`);
 }
 
 const adoptionDigestText = textOf(appRoot, "runtime/psm_ops_adoption_digest.py");
@@ -662,7 +724,8 @@ const pyCompile = spawnSync("python3", [
   join(appRoot, "runtime/hooks/psm-ops-adoption-telemetry/handler.py"),
   join(appRoot, "runtime/psm_ops_adoption_digest.py"),
   join(appRoot, "runtime/scripts/psm_ops_due_date_reminders.py"),
-  join(appRoot, "runtime/scripts/psm_ops_roi_tracker_sync.py")
+  join(appRoot, "runtime/scripts/psm_ops_roi_tracker_sync.py"),
+  join(appRoot, "runtime/scripts/psm_ops_join_public_channels.py")
 ], {
   cwd: repoRoot,
   env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1" },
@@ -713,6 +776,19 @@ const roiTrackerScriptUnitCheck = spawnSync("python3", [
 });
 if (roiTrackerScriptUnitCheck.status !== 0) {
   fail(`ROI tracker sync unit tests failed: ${roiTrackerScriptUnitCheck.stderr || roiTrackerScriptUnitCheck.stdout}`);
+}
+
+const joinPublicChannelsUnitCheck = spawnSync("python3", [
+  "-m",
+  "unittest",
+  join(appRoot, "runtime/test_psm_ops_join_public_channels.py")
+], {
+  cwd: repoRoot,
+  env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1" },
+  encoding: "utf8"
+});
+if (joinPublicChannelsUnitCheck.status !== 0) {
+  fail(`Public-channel join unit tests failed: ${joinPublicChannelsUnitCheck.stderr || joinPublicChannelsUnitCheck.stdout}`);
 }
 
 if (failures.length > 0) {

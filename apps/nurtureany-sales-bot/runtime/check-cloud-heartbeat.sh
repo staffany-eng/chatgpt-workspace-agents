@@ -14,9 +14,12 @@ EXPECTED_SLACK_SOCKET_WATCHDOG_CRON_NAME="${EXPECTED_SLACK_SOCKET_WATCHDOG_CRON_
 EXPECTED_CLOUD_HEARTBEAT_CRON_NAME="${EXPECTED_CLOUD_HEARTBEAT_CRON_NAME:-nurtureanysalesbot local cloud heartbeat}"
 EXPECTED_TASK_REMINDER_CRON_NAME="${EXPECTED_TASK_REMINDER_CRON_NAME:-nurtureanysalesbot HubSpot task reminders}"
 EXPECTED_TASK_REMINDER_EOD_CRON_NAME="${EXPECTED_TASK_REMINDER_EOD_CRON_NAME:-nurtureanysalesbot HubSpot task EOD catch-up}"
+EXPECTED_SG_MY_WHATSAPP_BLITZ_CRON_NAME="${EXPECTED_SG_MY_WHATSAPP_BLITZ_CRON_NAME:-SG MY WhatsApp Morning Blitz Report}"
+EXPECTED_ID_MORNING_WHATSAPP_BLITZ_CRON_NAME="${EXPECTED_ID_MORNING_WHATSAPP_BLITZ_CRON_NAME:-ID Morning WhatsApp Blitz Report}"
+EXPECTED_ID_WHATSAPP_BLITZ_CRON_NAME="${EXPECTED_ID_WHATSAPP_BLITZ_CRON_NAME:-ID WhatsApp Morning Blitz Report}"
 EXPECTED_CRON_TIMEZONE="${EXPECTED_CRON_TIMEZONE:-Asia/Singapore}"
 EXPECT_CLOUD_HEARTBEAT_CRON="${EXPECT_CLOUD_HEARTBEAT_CRON:-1}"
-EXPECT_ENABLED_CRON_COUNT="${EXPECT_ENABLED_CRON_COUNT:-6}"
+EXPECT_ENABLED_CRON_COUNT="${EXPECT_ENABLED_CRON_COUNT:-9}"
 EXPECT_HUBSPOT_TOOLS="${EXPECT_HUBSPOT_TOOLS:-54}"
 EXPECT_PUBLIC_RESEARCH_TOOLS="${EXPECT_PUBLIC_RESEARCH_TOOLS:-2}"
 EXPECT_PROSPEO_TOOLS="${EXPECT_PROSPEO_TOOLS:-3}"
@@ -64,6 +67,9 @@ python3 - "$cron_jobs_path" \
   "$EXPECTED_CLOUD_HEARTBEAT_CRON_NAME" \
   "$EXPECTED_TASK_REMINDER_CRON_NAME" \
   "$EXPECTED_TASK_REMINDER_EOD_CRON_NAME" \
+  "$EXPECTED_SG_MY_WHATSAPP_BLITZ_CRON_NAME" \
+  "$EXPECTED_ID_MORNING_WHATSAPP_BLITZ_CRON_NAME" \
+  "$EXPECTED_ID_WHATSAPP_BLITZ_CRON_NAME" \
   "$EXPECTED_CRON_TIMEZONE" \
   "$EXPECT_CLOUD_HEARTBEAT_CRON" \
   "$EXPECT_ENABLED_CRON_COUNT" <<'PY' || fail "cron:records-invalid"
@@ -78,10 +84,13 @@ import sys
     heartbeat_name,
     task_reminder_name,
     task_reminder_eod_name,
+    sg_my_blitz_name,
+    id_morning_blitz_name,
+    id_blitz_name,
     timezone,
     expect_heartbeat,
     expected_enabled_count,
-) = sys.argv[1:11]
+) = sys.argv[1:14]
 
 payload = json.loads(open(jobs_path, "r", encoding="utf-8").read())
 jobs = payload.get("jobs") if isinstance(payload, dict) else payload
@@ -98,7 +107,7 @@ def schedule_expr(job):
 def has_unsafe_send_message(prompt):
     return "send_message(target=" in prompt or "send_message(" in prompt
 
-def require_job(name, *, expr, script=None, require_timezone=True):
+def require_job(name, *, expr, script=None, deliver=None, no_agent=None, require_timezone=True):
     job = by_name.get(name)
     if not job or job.get("enabled") is not True:
         print(f"cron:{name}:missing-or-disabled")
@@ -112,6 +121,12 @@ def require_job(name, *, expr, script=None, require_timezone=True):
     if script is not None and job.get("script") != script:
         print(f"cron:{name}:script-unexpected")
         raise SystemExit(1)
+    if deliver is not None and job.get("deliver") != deliver:
+        print(f"cron:{name}:deliver-unexpected")
+        raise SystemExit(1)
+    if no_agent is not None and job.get("no_agent") is not no_agent:
+        print(f"cron:{name}:mode-unexpected")
+        raise SystemExit(1)
     if has_unsafe_send_message(str(job.get("prompt") or "")):
         print(f"cron:{name}:unsafe-send-message")
         raise SystemExit(1)
@@ -121,12 +136,20 @@ require_job(audit_name, expr="15 1 * * 1-5", script="nurtureanysalesbot-audit-li
 require_job(socket_name, expr="*/5 * * * *", script="nurtureanysalesbot-check-slack-socket-health.sh")
 if expect_heartbeat == "1":
     require_job(heartbeat_name, expr="*/15 * * * *", script="nurtureanysalesbot-check-cloud-heartbeat.sh")
-require_job(task_reminder_name, expr="0 1 * * 1-5", script="nurtureany_sales_task_reminders.py")
-require_job(task_reminder_eod_name, expr="0 9 * * 1-5", script="nurtureany_sales_task_reminders_eod.py")
+require_job(task_reminder_name, expr="0 1 * * 1-5", script="nurtureany_sales_task_reminders.py", deliver="slack:#nurtureany-testing", no_agent=True)
+require_job(task_reminder_eod_name, expr="0 9 * * 1-5", script="nurtureany_sales_task_reminders_eod.py", deliver="slack:#nurtureany-testing", no_agent=True)
+require_job(sg_my_blitz_name, expr="35 2 * * 1-5", deliver="slack:C04HYF0NM8A", no_agent=False)
+require_job(id_morning_blitz_name, expr="45 3 * * 1-5", deliver="slack:C0B2UGK4DB6", no_agent=False)
+require_job(id_blitz_name, expr="35 3 * * 1-5", deliver="slack:C04MSJ1BGF9", no_agent=False)
 
 enabled = [job for job in jobs if isinstance(job, dict) and job.get("enabled") is True]
-if len(enabled) != int(expected_enabled_count):
-    print(f"cron:enabled-count-unexpected:{len(enabled)}")
+enabled_recurring = [
+    job
+    for job in enabled
+    if (job.get("schedule") if isinstance(job.get("schedule"), dict) else {}).get("kind") != "once"
+]
+if len(enabled_recurring) != int(expected_enabled_count):
+    print(f"cron:enabled-recurring-count-unexpected:{len(enabled_recurring)}")
     raise SystemExit(1)
 
 for job in jobs:
@@ -135,7 +158,8 @@ for job in jobs:
     if name.startswith("event-roi-") and job.get("enabled") is True:
         print(f"cron:{name}:event-roi-enabled")
         raise SystemExit(1)
-    if job.get("enabled") is True and job.get("timezone") is None:
+    schedule = job.get("schedule") if isinstance(job.get("schedule"), dict) else {}
+    if job.get("enabled") is True and schedule.get("kind") != "once" and job.get("timezone") is None:
         print(f"cron:{name}:timezone-missing")
         raise SystemExit(1)
     if job.get("enabled") is True and has_unsafe_send_message(prompt):
@@ -150,7 +174,8 @@ if [ "$EXPECT_CLOUD_DOCTOR" = "1" ]; then
   trap 'rm -f "$doctor_out"' EXIT
   "$doctor" >"$doctor_out" 2>&1 || fail "cloud-doctor:failed"
   grep -Fq "gateway_service:systemd:$GATEWAY_SERVICE_NAME:active=active:substate=running" "$doctor_out" || fail "cloud-doctor:gateway-unhealthy"
-  grep -Fq "cron:enabled=$EXPECT_ENABLED_CRON_COUNT:missing_timezone=0:event_roi_enabled=0:unsafe_send_message=0" "$doctor_out" || fail "cloud-doctor:cron-unhealthy"
+  grep -Fq "enabled_recurring=$EXPECT_ENABLED_CRON_COUNT:" "$doctor_out" || fail "cloud-doctor:cron-unhealthy"
+  grep -Fq "missing_timezone=0:event_roi_enabled=0:unsafe_send_message=0" "$doctor_out" || fail "cloud-doctor:cron-unhealthy"
   for expected in \
     "mcp:staffany_bigquery:tools=4" \
     "mcp:hubspot_nurtureany:tools=$EXPECT_HUBSPOT_TOOLS" \

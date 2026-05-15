@@ -31,6 +31,7 @@ Alias note: `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` refer to this 
 | `runtime/psm_ops_adoption_digest.py` | No-agent cron script for adoption digest delivery. |
 | `runtime/scripts/psm_ops_due_date_reminders.py` | No-agent Jira PCO due-date reminder digest script. |
 | `runtime/scripts/psm_ops_roi_tracker_sync.py` | No-agent ROI-to-PCO customer-loop tracker sync script. |
+| `runtime/scripts/psm_ops_join_public_channels.py` | Bot-owned public/open Slack channel membership repair script. |
 | `runtime/jira.md` | Jira field, workflow, and safety contract. |
 | `runtime/c360.md` | Customer 360 internal API contract. |
 | `runtime/google-calendar.md` | Google Calendar read-only access contract. |

@@ -4,6 +4,7 @@ import json
 import os
 import tempfile
 import unittest
+import urllib.parse
 from copy import deepcopy
 from pathlib import Path
 from unittest.mock import patch
@@ -406,6 +407,93 @@ class PsmJiraServerTest(unittest.TestCase):
 
         self.assertEqual(result["confidence"], "blocked")
         self.assertIn("KER-123 or SCHE-123", result["caveat"])
+
+    def test_find_engineering_issue_searches_ker_with_safe_fields_and_compact_variant(self):
+        calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            params = urllib.parse.parse_qs(path.split("?", 1)[1])
+            self.assertEqual(params["fields"], ["summary,status,issuetype,updated"])
+            self.assertEqual(params["maxResults"], ["5"])
+            jql = params["jql"][0]
+            self.assertIn('project in ("KER")', jql)
+            self.assertIn('text ~ "home page"', jql)
+            self.assertIn('text ~ "homepage"', jql)
+            return {
+                "issues": [
+                    {
+                        "key": "KER-2117",
+                        "fields": {
+                            "summary": "StaffAny Homepage",
+                            "status": {"name": "Backlog"},
+                            "issuetype": {"name": "Feature"},
+                            "updated": "2026-05-15T06:00:00.000+0800",
+                            "description": "must not be returned",
+                            "comment": {"comments": [{"body": "must not be returned"}]},
+                            "attachment": [{"filename": "must-not-return.png"}],
+                        },
+                    }
+                ]
+            }
+
+        self.module._request_json = fake_request
+
+        result = self.module.find_engineering_issue("home page")
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["source"], "Jira Engineering")
+        self.assertEqual(result["answer"]["match_count"], 1)
+        match = result["answer"]["matches"][0]
+        self.assertEqual(
+            set(match.keys()),
+            {"key", "url", "summary", "status", "issue_type", "updated"},
+        )
+        self.assertEqual(match["key"], "KER-2117")
+        self.assertEqual(match["summary"], "StaffAny Homepage")
+        self.assertNotIn("description", match)
+        self.assertNotIn("comment", match)
+        self.assertNotIn("attachment", match)
+        self.assertIn("no descriptions", result["caveat"])
+
+    def test_find_engineering_issue_rejects_non_allowlisted_project(self):
+        result = self.module.find_engineering_issue("homepage", ["PCO"])
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("KER, SCHE", result["caveat"])
+
+    def test_find_engineering_issue_caps_results_and_allows_sche(self):
+        calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            params = urllib.parse.parse_qs(path.split("?", 1)[1])
+            self.assertEqual(params["maxResults"], ["10"])
+            self.assertIn('project in ("KER", "SCHE")', params["jql"][0])
+            return {"issues": []}
+
+        self.module._request_json = fake_request
+
+        result = self.module.find_engineering_issue("release shipment", ["KER", "SCHE"], 99)
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["scope"]["max_results"], 10)
+
+    def test_find_engineering_issue_exact_sche_key_uses_key_lookup_and_auto_scope(self):
+        calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            params = urllib.parse.parse_qs(path.split("?", 1)[1])
+            self.assertEqual(params["jql"], ["key = SCHE-19631"])
+            return {"issues": []}
+
+        self.module._request_json = fake_request
+
+        result = self.module.find_engineering_issue("SCHE-19631")
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["scope"]["project_keys"], ["SCHE"])
 
     def test_set_pco_assignee_resolves_slack_mention_to_jira_account(self):
         calls = []

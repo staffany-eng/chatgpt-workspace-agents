@@ -5,6 +5,7 @@ PSM Ops Bot uses Jira PCO as the PS/customer-ops task source of truth and Jira R
 ## API Pattern
 
 - List/search tasks: Jira Cloud JQL search API.
+- Find engineering issue candidates: Jira Cloud JQL search API, restricted to KER/SCHE and safe fields only.
 - Create PCO requests: Jira Service Management request API.
 - Create ROI requests: Jira Service Management request API for the configured ROI service desk and request type.
 - Due date: Jira Cloud issue update API against the standard `duedate` field after request creation.
@@ -58,9 +59,12 @@ For portal/request-form visibility, add the field named `Due date` / field ID `d
 
 For customer follow-up that is blocked by engineering shipment, keep PCO as the PS task and link it to the product/engineering issues:
 
+- Use read-only `find_engineering_issue` when the user names a feature instead of giving an exact `KER-*` or `SCHE-*` key.
 - Link `PCO-*` to `KER-*` for product context.
 - Link `PCO-*` directly to the confirmed `SCHE-*` shipment tickets because `fixVersion` is expected on the shipment tickets.
 - Use `Blocks` so the PCO appears blocked by the engineering issue. Use `Relates` only if the Jira site does not support `Blocks`.
+
+Engineering issue search returns only `key`, `summary`, `status`, `issue_type`, `updated`, and URL. It must not expose raw descriptions, comments, attachments, or bulk Jira exports. Default search scope is KER; include SCHE only when the request mentions shipment, release, or SCHE.
 
 Recommended Jira Automation for a specific watch ticket:
 
@@ -188,6 +192,7 @@ Field rules:
 - `add_internal_pco_comment`: mutation; internal comments only unless explicitly enabled.
 - `set_pco_assignee`: mutation; assigns an existing PCO issue to a Jira user resolved from a Slack mention, email, or exact name. This does not change `PS Team`.
 - `set_pco_ps_team`: mutation; updates only the configured Jira `PS Team` field. Treat "cs duty" as `CS Duty`, not a person assignee.
+- `find_engineering_issue`: safe read; searches only allowlisted KER/SCHE Jira projects and returns safe fields only. Use it before release-watch linking when the user supplies a feature name rather than an exact engineering issue key.
 - `link_pco_to_engineering_issue`: mutation; links an existing `PCO-*` issue to a `KER-*` or `SCHE-*` engineering issue. Default `Blocks` direction makes the PCO show as blocked by the engineering issue. `Relates` is allowed only as fallback when Jira lacks Blocks.
 - `set_pco_reminder`: mutation; updates Jira `duedate`, which drives central 09:00 SGT and 17:00 SGT reminders.
 - `list_due_pco_reminders`: safe read for cron and user checks; user-scoped checks filter by Jira `PS Team`.

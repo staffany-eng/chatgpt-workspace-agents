@@ -11,10 +11,14 @@ Expected checks:
 - `SLACK_HOME_CHANNEL` is `C0B32M34J3W`.
 - Slack allowed channels include `C0B32M34J3W`, `C0AJAUNCEL8`, `C01RZ7SHC8K`, and `CF8PK6V4J`.
 - `LAUNCHBOT_KER_ALLOWED_CHANNEL_IDS` includes `C0B32M34J3W`, `C0AJAUNCEL8`, and `C01RZ7SHC8K`; `#all-product-questions` is read-only KER lookup only.
+- Normal Slack gateway replies keep `slack.require_mention=true`; `#input-features-ux` monitoring is handled by the no-agent feature-intake monitor cron.
+- Feature-intake monitor channel IDs default to `CF8PK6V4J`, state path defaults to `~/.hermes/profiles/launchbot/runtime/feature-intake-monitor-state.json`, max messages per run defaults to `100`, and overlap defaults to `600` seconds.
+- Feature-intake monitor script is readable and compiles at `~/.hermes/profiles/launchbot/scripts/launchbot-monitor-feature-intake.py`.
 - `launchbot_ker` MCP exposes only `find_ker_ticket_from_slack_thread` and `lookup_ker_ticket_by_key`.
 - `launchbot_feature_intake` MCP exposes only `preview_feature_intake_from_slack_thread` and `create_feature_intake_from_slack_thread`.
 - `launchbot_help_article` MCP exposes only `preview_help_article_video_update` and `create_help_article_video_update_draft`.
 - KER lookup and feature intake have `SLACK_BOT_TOKEN`, `JIRA_BASE_URL`, `JIRA_EMAIL`, and `JIRA_API_TOKEN` in the live profile env.
+- The feature-intake monitor uses the same `SLACK_BOT_TOKEN`, `JIRA_BASE_URL`, `JIRA_EMAIL`, and `JIRA_API_TOKEN`, and uses Slack `chat.postMessage` only for Launchbot-owned `Launchbot automation:` previews/results.
 - Video-only help article updates have `LAUNCH_STEP3_INTERCOM_ACCESS_TOKEN` in the live profile env.
 - Help article video placement registry is readable at `~/.hermes/profiles/launchbot/source/launchbot/skills/help-article-generator/references/video-placement-registry.json`.
 - Pantheon is cloned at `~/.hermes/profiles/launchbot/source/pantheon`, with remote `git@github.com:staffany-eng/pantheon.git`, branch `develop`, clean worktree, and a fresh update status JSON.
@@ -26,9 +30,15 @@ Install profile-local health script:
 ```bash
 mkdir -p ~/.hermes/profiles/launchbot/scripts
 cp apps/launchbot/runtime/check-health.sh ~/.hermes/profiles/launchbot/scripts/launchbot-check-health.sh
+cp apps/launchbot/runtime/monitor-feature-intake.py ~/.hermes/profiles/launchbot/scripts/launchbot-monitor-feature-intake.py
 hermes -p launchbot cron create "*/5 * * * *" \
   --name "launchbot health check" \
   --script launchbot-check-health.sh \
+  --no-agent
+~/.hermes/profiles/launchbot/scripts/launchbot-monitor-feature-intake.py --dry-run --channel CF8PK6V4J --since-minutes 30
+hermes -p launchbot cron create "* * * * *" \
+  --name "launchbot feature intake monitor" \
+  --script launchbot-monitor-feature-intake.py \
   --no-agent
 ```
 

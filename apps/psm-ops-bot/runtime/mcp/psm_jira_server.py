@@ -69,6 +69,8 @@ THIN_POC_FIELD_IDS = {
 }
 REMINDER_NOT_CONFIGURED = "Reminder at field is not configured in PCO yet."
 ENGINEERING_LINK_TARGET_RE = re.compile(r"^(KER|SCHE)-\d+$", re.IGNORECASE)
+ENGINEERING_SEARCH_ALLOWED_PROJECTS = {"KER", "SCHE"}
+ENGINEERING_SEARCH_SAFE_FIELDS = ["summary", "status", "issuetype", "updated"]
 PCO_ISSUE_RE = re.compile(r"^PCO-\d+$", re.IGNORECASE)
 ISSUE_LINK_TYPE_ALIASES = {
     "blocks": "Blocks",
@@ -1298,6 +1300,57 @@ def _safe_roi_issue(issue: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _safe_engineering_issue(issue: dict[str, Any]) -> dict[str, Any]:
+    fields = issue.get("fields") or {}
+    key = str(issue.get("key") or "").strip().upper()
+    return {
+        "key": key,
+        "url": f"{_jira_base_url()}/browse/{key}" if key else "",
+        "summary": fields.get("summary") or key,
+        "status": (fields.get("status") or {}).get("name", "Not set"),
+        "issue_type": (fields.get("issuetype") or {}).get("name", "Not set"),
+        "updated": fields.get("updated") or "",
+    }
+
+
+def _normalize_engineering_project_keys(project_keys: list[str] | str | None, query: str = "") -> list[str]:
+    if project_keys is None:
+        issue_key = _normalize_issue_key(query)
+        if ENGINEERING_LINK_TARGET_RE.fullmatch(issue_key):
+            return [issue_key.split("-", 1)[0]]
+        raw_values: list[str] = ["KER"]
+    elif isinstance(project_keys, str):
+        raw_values = [value.strip() for value in project_keys.split(",")]
+    else:
+        raw_values = [str(value).strip() for value in project_keys]
+
+    normalized: list[str] = []
+    for value in raw_values:
+        project = value.upper()
+        if not project:
+            continue
+        if project not in ENGINEERING_SEARCH_ALLOWED_PROJECTS:
+            allowed = ", ".join(sorted(ENGINEERING_SEARCH_ALLOWED_PROJECTS))
+            raise JiraError(f"Engineering issue search supports only these project keys: {allowed}.")
+        if project not in normalized:
+            normalized.append(project)
+    return normalized or ["KER"]
+
+
+def _engineering_search_terms(query: str) -> list[str]:
+    base = re.sub(r"\s+", " ", (query or "").strip())
+    terms: list[str] = []
+    for candidate in [
+        base,
+        base.replace("'", ""),
+        re.sub(r"[\s_-]+", "", base),
+    ]:
+        value = candidate.strip()
+        if value and value.lower() not in {term.lower() for term in terms}:
+            terms.append(value)
+    return terms[:3]
+
+
 def _roi_ticket_by_slack_thread(slack_thread_url: str, max_results: int = 5) -> list[dict[str, Any]]:
     source = (slack_thread_url or "").strip()
     if not source:
@@ -1500,6 +1553,47 @@ def classify_roi_ticket_request(message_text: str, slack_thread_url: str = "") -
         scope,
         "Casual NYSS/BD Ops mentions without create/add/log/handle/task wording do not create ROI tickets.",
         "PSM Ops ROI router",
+    )
+
+
+@mcp.tool()
+def find_engineering_issue(
+    query: str,
+    project_keys: list[str] | None = None,
+    max_results: int = 5,
+) -> dict[str, Any]:
+    """Find safe KER/SCHE issue candidates for release-watch linking."""
+
+    search_query = re.sub(r"\s+", " ", (query or "").strip())
+    capped_max = max(1, min(int(max_results or 5), 10))
+    scope = {
+        "query": search_query,
+        "project_keys": project_keys if project_keys is not None else ["KER"],
+        "max_results": capped_max,
+    }
+    if not search_query:
+        return _blocked("query is required for engineering issue search.", scope, "Jira Engineering")
+
+    try:
+        projects = _normalize_engineering_project_keys(project_keys, search_query)
+        scope = {**scope, "project_keys": projects}
+        issue_key = _normalize_issue_key(search_query)
+        if ENGINEERING_LINK_TARGET_RE.fullmatch(issue_key):
+            jql = f"key = {issue_key}"
+        else:
+            clauses = [f"text ~ {_quote_jql(term[:80])}" for term in _engineering_search_terms(search_query)]
+            project_clause = ", ".join(_quote_jql(project) for project in projects)
+            jql = f"project in ({project_clause}) AND ({' OR '.join(clauses)}) ORDER BY updated DESC"
+        issues = _search_issues(jql, list(ENGINEERING_SEARCH_SAFE_FIELDS), capped_max)
+    except JiraError as error:
+        return _blocked(str(error), scope, "Jira Engineering")
+
+    matches = [_safe_engineering_issue(issue) for issue in issues]
+    return _verified(
+        {"matches": matches, "match_count": len(matches)},
+        scope,
+        "Safe fields only; no descriptions, comments, attachments, or bulk Jira exports.",
+        "Jira Engineering",
     )
 
 
