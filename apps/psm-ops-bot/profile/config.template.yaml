@@ -114,6 +114,11 @@ psm_ops:
       request_type_id_env: "PSM_OPS_ROI_JIRA_REQUEST_TYPE_ID"
       requester_rule: "explicit requested/reported-by wins, otherwise current Slack sender; unresolved requester blocks"
       idempotency_key: "Slack thread permalink"
+      pco_tracker:
+        default_for_ps_team_billing: true
+        label: "ps-wee-roi-tracker"
+        status: "Waiting Internal"
+        sync_cron: "*/30 1-10 * * 1-5"
       fields:
         customer: "PSM_OPS_ROI_JIRA_FIELD_CUSTOMER"
         staffany_orgs: "PSM_OPS_ROI_JIRA_FIELD_STAFFANY_ORGS"
@@ -159,6 +164,7 @@ mcp_servers:
       - "find_ticket_by_slack_thread"
       - "find_roi_ticket_by_slack_thread"
       - "create_roi_ticket_from_slack"
+      - "create_or_link_pco_roi_tracker"
       - "create_ps_wee_intake_ticket"
       - "append_ps_wee_ticket_update"
       - "mark_ps_wee_ticket_ready"

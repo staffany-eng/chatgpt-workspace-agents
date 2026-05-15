@@ -11,7 +11,7 @@ EXPECT_MODEL_PROVIDER="${EXPECT_MODEL_PROVIDER:-anthropic}"
 EXPECT_MODEL_DEFAULT="${EXPECT_MODEL_DEFAULT:-claude-sonnet-4-6}"
 EXPECT_SLACK_INTENT_TOOLS="${EXPECT_SLACK_INTENT_TOOLS:-3}"
 EXPECT_STAFFANY_BIGQUERY_TOOLS="${EXPECT_STAFFANY_BIGQUERY_TOOLS:-4}"
-EXPECT_HUBSPOT_TOOLS="${EXPECT_HUBSPOT_TOOLS:-49}"
+EXPECT_HUBSPOT_TOOLS="${EXPECT_HUBSPOT_TOOLS:-54}"
 EXPECT_AIRCALL_TOOLS="${EXPECT_AIRCALL_TOOLS:-4}"
 EXPECT_GOOGLE_CALENDAR_TOOLS="${EXPECT_GOOGLE_CALENDAR_TOOLS:-2}"
 EXPECT_GOOGLE_DRIVE_TOOLS="${EXPECT_GOOGLE_DRIVE_TOOLS:-5}"
@@ -275,6 +275,7 @@ expected_servers = {
         "build_singapore_lead_enrichment_plan",
         "list_active_deals_missing_next_meeting",
         "list_sales_followup_tasks",
+        "list_due_hubspot_sales_task_reminders",
         "count_owner_whatsapp_sent_today",
         "check_account_followup_status",
         "check_event_followup_status",
@@ -287,6 +288,10 @@ expected_servers = {
         "scan_drive_event_photos",
         "propose_photo_people_matches",
         "plan_event_photo_followup",
+        "preview_hubspot_sales_task",
+        "create_approved_hubspot_sales_task",
+        "preview_hubspot_task_update",
+        "apply_approved_hubspot_task_update",
         "record_nurtureany_operation_checkpoint",
         "read_nurtureany_operation_ledger",
         "record_nurtureany_lesson_candidate",

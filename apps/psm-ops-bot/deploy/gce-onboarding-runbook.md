@@ -141,9 +141,11 @@ rsync -a apps/psm-ops-bot/runtime/hooks/psm-ops-adoption-telemetry/ ~/.hermes/pr
 cp apps/psm-ops-bot/runtime/psm_ops_adoption_digest.py ~/.hermes/profiles/psmopsbot/scripts/psm_ops_adoption_digest.py
 cp apps/psm-ops-bot/runtime/scripts/psm_ops_due_date_reminders.py ~/.hermes/profiles/psmopsbot/scripts/psm_ops_due_date_reminders.py
 cp apps/psm-ops-bot/runtime/scripts/psm_ops_due_date_reminders.py ~/.hermes/profiles/psmopsbot/scripts/psm_ops_due_date_reminders_eod.py
+cp apps/psm-ops-bot/runtime/scripts/psm_ops_roi_tracker_sync.py ~/.hermes/profiles/psmopsbot/scripts/psm_ops_roi_tracker_sync.py
 chmod 755 ~/.hermes/profiles/psmopsbot/scripts/psm_ops_adoption_digest.py \
   ~/.hermes/profiles/psmopsbot/scripts/psm_ops_due_date_reminders.py \
-  ~/.hermes/profiles/psmopsbot/scripts/psm_ops_due_date_reminders_eod.py
+  ~/.hermes/profiles/psmopsbot/scripts/psm_ops_due_date_reminders_eod.py \
+  ~/.hermes/profiles/psmopsbot/scripts/psm_ops_roi_tracker_sync.py
 ```
 
 Write the approved `team@staffany.com` OAuth files from Secret Manager to the paths configured above. Do not commit or paste those JSON files into the repo.
@@ -225,6 +227,12 @@ hermes -p psmopsbot cron create "0 9 * * *" \
   --no-agent \
   --deliver "slack:#ps-weeman-bot-test"
 
+hermes -p psmopsbot cron create "*/30 1-10 * * 1-5" \
+  --name "psmopsbot roi tracker sync" \
+  --script psm_ops_roi_tracker_sync.py \
+  --no-agent \
+  --deliver "slack:#ps-weeman-bot-test"
+
 hermes -p psmopsbot cron create "0 2 * * 1-5" \
   --name "psmopsbot adoption digest" \
   --script psm_ops_adoption_digest.py \
@@ -232,7 +240,7 @@ hermes -p psmopsbot cron create "0 2 * * 1-5" \
   --deliver "slack:#ps-weeman-bot-test"
 ```
 
-The GCE host runs UTC, so `0 1 * * *` is 09:00 Asia/Singapore daily and `0 9 * * *` is 17:00 Asia/Singapore daily. The EOD cron uses the same source script copied under an `eod` filename because Hermes cron does not pass script flags to no-agent scripts.
+The GCE host runs UTC, so `0 1 * * *` is 09:00 Asia/Singapore daily, `0 9 * * *` is 17:00 Asia/Singapore daily, and `*/30 1-10 * * 1-5` checks ROI trackers every 30 minutes during Singapore workdays. The EOD cron uses the same source script copied under an `eod` filename because Hermes cron does not pass script flags to no-agent scripts.
 
 Install the no-agent PS WEE adoption digest:
 
@@ -260,7 +268,7 @@ Cloud smoke:
 2. Draft and approve-create one PCO test task.
 3. Transition it to Scheduled.
 4. Add an internal comment.
-5. Run `psm_ops_due_date_reminders.py --mode morning --dry-run` and `psm_ops_due_date_reminders.py --mode eod --dry-run`; verify both output Slack-safe mrkdwn, optional reviewed PS Team mentions, reviewed customer-channel mentions from source links only, safe Jira PCO issue summaries, and `[SILENT]` when empty.
+5. Run `psm_ops_due_date_reminders.py --mode morning --dry-run`, `psm_ops_due_date_reminders.py --mode eod --dry-run`, and `psm_ops_roi_tracker_sync.py --dry-run`; verify they output Slack-safe mrkdwn, optional reviewed PS Team mentions, reviewed customer-channel mentions from source links only, safe Jira issue summaries, and `[SILENT]` when empty.
 6. Ask for Rock Productions from a channel-style hint such as `proj-cs-rockproductions`; verify the bot finds `Rock Productions Pte Ltd`, shows the searched variants safely, and does not say a generic customer cannot be found.
 7. Ask one calendar follow-up question and verify `psm_google_calendar.read_customer_calendar_context` returns bounded event metadata from `team@staffany.com` without descriptions, attendee emails, raw guest lists, or conference links.
 8. Ask one C360 customer question and verify a C360 link/citation appears.

@@ -9,6 +9,8 @@ EXPECTED_HEALTH_CRON_NAME="${EXPECTED_HEALTH_CRON_NAME:-nurtureanysalesbot healt
 EXPECTED_AUDIT_CRON_NAME="${EXPECTED_AUDIT_CRON_NAME:-nurtureanysalesbot live profile audit}"
 EXPECTED_SLACK_SOCKET_WATCHDOG_CRON_NAME="${EXPECTED_SLACK_SOCKET_WATCHDOG_CRON_NAME:-nurtureanysalesbot Slack socket watchdog}"
 EXPECTED_CLOUD_HEARTBEAT_CRON_NAME="${EXPECTED_CLOUD_HEARTBEAT_CRON_NAME:-nurtureanysalesbot local cloud heartbeat}"
+EXPECTED_TASK_REMINDER_CRON_NAME="${EXPECTED_TASK_REMINDER_CRON_NAME:-nurtureanysalesbot HubSpot task reminders}"
+EXPECTED_TASK_REMINDER_EOD_CRON_NAME="${EXPECTED_TASK_REMINDER_EOD_CRON_NAME:-nurtureanysalesbot HubSpot task EOD catch-up}"
 EXPECTED_CRON_TIMEZONE="${EXPECTED_CRON_TIMEZONE:-Asia/Singapore}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -82,6 +84,10 @@ cmp -s "$APP_ROOT/runtime/check-health.sh" "$PROFILE_DIR/scripts/nurtureanysales
 cmp -s "$APP_ROOT/runtime/check-cloud-heartbeat.sh" "$PROFILE_DIR/scripts/nurtureanysalesbot-check-cloud-heartbeat.sh" || fail "profile-drift:cloud-heartbeat-script"
 cmp -s "$APP_ROOT/runtime/audit-live-profile.sh" "$PROFILE_DIR/scripts/nurtureanysalesbot-audit-live-profile.sh" || fail "profile-drift:audit-script"
 cmp -s "$APP_ROOT/runtime/check-slack-socket-health.sh" "$PROFILE_DIR/scripts/nurtureanysalesbot-check-slack-socket-health.sh" || fail "profile-drift:slack-socket-watchdog-script"
+[ -f "$PROFILE_DIR/scripts/nurtureany_sales_task_reminders.py" ] || fail "profile-drift:hs-reminder-file-missing"
+[ -f "$PROFILE_DIR/scripts/nurtureany_sales_task_reminders_eod.py" ] || fail "profile-drift:hs-reminder-eod-file-missing"
+cmp -s "$APP_ROOT/runtime/scripts/nurtureany_sales_task_reminders.py" "$PROFILE_DIR/scripts/nurtureany_sales_task_reminders.py" || fail "profile-drift:hs-reminder-file"
+cmp -s "$APP_ROOT/runtime/scripts/nurtureany_sales_task_reminders_eod.py" "$PROFILE_DIR/scripts/nurtureany_sales_task_reminders_eod.py" || fail "profile-drift:hs-reminder-eod-file"
 if [ -e "$PROFILE_DIR/scripts/nurtureanysalesbot-cloud-doctor.sh" ]; then
   cmp -s "$APP_ROOT/runtime/nurtureany-cloud-doctor.sh" "$PROFILE_DIR/scripts/nurtureanysalesbot-cloud-doctor.sh" || fail "profile-drift:cloud-doctor-script"
 fi
@@ -95,14 +101,16 @@ printf '%s\n' "$cron_out" | grep -Fq "$EXPECTED_HEALTH_CRON_NAME" || fail "cron:
 printf '%s\n' "$cron_out" | grep -Fq "$EXPECTED_AUDIT_CRON_NAME" || fail "cron:audit-missing"
 printf '%s\n' "$cron_out" | grep -Fq "$EXPECTED_CLOUD_HEARTBEAT_CRON_NAME" || fail "cron:cloud-heartbeat-missing"
 printf '%s\n' "$cron_out" | grep -Fq "$EXPECTED_SLACK_SOCKET_WATCHDOG_CRON_NAME" || fail "cron:slack-socket-watchdog-missing"
+printf '%s\n' "$cron_out" | grep -Fq "$EXPECTED_TASK_REMINDER_CRON_NAME" || fail "cron:hs-reminder-missing"
+printf '%s\n' "$cron_out" | grep -Fq "$EXPECTED_TASK_REMINDER_EOD_CRON_NAME" || fail "cron:hs-reminder-eod-missing"
 
 cron_jobs_path="$PROFILE_DIR/cron/jobs.json"
 [ -r "$cron_jobs_path" ] || fail "cron:jobs-json-unreadable"
-python3 - "$cron_jobs_path" "$EXPECTED_HEALTH_CRON_NAME" "$EXPECTED_AUDIT_CRON_NAME" "$EXPECTED_SLACK_SOCKET_WATCHDOG_CRON_NAME" "$EXPECTED_CLOUD_HEARTBEAT_CRON_NAME" "$EXPECTED_CRON_TIMEZONE" > /dev/null <<'PY' || fail "cron:records-invalid"
+python3 - "$cron_jobs_path" "$EXPECTED_HEALTH_CRON_NAME" "$EXPECTED_AUDIT_CRON_NAME" "$EXPECTED_SLACK_SOCKET_WATCHDOG_CRON_NAME" "$EXPECTED_CLOUD_HEARTBEAT_CRON_NAME" "$EXPECTED_TASK_REMINDER_CRON_NAME" "$EXPECTED_TASK_REMINDER_EOD_CRON_NAME" "$EXPECTED_CRON_TIMEZONE" > /dev/null <<'PY' || fail "cron:records-invalid"
 import json
 import sys
 
-jobs_path, health_name, audit_name, watchdog_name, heartbeat_name, timezone = sys.argv[1:7]
+jobs_path, health_name, audit_name, watchdog_name, heartbeat_name, task_reminder_name, task_reminder_eod_name, timezone = sys.argv[1:9]
 payload = json.loads(open(jobs_path, "r", encoding="utf-8").read())
 jobs = payload.get("jobs") if isinstance(payload, dict) else payload
 if not isinstance(jobs, list):
@@ -145,6 +153,8 @@ require_job(health_name, expr="0 1 * * 1-5", script="nurtureanysalesbot-check-he
 require_job(audit_name, expr="15 1 * * 1-5", script="nurtureanysalesbot-audit-live-profile.sh")
 require_job(watchdog_name, expr="*/5 * * * *", script="nurtureanysalesbot-check-slack-socket-health.sh")
 require_job(heartbeat_name, expr="*/15 * * * *", script="nurtureanysalesbot-check-cloud-heartbeat.sh")
+require_job(task_reminder_name, expr="0 1 * * 1-5", script="nurtureany_sales_task_reminders.py", deliver_prefix="slack:")
+require_job(task_reminder_eod_name, expr="0 9 * * 1-5", script="nurtureany_sales_task_reminders_eod.py", deliver_prefix="slack:")
 
 for job in jobs:
     name = str(job.get("name") or "")

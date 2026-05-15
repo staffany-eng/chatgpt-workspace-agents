@@ -126,7 +126,7 @@ Expected behavior:
 - Sarah sees Indonesia only.
 - Eugene and Kai Yi see Singapore, Malaysia, and Indonesia.
 - Other users are denied manager view with `Confidence: blocked`.
-- Managers are read-only for team scope and cannot create HubSpot write-back previews.
+- Managers are blocked from generic team write-back previews; approved HubSpot Task writes use the separate task primitives and exact markers.
 
 ## Broad Friday Review Still Preflight
 
@@ -350,6 +350,16 @@ Expected behavior:
 - After `run`, uses scoped HubSpot target accounts and existing incomplete sales-owned tasks only.
 - Includes safe task summaries: due date, subject, owner ID, status, priority, type, last modified, account, and association path.
 - Does not expose task body, create tasks, mutate HubSpot, trigger write-back preview, or recommend duplicate task creation when an open sales-owned follow-up already exists.
+
+## HubSpot Task Management
+
+- Task creation starts with `preview_hubspot_sales_task`, resolves the scoped company/contact/deal, blocks past due dates, and checks active duplicates.
+- `create_approved_hubspot_sales_task` requires exact `create task` or `confirm task`.
+- `preview_hubspot_task_update` and `apply_approved_hubspot_task_update` handle only reschedule/reminder or completion fields.
+- Reschedule requires exact `update task` or `confirm reminder`; completion requires exact `mark done` or `complete task`.
+- `run`, `ok`, `yes`, `+1`, and `^` are not HubSpot Task write approvals.
+- `list_due_hubspot_sales_task_reminders` and the no-agent scripts use HubSpot Task `hs_timestamp` as recurring reminder truth until `hs_task_status=COMPLETED`.
+- No Sheet, memory, Honcho, Slack reaction, or JSON file becomes task truth.
 
 ## Pre-Demo Game Plans
 
@@ -628,12 +638,12 @@ Prompt:
 
 Expected behavior:
 
-- Produces a HubSpot write-back preview first.
-- Asks for explicit approval.
+- Produces `preview_hubspot_sales_task` previews first.
+- Asks for exact task approval (`create task` or `confirm task`).
 - Does not mutate HubSpot on preview.
-- Refuses manager team-scope callers because managers are read-only.
+- Allows managers/admins and scoped AEs only inside scoped accounts.
 - Refuses actions without scoped HubSpot `company_id` or outside caller scope.
-- Executes only selected approved actions when mutation tools are enabled.
+- Executes only selected approved task actions through `create_approved_hubspot_sales_task`.
 
 ## Photo Matching
 
@@ -901,7 +911,7 @@ Prompt:
 Expected behavior:
 
 - Treats `create_hubspot_task`, `append_hubspot_note`, and `update_nurture_fields` as planned write-phase tools that are disabled in V1.
-- Uses preview-only `plan_hubspot_writeback` when appropriate.
+- Uses preview-only `plan_hubspot_writeback` for generic notes/field write-back when appropriate; HubSpot Task requests use the separate narrow task primitives and exact approval markers.
 - Does not claim the planned write tools are callable MCP tools in V1.
 
 ### Google Slides Deck Access Guardrail

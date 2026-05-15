@@ -38,6 +38,7 @@
     "rock_productions_c360_smoke_script": "runtime/smoke-rock-productions-c360.sh",
     "adoption_digest_script": "runtime/psm_ops_adoption_digest.py",
     "due_date_reminder_script": "runtime/scripts/psm_ops_due_date_reminders.py",
+    "roi_tracker_sync_script": "runtime/scripts/psm_ops_roi_tracker_sync.py",
     "slack_notifier": "runtime/mcp/psm_slack_notifier.py",
     "adoption_hook": "runtime/hooks/psm-ops-adoption-telemetry/HOOK.yaml",
     "adoption_hook_handler": "runtime/hooks/psm-ops-adoption-telemetry/handler.py",
@@ -58,6 +59,7 @@
         "find_ticket_by_slack_thread",
         "find_roi_ticket_by_slack_thread",
         "create_roi_ticket_from_slack",
+        "create_or_link_pco_roi_tracker",
         "create_ps_wee_intake_ticket",
         "append_ps_wee_ticket_update",
         "mark_ps_wee_ticket_ready",
@@ -110,6 +112,12 @@
       "request_type_id_env_var": "PSM_OPS_ROI_JIRA_REQUEST_TYPE_ID",
       "requester_rule": "explicit requested/reported-by wins, otherwise current Slack sender; unresolved requester blocks creation",
       "idempotency_key": "Slack thread permalink",
+      "pco_tracker": {
+        "default_for_ps_team_billing": true,
+        "label": "ps-wee-roi-tracker",
+        "status": "Waiting Internal",
+        "sync_cron": "*/30 1-10 * * 1-5"
+      },
       "field_envs": [
         "PSM_OPS_ROI_JIRA_FIELD_CUSTOMER",
         "PSM_OPS_ROI_JIRA_FIELD_STAFFANY_ORGS",
@@ -156,6 +164,8 @@
       "ticket_reused",
       "roi_ticket_created",
       "roi_ticket_reused",
+      "roi_tracker_linked",
+      "roi_tracker_sync",
       "ticket_update_synced",
       "ticket_ready",
       "blocked",

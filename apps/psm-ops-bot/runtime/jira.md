@@ -9,7 +9,7 @@ PSM Ops Bot uses Jira PCO as the PS/customer-ops task source of truth and Jira R
 - Create ROI requests: Jira Service Management request API for the configured ROI service desk and request type.
 - Due date: Jira Cloud issue update API against the standard `duedate` field after request creation.
 - Status transitions: Jira Cloud issue transitions API.
-- Engineering links: Jira Cloud issue link API, restricted to existing `PCO-*` issues linked to `KER-*` or `SCHE-*`.
+- Engineering and internal-team links: Jira Cloud issue link API, restricted to existing `PCO-*` issues linked to `KER-*`/`SCHE-*`, plus `ROI-*` links created only by the PCO ROI tracker primitive.
 - Comments: Jira Service Management request comment API with `public=false` by default.
 - Reminders: Jira JQL over the standard `duedate` field. No separate reminder database or custom reminder field is required for thin POC.
 
@@ -127,7 +127,9 @@ The access policy file maps Slack email to Jira account ID:
 
 ## ROI Direct Runtime Config
 
-ROI-direct is for RevOps, BD Ops, NYSS, and ROI-board requests. It does not create a PCO wrapper ticket. The ROI ticket is the source of truth; the Slack thread permalink is evidence and the idempotency key.
+ROI-direct is for RevOps, BD Ops, NYSS, and ROI-board requests. It does not create a duplicate PCO execution wrapper. The ROI ticket is the source of truth; the Slack thread permalink is evidence and the idempotency key.
+
+For resolved PS Team callers, billing/invoice/renewal billing asks default to a linked PCO customer-loop tracker. The tracker is not execution truth. It is a PCO Customer Success Work issue labelled `ps-wee-roi-tracker`, linked so ROI blocks PCO, transitioned to `Waiting Internal`, and used only so PS can close the customer loop after ROI resolves the internal work.
 
 Required env vars:
 
@@ -170,11 +172,12 @@ Field rules:
 - `validate_roi_jira_configuration`: run after ROI env setup and before broad ROI enablement.
 - `resolve_customer_channel_org`: safe read; resolve a Slack thread permalink to a reviewed customer-channel mapping before auto-tagging Jira `StaffAny Org(s)`.
 - `resolve_slack_user_identity`: safe read; resolve one Slack mention, email, or exact name through `users.list` before asking avoidable owner questions.
-- `classify_roi_ticket_request`: safe read; route actionable ROI/RevOps/BD Ops/NYSS requests to ROI only when create/add/log/handle/task wording is present.
+- `classify_roi_ticket_request`: safe read; route actionable ROI/RevOps/BD Ops/NYSS requests to ROI when create/add/log/handle/task wording is present, and treat PS Team billing/invoice operational asks as ROI + PCO tracker candidates by default.
 - `list_my_pco_tasks`: safe read, caller-scoped by Jira `PS Team`.
 - `find_ticket_by_slack_thread`: safe read; use the Slack thread permalink as the PS WEE idempotency key.
 - `find_roi_ticket_by_slack_thread`: safe read; use the Slack thread permalink as the ROI idempotency key.
-- `create_roi_ticket_from_slack`: mutation; creates direct ROI JSM tickets for actionable RevOps/BD Ops/NYSS/ROI-board requests with first-class requester, required-field checks, source Slack thread, and no PCO wrapper.
+- `create_roi_ticket_from_slack`: mutation; creates direct ROI JSM tickets for actionable RevOps/BD Ops/NYSS/ROI-board requests with first-class requester, required-field checks, source Slack thread, and no duplicate PCO execution wrapper.
+- `create_or_link_pco_roi_tracker`: mutation; creates or reuses one linked PCO customer-loop tracker per Slack thread for PS Team billing/invoice asks or explicit customer-loop tracking requests. It labels the PCO issue `ps-wee-roi-tracker`, links ROI as blocking PCO, and moves the PCO tracker to `Waiting Internal`.
 - `create_ps_wee_intake_ticket`: mutation; creates an immediate needs-info intake ticket for explicit PS WEE ticketing requests without preview approval.
 - `append_ps_wee_ticket_update`: mutation; adds a concise structured internal comment for meaningful Slack follow-up discussion, including `Slack poster:` when the Slack poster display name, user ID, or email is available.
 - `mark_ps_wee_ticket_ready`: mutation; adds a ready-for-triage internal comment and removes `needs-info` when Jira allows it.

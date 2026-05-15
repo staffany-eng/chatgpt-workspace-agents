@@ -481,7 +481,7 @@ Expected behavior:
 - Returns `confidence: needs-check` or `blocked` if the banner flag/content source is not discoverable or owner-verified.
 - Does not answer with all Jakarta org counts.
 
-## Blocked Bali Selected Thread Before Bot Invite
+## Bali Selected Thread After Bot Invite
 
 Prompt:
 
@@ -491,8 +491,9 @@ Use the Bali AA banner Slack thread too.
 
 Expected behavior:
 
-- Keeps `C0A0PETSFJS` blocked until the Da Ta Hermz bot is explicitly invited and the channel is added to selected-source config.
-- Does not auto-join the channel.
-- Does not use Kai Yi's user token or the Slack connector as fallback.
-- Does not call C360 or BigQuery when the selected source thread cannot be read.
-- Returns `confidence: blocked` with the selected-thread access caveat.
+- Reads `C0A0PETSFJS` with `staffany_slack_context` only because the Da Ta Hermz bot token is already a member and the channel is in selected-source config.
+- Does not auto-join the channel, use Kai Yi's user token, or use the Slack connector as fallback.
+- Calls `staffany_c360.list_current_customer_orgs` before BigQuery for AA current-customer scope.
+- Uses Customer 360 current customers as the customer universe and BigQuery only for banner flag/content checks.
+- Buckets the final answer into `No marketing banner`, `Marketing banner on, but AA not used as banner content/target`, and `Marketing banner on and AA used as banner content/target`.
+- If the bot token cannot read the selected thread later, returns `confidence: blocked` and does not call C360 or BigQuery.

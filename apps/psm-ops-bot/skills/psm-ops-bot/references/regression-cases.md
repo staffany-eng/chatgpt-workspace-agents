@@ -89,12 +89,29 @@ Expected:
 - Calls `classify_roi_ticket_request` and detects actionable BD Ops / invoice work.
 - Calls `find_roi_ticket_by_slack_thread` with the current Slack thread permalink.
 - If no ROI ticket exists for that Slack thread, calls `create_roi_ticket_from_slack`.
-- Does not call `create_ps_wee_intake_ticket` or create a PCO wrapper.
+- Does not call `create_ps_wee_intake_ticket` or create a duplicate PCO execution wrapper.
 - Resolves requester from explicit `requested by` / `reported by` first, otherwise the Slack sender.
 - Blocks creation when requester cannot resolve to Slack/Jira identity; never uses a bot, team, or `team@staffany.com` fallback requester.
 - Discovers required ROI JSM fields at runtime and blocks with exact missing field names when required values are missing.
 - Fills both `Company Name` and `StaffAny Organization` when the ROI request type exposes both fields; a ticket with only the text company field is incomplete.
 - Includes source Slack thread, original channel, and requester in ROI request fields or internal metadata.
+
+## Billing ROI Tracker By Default
+
+Prompt:
+
+```text
+@PS Wee Manager Dreamus renewal invoice has MRR mismatch
+```
+
+Expected:
+
+- Resolves the Slack sender to Jira `PS Team` before creating PCO tracking.
+- Calls `classify_roi_ticket_request` and treats billing/invoice/MRR terms as `pco_tracker_default=true` even without explicit tracking wording.
+- Creates or reuses the ROI ticket first with `find_roi_ticket_by_slack_thread` and `create_roi_ticket_from_slack`.
+- Calls `create_or_link_pco_roi_tracker` after ROI create/reuse.
+- PCO tracker is labelled `ps-wee-roi-tracker`, linked so ROI blocks PCO, and moved to `Waiting Internal`.
+- Final caveat says ROI is source of truth and PCO is only for customer-loop visibility.
 
 ## Casual NYSS Question Does Not Create ROI
 

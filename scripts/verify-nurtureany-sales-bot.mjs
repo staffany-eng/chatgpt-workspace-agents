@@ -141,8 +141,13 @@ if (!existsSync(manifestPath)) {
     if (manifest.access_policy?.unclassified_hubspot_owners !== "blocked") {
       fail("Manifest must block unclassified HubSpot owners");
     }
-    if (manifest.access_policy?.manager_scope !== "country_scoped_team_read_only") {
-      fail("Manifest manager scope must be country_scoped_team_read_only");
+    if (
+      manifest.access_policy?.manager_scope !==
+      "country_scoped_team_view_plus_approved_hubspot_task_write"
+    ) {
+      fail(
+        "Manifest manager scope must be country_scoped_team_view_plus_approved_hubspot_task_write",
+      );
     }
     if (manifest.quick_autorun?.enabled !== true) fail("Manifest quick_autorun must be enabled");
     if (manifest.quick_autorun?.tool !== "read_recent_slack_intent_context") {
@@ -260,6 +265,7 @@ if (!existsSync(manifestPath)) {
       "build_singapore_lead_enrichment_plan",
       "list_active_deals_missing_next_meeting",
       "list_sales_followup_tasks",
+      "list_due_hubspot_sales_task_reminders",
       "count_owner_whatsapp_sent_today",
       "check_account_followup_status",
       "check_event_followup_status",
@@ -313,8 +319,19 @@ if (!existsSync(manifestPath)) {
     if (!manifest.tools?.preview?.includes("plan_event_photo_followup")) {
       fail("Manifest missing preview tool: plan_event_photo_followup");
     }
+    if (!manifest.tools?.preview?.includes("preview_hubspot_sales_task")) {
+      fail("Manifest missing preview tool: preview_hubspot_sales_task");
+    }
+    if (!manifest.tools?.preview?.includes("preview_hubspot_task_update")) {
+      fail("Manifest missing preview tool: preview_hubspot_task_update");
+    }
     if (!manifest.tools?.preview?.includes("preview_eazybe_template_messages")) {
       fail("Manifest missing preview tool: preview_eazybe_template_messages");
+    }
+    for (const tool of ["create_approved_hubspot_sales_task", "apply_approved_hubspot_task_update"]) {
+      if (!manifest.tools?.approval_gated_hubspot_task_writes?.includes(tool)) {
+        fail(`Manifest missing approval-gated HubSpot task write tool: ${tool}`);
+      }
     }
     if (!manifest.tools?.approval_gated_enrichment?.includes("reveal_lusha_contact_details")) {
       fail("Manifest missing approval-gated enrichment tool: reveal_lusha_contact_details");
@@ -346,6 +363,7 @@ if (!existsSync(manifestPath)) {
     const manifestCallableTools = [
       ...(manifest.tools?.read || []),
       ...(manifest.tools?.preview || []),
+      ...(manifest.tools?.approval_gated_hubspot_task_writes || []),
       ...(manifest.tools?.approval_gated_enrichment || []),
       ...(manifest.tools?.approval_gated_external_message_sending || [])
     ];
@@ -546,6 +564,18 @@ if (!existsSync(manifestPath)) {
     if (manifest.daily_nurture?.approved_runtime_workflow !== false) fail("Manifest daily_nurture must not be an approved runtime workflow");
     if (manifest.daily_nurture?.cron_enabled !== false) fail("Manifest daily_nurture cron must be disabled");
     if (manifest.daily_nurture?.reminder_cron_enabled !== false) fail("Manifest daily_nurture reminder cron must be disabled");
+    if (manifest.hubspot?.task_management?.due_source_property !== "hs_timestamp") {
+      fail("Manifest HubSpot task_management due_source_property must be hs_timestamp");
+    }
+    if (manifest.hubspot?.task_management?.completion_property !== "hs_task_status=COMPLETED") {
+      fail("Manifest HubSpot task_management completion_property must be hs_task_status=COMPLETED");
+    }
+    if (manifest.hubspot?.task_management?.reminder_digest?.prefix !== "NurtureAny automation:") {
+      fail("Manifest HubSpot task reminder digest prefix must be NurtureAny automation:");
+    }
+    if (manifest.hubspot?.task_management?.associations?.company_required_type_id !== 192) {
+      fail("Manifest HubSpot task company association type id must be 192");
+    }
     if (manifest.eazybe?.auth_env_var !== "EAZYBE_API_KEY") fail("Manifest Eazybe missing EAZYBE_API_KEY auth env var");
     if (manifest.eazybe?.base_mode !== "approval_gated_template_send") fail("Manifest Eazybe base_mode must be approval_gated_template_send");
     if (manifest.eazybe?.approved_templates_only !== true) fail("Manifest Eazybe must require approved templates");
@@ -737,6 +767,8 @@ const filesToScan = [
   "runtime/check-slack-socket-health.sh",
   "runtime/audit-live-profile.sh",
   "runtime/nurtureany-cloud-doctor.sh",
+  "runtime/scripts/nurtureany_sales_task_reminders.py",
+  "runtime/scripts/nurtureany_sales_task_reminders_eod.py",
   "runtime/jobs/near_me_outlet_match_writer.py",
   "runtime/jobs/test_near_me_outlet_match_writer.py",
   "tests/regression-cases.md",
@@ -796,6 +828,8 @@ for (const text of [
   "audit-live-profile.sh",
   "check-slack-socket-health.sh",
   "nurtureany-cloud-doctor.sh",
+  "nurtureany_sales_task_reminders.py",
+  "nurtureany_sales_task_reminders_eod.py",
   "profile/config.template.yaml",
   "config.yaml",
   "template_nurtureany",
@@ -908,6 +942,14 @@ for (const text of [
   "connected_call_target: 40",
   "build_pre_demo_game_plans",
   "list_sales_followup_tasks",
+  "preview_hubspot_sales_task",
+  "create_approved_hubspot_sales_task",
+  "preview_hubspot_task_update",
+  "apply_approved_hubspot_task_update",
+  "list_due_hubspot_sales_task_reminders",
+  "NurtureAny automation:",
+  "create task",
+  "confirm reminder",
   "check_account_followup_status",
   "check_event_followup_status",
   "disabled_pending_refinement",
@@ -1131,6 +1173,13 @@ for (const text of [
   "SOCIAL_BROADCAST",
   "list_active_deals_missing_next_meeting",
   "list_sales_followup_tasks",
+  "HubSpot Task Management",
+  "preview_hubspot_sales_task",
+  "create_approved_hubspot_sales_task",
+  "preview_hubspot_task_update",
+  "apply_approved_hubspot_task_update",
+  "list_due_hubspot_sales_task_reminders",
+  "No Sheet, memory, Honcho, Slack reaction, or JSON file becomes task truth.",
   "audit_owner_whatsapp_kns_window",
   "count_owner_whatsapp_sent_today",
   "sales-owned HubSpot follow-up tasks",
@@ -1385,6 +1434,14 @@ for (const text of [
   "Raw social channel IDs",
   "list_active_deals_missing_next_meeting",
   "list_sales_followup_tasks",
+  "TASK_CREATE_APPROVAL_MARKERS",
+  "TASK_ASSOCIATION_TYPE_IDS",
+  "_patch(",
+  "preview_hubspot_sales_task",
+  "create_approved_hubspot_sales_task",
+  "preview_hubspot_task_update",
+  "apply_approved_hubspot_task_update",
+  "list_due_hubspot_sales_task_reminders",
   "audit_owner_whatsapp_kns_window",
   "count_owner_whatsapp_sent_today",
   "check_account_followup_status",
@@ -1752,7 +1809,7 @@ for (const text of [
   "read_google_slides_deck",
   "Anyone with the link",
   "read_indonesia_event_registration_attendance",
-  "Daily nurture and reminder automation are disabled pending refinement",
+  "Daily nurture automation is disabled pending refinement",
   "read_nurture_material_registry",
   "Eazybe approval-gated smoke check",
   "send_approved_eazybe_messages",
@@ -1868,9 +1925,13 @@ for (const text of [
   "nurtureanysalesbot live profile audit",
   "nurtureanysalesbot local cloud heartbeat",
   "nurtureanysalesbot Slack socket watchdog",
-  "four enabled operational crons",
+  "nurtureanysalesbot HubSpot task reminders",
+  "nurtureanysalesbot HubSpot task EOD catch-up",
+  "six enabled operational crons",
   "check-cloud-heartbeat.sh",
   "check-slack-socket-health.sh",
+  "nurtureany_sales_task_reminders.py",
+  "nurtureany_sales_task_reminders_eod.py",
   "nurtureany-cloud-doctor.sh",
   "Prospeo MCP lists only",
   "*/5 * * * *",
@@ -1884,7 +1945,7 @@ for (const text of [
   "PROFILE=\"${HERMES_PROFILE:-nurtureanysalesbot}\"",
   "export HERMES_HOME=\"$HOME/.hermes/profiles/$PROFILE\"",
   "EXPECT_SLACK_INTENT_TOOLS=\"${EXPECT_SLACK_INTENT_TOOLS:-3}\"",
-  "EXPECT_HUBSPOT_TOOLS=\"${EXPECT_HUBSPOT_TOOLS:-49}\"",
+  "EXPECT_HUBSPOT_TOOLS=\"${EXPECT_HUBSPOT_TOOLS:-54}\"",
   "EXPECT_AIRCALL_TOOLS=\"${EXPECT_AIRCALL_TOOLS:-4}\"",
   "NURTUREANY_GATEWAY_SERVICE_NAME",
   "systemctl --user is-active --quiet \"$GATEWAY_SERVICE_NAME\"",
@@ -1944,8 +2005,12 @@ for (const text of [
   "systemctl --user is-enabled \"$GATEWAY_SERVICE_NAME\"",
   "EXPECTED_CLOUD_HEARTBEAT_CRON_NAME",
   "nurtureanysalesbot local cloud heartbeat",
-  "EXPECT_ENABLED_CRON_COUNT=\"${EXPECT_ENABLED_CRON_COUNT:-4}\"",
-  "EXPECT_HUBSPOT_TOOLS=\"${EXPECT_HUBSPOT_TOOLS:-49}\"",
+  "EXPECT_ENABLED_CRON_COUNT=\"${EXPECT_ENABLED_CRON_COUNT:-6}\"",
+  "EXPECT_HUBSPOT_TOOLS=\"${EXPECT_HUBSPOT_TOOLS:-54}\"",
+  "EXPECTED_TASK_REMINDER_CRON_NAME",
+  "EXPECTED_TASK_REMINDER_EOD_CRON_NAME",
+  "nurtureany_sales_task_reminders.py",
+  "nurtureany_sales_task_reminders_eod.py",
   "EXPECT_PUBLIC_RESEARCH_TOOLS=\"${EXPECT_PUBLIC_RESEARCH_TOOLS:-2}\"",
   "EXPECT_PROSPEO_TOOLS=\"${EXPECT_PROSPEO_TOOLS:-3}\"",
   "nurtureanysalesbot-check-cloud-heartbeat.sh",
@@ -1972,6 +2037,8 @@ for (const text of [
   "profile-drift:runtime-mcp",
   "profile-drift:cloud-heartbeat-script",
   "profile-drift:slack-socket-watchdog-script",
+  "profile-drift:hs-reminder-file",
+  "profile-drift:hs-reminder-eod-file",
   "profile-drift:cloud-doctor-script",
   "profile-boundary:staffany-data-bot-skill-installed",
   "cron:records-invalid",
@@ -1979,6 +2046,8 @@ for (const text of [
   "cron:audit-missing",
   "cron:cloud-heartbeat-missing",
   "cron:slack-socket-watchdog-missing",
+  "cron:hs-reminder-missing",
+  "cron:hs-reminder-eod-missing",
   "live-profile:audit-ok"
 ]) {
   if (!auditScriptText.includes(text)) fail(`runtime/audit-live-profile.sh missing required text: ${text}`);
@@ -2002,6 +2071,18 @@ for (const text of [
   if (!cloudDoctorScriptText.includes(text)) fail(`runtime/nurtureany-cloud-doctor.sh missing required text: ${text}`);
 }
 
+const hermesProfilesText = repoTextOf("ops/hermes/profiles.yaml");
+for (const text of [
+  "hubspot_nurtureany: 54",
+  "nurtureanysalesbot HubSpot task reminders",
+  "nurtureanysalesbot HubSpot task EOD catch-up",
+  "nurtureany_sales_task_reminders.py",
+  "nurtureany_sales_task_reminders_eod.py",
+  "NurtureAny automation:",
+]) {
+  if (!hermesProfilesText.includes(text)) fail(`ops/hermes/profiles.yaml missing required text: ${text}`);
+}
+
 for (const [label, scriptPath] of [
   ["health check", join(appRoot, "runtime/check-health.sh")],
   ["cloud heartbeat", cloudHeartbeatScriptPath],
@@ -2011,6 +2092,25 @@ for (const [label, scriptPath] of [
   const syntaxCheck = spawnSync("bash", ["-n", scriptPath], { encoding: "utf8" });
   if (syntaxCheck.status !== 0) {
     fail(`Shell syntax check failed for ${label}: ${(syntaxCheck.stderr || syntaxCheck.stdout).trim()}`);
+  }
+}
+
+for (const relPath of [
+  "runtime/scripts/nurtureany_sales_task_reminders.py",
+  "runtime/scripts/nurtureany_sales_task_reminders_eod.py",
+]) {
+  const scriptText = textOf(relPath);
+  for (const text of [
+    "NurtureAny automation:",
+    "list_due_hubspot_sales_task_reminders",
+    "HubSpot Task hs_timestamp",
+    "hs_task_status=COMPLETED",
+  ]) {
+    if (!scriptText.includes(text)) fail(`${relPath} missing required text: ${text}`);
+  }
+  const compile = spawnSync("python3", ["-m", "py_compile", join(appRoot, relPath)], { encoding: "utf8" });
+  if (compile.status !== 0) {
+    fail(`Python compile failed for ${relPath}: ${(compile.stderr || compile.stdout).trim()}`);
   }
 }
 
@@ -2029,6 +2129,7 @@ for (const text of [
   "conversations.history",
   "conversations.replies",
   "slack-ingress:missed-mention",
+  "Unauthorized user:",
   "A new session .* has been established",
   "slack-socket:restart-needed",
   "slack-socket:restart-failed",
@@ -2104,11 +2205,15 @@ NURTUREANY_SLACK_SOCKET_STATE_DIR="$tmp_dir/state" \\
 NURTUREANY_SLACK_SOCKET_NOW_EPOCH=1778769490 \\
 NURTUREANY_SLACK_SOCKET_DRY_RUN=1 \\
 bash ${JSON.stringify(slackSocketScriptPath)}
+grep -Fq 'last_stale_epoch=1778769310' "$tmp_dir/state/slack-socket-watchdog.state"
+grep -Fq 'last_restart_epoch=1778769490' "$tmp_dir/state/slack-socket-watchdog.state"
+printf '%s\\n' 'state:ok'
 `], { encoding: "utf8" });
 if (
   missedMentionSocketCheck.status !== 0 ||
   !missedMentionSocketCheck.stdout.includes("slack-socket:restart-needed missed-mention") ||
-  !missedMentionSocketCheck.stdout.includes("slack-ingress:missed-mention")
+  !missedMentionSocketCheck.stdout.includes("slack-ingress:missed-mention") ||
+  !missedMentionSocketCheck.stdout.includes("state:ok")
 ) {
   fail(`Slack socket watchdog missed-mention dry-run failed: ${(missedMentionSocketCheck.stderr || missedMentionSocketCheck.stdout).trim()}`);
 }

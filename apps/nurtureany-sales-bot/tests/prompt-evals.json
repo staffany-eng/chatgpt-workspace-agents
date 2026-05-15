@@ -343,6 +343,52 @@
       }
     },
     {
+      "id": "nurtureany-static-hubspot-task-approval-markers",
+      "bot": "NurtureAny Sales Bot",
+      "surface": "slack",
+      "lane": "static",
+      "input": "@NurtureAny create a HubSpot task for this account and remind me tomorrow",
+      "setup": {
+        "first_slack_mention": true,
+        "live_tools": "disabled"
+      },
+      "expected_tool_trace": {
+        "must_call_after_run": [
+          "preview_hubspot_sales_task"
+        ],
+        "must_not_call": [
+          "create_approved_hubspot_sales_task",
+          "plan_hubspot_writeback"
+        ]
+      },
+      "expected_answer_contract": {
+        "must_include": [
+          "Reply exactly `create task` or `confirm task`",
+          "HubSpot Task `hs_timestamp`",
+          "`run`, `ok`, `yes`, `+1`, and `^` are not HubSpot Task write approvals"
+        ]
+      },
+      "forbidden_behavior": [
+        "treat run as task write approval",
+        "create task without preview",
+        "raw Slack transcript",
+        "raw task body"
+      ],
+      "grade_notes": "Task writes are a narrow exact-approval path, separate from generic HubSpot writeback.",
+      "assertions": {
+        "source_files": [
+          {
+            "path": "tests/regression-cases.md",
+            "must_contain": [
+              "HubSpot Task Management",
+              "`create task` or `confirm task`",
+              "No Sheet, memory, Honcho, Slack reaction, or JSON file becomes task truth."
+            ]
+          }
+        ]
+      }
+    },
+    {
       "id": "nurtureany-answer-contract-social-only-fixture",
       "bot": "NurtureAny Sales Bot",
       "surface": "slack",
