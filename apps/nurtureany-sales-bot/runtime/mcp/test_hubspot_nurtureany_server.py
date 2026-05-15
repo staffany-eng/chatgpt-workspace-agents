@@ -1453,6 +1453,103 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         self.assertNotIn("+6511111111", rendered)
         self.assertNotIn("Very long HubSpot note", rendered)
 
+    def test_singapore_lead_enrichment_surfaces_hubspot_domain_for_exa_input(self):
+        companies = [
+            {
+                "id": "sg-madame-tussauds",
+                "properties": {
+                    "name": "Madame Tussauds Amsterdam",
+                    "domain": "https://www.madame-tussauds.com",
+                    "website": "madame-tussauds.com",
+                    "hs_is_target_account": "true",
+                    "company_country": "Singapore",
+                    "hubspot_owner_id": "owner-jeremy",
+                    "hs_num_decision_makers": "0",
+                    "hs_num_contacts_with_buying_roles": "0",
+                },
+            }
+        ]
+        contacts = [
+            {
+                "id": "ops-1",
+                "properties": {
+                    "firstname": "Olivia",
+                    "lastname": "Tan",
+                    "jobtitle": "Marketing Executive",
+                    "hs_buying_role": "",
+                },
+            }
+        ]
+        with patch.object(self.module, "_caller_scope", return_value={**SCOPE, "countries": ("Singapore",)}), patch.object(
+            self.module,
+            "_company_search",
+            return_value={
+                "results": companies,
+                "total": 1,
+                "requested_limit": 5,
+                "returned_count": 1,
+                "has_more": False,
+                "truncated": False,
+            },
+        ), patch.object(
+            self.module, "_batch_association_ids", return_value={"sg-madame-tussauds": ["ops-1"]}
+        ), patch.object(
+            self.module, "_batch_read", return_value=contacts
+        ):
+            result = self.module.build_singapore_lead_enrichment_plan(
+                "kerren.fong@staffany.com",
+                limit=5,
+                output_mode="compact",
+            )
+
+        account = result["answer"]["accounts"][0]
+        bucket_account = result["answer"]["buckets"]["missing_decision_maker"][0]
+        self.assertEqual(account["recommended_next_source"], "exa_people_candidate_discovery")
+        self.assertEqual(account["domain"], "madame-tussauds.com")
+        self.assertEqual(account["domain_source"], "domain")
+        self.assertEqual(account["domain_warning"], "")
+        self.assertEqual(bucket_account["domain"], "madame-tussauds.com")
+
+    def test_singapore_lead_enrichment_falls_back_to_website_domain(self):
+        companies = [
+            {
+                "id": "sg-website-only",
+                "properties": {
+                    "name": "Website Only Cafe",
+                    "domain": "",
+                    "website": "https://www.website-only.example/locations/sg",
+                    "hs_is_target_account": "true",
+                    "company_country": "Singapore",
+                    "hubspot_owner_id": "owner-jeremy",
+                },
+            }
+        ]
+        with patch.object(self.module, "_caller_scope", return_value={**SCOPE, "countries": ("Singapore",)}), patch.object(
+            self.module,
+            "_company_search",
+            return_value={
+                "results": companies,
+                "total": 1,
+                "requested_limit": 5,
+                "returned_count": 1,
+                "has_more": False,
+                "truncated": False,
+            },
+        ), patch.object(
+            self.module, "_batch_association_ids", return_value={"sg-website-only": []}
+        ), patch.object(
+            self.module, "_batch_read", return_value=[]
+        ):
+            result = self.module.build_singapore_lead_enrichment_plan(
+                "kerren.fong@staffany.com",
+                limit=5,
+                output_mode="compact",
+            )
+
+        account = result["answer"]["accounts"][0]
+        self.assertEqual(account["domain"], "website-only.example")
+        self.assertEqual(account["domain_source"], "website")
+
     def test_singapore_lead_enrichment_allows_explicit_sg_non_target_and_skips_non_sg(self):
         companies = {
             "sg-non-target": {

@@ -90,7 +90,7 @@ Prompt:
 Expected behavior:
 
 - May call `get_selected_slack_thread_context` before `run` because the user explicitly selected a thread and the thread context is needed to write the preflight.
-- First response remains plan-only unless the full quick-autorun gate is satisfied. The pre-run thread read must not trigger HubSpot, C360, BigQuery, Calendar, Drive, Luma, Exa, Lusha, public research, paid, write, or send tools before `run`.
+- First response remains plan-only unless the full quick-autorun gate is satisfied. The pre-run thread read must not trigger HubSpot, C360, BigQuery, Calendar, Drive, Luma, Exa, Lusha, Prospeo, public research, paid, write, or send tools before `run`.
 - May call `get_selected_slack_thread_context` for a selected public channel when `NURTUREANY_SLACK_THREAD_CONTEXT_PUBLIC_CHANNELS=all`, or for a channel configured through `NURTUREANY_SLACK_THREAD_CONTEXT_CHANNEL_IDS` / the intent-channel fallback. If the public source channel is public and the bot is not in it, the adapter may join with `conversations.join` and retry.
 - Returns safe summaries/permalinks only, capped at 50 messages, and does not expose raw transcripts or PII.
 - Blocks cleanly when the permalink is malformed, private, outside configured channels while public-channel mode is disabled, or the bot token lacks required scope.
@@ -107,7 +107,23 @@ Expected behavior:
 
 - Does not auto-run from quick intent.
 - Requires an explicit approved preview and `approval_marker` before `send_approved_eazybe_messages`.
-- Does not send WhatsApp, mutate HubSpot, reveal Lusha, or use paid/public deep research on the first mention.
+- Does not send WhatsApp, mutate HubSpot, reveal Lusha/Prospeo, or use paid/public deep research on the first mention.
+
+## SG Lead Enrichment Domain Handoff
+
+Prompt after `run`:
+
+```text
+@NurtureAny build SG lead enrichment plan for Madame Tussauds Amsterdam, compact
+```
+
+Expected behavior:
+
+- Uses `build_singapore_lead_enrichment_plan`, not direct Exa/Lusha/Prospeo.
+- Reads HubSpot company `domain` as the canonical Company Domain Name and falls back to `website` only when `domain` is empty.
+- Normalizes the domain by stripping `https://`, `http://`, path, and leading `www.` before surfacing it in account rows and Exa-ready handoff input.
+- For `domain=https://www.madame-tussauds.com` and `website=madame-tussauds.com`, returns `domain: madame-tussauds.com`, not an empty string.
+- If both `domain` and `website` are empty, returns a visible missing-domain warning so the user can supply the domain before Exa people-candidate search.
 
 ## AE Own Queue
 
@@ -478,10 +494,10 @@ Expected behavior:
 - First Slack response is plan-only and mentions estimated Exa dollar-cost scope before execution.
 - After `run`, searches at most 5 companies and returns at most 5 public people candidates per company.
 - Search returns Exa request ID, source URL, source domain/type, inferred name/title, decision-maker match signal, and `cost_report`.
-- Search does not fetch LinkedIn/profile contents, reveal email or phone, mutate HubSpot, or call Lusha automatically.
+- Search does not fetch LinkedIn/profile contents, reveal email or phone, mutate HubSpot, or call Lusha/Prospeo automatically.
 - Search refuses arbitrary company-name-only inputs; input must include scoped HubSpot `company_id` plus `scope_source=hubspot_nurtureany` or `hubspot_scoped=true`.
 - Any LinkedIn URL is labelled manual-check evidence only.
-- Selected Exa candidates can feed a later targeted Lusha reveal plan after explicit cost estimate and approval.
+- Selected Exa candidates can feed a later targeted Lusha or Prospeo reveal plan after explicit cost estimate and approval.
 
 ## Free Public Evidence Review
 
@@ -802,8 +818,8 @@ Expected behavior:
 - Search and reveal require scoped HubSpot company IDs before any paid/API call.
 - Reveal caps at 3 selected contacts.
 - Reveal defaults to email only and never includes phone numbers unless `reveal_phones=true`.
-- If the user explicitly approves selected phone reveal with `approval_marker` and `reveal_phones=true`, the final internal Slack answer may show the selected raw phone number(s) returned by Lusha.
-- Do not answer personal/mobile-number requests with a blanket "raw phone numbers will not be shown"; explain the default redaction and the approval-gated selected Lusha reveal path.
+- If the user explicitly approves selected phone reveal with `approval_marker` and `reveal_phones=true`, the final internal Slack answer may show the selected raw phone number(s) returned by Lusha or Prospeo.
+- Do not answer personal/mobile-number requests with a blanket "raw phone numbers will not be shown"; explain the default redaction and the approval-gated selected Lusha or Prospeo reveal path.
 - Reveal includes `credit_report` and HubSpot preview actions only; it does not mutate HubSpot.
 
 ## Revenue Planning Target Vs Actual

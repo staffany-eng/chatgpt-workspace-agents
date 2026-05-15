@@ -10,6 +10,10 @@ __pycache__/
 
 *.log
 .cache/
-.codex/
+.codex/*
+!.codex/skills/
+.codex/skills/*
+!.codex/skills/hermes-app-architecture/
+!.codex/skills/hermes-app-architecture/**
 dist/
 coverage/

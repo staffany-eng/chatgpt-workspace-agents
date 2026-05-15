@@ -62,7 +62,7 @@ NurtureAny needs deterministic runtime checks because prompt correctness does no
 - Revenue funnel smoke checks use `build_hubspot_revenue_funnel_metrics`, created-date cohort, Sales Outbound/default outbound rules, new-business/renewal/signed-stage caveats, summary metrics, and deal audit rows.
 - AE coaching smoke checks use `build_ae_coaching_audit`, return 1:1-sheet preview rows, keep call content metadata-only, interpret WhatsApp windows in each rep's local timezone from access policy or override, return local/UTC window fields, and do not mutate Sheets.
 - Direct call-stat smoke checks use `summarize_sales_call_stats`, not AE coaching, return explicit `association_mode`, treat `>60s` as strict, use completed plus `>=120s` for the default connected-call guardrail, and do not count from capped `long_call_without_appointment_candidates`.
-- Sales Navigator smoke checks use `prepare_sales_navigator_decision_maker_queue`, return manual handoff rows, include Exa/Lusha cost/credit status, and do not scrape LinkedIn or automate Sales Navigator.
+- Sales Navigator smoke checks use `prepare_sales_navigator_decision_maker_queue`, return manual handoff rows, include Exa/Lusha/Prospeo cost/credit status, and do not scrape LinkedIn or automate Sales Navigator.
 - Friday review smoke checks may include a second StaffAny BigQuery QO aggregate after `build_friday_sales_review`, but the answer must label HubSpot hygiene separately from C360 BigQuery actuals.
 - Near-me MCP lists only `resolve_known_area_for_near_me`, `build_near_me_outlet_matches_query`, `refresh_google_places_for_known_area`, `build_near_me_c360_customer_query`, and `merge_near_me_sources` when known-area near-me is enabled.
 - Near-me smoke check resolves `Raffles Place` to `sg_raffles_place`, builds C360 SQL using `kraken_rds.Locations`, `analytics.dim_sections`, `analytics.dim_org_section`, and `analytics.fct_deal_org_company`, and does not include person GPS, clock records, or raw employee location sources.
@@ -85,6 +85,7 @@ NurtureAny needs deterministic runtime checks because prompt correctness does no
 - Target Account News Scout skill is installed in the live profile and uses scoped HubSpot company identity before public research.
 - Public research smoke blocks missing `TAVILY_API_KEY` before HTTP, requires scoped HubSpot company IDs, returns `cost_report`, and never mutates HubSpot.
 - Lusha MCP lists only `search_lusha_decision_maker_candidates`, `reveal_lusha_contact_details`, and `get_lusha_credit_usage` when Lusha is enabled.
+- Prospeo MCP lists only `search_prospeo_decision_maker_candidates`, `reveal_prospeo_contact_details`, and `get_prospeo_credit_usage` when Prospeo is enabled.
 - Lusha search and reveal smoke checks require scoped HubSpot company IDs before any paid/API call.
 - Lusha usage smoke check returns `credit_report` and does not block the gateway when `/account/usage` is rate-limited.
 - Honcho is disabled.

@@ -410,6 +410,33 @@ mcp_servers:
     - search_lusha_decision_maker_candidates
     - reveal_lusha_contact_details
     - get_lusha_credit_usage
+  prospeo_nurtureany:
+    description: Cost-controlled Prospeo paid-provider pilot adapter for selected
+      decision-maker lookup, reveal approval, and credit reporting.
+    command: /Users/leekaiyi/.hermes/hermes-agent/venv/bin/python
+    args:
+    - /Users/leekaiyi/workspace/agent builder/apps/nurtureany-sales-bot/runtime/mcp/prospeo_nurtureany_server.py
+    auth_metadata:
+      type: api_key_env
+      env: PROSPEO_API_KEY
+    cost_policy:
+      max_search_companies: 5
+      max_candidates_per_company: 5
+      max_reveal_contacts: 3
+      require_credit_report: true
+      recommend_low_monthly_dashboard_limit: true
+      search_endpoint: POST /search-person
+      reveal_endpoint: POST /bulk-enrich-person
+      usage_endpoint: GET /account-information
+    pii_policy:
+      selected_pii_in_internal_slack: true
+      bulk_contact_exports: false
+      phone_reveal_requires_flag: true
+      search_never_reveals_email_or_mobile: true
+    tool_allowlist:
+    - search_prospeo_decision_maker_candidates
+    - reveal_prospeo_contact_details
+    - get_prospeo_credit_usage
   exa_nurtureany:
     description: LinkedIn-safe Exa People Search adapter for public decision-maker
       candidate discovery.

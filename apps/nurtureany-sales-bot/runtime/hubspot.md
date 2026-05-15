@@ -14,7 +14,7 @@ Field-level durable sources:
 - Decision-maker coverage: company `hs_num_decision_makers` plus contact `hs_buying_role=DECISION_MAKER` are verified HubSpot decision-maker sources. `hs_num_contacts_with_buying_roles` is reported separately as buying-role hygiene, but it does not satisfy decision-maker coverage by itself. NurtureAny does not read Eazybe directly for these counts.
 - Phone verification: contact `nurtureany_phone_verification_status`, `nurtureany_phone_verified_at`, `nurtureany_phone_verified_by`, `nurtureany_phone_verification_source`, and `nurtureany_phone_verification_notes`. Valid phone verification requires `called_connected`; `truecaller_manual_lookup` is manual candidate evidence only unless paired with a connected-call outcome.
 
-`current_tool_renewal_date` is secondary context only. C360, Google Calendar, Luma, the Indonesia event registration Sheet fallback, Tavily public research, Exa, Lusha, Prospeo, Slack, and public evidence enrich the answer but do not override the durable HubSpot fields above. Prospeo has no active adapter in V1; it is a measured V1.1 paid-provider pilot candidate only.
+`current_tool_renewal_date` is secondary context only. C360, Google Calendar, Luma, the Indonesia event registration Sheet fallback, Tavily public research, Exa, Lusha, Prospeo, Slack, and public evidence enrich the answer but do not override the durable HubSpot fields above. Prospeo is an active paid-provider pilot adapter when `PROSPEO_API_KEY` is configured; it follows Lusha-style approval, selected-contact, credit-reporting, and no-write guardrails.
 
 Do not call contract timing a StaffAny renewal unless customer status is verified. For prospects or unknowns, use incumbent-tool contract timing or migration/procurement timing.
 
@@ -307,7 +307,7 @@ Friday sales review uses the same scoped association discipline, plus HubSpot ca
 - Provider waterfall policy uses `cost_mode=capped_effective`: run paid providers only for real gaps, stop after minimum readiness, track successful provider/source/confidence, and measure cost per usable AE handoff.
 - Prospeo is a V1.1 provider candidate beside Lusha for a measured pilot. It must use scoped HubSpot company IDs, explicit approval before reveal, cost/credit reporting, selected contacts only, no bulk export, no raw phone in default Slack summaries, and no auto-write.
 - Truecaller is manual V1 evidence only: no automated reverse lookup, scraping, or bulk enrichment. `truecaller_manual_lookup` does not verify a phone unless `nurtureany_phone_verification_status=called_connected`.
-- Must not mutate HubSpot, reveal paid contact details, expose raw HubSpot phone fields, call Lusha/Prospeo reveal from the SG plan, call Truecaller automatically, send WhatsApp, or change account ownership. Personal/mobile-number reveal must use the separate approval-gated Lusha reveal path with `approval_marker` and `reveal_phones=true`.
+- Must not mutate HubSpot, reveal paid contact details, expose raw HubSpot phone fields, call Lusha/Prospeo reveal from the SG plan, call Truecaller automatically, send WhatsApp, or change account ownership. Personal/mobile-number reveal must use the separate approval-gated Lusha or Prospeo reveal path with `approval_marker` and `reveal_phones=true`.
 
 `list_sales_followup_tasks`:
 
@@ -432,7 +432,7 @@ Daily nurture workflow:
 
 - Input: selected accounts and proposed actions.
 - Output: dry-run task/note/field update preview.
-- Preserve public/Exa/Lusha source evidence, source type, source URL, and confidence in preview actions.
+- Preserve public/Exa/Lusha/Prospeo source evidence, source type, source URL, and confidence in preview actions.
 - Refuse manager callers because manager team scope is read-only.
 - Refuse actions without scoped HubSpot `company_id` or outside the caller's target-account scope.
 
