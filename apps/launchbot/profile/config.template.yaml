@@ -30,6 +30,16 @@ sources:
     deploy_key_env: "LAUNCHBOT_PANTHEON_SSH_KEY"
     default_deploy_key: "~/.hermes/profiles/launchbot/ssh/pantheon_deploy_key"
     status_json: "~/.hermes/profiles/launchbot/runtime/pantheon-repo-status.json"
+feature_intake_monitor:
+  mode: "no_agent_slack_poll"
+  script: "/home/leekaiyi/.hermes/profiles/launchbot/scripts/launchbot-monitor-feature-intake.py"
+  configured_channel_ids_env: "LAUNCHBOT_FEATURE_INTAKE_MONITOR_CHANNEL_IDS"
+  state_path_env: "LAUNCHBOT_FEATURE_INTAKE_MONITOR_STATE_PATH"
+  max_messages_per_run_env: "LAUNCHBOT_FEATURE_INTAKE_MONITOR_MAX_MESSAGES_PER_RUN"
+  overlap_seconds_env: "LAUNCHBOT_FEATURE_INTAKE_MONITOR_OVERLAP_SECONDS"
+  required_confirmation: "create intake"
+  no_raw_transcript_persistence: true
+  normal_gateway_require_mention: true
 kanban:
   dispatch_in_gateway: false
 model:
@@ -131,3 +141,7 @@ SLACK_HOME_CHANNEL: "C0B32M34J3W"
 SLACK_HOME_CHANNEL_NAME: "launch-bot-testing"
 LAUNCHBOT_KER_ALLOWED_CHANNEL_IDS: "C0B32M34J3W,C0AJAUNCEL8"
 LAUNCHBOT_FEATURE_INTAKE_ALLOWED_CHANNEL_IDS: "C0B32M34J3W,CF8PK6V4J"
+LAUNCHBOT_FEATURE_INTAKE_MONITOR_CHANNEL_IDS: "CF8PK6V4J"
+LAUNCHBOT_FEATURE_INTAKE_MONITOR_STATE_PATH: "~/.hermes/profiles/launchbot/runtime/feature-intake-monitor-state.json"
+LAUNCHBOT_FEATURE_INTAKE_MONITOR_MAX_MESSAGES_PER_RUN: "100"
+LAUNCHBOT_FEATURE_INTAKE_MONITOR_OVERLAP_SECONDS: "600"

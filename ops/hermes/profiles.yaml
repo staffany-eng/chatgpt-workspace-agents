@@ -190,6 +190,9 @@ profiles:
       - name: launchbot health check
         schedule: "*/5 * * * *"
         mode: no-agent
+      - name: launchbot feature intake monitor
+        schedule: "* * * * *"
+        mode: no-agent
       - name: launchbot pantheon repo update
         schedule: "0 22 * * *"
         mode: no-agent

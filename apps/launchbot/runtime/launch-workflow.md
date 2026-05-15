@@ -131,6 +131,23 @@ When the external source checkout is absent, use `runtime/launchbot_e2e.py` as t
   - For video-only updates, update existing articles with `state: "draft"` only and do not touch tags or collection placement.
 - Google Docs HTML export should normalize duplicate title headings, internal appendices, center alignment, bold spans, heading anchors, and body-level heading depth before Intercom insertion.
 
+### Feature Intake Channel Monitor
+
+- Current status: no-agent monitor beside the normal mention-gated Slack gateway.
+- Input: top-level messages and thread replies in configured public channels, defaulting to `#input-features-ux` (`CF8PK6V4J`).
+- Output: one compact `Launchbot automation: Potential KER intake detected.` preview in the source thread, or an existing KER link when the Slack permalink is already captured.
+- Required behavior:
+  - Keep `slack.require_mention=true` for normal Launchbot replies; do not route every channel message through the Hermes agent loop.
+  - Poll with `runtime/monitor-feature-intake.py` from no-agent cron `launchbot feature intake monitor` on `* * * * *`.
+  - Use `SLACK_BOT_TOKEN` only; do not use the Slack connector or a human user token for monitoring or posting.
+  - Use `conversations.history` for channel messages and `conversations.replies` for thread approvals.
+  - Skip bot messages, Launchbot automation messages, empty/deleted messages, and duplicate source permalinks.
+  - Store only channel ID, thread/message timestamps, source permalink, safe summary, status, preview post timestamp, issue key, and timestamps in `feature-intake-monitor-state.json`. Do not store raw Slack transcripts.
+  - Post previews with `chat.postMessage` as Launchbot only, with the `Launchbot automation:` prefix.
+  - Create Jira only after exact in-thread `create intake` or `create KER intake`; `yes`, `ok`, `create`, `+1`, and similar replies are not approval.
+  - If `LAUNCHBOT_FEATURE_INTAKE_APPROVER_USER_IDS` is set, only those Slack user IDs can approve; otherwise any non-bot teammate in the configured channel can approve.
+  - Dry-run with `--dry-run --channel CF8PK6V4J --since-minutes 30` before enabling or after changing monitor logic.
+
 ### Step 4: Launch Derivatives
 
 - Current status: planned stub.

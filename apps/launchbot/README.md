@@ -14,6 +14,7 @@ Canonical Hermes app packet for the Launchbot Slack profile.
 - Slack Socket Mode event subscriptions: `app_mention` and `message.channels`; OAuth scopes must include `app_mentions:read`, `channels:history`, `channels:read`, and `chat:write`.
 - Help article planning: cached Intercom article-shape profile plus metadata inventory first, then live Intercom only for affected search and pre-stage stale checks.
 - Feature intake: guarded Slack thread to Jira Product Discovery KER preview/create in configured channels, with explicit confirmation before Jira mutation.
+- Feature-intake monitor: no-agent poller for `#input-features-ux` (`CF8PK6V4J`) that posts one Launchbot-owned preview for likely KER intake candidates, then creates only after exact `create intake` in-thread.
 - Publish surface: Intercom draft/staging output only; public publish stays manual in Intercom.
 
 ## Packet Contents
@@ -28,7 +29,9 @@ Canonical Hermes app packet for the Launchbot Slack profile.
 | `runtime/check-health.sh` | Silent no-agent health check. |
 | `runtime/audit-live-profile.sh` | Live profile drift audit. |
 | `runtime/update-pantheon-repo.sh` | Daily Pantheon checkout refresher for code-grounded help article verification. |
+| `runtime/monitor-feature-intake.py` | No-agent Slack channel monitor for guarded feature-intake previews and approvals. |
 | `runtime/mcp/launchbot_ker_server.py` | Read-only Slack thread to Jira KER lookup tool. |
+| `runtime/mcp/launchbot_feature_intake_core.py` | Shared Slack/Jira feature-intake preview and create contract. |
 | `runtime/mcp/launchbot_feature_intake_server.py` | Confirmed Slack thread to Jira Product Discovery KER intake tool. |
 | `runtime/mcp/launchbot_help_article_server.py` | Draft-only registered Loom video-slot updater for existing help articles. |
 | `skills/help-article-generator/` | Launchbot help-article drafting skill upgraded from the 2026-05-11 handoff. |
@@ -48,12 +51,21 @@ Canonical Hermes app packet for the Launchbot Slack profile.
 5. Set Slack and model secrets from the approved secret store only.
 6. Set Jira env vars (`JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN`) in the live profile `.env` before enabling KER lookup or confirmed feature intake.
 7. Copy `skills/help-article-generator/` into `~/.hermes/profiles/launchbot/skills/` when enabling article drafting and registered video-slot updates.
-8. Copy runtime scripts into `~/.hermes/profiles/launchbot/scripts/`.
+8. Copy runtime scripts into `~/.hermes/profiles/launchbot/scripts/`, including `launchbot-monitor-feature-intake.py`.
 9. Copy `runtime/mcp/launchbot_help_article_server.py` into the live profile source tree before enabling the `launchbot_help_article` MCP server.
 10. Seed `~/.hermes/profiles/launchbot/source/pantheon` for code-grounded article verification. Install the daily Pantheon updater cron only after the VM has GitHub SSH access to `staffany-eng/pantheon`.
 11. Start the managed gateway and install the no-agent health check cron.
-12. Confirm no Mac-local `launchbot` profile or gateway exists before live Slack testing. Only the cloud Launchbot runtime should be connected to Slack, otherwise stale local profile state can answer first.
-13. Treat the restore as verified only after the health check passes and the Slack smoke replies from Launchbot's bot identity in `#launch-bot-testing`.
+12. Install the feature-intake monitor cron only after Slack/Jira env is present and a dry-run against `CF8PK6V4J` succeeds:
+    ```bash
+    cp apps/launchbot/runtime/monitor-feature-intake.py ~/.hermes/profiles/launchbot/scripts/launchbot-monitor-feature-intake.py
+    ~/.hermes/profiles/launchbot/scripts/launchbot-monitor-feature-intake.py --dry-run --channel CF8PK6V4J --since-minutes 30
+    hermes -p launchbot cron create "* * * * *" \
+      --name "launchbot feature intake monitor" \
+      --script launchbot-monitor-feature-intake.py \
+      --no-agent
+    ```
+13. Confirm no Mac-local `launchbot` profile or gateway exists before live Slack testing. Only the cloud Launchbot runtime should be connected to Slack, otherwise stale local profile state can answer first.
+14. Treat the restore as verified only after the health check passes and the Slack smoke replies from Launchbot's bot identity in `#launch-bot-testing`.
 
 ## Launch Workflow Skill
 
@@ -94,3 +106,5 @@ npm run intercom:stage-update -- --article-id <article_id> --draft <draft.md> --
 Video-only help article updates are part of the existing Update lane. They are registry-only and draft-only: preview with `preview_help_article_video_update`, wait for `draft it`, then create the Intercom draft with `create_help_article_video_update_draft`. No public publish or article text rewrite is exposed.
 
 Feature intake is a guarded Jira Product Discovery lane. Preview with `preview_feature_intake_from_slack_thread`, wait for `create intake`, then create one KER idea with `create_feature_intake_from_slack_thread`. The Slack permalink is written to `Slack / PRD` and used as the duplicate key; the MCP never posts Slack messages, comments on Jira, transitions issues, or assigns owners.
+
+For `#input-features-ux`, the no-agent monitor watches top-level messages and thread replies with the Launchbot bot token. It keeps normal Launchbot replies mention-gated, stores only safe summaries and source pointers, posts one `Launchbot automation:` preview for high-confidence candidates, and creates a KER Idea only after exact `create intake` / `create KER intake` in the same thread.

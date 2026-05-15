@@ -19,8 +19,11 @@
     "pantheon_update_script": "runtime/update-pantheon-repo.sh",
     "ker_mcp_server": "runtime/mcp/launchbot_ker_server.py",
     "ker_mcp_tests": "runtime/mcp/test_launchbot_ker_server.py",
+    "feature_intake_core": "runtime/mcp/launchbot_feature_intake_core.py",
     "feature_intake_mcp_server": "runtime/mcp/launchbot_feature_intake_server.py",
     "feature_intake_mcp_tests": "runtime/mcp/test_launchbot_feature_intake_server.py",
+    "feature_intake_monitor": "runtime/monitor-feature-intake.py",
+    "feature_intake_monitor_tests": "runtime/test_monitor_feature_intake.py",
     "help_article_mcp_server": "runtime/mcp/launchbot_help_article_server.py",
     "help_article_mcp_tests": "runtime/mcp/test_launchbot_help_article_server.py",
     "help_article_video_fixtures": "runtime/mcp/fixtures/help_article_video_fixtures.json",
@@ -65,6 +68,33 @@
       "chat:write"
     ],
     "event_subscription_drift_guard": "Launchbot Socket Mode must subscribe to message.channels or channel mentions/replies will not reach the Hermes gateway."
+  },
+  "feature_intake_monitor": {
+    "mode": "no_agent_slack_poll",
+    "default_channel_ids": [
+      "CF8PK6V4J"
+    ],
+    "channel_ids_env_var": "LAUNCHBOT_FEATURE_INTAKE_MONITOR_CHANNEL_IDS",
+    "state_path_env_var": "LAUNCHBOT_FEATURE_INTAKE_MONITOR_STATE_PATH",
+    "default_state_path": "~/.hermes/profiles/launchbot/runtime/feature-intake-monitor-state.json",
+    "max_messages_per_run_env_var": "LAUNCHBOT_FEATURE_INTAKE_MONITOR_MAX_MESSAGES_PER_RUN",
+    "default_max_messages_per_run": 100,
+    "overlap_seconds_env_var": "LAUNCHBOT_FEATURE_INTAKE_MONITOR_OVERLAP_SECONDS",
+    "default_overlap_seconds": 600,
+    "required_confirmation": [
+      "create intake",
+      "create KER intake"
+    ],
+    "normal_gateway_require_mention": true,
+    "raw_transcript_persistence": false,
+    "posts_slack_previews": true,
+    "slack_reply_prefix": "Launchbot automation:",
+    "approver_allowlist_env_var": "LAUNCHBOT_FEATURE_INTAKE_APPROVER_USER_IDS",
+    "cron": {
+      "name": "launchbot feature intake monitor",
+      "schedule": "* * * * *",
+      "mode": "no-agent"
+    }
   },
   "mcp": {
     "launchbot_ker": {
@@ -179,6 +209,11 @@
       "mode": "no-agent"
     },
     {
+      "name": "launchbot feature intake monitor",
+      "schedule": "* * * * *",
+      "mode": "no-agent"
+    },
+    {
       "name": "launchbot pantheon repo update",
       "schedule": "0 22 * * *",
       "mode": "no-agent",
@@ -248,6 +283,11 @@
       "LAUNCH_INTERCOM_FORMAT_SAMPLE_IDS",
       "LAUNCH_INTERCOM_SHAPE_FAMILIES",
       "LAUNCH_INTERCOM_INVENTORY_STATE",
+      "LAUNCHBOT_FEATURE_INTAKE_MONITOR_CHANNEL_IDS",
+      "LAUNCHBOT_FEATURE_INTAKE_MONITOR_STATE_PATH",
+      "LAUNCHBOT_FEATURE_INTAKE_MONITOR_MAX_MESSAGES_PER_RUN",
+      "LAUNCHBOT_FEATURE_INTAKE_MONITOR_OVERLAP_SECONDS",
+      "LAUNCHBOT_FEATURE_INTAKE_APPROVER_USER_IDS",
       "LAUNCH_PANTHEON_REPO",
       "LAUNCH_PANTHEON_APPS",
       "LAUNCH_GOOGLE_AUTH_JSON",
