@@ -269,8 +269,26 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertEqual(result["answer"]["best_match"]["issue_key"], "PCO-78")
         self.assertTrue(any("1778895345394969" in call for call in calls))
         self.assertTrue(any("salaried" in call and "proration" in call for call in calls))
+        self.assertEqual(
+            set(result["answer"]["best_match"].keys()),
+            {
+                "issue_key",
+                "url",
+                "summary",
+                "status",
+                "request_type",
+                "ps_team",
+                "due_date",
+                "updated",
+                "match_score",
+                "match_reasons",
+            },
+        )
         self.assertNotIn("description", result["answer"]["best_match"])
         self.assertNotIn("comment", result["answer"]["best_match"])
+        self.assertNotIn("assignee", result["answer"]["best_match"])
+        self.assertNotIn("priority", result["answer"]["best_match"])
+        self.assertNotIn("reminder_at", result["answer"]["best_match"])
 
     def test_search_pco_tickets_ambiguous_broad_match_returns_needs_check(self):
         def fake_request(method, path, body=None):

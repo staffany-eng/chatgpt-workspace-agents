@@ -1272,6 +1272,20 @@ def _safe_issue(issue: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _safe_pco_search_issue(issue: dict[str, Any]) -> dict[str, Any]:
+    safe = _safe_issue(issue)
+    return {
+        "issue_key": safe["issue_key"],
+        "url": safe["url"],
+        "summary": safe["summary"],
+        "status": safe["status"],
+        "request_type": safe["request_type"],
+        "ps_team": safe["ps_team"],
+        "due_date": safe["due_date"],
+        "updated": safe["updated"],
+    }
+
+
 def _slack_permalink_variants(slack_thread_url: str) -> list[str]:
     source = (slack_thread_url or "").strip()
     if not source:
@@ -1411,7 +1425,7 @@ def _merge_pco_search_matches(
     active_search: bool,
 ) -> None:
     for raw_issue in issues:
-        safe = _safe_issue(raw_issue)
+        safe = _safe_pco_search_issue(raw_issue)
         key = str(safe.get("issue_key") or "").upper()
         if not key:
             continue
