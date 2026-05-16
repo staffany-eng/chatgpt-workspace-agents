@@ -295,6 +295,7 @@ mcp_servers:
       env: SLACK_BOT_TOKEN
       configured_channel_ids_env: NURTUREANY_SLACK_INTENT_CHANNEL_IDS
       configured_thread_channel_ids_env: NURTUREANY_SLACK_THREAD_CONTEXT_CHANNEL_IDS
+      inbound_alert_channel_ids_env: NURTUREANY_INBOUND_ALERT_CHANNEL_IDS
       public_thread_channels_env: NURTUREANY_SLACK_THREAD_CONTEXT_PUBLIC_CHANNELS
       standup_audit_channel_ids_env: NURTUREANY_STANDUP_AUDIT_CHANNEL_IDS
       configured_public_thread_channel_auto_join: true
@@ -306,7 +307,9 @@ mcp_servers:
       max_context_messages: 10
       max_context_lookback_minutes: 30
       max_thread_context_messages: 50
+      max_inbound_alert_messages: 50
       max_standup_roster_lookback_days: 90
+      inbound_alert_channel_ids_env: NURTUREANY_INBOUND_ALERT_CHANNEL_IDS
       standup_audit_channel_ids_env: NURTUREANY_STANDUP_AUDIT_CHANNEL_IDS
       safe_summaries_permalinks_only: true
       raw_note_bodies_returned: false
@@ -318,6 +321,7 @@ mcp_servers:
     - read_recent_slack_intent_context
     - get_current_slack_thread_context
     - get_selected_slack_thread_context
+    - extract_inbound_lead_alerts
     - audit_standup_down_accountability
   hubspot_nurtureany:
     description: Custom HubSpot adapter for target-account nurture workflows.
@@ -342,6 +346,7 @@ mcp_servers:
     - list_inbound_threads
     - get_inbound_thread_context
     - audit_inbound_sla
+    - resolve_inbound_slack_alerts_to_hubspot
     - list_marketing_campaigns
     - get_campaign_assets
     - get_campaign_social_effectiveness

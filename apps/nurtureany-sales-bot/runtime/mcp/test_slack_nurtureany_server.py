@@ -24,6 +24,7 @@ class SlackNurtureAnyServerTest(unittest.TestCase):
             sorted(tool.__name__ for tool in self.module.mcp.tools),
             [
                 "audit_standup_down_accountability",
+                "extract_inbound_lead_alerts",
                 "get_current_slack_thread_context",
                 "get_selected_slack_thread_context",
                 "read_recent_slack_intent_context",
@@ -366,6 +367,89 @@ class SlackNurtureAnyServerTest(unittest.TestCase):
 
         self.assertEqual(result["confidence"], "blocked")
         self.assertIn("configured thread-context channel IDs", result["answer"])
+
+    def test_inbound_alert_extraction_requires_configured_channel(self):
+        with patch.dict(
+            os.environ,
+            {"SLACK_BOT_TOKEN": "test-bot-token", "NURTUREANY_INBOUND_ALERT_CHANNEL_IDS": "C123"},
+            clear=True,
+        ), patch("urllib.request.urlopen", side_effect=AssertionError("should not call Slack")):
+            result = self.module.extract_inbound_lead_alerts("C999")
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("configured public inbound channel IDs", result["answer"])
+
+    def test_inbound_alert_extraction_reads_safe_alerts_and_redacts(self):
+        calls = []
+
+        def fake_slack_api(method, params):
+            calls.append((method, params))
+            if method == "conversations.info":
+                return {"ok": True, "channel": {"id": params["channel"], "is_channel": True, "is_private": False}}
+            if method == "conversations.history":
+                self.assertLessEqual(int(params["limit"]), 50)
+                return {
+                    "ok": True,
+                    "messages": [
+                        {
+                            "ts": "1770000000.000001",
+                            "user": "U123",
+                            "text": "New incoming RaD from Name: Jane Tan Company: Noci Bakehouse email jane@noci.example phone +65 9123 4567 assign <@UAE123>",
+                        }
+                    ],
+                }
+            if method == "chat.getPermalink":
+                return {"ok": True, "permalink": "https://staffany.slack.com/archives/C123/p1770000000000001"}
+            raise AssertionError(f"unexpected method {method}")
+
+        with patch.dict(
+            os.environ,
+            {"SLACK_BOT_TOKEN": "test-bot-token", "NURTUREANY_INBOUND_ALERT_CHANNEL_IDS": "C123"},
+            clear=True,
+        ), patch.object(self.module, "_slack_api", side_effect=fake_slack_api):
+            result = self.module.extract_inbound_lead_alerts("C123", current_ts="1770000001.000000", limit=99)
+
+        alert = result["answer"]["alerts"][0]
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["answer"]["message_count"], 1)
+        self.assertFalse(result["answer"]["will_mutate_slack"])
+        self.assertFalse(result["answer"]["transcript_persisted"])
+        self.assertEqual(alert["source"], "RaD")
+        self.assertEqual(alert["tagged_slack_user_ids"], ["UAE123"])
+        self.assertEqual(alert["lead_hints"]["email_domain"], "noci.example")
+        self.assertEqual(alert["lead_hints"]["phone_hint"], "masked_last4:4567")
+        self.assertNotIn("+65 9123 4567", str(result))
+        self.assertNotIn("jane@noci.example", str(result))
+        self.assertIn("chat.getPermalink", [call[0] for call in calls])
+
+    def test_inbound_alert_extraction_auto_joins_configured_public_channel(self):
+        history_attempts = 0
+
+        def fake_slack_api(method, params):
+            nonlocal history_attempts
+            if method == "conversations.info":
+                return {"ok": True, "channel": {"id": params["channel"], "is_channel": True, "is_private": False}}
+            if method == "conversations.history":
+                history_attempts += 1
+                if history_attempts == 1:
+                    raise self.module.SlackIntentError("Slack API returned error: not_in_channel")
+                return {"ok": True, "messages": [{"ts": "1770000000.000001", "user": "U123", "text": "WhatsApp inbound <@UAE123>"}]}
+            if method == "conversations.join":
+                return {"ok": True, "channel": {"id": params["channel"], "is_channel": True, "is_private": False}}
+            if method == "chat.getPermalink":
+                return {"ok": True, "permalink": "https://staffany.slack.com/archives/C123/p1770000000000001"}
+            raise AssertionError(f"unexpected method {method}")
+
+        with patch.dict(
+            os.environ,
+            {"SLACK_BOT_TOKEN": "test-bot-token", "NURTUREANY_INBOUND_ALERT_CHANNEL_IDS": "C123"},
+            clear=True,
+        ), patch.object(self.module, "_slack_api", side_effect=fake_slack_api):
+            result = self.module.extract_inbound_lead_alerts("C123", current_ts="1770000001.000000")
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertTrue(result["answer"]["joined_public_channel"])
+        self.assertEqual(result["answer"]["alerts"][0]["source"], "WhatsApp")
 
     def test_standup_audit_missing_allowlist_blocks_without_network(self):
         with patch.dict(os.environ, {"SLACK_BOT_TOKEN": "test-bot-token"}, clear=True), patch(

@@ -6144,6 +6144,192 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         self.assertFalse(result["answer"]["will_mutate_hubspot"])
         self.assertEqual(result["answer"]["duplicate_summary"][0]["alert_count"], 2)
 
+    def test_resolve_inbound_slack_alerts_classifies_verified_candidate_unmatched_and_customer_exclusion(self):
+        threads = [
+            {
+                "id": "thread-customer",
+                "status": "OPEN",
+                "associatedContactId": "contact-customer",
+                "createdAt": "2026-05-11T03:54:51Z",
+                "latestMessageTimestamp": "2026-05-11T03:55:00Z",
+                "latestMessageReceivedTimestamp": "2026-05-11T03:54:51Z",
+                "threadAssociations": {"associatedTicketId": "ticket-customer"},
+            },
+            {
+                "id": "thread-prospect",
+                "status": "OPEN",
+                "associatedContactId": "contact-prospect",
+                "createdAt": "2026-05-11T04:00:00Z",
+                "latestMessageTimestamp": "2026-05-11T04:01:00Z",
+                "latestMessageReceivedTimestamp": "2026-05-11T04:00:00Z",
+                "threadAssociations": {"associatedTicketId": "ticket-prospect"},
+            },
+        ]
+
+        def access_context(thread, scope):
+            if thread["id"] == "thread-customer":
+                return {
+                    "allowed": True,
+                    "contact": {"id": "contact-customer", "properties": {"email": "buyer@customer.example", "firstname": "Buyer"}},
+                    "companies": [
+                        {
+                            "id": "company-customer",
+                            "properties": {
+                                "name": "Existing Customer",
+                                "domain": "customer.example",
+                                "company_country": "Singapore",
+                                "type": "CUSTOMER",
+                            },
+                        }
+                    ],
+                    "scope_status": "company_scoped",
+                    "associated_contact_id": "contact-customer",
+                    "associated_ticket_id": "ticket-customer",
+                }
+            return {
+                "allowed": True,
+                "contact": {"id": "contact-prospect", "properties": {"email": "owner@noci.example", "firstname": "Owner"}},
+                "companies": [
+                    {
+                        "id": "company-prospect",
+                        "properties": {
+                            "name": "Noci Bakehouse",
+                            "domain": "noci.example",
+                            "company_country": "Singapore",
+                            "type": "PROSPECT",
+                        },
+                    }
+                ],
+                "scope_status": "company_scoped",
+                "associated_contact_id": "contact-prospect",
+                "associated_ticket_id": "ticket-prospect",
+            }
+
+        alerts = [
+            {
+                "alert_id": "a-customer",
+                "alert_time": "2026-05-11T03:54:51Z",
+                "associated_contact_id": "contact-customer",
+                "lead_hints": {"company_name": "Existing Customer", "email_domain": "customer.example"},
+            },
+            {
+                "alert_id": "a-candidate",
+                "alert_time": "2026-05-11T04:00:30Z",
+                "lead_hints": {"company_name": "Noci Bakehouse", "email_domain": "noci.example", "phone_hint": "masked_last4:4567"},
+            },
+            {"alert_id": "a-unmatched", "alert_time": "2026-05-11T05:00:00Z", "lead_hints": {"company_name": "Unknown Cafe"}},
+        ]
+
+        with patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
+            self.module,
+            "_conversation_threads",
+            return_value={"results": threads, "requested_limit": 20, "returned_count": 2, "has_more": False, "truncated": False},
+        ), patch.object(self.module, "_marketing_access_context_for_thread", side_effect=access_context):
+            result = self.module.resolve_inbound_slack_alerts_to_hubspot(
+                "kerren.fong@staffany.com", alerts, exclude_existing_customers=True
+            )
+
+        answer = result["answer"]
+        self.assertEqual(answer["match_summary"]["excluded_existing_customer_count"], 1)
+        self.assertEqual(answer["match_summary"]["candidate_count"], 1)
+        self.assertEqual(answer["match_summary"]["unmatched_count"], 1)
+        self.assertEqual(answer["candidate_alerts"][0]["match_status"], "candidate")
+        self.assertEqual(answer["candidate_alerts"][0]["account_status"], "prospect")
+        self.assertEqual(answer["candidate_alerts"][0]["lead_context"]["phone_hint"], "masked_last4:4567")
+        self.assertEqual(answer["excluded_existing_customer_alerts"][0]["account_status"], "customer")
+        self.assertFalse(answer["will_mutate_hubspot"])
+
+    def test_audit_inbound_sla_resolves_alerts_excludes_customers_and_flags_manual_touch(self):
+        threads = [
+            {
+                "id": "thread-customer",
+                "status": "OPEN",
+                "associatedContactId": "contact-customer",
+                "createdAt": "2026-05-11T03:54:51Z",
+                "latestMessageTimestamp": "2026-05-11T04:00:00Z",
+                "latestMessageReceivedTimestamp": "2026-05-11T03:54:51Z",
+                "threadAssociations": {"associatedTicketId": "ticket-customer"},
+            },
+            {
+                "id": "thread-prospect",
+                "status": "OPEN",
+                "associatedContactId": "contact-prospect",
+                "createdAt": "2026-05-11T04:10:00Z",
+                "latestMessageTimestamp": "2026-05-11T04:12:00Z",
+                "latestMessageReceivedTimestamp": "2026-05-11T04:10:00Z",
+                "threadAssociations": {"associatedTicketId": "ticket-prospect"},
+            },
+        ]
+
+        def access_context(thread, scope):
+            is_customer = thread["id"] == "thread-customer"
+            return {
+                "allowed": True,
+                "contact": {"id": thread["associatedContactId"], "properties": {"email": "buyer@noci.example"}},
+                "companies": [
+                    {
+                        "id": "company-customer" if is_customer else "company-prospect",
+                        "properties": {
+                            "name": "Existing Customer" if is_customer else "Noci Bakehouse",
+                            "domain": "customer.example" if is_customer else "noci.example",
+                            "company_country": "Singapore",
+                            "type": "CUSTOMER" if is_customer else "PROSPECT",
+                            "hubspot_owner_id": "owner-1",
+                        },
+                    }
+                ],
+                "scope_status": "company_scoped",
+                "associated_contact_id": thread["associatedContactId"],
+                "associated_ticket_id": thread["threadAssociations"]["associatedTicketId"],
+            }
+
+        alerts = [
+            {"alert_id": "a-customer", "alert_time": "2026-05-11T03:54:51Z", "associated_contact_id": "contact-customer"},
+            {"alert_id": "a-prospect", "alert_time": "2026-05-11T04:10:00Z", "associated_contact_id": "contact-prospect"},
+        ]
+
+        with patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
+            self.module,
+            "_conversation_threads",
+            return_value={"results": threads, "requested_limit": 20, "returned_count": 2, "has_more": False, "truncated": False},
+        ), patch.object(self.module, "_marketing_access_context_for_thread", side_effect=access_context), patch.object(
+            self.module,
+            "_conversation_messages",
+            return_value={
+                "results": [
+                    {"id": "message-1", "direction": "INCOMING", "createdAt": "2026-05-11T04:10:00Z", "text": "Can I book a RaD demo?"},
+                    {"id": "message-2", "direction": "OUTGOING", "createdAt": "2026-05-11T04:12:00Z", "text": "Automated reply"},
+                ],
+                "requested_limit": 100,
+                "returned_count": 2,
+                "has_more": False,
+                "truncated": False,
+            },
+        ), patch.object(
+            self.module,
+            "_inbound_activity_snapshot_for_thread",
+            return_value={
+                "first_customer_touch_at": "",
+                "latest_activity_at": "",
+                "activity_counts": {"whatsapp_communications": 0, "completed_calls": 0, "notes": 0, "completed_tasks": 0, "meetings": 0},
+                "deal_stage_status": "needs-check",
+                "truncated": False,
+            },
+        ), patch.object(self.module, "_owner_email_by_id", return_value="jeremy.wong@staffany.com"):
+            result = self.module.audit_inbound_sla(
+                "kerren.fong@staffany.com",
+                slack_alerts=alerts,
+                exclude_existing_customers=True,
+            )
+
+        rows = result["answer"]["audit_rows"]
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["hubspot_thread_id"], "thread-prospect")
+        self.assertEqual(rows[0]["first_touch_source"], "hubspot_conversations_outbound")
+        self.assertEqual(rows[0]["manual_ae_touch_status"], "needs-check")
+        self.assertEqual(result["answer"]["rollup"]["excluded_existing_customer_count"], 1)
+        self.assertEqual(result["answer"]["match_summary"]["excluded_existing_customer_count"], 1)
+
     def test_audit_inbound_sla_with_slack_only_alerts_skips_hubspot_scan(self):
         slack_alerts = [
             {
@@ -6171,7 +6357,7 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         with patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
             self.module, "_conversation_threads"
         ) as conversation_threads:
-            result = self.module.audit_inbound_sla("kerren.fong@staffany.com", slack_alerts=slack_alerts)
+            result = self.module.audit_inbound_sla("kerren.fong@staffany.com", slack_alerts=slack_alerts, resolve_slack_alerts=False)
 
         conversation_threads.assert_not_called()
         self.assertEqual(result["scope"]["hubspot_match_mode"], "skipped_no_safe_ids")

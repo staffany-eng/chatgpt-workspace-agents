@@ -63,9 +63,9 @@ profiles:
       blocked_until_member_channel_ids: [C06CD9B6LDU, C06V8DS1B7B]
       report_prefix: "NurtureAny automation:"
     required_mcp:
-      slack_nurtureany: 4
+      slack_nurtureany: 5
       staffany_bigquery: 4
-      hubspot_nurtureany: 54
+      hubspot_nurtureany: 55
       google_calendar_nurtureany: 2
       google_drive_nurtureany: 5
       eazybe_nurtureany: 4

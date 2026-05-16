@@ -1008,13 +1008,15 @@ Expected behavior:
 
 - First response is plan-only and says it will use `audit_inbound_sla`.
 - After `run`, an approved rerun, or a same-thread correction with clear scope, calls `audit_inbound_sla` and returns the thread response format: `Owner: <name> | Status: acknowledged / called / reassigned / set / blocked | Next step: <action> | ETA: <time>`.
+- For inbound-channel prompts such as `past 10 inbound leads, exclude existing clients`, calls `extract_inbound_lead_alerts` for `#team-rev-bd-inbound-leads`, then `resolve_inbound_slack_alerts_to_hubspot`, then `audit_inbound_sla(resolve_slack_alerts=true, exclude_existing_customers=true)`.
 - Uses default SLA of 5-minute owner acknowledgement and 15-minute first customer touch unless the user provides another rule.
 - Treats elapsed minutes equal to the SLA target as pass, not as a separate boundary status.
 - Produces one row per safe Slack alert or HubSpot inbound thread, with duplicate group, assigned owner, backup owner, source, outcome, `sla_status`, `lead_context`, and `hubspot_gaps`.
 - Final per-alert Slack rows include `Context:` from safe contact/company/role/domain/summary metadata, or explicitly say context is missing and HubSpot match is needed.
 - Groups duplicates only when HubSpot confirms the same conversation thread, contact, ticket, or company; Slack-only "same person" hints or identical timestamps remain `needs-check` / duplicate candidates.
-- If no safe HubSpot IDs are present in the supplied Slack alerts, says HubSpot match was skipped/no safe IDs and does not claim a verified unique-lead count.
-- Does not auto-reassign, mutate HubSpot, paste raw Slack transcripts, expose phone numbers, expose raw HubSpot message bodies, or send external messages.
+- Excludes existing clients only when HubSpot verifies customer status from `type`, `lifecyclestage`, or `prospecting_account`; candidate or unmatched rows remain `needs-check`, not clean non-customers.
+- Does not label automated HubSpot outbound as manual AE action; reports `first_hubspot_outbound_at` separately from `manual_ae_touch_status`.
+- Does not auto-reassign, mutate HubSpot, paste raw Slack transcripts, expose raw phone numbers, expose raw HubSpot message bodies, or send external messages. Phone output is at most `phone_hint=masked_last4`.
 
 ### Event Attribution Guardrail
 

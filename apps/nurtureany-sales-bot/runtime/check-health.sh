@@ -9,9 +9,9 @@ EXPECT_GATEWAY="${EXPECT_GATEWAY:-1}"
 EXPECT_MODEL_AUTH="${EXPECT_MODEL_AUTH:-1}"
 EXPECT_MODEL_PROVIDER="${EXPECT_MODEL_PROVIDER:-anthropic}"
 EXPECT_MODEL_DEFAULT="${EXPECT_MODEL_DEFAULT:-claude-sonnet-4-6}"
-EXPECT_SLACK_INTENT_TOOLS="${EXPECT_SLACK_INTENT_TOOLS:-4}"
+EXPECT_SLACK_INTENT_TOOLS="${EXPECT_SLACK_INTENT_TOOLS:-5}"
 EXPECT_STAFFANY_BIGQUERY_TOOLS="${EXPECT_STAFFANY_BIGQUERY_TOOLS:-4}"
-EXPECT_HUBSPOT_TOOLS="${EXPECT_HUBSPOT_TOOLS:-54}"
+EXPECT_HUBSPOT_TOOLS="${EXPECT_HUBSPOT_TOOLS:-55}"
 EXPECT_AIRCALL_TOOLS="${EXPECT_AIRCALL_TOOLS:-4}"
 EXPECT_GOOGLE_CALENDAR_TOOLS="${EXPECT_GOOGLE_CALENDAR_TOOLS:-2}"
 EXPECT_GOOGLE_DRIVE_TOOLS="${EXPECT_GOOGLE_DRIVE_TOOLS:-5}"
@@ -243,6 +243,7 @@ expected_servers = {
         "read_recent_slack_intent_context",
         "get_current_slack_thread_context",
         "get_selected_slack_thread_context",
+        "extract_inbound_lead_alerts",
         "audit_standup_down_accountability",
     ],
     "staffany_bigquery": ["list_dataset_ids", "list_table_ids", "get_table_info", "execute_sql_readonly"],
@@ -250,6 +251,7 @@ expected_servers = {
         "list_inbound_threads",
         "get_inbound_thread_context",
         "audit_inbound_sla",
+        "resolve_inbound_slack_alerts_to_hubspot",
         "list_marketing_campaigns",
         "get_campaign_assets",
         "get_campaign_social_effectiveness",
@@ -532,6 +534,15 @@ thread_channels_raw = (
 thread_channels = [value.strip() for value in thread_channels_raw.split(",") if value.strip()]
 if not thread_channels:
     print("slack-thread-context:configured-channel-ids-missing")
+    raise SystemExit(1)
+inbound_channels_raw = (
+    os.environ.get("NURTUREANY_INBOUND_ALERT_CHANNEL_IDS")
+    or profile_env.get("NURTUREANY_INBOUND_ALERT_CHANNEL_IDS")
+    or ""
+)
+inbound_channels = [value.strip() for value in inbound_channels_raw.split(",") if value.strip()]
+if not inbound_channels:
+    print("slack-inbound-alert:configured-channel-ids-missing")
     raise SystemExit(1)
 
 

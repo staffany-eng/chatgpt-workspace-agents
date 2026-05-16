@@ -194,6 +194,77 @@
       }
     },
     {
+      "id": "nurtureany-tooltrace-inbound-channel-exclude-existing",
+      "bot": "NurtureAny Sales Bot",
+      "surface": "slack",
+      "lane": "tool-trace",
+      "input": "@NurtureAny run all, past 10 inbound leads, exclude existing clients, read company name and search HubSpot stage is not customer",
+      "setup": {
+        "after_run": true,
+        "stub_tools": true,
+        "channel_id": "CM1A8UE6Q"
+      },
+      "expected_tool_trace": {
+        "must_call": [
+          "extract_inbound_lead_alerts",
+          "resolve_inbound_slack_alerts_to_hubspot",
+          "audit_inbound_sla"
+        ],
+        "forbidden_tools": [
+          "manual_table_computation",
+          "list_inbound_threads_only",
+          "raw_slack_history_export"
+        ],
+        "argument_shape": {
+          "channel_id": "CM1A8UE6Q",
+          "limit": 10,
+          "resolve_slack_alerts": true,
+          "exclude_existing_customers": true,
+          "raw_slack_transcript": "forbidden",
+          "raw_phone_number": "forbidden"
+        }
+      },
+      "expected_answer_contract": {
+        "must_include": [
+          "company/customer status",
+          "assigned AE",
+          "first real touch",
+          "Source:",
+          "Scope:",
+          "Confidence:",
+          "Caveat:"
+        ]
+      },
+      "forbidden_behavior": [
+        "manual table computation",
+        "raw Slack transcripts",
+        "raw phone numbers",
+        "raw HubSpot bodies",
+        "treat candidate or unmatched rows as verified non-customers",
+        "label automated HubSpot outbound as manual AE action"
+      ],
+      "grade_notes": "Inbound-channel exclude-existing runs must use Slack extraction, HubSpot resolver, then audit_inbound_sla. Existing clients are excluded only when HubSpot verifies customer status.",
+      "assertions": {
+        "source_files": [
+          {
+            "path": "profile/SOUL.md",
+            "must_contain": [
+              "extract_inbound_lead_alerts",
+              "resolve_inbound_slack_alerts_to_hubspot",
+              "exclude_existing_customers=<true only when requested>"
+            ]
+          },
+          {
+            "path": "tests/regression-cases.md",
+            "must_contain": [
+              "past 10 inbound leads, exclude existing clients",
+              "manual_ae_touch_status"
+            ]
+          }
+        ]
+      }
+    },
+    {
       "id": "nurtureany-tooltrace-social-only-campaign",
       "bot": "NurtureAny Sales Bot",
       "surface": "slack",

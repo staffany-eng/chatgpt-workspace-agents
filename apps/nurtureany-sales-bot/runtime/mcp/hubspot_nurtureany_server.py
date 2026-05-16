@@ -10356,6 +10356,7 @@ def _safe_marketing_company_summary(company: dict[str, Any] | None) -> dict[str,
     if not company:
         return {}
     props = company.get("properties", {})
+    account_status = _account_status_from_props(props)
     return {
         "company_id": str(company.get("id") or ""),
         "hubspot_scoped": True,
@@ -10366,6 +10367,7 @@ def _safe_marketing_company_summary(company: dict[str, Any] | None) -> dict[str,
         "owner_id": props.get("hubspot_owner_id") or "",
         "target_account": str(props.get("hs_is_target_account") or "").lower() == "true",
         "campaign": props.get("campaign") or "",
+        **account_status,
     }
 
 
@@ -10600,7 +10602,13 @@ def _safe_inbound_source(value: Any) -> str:
 
 def _inbound_alert_datetime(alert: dict[str, Any], *keys: str) -> datetime | None:
     for key in keys:
-        parsed = _datetime_value(str(alert.get(key) or ""))
+        raw_value = str(alert.get(key) or "").strip()
+        parsed = _datetime_value(raw_value)
+        if not parsed and re.fullmatch(r"\d{10}(?:\.\d{1,6})?", raw_value):
+            try:
+                parsed = datetime.fromtimestamp(float(raw_value), timezone.utc)
+            except (TypeError, ValueError, OSError):
+                parsed = None
         if parsed:
             return parsed
     return None
@@ -10664,6 +10672,8 @@ def _normalize_inbound_alert(raw_alert: dict[str, Any], index: int) -> dict[str,
         "eta": _inbound_alert_string(raw_alert, "eta"),
         "outcome": _inbound_alert_string(raw_alert, "outcome") or "needs-check",
         "duplicate_group_hint": _inbound_alert_string(raw_alert, "duplicate_group", "duplicate_hint"),
+        "permalink": _inbound_alert_string(raw_alert, "permalink", "slack_permalink"),
+        "tagged_slack_user_ids": _string_list(raw_alert.get("tagged_slack_user_ids")),
         "lead_context": _safe_inbound_lead_context(raw_alert),
     }
 
@@ -10739,19 +10749,31 @@ def _inbound_duplicate_group(alert: dict[str, Any] | None, thread_summary: dict[
 
 def _safe_inbound_lead_context(raw_alert: dict[str, Any]) -> dict[str, Any]:
     """Keep inbound audit rows actionable without exposing phone numbers or raw bodies."""
-    contact_name = _inbound_alert_string(raw_alert, "contact_name", "lead_name", "name")
-    company_name = _inbound_alert_string(raw_alert, "company_name", "company", "account_name", "lead_company")
-    role = _inbound_alert_string(raw_alert, "contact_role", "jobtitle", "job_title", "title", "persona")
-    email_domain = _inbound_alert_string(raw_alert, "email_domain", "domain", "company_domain")
+    lead_hints = raw_alert.get("lead_hints") if isinstance(raw_alert.get("lead_hints"), dict) else {}
+    contact_name = _inbound_alert_string(raw_alert, "contact_name", "lead_name", "name") or str(
+        lead_hints.get("contact_name") or ""
+    ).strip()
+    company_name = _inbound_alert_string(raw_alert, "company_name", "company", "account_name", "lead_company") or str(
+        lead_hints.get("company_name") or ""
+    ).strip()
+    role = _inbound_alert_string(raw_alert, "contact_role", "jobtitle", "job_title", "title", "persona") or str(
+        lead_hints.get("contact_role") or ""
+    ).strip()
+    email_domain = _inbound_alert_string(raw_alert, "email_domain", "domain", "company_domain") or str(
+        lead_hints.get("email_domain") or ""
+    ).strip()
     summary = _safe_activity_label(
-        _inbound_alert_string(raw_alert, "lead_context", "context", "summary", "safe_context", "lead_summary"),
+        _inbound_alert_string(raw_alert, "lead_context", "context", "summary", "safe_context", "lead_summary")
+        or str(lead_hints.get("summary") or ""),
         180,
     )
     phone_status = (
         "redacted"
         if _inbound_alert_string(raw_alert, "phone", "phone_number", "mobile", "mobile_number", "whatsapp_number")
+        or str(lead_hints.get("phone_hint") or raw_alert.get("phone_hint") or "").strip()
         else "not_supplied"
     )
+    phone_hint = str(lead_hints.get("phone_hint") or raw_alert.get("phone_hint") or "").strip()
     has_context = bool(contact_name or company_name or role or email_domain or summary)
     return {
         "contact_name": contact_name,
@@ -10759,6 +10781,7 @@ def _safe_inbound_lead_context(raw_alert: dict[str, Any]) -> dict[str, Any]:
         "contact_role": role,
         "email_domain": email_domain,
         "summary": summary,
+        "phone_hint": phone_hint if phone_hint.startswith("masked_last4:") else "",
         "phone_number_status": phone_status,
         "context_status": "provided" if has_context else "missing",
     }
@@ -10955,6 +10978,22 @@ def _inbound_thread_audit_row(
     owner_from_company = ""
     if company_summaries:
         owner_from_company = company_summaries[0].get("owner_email") or _owner_email_by_id(company_summaries[0].get("owner_id"))
+    activity_counts = activity_snapshot.get("activity_counts", {})
+    if (alert or {}).get("first_customer_touch_time"):
+        first_touch_source = "slack_alert_metadata"
+    elif activity_snapshot.get("first_customer_touch_at"):
+        first_touch_source = "hubspot_activity"
+    elif message_timing.get("first_outbound_at"):
+        first_touch_source = "hubspot_conversations_outbound"
+    else:
+        first_touch_source = "missing"
+    manual_ae_touch_status = (
+        "verified"
+        if (alert or {}).get("first_customer_touch_time")
+        or _int_value(activity_counts.get("completed_calls"))
+        or _int_value(activity_counts.get("meetings"))
+        else "needs-check"
+    )
     return {
         "alert_id": (alert or {}).get("alert_id") or f"hubspot:{thread_summary.get('thread_id')}",
         "hubspot_thread_id": thread_summary.get("thread_id") or "",
@@ -10962,6 +11001,9 @@ def _inbound_thread_audit_row(
         "owner_tagged_time": _safe_datetime_string((alert or {}).get("owner_tagged_time")),
         "owner_ack_time": _safe_datetime_string(owner_ack_time),
         "first_customer_touch_time": _safe_datetime_string(first_touch_time),
+        "first_hubspot_outbound_at": message_timing.get("first_outbound_at") or "",
+        "first_touch_source": first_touch_source,
+        "manual_ae_touch_status": manual_ae_touch_status,
         "outcome_time": _safe_datetime_string((alert or {}).get("outcome_time")),
         "assigned_owner": (alert or {}).get("assigned_owner") or owner_from_company or str(thread_summary.get("assigned_to") or ""),
         "backup_owner_if_reassigned": (alert or {}).get("backup_owner_if_reassigned") or "",
@@ -11005,6 +11047,9 @@ def _inbound_alert_only_row(alert: dict[str, Any], ack_sla_minutes: int, first_t
         "owner_tagged_time": _safe_datetime_string(alert.get("owner_tagged_time")),
         "owner_ack_time": _safe_datetime_string(alert.get("owner_ack_time")),
         "first_customer_touch_time": _safe_datetime_string(alert.get("first_customer_touch_time")),
+        "first_hubspot_outbound_at": "",
+        "first_touch_source": "slack_alert_metadata" if alert.get("first_customer_touch_time") else "missing",
+        "manual_ae_touch_status": "verified" if alert.get("first_customer_touch_time") else "needs-check",
         "outcome_time": _safe_datetime_string(alert.get("outcome_time")),
         "assigned_owner": alert.get("assigned_owner") or "",
         "backup_owner_if_reassigned": alert.get("backup_owner_if_reassigned") or "",
@@ -11053,6 +11098,179 @@ def _duplicate_summary(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
             if name and name not in item["company_names"]:
                 item["company_names"].append(name)
     return sorted(grouped.values(), key=lambda item: (-item["alert_count"], item["duplicate_group"]))
+
+
+def _inbound_candidate_text_matches(alert: dict[str, Any], thread_summary: dict[str, Any]) -> list[str]:
+    context = alert.get("lead_context") or {}
+    reasons: list[str] = []
+    contact = thread_summary.get("contact") or {}
+    companies = thread_summary.get("companies") or []
+    contact_name = _normalize_company_match_text(context.get("contact_name") or "")
+    thread_contact_name = _normalize_company_match_text(contact.get("display_name") or "")
+    if contact_name and thread_contact_name and (
+        contact_name == thread_contact_name or contact_name in thread_contact_name or thread_contact_name in contact_name
+    ):
+        reasons.append("contact_name_hint")
+    email_domain = _clean_domain(str(context.get("email_domain") or ""))
+    thread_email_domain = _clean_domain(str(contact.get("email_domain") or ""))
+    if email_domain and thread_email_domain and email_domain == thread_email_domain:
+        reasons.append("email_domain_hint")
+    company_hint = _normalize_company_match_text(context.get("company_name") or "")
+    for company in companies:
+        company_name = _normalize_company_match_text(company.get("name") or "")
+        company_domain = _clean_domain(str(company.get("domain") or ""))
+        if company_hint and company_name and (
+            company_hint == company_name or company_hint in company_name or company_name in company_hint
+        ):
+            reasons.append("company_name_hint")
+        if email_domain and company_domain and email_domain == company_domain:
+            reasons.append("company_domain_hint")
+    return sorted(set(reasons))
+
+
+def _inbound_alert_near_thread(alert: dict[str, Any], thread_summary: dict[str, Any], window_minutes: int = 7 * 24 * 60) -> bool:
+    alert_time = alert.get("alert_time")
+    if not alert_time:
+        return True
+    thread_time = _datetime_value(
+        thread_summary.get("latest_received_at")
+        or thread_summary.get("created_at")
+        or thread_summary.get("latest_message_at")
+        or ""
+    )
+    if not thread_time:
+        return True
+    return abs((thread_time - alert_time).total_seconds()) <= window_minutes * 60
+
+
+def _inbound_alert_record(
+    alert: dict[str, Any],
+    match_status: str,
+    match_reason: str,
+    thread_summary: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    thread_summary = thread_summary or {}
+    companies = thread_summary.get("companies") or []
+    first_company = companies[0] if companies else {}
+    customer_status = "excluded_existing_customer" if first_company.get("account_status") == "customer" else "included_or_needs_check"
+    if match_status != "verified":
+        customer_status = "needs-check"
+    return {
+        "alert_id": alert.get("alert_id") or "",
+        "permalink": alert.get("permalink") or "",
+        "alert_time": _safe_datetime_string(alert.get("alert_time")),
+        "source": alert.get("source") or "other",
+        "assigned_owner": alert.get("assigned_owner") or "",
+        "tagged_slack_user_ids": list(alert.get("tagged_slack_user_ids") or []),
+        "lead_context": alert.get("lead_context") or _safe_inbound_lead_context({}),
+        "match_status": match_status,
+        "match_reason": match_reason,
+        "hubspot_thread_id": thread_summary.get("thread_id") or "",
+        "associated_contact_id": thread_summary.get("associated_contact_id") or "",
+        "associated_ticket_id": thread_summary.get("associated_ticket_id") or "",
+        "company_ids": [company.get("company_id") for company in companies if company.get("company_id")],
+        "company_name": first_company.get("name") or "",
+        "account_status": first_company.get("account_status") or "unknown",
+        "account_status_source": first_company.get("account_status_source") or "HubSpot company status unavailable",
+        "customer_exclusion_status": customer_status,
+    }
+
+
+def _merge_verified_inbound_alert(alert: dict[str, Any], resolution: dict[str, Any]) -> dict[str, Any]:
+    merged = dict(alert)
+    if resolution.get("hubspot_thread_id"):
+        merged["hubspot_thread_id"] = resolution["hubspot_thread_id"]
+    if resolution.get("associated_contact_id"):
+        merged["associated_contact_id"] = resolution["associated_contact_id"]
+    if resolution.get("associated_ticket_id"):
+        merged["associated_ticket_id"] = resolution["associated_ticket_id"]
+    if resolution.get("company_ids"):
+        merged["company_ids"] = resolution["company_ids"]
+    return merged
+
+
+def _resolve_inbound_alerts_with_threads(
+    scope: dict[str, Any],
+    normalized_alerts: list[dict[str, Any]],
+    thread_status: str = "ANY",
+    inbox_id: str = "",
+    latest_message_after: str = "",
+    limit: int = 20,
+    exclude_existing_customers: bool = False,
+) -> dict[str, Any]:
+    params = {
+        "association": "TICKET",
+        "archived": "false",
+        "sort": "latestMessageTimestamp",
+        "latestMessageTimestampAfter": latest_message_after or _default_latest_message_after(),
+        "inboxId": str(inbox_id or ""),
+    }
+    alert_limit = _bounded_int(limit, default=20, maximum=INBOUND_THREAD_RETURN_LIMIT)
+    data = _conversation_threads(params, min(INBOUND_THREAD_RETURN_LIMIT, max(alert_limit, 20)))
+    requested_status = str(thread_status or "").strip().upper()
+    thread_summaries: list[dict[str, Any]] = []
+    inaccessible_count = 0
+    unresolved_scope_count = 0
+    for thread in sorted(data.get("results", []), key=_thread_sort_value, reverse=True):
+        if requested_status and requested_status != "ANY" and str(thread.get("status") or "").upper() != requested_status:
+            continue
+        access_context = _marketing_access_context_for_thread(thread, scope)
+        if not access_context["allowed"]:
+            inaccessible_count += 1
+            continue
+        if access_context.get("scope_status") == "unresolved_company_scope":
+            unresolved_scope_count += 1
+        thread_summaries.append(_safe_thread_summary(thread, access_context))
+
+    resolved_alerts: list[dict[str, Any]] = []
+    candidate_alerts: list[dict[str, Any]] = []
+    unmatched_alerts: list[dict[str, Any]] = []
+    excluded_existing_customer_alerts: list[dict[str, Any]] = []
+    merged_alerts: list[dict[str, Any]] = []
+    for alert in normalized_alerts:
+        verified_summary = next((summary for summary in thread_summaries if _alert_matches_thread(alert, summary)), None)
+        if verified_summary:
+            record = _inbound_alert_record(alert, "verified", "safe_hubspot_id_match", verified_summary)
+            if exclude_existing_customers and record.get("account_status") == "customer":
+                excluded_existing_customer_alerts.append(record)
+                continue
+            resolved_alerts.append(record)
+            merged_alerts.append(_merge_verified_inbound_alert(alert, record))
+            continue
+
+        candidate_records: list[dict[str, Any]] = []
+        for summary in thread_summaries:
+            reasons = _inbound_candidate_text_matches(alert, summary)
+            if reasons and _inbound_alert_near_thread(alert, summary):
+                candidate_records.append(_inbound_alert_record(alert, "candidate", ",".join(reasons), summary))
+        if candidate_records:
+            candidate_alerts.extend(candidate_records[:3])
+            merged_alerts.append(alert)
+            continue
+
+        unmatched_alerts.append(_inbound_alert_record(alert, "unmatched", "no_safe_id_or_bounded_hint_match"))
+        merged_alerts.append(alert)
+
+    return {
+        "resolved_alerts": resolved_alerts,
+        "candidate_alerts": candidate_alerts,
+        "unmatched_alerts": unmatched_alerts,
+        "excluded_existing_customer_alerts": excluded_existing_customer_alerts,
+        "merged_alerts": merged_alerts,
+        "match_summary": {
+            "input_alert_count": len(normalized_alerts),
+            "verified_count": len(resolved_alerts),
+            "candidate_count": len(candidate_alerts),
+            "unmatched_count": len(unmatched_alerts),
+            "excluded_existing_customer_count": len(excluded_existing_customer_alerts),
+            "thread_scan_count": len(thread_summaries),
+            "inaccessible_thread_count": inaccessible_count,
+            "unresolved_scope_count": unresolved_scope_count,
+            "truncated": bool(data.get("truncated")),
+        },
+        "thread_data": data,
+        "latest_message_after": params["latestMessageTimestampAfter"],
+    }
 
 
 def _inbound_audit_rollup(rows: list[dict[str, Any]], truncated: bool) -> dict[str, Any]:
@@ -11658,6 +11876,69 @@ def get_inbound_thread_context(slack_user_email: str, thread_id: str, message_li
 
 
 @mcp.tool()
+def resolve_inbound_slack_alerts_to_hubspot(
+    slack_user_email: str,
+    slack_alerts: list[dict[str, Any]],
+    thread_status: str = "ANY",
+    inbox_id: str = "",
+    latest_message_after: str = "",
+    limit: int = 20,
+    exclude_existing_customers: bool = False,
+) -> dict[str, Any]:
+    """Resolve safe Slack inbound alert rows to HubSpot conversations, contacts, and companies."""
+
+    try:
+        scope = _caller_scope(slack_user_email)
+        if scope["kind"] == "blocked":
+            return _blocked("Caller identity is not mapped to an allowed scope.", {"caller_email": slack_user_email})
+        if not isinstance(slack_alerts, list):
+            return _blocked("slack_alerts must be a list of safe Slack alert metadata objects.", _scope_response(scope, list(scope.get("countries", ()))))
+        normalized_alerts = [
+            _normalize_inbound_alert(alert, index)
+            for index, alert in enumerate(slack_alerts[:INBOUND_SLA_ALERT_RETURN_LIMIT])
+            if isinstance(alert, dict)
+        ]
+        resolution = _resolve_inbound_alerts_with_threads(
+            scope,
+            normalized_alerts,
+            thread_status=thread_status,
+            inbox_id=inbox_id,
+            latest_message_after=latest_message_after,
+            limit=limit,
+            exclude_existing_customers=exclude_existing_customers,
+        )
+        summary = resolution["match_summary"]
+        confidence = "needs-check" if summary["candidate_count"] or summary["unmatched_count"] or summary["truncated"] else "verified"
+        return {
+            "answer": {
+                "resolved_alerts": resolution["resolved_alerts"],
+                "candidate_alerts": resolution["candidate_alerts"],
+                "unmatched_alerts": resolution["unmatched_alerts"],
+                "excluded_existing_customer_alerts": resolution["excluded_existing_customer_alerts"],
+                "match_summary": summary,
+                "will_mutate_hubspot": False,
+                "external_message_sending": False,
+            },
+            "source": "HubSpot Conversations, contacts, and companies matched from safe Slack alert metadata",
+            "scope": {
+                **_scope_response(scope, list(scope.get("countries", ()))),
+                "thread_status": str(thread_status or "").strip().upper() or "ANY",
+                "inbox_id": inbox_id,
+                "latest_message_after": resolution["latest_message_after"],
+                "exclude_existing_customers": bool(exclude_existing_customers),
+            },
+            "requested_limit": _bounded_int(limit, default=20, maximum=INBOUND_THREAD_RETURN_LIMIT),
+            "returned_count": summary["verified_count"] + summary["candidate_count"] + summary["unmatched_count"],
+            "has_more": resolution["thread_data"].get("has_more"),
+            "truncated": bool(summary["truncated"]),
+            "confidence": confidence,
+            "caveat": "Verified requires safe HubSpot ID/thread evidence. Name, company, domain, and timestamp hints remain candidates; no HubSpot mutation or external message send was performed.",
+        }
+    except HubSpotError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email})
+
+
+@mcp.tool()
 def audit_inbound_sla(
     slack_user_email: str,
     slack_alerts: list[dict[str, Any]] | None = None,
@@ -11668,6 +11949,8 @@ def audit_inbound_sla(
     ack_sla_minutes: int = INBOUND_SLA_DEFAULT_ACK_MINUTES,
     first_touch_sla_minutes: int = INBOUND_SLA_DEFAULT_FIRST_TOUCH_MINUTES,
     duplicate_window_minutes: int = INBOUND_SLA_DEFAULT_DUPLICATE_WINDOW_MINUTES,
+    resolve_slack_alerts: bool = True,
+    exclude_existing_customers: bool = False,
 ) -> dict[str, Any]:
     """Audit inbound alert ownership, first touch SLA, and duplicate groups without mutating HubSpot."""
 
@@ -11691,7 +11974,68 @@ def audit_inbound_sla(
             maximum=24 * 60,
         )
         alert_limit = _bounded_int(limit, default=20, maximum=INBOUND_THREAD_RETURN_LIMIT)
-        if normalized_alerts and not any(_alert_has_hubspot_match_key(alert) for alert in normalized_alerts):
+        resolution = None
+        if normalized_alerts and resolve_slack_alerts:
+            resolution = _resolve_inbound_alerts_with_threads(
+                scope,
+                normalized_alerts,
+                thread_status=thread_status,
+                inbox_id=inbox_id,
+                latest_message_after=latest_message_after,
+                limit=alert_limit,
+                exclude_existing_customers=exclude_existing_customers,
+            )
+            normalized_alerts = resolution["merged_alerts"]
+            if not normalized_alerts and resolution["excluded_existing_customer_alerts"]:
+                return {
+                    "answer": {
+                        "sla_policy": {
+                            "ack_sla_minutes": ack_sla,
+                            "first_touch_sla_minutes": first_touch_sla,
+                            "backup_rule": "If the assigned owner is silent, says later, or cannot touch now, Eugene can manually reassign to a backup owner.",
+                            "thread_response_format": "Owner: <name> | Status: acknowledged / called / reassigned / set / blocked | Next step: <action> | ETA: <time>",
+                        },
+                        "audit_rows": [],
+                        "duplicate_summary": [],
+                        "rollup": {
+                            "row_count": 0,
+                            "sla_pass_count": 0,
+                            "sla_miss_count": 0,
+                            "needs_check_count": 0,
+                            "duplicate_group_count": 0,
+                            "missing_hubspot_match_count": 0,
+                            "truncated": False,
+                            "excluded_existing_customer_count": len(resolution["excluded_existing_customer_alerts"]),
+                        },
+                        "resolved_inbound_alerts": resolution["resolved_alerts"],
+                        "candidate_inbound_alerts": resolution["candidate_alerts"],
+                        "unmatched_inbound_alerts": resolution["unmatched_alerts"],
+                        "excluded_existing_customer_alerts": resolution["excluded_existing_customer_alerts"],
+                        "match_summary": resolution["match_summary"],
+                        "will_mutate_hubspot": False,
+                        "external_message_sending": False,
+                    },
+                    "source": "HubSpot Conversations, HubSpot CRM activity, and supplied safe Slack alert metadata",
+                    "scope": {
+                        **_scope_response(scope, list(scope.get("countries", ()))),
+                        "thread_status": str(thread_status or "").strip().upper() or "ANY",
+                        "inbox_id": inbox_id,
+                        "latest_message_after": resolution["latest_message_after"],
+                        "slack_alert_count": len(slack_alerts or []),
+                        "ack_sla_minutes": ack_sla,
+                        "first_touch_sla_minutes": first_touch_sla,
+                        "duplicate_window_minutes": duplicate_window,
+                        "resolve_slack_alerts": True,
+                        "exclude_existing_customers": bool(exclude_existing_customers),
+                    },
+                    "requested_limit": alert_limit,
+                    "returned_count": 0,
+                    "has_more": resolution["thread_data"].get("has_more"),
+                    "truncated": bool(resolution["match_summary"].get("truncated")),
+                    "confidence": "verified",
+                    "caveat": "All supplied Slack alerts were verified HubSpot existing customers and excluded. No HubSpot mutation or external message send was performed.",
+                }
+        if normalized_alerts and not resolve_slack_alerts and not any(_alert_has_hubspot_match_key(alert) for alert in normalized_alerts):
             rows = [_inbound_alert_only_row(alert, ack_sla, first_touch_sla) for alert in normalized_alerts[:alert_limit]]
             rollup = _inbound_audit_rollup(rows, bool(len(normalized_alerts) > len(rows)))
             duplicate_summary = _duplicate_summary(rows)
@@ -11724,6 +12068,8 @@ def audit_inbound_sla(
                     "first_touch_sla_minutes": first_touch_sla,
                     "duplicate_window_minutes": duplicate_window,
                     "hubspot_match_mode": "skipped_no_safe_ids",
+                    "resolve_slack_alerts": False,
+                    "exclude_existing_customers": bool(exclude_existing_customers),
                 },
                 "requested_limit": alert_limit,
                 "returned_count": len(rows),
@@ -11826,6 +12172,8 @@ def audit_inbound_sla(
             or (normalized_alerts and len(normalized_alerts) > len(matched_alert_ids))
         )
         rollup = _inbound_audit_rollup(rows, truncated)
+        if resolution:
+            rollup["excluded_existing_customer_count"] = len(resolution["excluded_existing_customer_alerts"])
         duplicate_summary = _duplicate_summary(rows)
         confidence = "needs-check" if truncated or rollup["needs_check_count"] or rollup["missing_hubspot_match_count"] else "verified"
         return {
@@ -11839,6 +12187,11 @@ def audit_inbound_sla(
                 "audit_rows": rows,
                 "duplicate_summary": duplicate_summary,
                 "rollup": rollup,
+                "resolved_inbound_alerts": resolution["resolved_alerts"] if resolution else [],
+                "candidate_inbound_alerts": resolution["candidate_alerts"] if resolution else [],
+                "unmatched_inbound_alerts": resolution["unmatched_alerts"] if resolution else [],
+                "excluded_existing_customer_alerts": resolution["excluded_existing_customer_alerts"] if resolution else [],
+                "match_summary": resolution["match_summary"] if resolution else {},
                 "dedupe_rule": (
                     "Group duplicates by the same HubSpot conversation thread, contact, ticket, or company. "
                     f"Slack-only alerts without safe HubSpot IDs stay needs-check even inside the {duplicate_window}-minute review window."
@@ -11856,6 +12209,8 @@ def audit_inbound_sla(
                 "ack_sla_minutes": ack_sla,
                 "first_touch_sla_minutes": first_touch_sla,
                 "duplicate_window_minutes": duplicate_window,
+                "resolve_slack_alerts": bool(resolve_slack_alerts),
+                "exclude_existing_customers": bool(exclude_existing_customers),
             },
             "requested_limit": alert_limit,
             "returned_count": len(rows),

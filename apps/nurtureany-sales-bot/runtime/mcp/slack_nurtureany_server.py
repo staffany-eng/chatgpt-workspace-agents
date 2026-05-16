@@ -35,6 +35,10 @@ DEFAULT_LOOKBACK_MINUTES = 30
 DEFAULT_CONTEXT_LIMIT = 10
 MAX_THREAD_CONTEXT_MESSAGES = 50
 DEFAULT_THREAD_CONTEXT_LIMIT = 50
+MAX_INBOUND_ALERT_MESSAGES = 50
+MAX_INBOUND_ALERT_LOOKBACK_MINUTES = 30 * 24 * 60
+DEFAULT_INBOUND_ALERT_LIMIT = 10
+DEFAULT_INBOUND_ALERT_LOOKBACK_MINUTES = 7 * 24 * 60
 DEFAULT_STANDUP_LOOKBACK_DAYS = 30
 MAX_STANDUP_LOOKBACK_DAYS = 90
 MAX_STANDUP_AUDIT_MESSAGES = 2000
@@ -105,6 +109,22 @@ def _thread_scope(channel_id: str, thread_ts: str, limit: int, current_ts: str =
     }
 
 
+def _inbound_alert_scope(channel_id: str, thread_ts: str, current_ts: str, limit: int, lookback_minutes: int) -> dict[str, Any]:
+    return {
+        "channel_id": (channel_id or "").strip(),
+        "thread_ts": (thread_ts or "").strip(),
+        "current_ts": (current_ts or "").strip(),
+        "requested_limit": limit,
+        "lookback_minutes": lookback_minutes,
+        "max_inbound_alert_messages": MAX_INBOUND_ALERT_MESSAGES,
+        "read_only": True,
+        "transcript_persisted": False,
+        "configured_channels_only": True,
+        "public_channels_only": True,
+        "configured_public_channel_auto_join": True,
+    }
+
+
 def _standup_scope(channel_id: str, audit_date: str, timezone_name: str, roster_lookback_days: int) -> dict[str, Any]:
     return {
         "channel_id": (channel_id or "").strip(),
@@ -157,6 +177,10 @@ def _configured_thread_channel_ids() -> set[str]:
         "SLACK_ALLOWED_CHANNEL_IDS",
         "SLACK_HOME_CHANNEL",
     )
+
+
+def _configured_inbound_alert_channel_ids() -> set[str]:
+    return _channel_ids_from_env("NURTUREANY_INBOUND_ALERT_CHANNEL_IDS")
 
 
 def _configured_standup_channel_ids() -> set[str]:
@@ -241,6 +265,87 @@ def _safe_text(value: str) -> str:
     return text[:220]
 
 
+def _inbound_safe_text(value: str, limit: int = 220) -> str:
+    text = _safe_text(value)
+    text = re.sub(r"\b\d{3,}\b", "[number]", text)
+    return text[:limit]
+
+
+def _masked_phone_hint(value: str) -> str:
+    raw = str(value or "")
+    match = re.search(r"(?<!\w)(?:\+?\d[\d\s().-]{7,}\d)(?!\w)", raw)
+    if not match:
+        return ""
+    digits = re.sub(r"\D", "", match.group(0))
+    if len(digits) < 4:
+        return ""
+    return f"masked_last4:{digits[-4:]}"
+
+
+def _safe_hint_text(value: str, limit: int = 80) -> str:
+    text = str(value or "")
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = re.sub(r"[A-Z0-9._%+-]+@([A-Z0-9.-]+\.[A-Z]{2,})", r" \1 ", text, flags=re.IGNORECASE)
+    text = re.sub(r"(?<!\w)(?:\+?\d[\d\s().-]{7,}\d)(?!\w)", " ", text)
+    text = re.sub(r"[^A-Za-z0-9 .&'/-]", " ", text)
+    text = re.sub(r"\s+", " ", text).strip(" -")
+    return text[:limit].strip()
+
+
+def _normalized_words(value: str) -> str:
+    return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9]+", " ", str(value or "").lower())).strip()
+
+
+def _safe_inbound_source(value: str) -> str:
+    text = _normalized_words(value)
+    if not text:
+        return "other"
+    if "rad" in text or "request a demo" in text or "book a demo" in text:
+        return "RaD"
+    if "whatsapp" in text or "whats app" in text or "inbox message" in text:
+        return "WhatsApp"
+    if "payroll" in text and ("portal" in text or "current user" in text or "interest" in text):
+        return "portal payroll interest"
+    return "other"
+
+
+def _email_domain_hint(value: str) -> str:
+    match = re.search(r"[A-Z0-9._%+-]+@([A-Z0-9.-]+\.[A-Z]{2,})", str(value or ""), re.IGNORECASE)
+    return match.group(1).lower() if match else ""
+
+
+def _company_hint(value: str) -> str:
+    text = str(value or "")
+    patterns = [
+        r"\bcompany\s*[:=-]\s*([A-Za-z0-9 .&'/-]{2,80})",
+        r"\baccount\s*[:=-]\s*([A-Za-z0-9 .&'/-]{2,80})",
+        r"\bfrom\s+([A-Za-z0-9 .&'/-]{2,80})",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            return _safe_hint_text(match.group(1), 80)
+    return ""
+
+
+def _contact_hint(value: str) -> str:
+    text = str(value or "")
+    patterns = [
+        r"\bname\s*[:=-]\s*([A-Za-z .'-]{2,80})",
+        r"\blead\s*[:=-]\s*([A-Za-z .'-]{2,80})",
+        r"\bcontact\s*[:=-]\s*([A-Za-z .'-]{2,80})",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            return _safe_hint_text(match.group(1), 80)
+    return ""
+
+
+def _tagged_user_ids(value: str) -> list[str]:
+    return sorted(set(re.findall(r"<@(U[A-Z0-9]+)>", str(value or ""))))
+
+
 def _message_permalink(channel_id: str, ts: str) -> str:
     if not ts:
         return ""
@@ -270,6 +375,30 @@ def _safe_message(message: dict[str, Any], channel_id: str) -> dict[str, Any]:
         "is_bot": bool(message.get("bot_id") or message.get("subtype") == "bot_message"),
         "summary": _safe_text(str(message.get("text") or "")),
         "permalink": permalink,
+    }
+
+
+def _safe_inbound_alert_message(message: dict[str, Any], channel_id: str) -> dict[str, Any]:
+    ts = str(message.get("ts") or "")
+    text = str(message.get("text") or "")
+    permalink = _message_permalink(channel_id, ts)
+    return {
+        "alert_id": ts,
+        "slack_message_ts": ts,
+        "slack_thread_ts": str(message.get("thread_ts") or ts),
+        "alert_time": ts,
+        "permalink": permalink,
+        "source": _safe_inbound_source(text),
+        "tagged_slack_user_ids": _tagged_user_ids(text),
+        "redacted_summary": _inbound_safe_text(text),
+        "lead_hints": {
+            "contact_name": _contact_hint(text),
+            "company_name": _company_hint(text),
+            "email_domain": _email_domain_hint(text),
+            "summary": _inbound_safe_text(text, 160),
+            "phone_hint": _masked_phone_hint(text),
+        },
+        "phone_hint": _masked_phone_hint(text),
     }
 
 
@@ -331,6 +460,23 @@ def _history_messages_paginated_with_public_join(
         _join_public_channel(channel_id)
         messages, source, truncated = _history_messages_paginated(channel_id, latest, oldest, max_messages)
         return messages, f"{source} after Slack conversations.join", truncated
+
+
+def _history_messages_with_public_join(
+    channel_id: str,
+    latest: float,
+    oldest: float,
+    limit: int,
+) -> tuple[list[dict[str, Any]], str, bool]:
+    try:
+        messages, source = _history_messages(channel_id, latest, oldest, limit)
+        return messages, source, False
+    except SlackIntentError as error:
+        if "not_in_channel" not in str(error):
+            raise
+        _join_public_channel(channel_id)
+        messages, source = _history_messages(channel_id, latest, oldest, limit)
+        return messages, f"{source} after Slack conversations.join", True
 
 
 def _thread_messages(
@@ -614,6 +760,73 @@ def get_selected_slack_thread_context(permalink: str, limit: int = DEFAULT_THREA
         safe_limit = _clamp_int(limit, DEFAULT_THREAD_CONTEXT_LIMIT, 1, MAX_THREAD_CONTEXT_MESSAGES)
         return _blocked(str(error), _thread_scope("", "", safe_limit))
     return _thread_context(channel_id, thread_ts, "", limit)
+
+
+@mcp.tool()
+def extract_inbound_lead_alerts(
+    channel_id: str,
+    thread_ts: str = "",
+    current_ts: str = "",
+    limit: int = DEFAULT_INBOUND_ALERT_LIMIT,
+    lookback_minutes: int = DEFAULT_INBOUND_ALERT_LOOKBACK_MINUTES,
+) -> dict[str, Any]:
+    """Extract safe inbound lead alert metadata from one configured public Slack channel."""
+
+    safe_limit = _clamp_int(limit, DEFAULT_INBOUND_ALERT_LIMIT, 1, MAX_INBOUND_ALERT_MESSAGES)
+    safe_lookback = _clamp_int(
+        lookback_minutes,
+        DEFAULT_INBOUND_ALERT_LOOKBACK_MINUTES,
+        1,
+        MAX_INBOUND_ALERT_LOOKBACK_MINUTES,
+    )
+    scope = _inbound_alert_scope(channel_id, thread_ts, current_ts, safe_limit, safe_lookback)
+    channel = (channel_id or "").strip()
+    thread = (thread_ts or "").strip()
+    configured_channels = _configured_inbound_alert_channel_ids()
+    if not channel:
+        return _blocked("channel_id is required for Slack inbound alert extraction.", scope)
+    if not configured_channels:
+        return _blocked("NURTUREANY_INBOUND_ALERT_CHANNEL_IDS is required for Slack inbound alert extraction.", scope)
+    if channel not in configured_channels:
+        return _blocked("Slack inbound alert extraction is restricted to configured public inbound channel IDs.", scope)
+
+    latest = _ts_float(current_ts, time.time())
+    oldest = latest - (safe_lookback * 60)
+    try:
+        if not _is_public_channel(channel):
+            return _blocked("Slack inbound alert extraction supports configured public channels only.", scope)
+        if thread:
+            messages, source, joined_public_channel = _thread_messages_with_public_join(
+                channel, thread, latest, oldest, safe_limit
+            )
+        else:
+            messages, source, joined_public_channel = _history_messages_with_public_join(
+                channel, latest, oldest, safe_limit
+            )
+    except SlackIntentError as error:
+        return _blocked(str(error), scope)
+
+    messages = sorted(messages, key=_message_ts, reverse=True)[:safe_limit]
+    alerts = [_safe_inbound_alert_message(message, channel) for message in messages]
+    return {
+        "answer": {
+            "alerts": alerts,
+            "message_count": len(alerts),
+            "configured_channel": channel,
+            "will_mutate_slack": False,
+            "will_post_message": False,
+            "joined_public_channel": joined_public_channel,
+            "transcript_persisted": False,
+        },
+        "source": source,
+        "scope": scope,
+        "requested_limit": safe_limit,
+        "returned_count": len(alerts),
+        "has_more": False,
+        "truncated": False,
+        "confidence": "verified" if alerts else "needs-check",
+        "caveat": "Safe alert metadata only. Slack is alert/assignment context; HubSpot remains customer and SLA source of truth.",
+    }
 
 
 @mcp.tool()
