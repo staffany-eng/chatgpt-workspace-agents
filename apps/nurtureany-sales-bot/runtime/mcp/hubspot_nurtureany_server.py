@@ -276,6 +276,11 @@ KNS_NETWORK_TERMS = (
     "peer",
     "industry peer",
     "peer matching",
+    "retail hr leaders",
+    "hr leaders solving",
+    "similar operators",
+    "similar business challenges",
+    "similar manpower challenges",
     "founder",
     "operator",
     "referral",
@@ -302,6 +307,8 @@ KNS_NETWORK_TERMS = (
     "employer branding",
     "joint event",
     "operational learning",
+    "permission before intro",
+    "mutual value",
 )
 KNS_NETWORK_EVENT_TERMS = (
     "event",
@@ -355,12 +362,9 @@ KNS_SUPPORT_TERMS = (
     "demo",
     "share",
     "show",
-    "connect you",
     "next step",
-    "meet",
     "discuss",
     "follow up",
-    "recommend",
     "workshop",
 )
 

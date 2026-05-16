@@ -794,8 +794,8 @@ def _whatsapp_batch_row(row: dict[str, Any]) -> dict[str, Any]:
             },
             {
                 "kns": "Network",
-                "angle": "community events, warm peer intros, talent matching, future-speaker sourcing, and collaboration opportunities",
-                "question": "Want me to connect you with a few similar operators, HR leaders, hiring/collaboration matches, or ask who you want to hear from next?",
+                "angle": "event invites, peer matching, talent matching, future-speaker sourcing, and collaboration opportunities",
+                "question": "Want me to suggest a few relevant events, peers, hiring/talent matches, future speakers, or collaboration angles for AE review?",
             },
             {
                 "kns": "Support",
