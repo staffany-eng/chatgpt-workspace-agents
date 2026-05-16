@@ -37,6 +37,15 @@
       "countries": ["Indonesia"]
     }
   ],
+  "partnerships_viewers": [
+    {
+      "email": "example.partnerships@example.invalid",
+      "countries": ["Singapore", "Malaysia"],
+      "label": "Partnerships",
+      "active": true,
+      "read_only": true
+    }
+  ],
   "sales_reps": [
     {
       "slack_email": "example.sg.rep@example.invalid",

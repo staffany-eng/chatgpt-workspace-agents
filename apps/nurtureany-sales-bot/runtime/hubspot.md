@@ -26,6 +26,7 @@ For near-me workflows, HubSpot Company remains CRM context only. The outlet/acco
 Read phase:
 
 - Read owners and map explicitly classified sales reps from Slack email to HubSpot owner email to owner ID.
+- Resolve explicit read-only partnerships viewers from runtime policy for country-scoped target-account and selected account context.
 - Audit active HubSpot owners and target-account counts for admin-only classification.
 - Search companies by target-account flag, owner, and country.
 - Read company, contact, deal, association, activity, task, and note context.
@@ -41,7 +42,7 @@ Write phase:
 
 Use a private app token from Secret Manager or the live profile `.env`. Do not store tokens in this repo.
 
-Use `NURTUREANY_ACCESS_POLICY_PATH` for the runtime-only access policy. Copy `runtime/access-policy.template.json` outside the repo and classify real people there; do not commit the full sales roster. Configure known Slack or Google email variants with `alias_for` or top-level `aliases`; the MCP adapter canonicalizes aliases before role lookup.
+Use `NURTUREANY_ACCESS_POLICY_PATH` for the runtime-only access policy. Copy `runtime/access-policy.template.json` outside the repo and classify real people there; do not commit the full sales roster. Configure managers, partnerships viewers, event-operator aliases, and sales reps explicitly. Configure known Slack or Google email variants with `alias_for` or top-level `aliases`; the MCP adapter canonicalizes aliases before role lookup.
 
 `check_event_followup_status` also requires `LUMA_API_KEY` in the same runtime environment so the HubSpot adapter can resolve read-only Luma attendance before checking HubSpot/Eazybe follow-up evidence.
 Daily nurture automation remains disabled pending refinement for the Jeremy daily-pack workflow. Do not rely on 09:00 Jeremy daily nurture run persistence or 12:00 Jeremy daily nurture reminder continuity until that workflow is approved again. This does not disable the Eugene-owned WhatsApp Morning Blitz report crons or the separate HubSpot Task reminder digest, whose source of truth is HubSpot Tasks.
@@ -116,7 +117,7 @@ Use HubSpot CRM search with:
 - `hs_is_target_account EQ true`
 - `company_country IN ["Singapore", "Malaysia", "Indonesia"]`
 - AE scope: `hubspot_owner_id EQ <owner id>`
-- Manager scope: `company_country IN <allowed countries>`
+- Manager/partnerships viewer scope: `company_country IN <allowed countries>`
 - Authorized manager/admin owner scope: add `hubspot_owner_id EQ <target owner id>` from `owner_email`, while preserving `slack_user_email` as caller identity.
 
 Unclassified HubSpot owners are blocked. A HubSpot owner record alone does not grant AE access.
@@ -187,7 +188,7 @@ Friday sales review uses the same scoped association discipline, plus HubSpot ca
 `list_team_target_accounts`:
 
 - Input: Slack user email, optional countries, optional owner email filter, optional bounded `query`.
-- Output: manager/admin scoped summaries only.
+- Output: manager/admin/partnerships-viewer scoped summaries only.
 - Refuse if caller is not explicitly allowed.
 
 `audit_hubspot_owner_roster`:

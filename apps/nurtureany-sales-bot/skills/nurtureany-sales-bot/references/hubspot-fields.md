@@ -29,10 +29,11 @@ Target-account count sanity check on 2026-05-09:
 | `kai.yi@staffany.com`, `leekai.yi@staffany.com` | Overall admin aliases for `kaiyi@staffany.com` | Singapore, Malaysia, Indonesia |
 | `kerren.fong@staffany.com` | SG/MY manager | Singapore, Malaysia team view only |
 | `sarah@staffany.com`, `sarah.ayutania@staffany.com` | Indonesia manager | Indonesia team view only |
+| explicit `partnerships_viewers` policy entry | Partnerships viewer | Country-scoped read-only team target accounts and selected account context only; no HubSpot Task writes, Friday review, coaching audits, or revenue metrics |
 | explicit `sales_reps` policy entry | AE | Own HubSpot target accounts only |
 | unclassified HubSpot owner | blocked | No NurtureAny access |
 
-Manager and AE access are explicit. Do not infer permissions from Slack profile title, channel membership, or a bare HubSpot owner record. The full rep roster lives in a runtime-only file pointed to by `NURTUREANY_ACCESS_POLICY_PATH`; `runtime/access-policy.template.json` contains fake example reps only. Sales rep entries should include an IANA `timezone` such as `Asia/Singapore`, `Asia/Jakarta`, or `Asia/Makassar` so coaching audits can evaluate user-requested WhatsApp windows in each rep's local time.
+Manager, partnerships viewer, and AE access are explicit. Do not infer permissions from Slack profile title, channel membership, or a bare HubSpot owner record. The full rep roster lives in a runtime-only file pointed to by `NURTUREANY_ACCESS_POLICY_PATH`; `runtime/access-policy.template.json` contains fake example reps only. Sales rep entries should include an IANA `timezone` such as `Asia/Singapore`, `Asia/Jakarta`, or `Asia/Makassar` so coaching audits can evaluate user-requested WhatsApp windows in each rep's local time.
 
 ## Company Properties
 

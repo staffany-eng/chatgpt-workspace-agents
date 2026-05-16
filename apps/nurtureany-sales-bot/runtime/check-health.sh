@@ -459,6 +459,13 @@ for entry in raw_policy.get("managers", []):
     email = entry_email(entry)
     if email and email not in disabled:
         policy_emails.append(email)
+for key in ("partnerships_viewers", "event_operators", "regional_event_operators"):
+    for entry in raw_policy.get(key, []):
+        if isinstance(entry, dict) and entry.get("active") is False:
+            continue
+        email = entry_email(entry)
+        if email and email not in disabled:
+            policy_emails.append(email)
 for entry in raw_policy.get("sales_reps", []):
     if not isinstance(entry, dict) or entry.get("active") is False:
         continue

@@ -165,6 +165,7 @@ Use Slack user email as caller identity only. Access comes from explicit Nurture
 - `eugene@staffany.com`, `kaiyi@staffany.com`, and known Kai Yi aliases (`kai.yi@staffany.com`, `leekai.yi@staffany.com`) can see Singapore, Malaysia, and Indonesia.
 - `kerren.fong@staffany.com` can see Singapore and Malaysia team queues and use preview-first exact-approval HubSpot Task primitives for scoped accounts.
 - `sarah@staffany.com` and `sarah.ayutania@staffany.com` can see Indonesia team queues and use preview-first exact-approval HubSpot Task primitives for scoped accounts.
+- Explicit `partnerships_viewers`, `event_operators`, and `regional_event_operators` entries are country-scoped read-only viewers for target-account lists and selected account context only; no HubSpot Task previews/writes, manager coaching/Friday reviews, or revenue metrics.
 - Deny manager commands for users not in explicit manager/admin config.
 - Deny AE commands for users not classified in `sales_reps`.
 - Managers cannot create generic HubSpot write-back previews for team accounts; approved HubSpot Task writes use the separate task primitives only.
@@ -227,7 +228,7 @@ Read tools:
 - `get_marketing_touch_context`: scoped contact/company/thread marketing source fields, customer/prospect status with `c360_url` when the scoped company is a customer, recent inbound thread summaries, campaign metadata, and podcast campaign association evidence.
 - `get_marketing_campaign_attribution`: manager/admin bounded HubSpot source-field search for campaign-touched contacts and scoped deal outcomes. It searches source fields such as `utm_campaign`, conversion-event names, and analytics source data, maps only scoped HubSpot contacts/companies, and counts QO/QO Met/closed-won only when stage config is present. Read `answer.outcome_summary` first because it is designed to survive large-result truncation. Do not substitute generic QO actuals from `build_sales_metric_actuals_query` for campaign attribution.
 - `list_my_target_accounts`: owner-scoped target-account list for the requesting AE. Optional `query` performs bounded account-name/domain lookup inside the same scope and returns the HubSpot owner ID/email when available.
-- `list_team_target_accounts`: manager/admin regional target-account list. Optional `owner_email` narrows to one HubSpot owner without changing caller identity. Optional `query` performs bounded account-name/domain lookup inside the same scope and returns the HubSpot owner ID/email when available.
+- `list_team_target_accounts`: manager/admin/partnerships-viewer regional target-account list. Optional `owner_email` narrows to one HubSpot owner without changing caller identity. Optional `query` performs bounded account-name/domain lookup inside the same scope and returns the HubSpot owner ID/email when available.
 - `audit_hubspot_owner_roster`: admin-only HubSpot owner roster audit with scoped target-account counts for classifying sales reps, managers, admins, disabled users, and unclassified owners.
 - `resolve_nurture_scope`: scope primitive. Resolve caller role, canonical email, allowed/requested countries, and optional scoped owner without returning business metrics.
 - `resolve_sales_owners`: owner primitive. Resolve active classified HubSpot sales owner IDs/emails/names/countries/timezones for scoped rep/team metrics.

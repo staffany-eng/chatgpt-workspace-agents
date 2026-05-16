@@ -108,6 +108,7 @@
     "unclassified_hubspot_owners": "blocked",
     "sales_rep_scope": "own_hubspot_target_accounts_only",
     "manager_scope": "country_scoped_team_view_plus_approved_hubspot_task_write",
+    "partnerships_viewer_scope": "country_scoped_read_only_team_target_accounts_and_selected_account_context",
     "full_roster_committed": false
   },
   "runtime_secrets": {

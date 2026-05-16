@@ -26,6 +26,14 @@ SCOPE = {
     "owner_id": None,
 }
 
+PARTNERSHIPS_SCOPE = {
+    "kind": "partnerships_viewer",
+    "email": "jan-e@staffany.com",
+    "countries": ("Singapore", "Malaysia"),
+    "owner_id": None,
+    "read_only": True,
+}
+
 
 def company_context(company_id="123"):
     return {
@@ -264,6 +272,20 @@ class HubSpotTaskPrimitiveTest(unittest.TestCase):
         self.assertTrue(preview["answer"]["duplicate_suppressed"])
         self.assertEqual(create["confidence"], "blocked")
         post_mock.assert_not_called()
+
+    def test_partnerships_viewer_cannot_preview_hubspot_task(self):
+        with patch.object(self.module, "_caller_scope", return_value=PARTNERSHIPS_SCOPE), patch.object(
+            self.module, "_get_company", side_effect=AssertionError("read-only viewer must stop before company lookup")
+        ):
+            result = self.module.preview_hubspot_sales_task(
+                slack_user_email="jan-e@staffany.com",
+                company_id="123",
+                subject="Follow up",
+                due_at="2099-01-03",
+            )
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("read-only", result["caveat"])
 
     def test_complete_task_patch_requires_done_marker(self):
         company = task_company()
@@ -832,6 +854,102 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         self.assertEqual(scope["email"], "rep.slack@staffany.com")
         self.assertEqual(scope["requested_email"], "rep.alias@staffany.com")
         self.assertEqual(scope["countries"], ("Malaysia",))
+
+    def test_partnerships_viewer_scope_is_read_only_without_owner_lookup(self):
+        policy = {
+            "partnerships_viewers": [
+                {
+                    "email": "jan-e@staffany.com",
+                    "countries": ["Singapore", "Malaysia"],
+                    "label": "Partnerships",
+                    "active": True,
+                }
+            ]
+        }
+        with tempfile.NamedTemporaryFile("w", delete=False) as handle:
+            json.dump(policy, handle)
+            policy_path = handle.name
+
+        try:
+            with patch.dict(os.environ, {self.module.ACCESS_POLICY_ENV_VAR: policy_path}), patch.object(
+                self.module, "_owner_by_email", side_effect=AssertionError("viewer access must not infer HubSpot owner")
+            ):
+                scope = self.module._caller_scope("jan-e@staffany.com")
+        finally:
+            os.unlink(policy_path)
+
+        self.assertEqual(scope["kind"], "partnerships_viewer")
+        self.assertEqual(scope["email"], "jan-e@staffany.com")
+        self.assertEqual(scope["countries"], ("Singapore", "Malaysia"))
+        self.assertTrue(scope["read_only"])
+
+    def test_partnerships_viewer_can_list_country_scoped_team_target_accounts(self):
+        company = task_company(company_id="456", owner_id="owner-jeremy", country="Singapore")
+        company["properties"]["name"] = "Noci Bakehouse"
+        data = {
+            "results": [company],
+            "total": 1,
+            "requested_limit": 10,
+            "returned_count": 1,
+            "has_more": False,
+            "truncated": False,
+        }
+
+        with patch.object(self.module, "_caller_scope", return_value=PARTNERSHIPS_SCOPE), patch.object(
+            self.module, "_company_search", return_value=data
+        ) as company_search, patch.object(
+            self.module, "_owner_email_by_id", return_value="jeremy.wong@staffany.com"
+        ), patch.object(
+            self.module, "_owner_name_by_id", return_value="Jeremy Wong"
+        ):
+            result = self.module.list_team_target_accounts(
+                "jan-e@staffany.com",
+                countries=["Singapore"],
+                limit=10,
+                query="F&B",
+            )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["scope"]["scope_kind"], "partnerships_viewer")
+        self.assertEqual(result["answer"][0]["owner_email"], "jeremy.wong@staffany.com")
+        filters = company_search.call_args.args[0]
+        self.assertIn({"propertyName": "company_country", "operator": "IN", "values": ["Singapore"]}, filters)
+        self.assertNotIn("target_owner_id", result["scope"])
+
+    def test_partnerships_viewer_is_blocked_from_manager_metrics(self):
+        with patch.object(self.module, "_caller_scope", return_value=PARTNERSHIPS_SCOPE), patch.object(
+            self.module, "_company_search", side_effect=AssertionError("manager metric must stop before HubSpot search")
+        ):
+            coverage = self.module.audit_priority_account_coverage(
+                "jan-e@staffany.com",
+                countries=["Singapore"],
+            )
+            actuals = self.module.build_sales_metric_actuals_query(
+                "jan-e@staffany.com",
+                metric="qo_set",
+                start_date="2026-05-01",
+                end_date="2026-05-16",
+                countries=["Singapore"],
+            )
+
+        self.assertEqual(coverage["confidence"], "blocked")
+        self.assertIn("managers/admins", coverage["caveat"])
+        self.assertEqual(actuals["confidence"], "blocked")
+        self.assertIn("manager/admin or AE", actuals["caveat"])
+
+    def test_partnerships_viewer_is_blocked_from_revenue_funnel_metrics(self):
+        with patch.object(self.module, "_caller_scope", return_value=PARTNERSHIPS_SCOPE), patch.object(
+            self.module, "_deal_search", side_effect=AssertionError("revenue funnel must stop before HubSpot deal search")
+        ):
+            result = self.module.build_hubspot_revenue_funnel_metrics(
+                "jan-e@staffany.com",
+                start_date="2026-05-01",
+                end_date="2026-05-16",
+                countries=["Singapore"],
+            )
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("manager/admin or AE", result["caveat"])
 
     def test_summarize_sales_call_stats_uses_deterministic_thresholds(self):
         policy = {

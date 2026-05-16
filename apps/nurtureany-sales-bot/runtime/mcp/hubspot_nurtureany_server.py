@@ -60,6 +60,8 @@ BUILT_IN_EMAIL_ALIASES = {
     "kai.yi@staffany.com": "kaiyi@staffany.com",
     "leekai.yi@staffany.com": "kaiyi@staffany.com",
 }
+TEAM_READ_SCOPE_KINDS = {"admin", "manager", "partnerships_viewer"}
+MANAGER_ADMIN_SCOPE_KINDS = {"admin", "manager"}
 REGIONAL_MANAGERS = {
     "kerren.fong@staffany.com": ("Singapore", "Malaysia"),
     "sarah@staffany.com": ("Indonesia",),
@@ -940,6 +942,7 @@ def _access_policy() -> dict[str, Any]:
     managers: dict[str, tuple[str, ...]] = {
         email: _normalize_countries(countries) for email, countries in REGIONAL_MANAGERS.items()
     }
+    partnerships_viewers: dict[str, tuple[str, ...]] = {}
     sales_reps: dict[str, dict[str, Any]] = {}
     disabled: set[str] = set()
     aliases: dict[str, str] = dict(BUILT_IN_EMAIL_ALIASES)
@@ -973,6 +976,20 @@ def _access_policy() -> dict[str, Any]:
             _register_email_alias(aliases, email, alias_for)
         managers[manager_email] = _normalize_countries(_string_list(countries))
 
+    for key in ("partnerships_viewers", "event_operators", "regional_event_operators"):
+        for entry in raw.get(key, []):
+            if not isinstance(entry, dict) or entry.get("active") is False:
+                continue
+            email = _entry_email(entry, "email", "slack_email")
+            if not email:
+                continue
+            countries = entry.get("countries")
+            alias_for = _entry_email(entry, "alias_for", "canonical_email", "canonical_slack_email")
+            viewer_email = alias_for or email
+            if alias_for:
+                _register_email_alias(aliases, email, alias_for)
+            partnerships_viewers[viewer_email] = _normalize_countries(_string_list(countries))
+
     for entry in raw.get("sales_reps", []):
         if not isinstance(entry, dict) or entry.get("active") is False:
             continue
@@ -1000,6 +1017,9 @@ def _access_policy() -> dict[str, Any]:
         "source": _access_policy_path() or "built-in-admin-manager-defaults",
         "admins": admins - disabled,
         "managers": {email: countries for email, countries in managers.items() if email not in disabled},
+        "partnerships_viewers": {
+            email: countries for email, countries in partnerships_viewers.items() if email not in disabled
+        },
         "sales_reps": {
             email: data
             for email, data in sales_reps.items()
@@ -1178,6 +1198,15 @@ def _caller_scope(slack_user_email: str) -> dict[str, Any]:
         return {"kind": "admin", "email": email, "countries": SUPPORTED_COUNTRIES, "owner_id": None, **alias_context}
     if email in policy["managers"]:
         return {"kind": "manager", "email": email, "countries": policy["managers"][email], "owner_id": None, **alias_context}
+    if email in policy["partnerships_viewers"]:
+        return {
+            "kind": "partnerships_viewer",
+            "email": email,
+            "countries": policy["partnerships_viewers"][email],
+            "owner_id": None,
+            "read_only": True,
+            **alias_context,
+        }
     rep = policy["sales_reps"].get(email)
     if not rep:
         return {"kind": "blocked", "email": email, "countries": (), "owner_id": None, **alias_context}
@@ -2028,7 +2057,7 @@ def _target_owner_id_for_scope(scope: dict[str, Any], owner_email: str | None = 
     owner_id = str(owner["id"])
     if scope["kind"] == "ae" and owner_id != scope.get("owner_id"):
         raise ScopeError("Caller is not authorized to inspect another owner's target accounts.")
-    if scope["kind"] not in {"admin", "manager", "ae"}:
+    if scope["kind"] not in TEAM_READ_SCOPE_KINDS | {"ae"}:
         raise ScopeError("Caller identity is not mapped to an allowed scope.")
     return owner_id, target_email
 
@@ -2161,7 +2190,7 @@ def _owner_ids_for_policy_countries(countries: list[str]) -> list[str]:
 
 
 def _manager_can_query_owner(scope: dict[str, Any], owner_email: str, countries: list[str]) -> bool:
-    if scope.get("kind") != "manager":
+    if scope.get("kind") not in {"manager", "partnerships_viewer"}:
         return True
     return _normalize_email(owner_email) in _policy_owner_emails_for_countries(countries)
 
@@ -5244,7 +5273,9 @@ def _sales_owner_rows_for_scope(
                 continue
             owner = _owner_by_id(owner_id)
             identity = _owner_identity(owner) if owner else {"owner_id": owner_id, "owner_email": "", "owner_name": ""}
-            if scope.get("kind") == "manager" and not _manager_can_query_owner(scope, identity["owner_email"], countries):
+            if scope.get("kind") in {"manager", "partnerships_viewer"} and not _manager_can_query_owner(
+                scope, identity["owner_email"], countries
+            ):
                 continue
             rows_by_id[owner_id] = {
                 **identity,
@@ -6014,6 +6045,11 @@ def _priority_account_coverage(
     scope = _caller_scope(slack_user_email)
     if scope["kind"] == "blocked":
         return _blocked("Caller identity is not mapped to an allowed scope.", {"caller_email": slack_user_email})
+    if scope["kind"] not in MANAGER_ADMIN_SCOPE_KINDS | {"ae"}:
+        return _blocked(
+            "Priority-account coverage is available only to managers/admins or AE self-audits.",
+            _scope_response(scope, list(scope.get("countries", ()))),
+        )
     if manager_only and scope["kind"] not in {"admin", "manager"}:
         return _blocked("Friday sales review is manager/admin only by default.", _scope_response(scope, list(scope.get("countries", ()))))
 
@@ -6861,7 +6897,7 @@ def _has_company_access(company: dict[str, Any], scope: dict[str, Any]) -> bool:
         return False
     if props.get("company_country") not in scope.get("countries", ()):
         return False
-    if scope["kind"] in {"admin", "manager"}:
+    if scope["kind"] in TEAM_READ_SCOPE_KINDS:
         return True
     return scope["kind"] == "ae" and props.get("hubspot_owner_id") == scope.get("owner_id")
 
@@ -7117,6 +7153,8 @@ def _build_sales_task_preview(
     scope = _caller_scope(slack_user_email)
     if scope["kind"] == "blocked":
         raise ScopeError("Caller identity is not mapped to an allowed scope.")
+    if scope["kind"] == "partnerships_viewer":
+        raise ScopeError("Partnerships viewer scope is read-only and cannot preview or create HubSpot Tasks.")
     company = _resolve_scoped_task_company(company_id, company_name, scope)
     normalized_company_id = str(company.get("id") or "")
     normalized_contact_id = str(contact_id or "").strip()
@@ -10235,6 +10273,8 @@ def _policy_classification(email: str, policy: dict[str, Any]) -> str:
         return "admin"
     if normalized in policy["managers"]:
         return "manager"
+    if normalized in policy.get("partnerships_viewers", {}):
+        return "partnerships_viewer"
     if normalized in policy["sales_reps"]:
         return "sales_rep"
     for rep in policy["sales_reps"].values():
@@ -12470,8 +12510,8 @@ def list_team_target_accounts(
 
     try:
         scope = _caller_scope(slack_user_email)
-        if scope["kind"] not in {"admin", "manager"}:
-            return _blocked("Caller is not authorized for manager team scope.", {"caller_email": slack_user_email})
+        if scope["kind"] not in TEAM_READ_SCOPE_KINDS:
+            return _blocked("Caller is not authorized for team read scope.", {"caller_email": slack_user_email})
         selected = _safe_countries(countries, scope["countries"])
         if not selected:
             return _blocked("Requested countries are outside caller scope.", _scope_response(scope, []))
@@ -12484,7 +12524,7 @@ def list_team_target_accounts(
             "scope": _scope_response(scope, selected, target_owner_id, target_owner_email),
             **_search_metadata(data),
             "confidence": "needs-check" if data.get("truncated") else "verified",
-            "caveat": _coverage_caveat(data, "Manager scope is country-based."),
+            "caveat": _coverage_caveat(data, "Team read scope is country-based."),
         }
     except ScopeError as error:
         return _blocked(str(error), {"caller_email": slack_user_email, "owner_email": owner_email})
@@ -12512,6 +12552,11 @@ def find_target_accounts_by_luma_match_keys(
         scope = _caller_scope(slack_user_email)
         if scope["kind"] == "blocked":
             return _blocked("Caller identity is not mapped to an allowed scope.", {"caller_email": slack_user_email})
+        if scope["kind"] not in MANAGER_ADMIN_SCOPE_KINDS | {"ae"}:
+            return _blocked(
+                "Event match-key account resolution requires manager/admin or AE scope.",
+                _scope_response(scope, list(scope.get("countries", ()))),
+            )
         selected = _safe_countries(countries, scope["countries"])
         if not selected:
             return _blocked("Requested countries are outside caller scope.", _scope_response(scope, []))
@@ -12630,6 +12675,8 @@ def build_sales_metric_actuals_query(
         scope = _caller_scope(slack_user_email)
         if scope["kind"] == "blocked":
             return _blocked("Caller identity is not mapped to an allowed scope.", {"caller_email": slack_user_email})
+        if scope["kind"] not in MANAGER_ADMIN_SCOPE_KINDS | {"ae"}:
+            return _blocked("Revenue funnel metrics require manager/admin or AE scope.", _scope_response(scope, list(scope.get("countries", ()))))
         selected = _safe_countries(countries, scope["countries"])
         if not selected:
             return _blocked("Requested countries are outside caller scope.", _scope_response(scope, []))
@@ -12837,6 +12884,11 @@ def build_hubspot_revenue_funnel_metrics(
         scope = _caller_scope(slack_user_email)
         if scope["kind"] == "blocked":
             return _blocked("Caller identity is not mapped to an allowed scope.", {"caller_email": slack_user_email})
+        if scope["kind"] not in MANAGER_ADMIN_SCOPE_KINDS | {"ae"}:
+            return _blocked(
+                "Revenue funnel metrics require manager/admin or AE scope.",
+                _scope_response(scope, list(scope.get("countries", ()))),
+            )
         selected = _safe_countries(countries, scope["countries"])
         if not selected:
             return _blocked("Requested countries are outside caller scope.", _scope_response(scope, []))

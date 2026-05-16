@@ -234,6 +234,7 @@ Use Slack user email as caller identity only. Grant NurtureAny access from expli
 - `eugene@staffany.com`, `kaiyi@staffany.com`, and `kai.yi@staffany.com` can see Singapore, Malaysia, and Indonesia.
 - `kerren.fong@staffany.com` can see Singapore and Malaysia team queues and use preview-first exact-approval HubSpot Task primitives for scoped accounts.
 - `sarah@staffany.com` and `sarah.ayutania@staffany.com` can see Indonesia team queues and use preview-first exact-approval HubSpot Task primitives for scoped accounts.
+- Explicit `partnerships_viewers`, `event_operators`, and `regional_event_operators` entries are country-scoped read-only viewers for target-account lists and selected account context only; no HubSpot Task previews/writes, manager coaching/Friday reviews, or revenue metrics.
 - Unclassified HubSpot owners are blocked even if HubSpot has an owner record.
 - Managers cannot create generic HubSpot write-back previews for team accounts; approved HubSpot Task writes use the separate task primitives only.
 - Do not infer sales-rep or manager access from Slack titles. Use explicit config only.

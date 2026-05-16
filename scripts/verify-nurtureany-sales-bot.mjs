@@ -149,6 +149,14 @@ if (!existsSync(manifestPath)) {
         "Manifest manager scope must be country_scoped_team_view_plus_approved_hubspot_task_write",
       );
     }
+    if (
+      manifest.access_policy?.partnerships_viewer_scope !==
+      "country_scoped_read_only_team_target_accounts_and_selected_account_context"
+    ) {
+      fail(
+        "Manifest partnerships viewer scope must be country_scoped_read_only_team_target_accounts_and_selected_account_context",
+      );
+    }
     if (manifest.quick_autorun?.enabled !== true) fail("Manifest quick_autorun must be enabled");
     if (manifest.quick_autorun?.tool !== "read_recent_slack_intent_context") {
       fail("Manifest quick_autorun tool must be read_recent_slack_intent_context");
@@ -1424,7 +1432,7 @@ const accessPolicyTemplate = readJson(join(appRoot, "runtime/access-policy.templ
 if (accessPolicyTemplate) {
   if (!Array.isArray(accessPolicyTemplate.sales_reps)) fail("access-policy.template.json must include sales_reps examples");
   const templateText = textOf("runtime/access-policy.template.json");
-  for (const text of ["example.invalid", "NURTUREANY_ACCESS_POLICY_PATH", "Do not commit the real sales roster"]) {
+  for (const text of ["example.invalid", "NURTUREANY_ACCESS_POLICY_PATH", "Do not commit the real sales roster", "partnerships_viewers"]) {
     if (!templateText.includes(text)) fail(`access-policy.template.json missing required text: ${text}`);
   }
 }
@@ -1489,6 +1497,10 @@ for (const text of [
 
 for (const text of [
   "ACCESS_POLICY_ENV_VAR = \"NURTUREANY_ACCESS_POLICY_PATH\"",
+  "TEAM_READ_SCOPE_KINDS = {\"admin\", \"manager\", \"partnerships_viewer\"}",
+  "\"partnerships_viewers\"",
+  "\"event_operators\"",
+  "\"regional_event_operators\"",
   "audit_hubspot_owner_roster",
   "unclassified",
   "Managers have read-only team scope",
@@ -2084,6 +2096,9 @@ for (const text of [
   "slack-intent:missing-conversations-history-scope",
   "slack-intent:channel-not-found-or-not-in-channel",
   "slack-thread-context:channel-not-found-or-not-in-channel",
+  "partnerships_viewers",
+  "event_operators",
+  "regional_event_operators",
   "mcp:near_me_nurtureany:missing-google-places-env",
   "google-drive:token-permissions-not-600",
   "slack-allowlist:missing-policy-users",

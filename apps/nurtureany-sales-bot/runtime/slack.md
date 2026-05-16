@@ -125,6 +125,7 @@ Use Slack user email as the caller identity.
 
 - AE calls require an explicit `sales_reps` policy entry that maps Slack email to HubSpot owner email, then restrict to owned HubSpot target accounts.
 - Manager calls require explicit email allowlist and are team read-only.
+- Partnerships viewer calls require an explicit `partnerships_viewers`, `event_operators`, or `regional_event_operators` policy entry and are country-scoped read-only target-account/account-context access only.
 - Unclassified HubSpot owners are blocked even if Slack email matches a HubSpot owner record.
 - Country filters come from the manager scope, not from channel name.
 - Known Slack or Google email variants must be configured as access-policy aliases. Never infer `slack_user_email` from a display name.
