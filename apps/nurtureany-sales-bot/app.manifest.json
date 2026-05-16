@@ -60,6 +60,7 @@
     "health_check_script": "runtime/check-health.sh",
     "cloud_heartbeat_script": "runtime/check-cloud-heartbeat.sh",
     "slack_socket_watchdog_script": "runtime/check-slack-socket-health.sh",
+    "slack_access_repair_script": "runtime/scripts/nurtureany_slack_access_repair.py",
     "hubspot_task_reminder_script": "runtime/scripts/nurtureany_sales_task_reminders.py",
     "hubspot_task_reminder_eod_script": "runtime/scripts/nurtureany_sales_task_reminders_eod.py",
     "live_profile_audit": "runtime/audit-live-profile.sh",
@@ -109,6 +110,7 @@
     "sales_rep_scope": "own_hubspot_target_accounts_only",
     "manager_scope": "country_scoped_team_view_plus_approved_hubspot_task_write",
     "partnerships_viewer_scope": "country_scoped_read_only_team_target_accounts_and_selected_account_context",
+    "event_operator_scope": "country_scoped_event_sourcing_read_only",
     "full_roster_committed": false
   },
   "runtime_secrets": {
@@ -452,6 +454,7 @@
       "get_marketing_campaign_attribution",
       "list_my_target_accounts",
       "list_team_target_accounts",
+      "find_event_sourcing_target_accounts",
       "audit_hubspot_owner_roster",
       "resolve_nurture_scope",
       "resolve_sales_owners",

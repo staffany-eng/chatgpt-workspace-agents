@@ -213,7 +213,11 @@ with open(log_file, "r", encoding="utf-8", errors="replace") as handle:
         if latest_mention.get("user") and f"Unauthorized user: {latest_mention['user']}" in line:
             unauthorized_after_mention = True
 
-if inbound_after_mention or unauthorized_after_mention:
+if unauthorized_after_mention:
+    print(f"slack-ingress:unauthorized-user user={latest_mention['user']} message_ts={latest_mention['ts']} age_seconds={age}")
+    raise SystemExit(0)
+
+if inbound_after_mention:
     raise SystemExit(0)
 
 print(f"slack-ingress:missed-mention message_ts={latest_mention['ts']} age_seconds={age}")
@@ -252,6 +256,9 @@ if [ "$ingress_status" -eq 2 ]; then
   exit 0
 elif [ "$ingress_status" -ne 0 ]; then
   fail "slack-ingress:probe-error"
+fi
+if printf '%s\n' "$ingress_out" | grep -Fq "slack-ingress:unauthorized-user"; then
+  append_watchdog_log "$ingress_out"
 fi
 
 stale_ts="$(last_matching_timestamp 'seems to be stale|Failed to check current session|stale\. Reconnecting')"

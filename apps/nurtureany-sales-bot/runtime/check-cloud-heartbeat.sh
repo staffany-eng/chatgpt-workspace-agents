@@ -21,7 +21,7 @@ EXPECTED_CRON_TIMEZONE="${EXPECTED_CRON_TIMEZONE:-Asia/Singapore}"
 EXPECT_CLOUD_HEARTBEAT_CRON="${EXPECT_CLOUD_HEARTBEAT_CRON:-1}"
 EXPECT_ENABLED_CRON_COUNT="${EXPECT_ENABLED_CRON_COUNT:-9}"
 EXPECT_SLACK_INTENT_TOOLS="${EXPECT_SLACK_INTENT_TOOLS:-5}"
-EXPECT_HUBSPOT_TOOLS="${EXPECT_HUBSPOT_TOOLS:-55}"
+EXPECT_HUBSPOT_TOOLS="${EXPECT_HUBSPOT_TOOLS:-56}"
 EXPECT_PUBLIC_RESEARCH_TOOLS="${EXPECT_PUBLIC_RESEARCH_TOOLS:-2}"
 EXPECT_PROSPEO_TOOLS="${EXPECT_PROSPEO_TOOLS:-4}"
 EXPECT_CLOUD_DOCTOR="${EXPECT_CLOUD_DOCTOR:-1}"
@@ -177,6 +177,7 @@ if [ "$EXPECT_CLOUD_DOCTOR" = "1" ]; then
   grep -Fq "gateway_service:systemd:$GATEWAY_SERVICE_NAME:active=active:substate=running" "$doctor_out" || fail "cloud-doctor:gateway-unhealthy"
   grep -Fq "enabled_recurring=$EXPECT_ENABLED_CRON_COUNT:" "$doctor_out" || fail "cloud-doctor:cron-unhealthy"
   grep -Fq "missing_timezone=0:event_roi_enabled=0:unsafe_send_message=0" "$doctor_out" || fail "cloud-doctor:cron-unhealthy"
+  grep -Fq "slack_allowlist:ok=true:" "$doctor_out" || fail "cloud-doctor:slack-allowlist-drift"
   for expected in \
     "mcp:slack_nurtureany:tools=$EXPECT_SLACK_INTENT_TOOLS" \
     "mcp:staffany_bigquery:tools=4" \

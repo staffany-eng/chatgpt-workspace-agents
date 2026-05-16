@@ -807,6 +807,9 @@ const filesToScan = [
   "runtime/check-slack-socket-health.sh",
   "runtime/audit-live-profile.sh",
   "runtime/nurtureany-cloud-doctor.sh",
+  "runtime/scripts/nurtureany_slack_access_repair.py",
+  "runtime/scripts/test_nurtureany_slack_access_repair.py",
+  "runtime/scripts/test_nurtureany_runtime_watchdogs.py",
   "runtime/scripts/nurtureany_sales_task_reminders.py",
   "runtime/scripts/nurtureany_sales_task_reminders_eod.py",
   "runtime/jobs/near_me_outlet_match_writer.py",
@@ -868,6 +871,7 @@ for (const text of [
   "audit-live-profile.sh",
   "check-slack-socket-health.sh",
   "nurtureany-cloud-doctor.sh",
+  "nurtureany_slack_access_repair.py",
   "nurtureany_sales_task_reminders.py",
   "nurtureany_sales_task_reminders_eod.py",
   "profile/config.template.yaml",
@@ -2067,7 +2071,7 @@ for (const text of [
   "PROFILE=\"${HERMES_PROFILE:-nurtureanysalesbot}\"",
   "export HERMES_HOME=\"$HOME/.hermes/profiles/$PROFILE\"",
   "EXPECT_SLACK_INTENT_TOOLS=\"${EXPECT_SLACK_INTENT_TOOLS:-5}\"",
-  "EXPECT_HUBSPOT_TOOLS=\"${EXPECT_HUBSPOT_TOOLS:-55}\"",
+  "EXPECT_HUBSPOT_TOOLS=\"${EXPECT_HUBSPOT_TOOLS:-56}\"",
   "EXPECT_AIRCALL_TOOLS=\"${EXPECT_AIRCALL_TOOLS:-4}\"",
   "NURTUREANY_GATEWAY_SERVICE_NAME",
   "systemctl --user is-active --quiet \"$GATEWAY_SERVICE_NAME\"",
@@ -2117,6 +2121,7 @@ for (const text of [
   "google-drive:token-permissions-not-600",
   "slack-allowlist:missing-policy-users",
   "slack-allowlist:extra-users",
+  "find_event_sourcing_target_accounts",
   "mcp_test public_research_nurtureany",
   "mcp_test prospeo_nurtureany",
   "mcp_test slack_nurtureany",
@@ -2137,7 +2142,7 @@ for (const text of [
   "EXPECTED_CLOUD_HEARTBEAT_CRON_NAME",
   "nurtureanysalesbot local cloud heartbeat",
   "EXPECT_ENABLED_CRON_COUNT=\"${EXPECT_ENABLED_CRON_COUNT:-9}\"",
-  "EXPECT_HUBSPOT_TOOLS=\"${EXPECT_HUBSPOT_TOOLS:-55}\"",
+  "EXPECT_HUBSPOT_TOOLS=\"${EXPECT_HUBSPOT_TOOLS:-56}\"",
   "EXPECTED_TASK_REMINDER_CRON_NAME",
   "EXPECTED_TASK_REMINDER_EOD_CRON_NAME",
   "EXPECTED_SG_MY_WHATSAPP_BLITZ_CRON_NAME",
@@ -2178,6 +2183,7 @@ for (const text of [
   "profile-drift:hs-reminder-file",
   "profile-drift:hs-reminder-eod-file",
   "profile-drift:cloud-doctor-script",
+  "profile-drift:slack-access-repair-script",
   "profile-boundary:staffany-data-bot-skill-installed",
   "cron:records-invalid",
   "cron:health-check-missing",
@@ -2212,7 +2218,8 @@ for (const text of [
   "enabled_recurring=",
   "enabled_once=",
   "operation_ledger:",
-  "lesson_candidates:"
+  "lesson_candidates:",
+  "slack_allowlist:"
 ]) {
   if (!cloudDoctorScriptText.includes(text)) fail(`runtime/nurtureany-cloud-doctor.sh missing required text: ${text}`);
 }
@@ -2220,7 +2227,7 @@ for (const text of [
 const hermesProfilesText = repoTextOf("ops/hermes/profiles.yaml");
 for (const text of [
   "slack_nurtureany: 5",
-  "hubspot_nurtureany: 55",
+  "hubspot_nurtureany: 56",
   "nurtureanysalesbot HubSpot task reminders",
   "nurtureanysalesbot HubSpot task EOD catch-up",
   "SG MY WhatsApp Morning Blitz Report",

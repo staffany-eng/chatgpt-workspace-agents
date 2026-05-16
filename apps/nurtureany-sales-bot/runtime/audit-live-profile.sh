@@ -94,6 +94,8 @@ cmp -s "$APP_ROOT/runtime/scripts/nurtureany_sales_task_reminders_eod.py" "$PROF
 if [ -e "$PROFILE_DIR/scripts/nurtureanysalesbot-cloud-doctor.sh" ]; then
   cmp -s "$APP_ROOT/runtime/nurtureany-cloud-doctor.sh" "$PROFILE_DIR/scripts/nurtureanysalesbot-cloud-doctor.sh" || fail "profile-drift:cloud-doctor-script"
 fi
+[ -f "$PROFILE_DIR/scripts/nurtureany_slack_access_repair.py" ] || fail "profile-drift:slack-access-repair-script-missing"
+cmp -s "$APP_ROOT/runtime/scripts/nurtureany_slack_access_repair.py" "$PROFILE_DIR/scripts/nurtureany_slack_access_repair.py" || fail "profile-drift:slack-access-repair-script"
 
 if [ -e "$PROFILE_DIR/skills/staffany-data-bot/SKILL.md" ]; then
   fail "profile-boundary:staffany-data-bot-skill-installed"

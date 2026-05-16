@@ -118,6 +118,15 @@ JEREMY_SCOPE = {
     "owner_id": "owner-jeremy",
 }
 
+EVENT_OPERATOR_SCOPE = {
+    "kind": "event_operator",
+    "email": "jan-e@staffany.com",
+    "countries": ("Singapore",),
+    "owner_id": None,
+    "purpose": "regional_events",
+    "access_profile": "regional_events_read_only",
+}
+
 
 class FakeHTTPResponse:
     def __init__(self, payload):
@@ -950,6 +959,189 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
 
         self.assertEqual(result["confidence"], "blocked")
         self.assertIn("manager/admin or AE", result["caveat"])
+
+    def test_runtime_policy_event_operator_is_read_only_country_scope(self):
+        policy = {
+            "event_operators": [
+                {
+                    "email": "jan-e@staffany.com",
+                    "countries": ["Singapore"],
+                    "purpose": "regional_events",
+                }
+            ]
+        }
+        with tempfile.NamedTemporaryFile("w", delete=False) as handle:
+            json.dump(policy, handle)
+            policy_path = handle.name
+
+        try:
+            with patch.dict(os.environ, {self.module.ACCESS_POLICY_ENV_VAR: policy_path}), patch.object(
+                self.module, "_owner_by_email", side_effect=AssertionError("event operators must not be mapped as AEs")
+            ):
+                scope = self.module._caller_scope("jan-e@staffany.com")
+        finally:
+            os.unlink(policy_path)
+
+        self.assertEqual(scope["kind"], "event_operator")
+        self.assertEqual(scope["email"], "jan-e@staffany.com")
+        self.assertEqual(scope["countries"], ("Singapore",))
+        self.assertEqual(scope["access_profile"], "regional_events_read_only")
+        self.assertEqual(scope["purpose"], "regional_events")
+
+    def test_event_operator_can_run_event_sourcing_without_raw_contact_pii(self):
+        policy = {
+            "event_operators": [{"email": "jan-e@staffany.com", "countries": ["Singapore"]}],
+            "sales_reps": [
+                {
+                    "slack_email": "jeremy@staffany.com",
+                    "hubspot_owner_email": "jeremy.wong@staffany.com",
+                    "countries": ["Singapore"],
+                    "active": True,
+                }
+            ],
+        }
+        companies = [
+            {
+                "id": "company-1",
+                "properties": {
+                    "name": "Noci Bakehouse",
+                    "domain": "noci.example",
+                    "hs_is_target_account": "true",
+                    "hubspot_owner_id": "owner-jeremy",
+                    "company_country": "Singapore",
+                    "numberofemployees": "35",
+                    "industry": "Food & Beverage",
+                    "type": "PROSPECT",
+                    "lifecyclestage": "lead",
+                },
+            }
+        ]
+        contacts = [
+            {
+                "id": "contact-1",
+                "properties": {
+                    "firstname": "Alicia",
+                    "lastname": "Tan",
+                    "email": "alicia@example.com",
+                    "phone": "+6599999999",
+                    "jobtitle": "Owner",
+                    "hs_buying_role": "DECISION_MAKER",
+                },
+            }
+        ]
+        deals = [{"id": "deal-1", "properties": {"dealname": "Noci QO", "dealstage": "appointmentscheduled"}}]
+
+        def owner_by_email(email):
+            if email == "jeremy.wong@staffany.com":
+                return {"id": "owner-jeremy", "email": email, "firstName": "Jeremy", "lastName": "Wong"}
+            return None
+
+        def batch_associations(from_type, to_type, ids, deadline=None):
+            if to_type == "contacts":
+                return {"company-1": ["contact-1"]}
+            if to_type == "deals":
+                return {"company-1": ["deal-1"]}
+            return {}
+
+        def batch_read(object_type, ids, properties, deadline=None):
+            if object_type == "contacts":
+                return contacts
+            if object_type == "deals":
+                return deals
+            return []
+
+        with tempfile.NamedTemporaryFile("w", delete=False) as handle:
+            json.dump(policy, handle)
+            policy_path = handle.name
+
+        try:
+            with patch.dict(os.environ, {self.module.ACCESS_POLICY_ENV_VAR: policy_path}), patch.object(
+                self.module, "_owner_by_email", side_effect=owner_by_email
+            ), patch.object(self.module, "_owner_email_by_id", return_value="jeremy.wong@staffany.com"), patch.object(
+                self.module, "_owner_name_by_id", return_value="Jeremy Wong"
+            ), patch.object(
+                self.module,
+                "_company_search",
+                return_value={
+                    "results": companies,
+                    "total": 1,
+                    "requested_limit": 100,
+                    "returned_count": 1,
+                    "has_more": False,
+                    "truncated": False,
+                },
+            ), patch.object(self.module, "_batch_association_ids", side_effect=batch_associations), patch.object(
+                self.module, "_batch_read", side_effect=batch_read
+            ):
+                result = self.module.find_event_sourcing_target_accounts(
+                    "jan-e@staffany.com",
+                    countries=["Singapore"],
+                    industry="F&B",
+                    headcount_min=21,
+                    headcount_max=50,
+                    contact_role_filter="owner_or_hr",
+                    deal_bucket="open_or_none",
+                    limit=10,
+                )
+        finally:
+            os.unlink(policy_path)
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["scope"]["scope_kind"], "event_operator")
+        self.assertEqual(result["returned_count"], 1)
+        row = result["answer"][0]
+        self.assertEqual(row["name"], "Noci Bakehouse")
+        self.assertEqual(row["owner_email"], "jeremy.wong@staffany.com")
+        self.assertEqual(row["owner_contact_count"], 1)
+        self.assertEqual(row["deal_bucket"], "open_deal")
+        self.assertNotIn("email", row["safe_contact_role_samples"][0])
+        self.assertNotIn("phone", row["safe_contact_role_samples"][0])
+
+    def test_event_operator_is_blocked_from_manager_and_write_tools(self):
+        company = {
+            "id": "123",
+            "properties": {
+                "name": "Blocked Account",
+                "hs_is_target_account": "true",
+                "company_country": "Singapore",
+                "hubspot_owner_id": "owner-1",
+            },
+        }
+        with patch.object(self.module, "_caller_scope", return_value=EVENT_OPERATOR_SCOPE), patch.object(
+            self.module, "_get_company", return_value=company
+        ):
+            writeback = self.module.plan_hubspot_writeback(
+                "jan-e@staffany.com",
+                [{"company_id": "123", "note_summary": "not allowed"}],
+            )
+            chase = self.module.build_manager_chase_plan("jan-e@staffany.com")
+            friday = self.module.build_friday_sales_review("jan-e@staffany.com")
+            coaching = self.module.build_ae_coaching_audit("jan-e@staffany.com")
+            task_preview = self.module.preview_hubspot_sales_task(
+                "jan-e@staffany.com",
+                company_id="123",
+                subject="Invite prospect to HHH",
+                due_at="2099-01-01T09:00:00+08:00",
+            )
+            metric = self.module.build_sales_metric_actuals_query(
+                "jan-e@staffany.com",
+                metric="qo_set",
+                start_date="2026-05-01",
+                end_date="2026-05-15",
+            )
+
+        self.assertEqual(writeback["confidence"], "blocked")
+        self.assertIn("event operators", writeback["answer"])
+        self.assertEqual(chase["confidence"], "blocked")
+        self.assertIn("manager/admin", chase["answer"])
+        self.assertEqual(friday["confidence"], "blocked")
+        self.assertIn("managers/admins", friday["answer"])
+        self.assertEqual(coaching["confidence"], "blocked")
+        self.assertIn("managers/admins", coaching["answer"])
+        self.assertEqual(task_preview["confidence"], "blocked")
+        self.assertIn("outside caller scope", task_preview["answer"])
+        self.assertEqual(metric["confidence"], "blocked")
+        self.assertIn("manager/admin or AE", metric["answer"])
 
     def test_summarize_sales_call_stats_uses_deterministic_thresholds(self):
         policy = {
@@ -6822,10 +7014,10 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
             result = self.module.plan_hubspot_writeback(
                 "kerren.fong@staffany.com",
                 [{"company_id": "123", "task": "Review public hiring signal"}],
-            )
+        )
 
         self.assertEqual(result["confidence"], "blocked")
-        self.assertIn("read-only", result["answer"])
+        self.assertIn("cannot create HubSpot write-back previews", result["answer"])
 
     def test_plan_hubspot_writeback_preserves_public_source_metadata(self):
         admin_scope = {"kind": "admin", "email": "kaiyi@staffany.com", "countries": self.module.SUPPORTED_COUNTRIES, "owner_id": None}

@@ -64,6 +64,7 @@ It exposes these tools:
 - `get_marketing_campaign_attribution`
 - `list_my_target_accounts`
 - `list_team_target_accounts`
+- `find_event_sourcing_target_accounts`
 - `audit_hubspot_owner_roster`
 - `resolve_nurture_scope`
 - `resolve_sales_owners`
@@ -202,6 +203,13 @@ Friday sales review uses the same scoped association discipline, plus HubSpot ca
 - Input: Slack user email, optional countries, optional owner email filter, optional bounded `query`.
 - Output: manager/admin/partnerships-viewer scoped summaries only.
 - Refuse if caller is not explicitly allowed.
+
+`find_event_sourcing_target_accounts`:
+
+- Input: Slack user email, optional countries, industry, headcount min/max, contact-role filter, deal bucket, optional owner emails/names, and limit.
+- Output: regional event operator / manager / admin scoped account candidates for event outreach, including safe company summary, AE owner, deal bucket, owner/HR contact-role coverage counts, safe contact role samples, missing fields, and recommended AE ask.
+- Default SG HHH sourcing shape is Singapore, Food & Beverage, 21-50 headcount, owner or HR contact, open deal or no open deal, all classified SG AE owners, limit 10.
+- Regional event operators are allowed only through this read-only sourcing path. They must not receive manager/admin tools, revenue metrics, coaching audits, HubSpot writes, task primitives, generic account context, raw contact emails, phone numbers, task bodies, note bodies, communication bodies, or bulk exports.
 
 `audit_hubspot_owner_roster`:
 

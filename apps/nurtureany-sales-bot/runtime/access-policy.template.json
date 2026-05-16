@@ -46,6 +46,15 @@
       "read_only": true
     }
   ],
+  "event_operators": [
+    {
+      "email": "example.events@example.invalid",
+      "countries": ["Singapore"],
+      "purpose": "regional_events",
+      "access_profile": "regional_events_read_only",
+      "notes": "Read-only event sourcing across in-country AE target accounts only. Do not use this as manager/admin scope."
+    }
+  ],
   "sales_reps": [
     {
       "slack_email": "example.sg.rep@example.invalid",

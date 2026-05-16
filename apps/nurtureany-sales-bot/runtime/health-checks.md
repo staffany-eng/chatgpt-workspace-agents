@@ -23,6 +23,7 @@ NurtureAny needs deterministic runtime checks because prompt correctness does no
 - Slack inbound-alert smoke check confirms `extract_inbound_lead_alerts` is available, uses `SLACK_BOT_TOKEN`, reads only configured public channels from `NURTUREANY_INBOUND_ALERT_CHANNEL_IDS`, can auto-join configured public inbound channels, caps output at 50 alert messages, returns safe alert rows/permalinks only, persists no raw transcript, and exposes no raw phone numbers.
 - Slack stand-up/down accountability smoke check confirms `audit_standup_down_accountability` is available, uses `NURTUREANY_STANDUP_AUDIT_CHANNEL_IDS`, can read configured public channel `C013N5XL7EV` (`#team-rev-ps-syncup`) with `conversations.info`, `conversations.history`, `conversations.members`, `users.info`, `chat.getPermalink`, and configured-public-channel `conversations.join`, returns safe per-person status/permalinks only, persists no raw transcript, returns no raw note bodies, and does not expose posting, private-channel reads, broad search, broad user listing, user-token fallback, or Slack connector fallback.
 - Slack gateway `SLACK_ALLOWED_USERS` matches the active, resolved Slack users from `NURTUREANY_ACCESS_POLICY_PATH`, including admins, managers, partnerships viewers, event-operator aliases, and sales reps; policy aliases that do not resolve in Slack are ignored, but missing or extra resolved user IDs fail health.
+- Slack allowlist checks include built-in admins/managers, active `sales_reps`, and explicit `event_operators`. The no-agent repair script may update only `SLACK_ALLOWED_USERS` to match an already-approved runtime policy; it must not grant new policy roles from Slack profile data.
 - `NURTUREANY_ACCESS_POLICY_PATH` points to a runtime-only policy file when sales reps are enabled; the source template has fake example reps only.
 - HubSpot owner lookup works for configured admins/managers and classified sales reps.
 - HubSpot MCP lists `audit_hubspot_owner_roster`, and non-admin roster audit requests return `Confidence: blocked`.
@@ -30,7 +31,7 @@ NurtureAny needs deterministic runtime checks because prompt correctness does no
 - HubSpot company property metadata includes durable NurtureAny fields `contract_end_date` and `current_tools`; `current_tool_renewal_date` is present only as secondary context.
 - HubSpot `company_country` options include `Singapore`, `Malaysia`, and `Indonesia`.
 - Slack MCP lists `read_recent_slack_intent_context`, `get_current_slack_thread_context`, `get_selected_slack_thread_context`, and `audit_standup_down_accountability`.
-- HubSpot MCP lists inbound Conversations, Marketing Campaigns, campaign social effectiveness, marketing campaign attribution, `resolve_inbound_slack_alerts_to_hubspot`, `resolve_nurture_scope`, `resolve_sales_owners`, `list_sales_call_events`, `summarize_sales_call_stats`, `audit_priority_account_coverage`, `build_sales_metric_actuals_query`, `build_hubspot_revenue_funnel_metrics`, `build_ae_coaching_audit`, `prepare_sales_navigator_decision_maker_queue`, `build_friday_sales_review`, `build_manager_chase_plan`, `build_pre_demo_game_plans`, `build_singapore_lead_enrichment_plan`, `list_sales_followup_tasks`, `preview_hubspot_sales_task`, `create_approved_hubspot_sales_task`, `preview_hubspot_task_update`, `apply_approved_hubspot_task_update`, `list_due_hubspot_sales_task_reminders`, `check_account_followup_status`, `check_event_followup_status`, `generate_free_search_tasks`, and `review_public_enrichment_evidence` in addition to the existing queue, gap, draft, and preview tools.
+- HubSpot MCP lists inbound Conversations, Marketing Campaigns, campaign social effectiveness, marketing campaign attribution, `resolve_inbound_slack_alerts_to_hubspot`, `resolve_nurture_scope`, `resolve_sales_owners`, `list_sales_call_events`, `summarize_sales_call_stats`, `audit_priority_account_coverage`, `build_sales_metric_actuals_query`, `build_hubspot_revenue_funnel_metrics`, `build_ae_coaching_audit`, `prepare_sales_navigator_decision_maker_queue`, `build_friday_sales_review`, `build_manager_chase_plan`, `find_event_sourcing_target_accounts`, `build_pre_demo_game_plans`, `build_singapore_lead_enrichment_plan`, `list_sales_followup_tasks`, `preview_hubspot_sales_task`, `create_approved_hubspot_sales_task`, `preview_hubspot_task_update`, `apply_approved_hubspot_task_update`, `list_due_hubspot_sales_task_reminders`, `check_account_followup_status`, `check_event_followup_status`, `generate_free_search_tasks`, and `review_public_enrichment_evidence` in addition to the existing queue, gap, draft, and preview tools.
 - HubSpot campaign social-effectiveness smoke check uses `get_campaign_social_effectiveness`, reports aggregate `SOCIAL_BROADCAST` clicks separately from pipeline proof, redacts raw social channel IDs, and does not bulk-export all posts.
 - HubSpot marketing attribution smoke check uses `get_marketing_campaign_attribution` to search bounded campaign/source fields, counts QO/QO Met/closed-won only with configured HubSpot stage IDs, and does not use generic QO totals as campaign attribution.
 - HubSpot Friday review smoke check returns Hygiene Summary, Funnel Snapshot, optional warehouse metric follow-up SQL, Top Coaching Observations, Actions for Next Week, and Support Needed; blocks AE callers; enforces Kerren SG/MY and Sarah ID scope; and still returns hygiene/account coverage with `Confidence: needs-check` when QO/QO Met/deal stage config is missing.
@@ -130,6 +131,23 @@ Run the redacted cloud doctor when the cloud service restarts, cron drifts, or l
 apps/nurtureany-sales-bot/runtime/nurtureany-cloud-doctor.sh
 ```
 
+Dry-run Slack access repair after an approved runtime access-policy change:
+
+```bash
+apps/nurtureany-sales-bot/runtime/scripts/nurtureany_slack_access_repair.py \
+  --profile-env ~/.hermes/profiles/nurtureanysalesbot/.env \
+  --expect-email jan-e@staffany.com
+```
+
+Only after the runtime policy already grants the role, apply the repair and run health:
+
+```bash
+apps/nurtureany-sales-bot/runtime/scripts/nurtureany_slack_access_repair.py \
+  --profile-env ~/.hermes/profiles/nurtureanysalesbot/.env \
+  --apply \
+  --health-check ~/.hermes/profiles/nurtureanysalesbot/scripts/nurtureanysalesbot-check-health.sh
+```
+
 Run the silent local cloud heartbeat after cron or cloud-doctor changes:
 
 ```bash
@@ -151,8 +169,10 @@ cp apps/nurtureany-sales-bot/runtime/check-cloud-heartbeat.sh ~/.hermes/profiles
 cp apps/nurtureany-sales-bot/runtime/audit-live-profile.sh ~/.hermes/profiles/nurtureanysalesbot/scripts/nurtureanysalesbot-audit-live-profile.sh
 cp apps/nurtureany-sales-bot/runtime/check-slack-socket-health.sh ~/.hermes/profiles/nurtureanysalesbot/scripts/nurtureanysalesbot-check-slack-socket-health.sh
 cp apps/nurtureany-sales-bot/runtime/nurtureany-cloud-doctor.sh ~/.hermes/profiles/nurtureanysalesbot/scripts/nurtureanysalesbot-cloud-doctor.sh
+cp apps/nurtureany-sales-bot/runtime/scripts/nurtureany_slack_access_repair.py ~/.hermes/profiles/nurtureanysalesbot/scripts/nurtureany_slack_access_repair.py
 cp apps/nurtureany-sales-bot/runtime/scripts/nurtureany_sales_task_reminders.py ~/.hermes/profiles/nurtureanysalesbot/scripts/nurtureany_sales_task_reminders.py
 cp apps/nurtureany-sales-bot/runtime/scripts/nurtureany_sales_task_reminders_eod.py ~/.hermes/profiles/nurtureanysalesbot/scripts/nurtureany_sales_task_reminders_eod.py
+chmod +x ~/.hermes/profiles/nurtureanysalesbot/scripts/nurtureany_slack_access_repair.py
 hermes -p nurtureanysalesbot cron create "0 1 * * 1-5" \
   --name "nurtureanysalesbot health check" \
   --script nurtureanysalesbot-check-health.sh \

@@ -114,6 +114,7 @@ Slack user email is identity only. Access is granted by explicit NurtureAny poli
 | SG/MY manager | `kerren.fong@staffany.com` | Singapore, Malaysia team view plus preview-first exact-approval HubSpot Task primitives |
 | Indonesia manager | `sarah@staffany.com`, `sarah.ayutania@staffany.com` | Indonesia team view plus preview-first exact-approval HubSpot Task primitives |
 | Partnerships viewer | Explicit `partnerships_viewers` policy entry | Country-scoped read-only team target-account and selected account context; no HubSpot Task writes, manager coaching audits, Friday review, or revenue metrics |
+| Regional event operator | Explicit `event_operators` policy entry | Read-only in-country event sourcing across classified AE target accounts through `find_event_sourcing_target_accounts`; no manager/admin tools, HubSpot writes, coaching, revenue metrics, or generic account context |
 | AE | Explicit `sales_reps` policy entry | Own HubSpot target accounts only |
 
 The full rep roster is runtime-only through `NURTUREANY_ACCESS_POLICY_PATH`; `runtime/access-policy.template.json` contains fake example reps only. Known Slack or Google email variants must be declared with `alias_for` or top-level `aliases`, then canonicalized before role lookup. Permissions are not inferred from Slack titles, channel membership, display names, or a bare HubSpot owner lookup.
@@ -163,6 +164,16 @@ Do not run a Mac-local NurtureAny Slack gateway with the production Slack app. L
 9. Run health checks and regression cases before adding sales channels.
 
 When syncing the prod profile runtime from this repo, preserve the runtime-only `runtime/access-policy.json` file or restore it from a profile backup after replacing `runtime/`. The repo contains only `runtime/access-policy.template.json`; deleting the live policy breaks Slack allowlist health.
+
+To repair Slack access drift after an approved runtime policy change, run the no-agent repair script from the live profile. It resolves approved policy emails with the bot token, updates only `SLACK_ALLOWED_USERS`, restarts the gateway, and can run the health check:
+
+```bash
+~/.hermes/profiles/nurtureanysalesbot/scripts/nurtureany_slack_access_repair.py \
+  --profile-env ~/.hermes/profiles/nurtureanysalesbot/.env \
+  --expect-email jan-e@staffany.com
+```
+
+Add `--apply --health-check ~/.hermes/profiles/nurtureanysalesbot/scripts/nurtureanysalesbot-check-health.sh` only after the runtime policy already contains the approved `event_operators` entry. The repair script must not be used to infer or grant new access from Slack profile data.
 
 ## Canonical Source Rule
 

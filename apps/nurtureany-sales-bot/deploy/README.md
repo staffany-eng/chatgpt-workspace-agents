@@ -74,7 +74,7 @@ node scripts/nurtureany-prod-ssh.mjs --doctor
 - `profile/SOUL.md` to the live profile `SOUL.md`
 - `skills/nurtureany-sales-bot/` and `skills/target-account-news-scout/` to the live profile skill directory
 - the app packet to `~/.hermes/profiles/nurtureanysalesbot/source/nurtureany-sales-bot/`
-- runtime health/audit/watchdog/cloud-doctor scripts and HubSpot Task reminder scripts to the live profile `scripts/`
+- runtime health/audit/watchdog/cloud-doctor scripts, Slack access repair script, and HubSpot Task reminder scripts to the live profile `scripts/`
 - a systemd user-service drop-in that loads the hydrated live profile `.env` as `EnvironmentFile` before gateway restart
 
 ## What Deploy Must Not Touch

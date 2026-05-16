@@ -11,7 +11,7 @@ EXPECT_MODEL_PROVIDER="${EXPECT_MODEL_PROVIDER:-anthropic}"
 EXPECT_MODEL_DEFAULT="${EXPECT_MODEL_DEFAULT:-claude-sonnet-4-6}"
 EXPECT_SLACK_INTENT_TOOLS="${EXPECT_SLACK_INTENT_TOOLS:-5}"
 EXPECT_STAFFANY_BIGQUERY_TOOLS="${EXPECT_STAFFANY_BIGQUERY_TOOLS:-4}"
-EXPECT_HUBSPOT_TOOLS="${EXPECT_HUBSPOT_TOOLS:-55}"
+EXPECT_HUBSPOT_TOOLS="${EXPECT_HUBSPOT_TOOLS:-56}"
 EXPECT_AIRCALL_TOOLS="${EXPECT_AIRCALL_TOOLS:-4}"
 EXPECT_GOOGLE_CALENDAR_TOOLS="${EXPECT_GOOGLE_CALENDAR_TOOLS:-2}"
 EXPECT_GOOGLE_DRIVE_TOOLS="${EXPECT_GOOGLE_DRIVE_TOOLS:-5}"
@@ -259,6 +259,7 @@ expected_servers = {
         "get_marketing_campaign_attribution",
         "list_my_target_accounts",
         "list_team_target_accounts",
+        "find_event_sourcing_target_accounts",
         "audit_hubspot_owner_roster",
         "resolve_nurture_scope",
         "resolve_sales_owners",
@@ -452,7 +453,15 @@ with open(policy_path, "r", encoding="utf-8") as handle:
     raw_policy = json.load(handle)
 
 disabled = disabled_emails(raw_policy)
-policy_emails: list[str] = []
+policy_emails: list[str] = [
+    "eugene@staffany.com",
+    "kaiyi@staffany.com",
+    "kai.yi@staffany.com",
+    "leekai.yi@staffany.com",
+    "kerren.fong@staffany.com",
+    "sarah@staffany.com",
+    "sarah.ayutania@staffany.com",
+]
 for entry in raw_policy.get("admins", []):
     email = entry_email(entry)
     if email and email not in disabled:
@@ -475,6 +484,7 @@ for entry in raw_policy.get("sales_reps", []):
     owner_email = str(entry.get("hubspot_owner_email") or "").strip().lower()
     if slack_email and slack_email not in disabled and owner_email not in disabled:
         policy_emails.append(slack_email)
+policy_emails = [email for email in policy_emails if email and email not in disabled]
 
 allowed_ids = {value.strip() for value in allowed_users_raw.split(",") if value.strip()}
 if not allowed_ids:

@@ -354,6 +354,7 @@ mcp_servers:
     - get_marketing_campaign_attribution
     - list_my_target_accounts
     - list_team_target_accounts
+    - find_event_sourcing_target_accounts
     - audit_hubspot_owner_roster
     - resolve_nurture_scope
     - resolve_sales_owners

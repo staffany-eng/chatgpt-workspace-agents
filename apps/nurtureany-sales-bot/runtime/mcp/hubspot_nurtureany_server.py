@@ -67,6 +67,11 @@ REGIONAL_MANAGERS = {
     "sarah@staffany.com": ("Indonesia",),
     "sarah.ayutania@staffany.com": ("Indonesia",),
 }
+EVENT_OPERATOR_ACCESS_PROFILE = "regional_events_read_only"
+EVENT_OPERATOR_BLOCK_MESSAGE = (
+    "Regional event operators can use read-only event sourcing only. "
+    "Manager/admin workflows, AE coaching, revenue metrics, HubSpot writes, and generic account context are blocked."
+)
 
 COMPANY_PROPERTIES = [
     "name",
@@ -555,6 +560,11 @@ MANAGER_CHASE_COVERAGE_LIMIT = 150
 ACTIVE_DEAL_HYGIENE_RETURN_LIMIT = 100
 REVENUE_FUNNEL_RETURN_LIMIT = 250
 REVENUE_FUNNEL_DEAL_SCAN_LIMIT = 1000
+EVENT_SOURCING_DEFAULT_LIMIT = 10
+EVENT_SOURCING_RETURN_LIMIT = 50
+EVENT_SOURCING_SCAN_LIMIT = 1000
+EVENT_SOURCING_DEFAULT_DEAL_BUCKET = "open_or_none"
+EVENT_SOURCING_CONTACT_ROLE_FILTERS = {"owner_or_hr", "owner", "hr", "any"}
 REVENUE_FUNNEL_NEW_BUSINESS_PIPELINE_IDS_ENV_VAR = "NURTUREANY_REVENUE_NEW_BUSINESS_PIPELINE_IDS"
 REVENUE_FUNNEL_RENEWAL_PIPELINE_IDS_ENV_VAR = "NURTUREANY_REVENUE_RENEWAL_PIPELINE_IDS"
 REVENUE_FUNNEL_CHANNEL_PROPERTIES = (
@@ -943,6 +953,7 @@ def _access_policy() -> dict[str, Any]:
         email: _normalize_countries(countries) for email, countries in REGIONAL_MANAGERS.items()
     }
     partnerships_viewers: dict[str, tuple[str, ...]] = {}
+    event_operators: dict[str, dict[str, Any]] = {}
     sales_reps: dict[str, dict[str, Any]] = {}
     disabled: set[str] = set()
     aliases: dict[str, str] = dict(BUILT_IN_EMAIL_ALIASES)
@@ -976,7 +987,7 @@ def _access_policy() -> dict[str, Any]:
             _register_email_alias(aliases, email, alias_for)
         managers[manager_email] = _normalize_countries(_string_list(countries))
 
-    for key in ("partnerships_viewers", "event_operators", "regional_event_operators"):
+    for key in ("partnerships_viewers",):
         for entry in raw.get(key, []):
             if not isinstance(entry, dict) or entry.get("active") is False:
                 continue
@@ -989,6 +1000,26 @@ def _access_policy() -> dict[str, Any]:
             if alias_for:
                 _register_email_alias(aliases, email, alias_for)
             partnerships_viewers[viewer_email] = _normalize_countries(_string_list(countries))
+
+    for key in ("event_operators", "regional_event_operators"):
+        for entry in raw.get(key, []):
+            if isinstance(entry, dict) and entry.get("active") is False:
+                continue
+            email = _entry_email(entry, "email", "slack_email")
+            if not email:
+                continue
+            countries = entry.get("countries") if isinstance(entry, dict) else None
+            alias_for = _entry_email(entry, "alias_for", "canonical_email", "canonical_slack_email")
+            operator_email = alias_for or email
+            if alias_for:
+                _register_email_alias(aliases, email, alias_for)
+            event_operators[operator_email] = {
+                "countries": _normalize_countries(_string_list(countries)),
+                "purpose": str(entry.get("purpose") or entry.get("role") or "regional_events").strip()
+                if isinstance(entry, dict)
+                else "regional_events",
+                "access_profile": EVENT_OPERATOR_ACCESS_PROFILE,
+            }
 
     for entry in raw.get("sales_reps", []):
         if not isinstance(entry, dict) or entry.get("active") is False:
@@ -1020,6 +1051,7 @@ def _access_policy() -> dict[str, Any]:
         "partnerships_viewers": {
             email: countries for email, countries in partnerships_viewers.items() if email not in disabled
         },
+        "event_operators": {email: data for email, data in event_operators.items() if email not in disabled},
         "sales_reps": {
             email: data
             for email, data in sales_reps.items()
@@ -1198,6 +1230,17 @@ def _caller_scope(slack_user_email: str) -> dict[str, Any]:
         return {"kind": "admin", "email": email, "countries": SUPPORTED_COUNTRIES, "owner_id": None, **alias_context}
     if email in policy["managers"]:
         return {"kind": "manager", "email": email, "countries": policy["managers"][email], "owner_id": None, **alias_context}
+    if email in policy.get("event_operators", {}):
+        operator = policy["event_operators"][email]
+        return {
+            "kind": "event_operator",
+            "email": email,
+            "countries": operator.get("countries", ()),
+            "owner_id": None,
+            "purpose": operator.get("purpose") or "regional_events",
+            "access_profile": operator.get("access_profile") or EVENT_OPERATOR_ACCESS_PROFILE,
+            **alias_context,
+        }
     if email in policy["partnerships_viewers"]:
         return {
             "kind": "partnerships_viewer",
@@ -2031,6 +2074,203 @@ def _compact_luma_candidate_summary(summary: dict[str, Any]) -> dict[str, Any]:
     return compact
 
 
+def _event_sourcing_owner_scope(
+    scope: dict[str, Any],
+    countries: list[str],
+    owner_emails: list[str] | None = None,
+    owner_names: list[str] | None = None,
+) -> tuple[list[str], list[dict[str, str]], list[str]]:
+    if scope.get("kind") not in {"admin", "manager", "event_operator"}:
+        raise ScopeError("Event sourcing across AE accounts requires manager/admin or regional event-operator scope.")
+
+    policy_owner_emails = _policy_owner_emails_for_countries(countries)
+    if not policy_owner_emails:
+        raise ScopeError("No classified sales-rep owners are available for the requested countries in the runtime access policy.")
+
+    requested_emails = _normalize_owner_email_list(owner_emails)
+    unresolved: list[str] = []
+    selected_owner_emails: list[str] = []
+
+    for owner_name in owner_names or []:
+        try:
+            identity = _owner_by_name(str(owner_name or ""))
+            owner_email = _normalize_email(identity.get("email") or "")
+        except MetricClarification:
+            unresolved.append(str(owner_name or ""))
+            continue
+        if owner_email:
+            requested_emails.append(owner_email)
+
+    if requested_emails:
+        allowed = set(policy_owner_emails)
+        for owner_email in requested_emails:
+            if owner_email not in allowed:
+                unresolved.append(owner_email)
+                continue
+            if owner_email not in selected_owner_emails:
+                selected_owner_emails.append(owner_email)
+    else:
+        selected_owner_emails = list(policy_owner_emails)
+
+    owner_ids: list[str] = []
+    owner_rows: list[dict[str, str]] = []
+    for owner_email in selected_owner_emails:
+        owner = _owner_by_email(owner_email)
+        owner_id = str((owner or {}).get("id") or "").strip()
+        if not owner_id:
+            unresolved.append(owner_email)
+            continue
+        if owner_id not in owner_ids:
+            owner_ids.append(owner_id)
+            owner_rows.append(
+                {
+                    "owner_id": owner_id,
+                    "owner_email": owner_email,
+                    "owner_name": _owner_name(owner or {}),
+                }
+            )
+
+    return owner_ids, owner_rows, unresolved
+
+
+def _event_sourcing_target_filters(
+    countries: list[str],
+    owner_ids: list[str],
+    headcount_min: int,
+    headcount_max: int,
+) -> list[dict[str, Any]]:
+    filters = _target_filters(countries)
+    if owner_ids:
+        filters.append(
+            {"propertyName": "hubspot_owner_id", "operator": "IN", "values": owner_ids}
+            if len(owner_ids) > 1
+            else {"propertyName": "hubspot_owner_id", "operator": "EQ", "value": owner_ids[0]}
+        )
+    if headcount_min > 0:
+        filters.append({"propertyName": "numberofemployees", "operator": "GTE", "value": str(headcount_min)})
+    if headcount_max > 0:
+        filters.append({"propertyName": "numberofemployees", "operator": "LTE", "value": str(headcount_max)})
+    return filters
+
+
+def _event_industry_matches(company: dict[str, Any], industry: str) -> bool:
+    requested = _normalized_words(industry)
+    if not requested:
+        return True
+    if requested in {"f b", "fnb", "food beverage", "food and beverage", "food beverages"}:
+        return _fnb_retail_company(company)
+    props = company.get("properties", {})
+    text = _normalized_words(" ".join([str(props.get("industry") or ""), str(props.get("name") or "")]))
+    return requested in text or all(token in text for token in requested.split())
+
+
+def _event_headcount_matches(company: dict[str, Any], headcount_min: int, headcount_max: int) -> bool:
+    if headcount_min <= 0 and headcount_max <= 0:
+        return True
+    value = _int_value(company.get("properties", {}).get("numberofemployees"))
+    if value <= 0:
+        return False
+    if headcount_min > 0 and value < headcount_min:
+        return False
+    if headcount_max > 0 and value > headcount_max:
+        return False
+    return True
+
+
+def _event_deal_bucket(deals: list[dict[str, Any]]) -> dict[str, Any]:
+    active = [deal for deal in deals if _deal_is_active_for_hygiene(deal)]
+    return {
+        "deal_bucket": "open_deal" if active else "no_open_deal",
+        "open_deal_count": len(active),
+        "associated_deal_count": len(deals),
+    }
+
+
+def _normalized_event_deal_bucket(value: str) -> str:
+    normalized = str(value or "").strip().lower().replace("-", "_").replace(" ", "_")
+    aliases = {
+        "": EVENT_SOURCING_DEFAULT_DEAL_BUCKET,
+        "any": "any",
+        "all": "any",
+        "open": "open_deal",
+        "ongoing": "open_deal",
+        "open_deals": "open_deal",
+        "ongoing_deals": "open_deal",
+        "no_open": "no_open_deal",
+        "none": "no_open_deal",
+        "no_ongoing": "no_open_deal",
+        "no_deal": "no_open_deal",
+        "no_open_deal": "no_open_deal",
+        "open_or_none": "open_or_none",
+        "ongoing_or_no_ongoing": "open_or_none",
+        "open_or_no_open": "open_or_none",
+    }
+    return aliases.get(normalized, EVENT_SOURCING_DEFAULT_DEAL_BUCKET)
+
+
+def _event_deal_bucket_allowed(actual_bucket: str, requested_bucket: str) -> bool:
+    if requested_bucket in {"any", "open_or_none"}:
+        return actual_bucket in {"open_deal", "no_open_deal"}
+    return actual_bucket == requested_bucket
+
+
+def _event_contact_role_summary(contacts: list[dict[str, Any]]) -> dict[str, Any]:
+    owner_contacts = []
+    hr_contacts = []
+    verified_decision_makers = []
+    for contact in contacts:
+        role_text = _normalized_words(" ".join([str(contact.get("persona") or ""), str(contact.get("buying_role") or "")]))
+        padded = f" {role_text} "
+        is_verified_dm = bool(contact.get("is_verified_decision_maker"))
+        is_owner = is_verified_dm or _role_is_decision_maker(str(contact.get("persona") or ""))
+        is_hr = any(
+            marker in padded
+            for marker in (
+                " hr ",
+                " human resource ",
+                " human resources ",
+                " people ",
+                " talent ",
+                " payroll ",
+                " admin ",
+            )
+        )
+        if is_owner:
+            owner_contacts.append(contact)
+        if is_hr:
+            hr_contacts.append(contact)
+        if is_verified_dm:
+            verified_decision_makers.append(contact)
+    return {
+        "owner_contact_count": len(owner_contacts),
+        "hr_contact_count": len(hr_contacts),
+        "verified_decision_maker_count": len(verified_decision_makers),
+        "associated_contact_count": len(contacts),
+        "safe_contact_role_samples": [
+            {
+                "display_name": contact.get("display_name"),
+                "persona": contact.get("persona"),
+                "buying_role": contact.get("buying_role"),
+                "decision_maker_confidence": contact.get("decision_maker_confidence"),
+            }
+            for contact in (owner_contacts + [item for item in hr_contacts if item not in owner_contacts])[:3]
+        ],
+    }
+
+
+def _event_contact_role_allowed(summary: dict[str, Any], contact_role_filter: str) -> bool:
+    normalized = str(contact_role_filter or "owner_or_hr").strip().lower()
+    if normalized not in EVENT_SOURCING_CONTACT_ROLE_FILTERS:
+        normalized = "owner_or_hr"
+    if normalized == "any":
+        return True
+    if normalized == "owner":
+        return int(summary.get("owner_contact_count") or 0) > 0
+    if normalized == "hr":
+        return int(summary.get("hr_contact_count") or 0) > 0
+    return int(summary.get("owner_contact_count") or 0) > 0 or int(summary.get("hr_contact_count") or 0) > 0
+
+
 def _luma_company_name_matches(company_name: str, candidate_name: str) -> bool:
     company_norm = _normalize_name(company_name)
     candidate_norm = _normalize_name(candidate_name)
@@ -2047,6 +2287,8 @@ def _luma_company_name_matches(company_name: str, candidate_name: str) -> bool:
 
 def _target_owner_id_for_scope(scope: dict[str, Any], owner_email: str | None = None) -> tuple[str | None, str]:
     target_email = _normalize_email(owner_email or "")
+    if scope.get("kind") == "event_operator":
+        raise ScopeError(EVENT_OPERATOR_BLOCK_MESSAGE)
     if not target_email:
         return (str(scope["owner_id"]), scope["email"]) if scope["kind"] == "ae" and scope.get("owner_id") else (None, "")
 
@@ -2201,6 +2443,8 @@ def _resolve_requested_owner(
     owner_email: str | None,
     owner_name: str | None,
 ) -> dict[str, str] | None:
+    if scope.get("kind") == "event_operator":
+        raise ScopeError(EVENT_OPERATOR_BLOCK_MESSAGE)
     if owner_email and owner_name:
         raise MetricClarification("Provide only one owner selector: owner_email or owner_name.")
     if owner_email:
@@ -5205,6 +5449,8 @@ def _sales_owner_rows_for_scope(
     classified_sales_reps_only: bool = True,
     limit: int = 500,
 ) -> tuple[list[dict[str, Any]], list[str]]:
+    if scope.get("kind") == "event_operator":
+        raise ScopeError(EVENT_OPERATOR_BLOCK_MESSAGE)
     selected_countries = set(countries)
     requested_ids = _normalize_owner_id_list(owner_ids)
     requested_emails = _normalize_owner_email_list(owner_emails)
@@ -9298,6 +9544,10 @@ def _scope_response(
         response["requested_caller_email"] = scope["requested_email"]
     if scope.get("hubspot_owner_email"):
         response["hubspot_owner_email"] = scope["hubspot_owner_email"]
+    if scope.get("access_profile"):
+        response["access_profile"] = scope["access_profile"]
+    if scope.get("purpose"):
+        response["purpose"] = scope["purpose"]
     if target_owner_id:
         response["target_owner_id"] = target_owner_id
     if target_owner_email:
@@ -10273,6 +10523,8 @@ def _policy_classification(email: str, policy: dict[str, Any]) -> str:
         return "admin"
     if normalized in policy["managers"]:
         return "manager"
+    if normalized in policy.get("event_operators", {}):
+        return "event_operator"
     if normalized in policy.get("partnerships_viewers", {}):
         return "partnerships_viewer"
     if normalized in policy["sales_reps"]:
@@ -12883,6 +13135,142 @@ def list_team_target_accounts(
         }
     except ScopeError as error:
         return _blocked(str(error), {"caller_email": slack_user_email, "owner_email": owner_email})
+    except HubSpotError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email})
+
+
+@mcp.tool()
+def find_event_sourcing_target_accounts(
+    slack_user_email: str,
+    countries: list[str] | None = None,
+    industry: str = "Food & Beverage",
+    headcount_min: int = 21,
+    headcount_max: int = 50,
+    contact_role_filter: str = "owner_or_hr",
+    deal_bucket: str = EVENT_SOURCING_DEFAULT_DEAL_BUCKET,
+    owner_emails: list[str] | None = None,
+    owner_names: list[str] | None = None,
+    limit: int = EVENT_SOURCING_DEFAULT_LIMIT,
+) -> dict[str, Any]:
+    """Find read-only in-country AE target accounts for regional event sourcing."""
+
+    try:
+        scope = _caller_scope(slack_user_email)
+        if scope["kind"] == "blocked":
+            return _blocked("Caller identity is not mapped to an allowed scope.", {"caller_email": slack_user_email})
+        if scope["kind"] not in {"admin", "manager", "event_operator"}:
+            return _blocked(
+                "Event sourcing across AE accounts requires manager/admin or regional event-operator scope.",
+                _scope_response(scope, list(scope.get("countries", ()))),
+            )
+        selected = _safe_countries(countries, scope["countries"])
+        if not selected:
+            return _blocked("Requested countries are outside caller scope.", _scope_response(scope, []))
+
+        requested_limit = _bounded_int(limit, default=EVENT_SOURCING_DEFAULT_LIMIT, maximum=EVENT_SOURCING_RETURN_LIMIT)
+        owner_ids, owner_rows, unresolved_owners = _event_sourcing_owner_scope(scope, selected, owner_emails, owner_names)
+        requested_deal_bucket = _normalized_event_deal_bucket(deal_bucket)
+        normalized_contact_filter = str(contact_role_filter or "owner_or_hr").strip().lower()
+        if normalized_contact_filter not in EVENT_SOURCING_CONTACT_ROLE_FILTERS:
+            normalized_contact_filter = "owner_or_hr"
+
+        data = _company_search(
+            _event_sourcing_target_filters(selected, owner_ids, _bounded_int(headcount_min, default=0, minimum=0), _bounded_int(headcount_max, default=0, minimum=0)),
+            limit=max(requested_limit * 20, 100),
+            maximum=EVENT_SOURCING_SCAN_LIMIT,
+            sorts=[{"propertyName": "notes_last_updated", "direction": "DESCENDING"}],
+        )
+        companies = [
+            company
+            for company in data.get("results", [])
+            if _event_industry_matches(company, industry)
+            and _event_headcount_matches(company, _bounded_int(headcount_min, default=0, minimum=0), _bounded_int(headcount_max, default=0, minimum=0))
+        ]
+        company_ids = [str(company.get("id") or "") for company in companies if company.get("id")]
+        contact_index = _batch_association_ids("companies", "contacts", company_ids[:EVENT_SOURCING_SCAN_LIMIT])
+        deal_index = _batch_association_ids("companies", "deals", company_ids[:EVENT_SOURCING_SCAN_LIMIT])
+        contact_detail_index = _safe_contact_index(contact_index)
+        all_deal_ids = sorted({deal_id for deal_ids in deal_index.values() for deal_id in deal_ids})
+        deals_by_id = {
+            str(deal.get("id") or ""): deal
+            for deal in _batch_read("deals", all_deal_ids, DEAL_PROPERTIES)
+            if deal.get("id")
+        }
+
+        rows: list[dict[str, Any]] = []
+        for company in companies:
+            company_id = str(company.get("id") or "")
+            contacts = contact_detail_index.get(company_id, [])
+            contact_summary = _event_contact_role_summary(contacts)
+            if not _event_contact_role_allowed(contact_summary, normalized_contact_filter):
+                continue
+            deals = [deals_by_id[deal_id] for deal_id in deal_index.get(company_id, []) if deal_id in deals_by_id]
+            deal_summary = _event_deal_bucket(deals)
+            if not _event_deal_bucket_allowed(deal_summary["deal_bucket"], requested_deal_bucket):
+                continue
+            company_summary = _summarize_company(company)
+            missing_fields = list(company_summary.get("missing_fields") or [])
+            if not company_summary.get("owner_email"):
+                missing_fields.append("owner email")
+            rows.append(
+                {
+                    "company_id": company_summary.get("company_id"),
+                    "hubspot_scoped": True,
+                    "scope_source": SCOPE_SOURCE,
+                    "name": company_summary.get("name"),
+                    "domain": company_summary.get("domain"),
+                    "country": company_summary.get("country"),
+                    "owner_id": company_summary.get("owner_id"),
+                    "owner_email": company_summary.get("owner_email"),
+                    "owner_name": company_summary.get("owner_name"),
+                    "headcount": company_summary.get("headcount"),
+                    "industry": company_summary.get("industry"),
+                    "account_status": company_summary.get("account_status"),
+                    "account_status_source": company_summary.get("account_status_source"),
+                    **deal_summary,
+                    **contact_summary,
+                    "missing_fields": sorted(set(missing_fields)),
+                    "recommended_ae_ask": "Ask the AE to validate the owner/HR contact and decide whether to invite for the event.",
+                }
+            )
+        rows.sort(
+            key=lambda row: (
+                -_int_value(row.get("open_deal_count")),
+                -(_int_value(row.get("owner_contact_count")) + _int_value(row.get("hr_contact_count"))),
+                str(row.get("name") or ""),
+            )
+        )
+        returned_rows = rows[:requested_limit]
+        truncated = bool(data.get("truncated") or len(rows) > requested_limit or unresolved_owners)
+        return {
+            "answer": returned_rows,
+            "source": "HubSpot target-account companies, runtime access-policy AE roster, associated contacts, and associated deals",
+            "scope": {
+                **_scope_response(scope, selected),
+                "industry": industry,
+                "headcount_min": _bounded_int(headcount_min, default=0, minimum=0),
+                "headcount_max": _bounded_int(headcount_max, default=0, minimum=0),
+                "contact_role_filter": normalized_contact_filter,
+                "deal_bucket": requested_deal_bucket,
+                "owner_count": len(owner_rows),
+                "owners": owner_rows,
+                "unresolved_owners": unresolved_owners,
+            },
+            "total": len(rows),
+            "requested_limit": requested_limit,
+            "returned_count": len(returned_rows),
+            "scanned_count": len(companies),
+            "has_more": truncated,
+            "truncated": truncated,
+            "will_mutate_hubspot": False,
+            "confidence": "needs-check" if truncated else "verified",
+            "caveat": (
+                "Read-only regional event sourcing. Event operators can inspect in-country AE target-account candidates only through this tool. "
+                "No HubSpot mutation, raw contact emails, phone numbers, task bodies, note bodies, communication bodies, or bulk exports are returned."
+            ),
+        }
+    except (AccessPolicyError, ScopeError, MetricClarification) as error:
+        return _blocked(str(error), {"caller_email": slack_user_email})
     except HubSpotError as error:
         return _blocked(str(error), {"caller_email": slack_user_email})
 
@@ -16947,8 +17335,8 @@ def plan_hubspot_writeback(
         scope = _caller_scope(slack_user_email)
         if scope["kind"] == "blocked":
             return _blocked("Caller identity is not mapped to an allowed scope.", {"caller_email": slack_user_email})
-        if scope["kind"] == "manager":
-            return _blocked("Managers have read-only team scope and cannot create HubSpot write-back previews.", _scope_response(scope, list(scope.get("countries", ()))))
+        if scope["kind"] in {"manager", "event_operator"}:
+            return _blocked("Managers and regional event operators cannot create HubSpot write-back previews.", _scope_response(scope, list(scope.get("countries", ()))))
         if not selected_actions:
             return _blocked("At least one selected action is required for a write-back preview.", _scope_response(scope, list(scope.get("countries", ()))))
 

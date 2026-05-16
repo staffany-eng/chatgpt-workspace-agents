@@ -8,6 +8,7 @@ GATEWAY_LAUNCHD_LABEL="${NURTUREANY_GATEWAY_LAUNCHD_LABEL:-ai.hermes.gateway-$PR
 NURTUREANY_DUPLICATE_PROFILE="${NURTUREANY_DUPLICATE_PROFILE:-nae2e}"
 NURTUREANY_DUPLICATE_LAUNCHD_LABEL="${NURTUREANY_DUPLICATE_LAUNCHD_LABEL:-ai.hermes.gateway-$NURTUREANY_DUPLICATE_PROFILE}"
 HERMES_AGENT_DIR="${HERMES_AGENT_DIR:-$HOME/.hermes/hermes-agent}"
+ALLOWLIST_REPAIR_SCRIPT="${NURTUREANY_SLACK_ACCESS_REPAIR_SCRIPT:-$PROFILE_DIR/scripts/nurtureany_slack_access_repair.py}"
 PATH="$HOME/.local/bin:$HERMES_AGENT_DIR:$PATH"
 export PATH
 
@@ -105,6 +106,55 @@ if command -v hermes >/dev/null 2>&1; then
   done
 else
   line "hermes:not-found"
+fi
+
+if [ -r "$PROFILE_DIR/.env" ] && [ -r "$ALLOWLIST_REPAIR_SCRIPT" ] && command -v python3 >/dev/null 2>&1; then
+  allowlist_repair_args=(--profile-env "$PROFILE_DIR/.env")
+  if [ -r "$PROFILE_DIR/config.yaml" ]; then
+    policy_path="$(python3 - "$PROFILE_DIR/config.yaml" <<'PY' 2>/dev/null || true
+import sys
+
+try:
+    import yaml
+except Exception:
+    raise SystemExit(0)
+
+config = yaml.safe_load(open(sys.argv[1], "r", encoding="utf-8").read()) or {}
+servers = config.get("mcp_servers") or {}
+hubspot_env = ((servers.get("hubspot_nurtureany") or {}).get("env") or {})
+policy_path = str(hubspot_env.get("NURTUREANY_ACCESS_POLICY_PATH") or "").strip()
+if policy_path:
+    print(policy_path)
+PY
+)"
+    if [ -n "$policy_path" ]; then
+      allowlist_repair_args+=(--access-policy "$policy_path")
+    fi
+  fi
+  allowlist_out="$(python3 "$ALLOWLIST_REPAIR_SCRIPT" "${allowlist_repair_args[@]}" 2>/dev/null || true)"
+  python3 - "$allowlist_out" <<'PY'
+import json
+import sys
+
+try:
+    payload = json.loads(sys.argv[1])
+except Exception:
+    print("slack_allowlist:diagnostic-unavailable")
+    raise SystemExit(0)
+
+print(
+    "slack_allowlist:"
+    f"ok={str(bool(payload.get('ok'))).lower()}:"
+    f"policy_users={payload.get('policy_email_count', 0)}:"
+    f"resolved={payload.get('resolved_policy_user_count', 0)}:"
+    f"current={payload.get('current_allowed_user_count', 0)}:"
+    f"missing={len(payload.get('missing_user_ids') or [])}:"
+    f"extra={len(payload.get('extra_user_ids') or [])}:"
+    f"lookup_errors={len(payload.get('lookup_errors') or [])}"
+)
+PY
+else
+  line "slack_allowlist:diagnostic-unavailable"
 fi
 
 cron_jobs="$PROFILE_DIR/cron/jobs.json"
