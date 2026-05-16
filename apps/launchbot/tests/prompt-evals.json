@@ -115,8 +115,132 @@
       "grade_notes": "Fixture proves the concise Launchbot capability answer shape.",
       "assertions": {
         "answer_fixture": {
-          "output": "Answer: I am Launchbot. I help turn shipped Jira features into launch assets: cached Intercom article planning, Pantheon-grounded help article drafts, Google Docs review drafts, Slack approval routing, Intercom draft/staging articles after approval, registered video-slot update drafts, and read-only KER ticket lookup from Slack context.\nSource: Launchbot packet\nScope: Launch workflow in #launch-bot-testing and configured project channels; Step 4 launch derivatives are planned only.\nConfidence: verified\nCaveat: Pantheon code-grounding is available when the VM checkout is fresh; automatic refresh depends on VM GitHub SSH access."
+          "output": "Answer: I am Launchbot. I help turn shipped Jira features into launch assets: cached Intercom article planning, Pantheon-grounded help article drafts, Google Docs review drafts, Slack approval routing, Intercom draft/staging articles after approval, registered video-slot update drafts, read-only KER ticket lookup from Slack context, and preview-first IFI tracking linked to HubSpot Company ID.\nSource: Launchbot packet\nScope: Launch workflow in #launch-bot-testing and configured project channels; Step 4 launch derivatives are planned only.\nConfidence: verified\nCaveat: Pantheon code-grounding is available when the VM checkout is fresh; automatic refresh depends on VM GitHub SSH access."
         }
+      }
+    },
+    {
+      "id": "launchbot-tooltrace-ifi-preview-first",
+      "bot": "Launchbot",
+      "surface": "slack:#launch-bot-testing",
+      "lane": "tool-trace",
+      "input": "@Launch Bot track IFI for https://app.hubspot.com/contacts/4137076/company/1991281569: Citibank bank file export",
+      "setup": {
+        "after_run": true,
+        "stub_tools": true
+      },
+      "expected_tool_trace": {
+        "must_call": [
+          "preview_ifi_feature_request_tracking"
+        ],
+        "must_not_call": [
+          "create_or_update_ifi_feature_request_tracking",
+          "chat.postMessage",
+          "hubspot mutation"
+        ],
+        "argument_shape": {
+          "hubspot_company": "required",
+          "feature_gap": "required",
+          "slack_permalink": "optional",
+          "approval_marker": "not_allowed_for_preview"
+        }
+      },
+      "expected_answer_contract": {
+        "must_include": [
+          "Answer:",
+          "Source:",
+          "Scope:",
+          "Confidence:",
+          "Caveat:"
+        ]
+      },
+      "forbidden_behavior": [
+        "Jira mutation before confirm IFI",
+        "HubSpot mutation",
+        "Jira Organizations as CRM truth"
+      ],
+      "grade_notes": "IFI tracking must be preview-first and anchored to HubSpot Company ID.",
+      "assertions": {
+        "source_files": [
+          {
+            "path": "profile/SOUL.md",
+            "must_contain": [
+              "Use `preview_ifi_feature_request_tracking` first.",
+              "Do not write Jira unless the user gives the exact approval marker `confirm IFI`.",
+              "Do not use Jira Organizations or StaffAny Organization as HubSpot truth."
+            ]
+          },
+          {
+            "path": "tests/launch-workflow-regression-cases.md",
+            "must_contain": [
+              "preview_ifi_feature_request_tracking",
+              "customfield_10881",
+              "confirm IFI"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "launchbot-tooltrace-ifi-bd-notes-preview-first",
+      "bot": "Launchbot",
+      "surface": "slack:#launch-bot-testing",
+      "lane": "tool-trace",
+      "input": "@Launch Bot from BD notes: Neon Group asked whether StaffAny can generate a native Citibank payroll bank file.",
+      "setup": {
+        "after_run": true,
+        "stub_tools": true
+      },
+      "expected_tool_trace": {
+        "must_call": [
+          "preview_ifi_feature_request_from_bd_note"
+        ],
+        "must_not_call": [
+          "create_or_update_ifi_feature_request_from_bd_note",
+          "create_or_update_ifi_feature_request_tracking",
+          "chat.postMessage",
+          "hubspot mutation"
+        ],
+        "argument_shape": {
+          "bd_note": "required",
+          "hubspot_company": "optional_confirmed_id_or_url_only",
+          "approval_marker": "not_allowed_for_preview"
+        }
+      },
+      "expected_answer_contract": {
+        "must_include": [
+          "Answer:",
+          "Source:",
+          "Scope:",
+          "Confidence:",
+          "Caveat:"
+        ]
+      },
+      "forbidden_behavior": [
+        "Alias auto-mapping before confirmation",
+        "Jira mutation before confirm IFI",
+        "HubSpot mutation"
+      ],
+      "grade_notes": "BD notes are a second intake surface into the same IFI contract and must ask for a confirmed HubSpot Company ID when company text is ambiguous.",
+      "assertions": {
+        "source_files": [
+          {
+            "path": "profile/SOUL.md",
+            "must_contain": [
+              "preview_ifi_feature_request_from_bd_note",
+              "ask for a HubSpot company link or numeric HubSpot Company ID",
+              "Do not auto-map aliases"
+            ]
+          },
+          {
+            "path": "tests/launch-workflow-regression-cases.md",
+            "must_contain": [
+              "Neon Group asked whether StaffAny can generate a native Citibank payroll bank file.",
+              "25638156628",
+              "preview_ifi_feature_request_from_bd_note"
+            ]
+          }
+        ]
       }
     },
     {

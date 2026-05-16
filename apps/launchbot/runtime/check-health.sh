@@ -111,6 +111,20 @@ expected_tools = {"find_ker_ticket_from_slack_thread", "lookup_ker_ticket_by_key
 if tools != expected_tools:
     fail("mcp:launchbot_ker:tool-allowlist-unexpected")
 
+launchbot_ifi = mcp_servers.get("launchbot_ifi") or {}
+ifi_tools = set(launchbot_ifi.get("tool_allowlist") or [])
+expected_ifi_tools = {"preview_ifi_feature_request_tracking", "create_or_update_ifi_feature_request_tracking"}
+expected_ifi_tools |= {"preview_ifi_feature_request_from_bd_note", "create_or_update_ifi_feature_request_from_bd_note"}
+if ifi_tools != expected_ifi_tools:
+    fail("mcp:launchbot_ifi:tool-allowlist-unexpected")
+ifi_policy = launchbot_ifi.get("access_policy") or {}
+if ifi_policy.get("mode") != "preview_first_confirmed_jira_mutation":
+    fail("mcp:launchbot_ifi:mode-unexpected")
+if ifi_policy.get("approval_marker") != "confirm IFI":
+    fail("mcp:launchbot_ifi:approval-marker-unexpected")
+if ifi_policy.get("will_post_message") is not False:
+    fail("mcp:launchbot_ifi:will-post-message-must-be-false")
+
 launchbot_help_article = mcp_servers.get("launchbot_help_article") or {}
 video_tools = set(launchbot_help_article.get("tool_allowlist") or [])
 expected_video_tools = {"preview_help_article_video_update", "create_help_article_video_update_draft"}
@@ -129,14 +143,21 @@ for key in \
   JIRA_BASE_URL \
   JIRA_EMAIL \
   JIRA_API_TOKEN \
+  JIRA_IFI_HUBSPOT_COMPANY_ID_FIELD_ID \
   LAUNCH_STEP3_INTERCOM_ACCESS_TOKEN; do
   value="${!key:-}"
   [ -n "$value" ] || fail "env:$key:missing"
 done
+[ -n "${HUBSPOT_ACCESS_TOKEN:-${HUBSPOT_PRIVATE_APP_TOKEN:-}}" ] || fail "env:HUBSPOT_ACCESS_TOKEN:missing"
+[ "${JIRA_IFI_HUBSPOT_COMPANY_ID_FIELD_ID:-}" = "customfield_10881" ] || fail "env:JIRA_IFI_HUBSPOT_COMPANY_ID_FIELD_ID:unexpected"
 
 mcp_out="$(hermes -p "$PROFILE" mcp test launchbot_ker 2>&1)" || fail "mcp:launchbot_ker:test-failed"
 count="$(printf '%s\n' "$mcp_out" | sed -nE 's/.*Tools discovered: ([0-9]+).*/\1/p' | tail -1)"
 [ "$count" = "2" ] || fail "mcp:launchbot_ker:tools=${count:-unavailable}:expected=2"
+
+ifi_mcp_out="$(hermes -p "$PROFILE" mcp test launchbot_ifi 2>&1)" || fail "mcp:launchbot_ifi:test-failed"
+ifi_count="$(printf '%s\n' "$ifi_mcp_out" | sed -nE 's/.*Tools discovered: ([0-9]+).*/\1/p' | tail -1)"
+[ "$ifi_count" = "4" ] || fail "mcp:launchbot_ifi:tools=${ifi_count:-unavailable}:expected=4"
 
 video_mcp_out="$(hermes -p "$PROFILE" mcp test launchbot_help_article 2>&1)" || fail "mcp:launchbot_help_article:test-failed"
 video_count="$(printf '%s\n' "$video_mcp_out" | sed -nE 's/.*Tools discovered: ([0-9]+).*/\1/p' | tail -1)"

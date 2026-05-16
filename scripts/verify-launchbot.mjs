@@ -151,6 +151,24 @@ if (!manifest) {
     fail("Manifest Pantheon daily update must be gated on VM GitHub SSH access");
   }
   const helpMcp = manifest.mcp?.launchbot_help_article || {};
+  const ifiMcp = manifest.mcp?.launchbot_ifi || {};
+  if (ifiMcp.mode !== "preview_first_confirmed_jira_mutation") fail("Manifest IFI MCP must be preview-first confirmed Jira mutation");
+  const ifiTools = new Set(ifiMcp.tools || []);
+  for (const tool of [
+    "preview_ifi_feature_request_tracking",
+    "create_or_update_ifi_feature_request_tracking",
+    "preview_ifi_feature_request_from_bd_note",
+    "create_or_update_ifi_feature_request_from_bd_note",
+  ]) {
+    if (!ifiTools.has(tool)) fail(`Manifest IFI MCP missing tool: ${tool}`);
+  }
+  if (ifiMcp.hubspot?.company_identity !== "HubSpot Company ID") fail("Manifest IFI MCP must anchor on HubSpot Company ID");
+  if (ifiMcp.jira?.project_key !== "IFI") fail("Manifest IFI MCP must write to IFI");
+  if (ifiMcp.jira?.hubspot_company_id_field_id !== "customfield_10881") {
+    fail("Manifest IFI MCP must register customfield_10881 as the HubSpot Company ID field");
+  }
+  if (ifiMcp.jira?.approval_marker !== "confirm IFI") fail("Manifest IFI MCP must require confirm IFI");
+  if (ifiMcp.jira?.slack_post !== false) fail("Manifest IFI MCP must not post Slack messages");
   if (helpMcp.mode !== "draft_only_registered_video_slots") fail("Manifest help article MCP must be draft-only registered video slots");
   const helpTools = new Set(helpMcp.tools || []);
   for (const tool of ["preview_help_article_video_update", "create_help_article_video_update_draft"]) {
@@ -192,9 +210,11 @@ for (const relPath of [
   "runtime/intercom-format-gate.test.mjs",
   "runtime/mcp/profile_env.py",
   "runtime/mcp/launchbot_ker_server.py",
+  "runtime/mcp/launchbot_ifi_server.py",
   "runtime/mcp/launchbot_help_article_server.py",
   "runtime/mcp/test_helpers.py",
   "runtime/mcp/test_launchbot_ker_server.py",
+  "runtime/mcp/test_launchbot_ifi_server.py",
   "runtime/mcp/test_launchbot_help_article_server.py",
   "runtime/mcp/fixtures/help_article_video_fixtures.json",
   "skills/help-article-generator/SKILL.md",
@@ -225,11 +245,20 @@ for (const requiredText of [
   "C0B32M34J3W",
   "C0AJAUNCEL8",
   "launchbot_ker",
+  "launchbot_ifi",
   "launchbot_help_article",
   "find_ker_ticket_from_slack_thread",
   "lookup_ker_ticket_by_key",
+  "preview_ifi_feature_request_tracking",
+  "create_or_update_ifi_feature_request_tracking",
+  "preview_ifi_feature_request_from_bd_note",
+  "create_or_update_ifi_feature_request_from_bd_note",
   "preview_help_article_video_update",
   "create_help_article_video_update_draft",
+  "HUBSPOT_ACCESS_TOKEN",
+  "JIRA_IFI_HUBSPOT_COMPANY_ID_FIELD_ID",
+  "customfield_10881",
+  "confirm IFI",
   "JIRA_API_TOKEN",
   "LAUNCH_STEP3_INTERCOM_ACCESS_TOKEN",
   "draft_only_registered_video_slots",
@@ -261,6 +290,7 @@ if (!launchbotProfileBlock) {
     "deploy_host: hermes-data-bot-poc",
     "local_profile_policy: cloud_only",
     "systemd_unit: hermes-gateway-launchbot.service",
+    "launchbot_ifi:",
     "launchbot_help_article:",
   ]) {
     if (!launchbotProfileBlock.includes(requiredText)) {
@@ -285,6 +315,13 @@ for (const requiredText of [
   "Pantheon-grounded help article drafts",
   "registered video-slot update drafts",
   "Intercom format checks",
+  "preview-first IFI tracking linked to HubSpot Company ID",
+  "preview_ifi_feature_request_tracking",
+  "create_or_update_ifi_feature_request_tracking",
+  "preview_ifi_feature_request_from_bd_note",
+  "create_or_update_ifi_feature_request_from_bd_note",
+  "confirm IFI",
+  "customfield_10881",
   "message.channels",
   "Intercom draft/staging articles",
   "preview_help_article_video_update",
@@ -323,6 +360,29 @@ for (const forbiddenText of ["chat.postMessage", "transitionIssue", "/comment", 
   if (mcpText.includes(forbiddenText)) fail(`launchbot_ker_server.py must not contain forbidden mutation surface: ${forbiddenText}`);
 }
 
+const ifiMcpText = textOf("runtime/mcp/launchbot_ifi_server.py");
+for (const requiredText of [
+  "HUBSPOT_ACCESS_TOKEN",
+  "HUBSPOT_PRIVATE_APP_TOKEN",
+  "JIRA_IFI_HUBSPOT_COMPANY_ID_FIELD_ID",
+  "customfield_10881",
+  "HubSpot Company ID",
+  "preview_ifi_feature_request_tracking",
+  "create_or_update_ifi_feature_request_tracking",
+  "preview_ifi_feature_request_from_bd_note",
+  "create_or_update_ifi_feature_request_from_bd_note",
+  "confirm IFI",
+  "/rest/api/3/search/jql",
+  "/rest/api/3/issue",
+  "/rest/api/3/issueLink",
+  "willPostMessage",
+]) {
+  if (!ifiMcpText.includes(requiredText)) fail(`launchbot_ifi_server.py missing required text: ${requiredText}`);
+}
+for (const forbiddenText of ["chat.postMessage", "SLACK_USER_TOKEN"]) {
+  if (ifiMcpText.includes(forbiddenText)) fail(`launchbot_ifi_server.py must not contain forbidden Slack surface: ${forbiddenText}`);
+}
+
 const helpArticleMcpText = textOf("runtime/mcp/launchbot_help_article_server.py");
 for (const requiredText of [
   "LAUNCH_STEP3_INTERCOM_ACCESS_TOKEN",
@@ -349,6 +409,12 @@ for (const requiredText of [
   "pantheon:status-stale",
   "LAUNCHBOT_PANTHEON_REPO_DIR",
   "mcp:launchbot_help_article",
+  "mcp:launchbot_ifi",
+  "preview_ifi_feature_request_from_bd_note",
+  "create_or_update_ifi_feature_request_from_bd_note",
+  "HUBSPOT_ACCESS_TOKEN",
+  "JIRA_IFI_HUBSPOT_COMPANY_ID_FIELD_ID",
+  "customfield_10881",
   "LAUNCH_STEP3_INTERCOM_ACCESS_TOKEN",
   "help-article-video-registry",
 ]) {
@@ -362,6 +428,7 @@ for (const requiredText of [
   "cron:pantheon-repo-update-present-without-github-ssh",
   "GIT_TERMINAL_PROMPT=0 git ls-remote",
   "profile-drift:help-article-mcp",
+  "profile-drift:ifi-mcp",
   "profile-drift:help-article-video-registry",
 ]) {
   if (!auditText.includes(requiredText)) fail(`audit-live-profile.sh missing required cron/access text: ${requiredText}`);
@@ -488,6 +555,14 @@ for (const requiredText of [
   "live Intercom wins",
   "pre-stage target-article stale check",
   "Public publishing stays manual in Intercom",
+  "IFI Feature Request Tracking",
+  "preview_ifi_feature_request_tracking",
+  "create_or_update_ifi_feature_request_tracking",
+  "preview_ifi_feature_request_from_bd_note",
+  "create_or_update_ifi_feature_request_from_bd_note",
+  "HubSpot Company ID",
+  "customfield_10881",
+  "confirm IFI",
   "bot-owned posting credentials",
   "@Launch Bot",
   "U0ASVD79UT1",
@@ -618,7 +693,13 @@ if (!existsSync(secretWrapperPath)) fail("Missing LaunchBot Secret Manager wrapp
 const secretWrapperText = existsSync(secretWrapperPath) ? readFileSync(secretWrapperPath, "utf8") : "";
 for (const requiredText of [
   "launchbot-step3-intercom-access-token",
+  "hubspot-access-token",
+  "customer-360-jira-email",
+  "customer-360-jira-api-token",
   "LAUNCH_STEP3_INTERCOM_ACCESS_TOKEN",
+  "HUBSPOT_ACCESS_TOKEN",
+  "JIRA_EMAIL",
+  "JIRA_API_TOKEN",
   "INTERCOM_ACCESS_TOKEN",
   "staffany-warehouse",
   "values_printed",
@@ -677,6 +758,11 @@ for (const requiredText of [
   "intake.questions",
   "article_shape_stale_check.status: needs-refresh",
   "Video-only Help Article Updates",
+  "IFI Feature Request Tracking",
+  "preview_ifi_feature_request_tracking",
+  "preview_ifi_feature_request_from_bd_note",
+  "customfield_10881",
+  "confirm IFI",
   "will_publish: false",
   "state: \"draft\"",
   "no registered slot match",

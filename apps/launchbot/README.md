@@ -28,6 +28,7 @@ Canonical Hermes app packet for the Launchbot Slack profile.
 | `runtime/audit-live-profile.sh` | Live profile drift audit. |
 | `runtime/update-pantheon-repo.sh` | Daily Pantheon checkout refresher for code-grounded help article verification. |
 | `runtime/mcp/launchbot_ker_server.py` | Read-only Slack thread to Jira KER lookup tool. |
+| `runtime/mcp/launchbot_ifi_server.py` | Preview-first HubSpot company to IFI feature request tracking tool, including BD-notes intake into the same IFI contract. |
 | `runtime/mcp/launchbot_help_article_server.py` | Draft-only registered Loom video-slot updater for existing help articles. |
 | `skills/help-article-generator/` | Launchbot help-article drafting skill upgraded from the 2026-05-11 handoff. |
 | `skills/help-article-generator/references/video-placement-registry.json` | Registry authority for help article video placement. |
@@ -44,14 +45,15 @@ Canonical Hermes app packet for the Launchbot Slack profile.
 3. Copy `profile/SOUL.md` to `~/.hermes/profiles/launchbot/SOUL.md`.
 4. Use `profile/config.template.yaml` as the non-secret config guide.
 5. Set Slack and model secrets from the approved secret store only.
-6. Set Jira read-only env vars (`JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN`) in the live profile `.env` before enabling KER lookup.
+6. Set Jira env vars (`JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN`) in the live profile `.env` before enabling KER lookup or IFI tracking.
 7. Copy `skills/help-article-generator/` into `~/.hermes/profiles/launchbot/skills/` when enabling article drafting and registered video-slot updates.
 8. Copy runtime scripts into `~/.hermes/profiles/launchbot/scripts/`.
-9. Copy `runtime/mcp/launchbot_help_article_server.py` into the live profile source tree before enabling the `launchbot_help_article` MCP server.
-10. Seed `~/.hermes/profiles/launchbot/source/pantheon` for code-grounded article verification. Install the daily Pantheon updater cron only after the VM has GitHub SSH access to `staffany-eng/pantheon`.
-11. Start the managed gateway and install the no-agent health check cron.
-12. Confirm no Mac-local `launchbot` profile or gateway exists before live Slack testing. Only the cloud Launchbot runtime should be connected to Slack, otherwise stale local profile state can answer first.
-13. Treat the restore as verified only after the health check passes and the Slack smoke replies from Launchbot's bot identity in `#launch-bot-testing`.
+9. Copy `runtime/mcp/launchbot_ifi_server.py` and `runtime/mcp/launchbot_help_article_server.py` into the live profile source tree before enabling the matching MCP servers.
+10. Set `HUBSPOT_ACCESS_TOKEN` and `JIRA_IFI_HUBSPOT_COMPANY_ID_FIELD_ID=customfield_10881` before enabling IFI tracking. `HUBSPOT_PORTAL_ID` defaults to `4137076`.
+11. Seed `~/.hermes/profiles/launchbot/source/pantheon` for code-grounded article verification. Install the daily Pantheon updater cron only after the VM has GitHub SSH access to `staffany-eng/pantheon`.
+12. Start the managed gateway and install the no-agent health check cron.
+13. Confirm no Mac-local `launchbot` profile or gateway exists before live Slack testing. Only the cloud Launchbot runtime should be connected to Slack, otherwise stale local profile state can answer first.
+14. Treat the restore as verified only after the health check passes and the Slack smoke replies from Launchbot's bot identity in `#launch-bot-testing`.
 
 ## Launch Workflow Skill
 

@@ -11,8 +11,10 @@ Expected checks:
 - `SLACK_HOME_CHANNEL` is `C0B32M34J3W`.
 - Slack allowed channels include `C0B32M34J3W` and `C0AJAUNCEL8`.
 - `launchbot_ker` MCP exposes only `find_ker_ticket_from_slack_thread` and `lookup_ker_ticket_by_key`.
+- `launchbot_ifi` MCP exposes only `preview_ifi_feature_request_tracking`, `create_or_update_ifi_feature_request_tracking`, `preview_ifi_feature_request_from_bd_note`, and `create_or_update_ifi_feature_request_from_bd_note`.
 - `launchbot_help_article` MCP exposes only `preview_help_article_video_update` and `create_help_article_video_update_draft`.
 - KER lookup has `SLACK_BOT_TOKEN`, `JIRA_BASE_URL`, `JIRA_EMAIL`, and `JIRA_API_TOKEN` in the live profile env.
+- IFI tracking has `HUBSPOT_ACCESS_TOKEN`, `JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN`, and `JIRA_IFI_HUBSPOT_COMPANY_ID_FIELD_ID=customfield_10881` in the live profile env.
 - Video-only help article updates have `LAUNCH_STEP3_INTERCOM_ACCESS_TOKEN` in the live profile env.
 - Help article video placement registry is readable at `~/.hermes/profiles/launchbot/source/launchbot/skills/help-article-generator/references/video-placement-registry.json`.
 - Pantheon is cloned at `~/.hermes/profiles/launchbot/source/pantheon`, with remote `git@github.com:staffany-eng/pantheon.git`, branch `develop`, clean worktree, and a fresh update status JSON.

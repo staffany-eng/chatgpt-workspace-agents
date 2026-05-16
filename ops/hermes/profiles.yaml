@@ -156,6 +156,8 @@ profiles:
     required_mcp:
       launchbot_ker:
         tools: 2
+      launchbot_ifi:
+        tools: 4
       launchbot_help_article:
         tools: 2
     expected_crons:

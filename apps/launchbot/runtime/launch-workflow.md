@@ -18,6 +18,26 @@ When the external source checkout is absent, use `runtime/launchbot_e2e.py` as t
   - State that Step 4 launch derivatives are planned only when relevant.
   - Do not list generic assistant categories such as web search, ML experiments, creative writing, smart-home control, social posting, broad email/calendar management, or generic coding-agent orchestration.
 
+### IFI Feature Request Tracking
+
+- Input: APQ or Slack request such as `track IFI for <HubSpot company URL/name>: <feature gap>`.
+- BD notes input: meeting-note text plus an optional confirmed HubSpot company URL/ID. Use `preview_ifi_feature_request_from_bd_note`; do not treat extracted company text as confirmed identity.
+- Output before mutation: resolved HubSpot company, IFI dedupe result, exact Jira create/update payload, source Slack thread, optional KER link, and `willMutateJira: false`.
+- Output after confirmation with `confirm IFI`: IFI issue key/URL and a bot-owned Slack reply draft starting with `Launchbot automation:`.
+- Required behavior:
+  - Use `preview_ifi_feature_request_tracking` before any Jira write.
+  - Use `preview_ifi_feature_request_from_bd_note` before any BD-notes-driven Jira write.
+  - Use `create_or_update_ifi_feature_request_tracking` only after exact confirmation.
+  - Use `create_or_update_ifi_feature_request_from_bd_note` only after exact confirmation for BD notes.
+  - Resolve the company through HubSpot first. HubSpot Company ID is canonical for customer/prospect identity.
+  - Return `needs-check` and ask for a HubSpot company link or numeric ID when company text is ambiguous, empty, or only an unconfirmed alias.
+  - Dedupe IFI by `HubSpot Company ID` (`customfield_10881`) plus feature keyword.
+  - Use IFI project `IFI` and Feature Request issue type ID `10151`.
+  - Store requester, source Slack thread, original question, APQ classification, and KER key in the structured IFI description.
+  - Link IFI to KER with a Jira issue link when a KER key is supplied.
+  - Block without the exact approval marker `confirm IFI`.
+  - Do not mutate HubSpot, do not use Jira Organizations as CRM truth, and do not post Slack messages from the MCP tool.
+
 ### Step 0: Article Planning, Pantheon Evidence, Intercom Format Profile, And Pre-Publish Gates
 
 - Input: curated English Intercom help article families, 8-12 curated Intercom format article IDs, a Pantheon topic/app/path scope, or a generated help article draft.

@@ -19,6 +19,8 @@
     "pantheon_update_script": "runtime/update-pantheon-repo.sh",
     "ker_mcp_server": "runtime/mcp/launchbot_ker_server.py",
     "ker_mcp_tests": "runtime/mcp/test_launchbot_ker_server.py",
+    "ifi_mcp_server": "runtime/mcp/launchbot_ifi_server.py",
+    "ifi_mcp_tests": "runtime/mcp/test_launchbot_ifi_server.py",
     "help_article_mcp_server": "runtime/mcp/launchbot_help_article_server.py",
     "help_article_mcp_tests": "runtime/mcp/test_launchbot_help_article_server.py",
     "help_article_video_fixtures": "runtime/mcp/fixtures/help_article_video_fixtures.json",
@@ -85,6 +87,45 @@
         "email_env_var": "JIRA_EMAIL",
         "api_token_env_var": "JIRA_API_TOKEN",
         "mutations": false
+      }
+    },
+    "launchbot_ifi": {
+      "mode": "preview_first_confirmed_jira_mutation",
+      "tools": [
+        "preview_ifi_feature_request_tracking",
+        "create_or_update_ifi_feature_request_tracking",
+        "preview_ifi_feature_request_from_bd_note",
+        "create_or_update_ifi_feature_request_from_bd_note"
+      ],
+      "hubspot": {
+        "access_token_env_var": "HUBSPOT_ACCESS_TOKEN",
+        "private_app_token_env_var": "HUBSPOT_PRIVATE_APP_TOKEN",
+        "company_identity": "HubSpot Company ID",
+        "portal_id_env_var": "HUBSPOT_PORTAL_ID",
+        "default_portal_id": "4137076"
+      },
+      "jira": {
+        "project_key": "IFI",
+        "feature_request_issue_type_id": "10151",
+        "hubspot_company_id_field_id_env_var": "JIRA_IFI_HUBSPOT_COMPANY_ID_FIELD_ID",
+        "hubspot_company_id_field_id": "customfield_10881",
+        "hubspot_company_id_field_name": "HubSpot Company ID",
+        "base_url_env_var": "JIRA_BASE_URL",
+        "email_env_var": "JIRA_EMAIL",
+        "api_token_env_var": "JIRA_API_TOKEN",
+        "approval_marker": "confirm IFI",
+        "mutations": [
+          "create_issue",
+          "update_issue",
+          "link_issue"
+        ],
+        "slack_post": false
+      },
+      "bd_notes": {
+        "mode": "second_intake_surface_same_ifi_contract",
+        "requires_confirmed_hubspot_company_id": true,
+        "alias_auto_mapping": false,
+        "ambiguous_company_action": "ask_for_hubspot_company_link_or_numeric_id"
       }
     },
     "launchbot_help_article": {
@@ -273,9 +314,11 @@
   },
   "required_env_names": [
     "SLACK_BOT_TOKEN",
+    "HUBSPOT_ACCESS_TOKEN",
     "JIRA_BASE_URL",
     "JIRA_EMAIL",
     "JIRA_API_TOKEN",
+    "JIRA_IFI_HUBSPOT_COMPANY_ID_FIELD_ID",
     "LAUNCH_STEP3_INTERCOM_ACCESS_TOKEN",
     "LAUNCHBOT_KER_ALLOWED_CHANNEL_IDS"
   ],

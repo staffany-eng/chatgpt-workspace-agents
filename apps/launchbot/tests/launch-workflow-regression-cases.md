@@ -39,6 +39,19 @@
 - Given user confirmation `draft it`, Launchbot should call `create_help_article_video_update_draft`, update only the registered Loom iframe, and send Intercom `state: "draft"` only.
 - Video-only updates must not rewrite article text, create Google Docs review docs, publish, delete, tag, move collections, or mutate unregistered videos.
 
+## IFI Feature Request Tracking
+
+- Given `track IFI for <HubSpot company URL>: Citibank bank file export`, Launchbot should call `preview_ifi_feature_request_tracking` first and should not mutate Jira.
+- Preview must resolve the HubSpot company, build a dedupe JQL using `HubSpot Company ID`, include the source Slack thread, original question, APQ classification, and return `willMutateJira: false`.
+- Given multiple or zero HubSpot matches, Launchbot should return `needs-check`, ask for a HubSpot company link or numeric ID, and must not create an IFI issue.
+- Given `neon group`, Launchbot may return candidate companies such as `Victory Hill Exhibitions Pte Ltd` but must not auto-map the alias without human confirmation.
+- Given a BD note such as `Neon Group asked whether StaffAny can generate a native Citibank payroll bank file.`, Launchbot should call `preview_ifi_feature_request_from_bd_note`, extract the company hint and feature gap, and return `needs-check` until a confirmed HubSpot Company ID is supplied.
+- Given the same BD note with confirmed HubSpot Company ID `25638156628`, Launchbot should dedupe by `HubSpot Company ID` plus `citibank` and update an existing IFI instead of creating a duplicate.
+- Given no exact `confirm IFI` approval marker, `create_or_update_ifi_feature_request_tracking` should block and return the preview.
+- Given no exact `confirm IFI` approval marker for a BD note, `create_or_update_ifi_feature_request_from_bd_note` should block and return the preview.
+- Given `confirm IFI`, Launchbot should create or update an IFI issue with `customfield_10881`, write the structured description, link a supplied KER key, and return a `Launchbot automation:` Slack reply draft without posting from the MCP.
+- IFI tracking must not mutate HubSpot and must not use Jira Organizations or StaffAny Organization as CRM truth.
+
 ## Pantheon Evidence Gate
 
 - Given a topic and explicit app scope, `help-article:pantheon-scan` should use `LAUNCH_PANTHEON_REPO` or the local default `/Users/leekaiyi/workspace/pantheon`, record branch/sha/dirty state, read app-local `AGENTS.md`, and output source files plus routes/screens, access levels, flags/gating, API/data touchpoints, statuses, labels, and edge cases.

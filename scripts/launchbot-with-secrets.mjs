@@ -6,6 +6,22 @@ const DEFAULT_PROJECT = "staffany-warehouse";
 
 const SECRET_SPECS = [
   {
+    group: "hubspot",
+    secret: "hubspot-access-token",
+    env: "HUBSPOT_ACCESS_TOKEN",
+    aliases: ["HUBSPOT_PRIVATE_APP_TOKEN"]
+  },
+  {
+    group: "jira",
+    secret: "customer-360-jira-email",
+    env: "JIRA_EMAIL"
+  },
+  {
+    group: "jira",
+    secret: "customer-360-jira-api-token",
+    env: "JIRA_API_TOKEN"
+  },
+  {
     group: "intercom",
     secret: "launchbot-step3-intercom-access-token",
     env: "LAUNCH_STEP3_INTERCOM_ACCESS_TOKEN",
@@ -36,7 +52,7 @@ const SECRET_SPECS = [
 function usage() {
   return [
     "Usage:",
-    "  node scripts/launchbot-with-secrets.mjs [--project <gcp-project>] [--only intercom,slack,google] -- <command> [args...]",
+    "  node scripts/launchbot-with-secrets.mjs [--project <gcp-project>] [--only intercom,slack,google,jira,hubspot] -- <command> [args...]",
     "  node scripts/launchbot-with-secrets.mjs --check [--only intercom]",
     "",
     "Examples:",
@@ -51,7 +67,7 @@ function parseArgs(argv) {
   const command = separator === -1 ? [] : argv.slice(separator + 1);
   const options = {
     project: process.env.LAUNCHBOT_GCP_PROJECT || DEFAULT_PROJECT,
-    only: new Set(["intercom", "slack", "google"]),
+    only: new Set(["intercom", "slack", "google", "jira", "hubspot"]),
     check: false
   };
 

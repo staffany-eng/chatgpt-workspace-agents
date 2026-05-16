@@ -59,6 +59,40 @@ mcp_servers:
         - "C0AJAUNCEL8"
       no_slack_connector_fallback: true
       no_user_token_fallback: true
+  launchbot_ifi:
+    description: "Preview-first HubSpot company to IFI feature request tracking adapter."
+    command: "/home/leekaiyi/.hermes/hermes-agent/venv/bin/python"
+    args:
+      - "/home/leekaiyi/.hermes/profiles/launchbot/source/launchbot/runtime/mcp/launchbot_ifi_server.py"
+    timeout: 120
+    tool_allowlist:
+      - "preview_ifi_feature_request_tracking"
+      - "create_or_update_ifi_feature_request_tracking"
+      - "preview_ifi_feature_request_from_bd_note"
+      - "create_or_update_ifi_feature_request_from_bd_note"
+    auth_metadata:
+      hubspot:
+        type: "bearer_token_env"
+        env: "HUBSPOT_ACCESS_TOKEN"
+        fallback_env: "HUBSPOT_PRIVATE_APP_TOKEN"
+      jira:
+        type: "basic_auth_env"
+        base_url_env: "JIRA_BASE_URL"
+        email_env: "JIRA_EMAIL"
+        api_token_env: "JIRA_API_TOKEN"
+    access_policy:
+      mode: "preview_first_confirmed_jira_mutation"
+      project_key: "IFI"
+      feature_request_issue_type_id: "10151"
+      hubspot_company_id_field_id_env: "JIRA_IFI_HUBSPOT_COMPANY_ID_FIELD_ID"
+      default_hubspot_company_id_field_id: "customfield_10881"
+      approval_marker: "confirm IFI"
+      will_post_message: false
+      bd_notes_mode: "second_intake_surface_same_ifi_contract"
+      bd_notes_require_confirmed_hubspot_company_id: true
+      ambiguous_company_action: "ask_for_hubspot_company_link_or_numeric_id"
+      no_slack_connector_fallback: true
+      no_user_token_fallback: true
   launchbot_help_article:
     description: "Draft-only registered video-slot updater for StaffAny help articles."
     command: "/home/leekaiyi/.hermes/hermes-agent/venv/bin/python"
@@ -92,3 +126,5 @@ gateway:
 SLACK_HOME_CHANNEL: "C0B32M34J3W"
 SLACK_HOME_CHANNEL_NAME: "launch-bot-testing"
 LAUNCHBOT_KER_ALLOWED_CHANNEL_IDS: "C0B32M34J3W,C0AJAUNCEL8"
+JIRA_IFI_HUBSPOT_COMPANY_ID_FIELD_ID: "customfield_10881"
+HUBSPOT_PORTAL_ID: "4137076"
