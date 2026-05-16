@@ -217,18 +217,18 @@ class GoogleDriveNurtureAnyServerTest(unittest.TestCase):
                         "approved",
                         "Network: Community, peer, talent, and collaboration matching",
                         "Network",
-                        "Network means event invites, peer matching, talent matching, future-speaker sourcing, and customer collaboration; StaffAny is the connector, not just the vendor.",
-                        "Buyers get relevant events, peers, hiring/talent help, future speakers, and collaboration paths that create value beyond HR tech.",
+                        "Network means event invites, peer matching, talent matching, future-speaker sourcing, and customer collaboration; StaffAny is the connector, not just the vendor. Ask permission before any intro and state mutual value.",
+                        "Buyers get relevant events, peers, hiring/talent help, future speakers, and collaboration paths that create value beyond HR tech, while AE selects the right suggestion.",
                         "daily_nurture, pre_demo, event_followup, community_matching",
-                        "Hi {{first_name}}, thought of {{company_name}} because there may be a useful peer/event/talent match here. {{message_hook}} Want me to suggest the top few relevant people, events, or future speakers?",
-                        "Network offer: invite them to HHH/LL/cozy dinners/overseas LL, introduce similar peers, match hiring/talent asks, ask who they want to hear from for future speakers, or create customer collaboration.",
+                        "Hi {{first_name}}, thought of {{company_name}} because there may be a useful peer/event/talent match here. {{message_hook}} Want me to suggest a few relevant events, peers, talent matches, future speakers, or collaboration angles for AE review?",
+                        "Network offer: invite them to HHH/LL/cozy dinners/overseas LL, introduce similar peers, match hiring/talent asks, ask who they want to hear from for future speakers, or create customer collaboration. Ask permission before intro; AE selects.",
                         "Singapore, Malaysia, Indonesia",
                         "all",
-                        "event, happy-hr-hour, leaders-lounge, overseas-ll, cozy-dinner, peer-matching, talent-matching, future-speaker, collaboration, warm-intro, employer-branding, joint-event",
+                        "event, happy-hr-hour, leaders-lounge, overseas-ll, cozy-dinner, peer-matching, talent-matching, future-speaker, collaboration, warm-intro, employer-branding, joint-event, permission-before-intro, mutual-value, ae-selects, luma-event-context",
                         "decision_maker, influencer, operations, hr",
                         "skills/nurtureany-sales-bot/references/sales-best-practices.md",
                         "",
-                        "Use as Network. Good examples: top 5 community members who attend often, actively support StaffAny, have strong product adoption, and share role/industry; 'meet 3 Retail HR leaders solving similar manpower challenges'; or ask who they want to hear from so StaffAny can invite relevant future speakers. Do not fabricate introductions; AE picks relevant event/member.",
+                        "Use as Network. Examples: invite to Happy HR Hour, Leaders Lounge, cozy dinners, or overseas LL; suggest meet 3 Retail HR leaders solving similar manpower challenges; ask who they want to hear from so StaffAny can invite future speakers; suggest talent or collaboration angles. Use exact Luma HHH/LL tags when available; cozy dinners and overseas LL are material-registry or AE-selected unless Luma has matching tags. Do not fabricate events, members, adoption, attendance, or intro willingness. Bot suggests; AE selects. Do not claim a top-5 community-member matcher until attendance frequency, supporter status, product adoption, role, industry, and intro eligibility sources exist.",
                         "2026-05-15",
                         "",
                         "nurtureany_packet",
@@ -285,6 +285,9 @@ class GoogleDriveNurtureAnyServerTest(unittest.TestCase):
         rows_by_id = {item["material_id"]: item for item in result["answer"]["rows"]}
         self.assertEqual(rows_by_id["kns:network-community-peer-talent-collaboration"]["kns_pillar"], "Network")
         self.assertIn("talent-matching", rows_by_id["kns:network-community-peer-talent-collaboration"]["concept_tags"])
+        self.assertIn("permission-before-intro", rows_by_id["kns:network-community-peer-talent-collaboration"]["concept_tags"])
+        self.assertIn("Bot suggests; AE selects", rows_by_id["kns:network-community-peer-talent-collaboration"]["talk_track"])
+        self.assertIn("Do not claim a top-5 community-member matcher", rows_by_id["kns:network-community-peer-talent-collaboration"]["talk_track"])
         self.assertEqual(rows_by_id["kns:support-speaker-venue-outlet"]["kns_pillar"], "Support")
         self.assertNotIn("Support Network", rows_by_id["kns:support-speaker-venue-outlet"]["title"])
 

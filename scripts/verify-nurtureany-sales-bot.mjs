@@ -1283,7 +1283,11 @@ for (const text of [
   "Terminology aliases",
   "KNS`, `K/N/S`, and `K N S` all mean Knowledge, Network, Support",
   "Do not expand KNS as Know-Nurture-Sell",
-  "Network: invite the buyer into relevant upcoming events",
+  "Network: position StaffAny as the connector",
+  "Bot suggests; AE selects",
+  "Do not fabricate events, members, adoption, attendance, or intro willingness",
+  "Luma is event context only",
+  "do not claim a \"top 5 community members\" matcher",
   "Support: support the buyer or account directly",
   "Do not build a new MCP"
 ]) {

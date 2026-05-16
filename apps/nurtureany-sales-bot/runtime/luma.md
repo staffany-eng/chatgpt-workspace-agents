@@ -82,6 +82,8 @@ Use Luma only when an account's nurture reason is event-related:
 - Manager rollups by event, AE scope, or country after HubSpot scope is known.
 - `check_event_followup_status` is the preferred NurtureAny workflow for event follow-up because it resolves Luma checked-in attendance and verifies event-specific Eazybe WhatsApp logs in HubSpot without using Sheets as tracking state.
 
+For Network KNS event invites, use exact Luma event tags for Happy HR Hour and Leaders Lounge when available, for example `event_tags=["Singapore", "HR Happy Hour"]` or `event_tags=["Jakarta", "Leaders Lounge"]`. Cozy dinners and overseas Leaders Lounge stay as material-registry or AE-selected event context unless Luma has matching tags. Luma is event context only; it is not a community-member, product-adoption, supporter-status, attendance-frequency, or intro-willingness source.
+
 ## Safety
 
 - Do not expose raw attendee exports in Slack.
