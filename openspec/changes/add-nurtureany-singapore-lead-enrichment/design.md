@@ -143,7 +143,7 @@ Flag exact field-level reasons:
 KNS stays as `Knowledge / Network / Support`. Suggested angles:
 
 - salary benchmarking
-- Network: event invites, peer/community matching, talent matching, future-speaker sourcing, and customer collaboration opportunities
+- Network: event invites, peer/community matching, talent matching, future-speaker sourcing, and customer collaboration opportunities. Ask permission before intro, state mutual value, let AE select, and do not fabricate events, members, adoption, attendance, or intro willingness.
 - Support: speaker, venue, simple-meal, or outlet/product support asks when the opportunity is real
 - approved customer proof only after `find_sales_case_studies` or the material registry confirms it
 

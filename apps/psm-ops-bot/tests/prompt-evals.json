@@ -91,6 +91,7 @@
       "expected_tool_trace": {
         "must_call": [
           "find_ticket_by_slack_thread",
+          "search_pco_tickets",
           "create_ps_wee_intake_ticket"
         ],
         "must_not_call": [
@@ -115,21 +116,75 @@
         "ask do you want me to log a ticket first",
         "create duplicate same-thread ticket"
       ],
-      "grade_notes": "Explicit PS WEE ticketing is ticket-first: dedupe by Slack thread, then create the needs-info intake immediately.",
+      "grade_notes": "Explicit PS WEE ticketing is ticket-first: dedupe by Slack thread, run bounded PCO board search as duplicate guard, then create the needs-info intake.",
       "assertions": {
         "source_files": [
           {
             "path": "runtime/slack.md",
             "must_contain": [
               "PS WEE ticketing requests are ticket-first.",
-              "create the PCO intake ticket immediately if no ticket already exists for the same Slack thread permalink"
+              "use `search_pco_tickets` as the broader duplicate guard"
             ]
           },
           {
             "path": "tests/regression-cases.md",
             "must_contain": [
               "Calls `find_ticket_by_slack_thread`.",
-              "Creates the PCO intake ticket immediately with `create_ps_wee_intake_ticket` when no same-thread ticket exists."
+              "Calls `search_pco_tickets` before creating when no same-thread ticket exists."
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "psm-tooltrace-pco-board-search-before-no-ticket",
+      "bot": "PSM Ops Hermes Bot",
+      "surface": "slack:#proj-cs-munchi",
+      "lane": "tool-trace",
+      "input": "@PS WEE are we already tracking this in PCO? Thread context: salaried staff without schedule/work for the month, full attendance, proration.",
+      "setup": {
+        "after_user_request": true,
+        "stub_tools": true
+      },
+      "expected_tool_trace": {
+        "must_call": [
+          "search_pco_tickets"
+        ],
+        "must_not_call": [
+          "create_ps_wee_intake_ticket",
+          "draft_pco_task"
+        ],
+        "argument_shape": {
+          "query_contains_thread_context": true,
+          "safe_fields_only": true,
+          "ambiguous_results_require_user_choice": true
+        }
+      },
+      "expected_answer_contract": {
+        "must_include": [
+          "Source: Jira PCO",
+          "Confidence:"
+        ]
+      },
+      "forbidden_behavior": [
+        "answer no PCO ticket found from exact Slack permalink search alone",
+        "create duplicate PCO ticket",
+        "expose raw Jira descriptions, comments, attachments, or bulk exports"
+      ],
+      "grade_notes": "PCO tracking checks use bounded board search, so manually-created tickets without Slack source links can still be found.",
+      "assertions": {
+        "source_files": [
+          {
+            "path": "runtime/mcp/psm_jira_server.py",
+            "must_contain": [
+              "def search_pco_tickets",
+              "PCO_SEARCH_DOMAIN_TERMS"
+            ]
+          },
+          {
+            "path": "runtime/slack.md",
+            "must_contain": [
+              "PCO tracking checks must use `search_pco_tickets` before saying no PCO ticket exists."
             ]
           }
         ]
@@ -148,6 +203,7 @@
       "expected_tool_trace": {
         "must_call": [
           "find_ticket_by_slack_thread",
+          "search_pco_tickets",
           "create_ps_wee_intake_ticket"
         ],
         "must_not_call": [
@@ -360,6 +416,7 @@
       "expected_tool_trace": {
         "must_call": [
           "find_ticket_by_slack_thread",
+          "search_pco_tickets",
           "create_ps_wee_intake_ticket"
         ]
       },

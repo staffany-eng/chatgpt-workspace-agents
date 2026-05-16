@@ -669,10 +669,23 @@ class OwnerWhatsAppSentTodayTest(unittest.TestCase):
         self.assertIn("support", future_speaker["missing_kns_components"])
 
         network = self.module._whatsapp_kns_audit_from_body(
-            "You should meet 3 other Retail HR leaders solving similar manpower challenges at Happy HR Hour. "
-            "We can help with talent matching, warm introductions, and cross-brand collaboration."
+            "You should meet 3 other Retail HR leaders solving similar manpower challenges."
         )
         self.assertTrue(network["has_network"])
+        self.assertFalse(network["has_support"])
+        self.assertIn("support", network["missing_kns_components"])
+
+        network_permission = self.module._whatsapp_kns_audit_from_body(
+            "Would you be open if I introduced you to similar operators? "
+            "You both are scaling retail outlets and hiring part-timers, so there is mutual value."
+        )
+        self.assertTrue(network_permission["has_network"])
+        self.assertFalse(network_permission["has_support"])
+
+        network_collaboration = self.module._whatsapp_kns_audit_from_body(
+            "We can help with talent matching, warm introductions, and cross-brand collaboration."
+        )
+        self.assertTrue(network_collaboration["has_network"])
 
     def test_whatsapp_kns_window_requires_timezone_before_querying(self):
         with patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(

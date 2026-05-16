@@ -944,6 +944,9 @@ Expected behavior:
 - KNS / K/N/S / K N S means Knowledge, Network, Support.
 - The bot must not expand KNS as Know-Nurture-Sell.
 - Network means event invites, peer/talent matching, warm introductions, future-speaker sourcing, and customer collaboration opportunities that position StaffAny as the connector.
+- Network event invites include Happy HR Hour, Leaders Lounge, cozy dinners, and overseas Leaders Lounge. For HHH/LL, use exact Luma tags when available; cozy dinners and overseas LL stay material-registry or AE-selected context unless Luma has matching tags.
+- Network intros must ask permission before intro, state mutual value for both sides, and keep AE as selector/approver. Bot suggests; AE selects.
+- Network must not fabricate events, community members, attendance, product adoption, active supporter status, or intro willingness. Do not claim a top-5 community-member matcher until a real source exists for attendance frequency, supporter status, product adoption, role, industry, and intro eligibility.
 - Support means direct support for the buyer/account, including boss/HR speaker asks, venue support, simple meals at their venue, buying their product, or validating visible outlet demand; do not label this as `Support Network`.
 
 ### Public Research Game Plan Guardrail
