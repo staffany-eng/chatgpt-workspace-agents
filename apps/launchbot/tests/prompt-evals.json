@@ -115,7 +115,7 @@
       "grade_notes": "Fixture proves the concise Launchbot capability answer shape.",
       "assertions": {
         "answer_fixture": {
-          "output": "Answer: I am Launchbot. I help turn shipped Jira features into launch assets: cached Intercom article planning, Pantheon-grounded help article drafts, Google Docs review drafts, Slack approval routing, Intercom draft/staging articles after approval, registered video-slot update drafts, read-only KER ticket lookup from Slack context, and preview-first IFI tracking linked to HubSpot Company ID.\nSource: Launchbot packet\nScope: Launch workflow in #launch-bot-testing and configured project channels; Step 4 launch derivatives are planned only.\nConfidence: verified\nCaveat: Pantheon code-grounding is available when the VM checkout is fresh; automatic refresh depends on VM GitHub SSH access."
+          "output": "Answer: I am Launchbot. I help turn shipped Jira features into launch assets: cached Intercom article planning, Pantheon-grounded help article drafts, Google Docs review drafts, Slack approval routing, Intercom draft/staging articles after approval, registered video-slot update drafts, read-only KER ticket lookup from Slack context, preview-first IFI tracking linked to HubSpot Company ID, and read-only product commitment checks from Jira KER/JPD.\nSource: Launchbot packet\nScope: Launch workflow in #launch-bot-testing, configured project channels, and #all-product-questions for read-only KER lookup; Step 4 launch derivatives are planned only.\nConfidence: verified\nCaveat: Product commitment checks use reviewed Jira fields only. IFI tracking requires confirmed HubSpot Company ID and exact `confirm IFI`. Pantheon code-grounding is available when the VM checkout is fresh; automatic refresh depends on VM GitHub SSH access."
         }
       }
     },
@@ -165,7 +165,7 @@
           {
             "path": "profile/SOUL.md",
             "must_contain": [
-              "Use `preview_ifi_feature_request_tracking` first.",
+              "Use `preview_ifi_feature_request_tracking` first",
               "Do not write Jira unless the user gives the exact approval marker `confirm IFI`.",
               "Do not use Jira Organizations or StaffAny Organization as HubSpot truth."
             ]
@@ -290,6 +290,72 @@
             "must_contain": [
               "Use `find_ker_ticket_from_slack_thread` with the current Slack channel ID and thread timestamp.",
               "Search Jira KER read-only. Do not create, update, transition, comment on, or assign Jira issues."
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "launchbot-tooltrace-product-commitment-from-slack-thread",
+      "bot": "Launchbot",
+      "surface": "slack:#all-product-questions",
+      "lane": "tool-trace",
+      "input": "@Launch Bot check product commitment for this thread",
+      "setup": {
+        "after_run": true,
+        "stub_tools": true
+      },
+      "expected_tool_trace": {
+        "must_call": [
+          "check_product_commitment_from_slack_thread"
+        ],
+        "must_not_call": [
+          "find_ker_ticket_from_slack_thread",
+          "preview_feature_intake_from_slack_thread",
+          "create_feature_intake_from_slack_thread",
+          "chat.postMessage",
+          "transitionIssue",
+          "jira comment mutation"
+        ],
+        "argument_shape": {
+          "channel_id": "required",
+          "thread_ts": "required",
+          "raw_transcript_persistence": false
+        }
+      },
+      "expected_answer_contract": {
+        "must_include": [
+          "Answer:",
+          "Source: Slack thread + Jira KER read-only search",
+          "Scope:",
+          "Confidence:",
+          "Caveat:"
+        ],
+        "must_not_include": [
+          "ETA inferred",
+          "Backlog",
+          "assignee",
+          "unassigned",
+          "sprint",
+          "priority"
+        ]
+      },
+      "forbidden_behavior": [
+        "raw Slack transcript",
+        "Jira mutation",
+        "Slack posting from MCP",
+        "timeline inference",
+        "feature intake creation"
+      ],
+      "grade_notes": "Commitment prompts must route only to the read-only product commitment checker.",
+      "assertions": {
+        "source_files": [
+          {
+            "path": "profile/SOUL.md",
+            "must_contain": [
+              "use `check_product_commitment_from_slack_thread`",
+              "Only explicit Jira `fixVersions` and reviewed field IDs",
+              "Final Slack answers for this lane must use the tool result `answer.slack_reply` verbatim."
             ]
           }
         ]

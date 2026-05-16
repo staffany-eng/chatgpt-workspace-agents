@@ -11,6 +11,7 @@ import {
 const repoRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const appRoot = join(repoRoot, "apps", "hermes-data-bot");
 const manifestPath = join(appRoot, "app.manifest.json");
+const packageJsonPath = join(repoRoot, "package.json");
 
 const failures = [];
 
@@ -66,19 +67,67 @@ if (!existsSync(manifestPath)) {
     for (const tool of actualTools) {
       if (!expectedTools.includes(tool)) fail(`Manifest has unexpected MCP tool: ${tool}`);
     }
+    const slackTools = manifest.slack_context_mcp?.expected_tools || [];
+    for (const tool of ["get_current_slack_thread_context", "get_selected_slack_thread_context"]) {
+      if (!slackTools.includes(tool)) fail(`Manifest missing Slack context MCP tool: ${tool}`);
+    }
+    if (manifest.slack_context_mcp?.read_only !== true) fail("Manifest Slack context MCP must be read_only");
+    if (manifest.slack_context_mcp?.uses_user_token !== false) fail("Manifest Slack context MCP must not use user token");
+    if (manifest.slack_context_mcp?.uses_slack_connector !== false) fail("Manifest Slack context MCP must not use Slack connector");
+    const c360Tools = manifest.c360_mcp?.expected_tools || [];
+    if (!c360Tools.includes("list_current_customer_orgs")) fail("Manifest missing C360 MCP tool: list_current_customer_orgs");
+    if (manifest.c360_mcp?.read_only !== true) fail("Manifest C360 MCP must be read_only");
+    if (manifest.c360_mcp?.auth_header !== "X-Customer360-Internal-Token") fail("Manifest C360 MCP must use custom internal auth header");
+    if (manifest.c360_mcp?.uses_browser_cookie !== false) fail("Manifest C360 MCP must not use browser cookies");
+    if (manifest.c360_mcp?.uses_personal_customer360_session !== false) fail("Manifest C360 MCP must not use personal customer360_session");
+    const googleSheetsTools = manifest.google_sheets_output_mcp?.expected_tools || [];
+    for (const tool of ["check_google_sheets_output_access", "create_spreadsheet_from_rows"]) {
+      if (!googleSheetsTools.includes(tool)) fail(`Manifest missing Google Sheets output MCP tool: ${tool}`);
+    }
+    if (manifest.google_sheets_output_mcp?.account_email !== "team@staffany.com") fail("Manifest Google Sheets output account_email must be team@staffany.com");
+    if (manifest.google_sheets_output_mcp?.access_mode !== "team_oauth_google_sheets_output") fail("Manifest Google Sheets output access_mode must be team_oauth_google_sheets_output");
+    if (manifest.google_sheets_output_mcp?.service_account !== false) fail("Manifest Google Sheets output must not claim service_account=true");
+    if (manifest.google_sheets_output_mcp?.create_only !== true) fail("Manifest Google Sheets output must be create_only");
+    if (manifest.google_sheets_output_mcp?.edits_existing_spreadsheets !== false) fail("Manifest Google Sheets output must not edit existing spreadsheets");
+    if (manifest.google_sheets_output_mcp?.uses_user_token !== false) fail("Manifest Google Sheets output must not use user token");
+    if (manifest.google_sheets_output_mcp?.uses_slack_connector !== false) fail("Manifest Google Sheets output must not use Slack connector");
+    if (manifest.google_sheets_output_mcp?.requires_output_folder_or_share_target !== true) fail("Manifest Google Sheets output must require folder or share target");
+    if (!manifest.google_sheets_output_mcp?.required_scopes?.includes("https://www.googleapis.com/auth/spreadsheets")) fail("Manifest Google Sheets output missing spreadsheets scope");
+    if (!manifest.google_sheets_output_mcp?.required_scopes?.includes("https://www.googleapis.com/auth/drive.file")) fail("Manifest Google Sheets output missing drive.file scope");
   }
+}
+
+const packageJson = existsSync(packageJsonPath) ? readJson(packageJsonPath) : null;
+if (packageJson?.scripts?.["hermes-data-bot:deploy"] !== "node scripts/deploy-hermes-data-bot.mjs") {
+  fail("package.json must expose hermes-data-bot:deploy");
+}
+if (!existsSync(join(repoRoot, "scripts", "deploy-hermes-data-bot.mjs"))) {
+  fail("Missing scripts/deploy-hermes-data-bot.mjs");
 }
 
 const filesToScan = [
   "profile/SOUL.md",
   "profile/config.template.yaml",
   "skills/staffany-data-bot/SKILL.md",
+  "../hermes-shared/google-sheets-output/README.md",
+  "../hermes-shared/google-sheets-output/skills/staffany-google-sheets-output/SKILL.md",
+  "../hermes-shared/google-sheets-output/runtime/google-sheets-output.md",
+  "../hermes-shared/google-sheets-output/runtime/mcp/google_oauth.py",
+  "../hermes-shared/google-sheets-output/runtime/mcp/staffany_google_sheets_server.py",
+  "../hermes-shared/google-sheets-output/runtime/mcp/test_helpers.py",
+  "../hermes-shared/google-sheets-output/runtime/mcp/test_staffany_google_sheets_server.py",
   "skills/staffany-data-bot/references/staffany-data-bot-metric-registry.md",
   "skills/staffany-data-bot/references/staffany-product-lookup-registry.md",
   "skills/staffany-data-bot/references/staffany-release-feature-registry.md",
   "skills/staffany-data-bot/references/rbac-access-levels.md",
   "skills/staffany-data-bot/references/regression-cases.md",
   "runtime/mcp/staffany-bigquery.md",
+  "runtime/mcp/staffany_slack_context_server.py",
+  "runtime/mcp/staffany_c360_server.py",
+  "runtime/mcp/profile_env.py",
+  "runtime/mcp/test_helpers.py",
+  "runtime/mcp/test_staffany_slack_context_server.py",
+  "runtime/mcp/test_staffany_c360_server.py",
   "runtime/jira-release-sync.md",
   "runtime/sync-jira-release-registry.sh",
   "runtime/high-priority-feature-digest.md",
@@ -88,6 +137,7 @@ const filesToScan = [
   "runtime/health-checks.md",
   "runtime/check-health.sh",
   "runtime/check-cloud-heartbeat.sh",
+  "runtime/staffanydatabot-cloud-doctor.sh",
   "runtime/audit-live-profile.sh",
   "runtime/backup-honcho.sh",
   "runtime/review-honcho-memory.sh",
@@ -123,6 +173,64 @@ if (!configText.includes("interim_assistant_messages: false")) fail("config.temp
 if (!configText.includes('tool_progress: "off"')) fail("config.template.yaml must disable Slack tool progress");
 if (!configText.includes("streaming: false")) fail("config.template.yaml must disable Slack streaming");
 if (!configText.includes("reactions: false")) fail("config.template.yaml must disable Slack reactions");
+if (!configText.includes("max_parallel_jobs: 1")) fail("config.template.yaml must cap cron.max_parallel_jobs at 1");
+if (!configText.includes('Authorization: "Bearer ${MCP_STAFFANY_BIGQUERY_API_KEY}"')) fail("config.template.yaml must configure BigQuery MCP bearer header auth");
+if (!configText.includes("resources: false")) fail("config.template.yaml must disable MCP resources");
+if (!configText.includes("prompts: false")) fail("config.template.yaml must disable MCP prompts");
+for (const requiredText of [
+  "staffany_slack_context",
+  "get_current_slack_thread_context",
+  "get_selected_slack_thread_context",
+  "STAFFANY_DATA_BOT_SLACK_CONTEXT_CHANNEL_IDS",
+  "C0A0V39AK44",
+  "C0A0PETSFJS",
+  "slack_connector_fallback: false",
+  "user_token_fallback: false",
+  "workspace_search: false",
+  "slack_posting: false"
+]) {
+  if (!configText.includes(requiredText)) fail(`config.template.yaml missing Slack context contract: ${requiredText}`);
+}
+for (const requiredText of [
+  "staffany_c360",
+  "list_current_customer_orgs",
+  "CUSTOMER360_BASE_URL",
+  "CUSTOMER360_INTERNAL_API_TOKEN",
+  "X-Customer360-Internal-Token",
+  "custom_internal_header_only: true",
+  "browser_cookie: false",
+  "personal_customer360_session: false",
+  "write_operations: false"
+]) {
+  if (!configText.includes(requiredText)) fail(`config.template.yaml missing C360 contract: ${requiredText}`);
+}
+for (const requiredText of [
+  "staffany_google_sheets",
+  "staffany_google_sheets_server.py",
+  "team@staffany.com",
+  "GOOGLE_SHEETS_TOKEN_FILE",
+  "GOOGLE_SHEETS_CLIENT_SECRET_FILE",
+  "GOOGLE_SHEETS_ACCOUNT_EMAIL",
+  "GOOGLE_SHEETS_OUTPUT_FOLDER_ID",
+  "GOOGLE_SHEETS_OUTPUT_SHARE_EMAILS",
+  "GOOGLE_SHEETS_OUTPUT_SHARE_ROLE",
+  "https://www.googleapis.com/auth/spreadsheets",
+  "https://www.googleapis.com/auth/drive.file",
+  "requires_output_folder_or_share_target: true",
+  "edit_existing_spreadsheets: false",
+  "read_arbitrary_spreadsheets: false",
+  "user_token_fallback: false",
+  "slack_connector_fallback: false",
+  "max_tabs: 5",
+  "max_rows_per_tab: 5000",
+  "max_total_cells: 100000",
+  "max_cell_chars: 2000",
+  "formula_like_cells_escaped: true",
+  "check_google_sheets_output_access",
+  "create_spreadsheet_from_rows"
+]) {
+  if (!configText.includes(requiredText)) fail(`config.template.yaml missing Google Sheets output contract: ${requiredText}`);
+}
 if (configText.includes('all@staffany')) fail('config.template.yaml must not reference known-bad all@staffany model alias');
 if (configText.includes("OPENAI_API_KEY")) fail("config.template.yaml must not configure OpenAI API key routing");
 if (configText.includes('base_url: "https://api.openai.com/v1"')) fail("config.template.yaml must not configure OpenAI API base_url");
@@ -197,7 +305,14 @@ for (const requiredText of [
   'Do not query Jira live',
   'Do not say the release-feature registry is missing unless that exact reference-file load fails',
   'needs-mapping',
-  'scheduled digest'
+  'scheduled digest',
+  'staffany_c360.list_current_customer_orgs',
+  'Customer 360 is the source of truth for the current-customer universe',
+  'Marketing banner on and AA used as banner content/target',
+  'staffany_google_sheets.create_spreadsheet_from_rows',
+  'Google Sheets output',
+  'Do not edit existing spreadsheets in v1',
+  'Do not say the bot has no direct Google Sheets integration'
 ]) {
   if (!skillText.includes(requiredText)) fail(`staffany-data-bot skill missing required guardrail text: ${requiredText}`);
 }
@@ -264,6 +379,50 @@ for (const requiredText of [
   if (!digestPromptText.includes(requiredText)) fail(`feature usage digest prompt missing required text: ${requiredText}`);
 }
 
+const googleSheetsSharedRoot = join(repoRoot, "apps", "hermes-shared", "google-sheets-output");
+const googleSheetsSkillText = existsSync(join(googleSheetsSharedRoot, "skills", "staffany-google-sheets-output", "SKILL.md"))
+  ? readFileSync(join(googleSheetsSharedRoot, "skills", "staffany-google-sheets-output", "SKILL.md"), "utf8")
+  : "";
+for (const requiredText of [
+  "team@staffany.com",
+  "GOOGLE_SHEETS_TOKEN_FILE",
+  "GOOGLE_SHEETS_CLIENT_SECRET_FILE",
+  "GOOGLE_SHEETS_OUTPUT_FOLDER_ID",
+  "GOOGLE_SHEETS_OUTPUT_SHARE_EMAILS",
+  "check_google_sheets_output_access",
+  "create_spreadsheet_from_rows",
+  "Max 5 tabs",
+  "Max 5,000 rows per tab",
+  "Escape cells beginning with",
+  "Creation-only in v1",
+  "Do not edit existing spreadsheets"
+]) {
+  if (!googleSheetsSkillText.includes(requiredText)) fail(`shared Google Sheets output skill missing required text: ${requiredText}`);
+}
+
+const googleSheetsServerText = existsSync(join(googleSheetsSharedRoot, "runtime", "mcp", "staffany_google_sheets_server.py"))
+  ? readFileSync(join(googleSheetsSharedRoot, "runtime", "mcp", "staffany_google_sheets_server.py"), "utf8")
+  : "";
+for (const requiredText of [
+  "DEFAULT_ACCOUNT_EMAIL = \"team@staffany.com\"",
+  "GOOGLE_SHEETS_TOKEN_FILE",
+  "GOOGLE_SHEETS_CLIENT_SECRET_FILE",
+  "GOOGLE_SHEETS_OUTPUT_FOLDER_ID",
+  "GOOGLE_SHEETS_OUTPUT_SHARE_EMAILS",
+  "SPREADSHEETS_SCOPE",
+  "DRIVE_FILE_SCOPE",
+  "MAX_TABS = 5",
+  "MAX_ROWS_PER_TAB = 5000",
+  "MAX_TOTAL_CELLS = 100_000",
+  "MAX_CELL_CHARS = 2000",
+  "FORMULA_PREFIXES",
+  "check_google_sheets_output_access",
+  "create_spreadsheet_from_rows",
+  "mcp.run(\"stdio\")"
+]) {
+  if (!googleSheetsServerText.includes(requiredText)) fail(`shared Google Sheets MCP missing required text: ${requiredText}`);
+}
+
 const cloudHeartbeatText = existsSync(join(appRoot, "runtime", "check-cloud-heartbeat.sh"))
   ? readFileSync(join(appRoot, "runtime", "check-cloud-heartbeat.sh"), "utf8")
   : "";
@@ -284,6 +443,7 @@ const shellCheck = spawnSync("bash", [
   "-n",
   join(appRoot, "runtime", "check-health.sh"),
   join(appRoot, "runtime", "check-cloud-heartbeat.sh"),
+  join(appRoot, "runtime", "staffanydatabot-cloud-doctor.sh"),
   join(appRoot, "runtime", "audit-live-profile.sh"),
   join(appRoot, "runtime", "backup-honcho.sh"),
   join(appRoot, "runtime", "review-honcho-memory.sh")
@@ -293,6 +453,58 @@ const shellCheck = spawnSync("bash", [
 });
 if (shellCheck.status !== 0) {
   fail(`Shell syntax check failed: ${shellCheck.stderr || shellCheck.stdout}`);
+}
+
+const deployScriptText = existsSync(join(repoRoot, "scripts", "deploy-hermes-data-bot.mjs"))
+  ? readFileSync(join(repoRoot, "scripts", "deploy-hermes-data-bot.mjs"), "utf8")
+  : "";
+for (const requiredText of [
+  "--apply",
+  "Dry run only",
+  "node scripts/verify-hermes-data-bot.mjs",
+  "node scripts/run-prompt-evals.mjs --app hermes-data-bot --mode all",
+  "staffanydatabot-cloud-doctor.sh",
+  "deploy:summary:cloud_doctor=passed",
+  "VERSION",
+  "staffany_slack_context",
+  "staffany_c360",
+  "staffany_google_sheets",
+  "hermes-shared/google-sheets-output",
+  "staffany-google-sheets-output"
+]) {
+  if (!deployScriptText.includes(requiredText)) fail(`deploy-hermes-data-bot.mjs missing required text: ${requiredText}`);
+}
+
+const cloudDoctorText = existsSync(join(appRoot, "runtime", "staffanydatabot-cloud-doctor.sh"))
+  ? readFileSync(join(appRoot, "runtime", "staffanydatabot-cloud-doctor.sh"), "utf8")
+  : "";
+for (const requiredText of [
+  "staffanydatabot-cloud-doctor:profile=$PROFILE",
+  "hermes-gateway-staffanydatabot.service",
+  "hermes-gateway-launchbot.service",
+  "deliver_null",
+  "check_mcp_tools \"staffany_bigquery\"",
+  "check_mcp_tools \"staffany_slack_context\"",
+  "check_mcp_tools \"staffany_c360\"",
+  "check_mcp_tools \"staffany_google_sheets\"",
+  "slack:selected-thread:ok",
+  "C0A0V39AK44"
+]) {
+  if (!cloudDoctorText.includes(requiredText)) fail(`staffanydatabot-cloud-doctor.sh missing required text: ${requiredText}`);
+}
+
+const mcpTest = spawnSync("python3", [
+  "-m",
+  "unittest",
+  "apps/hermes-data-bot/runtime/mcp/test_staffany_slack_context_server.py",
+  "apps/hermes-data-bot/runtime/mcp/test_staffany_c360_server.py",
+  "apps/hermes-shared/google-sheets-output/runtime/mcp/test_staffany_google_sheets_server.py"
+], {
+  cwd: repoRoot,
+  encoding: "utf8"
+});
+if (mcpTest.status !== 0) {
+  fail(`MCP unittest failed: ${mcpTest.stderr || mcpTest.stdout}`);
 }
 
 if (failures.length > 0) {

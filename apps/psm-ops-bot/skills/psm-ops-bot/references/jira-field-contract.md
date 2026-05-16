@@ -13,7 +13,8 @@ The PSM Ops bot writes PS/customer-ops work to PCO Jira Service Management and R
 - Project key: configured by `PSM_OPS_ROI_JIRA_PROJECT_KEY`
 - Source of truth: Jira Service Management ROI board
 - Idempotency key: source Slack thread permalink
-- No PCO wrapper ticket for ROI-direct work
+- No duplicate PCO execution wrapper for ROI-direct work
+- Linked PCO customer-loop tracker: allowed for PS-facing customer follow-up visibility, default for resolved PS Team billing/invoice asks, label `ps-wee-roi-tracker`, status `Waiting Internal`
 
 ## Preconfigured Runtime Values
 
@@ -88,11 +89,19 @@ For ROI urgency fields, match the field's configured options exactly. If the req
 
 ## Engineering Issue Links
 
+- Use `find_engineering_issue` for natural-language KER/SCHE lookup before linking. Search only allowlisted `KER` and `SCHE` projects and return only key, summary, status, issue type, updated timestamp, and URL.
 - Use `link_pco_to_engineering_issue` only for existing `PCO-*` issues that need release tracking against `KER-*` or `SCHE-*`.
 - Default link type is `Blocks`; the tool creates the link so the PCO shows as blocked by the engineering issue.
 - `Relates` is allowed as a fallback only when Jira does not support the standard Blocks link type.
 - Reject non-PCO source issues and non-KER/non-SCHE targets.
 - Do not expose raw engineering issue descriptions, comments, attachments, or Jira bulk exports.
+
+## ROI Customer-Loop Tracker Links
+
+- Use `create_or_link_pco_roi_tracker` only after an ROI ticket has been created or reused.
+- The PCO tracker must be a Customer Success Work issue, labelled `ps-wee-roi-tracker`, linked so the ROI issue blocks the PCO issue, and transitioned to `Waiting Internal`.
+- The Slack thread permalink is the idempotency key for the PCO tracker. Reuse an existing same-thread `ps-wee-roi-tracker` issue instead of creating duplicates.
+- ROI remains execution source of truth. The PCO tracker exists only so PS can see pending billing/internal-team work and close the customer loop.
 
 ## Statuses
 
@@ -115,5 +124,6 @@ The MCP adapter must retrieve available transitions for the issue and choose the
 ## Reminder Policy
 
 - Use Jira `duedate` as the thin POC reminder source of truth.
-- Automatic reminder queries include tasks due tomorrow, due today, and overdue tasks until they are Done.
+- The 09:00 SGT central digest queries tasks due tomorrow, due today, and overdue tasks until they are Done.
+- The 17:00 SGT EOD catch-up digest queries due-today and overdue tasks until they are Done.
 - Do not store reminders in files, memory, cron prompts, Slack messages, or local databases.

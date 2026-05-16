@@ -52,6 +52,23 @@ Expected:
 - Posts the ticket link in the same Slack thread and asks for missing info.
 - Does not paste the raw Slack transcript into Jira.
 
+## PS WEE Compact Missing Info
+
+Thread:
+
+```text
+Can you help advise on the workaround if Tomoro Coffee is unable to add a new staff in HRAny using a phone number that has already been used in another organization? The same phone number is linked to affected staff HUI SHAN WENG in inactive I LOVE TAIMEI.
+@PS Wee Manager please create a ticket for CS to follow up regarding Tomoro Coffee unable to add staff in HRAny.
+```
+
+Expected:
+
+- Calls `find_ticket_by_slack_thread` and then `create_ps_wee_intake_ticket`.
+- Passes known customer, issue details, affected staff/profile, and workaround context into the tool.
+- Does not ask for customer/org or issue details again.
+- Does not add a numbered follow-up questionnaire after the tool reply.
+- Slack-facing missing info is capped at two fields; full needs-info metadata may stay in Jira/audit.
+
 ## PS WEE ROI Direct Intake
 
 Prompt:
@@ -72,12 +89,29 @@ Expected:
 - Calls `classify_roi_ticket_request` and detects actionable BD Ops / invoice work.
 - Calls `find_roi_ticket_by_slack_thread` with the current Slack thread permalink.
 - If no ROI ticket exists for that Slack thread, calls `create_roi_ticket_from_slack`.
-- Does not call `create_ps_wee_intake_ticket` or create a PCO wrapper.
+- Does not call `create_ps_wee_intake_ticket` or create a duplicate PCO execution wrapper.
 - Resolves requester from explicit `requested by` / `reported by` first, otherwise the Slack sender.
 - Blocks creation when requester cannot resolve to Slack/Jira identity; never uses a bot, team, or `team@staffany.com` fallback requester.
 - Discovers required ROI JSM fields at runtime and blocks with exact missing field names when required values are missing.
 - Fills both `Company Name` and `StaffAny Organization` when the ROI request type exposes both fields; a ticket with only the text company field is incomplete.
 - Includes source Slack thread, original channel, and requester in ROI request fields or internal metadata.
+
+## Billing ROI Tracker By Default
+
+Prompt:
+
+```text
+@PS Wee Manager Dreamus renewal invoice has MRR mismatch
+```
+
+Expected:
+
+- Resolves the Slack sender to Jira `PS Team` before creating PCO tracking.
+- Calls `classify_roi_ticket_request` and treats billing/invoice/MRR terms as `pco_tracker_default=true` even without explicit tracking wording.
+- Creates or reuses the ROI ticket first with `find_roi_ticket_by_slack_thread` and `create_roi_ticket_from_slack`.
+- Calls `create_or_link_pco_roi_tracker` after ROI create/reuse.
+- PCO tracker is labelled `ps-wee-roi-tracker`, linked so ROI blocks PCO, and moved to `Waiting Internal`.
+- Final caveat says ROI is source of truth and PCO is only for customer-loop visibility.
 
 ## Casual NYSS Question Does Not Create ROI
 
@@ -234,6 +268,19 @@ Expected:
 - Defaults to Jira `Blocks` direction so the PCO shows as blocked by the engineering issue.
 - Does not read or expose raw engineering issue descriptions, comments, or attachments.
 
+Prompt:
+
+```text
+is there a home page ticket in KER? If yes, link it to PCO-146
+```
+
+Expected:
+
+- Calls read-only `find_engineering_issue` with KER scope before linking.
+- If there is one clear match such as `KER-2117`, calls `link_pco_to_engineering_issue` with that key.
+- If multiple plausible KER matches are returned, asks the user to choose the issue key.
+- Does not use Slack history, memory, descriptions, comments, attachments, or Jira bulk exports for KER discovery.
+
 ## Reminder
 
 Prompt:
@@ -246,6 +293,7 @@ Expected:
 
 - Calls `set_pco_reminder`.
 - Updates Jira `duedate`, because due date drives automatic reminders.
+- Says the reminder will surface in the central 09:00 SGT / 17:00 SGT PSM Ops digest if the issue is not Done.
 - Does not create local reminder state.
 
 ## Cron Reminder
@@ -262,6 +310,22 @@ Expected:
 - Uses `duedate <= tomorrow` and excludes Done tasks.
 - Output starts with `PSM Ops automation:`.
 - Source is Jira PCO.
+
+## EOD Reminder Catch-Up
+
+Prompt:
+
+```text
+PSM Ops automation: run EOD due-date reminder catch-up.
+```
+
+Expected:
+
+- Uses the no-agent due-date reminder script in `eod` mode.
+- Includes due-today and overdue tasks only.
+- Excludes Done tasks.
+- Outputs `[SILENT]` when there are no matching issues.
+- Does not create local reminder state or read raw Jira comments/Slack transcripts.
 
 ## Customer Context
 

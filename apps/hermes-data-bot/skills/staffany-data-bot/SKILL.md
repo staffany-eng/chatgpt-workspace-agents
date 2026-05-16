@@ -7,7 +7,7 @@ license: Internal
 metadata:
   hermes:
     tags: [staffany, data, bigquery, slack, mcp]
-    related_skills: [native-mcp]
+    related_skills: [native-mcp, staffany-google-sheets-output]
 ---
 
 # StaffAny Data Bot
@@ -22,6 +22,7 @@ Use this skill for StaffAny internal data-bot work. It ports the ChatGPT Da Ta B
 - StaffAny product terms, package ownership, feature/form/page labels, APQ corrections, and internal concept lookups.
 - Jira-synced release-feature usage tracking, launch-priority classification, and weekly high-priority feature usage digests.
 - Slack threads where the user asks what metric or app-data question is being discussed.
+- Google Sheets output requests for an already-confirmed bounded table result.
 - Feedback that might become a confirmed metric definition, terminology mapping, or output preference.
 
 Do not use this skill for generic coding, broad web research, or non-StaffAny personal tasks.
@@ -32,8 +33,11 @@ Do not use this skill for generic coding, broad web research, or non-StaffAny pe
 2. Product and package lookups: `references/staffany-product-lookup-registry.md`.
 3. Known POC metrics: `references/staffany-data-bot-metric-registry.md`.
 4. Regression and safety expectations: `references/regression-cases.md`.
-5. BigQuery schema inspection through the `staffany_bigquery` MCP server.
-6. GitHub/Pantheon evidence only when registry evidence is missing, explicitly requires code verification, or the user asks for code evidence.
+5. Selected Slack thread context through the read-only `staffany_slack_context` MCP when the user gives an explicit configured Slack permalink.
+6. Customer 360 current-customer universe through the read-only `staffany_c360` MCP when the request asks for current customers, C360 definition, or a C360 correction.
+7. BigQuery schema inspection through the `staffany_bigquery` MCP server.
+8. Google Sheets output through the creation-only `staffany_google_sheets` MCP only after the underlying result table is already approved or delivered.
+9. GitHub/Pantheon evidence only when registry evidence is missing, explicitly requires code verification, or the user asks for code evidence.
 
 Registry rows are guidance, not automatic truth. Product Corrections prevent known wrong answers, but they do not become metric definitions.
 
@@ -63,6 +67,48 @@ Use BigQuery Standard SQL against `staffany-warehouse.analytics`.
 
 If the MCP server, auth, schema access, or required context fails, return `Confidence: blocked` and state the connector/source issue plainly.
 
+## Google Sheets Output Rules
+
+Use `staffany_google_sheets.create_spreadsheet_from_rows` when the user explicitly asks for `spreadsheet`, `Google Sheet`, or `sheet summary` for an already-confirmed bounded table result.
+
+- First Slack mentions still stay plan-first when data access is needed.
+- A clear same-thread follow-up after a delivered result, such as `google sheets`, is continuation work; do not ask for another `run` if the table scope is already clear.
+- Before creating large output, keep the table bounded and safe for sharing. If the requested rows exceed the Sheets output limits, summarize or ask one focused scope question.
+- Use only `staffany_google_sheets.check_google_sheets_output_access` and `staffany_google_sheets.create_spreadsheet_from_rows`.
+- Do not edit existing spreadsheets in v1.
+- Do not put raw Slack transcripts, employee-level payroll detail, phone numbers, NRIC/FIN, bank details, API keys, OAuth tokens, connector tokens, or unapproved raw query rows into a Sheet.
+- When `staffany_google_sheets` is healthy, create the Sheet directly.
+- Do not say the bot has no direct Google Sheets integration and do not make CSV import the main path.
+
+Final Google Sheets Slack result format:
+
+Answer: Google Sheet created: <spreadsheet_url>
+Source: <underlying source table/tool> + staffany_google_sheets.create_spreadsheet_from_rows
+Scope: <time range, filters, row count, tab count>
+Confidence: <verified | needs-check | blocked>
+Caveat: <only the material caveat>
+
+## Customer 360 Current-Customer Rules
+
+Use `staffany_c360.list_current_customer_orgs` before BigQuery when a data request asks for "current customers", "C360 definition", "definition from c360", or a correction/rerun because an earlier answer counted all city/org records instead of current customers.
+
+- Customer 360 is the source of truth for the current-customer universe.
+- BigQuery remains the source of truth for product/app metric settings and usage.
+- Use `as_of_date` from the question when given; otherwise use today's Singapore date.
+- Pass the requested country when scoped, for example `Indonesia`.
+- Filter BigQuery product/app metric checks to the returned linked StaffAny org IDs only.
+- Report mapping gaps separately; do not join unmapped C360 companies to org-level metrics by name guessing.
+- If C360 auth/API fails, return `Confidence: blocked` before querying BigQuery.
+- Never use browser cookies, personal `customer360_session`, Slack context, Honcho memory, or HubSpot fields as a substitute for this current-customer universe.
+
+For AA marketing-banner questions, the final answer must bucket C360 current-customer orgs into:
+
+1. No marketing banner.
+2. Marketing banner on, but AA not used as banner content/target.
+3. Marketing banner on and AA used as banner content/target.
+
+If the banner enabled flag, banner content, or AA-target source cannot be discovered or owner-verified, return `Confidence: needs-check` or `blocked`; do not provide broad city/org counts as the answer.
+
 ## Slack Plan-First Workflow
 
 For first Slack mentions that need app data, Slack context, BigQuery, schema inspection, GitHub, or any slow tool-backed work, do not call tools yet. This is true even if the prompt is being replayed in a CLI/eval harness but explicitly says it is a Slack first mention. In that case, return the plan-first template rather than answering `blocked` because BigQuery/tools are unavailable in the harness.
@@ -82,6 +128,8 @@ Reply "run" to start, or tell me what to change.
 Once a result has already been delivered in the same thread, clear follow-up corrections, fixes, reruns, or “fix this” requests are continuation work. Do not require another `run` when the scope is clear and the work is a bounded correction to the previous result; use the relevant tools immediately. If the follow-up materially expands scope, changes the source class, or could become expensive/ambiguous, send a revised plan and ask for `run` again.
 
 Do not run a post-answer acceptance workflow. After a final answer, do not ask the user to confirm with yes/ok/done, do not mark the thread as action needed, and do not send reminders waiting for explicit acceptance. Plain acknowledgements after a final answer, such as `ok`, `done`, `yes`, `thanks`, or similar, close the thread silently unless they include a new request. The mark-as-done / action-needed pattern is for explicit task workflows with an assignee and completion state, not for answered data questions.
+
+For explicit selected Slack permalinks, `get_selected_slack_thread_context` and `get_current_slack_thread_context` may run before `run` only to understand the request and draft the preflight. They must use the Da Ta Hermz bot token, read one configured public/source thread, cap output at 50 messages, and return safe redacted snippets/permalinks only. They must not post Slack messages, search broad workspace history, list users broadly, react, pin, join channels, read private channels by bypass, use Kai Yi's user token, or use the Slack connector. If the thread is outside the configured channel IDs or the bot token cannot read it, return `Confidence: blocked` and ask for a permitted permalink or pasted non-sensitive excerpt.
 
 After `run` or a clear continuation request, execute only the confirmed/continued plan:
 

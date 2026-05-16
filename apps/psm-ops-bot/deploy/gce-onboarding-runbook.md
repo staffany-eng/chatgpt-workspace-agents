@@ -34,6 +34,18 @@ configuration only; do not copy those values into this repo.
 
 Thin POC does not require `SLACK_ALLOWED_USERS`, `SLACK_ALLOWED_CHANNELS`, or a PSM Ops access-policy file. The bot resolves the caller by fetching Slack users, canonicalizing profile email/name, and matching that identity to Jira `PS Team`. Jira user search is optional best-effort attribution, not the task-owner filter. Keep `slack.require_mention=true` so public/open-channel usage does not become free-response mode.
 
+Required Slack bot scopes for public/open-channel mode:
+
+- `app_mentions:read`
+- `channels:read`
+- `channels:history`
+- `channels:join`
+- `chat:write`
+- `users:read`
+- `users:read.email`
+
+`channels:join` is required so the bot can repair membership for public/open channels through bot-owned auth. If the app is missing this scope, `conversations.join` fails with `missing_scope` and the bot cannot read or reply in unjoined public channels. Reinstall the Slack app after scope changes, then run the public-channel join repair script from the cloud profile.
+
 Thin POC Jira IDs must also be present in the profile `.env`:
 
 - `PSM_OPS_JIRA_MODE=thin_poc`
@@ -76,10 +88,22 @@ systemctl --user restart hermes-gateway-psmopsbot.service
 ~/.hermes/profiles/psmopsbot/scripts/psmopsbot-check-health.sh
 ```
 - `PSM_OPS_CUSTOMER_CHANNEL_MAP_PATH` when customer-specific Slack channel auto-tagging is enabled
+- `PSM_OPS_REMINDER_MENTION_MAP_PATH` when central reminder digests should tag reviewed PS Team Slack users or usergroups
 
 Handoff Package intentionally returns a blocked response until PCO has the missing request type. Reminder automation uses Jira `duedate`; no separate reminder field is required in thin POC.
 
 Customer-specific Slack channel auto-tagging reads a reviewed JSON map from `PSM_OPS_CUSTOMER_CHANNEL_MAP_PATH`. Keep the map in profile/runtime storage, not in git. Each reviewed row must include `channel_id`, `channel_name`, `customer_key`, `customer_name`, `staffany_orgs`, and `status=reviewed`.
+
+Reminder PS Team tagging reads a reviewed JSON map from `PSM_OPS_REMINDER_MENTION_MAP_PATH`. Keep this map in profile/runtime storage, not in git. The reminder cron does not call Slack `users.list` or guess team membership:
+
+```json
+{
+  "ps_teams": {
+    "Kai Yi": [{"type": "user", "id": "U123", "label": "Kai Yi"}],
+    "CS Duty": [{"type": "usergroup", "id": "S123", "handle": "cs-duty"}]
+  }
+}
+```
 
 ## VM Bootstrap
 
@@ -126,7 +150,16 @@ cp apps/psm-ops-bot/profile/SOUL.md ~/.hermes/profiles/psmopsbot/SOUL.md
 rsync -a --delete apps/psm-ops-bot/skills/psm-ops-bot/ ~/.hermes/profiles/psmopsbot/skills/psm-ops-bot/
 rsync -a apps/psm-ops-bot/runtime/mcp/ ~/.hermes/profiles/psmopsbot/runtime/mcp/
 rsync -a apps/psm-ops-bot/runtime/hooks/psm-ops-adoption-telemetry/ ~/.hermes/profiles/psmopsbot/hooks/psm-ops-adoption-telemetry/
-cp apps/psm-ops-bot/runtime/scripts/psm_ops_adoption_digest.py ~/.hermes/profiles/psmopsbot/scripts/psm_ops_adoption_digest.py
+cp apps/psm-ops-bot/runtime/psm_ops_adoption_digest.py ~/.hermes/profiles/psmopsbot/scripts/psm_ops_adoption_digest.py
+cp apps/psm-ops-bot/runtime/scripts/psm_ops_due_date_reminders.py ~/.hermes/profiles/psmopsbot/scripts/psm_ops_due_date_reminders.py
+cp apps/psm-ops-bot/runtime/scripts/psm_ops_due_date_reminders.py ~/.hermes/profiles/psmopsbot/scripts/psm_ops_due_date_reminders_eod.py
+cp apps/psm-ops-bot/runtime/scripts/psm_ops_roi_tracker_sync.py ~/.hermes/profiles/psmopsbot/scripts/psm_ops_roi_tracker_sync.py
+cp apps/psm-ops-bot/runtime/scripts/psm_ops_join_public_channels.py ~/.hermes/profiles/psmopsbot/scripts/psm_ops_join_public_channels.py
+chmod 755 ~/.hermes/profiles/psmopsbot/scripts/psm_ops_adoption_digest.py \
+  ~/.hermes/profiles/psmopsbot/scripts/psm_ops_due_date_reminders.py \
+  ~/.hermes/profiles/psmopsbot/scripts/psm_ops_due_date_reminders_eod.py \
+  ~/.hermes/profiles/psmopsbot/scripts/psm_ops_roi_tracker_sync.py \
+  ~/.hermes/profiles/psmopsbot/scripts/psm_ops_join_public_channels.py
 ```
 
 Write the approved `team@staffany.com` OAuth files from Secret Manager to the paths configured above. Do not commit or paste those JSON files into the repo.
@@ -198,7 +231,20 @@ Install automatic due-date reminders on the cloud host only:
 ```bash
 hermes -p psmopsbot cron create "0 1 * * *" \
   --name "psmopsbot due-date reminders" \
-  --prompt "PSM Ops automation: Check Jira PCO tasks due tomorrow, due today, and overdue as of now for #ps-weeman-bot-test. Use list_due_pco_reminders with lead_days=1. Return only safe issue summaries and do not call Slack post APIs directly." \
+  --script psm_ops_due_date_reminders.py \
+  --no-agent \
+  --deliver "slack:#ps-weeman-bot-test"
+
+hermes -p psmopsbot cron create "0 9 * * *" \
+  --name "psmopsbot due-date eod catch-up" \
+  --script psm_ops_due_date_reminders_eod.py \
+  --no-agent \
+  --deliver "slack:#ps-weeman-bot-test"
+
+hermes -p psmopsbot cron create "*/30 1-10 * * 1-5" \
+  --name "psmopsbot roi tracker sync" \
+  --script psm_ops_roi_tracker_sync.py \
+  --no-agent \
   --deliver "slack:#ps-weeman-bot-test"
 
 hermes -p psmopsbot cron create "0 2 * * 1-5" \
@@ -208,7 +254,7 @@ hermes -p psmopsbot cron create "0 2 * * 1-5" \
   --deliver "slack:#ps-weeman-bot-test"
 ```
 
-The GCE host runs UTC, so `0 1 * * *` is 09:00 Asia/Singapore daily.
+The GCE host runs UTC, so `0 1 * * *` is 09:00 Asia/Singapore daily, `0 9 * * *` is 17:00 Asia/Singapore daily, and `*/30 1-10 * * 1-5` checks ROI trackers every 30 minutes during Singapore workdays. The EOD cron uses the same source script copied under an `eod` filename because Hermes cron does not pass script flags to no-agent scripts.
 
 Install the no-agent PS WEE adoption digest:
 
@@ -236,9 +282,17 @@ Cloud smoke:
 2. Draft and approve-create one PCO test task.
 3. Transition it to Scheduled.
 4. Add an internal comment.
-5. Ask for due-date reminders and verify `list_due_pco_reminders` returns due tomorrow, due today, and overdue tasks only while not Done.
+5. Run `psm_ops_due_date_reminders.py --mode morning --dry-run`, `psm_ops_due_date_reminders.py --mode eod --dry-run`, and `psm_ops_roi_tracker_sync.py --dry-run`; verify they output Slack-safe mrkdwn, optional reviewed PS Team mentions, reviewed customer-channel mentions from source links only, safe Jira issue summaries, and `[SILENT]` when empty.
 6. Ask for Rock Productions from a channel-style hint such as `proj-cs-rockproductions`; verify the bot finds `Rock Productions Pte Ltd`, shows the searched variants safely, and does not say a generic customer cannot be found.
 7. Ask one calendar follow-up question and verify `psm_google_calendar.read_customer_calendar_context` returns bounded event metadata from `team@staffany.com` without descriptions, attendee emails, raw guest lists, or conference links.
 8. Ask one C360 customer question and verify a C360 link/citation appears.
 9. Create a PS WEE intake ticket from a non-home public channel and verify the same Slack thread gets the ticket link while the central ops channel gets a `PSM Ops automation:` audit copy with the source thread permalink.
 10. Run `hermes -p psmopsbot insights --days 30 --source slack` and `hermes -p psmopsbot sessions stats` for native Hermes adoption checks.
+
+Before step 1, verify and repair public/open-channel membership after Slack app install or scope changes:
+
+```bash
+~/.hermes/profiles/psmopsbot/scripts/psm_ops_join_public_channels.py --dry-run
+~/.hermes/profiles/psmopsbot/scripts/psm_ops_join_public_channels.py --apply
+~/.hermes/profiles/psmopsbot/scripts/psmopsbot-check-health.sh
+```

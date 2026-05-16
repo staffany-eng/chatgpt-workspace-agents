@@ -212,6 +212,48 @@ class GoogleDriveNurtureAnyServerTest(unittest.TestCase):
                         "",
                         "repo_case_study_catalog",
                     ],
+                    [
+                        "kns:network-community-peer-talent-collaboration",
+                        "approved",
+                        "Network: Community, peer, talent, and collaboration matching",
+                        "Network",
+                        "Network means event invites, peer matching, talent matching, future-speaker sourcing, and customer collaboration; StaffAny is the connector, not just the vendor.",
+                        "Buyers get relevant events, peers, hiring/talent help, future speakers, and collaboration paths that create value beyond HR tech.",
+                        "daily_nurture, pre_demo, event_followup, community_matching",
+                        "Hi {{first_name}}, thought of {{company_name}} because there may be a useful peer/event/talent match here. {{message_hook}} Want me to suggest the top few relevant people, events, or future speakers?",
+                        "Network offer: invite them to HHH/LL/cozy dinners/overseas LL, introduce similar peers, match hiring/talent asks, ask who they want to hear from for future speakers, or create customer collaboration.",
+                        "Singapore, Malaysia, Indonesia",
+                        "all",
+                        "event, happy-hr-hour, leaders-lounge, overseas-ll, cozy-dinner, peer-matching, talent-matching, future-speaker, collaboration, warm-intro, employer-branding, joint-event",
+                        "decision_maker, influencer, operations, hr",
+                        "skills/nurtureany-sales-bot/references/sales-best-practices.md",
+                        "",
+                        "Use as Network. Good examples: top 5 community members who attend often, actively support StaffAny, have strong product adoption, and share role/industry; 'meet 3 Retail HR leaders solving similar manpower challenges'; or ask who they want to hear from so StaffAny can invite relevant future speakers. Do not fabricate introductions; AE picks relevant event/member.",
+                        "2026-05-15",
+                        "",
+                        "nurtureany_packet",
+                    ],
+                    [
+                        "kns:support-speaker-venue-outlet",
+                        "approved",
+                        "Support: Speaker, venue, meal, or outlet support",
+                        "Support",
+                        "Support means featuring or supporting the buyer/account directly, not generic networking.",
+                        "Boss and HR contacts can get a speaker slot, venue support, small peer meal, or visible outlet/product support.",
+                        "daily_nurture, pre_demo, event_followup, warm_activity",
+                        "Hi {{first_name}}, thought of {{company_name}} because we may be able to support your venue or feature your team. {{message_hook}} Open to exploring if this is useful?",
+                        "Support offer: ask boss/HR to speak, use/support their venue, host a simple meal there, buy their product, or reference visible outlet demand.",
+                        "Singapore, Malaysia, Indonesia",
+                        "f&b, retail, services, shift-work",
+                        "speaker, venue, simple-meal, leaders-lounge, happy-hr-hour, outlet-support, buy-product, long-queue, boss, hr",
+                        "decision_maker, owner, founder, boss, hr",
+                        "skills/nurtureany-sales-bot/references/sales-best-practices.md",
+                        "",
+                        "Use as Support, not Support Network. Boss variant: Leaders Lounge speaker/venue/simple meal with 1-2 bosses. HR variant: Happy HR Hour speaker/venue/simple meal with 1-2 HRs. Verify real opportunity and do not fabricate events or support.",
+                        "2026-05-15",
+                        "",
+                        "nurtureany_packet",
+                    ],
                 ]
             }
 
@@ -240,6 +282,11 @@ class GoogleDriveNurtureAnyServerTest(unittest.TestCase):
         self.assertIn("material_url", row["template_params_schema"])
         self.assertEqual(row["kns_pillar"], "Knowledge")
         self.assertEqual(row["talk_track"], "Use as an analogy only.")
+        rows_by_id = {item["material_id"]: item for item in result["answer"]["rows"]}
+        self.assertEqual(rows_by_id["kns:network-community-peer-talent-collaboration"]["kns_pillar"], "Network")
+        self.assertIn("talent-matching", rows_by_id["kns:network-community-peer-talent-collaboration"]["concept_tags"])
+        self.assertEqual(rows_by_id["kns:support-speaker-venue-outlet"]["kns_pillar"], "Support")
+        self.assertNotIn("Support Network", rows_by_id["kns:support-speaker-venue-outlet"]["title"])
 
     def test_blocks_token_missing_drive_scope(self):
         with tempfile.TemporaryDirectory() as tmpdir:

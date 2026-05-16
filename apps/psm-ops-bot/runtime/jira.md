@@ -5,11 +5,12 @@ PSM Ops Bot uses Jira PCO as the PS/customer-ops task source of truth and Jira R
 ## API Pattern
 
 - List/search tasks: Jira Cloud JQL search API.
+- Find engineering issue candidates: Jira Cloud JQL search API, restricted to KER/SCHE and safe fields only.
 - Create PCO requests: Jira Service Management request API.
 - Create ROI requests: Jira Service Management request API for the configured ROI service desk and request type.
 - Due date: Jira Cloud issue update API against the standard `duedate` field after request creation.
 - Status transitions: Jira Cloud issue transitions API.
-- Engineering links: Jira Cloud issue link API, restricted to existing `PCO-*` issues linked to `KER-*` or `SCHE-*`.
+- Engineering and internal-team links: Jira Cloud issue link API, restricted to existing `PCO-*` issues linked to `KER-*`/`SCHE-*`, plus `ROI-*` links created only by the PCO ROI tracker primitive.
 - Comments: Jira Service Management request comment API with `public=false` by default.
 - Reminders: Jira JQL over the standard `duedate` field. No separate reminder database or custom reminder field is required for thin POC.
 
@@ -48,7 +49,9 @@ Task creation sends only fields that exist on today's PCO request forms, includi
 
 Task creation blocks past due dates before writing to Jira. Today is evaluated in `Asia/Singapore` by default, or `PSM_OPS_TIMEZONE` if configured. If a draft date is before today's date, ask for a corrected future due date.
 
-Automatic reminders use `duedate <= tomorrow` and `statusCategory != Done`. This means each task appears one day before it is due, on the due date, and every day after until it is marked Done. `set_pco_reminder` updates the issue due date because due date is the reminder source of truth in thin POC.
+Automatic reminders use `duedate` and `statusCategory != Done`. The 09:00 SGT morning digest includes overdue, due-today, and due-tomorrow tasks. The 17:00 SGT EOD catch-up digest includes overdue and due-today tasks so same-day follow-ups created after the morning run still surface. `set_pco_reminder` updates the issue due date because due date is the reminder source of truth in thin POC; it does not create a separate Slack-thread reminder or local reminder record.
+
+Reminder Slack formatting is deterministic mrkdwn in the central digest only. `PSM_OPS_REMINDER_MENTION_MAP_PATH` may point to a reviewed runtime JSON map from Jira `PS Team` values to Slack user or usergroup targets. Unmapped `PS Team` values are not guessed; the digest should list them under `Mention gaps`. When `PSM_OPS_JIRA_FIELD_SOURCE_LINKS` is configured and a source Slack permalink belongs to a reviewed channel in `PSM_OPS_CUSTOMER_CHANNEL_MAP_PATH`, the central row may include `Customer team: <#CHANNEL_ID|channel-name>`. Do not infer customer channels from summary text or customer names.
 
 For portal/request-form visibility, add the field named `Due date` / field ID `duedate` to PCO request types `81` Customer Success Work, `82` Onboarding, and `83` Data Setup. The bot does not require the form field to be visible because it sets `duedate` after creation, but PSMs will see a cleaner form if Jira admins add it.
 
@@ -56,9 +59,12 @@ For portal/request-form visibility, add the field named `Due date` / field ID `d
 
 For customer follow-up that is blocked by engineering shipment, keep PCO as the PS task and link it to the product/engineering issues:
 
+- Use read-only `find_engineering_issue` when the user names a feature instead of giving an exact `KER-*` or `SCHE-*` key.
 - Link `PCO-*` to `KER-*` for product context.
 - Link `PCO-*` directly to the confirmed `SCHE-*` shipment tickets because `fixVersion` is expected on the shipment tickets.
 - Use `Blocks` so the PCO appears blocked by the engineering issue. Use `Relates` only if the Jira site does not support `Blocks`.
+
+Engineering issue search returns only `key`, `summary`, `status`, `issue_type`, `updated`, and URL. It must not expose raw descriptions, comments, attachments, or bulk Jira exports. Default search scope is KER; include SCHE only when the request mentions shipment, release, or SCHE.
 
 Recommended Jira Automation for a specific watch ticket:
 
@@ -105,6 +111,7 @@ Required env vars:
 - `PSM_OPS_JIRA_FIELD_RISK_REASON`
 - `PSM_OPS_JIRA_FIELD_SOURCE_LINKS`
 - `PSM_OPS_JIRA_FIELD_REMINDER_AT` if a separate reminder field is introduced later
+- `PSM_OPS_REMINDER_MENTION_MAP_PATH` for optional central-digest PS Team Slack mentions
 
 The access policy file maps Slack email to Jira account ID:
 
@@ -124,7 +131,9 @@ The access policy file maps Slack email to Jira account ID:
 
 ## ROI Direct Runtime Config
 
-ROI-direct is for RevOps, BD Ops, NYSS, and ROI-board requests. It does not create a PCO wrapper ticket. The ROI ticket is the source of truth; the Slack thread permalink is evidence and the idempotency key.
+ROI-direct is for RevOps, BD Ops, NYSS, and ROI-board requests. It does not create a duplicate PCO execution wrapper. The ROI ticket is the source of truth; the Slack thread permalink is evidence and the idempotency key.
+
+For resolved PS Team callers, billing/invoice/renewal billing asks default to a linked PCO customer-loop tracker. The tracker is not execution truth. It is a PCO Customer Success Work issue labelled `ps-wee-roi-tracker`, linked so ROI blocks PCO, transitioned to `Waiting Internal`, and used only so PS can close the customer loop after ROI resolves the internal work.
 
 Required env vars:
 
@@ -167,11 +176,12 @@ Field rules:
 - `validate_roi_jira_configuration`: run after ROI env setup and before broad ROI enablement.
 - `resolve_customer_channel_org`: safe read; resolve a Slack thread permalink to a reviewed customer-channel mapping before auto-tagging Jira `StaffAny Org(s)`.
 - `resolve_slack_user_identity`: safe read; resolve one Slack mention, email, or exact name through `users.list` before asking avoidable owner questions.
-- `classify_roi_ticket_request`: safe read; route actionable ROI/RevOps/BD Ops/NYSS requests to ROI only when create/add/log/handle/task wording is present.
+- `classify_roi_ticket_request`: safe read; route actionable ROI/RevOps/BD Ops/NYSS requests to ROI when create/add/log/handle/task wording is present, and treat PS Team billing/invoice operational asks as ROI + PCO tracker candidates by default.
 - `list_my_pco_tasks`: safe read, caller-scoped by Jira `PS Team`.
 - `find_ticket_by_slack_thread`: safe read; use the Slack thread permalink as the PS WEE idempotency key.
 - `find_roi_ticket_by_slack_thread`: safe read; use the Slack thread permalink as the ROI idempotency key.
-- `create_roi_ticket_from_slack`: mutation; creates direct ROI JSM tickets for actionable RevOps/BD Ops/NYSS/ROI-board requests with first-class requester, required-field checks, source Slack thread, and no PCO wrapper.
+- `create_roi_ticket_from_slack`: mutation; creates direct ROI JSM tickets for actionable RevOps/BD Ops/NYSS/ROI-board requests with first-class requester, required-field checks, source Slack thread, and no duplicate PCO execution wrapper.
+- `create_or_link_pco_roi_tracker`: mutation; creates or reuses one linked PCO customer-loop tracker per Slack thread for PS Team billing/invoice asks or explicit customer-loop tracking requests. It labels the PCO issue `ps-wee-roi-tracker`, links ROI as blocking PCO, and moves the PCO tracker to `Waiting Internal`.
 - `create_ps_wee_intake_ticket`: mutation; creates an immediate needs-info intake ticket for explicit PS WEE ticketing requests without preview approval.
 - `append_ps_wee_ticket_update`: mutation; adds a concise structured internal comment for meaningful Slack follow-up discussion, including `Slack poster:` when the Slack poster display name, user ID, or email is available.
 - `mark_ps_wee_ticket_ready`: mutation; adds a ready-for-triage internal comment and removes `needs-info` when Jira allows it.
@@ -182,8 +192,9 @@ Field rules:
 - `add_internal_pco_comment`: mutation; internal comments only unless explicitly enabled.
 - `set_pco_assignee`: mutation; assigns an existing PCO issue to a Jira user resolved from a Slack mention, email, or exact name. This does not change `PS Team`.
 - `set_pco_ps_team`: mutation; updates only the configured Jira `PS Team` field. Treat "cs duty" as `CS Duty`, not a person assignee.
+- `find_engineering_issue`: safe read; searches only allowlisted KER/SCHE Jira projects and returns safe fields only. Use it before release-watch linking when the user supplies a feature name rather than an exact engineering issue key.
 - `link_pco_to_engineering_issue`: mutation; links an existing `PCO-*` issue to a `KER-*` or `SCHE-*` engineering issue. Default `Blocks` direction makes the PCO show as blocked by the engineering issue. `Relates` is allowed only as fallback when Jira lacks Blocks.
-- `set_pco_reminder`: mutation; updates Jira `duedate`, which drives automatic reminders.
+- `set_pco_reminder`: mutation; updates Jira `duedate`, which drives central 09:00 SGT and 17:00 SGT reminders.
 - `list_due_pco_reminders`: safe read for cron and user checks; user-scoped checks filter by Jira `PS Team`.
 
 ## Failure Behavior

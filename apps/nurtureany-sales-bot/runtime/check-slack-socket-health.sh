@@ -162,7 +162,7 @@ for message in history.get("messages") or []:
     except ValueError:
         continue
     if not latest_mention or message_epoch > latest_mention["epoch"]:
-        latest_mention = {"epoch": message_epoch, "ts": message.get("ts") or ""}
+        latest_mention = {"epoch": message_epoch, "ts": message.get("ts") or "", "user": message.get("user") or ""}
 
 if not latest_mention:
     raise SystemExit(0)
@@ -193,10 +193,11 @@ if log_tz != "UTC":
         tzinfo = dt.timezone.utc
 
 inbound_after_mention = False
+unauthorized_after_mention = False
 timestamp_pattern = re.compile(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})")
 with open(log_file, "r", encoding="utf-8", errors="replace") as handle:
     for line in handle:
-        if "inbound message: platform=slack" not in line:
+        if "inbound message: platform=slack" not in line and "Unauthorized user:" not in line:
             continue
         match = timestamp_pattern.match(line)
         if not match:
@@ -205,10 +206,14 @@ with open(log_file, "r", encoding="utf-8", errors="replace") as handle:
             log_epoch = int(dt.datetime.strptime(match.group(1), "%Y-%m-%d %H:%M:%S").replace(tzinfo=tzinfo).timestamp())
         except ValueError:
             continue
-        if log_epoch >= latest_mention["epoch"]:
+        if log_epoch < latest_mention["epoch"]:
+            continue
+        if "inbound message: platform=slack" in line:
             inbound_after_mention = True
+        if latest_mention.get("user") and f"Unauthorized user: {latest_mention['user']}" in line:
+            unauthorized_after_mention = True
 
-if inbound_after_mention:
+if inbound_after_mention or unauthorized_after_mention:
     raise SystemExit(0)
 
 print(f"slack-ingress:missed-mention message_ts={latest_mention['ts']} age_seconds={age}")
@@ -240,10 +245,10 @@ if [ "$ingress_status" -eq 2 ]; then
       exit 0
     fi
   fi
-  restart_gateway "missed-mention" "$ingress_out"
   if [ -n "$ingress_epoch" ]; then
     write_state "$ingress_epoch" "$current_epoch"
   fi
+  restart_gateway "missed-mention" "$ingress_out"
   exit 0
 elif [ "$ingress_status" -ne 0 ]; then
   fail "slack-ingress:probe-error"
@@ -278,5 +283,5 @@ if [ "$last_restart_stale_epoch" = "$stale_epoch" ] && [ -n "$last_restart_epoch
   fi
 fi
 
-restart_gateway "stale-socket" "stale_age_seconds=$age_seconds"
 write_state "$stale_epoch" "$current_epoch"
+restart_gateway "stale-socket" "stale_age_seconds=$age_seconds"

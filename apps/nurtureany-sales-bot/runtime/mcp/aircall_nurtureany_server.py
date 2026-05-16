@@ -40,6 +40,7 @@ MAX_AUDIO_BYTES = 25 * 1024 * 1024
 MAX_AUDIO_SECONDS = 60 * 60
 MAX_TRANSCRIPT_CHARS = 12000
 MAX_SEGMENTS = 80
+MAX_RESOLVER_CANDIDATES = 5
 DEFAULT_MODEL = "gpt-4o-transcribe-diarize"
 DEFAULT_CALL_COACH_PROVIDER = "openai"
 DEFAULT_CALL_COACH_REASONING_MODEL = "gpt-5.5"
@@ -233,6 +234,46 @@ def _filter_selected_call_matches(
                 continue
         matched.append(call)
     return matched
+
+
+def _first_hint_value(selected_call_hints: dict[str, Any], collection: str, key: str) -> str:
+    values = selected_call_hints.get(collection)
+    if not isinstance(values, list):
+        return ""
+    for item in values:
+        if isinstance(item, dict) and str(item.get(key) or "").strip():
+            return str(item.get(key) or "").strip()
+    return ""
+
+
+def _duration_hint_seconds(selected_call_hints: dict[str, Any]) -> int | None:
+    values = selected_call_hints.get("duration_mentions")
+    if not isinstance(values, list):
+        return None
+    for item in values:
+        if not isinstance(item, dict):
+            continue
+        seconds = _optional_int(item.get("seconds"), "selected_call_hints.duration_mentions.seconds", 0, 24 * 60 * 60)
+        if seconds:
+            return seconds
+    return None
+
+
+def _validate_aircall_call_id(call_id: str, field_name: str = "aircall_call_id") -> str:
+    value = str(call_id or "").strip()
+    if not value:
+        return ""
+    if not re.fullmatch(r"\d+", value):
+        raise AircallError(f"{field_name} must be a numeric Aircall call ID, not a HubSpot object ID or label.")
+    return value
+
+
+def _safe_resolved_call(call_id: str) -> dict[str, Any]:
+    payload = _aircall_get(f"/calls/{call_id}")
+    call = payload.get("call") if isinstance(payload.get("call"), dict) else payload
+    if not isinstance(call, dict):
+        raise AircallError("Aircall call lookup returned an unexpected payload.")
+    return _safe_call(call)
 
 
 def _aircall_get(path: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -1058,6 +1099,172 @@ def find_aircall_calls(
             "scope": scope,
             "confidence": "verified" if safe_calls else "needs-check",
             "caveat": "Safe metadata only. Timestamps sent to Aircall use UNIX seconds. Raw phone numbers, recording URLs, audio bytes, and transcripts were not returned.",
+        }
+    except AircallError as error:
+        return _blocked(str(error), scope)
+
+
+@mcp.tool()
+def resolve_aircall_call_for_coaching(
+    slack_user_email: str,
+    aircall_call_id: str = "",
+    match_user_name: str = "",
+    match_started_at: str = "",
+    match_duration_seconds: int | str | None = None,
+    selected_call_hints: dict[str, Any] | None = None,
+    timestamp_tolerance_seconds: int = DEFAULT_MATCH_TIMESTAMP_TOLERANCE_SECONDS,
+    duration_tolerance_seconds: int = DEFAULT_MATCH_DURATION_TOLERANCE_SECONDS,
+) -> dict[str, Any]:
+    """Resolve a natural-language selected-call request to one safe Aircall call ID."""
+
+    hints = selected_call_hints if isinstance(selected_call_hints, dict) else {}
+    safe_timestamp_tolerance = _bounded_int(
+        timestamp_tolerance_seconds,
+        DEFAULT_MATCH_TIMESTAMP_TOLERANCE_SECONDS,
+        0,
+        60 * 60,
+    )
+    safe_duration_tolerance = _bounded_int(
+        duration_tolerance_seconds,
+        DEFAULT_MATCH_DURATION_TOLERANCE_SECONDS,
+        0,
+        10 * 60,
+    )
+    scope = {
+        "caller_email": slack_user_email,
+        "aircall_call_id_input": _redact(str(aircall_call_id or ""), 80),
+        "match_user_name": _redact(str(match_user_name or ""), 120),
+        "match_started_at_input": str(match_started_at or "").strip(),
+        "match_started_at": "",
+        "match_duration_seconds": None,
+        "selected_call_hints_used": bool(hints),
+        "timestamp_tolerance_seconds": safe_timestamp_tolerance,
+        "duration_tolerance_seconds": safe_duration_tolerance,
+        "read_only": True,
+        "raw_recording_urls_returned": False,
+        "raw_audio_retained": False,
+        "raw_transcript_returned": False,
+        "phone_numbers_returned": False,
+        "will_mutate_aircall": False,
+        "will_mutate_hubspot": False,
+    }
+    try:
+        exact_id = _validate_aircall_call_id(aircall_call_id)
+        hint_id = _first_hint_value(hints, "aircall_ids", "aircall_call_id")
+        if not exact_id and hint_id:
+            exact_id = _validate_aircall_call_id(hint_id, "selected_call_hints.aircall_ids.aircall_call_id")
+        if exact_id:
+            safe_call = _safe_resolved_call(exact_id)
+            return {
+                "answer": {
+                    "selected_call": safe_call,
+                    "selected_aircall_call_id": safe_call.get("aircall_call_id") or exact_id,
+                    "selected_call_resolved": True,
+                    "resolution_method": "exact_aircall_call_id",
+                    "candidate_calls": [],
+                    "candidate_count": 1,
+                    "will_mutate_aircall": False,
+                    "will_mutate_hubspot": False,
+                    "raw_recording_urls_returned": False,
+                    "raw_audio_retained": False,
+                    "raw_transcript_returned": False,
+                    "phone_numbers_returned": False,
+                },
+                "source": "Aircall Public API /v1/calls/{id}",
+                "scope": {**scope, "aircall_call_id": exact_id},
+                "confidence": "verified",
+                "caveat": "Safe selected-call metadata only. Use analyze_aircall_call_coaching next; no recording URL, audio, transcript, phone number, or mutation was returned.",
+            }
+
+        hint_user_name = _first_hint_value(hints, "rep_names", "name")
+        effective_user_name = str(match_user_name or hint_user_name or "").strip()
+        effective_started_at = str(match_started_at or "").strip()
+        effective_duration = _optional_int(
+            match_duration_seconds,
+            "match_duration_seconds",
+            0,
+            24 * 60 * 60,
+        )
+        if effective_duration is None:
+            effective_duration = _duration_hint_seconds(hints)
+        if effective_started_at:
+            scope["match_started_at"] = _normalize_aircall_timestamp(effective_started_at, "match_started_at")
+        scope["match_user_name"] = _redact(effective_user_name, 120)
+        scope["match_duration_seconds"] = effective_duration
+
+        if not (scope["match_started_at"] or effective_user_name or effective_duration is not None):
+            return {
+                "answer": {
+                    "selected_call": None,
+                    "selected_aircall_call_id": "",
+                    "selected_call_resolved": False,
+                    "resolution_method": "insufficient_hints",
+                    "candidate_calls": [],
+                    "candidate_count": 0,
+                    "will_mutate_aircall": False,
+                    "will_mutate_hubspot": False,
+                    "raw_recording_urls_returned": False,
+                    "raw_audio_retained": False,
+                    "raw_transcript_returned": False,
+                    "phone_numbers_returned": False,
+                },
+                "source": "Aircall selected-call resolver",
+                "scope": scope,
+                "confidence": "needs-check",
+                "caveat": "Need an Aircall ID or enough safe hints such as rep, timestamp, and duration to resolve one call.",
+            }
+
+        lookup = find_aircall_calls(
+            slack_user_email,
+            limit=MAX_RESOLVER_CANDIDATES,
+            match_started_at=scope["match_started_at"],
+            match_user_name=effective_user_name,
+            match_duration_seconds=effective_duration,
+            timestamp_tolerance_seconds=safe_timestamp_tolerance,
+            duration_tolerance_seconds=safe_duration_tolerance,
+        )
+        candidates = ((lookup.get("answer") or {}).get("calls") or []) if isinstance(lookup, dict) else []
+        if len(candidates) == 1:
+            selected = candidates[0]
+            return {
+                "answer": {
+                    "selected_call": selected,
+                    "selected_aircall_call_id": selected.get("aircall_call_id") or "",
+                    "selected_call_resolved": True,
+                    "resolution_method": "bounded_aircall_match",
+                    "candidate_calls": candidates,
+                    "candidate_count": 1,
+                    "will_mutate_aircall": False,
+                    "will_mutate_hubspot": False,
+                    "raw_recording_urls_returned": False,
+                    "raw_audio_retained": False,
+                    "raw_transcript_returned": False,
+                    "phone_numbers_returned": False,
+                },
+                "source": "Aircall Public API /v1/calls bounded selected-call match",
+                "scope": {**scope, "lookup_scope": lookup.get("scope") if isinstance(lookup, dict) else {}},
+                "confidence": "verified",
+                "caveat": "Resolved exactly one safe Aircall call candidate. Use analyze_aircall_call_coaching next.",
+            }
+        return {
+            "answer": {
+                "selected_call": None,
+                "selected_aircall_call_id": "",
+                "selected_call_resolved": False,
+                "resolution_method": "bounded_aircall_match",
+                "candidate_calls": candidates,
+                "candidate_count": len(candidates),
+                "will_mutate_aircall": False,
+                "will_mutate_hubspot": False,
+                "raw_recording_urls_returned": False,
+                "raw_audio_retained": False,
+                "raw_transcript_returned": False,
+                "phone_numbers_returned": False,
+            },
+            "source": "Aircall Public API /v1/calls bounded selected-call match",
+            "scope": {**scope, "lookup_scope": lookup.get("scope") if isinstance(lookup, dict) else {}},
+            "confidence": "needs-check",
+            "caveat": "Selected call could not be resolved to exactly one Aircall ID. Ask the user to pick one safe candidate or provide the Aircall call ID.",
         }
     except AircallError as error:
         return _blocked(str(error), scope)

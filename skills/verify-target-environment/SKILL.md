@@ -23,7 +23,7 @@ Use this repo-local Codex operator skill for Agent Builder bot fixes that must b
 | `staffanydatabot` / Da Ta Hermz | `apps/hermes-data-bot` | `npm run hermes-data-bot:verify` | manual packet sync per app runbook | `hermes-data-bot-poc` | `hermes-gateway-staffanydatabot.service` | `#da-ta-hermz-testing` (`C0AU19E6T0C`) | `Hermes repair automation:` |
 | `nurtureanysalesbot` / NurtureAny | `apps/nurtureany-sales-bot` | `npm run nurtureany-sales-bot:verify` | `npm run nurtureany-sales-bot:deploy` | `nurtureany-sales-bot-prod` | `hermes-gateway-nurtureanysalesbot.service` | `#nurtureany-testing` (`C0B2UGK4DB6`) | `NurtureAny automation:` |
 | `psmopsbot` / PS WEE / PSM Ops Bot | `apps/psm-ops-bot` | `npm run psm-ops-bot:verify` | `npm run psm-ops-bot:deploy` | `hermes-psm-ops-bot-poc` | `hermes-gateway-psmopsbot.service` | `#ps-weeman-bot-test` (`C0B2VT50YT1`) | `PSM Ops automation:` |
-| `launchbot` / Launchbot | `apps/launchbot` | `npm run launchbot:verify` | manual packet sync per app runbook | `hermes-data-bot-poc` | `hermes-gateway-launchbot.service` | `#launch-bot-testing` (`C0B32M34J3W`) | `Hermes repair automation:` for repair reports; `Launchbot automation:` for launch workflow replies |
+| `launchbot` / Launchbot | `apps/launchbot` | `npm run launchbot:verify` | manual packet sync per app runbook | `hermes-data-bot-poc` | `hermes-gateway-launchbot.service` | `#launch-bot-testing` (`C0B32M34J3W`); read-only KER lookup in `#all-product-questions` (`C01RZ7SHC8K`) | `Hermes repair automation:` for repair reports; `Launchbot automation:` for launch workflow replies |
 
 If the prompt says "sales-manager" or "manager chase", route to `nurtureanysalesbot`. If it says `PS WEE`, `PS Wee Manager`, or `PSM Manager Ops Bot`, route to `psmopsbot`.
 

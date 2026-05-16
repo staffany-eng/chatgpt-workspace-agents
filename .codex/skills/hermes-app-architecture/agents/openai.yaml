@@ -1,0 +1,6 @@
+interface:
+  display_name: "Hermes App Architecture"
+  short_description: "Apply Hermes app-packet boundaries"
+  default_prompt: "Use $hermes-app-architecture to plan a Hermes-aligned change to this repo."
+policy:
+  allow_implicit_invocation: true

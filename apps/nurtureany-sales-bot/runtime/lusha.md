@@ -1,6 +1,6 @@
 # Lusha Runtime
 
-Lusha is an optional, cost-controlled enrichment source for NurtureAny decision-maker discovery. In the SG lead-enrichment pilot, it is the active selected-contact provider; Prospeo may be compared beside it later only after an approved adapter, approval gate, and cost-reporting contract exist. HubSpot remains the source of truth for accounts, ownership, existing contacts, and write-back approval.
+Lusha is an optional, cost-controlled enrichment source for NurtureAny decision-maker discovery. In the SG lead-enrichment pilot, it is one active selected-contact provider; Prospeo may be compared beside it when the Prospeo adapter and `PROSPEO_API_KEY` are configured. HubSpot remains the source of truth for accounts, ownership, existing contacts, and write-back approval.
 
 ## Credentials
 
@@ -15,6 +15,7 @@ The stdio MCP adapter lives at `runtime/mcp/lusha_nurtureany_server.py`.
 It exposes only:
 
 - `search_lusha_decision_maker_candidates`
+- `search_lusha_candidates_by_linkedin_urls`
 - `reveal_lusha_contact_details`
 - `get_lusha_credit_usage`
 
@@ -32,6 +33,15 @@ The adapter sends an explicit `StaffAny-NurtureAny/1.0` User-Agent header so Lus
 - Defaults to 5 candidates per company and caps at 5.
 - Default title targets include owner/founder/CEO/MD/director/GM coverage plus SG operating roles: HR manager, people manager, operations manager, finance manager, and payroll manager.
 - Returns name, title, company match, `requestId`, `contactId`, LinkedIn/social presence, and email/phone availability flags.
+- Does not reveal email addresses or phone numbers.
+
+`search_lusha_candidates_by_linkedin_urls`:
+
+- Calls `POST /v2/contacts/search` with the `filter.linkedin` value.
+- Requires `scoped_company_ids` from prior NurtureAny HubSpot-scoped output, validates those IDs against HubSpot, and blocks before any Lusha call if validation fails.
+- Accepts up to 10 LinkedIn profile URLs per call and caps candidates at 5 per URL; the normal direct-lookup limit is 1.
+- Accepts profile URLs under `/in/` only. It does not scrape or browser-automate LinkedIn.
+- Returns inferred name, inferred title, Lusha contact ID, LinkedIn URL, confidence band, decision-maker match, quality warnings, and any returned request ID.
 - Does not reveal email addresses or phone numbers.
 
 `reveal_lusha_contact_details`:
@@ -101,7 +111,7 @@ No actual HubSpot mutation is allowed in V1.
 
 ## Prospeo Pilot Boundary
 
-Prospeo is a V1.1 paid-provider candidate, not an active runtime tool in this packet. Any Prospeo adapter must match the Lusha guardrails before use: scoped HubSpot company IDs, explicit approval marker before reveal, cost/credit reporting, selected contacts only, no bulk export, no raw phone in default Slack summaries, and no HubSpot mutation.
+Prospeo is a separate active paid-provider pilot adapter in this packet. It matches the Lusha guardrails: scoped HubSpot company IDs, explicit approval marker before reveal, cost/credit reporting, selected contacts only, no bulk export, no raw phone in default Slack summaries, and no HubSpot mutation.
 
 ## Timeout And Failure Handling
 

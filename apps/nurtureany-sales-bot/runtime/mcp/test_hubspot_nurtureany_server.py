@@ -74,6 +74,34 @@ def daily_context_index(companies, contacts_by_company=None):
     }
 
 
+def task_company(company_id="123", owner_id="owner-1", country="Singapore"):
+    return {
+        "id": company_id,
+        "properties": {
+            "name": "Noci Bakehouse",
+            "domain": "noci.example",
+            "hs_is_target_account": "true",
+            "hubspot_owner_id": owner_id,
+            "company_country": country,
+        },
+    }
+
+
+def task_row(task_id, subject, due_at, owner_id="owner-1", status="NOT_STARTED"):
+    return {
+        "id": task_id,
+        "properties": {
+            "hs_timestamp": due_at,
+            "hs_task_subject": subject,
+            "hubspot_owner_id": owner_id,
+            "hs_task_status": status,
+            "hs_task_priority": "HIGH",
+            "hs_task_type": "TODO",
+            "hs_lastmodifieddate": due_at,
+        },
+    }
+
+
 JEREMY_SCOPE = {
     "kind": "ae",
     "email": "jeremy.wong@staffany.com",
@@ -95,6 +123,232 @@ class FakeHTTPResponse:
 
     def read(self):
         return json.dumps(self.payload).encode("utf-8")
+
+
+class HubSpotTaskPrimitiveTest(unittest.TestCase):
+    def setUp(self):
+        self.module = load_hubspot_module()
+
+    def _patch_create_dependencies(self, company=None, duplicate_tasks=None, scope=None, created_id="task-created"):
+        company = company or task_company()
+        duplicate_tasks = duplicate_tasks or []
+        task_links = {
+            str(task.get("id")): {
+                "company_ids": [str(company["id"])],
+                "company_sources": {str(company["id"]): [{"object_type": "company", "object_id": str(company["id"])}]},
+                "truncated": False,
+            }
+            for task in duplicate_tasks
+        }
+        return (
+            patch.object(self.module, "_caller_scope", return_value=scope or SCOPE),
+            patch.object(self.module, "_get_company", return_value=company),
+            patch.object(self.module, "_owner_email_by_id", return_value="owner@example.com"),
+            patch.object(self.module, "_owner_name_by_id", return_value="Owner Example"),
+            patch.object(self.module, "_association_ids", return_value=[str(company["id"])]),
+            patch.object(
+                self.module,
+                "_task_search",
+                return_value={
+                    "results": duplicate_tasks,
+                    "total": len(duplicate_tasks),
+                    "requested_limit": 100,
+                    "returned_count": len(duplicate_tasks),
+                    "has_more": False,
+                    "truncated": False,
+                },
+            ),
+            patch.object(self.module, "_task_company_links_for_tasks", return_value=task_links),
+            patch.object(self.module, "_post", return_value={"id": created_id, "properties": {}}),
+        )
+
+    def test_preview_hubspot_sales_task_builds_safe_payload(self):
+        patches = self._patch_create_dependencies()
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7]:
+            result = self.module.preview_hubspot_sales_task(
+                slack_user_email="kerren.fong@staffany.com",
+                company_id="123",
+                subject="Follow up with Surrey Hills",
+                due_at="2099-01-03",
+                source_summary="Thread says Zharif needs a follow-up reminder.",
+                slack_permalink="https://staffany.slack.com/archives/C0B2UGK4DB6/p1778818718837289",
+                approval_marker="create task",
+            )
+
+        answer = result["answer"]
+        self.assertFalse(answer["will_mutate_hubspot"])
+        self.assertTrue(answer["approval_ready"])
+        self.assertEqual(answer["properties"]["hs_timestamp"], "2099-01-03T02:00:00Z")
+        self.assertEqual(answer["association_type_ids"]["company"], 192)
+        self.assertNotIn("hs_task_body", answer["properties"])
+        self.assertIn("hs_task_body_summary", answer["properties"])
+        self.assertFalse(answer["duplicate_suppressed"])
+
+    def test_create_approved_task_rejects_non_exact_marker(self):
+        post_mock = patch.object(self.module, "_post").start()
+        self.addCleanup(patch.stopall)
+
+        result = self.module.create_approved_hubspot_sales_task(
+            slack_user_email="kerren.fong@staffany.com",
+            company_id="123",
+            subject="Follow up",
+            due_at="2099-01-03",
+            approval_marker="run",
+        )
+
+        self.assertEqual(result["confidence"], "blocked")
+        post_mock.assert_not_called()
+
+    def test_manager_create_approved_task_posts_task_association(self):
+        patches = self._patch_create_dependencies()
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7] as post_mock:
+            result = self.module.create_approved_hubspot_sales_task(
+                slack_user_email="kerren.fong@staffany.com",
+                company_id="123",
+                subject="Follow up with Surrey Hills",
+                due_at="2099-01-03",
+                approval_marker="confirm task",
+            )
+
+        self.assertEqual(result["confidence"], "verified")
+        body = post_mock.call_args.args[1]
+        self.assertEqual(body["associations"][0]["types"][0]["associationTypeId"], 192)
+        self.assertEqual(body["properties"]["hubspot_owner_id"], "owner-1")
+
+    def test_ae_can_create_only_for_own_scoped_company(self):
+        company = task_company(owner_id="owner-jeremy")
+        patches = self._patch_create_dependencies(company=company, scope=JEREMY_SCOPE)
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7] as post_mock:
+            result = self.module.create_approved_hubspot_sales_task(
+                slack_user_email="jeremy.wong@staffany.com",
+                company_id="123",
+                subject="Follow up with Noci",
+                due_at="2099-01-03",
+                approval_marker="create task",
+            )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(post_mock.call_args.args[1]["properties"]["hubspot_owner_id"], "owner-jeremy")
+
+    def test_past_due_date_blocks_task_preview(self):
+        patches = self._patch_create_dependencies()
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7]:
+            result = self.module.preview_hubspot_sales_task(
+                slack_user_email="kerren.fong@staffany.com",
+                company_id="123",
+                subject="Follow up",
+                due_at="2000-01-01",
+            )
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("past", result["caveat"])
+
+    def test_duplicate_active_task_suppresses_create(self):
+        duplicate = task_row("task-dup", "Follow up with Surrey Hills", "2099-01-03T02:00:00Z")
+        patches = self._patch_create_dependencies(duplicate_tasks=[duplicate])
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7] as post_mock:
+            preview = self.module.preview_hubspot_sales_task(
+                slack_user_email="kerren.fong@staffany.com",
+                company_id="123",
+                subject="Follow up with Surrey Hills",
+                due_at="2099-01-03",
+            )
+            create = self.module.create_approved_hubspot_sales_task(
+                slack_user_email="kerren.fong@staffany.com",
+                company_id="123",
+                subject="Follow up with Surrey Hills",
+                due_at="2099-01-03",
+                approval_marker="create task",
+            )
+
+        self.assertTrue(preview["answer"]["duplicate_suppressed"])
+        self.assertEqual(create["confidence"], "blocked")
+        post_mock.assert_not_called()
+
+    def test_complete_task_patch_requires_done_marker(self):
+        company = task_company()
+        links = {
+            "task-1": {
+                "company_ids": ["123"],
+                "company_sources": {"123": [{"object_type": "company", "object_id": "123"}]},
+                "truncated": False,
+            }
+        }
+        with (
+            patch.object(self.module, "_caller_scope", return_value=SCOPE),
+            patch.object(self.module, "_get", return_value=task_row("task-1", "Follow up", "2099-01-03T02:00:00Z")),
+            patch.object(self.module, "_task_company_links_for_tasks", return_value=links),
+            patch.object(self.module, "_batch_read", return_value=[company]),
+            patch.object(self.module, "_owner_email_by_id", return_value="owner@example.com"),
+            patch.object(self.module, "_owner_name_by_id", return_value="Owner Example"),
+            patch.object(self.module, "_patch", return_value={"id": "task-1", "properties": {}}) as patch_mock,
+        ):
+            blocked = self.module.apply_approved_hubspot_task_update(
+                slack_user_email="kerren.fong@staffany.com",
+                task_id="task-1",
+                action="complete",
+                approval_marker="yes",
+            )
+            result = self.module.apply_approved_hubspot_task_update(
+                slack_user_email="kerren.fong@staffany.com",
+                task_id="task-1",
+                action="complete",
+                approval_marker="mark done",
+            )
+
+        self.assertEqual(blocked["confidence"], "blocked")
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(patch_mock.call_args.args[1]["properties"]["hs_task_status"], "COMPLETED")
+
+    def test_due_task_reminder_window_buckets_tasks(self):
+        company = task_company()
+        tasks = [
+            task_row("task-overdue", "Overdue task", "2099-01-08T02:00:00Z"),
+            task_row("task-today", "Today task", "2099-01-10T02:00:00Z"),
+            task_row("task-tomorrow", "Tomorrow task", "2099-01-11T02:00:00Z"),
+        ]
+        links = {
+            task["id"]: {
+                "company_ids": ["123"],
+                "company_sources": {"123": [{"object_type": "company", "object_id": "123"}]},
+                "truncated": False,
+            }
+            for task in tasks
+        }
+        with (
+            patch.object(self.module, "_caller_scope", return_value=SCOPE),
+            patch.object(
+                self.module,
+                "_task_search",
+                return_value={
+                    "results": tasks,
+                    "total": 3,
+                    "requested_limit": 50,
+                    "returned_count": 3,
+                    "has_more": False,
+                    "truncated": False,
+                },
+            ),
+            patch.object(self.module, "_task_company_links_for_tasks", return_value=links),
+            patch.object(self.module, "_batch_read", return_value=[company]),
+            patch.object(self.module, "_owner_email_by_id", return_value="owner@example.com"),
+            patch.object(self.module, "_owner_name_by_id", return_value="Owner Example"),
+        ):
+            morning = self.module.list_due_hubspot_sales_task_reminders(
+                slack_user_email="kerren.fong@staffany.com",
+                mode="morning",
+                as_of="2099-01-10",
+            )
+            eod = self.module.list_due_hubspot_sales_task_reminders(
+                slack_user_email="kerren.fong@staffany.com",
+                mode="eod",
+                as_of="2099-01-10",
+            )
+
+        self.assertEqual(len(morning["answer"]["buckets"]["overdue"]), 1)
+        self.assertEqual(len(morning["answer"]["buckets"]["due_today"]), 1)
+        self.assertEqual(len(morning["answer"]["buckets"]["due_tomorrow"]), 1)
+        self.assertEqual(len(eod["answer"]["buckets"]["due_tomorrow"]), 0)
 
 
 class OperationLedgerTest(unittest.TestCase):
@@ -397,6 +651,28 @@ class OwnerWhatsAppSentTodayTest(unittest.TestCase):
         self.assertEqual(result["answer"]["messages_missing_kns"][0]["missing_kns_components"], ["network"])
         self.assertEqual(result["answer"]["messages_missing_kns"][1]["kns_status"], "body_unavailable")
         self.assertEqual(result["scope"]["timezone_source"], "override")
+
+    def test_kns_support_speaker_venue_offer_is_not_network_component(self):
+        support = self.module._whatsapp_kns_audit_from_body(
+            "Would the boss be open to be our speaker for the upcoming Leaders Lounge? "
+            "Can we support your venue and host a simple meal at your venue with 1-2 bosses?"
+        )
+        self.assertTrue(support["has_support"])
+        self.assertFalse(support["has_network"])
+        self.assertIn("network", support["missing_kns_components"])
+
+        future_speaker = self.module._whatsapp_kns_audit_from_body(
+            "For HR, anyone you want to hear from the industry so we can invite as our speaker in the future event?"
+        )
+        self.assertTrue(future_speaker["has_network"])
+        self.assertFalse(future_speaker["has_support"])
+        self.assertIn("support", future_speaker["missing_kns_components"])
+
+        network = self.module._whatsapp_kns_audit_from_body(
+            "You should meet 3 other Retail HR leaders solving similar manpower challenges at Happy HR Hour. "
+            "We can help with talent matching, warm introductions, and cross-brand collaboration."
+        )
+        self.assertTrue(network["has_network"])
 
     def test_whatsapp_kns_window_requires_timezone_before_querying(self):
         with patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
@@ -1452,6 +1728,103 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         self.assertNotIn("ranked_people_candidates", account)
         self.assertNotIn("+6511111111", rendered)
         self.assertNotIn("Very long HubSpot note", rendered)
+
+    def test_singapore_lead_enrichment_surfaces_hubspot_domain_for_exa_input(self):
+        companies = [
+            {
+                "id": "sg-madame-tussauds",
+                "properties": {
+                    "name": "Madame Tussauds Amsterdam",
+                    "domain": "https://www.madame-tussauds.com",
+                    "website": "madame-tussauds.com",
+                    "hs_is_target_account": "true",
+                    "company_country": "Singapore",
+                    "hubspot_owner_id": "owner-jeremy",
+                    "hs_num_decision_makers": "0",
+                    "hs_num_contacts_with_buying_roles": "0",
+                },
+            }
+        ]
+        contacts = [
+            {
+                "id": "ops-1",
+                "properties": {
+                    "firstname": "Olivia",
+                    "lastname": "Tan",
+                    "jobtitle": "Marketing Executive",
+                    "hs_buying_role": "",
+                },
+            }
+        ]
+        with patch.object(self.module, "_caller_scope", return_value={**SCOPE, "countries": ("Singapore",)}), patch.object(
+            self.module,
+            "_company_search",
+            return_value={
+                "results": companies,
+                "total": 1,
+                "requested_limit": 5,
+                "returned_count": 1,
+                "has_more": False,
+                "truncated": False,
+            },
+        ), patch.object(
+            self.module, "_batch_association_ids", return_value={"sg-madame-tussauds": ["ops-1"]}
+        ), patch.object(
+            self.module, "_batch_read", return_value=contacts
+        ):
+            result = self.module.build_singapore_lead_enrichment_plan(
+                "kerren.fong@staffany.com",
+                limit=5,
+                output_mode="compact",
+            )
+
+        account = result["answer"]["accounts"][0]
+        bucket_account = result["answer"]["buckets"]["missing_decision_maker"][0]
+        self.assertEqual(account["recommended_next_source"], "exa_people_candidate_discovery")
+        self.assertEqual(account["domain"], "madame-tussauds.com")
+        self.assertEqual(account["domain_source"], "domain")
+        self.assertEqual(account["domain_warning"], "")
+        self.assertEqual(bucket_account["domain"], "madame-tussauds.com")
+
+    def test_singapore_lead_enrichment_falls_back_to_website_domain(self):
+        companies = [
+            {
+                "id": "sg-website-only",
+                "properties": {
+                    "name": "Website Only Cafe",
+                    "domain": "",
+                    "website": "https://www.website-only.example/locations/sg",
+                    "hs_is_target_account": "true",
+                    "company_country": "Singapore",
+                    "hubspot_owner_id": "owner-jeremy",
+                },
+            }
+        ]
+        with patch.object(self.module, "_caller_scope", return_value={**SCOPE, "countries": ("Singapore",)}), patch.object(
+            self.module,
+            "_company_search",
+            return_value={
+                "results": companies,
+                "total": 1,
+                "requested_limit": 5,
+                "returned_count": 1,
+                "has_more": False,
+                "truncated": False,
+            },
+        ), patch.object(
+            self.module, "_batch_association_ids", return_value={"sg-website-only": []}
+        ), patch.object(
+            self.module, "_batch_read", return_value=[]
+        ):
+            result = self.module.build_singapore_lead_enrichment_plan(
+                "kerren.fong@staffany.com",
+                limit=5,
+                output_mode="compact",
+            )
+
+        account = result["answer"]["accounts"][0]
+        self.assertEqual(account["domain"], "website-only.example")
+        self.assertEqual(account["domain_source"], "website")
 
     def test_singapore_lead_enrichment_allows_explicit_sg_non_target_and_skips_non_sg(self):
         companies = {

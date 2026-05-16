@@ -15,6 +15,7 @@ const DEFAULTS = {
   profile: "nurtureanysalesbot",
   runtimeOwner: "leekaiyi",
   ref: "origin/main",
+  secretName: "nurtureany-sales-bot-prod-env",
 };
 
 const FORBIDDEN_RUNTIME_STATE_LABELS = [
@@ -45,6 +46,9 @@ const gcloudCommand = resolveCommand("gcloud", [
 
 log(`Preparing NurtureAny Sales Bot deploy from ${args.ref}`);
 log(`Target: project=${args.project} zone=${args.zone} vm=${args.vm} profile=${args.profile} runtime_owner=${args.runtimeOwner}`);
+if (args.hydrateSecrets) {
+  log(`Secret hydration enabled: latest Secret Manager version ${args.project}/${args.secretName} will replace the live profile .env before restart.`);
+}
 if (args.verbose) {
   log(`Preserved runtime state: ${FORBIDDEN_RUNTIME_STATE_LABELS.join(", ")}`);
 }
@@ -148,10 +152,11 @@ function parseArgs(argv) {
     apply: false,
     skipUpload: false,
     skipRestart: false,
+    hydrateSecrets: false,
     verbose: false,
     help: false,
   };
-  const valueOptions = new Set(["project", "zone", "vm", "profile", "runtime-owner", "ref"]);
+  const valueOptions = new Set(["project", "zone", "vm", "profile", "runtime-owner", "ref", "secret-name"]);
   for (let index = 0; index < argv.length; index += 1) {
     const raw = argv[index];
     if (raw === "--apply") {
@@ -164,6 +169,10 @@ function parseArgs(argv) {
     }
     if (raw === "--skip-restart") {
       parsed.skipRestart = true;
+      continue;
+    }
+    if (raw === "--hydrate-secrets") {
+      parsed.hydrateSecrets = true;
       continue;
     }
     if (raw === "--verbose") {
@@ -188,9 +197,14 @@ function parseArgs(argv) {
     }
     if (optionName === "runtime-owner") {
       parsed.runtimeOwner = optionValue;
+    } else if (optionName === "secret-name") {
+      parsed.secretName = optionValue;
     } else {
       parsed[optionName] = optionValue;
     }
+  }
+  if (parsed.hydrateSecrets && parsed.skipRestart) {
+    throw new Error("--hydrate-secrets cannot be combined with --skip-restart because the gateway must restart to load the hydrated .env.");
   }
   return parsed;
 }
@@ -208,6 +222,8 @@ Options:
   --profile <name>      Hermes profile. Default: ${DEFAULTS.profile}
   --runtime-owner <u>   Runtime OS user. Default: ${DEFAULTS.runtimeOwner}
   --ref <git-ref>       Git ref to archive and deploy. Default: ${DEFAULTS.ref}
+  --hydrate-secrets     Replace live .env from latest Secret Manager dotenv before restart.
+  --secret-name <name>  Secret Manager dotenv secret. Default: ${DEFAULTS.secretName}
   --skip-upload         Reuse archive already uploaded to /tmp on the VM.
   --skip-restart        Sync and stamp version, but do not restart or run post-restart checks.
   --verbose             Print commands before running them.
@@ -262,12 +278,18 @@ function remoteDeployScript(options, deploySha, deployRef) {
   const deployShaExpected = shellQuote(deploySha);
   const deployRefLabel = shellQuote(deployRef);
   const skipRestart = options.skipRestart ? "1" : "0";
+  const hydrateSecrets = options.hydrateSecrets ? "1" : "0";
+  const gcpProject = shellQuote(options.project);
+  const secretName = shellQuote(options.secretName);
   return `set -euo pipefail
 profile_name=${profile}
 runtime_owner=${runtimeOwner}
 deploy_sha_expected=${deployShaExpected}
 deploy_ref_label=${deployRefLabel}
 skip_restart=${skipRestart}
+hydrate_secrets=${hydrateSecrets}
+gcp_project=${gcpProject}
+secret_name=${secretName}
 profile="/home/$runtime_owner/.hermes/profiles/$profile_name"
 service="hermes-gateway-$profile_name.service"
 archive="/tmp/nurtureany-sales-bot-$deploy_sha_expected.tar.gz"
@@ -307,6 +329,53 @@ copy_dir() {
   tar -C "$src" -cf - . | sudo -u "$runtime_owner" tar -C "$dst" -xf -
 }
 
+hydrate_secret_env() {
+  if [ "$hydrate_secrets" != "1" ]; then
+    echo "deploy:secrets=preserved"
+    return
+  fi
+  command -v gcloud >/dev/null || { echo "deploy:error:gcloud-missing-for-secret-hydration"; exit 1; }
+  env_tmp=$(mktemp "/tmp/$profile_name.env.XXXXXX")
+  chmod 600 "$env_tmp"
+  if ! sudo -H -u "$runtime_owner" gcloud secrets versions access latest --project "$gcp_project" --secret "$secret_name" >"$env_tmp"; then
+    rm -f "$env_tmp"
+    echo "deploy:error:secret-manager-access-failed"
+    exit 1
+  fi
+  if [ ! -s "$env_tmp" ]; then
+    rm -f "$env_tmp"
+    echo "deploy:error:secret-manager-empty"
+    exit 1
+  fi
+  sudo install -o "$runtime_owner" -g "$runtime_owner" -m 0600 "$env_tmp" "$profile/.env"
+  rm -f "$env_tmp"
+  echo "deploy:secrets=hydrated-latest project=$gcp_project secret=$secret_name env=$profile/.env"
+}
+
+ensure_gateway_envfile() {
+  if ! sudo test -f "$profile/.env"; then
+    echo "deploy:error:profile-env-missing:$profile/.env"
+    exit 1
+  fi
+  runtime_home="$(getent passwd "$runtime_owner" | cut -d: -f6)"
+  if [ -z "$runtime_home" ]; then
+    echo "deploy:error:runtime-home-not-found:$runtime_owner"
+    exit 1
+  fi
+  dropin_dir="$runtime_home/.config/systemd/user/$service.d"
+  dropin_tmp="$(mktemp "/tmp/$service.envfile.XXXXXX")"
+  {
+    printf '[Service]\\n'
+    printf 'EnvironmentFile=%s/.env\\n' "$profile"
+  } >"$dropin_tmp"
+  sudo -H -u "$runtime_owner" mkdir -p "$dropin_dir"
+  sudo install -o "$runtime_owner" -g "$runtime_owner" -m 0644 "$dropin_tmp" "$dropin_dir/10-profile-env.conf"
+  rm -f "$dropin_tmp"
+  uid=$(id -u "$runtime_owner")
+  sudo -H -u "$runtime_owner" XDG_RUNTIME_DIR="/run/user/$uid" systemctl --user daemon-reload
+  echo "deploy:gateway-envfile=$profile/.env"
+}
+
 sudo mkdir -p "$profile/scripts" "$profile/source" "$profile/runtime" "$profile/skills"
 sudo chown "$runtime_owner:$runtime_owner" "$profile/scripts" "$profile/source" "$profile/runtime" "$profile/skills"
 
@@ -320,6 +389,7 @@ copy_dir "$deploy_dir/apps/nurtureany-sales-bot/runtime/jobs" "$profile/runtime/
 copy_dir "$deploy_dir/apps/nurtureany-sales-bot/runtime/sql" "$profile/runtime/sql"
 
 sudo python3 - "$deploy_dir/apps/nurtureany-sales-bot/profile/config.template.yaml" "$profile/config.yaml" <<'PY'
+import copy
 import sys
 from pathlib import Path
 import yaml
@@ -330,7 +400,7 @@ config_path = Path(sys.argv[2])
 template = yaml.safe_load(template_path.read_text())
 config = yaml.safe_load(config_path.read_text())
 template_servers = template.get("mcp_servers") or {}
-config_servers = config.get("mcp_servers") or {}
+config_servers = config.setdefault("mcp_servers", {})
 template_nurtureany = template.get("nurtureany") or {}
 config_nurtureany = config.setdefault("nurtureany", {})
 
@@ -348,7 +418,10 @@ for server_name, template_server in template_servers.items():
         continue
     config_server = config_servers.get(server_name)
     if not isinstance(config_server, dict):
-        raise SystemExit(f"deploy:error:mcp-server-missing:{server_name}")
+        config_server = copy.deepcopy(template_server)
+        config_servers[server_name] = config_server
+        print(f"deploy:config-added-mcp-server:{server_name}")
+        changed = True
     config_tools = config_server.setdefault("tools", {})
     if config_tools.get("include") != expected:
         config_tools["include"] = list(expected)
@@ -376,10 +449,15 @@ sudo install -o "$runtime_owner" -g "$runtime_owner" -m 0755 "$deploy_dir/apps/n
 sudo install -o "$runtime_owner" -g "$runtime_owner" -m 0755 "$deploy_dir/apps/nurtureany-sales-bot/runtime/audit-live-profile.sh" "$profile/scripts/nurtureanysalesbot-audit-live-profile.sh"
 sudo install -o "$runtime_owner" -g "$runtime_owner" -m 0755 "$deploy_dir/apps/nurtureany-sales-bot/runtime/check-slack-socket-health.sh" "$profile/scripts/nurtureanysalesbot-check-slack-socket-health.sh"
 sudo install -o "$runtime_owner" -g "$runtime_owner" -m 0755 "$deploy_dir/apps/nurtureany-sales-bot/runtime/nurtureany-cloud-doctor.sh" "$profile/scripts/nurtureanysalesbot-cloud-doctor.sh"
+sudo install -o "$runtime_owner" -g "$runtime_owner" -m 0755 "$deploy_dir/apps/nurtureany-sales-bot/runtime/scripts/nurtureany_sales_task_reminders.py" "$profile/scripts/nurtureany_sales_task_reminders.py"
+sudo install -o "$runtime_owner" -g "$runtime_owner" -m 0755 "$deploy_dir/apps/nurtureany-sales-bot/runtime/scripts/nurtureany_sales_task_reminders_eod.py" "$profile/scripts/nurtureany_sales_task_reminders_eod.py"
 
 printf '%s | %s | %s\\n' "$deploy_sha" "$deploy_branch" "$deploy_timestamp" | sudo tee "$profile/VERSION" >/dev/null
 sudo chown "$runtime_owner:$runtime_owner" "$profile/VERSION"
 sudo chmod 0644 "$profile/VERSION"
+
+hydrate_secret_env
+ensure_gateway_envfile
 
 if [ "$skip_restart" = "1" ]; then
   echo "deploy:restart=skipped"

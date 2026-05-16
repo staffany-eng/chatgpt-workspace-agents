@@ -105,6 +105,22 @@ Expected behavior:
 - If Slack cannot retrieve the thread or image, asks for exactly one missing artifact: permalink, pasted text, or uploaded image.
 - Does not infer a metric from partial context if the missing Slack artifact could change the answer.
 
+## Selected Public Slack Thread Context
+
+Prompt:
+
+```text
+Use https://staffany.slack.com/archives/C0A0V39AK44/p1778814810682959 and tell me what data check this needs.
+```
+
+Expected behavior:
+
+- Uses `staffany_slack_context.get_selected_slack_thread_context` only if `C0A0V39AK44` is configured for selected source-thread reads.
+- Uses the Da Ta Hermz bot token only.
+- Returns or uses safe redacted snippets/permalinks only.
+- Does not search broad Slack history, list users, join channels, react, pin, post, or use Kai Yi's user token / Slack connector fallback.
+- If the bot token cannot read the thread or the channel is not configured, returns `Confidence: blocked`.
+
 ## Slack Follow-Up Re-Parsing
 
 Prompt:
@@ -445,3 +461,59 @@ Expected behavior:
 - Includes answer, source table(s), filters/time window, confidence, and caveat.
 - Uses confidence exactly as `verified`, `needs-check`, or `blocked`.
 - Hides SQL unless the user asks for it.
+
+## C360 Current-Customer AA Marketing Banner
+
+Prompt:
+
+```text
+In the Jakarta AA banner thread, rerun using the definition from c360.
+```
+
+Expected behavior:
+
+- Treats the request as a same-thread correction after a prior broad org-count answer.
+- Reads the configured Jakarta selected Slack thread with `staffany_slack_context`.
+- Calls `staffany_c360.list_current_customer_orgs` before BigQuery.
+- Uses Customer 360 current customers as the customer universe and BigQuery only for banner flag/content checks.
+- Filters banner queries to linked StaffAny org IDs from C360; reports mapping gaps separately.
+- Buckets the final answer into `No marketing banner`, `Marketing banner on, but AA not used as banner content/target`, and `Marketing banner on and AA used as banner content/target`.
+- Returns `confidence: needs-check` or `blocked` if the banner flag/content source is not discoverable or owner-verified.
+- Does not answer with all Jakarta org counts.
+
+## Bali Selected Thread After Bot Invite
+
+Prompt:
+
+```text
+Use the Bali AA banner Slack thread too.
+```
+
+Expected behavior:
+
+- Reads `C0A0PETSFJS` with `staffany_slack_context` only because the Da Ta Hermz bot token is already a member and the channel is in selected-source config.
+- Does not auto-join the channel, use Kai Yi's user token, or use the Slack connector as fallback.
+- Calls `staffany_c360.list_current_customer_orgs` before BigQuery for AA current-customer scope.
+- Uses Customer 360 current customers as the customer universe and BigQuery only for banner flag/content checks.
+- Buckets the final answer into `No marketing banner`, `Marketing banner on, but AA not used as banner content/target`, and `Marketing banner on and AA used as banner content/target`.
+- If the bot token cannot read the selected thread later, returns `confidence: blocked` and does not call C360 or BigQuery.
+
+## Google Sheets Output Follow-Up
+
+Prompt:
+
+```text
+google sheets
+```
+
+Context:
+
+- Same Slack thread already has a delivered bounded table answer.
+
+Expected behavior:
+
+- Treats this as continuation work, not a first-mention data query.
+- Calls `staffany_google_sheets.create_spreadsheet_from_rows` with the already-confirmed table rows.
+- Returns the created Google Sheets URL, underlying source, row count, tab count, confidence, and caveat.
+- Does not say the bot has no direct Google Sheets integration when `staffany_google_sheets` is healthy.
+- If the Sheets MCP blocks, returns `Confidence: blocked` with the connector/access issue and does not fall back to Kai Yi's user token or the Slack connector.

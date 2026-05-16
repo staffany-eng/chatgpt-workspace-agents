@@ -9,7 +9,9 @@ fi
 EXPECT_MODEL_PROVIDER="${EXPECT_MODEL_PROVIDER:-anthropic}"
 EXPECT_MODEL_DEFAULT="${EXPECT_MODEL_DEFAULT:-claude-sonnet-4-6}"
 EXPECT_HOME_CHANNEL="${EXPECT_HOME_CHANNEL:-C0B32M34J3W}"
-EXPECT_ALLOWED_CHANNELS="${EXPECT_ALLOWED_CHANNELS:-C0B32M34J3W,C0AJAUNCEL8}"
+EXPECT_ALLOWED_CHANNELS="${EXPECT_ALLOWED_CHANNELS:-C0B32M34J3W,C0AJAUNCEL8,C01RZ7SHC8K,CF8PK6V4J}"
+EXPECT_KER_ALLOWED_CHANNELS="${EXPECT_KER_ALLOWED_CHANNELS:-C0B32M34J3W,C0AJAUNCEL8,C01RZ7SHC8K}"
+EXPECT_PRODUCT_COMMITMENT_ALLOWED_CHANNELS="${EXPECT_PRODUCT_COMMITMENT_ALLOWED_CHANNELS:-C0B32M34J3W,C01RZ7SHC8K}"
 GATEWAY_LAUNCHD_LABEL="${LAUNCHBOT_GATEWAY_LAUNCHD_LABEL:-ai.hermes.gateway-$PROFILE}"
 GATEWAY_SERVICE_NAME="${LAUNCHBOT_GATEWAY_SERVICE_NAME:-hermes-gateway-$PROFILE.service}"
 HERMES_AGENT_DIR="${HERMES_AGENT_DIR:-$HOME/.hermes/hermes-agent}"
@@ -29,10 +31,27 @@ PANTHEON_REPO_DIR="${LAUNCHBOT_PANTHEON_REPO_DIR:-$PROFILE_DIR/source/pantheon}"
 PANTHEON_STATUS_PATH="${LAUNCHBOT_PANTHEON_STATUS_PATH:-$PROFILE_DIR/runtime/pantheon-repo-status.json}"
 PANTHEON_STATUS_MAX_AGE_SECONDS="${LAUNCHBOT_PANTHEON_STATUS_MAX_AGE_SECONDS:-172800}"
 HELP_ARTICLE_VIDEO_REGISTRY_PATH="${LAUNCHBOT_VIDEO_PLACEMENT_REGISTRY:-$PROFILE_DIR/source/launchbot/skills/help-article-generator/references/video-placement-registry.json}"
+FEATURE_INTAKE_MONITOR_SCRIPT="${LAUNCHBOT_FEATURE_INTAKE_MONITOR_SCRIPT:-$PROFILE_DIR/scripts/launchbot-monitor-feature-intake.py}"
 
 fail() {
   printf '%s\n' "$1" >&2
   exit 1
+}
+
+check_mcp_server() {
+  server_name="$1"
+  expected_count="$2"
+  server_file="$3"
+  mcp_out="$(hermes -p "$PROFILE" mcp test "$server_name" 2>&1)" && {
+    count="$(printf '%s\n' "$mcp_out" | sed -nE 's/.*Tools discovered: ([0-9]+).*/\1/p' | tail -1)"
+    [ "$count" = "$expected_count" ] || fail "mcp:$server_name:tools=${count:-unavailable}:expected=$expected_count"
+    return 0
+  }
+  if printf '%s\n' "$mcp_out" | grep -Fq "StdioServerParameters"; then
+    "$hermes_python" -m py_compile "$PROFILE_DIR/source/launchbot/runtime/mcp/$server_file" || fail "mcp:$server_name:py-compile-failed"
+    return 0
+  fi
+  fail "mcp:$server_name:test-failed"
 }
 
 need_command() {
@@ -61,13 +80,14 @@ case "$(uname -s)" in
     ;;
 esac
 
-"$hermes_python" - "$config_path" "$EXPECT_MODEL_PROVIDER" "$EXPECT_MODEL_DEFAULT" "$EXPECT_HOME_CHANNEL" "$EXPECT_ALLOWED_CHANNELS" <<'PY' || exit 1
+"$hermes_python" - "$config_path" "$EXPECT_MODEL_PROVIDER" "$EXPECT_MODEL_DEFAULT" "$EXPECT_HOME_CHANNEL" "$EXPECT_ALLOWED_CHANNELS" "$EXPECT_KER_ALLOWED_CHANNELS" "$EXPECT_PRODUCT_COMMITMENT_ALLOWED_CHANNELS" <<'PY' || exit 1
+import os
 import sys
 from pathlib import Path
 
 import yaml
 
-config_path, expected_provider, expected_model, expected_home_channel, expected_allowed_channels = sys.argv[1:6]
+config_path, expected_provider, expected_model, expected_home_channel, expected_allowed_channels, expected_ker_channels, expected_commitment_channels = sys.argv[1:8]
 config = yaml.safe_load(Path(config_path).read_text(encoding="utf-8")) or {}
 
 def fail(message: str) -> None:
@@ -92,6 +112,11 @@ if display.get("streaming") is not False:
 if display.get("tool_progress") != "off":
     fail("display:tool-progress-not-off")
 
+platforms = config.get("platforms") or {}
+slack_platform = platforms.get("slack") or {}
+if slack_platform.get("gateway_restart_notification") is not False:
+    fail("platforms:slack:gateway-restart-notification-not-disabled")
+
 slack = config.get("slack") or {}
 if slack.get("require_mention") is not True:
     fail("slack:require-mention-not-enabled")
@@ -104,17 +129,54 @@ for channel_id in [item.strip() for item in expected_allowed_channels.split(",")
     if channel_id not in allowed:
         fail(f"slack:allowed-channel-missing:{channel_id}")
 
+monitor = config.get("feature_intake_monitor") or {}
+if monitor.get("mode") != "no_agent_slack_poll":
+    fail("feature-intake-monitor:mode-unexpected")
+if monitor.get("configured_channel_ids_env") != "LAUNCHBOT_FEATURE_INTAKE_MONITOR_CHANNEL_IDS":
+    fail("feature-intake-monitor:channel-env-unexpected")
+if monitor.get("state_path_env") != "LAUNCHBOT_FEATURE_INTAKE_MONITOR_STATE_PATH":
+    fail("feature-intake-monitor:state-path-env-unexpected")
+if monitor.get("required_confirmation") != "create intake":
+    fail("feature-intake-monitor:confirmation-unexpected")
+if monitor.get("no_raw_transcript_persistence") is not True:
+    fail("feature-intake-monitor:raw-transcript-persistence-not-disabled")
+if monitor.get("normal_gateway_require_mention") is not True:
+    fail("feature-intake-monitor:normal-gateway-require-mention-not-enabled")
+if str(config.get("LAUNCHBOT_FEATURE_INTAKE_MONITOR_CHANNEL_IDS") or "").strip('"') != "CF8PK6V4J":
+    fail("feature-intake-monitor:channels-unexpected")
+if str(config.get("LAUNCHBOT_FEATURE_INTAKE_MONITOR_STATE_PATH") or "").strip('"') != "~/.hermes/profiles/launchbot/runtime/feature-intake-monitor-state.json":
+    fail("feature-intake-monitor:state-path-unexpected")
+if str(config.get("LAUNCHBOT_FEATURE_INTAKE_MONITOR_MAX_MESSAGES_PER_RUN") or "").strip('"') != "100":
+    fail("feature-intake-monitor:max-messages-unexpected")
+if str(config.get("LAUNCHBOT_FEATURE_INTAKE_MONITOR_OVERLAP_SECONDS") or "").strip('"') != "600":
+    fail("feature-intake-monitor:overlap-unexpected")
+
 mcp_servers = config.get("mcp_servers") or {}
 launchbot_ker = mcp_servers.get("launchbot_ker") or {}
 tools = set(launchbot_ker.get("tool_allowlist") or [])
 expected_tools = {"find_ker_ticket_from_slack_thread", "lookup_ker_ticket_by_key"}
 if tools != expected_tools:
     fail("mcp:launchbot_ker:tool-allowlist-unexpected")
+ker_policy = launchbot_ker.get("access_policy") or {}
+ker_default_channels = set(ker_policy.get("default_channel_ids") or [])
+ker_config_channels = str(config.get("LAUNCHBOT_KER_ALLOWED_CHANNEL_IDS") or "")
+ker_process_env_channels = str(os.environ.get("LAUNCHBOT_KER_ALLOWED_CHANNEL_IDS") or "")
+for channel_id in [item.strip() for item in expected_ker_channels.split(",") if item.strip()]:
+    if channel_id not in ker_default_channels:
+        fail(f"mcp:launchbot_ker:default-channel-missing:{channel_id}")
+    if channel_id not in ker_config_channels:
+        fail(f"mcp:launchbot_ker:env-channel-missing:{channel_id}")
+    if channel_id not in ker_process_env_channels:
+        fail(f"mcp:launchbot_ker:process-env-channel-missing:{channel_id}")
 
 launchbot_ifi = mcp_servers.get("launchbot_ifi") or {}
 ifi_tools = set(launchbot_ifi.get("tool_allowlist") or [])
-expected_ifi_tools = {"preview_ifi_feature_request_tracking", "create_or_update_ifi_feature_request_tracking"}
-expected_ifi_tools |= {"preview_ifi_feature_request_from_bd_note", "create_or_update_ifi_feature_request_from_bd_note"}
+expected_ifi_tools = {
+    "preview_ifi_feature_request_tracking",
+    "create_or_update_ifi_feature_request_tracking",
+    "preview_ifi_feature_request_from_bd_note",
+    "create_or_update_ifi_feature_request_from_bd_note",
+}
 if ifi_tools != expected_ifi_tools:
     fail("mcp:launchbot_ifi:tool-allowlist-unexpected")
 ifi_policy = launchbot_ifi.get("access_policy") or {}
@@ -124,6 +186,45 @@ if ifi_policy.get("approval_marker") != "confirm IFI":
     fail("mcp:launchbot_ifi:approval-marker-unexpected")
 if ifi_policy.get("will_post_message") is not False:
     fail("mcp:launchbot_ifi:will-post-message-must-be-false")
+if ifi_policy.get("bd_notes_require_confirmed_hubspot_company_id") is not True:
+    fail("mcp:launchbot_ifi:bd-notes-confirmed-company-required")
+if ifi_policy.get("ambiguous_company_action") != "ask_for_hubspot_company_link_or_numeric_id":
+    fail("mcp:launchbot_ifi:ambiguous-company-action-unexpected")
+
+launchbot_product_commitment = mcp_servers.get("launchbot_product_commitment") or {}
+commitment_tools = set(launchbot_product_commitment.get("tool_allowlist") or [])
+expected_commitment_tools = {"check_product_commitment_from_slack_thread"}
+if commitment_tools != expected_commitment_tools:
+    fail("mcp:launchbot_product_commitment:tool-allowlist-unexpected")
+commitment_policy = launchbot_product_commitment.get("access_policy") or {}
+if commitment_policy.get("mode") != "read_only_commitment_check":
+    fail("mcp:launchbot_product_commitment:mode-unexpected")
+if commitment_policy.get("configured_channel_ids_env") != "LAUNCHBOT_PRODUCT_COMMITMENT_ALLOWED_CHANNEL_IDS":
+    fail("mcp:launchbot_product_commitment:configured-channels-env-unexpected")
+commitment_default_channels = set(commitment_policy.get("default_channel_ids") or [])
+commitment_config_channels = str(config.get("LAUNCHBOT_PRODUCT_COMMITMENT_ALLOWED_CHANNEL_IDS") or "")
+for channel_id in [item.strip() for item in expected_commitment_channels.split(",") if item.strip()]:
+    if channel_id not in commitment_default_channels:
+        fail(f"mcp:launchbot_product_commitment:default-channel-missing:{channel_id}")
+    if channel_id not in commitment_config_channels:
+        fail(f"mcp:launchbot_product_commitment:env-channel-missing:{channel_id}")
+for key in ["no_slack_post_from_mcp", "no_jira_mutation", "no_jira_comments", "no_jira_transitions", "no_jira_assignment", "no_timeline_inference", "no_intake_creation"]:
+    if commitment_policy.get(key) is not True:
+        fail(f"mcp:launchbot_product_commitment:{key}:must-be-true")
+
+launchbot_feature_intake = mcp_servers.get("launchbot_feature_intake") or {}
+feature_intake_tools = set(launchbot_feature_intake.get("tool_allowlist") or [])
+expected_feature_intake_tools = {"preview_feature_intake_from_slack_thread", "create_feature_intake_from_slack_thread"}
+if feature_intake_tools != expected_feature_intake_tools:
+    fail("mcp:launchbot_feature_intake:tool-allowlist-unexpected")
+feature_intake_policy = launchbot_feature_intake.get("access_policy") or {}
+if feature_intake_policy.get("mode") != "confirmed_jpd_intake_create":
+    fail("mcp:launchbot_feature_intake:mode-unexpected")
+if feature_intake_policy.get("required_confirmation") != "create intake":
+    fail("mcp:launchbot_feature_intake:confirmation-unexpected")
+for key in ["no_slack_post_from_mcp", "no_jira_comments", "no_jira_transitions", "no_jira_assignment"]:
+    if feature_intake_policy.get(key) is not True:
+        fail(f"mcp:launchbot_feature_intake:{key}:must-be-true")
 
 launchbot_help_article = mcp_servers.get("launchbot_help_article") or {}
 video_tools = set(launchbot_help_article.get("tool_allowlist") or [])
@@ -140,6 +241,7 @@ PY
 
 for key in \
   SLACK_BOT_TOKEN \
+  HUBSPOT_ACCESS_TOKEN \
   JIRA_BASE_URL \
   JIRA_EMAIL \
   JIRA_API_TOKEN \
@@ -148,20 +250,17 @@ for key in \
   value="${!key:-}"
   [ -n "$value" ] || fail "env:$key:missing"
 done
-[ -n "${HUBSPOT_ACCESS_TOKEN:-${HUBSPOT_PRIVATE_APP_TOKEN:-}}" ] || fail "env:HUBSPOT_ACCESS_TOKEN:missing"
 [ "${JIRA_IFI_HUBSPOT_COMPANY_ID_FIELD_ID:-}" = "customfield_10881" ] || fail "env:JIRA_IFI_HUBSPOT_COMPANY_ID_FIELD_ID:unexpected"
 
-mcp_out="$(hermes -p "$PROFILE" mcp test launchbot_ker 2>&1)" || fail "mcp:launchbot_ker:test-failed"
-count="$(printf '%s\n' "$mcp_out" | sed -nE 's/.*Tools discovered: ([0-9]+).*/\1/p' | tail -1)"
-[ "$count" = "2" ] || fail "mcp:launchbot_ker:tools=${count:-unavailable}:expected=2"
+check_mcp_server launchbot_ker 2 launchbot_ker_server.py
+check_mcp_server launchbot_ifi 4 launchbot_ifi_server.py
+check_mcp_server launchbot_product_commitment 1 launchbot_product_commitment_server.py
+check_mcp_server launchbot_feature_intake 2 launchbot_feature_intake_server.py
+check_mcp_server launchbot_help_article 2 launchbot_help_article_server.py
 
-ifi_mcp_out="$(hermes -p "$PROFILE" mcp test launchbot_ifi 2>&1)" || fail "mcp:launchbot_ifi:test-failed"
-ifi_count="$(printf '%s\n' "$ifi_mcp_out" | sed -nE 's/.*Tools discovered: ([0-9]+).*/\1/p' | tail -1)"
-[ "$ifi_count" = "4" ] || fail "mcp:launchbot_ifi:tools=${ifi_count:-unavailable}:expected=4"
-
-video_mcp_out="$(hermes -p "$PROFILE" mcp test launchbot_help_article 2>&1)" || fail "mcp:launchbot_help_article:test-failed"
-video_count="$(printf '%s\n' "$video_mcp_out" | sed -nE 's/.*Tools discovered: ([0-9]+).*/\1/p' | tail -1)"
-[ "$video_count" = "2" ] || fail "mcp:launchbot_help_article:tools=${video_count:-unavailable}:expected=2"
+[ -r "$FEATURE_INTAKE_MONITOR_SCRIPT" ] || fail "feature-intake-monitor:script-missing"
+"$hermes_python" -m py_compile "$FEATURE_INTAKE_MONITOR_SCRIPT" || fail "feature-intake-monitor:py-compile-failed"
+"$hermes_python" -m py_compile "$PROFILE_DIR/source/launchbot/runtime/mcp/launchbot_feature_intake_core.py" || fail "mcp:launchbot_feature_intake_core:py-compile-failed"
 
 [ -r "$HELP_ARTICLE_VIDEO_REGISTRY_PATH" ] || fail "help-article-video-registry:missing"
 "$hermes_python" - "$HELP_ARTICLE_VIDEO_REGISTRY_PATH" <<'PY' || exit 1

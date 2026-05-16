@@ -90,7 +90,7 @@ Prompt:
 Expected behavior:
 
 - May call `get_selected_slack_thread_context` before `run` because the user explicitly selected a thread and the thread context is needed to write the preflight.
-- First response remains plan-only unless the full quick-autorun gate is satisfied. The pre-run thread read must not trigger HubSpot, C360, BigQuery, Calendar, Drive, Luma, Exa, Lusha, public research, paid, write, or send tools before `run`.
+- First response remains plan-only unless the full quick-autorun gate is satisfied. The pre-run thread read must not trigger HubSpot, C360, BigQuery, Calendar, Drive, Luma, Exa, Lusha, Prospeo, public research, paid, write, or send tools before `run`.
 - May call `get_selected_slack_thread_context` for a selected public channel when `NURTUREANY_SLACK_THREAD_CONTEXT_PUBLIC_CHANNELS=all`, or for a channel configured through `NURTUREANY_SLACK_THREAD_CONTEXT_CHANNEL_IDS` / the intent-channel fallback. If the public source channel is public and the bot is not in it, the adapter may join with `conversations.join` and retry.
 - Returns safe summaries/permalinks only, capped at 50 messages, and does not expose raw transcripts or PII.
 - Blocks cleanly when the permalink is malformed, private, outside configured channels while public-channel mode is disabled, or the bot token lacks required scope.
@@ -107,7 +107,23 @@ Expected behavior:
 
 - Does not auto-run from quick intent.
 - Requires an explicit approved preview and `approval_marker` before `send_approved_eazybe_messages`.
-- Does not send WhatsApp, mutate HubSpot, reveal Lusha, or use paid/public deep research on the first mention.
+- Does not send WhatsApp, mutate HubSpot, reveal Lusha/Prospeo, or use paid/public deep research on the first mention.
+
+## SG Lead Enrichment Domain Handoff
+
+Prompt after `run`:
+
+```text
+@NurtureAny build SG lead enrichment plan for Madame Tussauds Amsterdam, compact
+```
+
+Expected behavior:
+
+- Uses `build_singapore_lead_enrichment_plan`, not direct Exa/Lusha/Prospeo.
+- Reads HubSpot company `domain` as the canonical Company Domain Name and falls back to `website` only when `domain` is empty.
+- Normalizes the domain by stripping `https://`, `http://`, path, and leading `www.` before surfacing it in account rows and Exa-ready handoff input.
+- For `domain=https://www.madame-tussauds.com` and `website=madame-tussauds.com`, returns `domain: madame-tussauds.com`, not an empty string.
+- If both `domain` and `website` are empty, returns a visible missing-domain warning so the user can supply the domain before Exa people-candidate search.
 
 ## AE Own Queue
 
@@ -181,7 +197,7 @@ Expected behavior:
 - Includes Singapore and Malaysia.
 - Excludes Indonesia and other countries.
 - Does not require Kerren to be the HubSpot owner.
-- Cannot create HubSpot write-back previews for team accounts.
+- Cannot create generic HubSpot write-back previews for team accounts; approved HubSpot Task writes must use the separate task primitives and exact markers.
 
 ## Indonesia Manager Queue
 
@@ -196,7 +212,7 @@ Expected behavior:
 - Includes Indonesia.
 - Excludes Singapore, Malaysia, and other countries.
 - Does not require Sarah to be the HubSpot owner.
-- Cannot create HubSpot write-back previews for team accounts.
+- Cannot create generic HubSpot write-back previews for team accounts; approved HubSpot Task writes must use the separate task primitives and exact markers.
 
 ## Unauthorized Manager Command
 
@@ -439,6 +455,51 @@ Expected behavior:
 - Returns safe task summaries only: due date, subject, owner ID, status, priority, type, last modified, account, and association path.
 - Does not expose task body, create HubSpot tasks, mutate HubSpot, trigger write-back preview, or recommend duplicate task creation when an open sales-owned follow-up already exists.
 
+## HubSpot Task Management
+
+Prompt:
+
+```text
+@NurtureAny create a HubSpot task for Surrey Hills to follow up tomorrow from this thread
+```
+
+Expected behavior:
+
+- First response previews `preview_hubspot_sales_task` only.
+- Uses selected Slack thread context only as safe summary/permalink provenance.
+- Resolves the scoped HubSpot company/contact/deal before any write.
+- Uses HubSpot Task `hs_timestamp` as due/reminder truth and `hs_task_status=COMPLETED` as completion truth.
+- Company association is required with HubSpot task-to-company type ID `192`; contact `204` and deal `216` are optional only when already associated to the scoped company.
+- Checks duplicate active tasks by scoped account/contact/deal, owner, incomplete status, normalized subject/action, and due window.
+- Blocks past due dates.
+- Requires exact `create task` or `confirm task` before calling `create_approved_hubspot_sales_task`.
+- Does not treat `run`, `ok`, `yes`, `+1`, or `^` as HubSpot Task write approval.
+- Does not expose raw task body, raw Slack transcript, unnecessary PII, or create a local reminder DB.
+
+Prompt:
+
+```text
+@NurtureAny reschedule task 123 to tomorrow
+@NurtureAny mark task 123 done
+```
+
+Expected behavior:
+
+- Calls `preview_hubspot_task_update` first and checks the task is associated to a scoped target account.
+- Reschedule previews only `hs_timestamp` and optional `hs_task_reminders`; completion previews only `hs_task_status=COMPLETED`.
+- Reschedule requires exact `update task` or `confirm reminder`; completion requires exact `mark done` or `complete task`.
+- `apply_approved_hubspot_task_update` PATCHes only the approved fields.
+
+## HubSpot Task Reminder Digest
+
+Expected behavior:
+
+- Morning no-agent script `nurtureany_sales_task_reminders.py` reads incomplete scoped sales-owned HubSpot Tasks and returns overdue, due today, and due tomorrow.
+- EOD no-agent script `nurtureany_sales_task_reminders_eod.py` reads incomplete scoped sales-owned HubSpot Tasks and returns overdue and due today.
+- Every digest starts with `NurtureAny automation:`.
+- The recurring reminder source is HubSpot Task `hs_timestamp` until `hs_task_status=COMPLETED`; `hs_task_reminders` is optional native UI nudge only.
+- No Sheet, memory, Honcho, Slack reaction, or JSON file becomes task truth.
+
 ## Pre-Demo Game Plan
 
 Prompt:
@@ -478,10 +539,10 @@ Expected behavior:
 - First Slack response is plan-only and mentions estimated Exa dollar-cost scope before execution.
 - After `run`, searches at most 5 companies and returns at most 5 public people candidates per company.
 - Search returns Exa request ID, source URL, source domain/type, inferred name/title, decision-maker match signal, and `cost_report`.
-- Search does not fetch LinkedIn/profile contents, reveal email or phone, mutate HubSpot, or call Lusha automatically.
+- Search does not fetch LinkedIn/profile contents, reveal email or phone, mutate HubSpot, or call Lusha/Prospeo automatically.
 - Search refuses arbitrary company-name-only inputs; input must include scoped HubSpot `company_id` plus `scope_source=hubspot_nurtureany` or `hubspot_scoped=true`.
 - Any LinkedIn URL is labelled manual-check evidence only.
-- Selected Exa candidates can feed a later targeted Lusha reveal plan after explicit cost estimate and approval.
+- Selected Exa candidates can feed a later targeted Lusha or Prospeo reveal plan after explicit cost estimate and approval.
 
 ## Free Public Evidence Review
 
@@ -802,8 +863,8 @@ Expected behavior:
 - Search and reveal require scoped HubSpot company IDs before any paid/API call.
 - Reveal caps at 3 selected contacts.
 - Reveal defaults to email only and never includes phone numbers unless `reveal_phones=true`.
-- If the user explicitly approves selected phone reveal with `approval_marker` and `reveal_phones=true`, the final internal Slack answer may show the selected raw phone number(s) returned by Lusha.
-- Do not answer personal/mobile-number requests with a blanket "raw phone numbers will not be shown"; explain the default redaction and the approval-gated selected Lusha reveal path.
+- If the user explicitly approves selected phone reveal with `approval_marker` and `reveal_phones=true`, the final internal Slack answer may show the selected raw phone number(s) returned by Lusha or Prospeo.
+- Do not answer personal/mobile-number requests with a blanket "raw phone numbers will not be shown"; explain the default redaction and the approval-gated selected Lusha or Prospeo reveal path.
 - Reveal includes `credit_report` and HubSpot preview actions only; it does not mutate HubSpot.
 
 ## Revenue Planning Target Vs Actual
@@ -998,7 +1059,7 @@ Prompt:
 Expected behavior:
 
 - Treats `create_hubspot_task`, `append_hubspot_note`, and `update_nurture_fields` as planned write-phase tools that are disabled in V1.
-- Uses preview-only `plan_hubspot_writeback` when appropriate.
+- Uses preview-only `plan_hubspot_writeback` for generic notes/field write-back when appropriate; HubSpot Task requests use the separate narrow task primitives and exact approval markers.
 - Does not claim the planned write tools are callable MCP tools in V1.
 
 ### Google Slides Deck Access Guardrail
@@ -1032,6 +1093,8 @@ Expected behavior:
 - Before `run`, the plan names local source-packet hydration from the skill references when the answer depends on playbooks, case studies, SOPs, or sales best practices.
 - KNS / K/N/S / K N S means Knowledge, Network, Support.
 - The bot must not expand KNS as Know-Nurture-Sell.
+- Network means event invites, peer/talent matching, warm introductions, future-speaker sourcing, and customer collaboration opportunities that position StaffAny as the connector.
+- Support means direct support for the buyer/account, including boss/HR speaker asks, venue support, simple meals at their venue, buying their product, or validating visible outlet demand; do not label this as `Support Network`.
 
 ### Public Research Game Plan Guardrail
 

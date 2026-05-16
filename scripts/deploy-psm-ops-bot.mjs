@@ -361,6 +361,33 @@ copy_file "$deploy_dir/apps/psm-ops-bot/runtime/check-cloud-heartbeat.sh" "$prof
 copy_file "$deploy_dir/apps/psm-ops-bot/runtime/audit-live-profile.sh" "$profile/scripts/psmopsbot-audit-live-profile.sh" 0755
 copy_file "$deploy_dir/apps/psm-ops-bot/runtime/smoke-rock-productions-c360.sh" "$profile/scripts/psmopsbot-rock-productions-c360-smoke.sh" 0755
 copy_file "$deploy_dir/apps/psm-ops-bot/runtime/psm_ops_adoption_digest.py" "$profile/scripts/psm_ops_adoption_digest.py" 0755
+copy_file "$deploy_dir/apps/psm-ops-bot/runtime/scripts/psm_ops_due_date_reminders.py" "$profile/scripts/psm_ops_due_date_reminders.py" 0755
+copy_file "$deploy_dir/apps/psm-ops-bot/runtime/scripts/psm_ops_due_date_reminders.py" "$profile/scripts/psm_ops_due_date_reminders_eod.py" 0755
+copy_file "$deploy_dir/apps/psm-ops-bot/runtime/scripts/psm_ops_roi_tracker_sync.py" "$profile/scripts/psm_ops_roi_tracker_sync.py" 0755
+copy_file "$deploy_dir/apps/psm-ops-bot/runtime/scripts/psm_ops_join_public_channels.py" "$profile/scripts/psm_ops_join_public_channels.py" 0755
+
+uid=$(id -u "$runtime_owner")
+hermes_python="/home/$runtime_owner/.hermes/hermes-agent/venv/bin/python"
+hermes_bin="/home/$runtime_owner/.hermes/hermes-agent/hermes"
+
+ensure_no_agent_cron() {
+  cron_name="$1"
+  schedule="$2"
+  script_name="$3"
+  deliver="$4"
+  cron_out="$(sudo -H -u "$runtime_owner" XDG_RUNTIME_DIR="/run/user/$uid" "$hermes_python" "$hermes_bin" -p "$profile_name" cron list 2>&1 || true)"
+  if printf '%s\\n' "$cron_out" | grep -Fq "$cron_name"; then
+    return 0
+  fi
+  sudo -H -u "$runtime_owner" XDG_RUNTIME_DIR="/run/user/$uid" "$hermes_python" "$hermes_bin" -p "$profile_name" cron create \
+    --name "$cron_name" \
+    --script "$script_name" \
+    --no-agent \
+    --deliver "$deliver" \
+    "$schedule"
+}
+
+ensure_no_agent_cron "psmopsbot roi tracker sync" "*/30 1-10 * * 1-5" "psm_ops_roi_tracker_sync.py" "slack:#ps-weeman-bot-test"
 
 if command -v node >/dev/null 2>&1; then
   (cd "$remote_source_dir" && node scripts/verify-psm-ops-bot.mjs)
@@ -387,7 +414,6 @@ if [ "$skip_restart" = "1" ]; then
   exit 0
 fi
 
-uid=$(id -u "$runtime_owner")
 sudo -H -u "$runtime_owner" XDG_RUNTIME_DIR="/run/user/$uid" systemctl --user reset-failed "$service" || true
 sudo -H -u "$runtime_owner" XDG_RUNTIME_DIR="/run/user/$uid" systemctl --user restart "$service"
 sudo -H -u "$runtime_owner" XDG_RUNTIME_DIR="/run/user/$uid" systemctl --user is-active "$service"

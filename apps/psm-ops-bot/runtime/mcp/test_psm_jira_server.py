@@ -4,6 +4,7 @@ import json
 import os
 import tempfile
 import unittest
+import urllib.parse
 from copy import deepcopy
 from pathlib import Path
 from unittest.mock import patch
@@ -407,6 +408,93 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertEqual(result["confidence"], "blocked")
         self.assertIn("KER-123 or SCHE-123", result["caveat"])
 
+    def test_find_engineering_issue_searches_ker_with_safe_fields_and_compact_variant(self):
+        calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            params = urllib.parse.parse_qs(path.split("?", 1)[1])
+            self.assertEqual(params["fields"], ["summary,status,issuetype,updated"])
+            self.assertEqual(params["maxResults"], ["5"])
+            jql = params["jql"][0]
+            self.assertIn('project in ("KER")', jql)
+            self.assertIn('text ~ "home page"', jql)
+            self.assertIn('text ~ "homepage"', jql)
+            return {
+                "issues": [
+                    {
+                        "key": "KER-2117",
+                        "fields": {
+                            "summary": "StaffAny Homepage",
+                            "status": {"name": "Backlog"},
+                            "issuetype": {"name": "Feature"},
+                            "updated": "2026-05-15T06:00:00.000+0800",
+                            "description": "must not be returned",
+                            "comment": {"comments": [{"body": "must not be returned"}]},
+                            "attachment": [{"filename": "must-not-return.png"}],
+                        },
+                    }
+                ]
+            }
+
+        self.module._request_json = fake_request
+
+        result = self.module.find_engineering_issue("home page")
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["source"], "Jira Engineering")
+        self.assertEqual(result["answer"]["match_count"], 1)
+        match = result["answer"]["matches"][0]
+        self.assertEqual(
+            set(match.keys()),
+            {"key", "url", "summary", "status", "issue_type", "updated"},
+        )
+        self.assertEqual(match["key"], "KER-2117")
+        self.assertEqual(match["summary"], "StaffAny Homepage")
+        self.assertNotIn("description", match)
+        self.assertNotIn("comment", match)
+        self.assertNotIn("attachment", match)
+        self.assertIn("no descriptions", result["caveat"])
+
+    def test_find_engineering_issue_rejects_non_allowlisted_project(self):
+        result = self.module.find_engineering_issue("homepage", ["PCO"])
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("KER, SCHE", result["caveat"])
+
+    def test_find_engineering_issue_caps_results_and_allows_sche(self):
+        calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            params = urllib.parse.parse_qs(path.split("?", 1)[1])
+            self.assertEqual(params["maxResults"], ["10"])
+            self.assertIn('project in ("KER", "SCHE")', params["jql"][0])
+            return {"issues": []}
+
+        self.module._request_json = fake_request
+
+        result = self.module.find_engineering_issue("release shipment", ["KER", "SCHE"], 99)
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["scope"]["max_results"], 10)
+
+    def test_find_engineering_issue_exact_sche_key_uses_key_lookup_and_auto_scope(self):
+        calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            params = urllib.parse.parse_qs(path.split("?", 1)[1])
+            self.assertEqual(params["jql"], ["key = SCHE-19631"])
+            return {"issues": []}
+
+        self.module._request_json = fake_request
+
+        result = self.module.find_engineering_issue("SCHE-19631")
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["scope"]["project_keys"], ["SCHE"])
+
     def test_set_pco_assignee_resolves_slack_mention_to_jira_account(self):
         calls = []
 
@@ -645,6 +733,86 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertEqual(audit_calls[0][0], "ticket_created")
         self.assertEqual(audit_calls[0][1]["source_thread_url"], "https://staffany.slack.com/archives/C0B2VT50YT1/p1778205303989579")
         self.assertEqual(audit_calls[0][1]["issue_key"], "PCO-789")
+
+    def test_ps_wee_intake_prunes_known_fields_and_caps_slack_missing_info(self):
+        calls = []
+        audit_calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
+                return {"issues": []}
+            if path == "/rest/servicedeskapi/request":
+                return {"issueKey": "PCO-159", "requestTypeId": "101"}
+            if path.endswith("/comment"):
+                return {"id": "comment-159"}
+            return {}
+
+        self.module._request_json = fake_request
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: audit_calls.append((event_type, kwargs)) or {"ok": True}
+
+        result = self.module.create_ps_wee_intake_ticket(
+            slack_user_email="alya@staffany.com",
+            slack_thread_url="https://staffany.slack.com/archives/C01HQMYN4M9/p1778807520894139",
+            customer="Tomoro Coffee",
+            issue_summary="Unable to add a new staff in HRAny using a phone number already used in another org",
+            known_details="Affected staff HUI SHAN WENG has the same phone number linked to an inactive I LOVE TAIMEI profile; needs workaround advice.",
+            ps_team="CS Duty",
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertLessEqual(len(result["answer"]["missing_info"]), 2)
+        self.assertNotIn("customer/org", result["answer"]["missing_info"])
+        self.assertNotIn("issue details", result["answer"]["missing_info"])
+        self.assertNotIn("affected outlet/user/date range", result["answer"]["missing_info"])
+        self.assertNotIn("expected outcome", result["answer"]["missing_info"])
+        self.assertNotIn("1.", result["answer"]["slack_reply"])
+        self.assertNotIn("2.", result["answer"]["slack_reply"])
+        self.assertNotIn("Customer/org", result["answer"]["slack_reply"])
+        self.assertIn("<https://staffany.atlassian.net/browse/PCO-159|PCO-159>", result["answer"]["slack_reply"])
+        self.assertEqual(audit_calls[0][0], "ticket_created")
+        self.assertEqual(audit_calls[0][1]["customer"], "Tomoro Coffee")
+
+    def test_ps_wee_intake_keeps_full_jira_missing_info_but_slack_asks_top_two(self):
+        calls = []
+        audit_calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
+                return {"issues": []}
+            if path == "/rest/servicedeskapi/request":
+                return {"issueKey": "PCO-160", "requestTypeId": "101"}
+            if path.endswith("/comment"):
+                return {"id": "comment-160"}
+            return {}
+
+        self.module._request_json = fake_request
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: audit_calls.append((event_type, kwargs)) or {"ok": True}
+
+        result = self.module.create_ps_wee_intake_ticket(
+            slack_user_email="alya@staffany.com",
+            slack_thread_url="https://staffany.slack.com/archives/C01HQMYN4M9/p1778807520894139",
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["answer"]["missing_info"], ["customer/org", "issue details"])
+        self.assertIn("I still need: customer/org, issue details.", result["answer"]["slack_reply"])
+        self.assertIn(
+            "Missing info: customer/org, issue details, impact/urgency, affected outlet/user/date range, expected outcome, screenshots/logs if relevant",
+            calls[2][2]["body"],
+        )
+        self.assertEqual(
+            audit_calls[0][1]["missing_info"],
+            [
+                "customer/org",
+                "issue details",
+                "impact/urgency",
+                "affected outlet/user/date range",
+                "expected outcome",
+                "screenshots/logs if relevant",
+            ],
+        )
 
     def test_ps_wee_intake_auto_tags_reviewed_customer_channel_with_blank_customer(self):
         map_path = self._customer_channel_map(
@@ -886,6 +1054,15 @@ class PsmJiraServerTest(unittest.TestCase):
                 self.assertEqual(result["confidence"], "verified")
                 self.assertTrue(result["answer"]["is_roi_ticket_request"])
 
+    def test_roi_intent_defaults_billing_to_pco_tracker_without_action_word(self):
+        result = self.module.classify_roi_ticket_request("Dreamus renewal invoice has MRR mismatch")
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertTrue(result["answer"]["is_roi_ticket_request"])
+        self.assertTrue(result["answer"]["pco_tracker_default"])
+        self.assertFalse(result["answer"]["requires_action"])
+        self.assertEqual(result["answer"]["pco_tracker_reason"], "billing_or_invoice_default")
+
     def test_roi_intent_blocks_casual_nyss_question(self):
         result = self.module.classify_roi_ticket_request("@nyss what is the Stripe password")
 
@@ -1066,6 +1243,100 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertEqual(len(calls), 1)
         self.assertEqual(audit_calls[0][0], "roi_ticket_reused")
 
+    def test_create_or_link_pco_roi_tracker_creates_waiting_internal_tracker(self):
+        calls = []
+        audit_calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
+                return {"issues": []}
+            if path.endswith("/requesttype/101/field"):
+                return {
+                    "requestTypeFields": [
+                        {
+                            "fieldId": "customfield_10876",
+                            "name": "PS Team",
+                            "validValues": [{"value": "team-ada", "label": "Ada PSM"}],
+                        }
+                    ]
+                }
+            if method == "POST" and path == "/rest/servicedeskapi/request":
+                return {"issueKey": "PCO-222", "requestTypeId": "101"}
+            if method == "POST" and path.endswith("/comment"):
+                return {"id": "comment-222"}
+            if method == "GET" and path == "/rest/api/3/issue/PCO-222?fields=issuelinks":
+                return {"fields": {"issuelinks": []}}
+            if method == "GET" and path == "/rest/api/3/issue/PCO-222/transitions":
+                return {"transitions": [{"id": "41", "name": "Waiting Internal", "to": {"name": "Waiting Internal"}}]}
+            return {}
+
+        self.module._request_json = fake_request
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: audit_calls.append((event_type, kwargs)) or {"ok": True}
+
+        result = self.module.create_or_link_pco_roi_tracker(
+            slack_user_email="psm@staffany.com",
+            slack_thread_url="https://staffany.slack.com/archives/C08SDJR03N1/p1778753307219144",
+            roi_issue_key="ROI-123",
+            customer="Dreamus",
+            summary="Renewal invoice mismatch",
+            original_channel="#team-rev-bd-ops",
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["answer"]["pco_issue_key"], "PCO-222")
+        self.assertEqual(result["answer"]["roi_issue_key"], "ROI-123")
+        self.assertEqual(result["answer"]["label"], "ps-wee-roi-tracker")
+        self.assertIn("ROI remains source of truth", result["caveat"])
+        create_payload = next(call[2] for call in calls if call[0] == "POST" and call[1] == "/rest/servicedeskapi/request")
+        self.assertEqual(create_payload["requestFieldValues"]["summary"], "[Waiting internal] Dreamus - Renewal invoice mismatch")
+        label_call = next(call for call in calls if call[0] == "PUT" and call[1] == "/rest/api/3/issue/PCO-222")
+        self.assertEqual(label_call[2]["update"]["labels"], [{"add": "ps-wee-roi-tracker"}])
+        link_call = next(call for call in calls if call[0] == "POST" and call[1] == "/rest/api/3/issueLink")
+        self.assertEqual(link_call[2]["type"], {"name": "Blocks"})
+        self.assertEqual(link_call[2]["outwardIssue"], {"key": "ROI-123"})
+        self.assertEqual(link_call[2]["inwardIssue"], {"key": "PCO-222"})
+        self.assertIn(("POST", "/rest/api/3/issue/PCO-222/transitions", {"transition": {"id": "41"}, "update": {"comment": [{"add": {"body": self.module._adf("PCO customer-loop tracker is waiting on linked ROI issue ROI-123.")}}]}}), calls)
+        self.assertEqual(audit_calls[0][0], "roi_tracker_linked")
+
+    def test_create_or_link_pco_roi_tracker_reuses_same_thread_tracker(self):
+        calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
+                return {
+                    "issues": [
+                        {
+                            "key": "PCO-333",
+                            "fields": {
+                                "summary": "Dreamus invoice tracker",
+                                "status": {"name": "Waiting Internal"},
+                                "priority": {"name": "Medium"},
+                                "customfield_10876": {"value": "Ada PSM"},
+                            },
+                        }
+                    ]
+                }
+            if method == "GET" and path == "/rest/api/3/issue/PCO-333?fields=issuelinks":
+                return {"fields": {"issuelinks": [{"type": {"name": "Blocks"}, "outwardIssue": {"key": "ROI-123"}}]}}
+            return {}
+
+        self.module._request_json = fake_request
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: {"ok": True}
+
+        result = self.module.create_or_link_pco_roi_tracker(
+            slack_user_email="psm@staffany.com",
+            slack_thread_url="https://staffany.slack.com/archives/C08SDJR03N1/p1778753307219144",
+            roi_issue_key="ROI-123",
+            customer="Dreamus",
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertTrue(result["answer"]["already_exists"])
+        self.assertTrue(result["answer"]["link_already_exists"])
+        self.assertEqual([call for call in calls if call[0] == "POST"], [])
+
     def test_append_ps_wee_ticket_update_posts_structured_comment_only(self):
         calls = []
         audit_calls = []
@@ -1243,6 +1514,8 @@ class PsmJiraServerTest(unittest.TestCase):
             {"duedate": "2026-05-14"},
         )
         self.assertEqual(result["answer"]["due_date"], "2026-05-14")
+        self.assertIn("Central PSM Ops digests", result["answer"]["reminder_policy"])
+        self.assertIn("No separate Slack thread", result["answer"]["central_digest"])
 
     def test_due_reminders_use_due_date_one_day_before_and_overdue(self):
         calls = []

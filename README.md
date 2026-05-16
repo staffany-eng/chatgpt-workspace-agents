@@ -19,6 +19,7 @@ Use the app packet as the source of truth for durable Hermes Data Bot behavior. 
 | `apps/hermes-data-bot/` | primary | Source packet for StaffAny Hermes Data Bot. |
 | `apps/nurtureany-sales-bot/` | app packet | Source packet for StaffAny NurtureAny Sales Bot. |
 | `apps/launchbot/` | app packet | Source packet for Launchbot, including the help article, review, and Intercom draft workflow skill. |
+| `apps/hermes-shared/` | shared packet | Shared Hermes skills and MCPs reused by multiple StaffAny bots. |
 | `apps/bq-mcp-proxy/` | supporting | StaffAny-controlled BigQuery MCP proxy used by the bot. |
 | `research/` | evidence | Raw notes, source notes, syntheses, decisions, and audits. |
 | `agents/` | deprecated | Historical ChatGPT workspace-agent snapshots and migration evidence. |
@@ -34,7 +35,7 @@ The live smoke-test channel map lives in `ops/hermes/channels.md`.
 - Da Ta Hermz: `#da-ta-hermz-testing` (`C0AU19E6T0C`)
 - NurtureAny: `#nurtureany-testing` (`C0B2UGK4DB6`)
 - PSM Ops / PS WEE: `#ps-weeman-bot-test` (`C0B2VT50YT1`)
-- Launchbot: `#launch-bot-testing` (`C0B32M34J3W`)
+- Launchbot: `#launch-bot-testing` (`C0B32M34J3W`); read-only KER lookup also runs in `#all-product-questions` (`C01RZ7SHC8K`)
 
 `PS WEE` / `PS Wee Manager` is the PSM Ops Bot profile `psmopsbot`; workflow tests use PSM Ops in `#ps-weeman-bot-test`. Sales-manager and manager-chase workflow tests use NurtureAny in `#nurtureany-testing`.
 

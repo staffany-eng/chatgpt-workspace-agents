@@ -21,6 +21,13 @@
     "ker_mcp_tests": "runtime/mcp/test_launchbot_ker_server.py",
     "ifi_mcp_server": "runtime/mcp/launchbot_ifi_server.py",
     "ifi_mcp_tests": "runtime/mcp/test_launchbot_ifi_server.py",
+    "product_commitment_mcp_server": "runtime/mcp/launchbot_product_commitment_server.py",
+    "product_commitment_mcp_tests": "runtime/mcp/test_launchbot_product_commitment_server.py",
+    "feature_intake_core": "runtime/mcp/launchbot_feature_intake_core.py",
+    "feature_intake_mcp_server": "runtime/mcp/launchbot_feature_intake_server.py",
+    "feature_intake_mcp_tests": "runtime/mcp/test_launchbot_feature_intake_server.py",
+    "feature_intake_monitor": "runtime/monitor-feature-intake.py",
+    "feature_intake_monitor_tests": "runtime/test_monitor_feature_intake.py",
     "help_article_mcp_server": "runtime/mcp/launchbot_help_article_server.py",
     "help_article_mcp_tests": "runtime/mcp/test_launchbot_help_article_server.py",
     "help_article_video_fixtures": "runtime/mcp/fixtures/help_article_video_fixtures.json",
@@ -39,17 +46,22 @@
   },
   "channels": [
     "Slack #launch-bot-testing",
-    "Slack #proj-cs-seonggong-seorae"
+    "Slack #proj-cs-seonggong-seorae",
+    "Slack #all-product-questions",
+    "Slack #input-features-ux"
   ],
   "slack": {
     "home_channel_id": "C0B32M34J3W",
     "home_channel_name": "launch-bot-testing",
     "allowed_channel_ids": [
       "C0B32M34J3W",
-      "C0AJAUNCEL8"
+      "C0AJAUNCEL8",
+      "C01RZ7SHC8K",
+      "CF8PK6V4J"
     ],
     "require_mention": true,
     "reactions": false,
+    "gateway_restart_notification": false,
     "socket_mode": true,
     "required_bot_events": [
       "app_mention",
@@ -63,6 +75,33 @@
     ],
     "event_subscription_drift_guard": "Launchbot Socket Mode must subscribe to message.channels or channel mentions/replies will not reach the Hermes gateway."
   },
+  "feature_intake_monitor": {
+    "mode": "no_agent_slack_poll",
+    "default_channel_ids": [
+      "CF8PK6V4J"
+    ],
+    "channel_ids_env_var": "LAUNCHBOT_FEATURE_INTAKE_MONITOR_CHANNEL_IDS",
+    "state_path_env_var": "LAUNCHBOT_FEATURE_INTAKE_MONITOR_STATE_PATH",
+    "default_state_path": "~/.hermes/profiles/launchbot/runtime/feature-intake-monitor-state.json",
+    "max_messages_per_run_env_var": "LAUNCHBOT_FEATURE_INTAKE_MONITOR_MAX_MESSAGES_PER_RUN",
+    "default_max_messages_per_run": 100,
+    "overlap_seconds_env_var": "LAUNCHBOT_FEATURE_INTAKE_MONITOR_OVERLAP_SECONDS",
+    "default_overlap_seconds": 600,
+    "required_confirmation": [
+      "create intake",
+      "create KER intake"
+    ],
+    "normal_gateway_require_mention": true,
+    "raw_transcript_persistence": false,
+    "posts_slack_previews": true,
+    "slack_reply_prefix": "Launchbot automation:",
+    "approver_allowlist_env_var": "LAUNCHBOT_FEATURE_INTAKE_APPROVER_USER_IDS",
+    "cron": {
+      "name": "launchbot feature intake monitor",
+      "schedule": "* * * * *",
+      "mode": "no-agent"
+    }
+  },
   "mcp": {
     "launchbot_ker": {
       "mode": "read_only",
@@ -75,7 +114,8 @@
         "configured_channel_ids_env_var": "LAUNCHBOT_KER_ALLOWED_CHANNEL_IDS",
         "default_channel_ids": [
           "C0B32M34J3W",
-          "C0AJAUNCEL8"
+          "C0AJAUNCEL8",
+          "C01RZ7SHC8K"
         ],
         "raw_transcript_persistence": false,
         "user_token_fallback": false,
@@ -128,6 +168,76 @@
         "ambiguous_company_action": "ask_for_hubspot_company_link_or_numeric_id"
       }
     },
+    "launchbot_product_commitment": {
+      "mode": "read_only_commitment_check",
+      "tools": [
+        "check_product_commitment_from_slack_thread"
+      ],
+      "slack_context": {
+        "token_env_var": "SLACK_BOT_TOKEN",
+        "configured_channel_ids_env_var": "LAUNCHBOT_PRODUCT_COMMITMENT_ALLOWED_CHANNEL_IDS",
+        "default_channel_ids": [
+          "C0B32M34J3W",
+          "C01RZ7SHC8K"
+        ],
+        "raw_transcript_persistence": false,
+        "user_token_fallback": false,
+        "slack_connector_fallback": false
+      },
+      "jira": {
+        "project_key": "KER",
+        "base_url_env_var": "JIRA_BASE_URL",
+        "email_env_var": "JIRA_EMAIL",
+        "api_token_env_var": "JIRA_API_TOKEN",
+        "reviewed_commitment_fields_env_var": "LAUNCHBOT_PRODUCT_COMMITMENT_FIELD_IDS",
+        "standard_commitment_fields": [
+          "fixVersions"
+        ],
+        "mutations": false,
+        "comments": false,
+        "transitions": false,
+        "assignments": false,
+        "timeline_inference": false,
+        "intake_creation": false
+      }
+    },
+    "launchbot_feature_intake": {
+      "mode": "confirmed_jpd_intake_create",
+      "tools": [
+        "preview_feature_intake_from_slack_thread",
+        "create_feature_intake_from_slack_thread"
+      ],
+      "slack_context": {
+        "token_env_var": "SLACK_BOT_TOKEN",
+        "configured_channel_ids_env_var": "LAUNCHBOT_FEATURE_INTAKE_ALLOWED_CHANNEL_IDS",
+        "default_channel_ids": [
+          "C0B32M34J3W",
+          "CF8PK6V4J"
+        ],
+        "raw_transcript_persistence": false,
+        "user_token_fallback": false,
+        "slack_connector_fallback": false
+      },
+      "jira": {
+        "project_key": "KER",
+        "issue_type_id": "10043",
+        "base_url_env_var": "JIRA_BASE_URL",
+        "email_env_var": "JIRA_EMAIL",
+        "api_token_env_var": "JIRA_API_TOKEN",
+        "slack_prd_field_id": "customfield_10080",
+        "mutations": [
+          "create_issue"
+        ],
+        "comments": false,
+        "transitions": false,
+        "assignments": false
+      },
+      "confirmation": {
+        "required": true,
+        "phrase": "create intake",
+        "preview_first": true
+      }
+    },
     "launchbot_help_article": {
       "mode": "draft_only_registered_video_slots",
       "tools": [
@@ -175,6 +285,11 @@
     {
       "name": "launchbot health check",
       "schedule": "*/5 * * * *",
+      "mode": "no-agent"
+    },
+    {
+      "name": "launchbot feature intake monitor",
+      "schedule": "* * * * *",
       "mode": "no-agent"
     },
     {
@@ -247,6 +362,11 @@
       "LAUNCH_INTERCOM_FORMAT_SAMPLE_IDS",
       "LAUNCH_INTERCOM_SHAPE_FAMILIES",
       "LAUNCH_INTERCOM_INVENTORY_STATE",
+      "LAUNCHBOT_FEATURE_INTAKE_MONITOR_CHANNEL_IDS",
+      "LAUNCHBOT_FEATURE_INTAKE_MONITOR_STATE_PATH",
+      "LAUNCHBOT_FEATURE_INTAKE_MONITOR_MAX_MESSAGES_PER_RUN",
+      "LAUNCHBOT_FEATURE_INTAKE_MONITOR_OVERLAP_SECONDS",
+      "LAUNCHBOT_FEATURE_INTAKE_APPROVER_USER_IDS",
       "LAUNCH_PANTHEON_REPO",
       "LAUNCH_PANTHEON_APPS",
       "LAUNCH_GOOGLE_AUTH_JSON",

@@ -30,6 +30,19 @@
 - Creates the PCO intake ticket immediately with `create_ps_wee_intake_ticket` when no same-thread ticket exists.
 - Includes the Slack thread permalink in Jira.
 
+## PS WEE Compact Missing Info
+
+Thread:
+
+`Can you help advise on the workaround if Tomoro Coffee is unable to add a new staff in HRAny using a phone number that has already been used in another organization? The same phone number is linked to affected staff HUI SHAN WENG in inactive I LOVE TAIMEI.`
+`@PSM Ops please create a ticket for CS to follow up regarding Tomoro Coffee unable to add staff in HRAny.`
+
+- Creates or reuses the PCO intake ticket first.
+- Passes known customer, issue details, affected staff/profile, and workaround context into `create_ps_wee_intake_ticket`.
+- Does not ask for customer/org or issue details again.
+- Does not add a numbered questionnaire after the tool reply.
+- Slack-facing missing info is capped at two fields; full needs-info metadata may stay in Jira/audit.
+
 ## PS WEE Customer Channel Auto-Tag
 
 Expected:
@@ -49,12 +62,23 @@ Expected:
 - Calls `classify_roi_ticket_request` and detects actionable BD Ops / invoice work.
 - Calls `find_roi_ticket_by_slack_thread` using the current Slack thread permalink.
 - Creates a direct ROI ticket with `create_roi_ticket_from_slack` when no same-thread ROI ticket exists.
-- Does not create a PCO wrapper ticket.
+- Does not create a duplicate PCO execution wrapper.
 - Resolves requester from explicit `requested by` / `reported by` first, otherwise the Slack sender.
 - Blocks creation if requester cannot resolve; no bot or `team@staffany.com` requester fallback.
 - Discovers required ROI request fields from JSM metadata and blocks with exact missing field names if customer/org, category, requester, summary/details, source thread, or other required fields are missing.
 - Fills both `Company Name` and `StaffAny Organization` when the ROI request type exposes both fields.
 - Includes source Slack thread, original channel, and requester in the ROI payload or internal metadata.
+
+## PS WEE Billing ROI Tracker By Default
+
+`@PS Wee Manager Dreamus renewal invoice has MRR mismatch`
+
+- Treats the caller as trackable only after resolving the Slack sender to a Jira `PS Team`.
+- Calls `classify_roi_ticket_request` and returns `pco_tracker_default=true` for billing/invoice/MRR terms even without "track this" wording.
+- Calls `find_roi_ticket_by_slack_thread` and creates or reuses ROI through `create_roi_ticket_from_slack`.
+- Calls `create_or_link_pco_roi_tracker` after ROI create/reuse.
+- The PCO tracker is a Customer Success Work issue, labelled `ps-wee-roi-tracker`, linked so ROI blocks PCO, and moved to `Waiting Internal`.
+- Caveat says ROI is source of truth and PCO is only the customer-loop tracker.
 
 ## PS WEE Casual NYSS Question
 
@@ -150,12 +174,20 @@ Thread:
 - Defaults to Jira `Blocks` direction so the PCO shows as blocked by the engineering issue.
 - Does not read or expose raw engineering issue descriptions, comments, or attachments.
 
+`@PSM Ops is there a home page ticket in KER? If yes, link it to PCO-146`
+
+- Calls read-only `find_engineering_issue` with KER scope before linking.
+- If there is one clear match such as `KER-2117`, calls `link_pco_to_engineering_issue` with that key.
+- If multiple plausible KER matches are returned, asks the user to choose the issue key.
+- Does not use Slack history, memory, descriptions, comments, attachments, or Jira bulk exports for KER discovery.
+
 ## Reminder
 
 `@PSM Ops remind me tomorrow 9am on PCO-123`
 
 - Calls `set_pco_reminder`.
 - Updates Jira `duedate` only.
+- Explains that the issue appears in the central 09:00 SGT / 17:00 SGT reminder digest while not Done.
 
 ## Customer Context
 

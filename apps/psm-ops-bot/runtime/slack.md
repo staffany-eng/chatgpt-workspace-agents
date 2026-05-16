@@ -10,12 +10,15 @@ The Slack surface is mention-required usage in public/open StaffAny Slack channe
 - Use the PSM Ops bot identity for all visible replies.
 - Do not send Slack replies as Kai Yi or through a human user token.
 - Keep Slack output quiet: no streaming drafts, no tool progress, no status reactions.
+- Route non-critical `auxiliary.title_generation` through the pinned short-timeout Haiku auxiliary config so title-generation overloads do not become visible Slack follow-up noise.
 - Suppress gateway lifecycle notices in the pilot channel with `platforms.slack.gateway_restart_notification=false`.
 - Task creation is preview first. Same-thread `create`, `approve create`, or `create this` approves the previously shown draft.
-- ROI-direct requests are ticket-first and must go straight to ROI JSM, not PCO. When PS Wee is asked to create, add, log, handle, ticket, task, or board work for ROI, RevOps, BD Ops, bdops, NYSS, n y s s, invoice/billing, renewal invoices, discounts, HC/deal checks, Stripe invoices, HubSpot deals, ERP dashboards/data issues, linked BE, accessible invoices, MRR mismatch, SLA dashboards, or asset sync, call `classify_roi_ticket_request`, then `find_roi_ticket_by_slack_thread`, then `create_roi_ticket_from_slack` if no same-thread ROI ticket exists.
+- ROI-direct requests are ticket-first and must create or reuse ROI JSM first. When PS Wee is asked to create, add, log, handle, ticket, task, or board work for ROI, RevOps, BD Ops, bdops, NYSS, n y s s, invoice/billing, renewal invoices, discounts, HC/deal checks, Stripe invoices, HubSpot deals, ERP dashboards/data issues, linked BE, accessible invoices, MRR mismatch, SLA dashboards, or asset sync, call `classify_roi_ticket_request`, then `find_roi_ticket_by_slack_thread`, then `create_roi_ticket_from_slack` if no same-thread ROI ticket exists.
+- For resolved PS Team callers, billing/invoice/renewal billing asks default to customer-loop tracking. If `classify_roi_ticket_request` returns `pco_tracker_default=true`, call `create_or_link_pco_roi_tracker` after ROI create/reuse so the linked PCO tracker appears in `Waiting Internal`.
 - Do not trigger ROI creation for casual `@nyss`, BD Ops, or RevOps questions unless the user asks PS Wee to create, add, log, handle, ticket, task, or board the work.
 - ROI requester is first-class. Explicit `requested by` / `reported by` wins; otherwise pass the current Slack sender ID/mention or email. If requester cannot resolve, block creation and ask for requester only. No bot, team, or `team@staffany.com` fallback.
-- PS WEE ticketing requests are ticket-first. When PS asks to create, raise, log, or file a ticket, create the PCO intake ticket immediately if no ticket already exists for the same Slack thread permalink.
+- Do not create duplicate PCO execution wrappers for ROI work. The PCO ROI tracker is allowed only for customer-loop visibility; ROI remains internal-team execution truth.
+- PS WEE ticketing requests are ticket-first. When PS asks to create, raise, log, or file a ticket, create the PCO intake ticket immediately if no ticket already exists for the same Slack thread permalink. Pass known facts into the Jira tool, paste its returned ticket reply exactly, and do not add numbered follow-up questionnaires.
 - Operational task-list requests are ticket-first. When PS asks to `add to <person/team> task list`, `add to Jo/Jos/Josica`, `put on backlog`, `add to follow-up list`, or equivalent, create or return the PCO intake ticket before asking for missing fields.
 - A confirmed customer reach-out in a PS WEE/customer-ops thread is ticket-first even if nobody says "create ticket". Examples: "did they reach out?" followed by "yes, via Intercom", a support-thread permalink, an admin screenshot showing a limit hit, or a teammate confirming impact. Create or return the same-thread PCO intake ticket first, then ask for missing details.
 - Customer-specific Slack channels auto-tag only through reviewed channel mappings. If the mapped channel customer conflicts with the message customer, block ticket creation and ask for confirmation.
@@ -25,7 +28,10 @@ The Slack surface is mention-required usage in public/open StaffAny Slack channe
 - Sync meaningful follow-up discussion as structured internal Jira comments only. Pass the Slack poster display name, user ID, and email when available; the Jira internal comment must include `Slack poster:` for traceability. Do not sync every Slack reply and do not paste raw Slack transcripts into Jira.
 - Also post a `PSM Ops automation:` central audit copy for PS WEE ticket create/reuse/update/ready events and blocked Jira/C360 tool results when `PSM_OPS_CENTRAL_SLACK_CHANNEL_ID` or `SLACK_HOME_CHANNEL` is configured. This is a private ops-channel exception: it may include a bounded current-thread excerpt, relevant Jira payload, and C360 API response, but no secrets, attachments, phone exports, bulk exports, or underlying raw C360 source packs.
 - Status transitions, internal comments, PCO-to-KER/SCHE issue links, and reminders may execute directly when the issue keys and action are clear.
-- Automation reminders must start with `PSM Ops automation:`.
+- Natural-language KER/SCHE lookup must use Jira through `find_engineering_issue`; do not use Slack channel history or memory as the source for engineering issue discovery.
+- Automation reminders must start with `PSM Ops automation:` and deliver to the central PS WEE digest channel only in V1.
+- Reminder digests use deterministic Slack mrkdwn over Jira `duedate`. PS Team mentions come only from the reviewed runtime `PSM_OPS_REMINDER_MENTION_MAP_PATH`; do not call Slack `users.list` or guess inverse mappings from Jira option names in the reminder cron.
+- Customer-team tagging in reminders is central-channel-only. Render a customer channel mention only when a Jira source link contains a Slack permalink whose channel is reviewed in `PSM_OPS_CUSTOMER_CHANNEL_MAP_PATH`; do not cross-post to customer channels.
 - Explicit customer scheduling or follow-up requests may use `read_customer_calendar_context` through the read-only `team@staffany.com` account. Do not call Calendar for vague names, task-list ownership, or missing attendee slot requests. Return only bounded safe metadata and never expose descriptions, attendee emails, raw guest lists, conference links, or phone numbers.
 
 ## Output Contracts
@@ -62,11 +68,40 @@ Confidence: verified
 Caveat: ROI ticket is source of truth; Slack thread is evidence.
 ```
 
+PCO ROI tracker output:
+
+```text
+Tracking customer loop on PCO: <url|PCO-key> linked to <url|ROI-key> and set to Waiting Internal.
+Source: Jira ROI + Jira PCO tracker
+Scope: <caller, Slack thread, customer>
+Confidence: verified
+Caveat: ROI ticket is source of truth; PCO tracker is only for customer-loop visibility.
+```
+
 ## Slack Scopes
 
-Use the minimum Hermes Slack gateway scopes required for app mentions and caller identity. The PSM Jira MCP needs `users:read` and `users:read.email` so it can fetch Slack users, canonicalize profile email/name, and match the caller to Jira `PS Team`.
+Use the minimum Hermes Slack gateway scopes required for app mentions, public-channel membership, thread reads, replies, and caller identity:
+
+- `app_mentions:read`
+- `channels:read`
+- `channels:history`
+- `channels:join`
+- `chat:write`
+- `users:read`
+- `users:read.email`
+
+The PSM Jira MCP needs `users:read` and `users:read.email` so it can fetch Slack users, canonicalize profile email/name, and match the caller to Jira `PS Team`.
 
 Central audit copies need bot-owned `chat:write`. If raw source-thread excerpt fetch is enabled, the bot also needs `channels:history` for public channels it is in and `groups:history` only for private channels where the bot has explicitly been invited. Do not request broad private-channel enumeration for V1.
+
+Open public-channel mode is not proven by `SLACK_ALLOWED_CHANNELS=""` alone. The Slack app must have `channels:join`, then the bot-owned public-channel join script must be run from the cloud profile:
+
+```bash
+~/.hermes/profiles/psmopsbot/scripts/psm_ops_join_public_channels.py --dry-run
+~/.hermes/profiles/psmopsbot/scripts/psm_ops_join_public_channels.py --apply
+```
+
+If `conversations.join` returns `missing_scope`, reinstall the Slack app with the required bot scopes above before retrying. Do not use Kai Yi's user token or the Slack connector to invite or post as a workaround.
 
 ## Channel Access
 

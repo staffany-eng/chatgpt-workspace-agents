@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """HubSpot MCP adapter for NurtureAny Sales Bot.
 
-This server is intentionally V1-safe: read tools and dry-run previews only.
-HubSpot write tools are not exposed until the write-back phase is approved.
+This server is intentionally V1-safe: read tools, previews, selected paid
+enrichment, and narrow approval-gated HubSpot Task primitives only.
 """
 
 from __future__ import annotations
@@ -50,6 +50,7 @@ from nurtureany_common.text import (
     normalized_words as _shared_normalized_words,
     unique_text as _shared_unique_text,
 )
+from nurtureany_hubspot.workflows import sg_lead_enrichment as _sg_lead_enrichment
 
 
 HUBSPOT_BASE_URL = "https://api.hubapi.com"
@@ -68,6 +69,7 @@ REGIONAL_MANAGERS = {
 COMPANY_PROPERTIES = [
     "name",
     "domain",
+    "website",
     "hs_is_target_account",
     "hubspot_owner_id",
     "company_country",
@@ -135,6 +137,7 @@ TASK_PROPERTIES = [
     "hs_task_status",
     "hs_task_priority",
     "hs_task_type",
+    "hs_task_reminders",
     "hs_lastmodifieddate",
 ]
 
@@ -253,19 +256,64 @@ KNS_KNOWLEDGE_TERMS = (
     "attendance",
     "roster",
 )
+KNS_NETWORK_SPEAKER_SOURCING_TERMS = (
+    "anyone u wanna hear from",
+    "anyone you wanna hear from",
+    "anyone you want to hear from",
+    "who u want to hear from",
+    "who you want to hear from",
+    "who they want to hear from",
+    "hear from the industry",
+    "invite relevant future speakers",
+    "future speaker",
+)
 KNS_NETWORK_TERMS = (
-    "event",
-    "hhh",
-    "hr happy hour",
-    "leaders lounge",
     "community",
     "network",
     "intro",
+    "introduction",
     "connect",
     "peer",
+    "industry peer",
+    "peer matching",
     "founder",
     "operator",
     "referral",
+    "matchmake",
+    "match make",
+    "talent matching",
+    "looking to hire",
+    "hire any role",
+    "recommend talent",
+    *KNS_NETWORK_SPEAKER_SOURCING_TERMS,
+    "role similarity",
+    "industry vertical",
+    "growth stage",
+    "hiring priorities",
+    "expansion plans",
+    "active supporters",
+    "product adoption",
+    "collaboration",
+    "collaborate",
+    "cross-brand",
+    "partnership",
+    "joint case study",
+    "case study collaboration",
+    "employer branding",
+    "joint event",
+    "operational learning",
+)
+KNS_NETWORK_EVENT_TERMS = (
+    "event",
+    "upcoming event",
+    "hhh",
+    "hr happy hour",
+    "happy hr hour",
+    "leaders lounge",
+    "leader lounge",
+    "overseas ll",
+    "cozy dinner",
+    "cosy dinner",
     "invite",
     "session",
     "fireside",
@@ -273,10 +321,33 @@ KNS_NETWORK_TERMS = (
     "lunch",
     "coffee",
 )
+KNS_SUPPORT_OPPORTUNITY_TERMS = (
+    "be our speaker",
+    "open to be our speaker",
+    "speaker opportunity",
+    "venue opportunity",
+    "fireside opportunity",
+    "speaker for upcoming",
+    "support their venue",
+    "support your venue",
+    "host at your venue",
+    "host at his venue",
+    "host at her venue",
+    "host a simple meal",
+    "simple meal at",
+    "buy their product",
+    "buy your product",
+    "support their product",
+    "support your product",
+    "walk past their shop",
+    "walk past your shop",
+    "long queue",
+)
 KNS_SUPPORT_TERMS = (
     "help",
     "support",
     "can i",
+    "are we able to support",
     "would it be useful",
     "happy to",
     "chat",
@@ -441,6 +512,16 @@ LUMA_MATCH_CANDIDATE_FIELDS = (
 )
 TASK_SEARCH_RESULT_LIMIT = 300
 TASK_SEARCH_AIRTIGHT_RESULT_LIMIT = 10_000
+TASK_CREATE_APPROVAL_MARKERS = {"create task", "confirm task"}
+TASK_RESCHEDULE_APPROVAL_MARKERS = {"update task", "confirm reminder"}
+TASK_COMPLETE_APPROVAL_MARKERS = {"mark done", "complete task"}
+TASK_ASSOCIATION_TYPE_IDS = {
+    "company": 192,
+    "contact": 204,
+    "deal": 216,
+}
+TASK_DEFAULT_DUE_HOUR_LOCAL = 10
+TASK_DUPLICATE_WINDOW_DAYS = 1
 HUBSPOT_SOFT_TIMEOUT_SECONDS_ENV_VAR = "NURTUREANY_HUBSPOT_SOFT_TIMEOUT_SECONDS"
 HUBSPOT_SOFT_TIMEOUT_SECONDS_DEFAULT = 270
 HUBSPOT_SOFT_TIMEOUT_SECONDS_MAX = 300
@@ -728,8 +809,8 @@ EVENT_FOLLOWUP_PHRASES = (
 mcp = FastMCP(
     "hubspot_nurtureany",
     instructions=(
-        "Read-only HubSpot target-account tools for NurtureAny. "
-        "Mutation tools are intentionally not exposed in V1."
+        "HubSpot target-account tools for NurtureAny. Generic mutation tools are disabled; "
+        "only preview-first, exact-approval HubSpot Task primitives may mutate tasks."
     ),
 )
 
@@ -988,6 +1069,10 @@ def _get(path: str, params: dict[str, str] | None = None) -> dict[str, Any]:
 
 def _post(path: str, body: dict[str, Any]) -> dict[str, Any]:
     return _request_json("POST", path, body)
+
+
+def _patch(path: str, body: dict[str, Any]) -> dict[str, Any]:
+    return _request_json("PATCH", path, body)
 
 
 def _blocked(message: str, scope: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -3046,6 +3131,8 @@ def _summarize_company(company: dict[str, Any]) -> dict[str, Any]:
     contract_date = props.get(RENEWAL_SOURCE_OF_TRUTH_PROPERTY) or ""
     owner_id = props.get("hubspot_owner_id") or ""
     company_id = company.get("id")
+    resolved_domain = _clean_domain(props.get("domain") or props.get("website") or "")
+    domain_source = "domain" if _clean_domain(props.get("domain") or "") else "website" if resolved_domain else ""
     account_status = _account_status_from_props(props)
     customer360_route_key = _customer360_route_key(
         company_id,
@@ -3067,7 +3154,9 @@ def _summarize_company(company: dict[str, Any]) -> dict[str, Any]:
         "hubspot_scoped": True,
         "scope_source": SCOPE_SOURCE,
         "name": props.get("name") or "",
-        "domain": props.get("domain") or "",
+        "domain": resolved_domain,
+        "domain_source": domain_source,
+        "website": props.get("website") or "",
         "country": props.get("company_country") or "",
         **owner,
         "headcount": props.get("numberofemployees") or "",
@@ -3775,8 +3864,14 @@ def _whatsapp_kns_audit_from_body(body: Any) -> dict[str, Any]:
         }
 
     has_knowledge = _kns_component_present(text, KNS_KNOWLEDGE_TERMS)
+    has_support_opportunity = _kns_component_present(text, KNS_SUPPORT_OPPORTUNITY_TERMS)
+    has_network_speaker_sourcing = _kns_component_present(text, KNS_NETWORK_SPEAKER_SOURCING_TERMS)
     has_network = _kns_component_present(text, KNS_NETWORK_TERMS)
-    has_support = _kns_component_present(text, KNS_SUPPORT_TERMS)
+    if not has_support_opportunity:
+        has_network = has_network or _kns_component_present(text, KNS_NETWORK_EVENT_TERMS)
+    has_support = has_support_opportunity or (
+        not has_network_speaker_sourcing and _kns_component_present(text, KNS_SUPPORT_TERMS)
+    )
     missing = []
     if not has_knowledge:
         missing.append("knowledge")
@@ -4299,6 +4394,7 @@ def _safe_task_summary(task: dict[str, Any], task_sources: dict[str, list[dict[s
         "status": props.get("hs_task_status") or "",
         "priority": props.get("hs_task_priority") or "",
         "type": props.get("hs_task_type") or "",
+        "native_reminder_at": props.get("hs_task_reminders") or "",
         "last_modified_at": props.get("hs_lastmodifieddate") or "",
         "associated_via": task_sources.get(task_id, []),
     }
@@ -6801,6 +6897,353 @@ def _assert_company_access(company_id: str, scope: dict[str, Any]) -> dict[str, 
     return company
 
 
+def _task_marker(value: Any) -> str:
+    return re.sub(r"\s+", " ", str(value or "").strip().lower())
+
+
+def _is_task_approval_marker(value: Any, allowed: set[str]) -> bool:
+    return _task_marker(value) in allowed
+
+
+def _task_local_timezone() -> ZoneInfo | timezone:
+    try:
+        return ZoneInfo("Asia/Singapore")
+    except ZoneInfoNotFoundError:
+        return SINGAPORE_TIMEZONE
+
+
+def _parse_task_due_datetime(value: Any) -> datetime:
+    raw = str(value or "").strip()
+    if not raw:
+        raise ScopeError("Task due_at is required.")
+    local_tz = _task_local_timezone()
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", raw):
+        try:
+            due_date = date.fromisoformat(raw)
+        except ValueError as error:
+            raise ScopeError("Task due_at must be an ISO date or timestamp.") from error
+        parsed = datetime.combine(due_date, datetime_time(TASK_DEFAULT_DUE_HOUR_LOCAL, 0), tzinfo=local_tz)
+        return parsed.astimezone(timezone.utc)
+    try:
+        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError as error:
+        raise ScopeError("Task due_at must be an ISO date or timestamp.") from error
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=local_tz)
+    return parsed.astimezone(timezone.utc)
+
+
+def _task_due_iso(value: Any) -> str:
+    return _parse_task_due_datetime(value).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def _assert_not_past_task_due(due_dt: datetime) -> None:
+    local_due = due_dt.astimezone(_task_local_timezone()).date()
+    today = datetime.now(_task_local_timezone()).date()
+    if local_due < today:
+        raise ScopeError("Task due_at cannot be in the past.")
+
+
+def _task_native_reminder_ms(due_dt: datetime) -> str:
+    reminder_dt = due_dt - timedelta(days=1)
+    if reminder_dt <= datetime.now(timezone.utc):
+        return ""
+    return str(int(reminder_dt.timestamp() * 1000))
+
+
+def _normalize_task_subject(value: Any) -> str:
+    text = html.unescape(str(value or "")).lower()
+    text = re.sub(r"[^a-z0-9]+", " ", text)
+    return " ".join(text.split())
+
+
+def _safe_slack_permalink(value: Any) -> str:
+    permalink = str(value or "").strip()
+    if not permalink:
+        return ""
+    parsed = urllib.parse.urlparse(permalink)
+    if parsed.scheme != "https" or parsed.netloc != "staffany.slack.com" or not parsed.path.startswith("/archives/"):
+        raise ScopeError("Slack permalink must be a staffany.slack.com /archives/ URL.")
+    return permalink
+
+
+def _safe_task_body(source_summary: Any = "", slack_permalink: Any = "") -> str:
+    lines: list[str] = []
+    summary = _short_text(str(source_summary or ""), 1000)
+    permalink = _safe_slack_permalink(slack_permalink)
+    if summary:
+        lines.append(f"NurtureAny source summary: {summary}")
+    if permalink:
+        lines.append(f"Slack source: {permalink}")
+    lines.append("Created by NurtureAny after explicit Slack task approval.")
+    return "\n".join(lines)[:4000]
+
+
+def _hubspot_task_association(object_type: str, object_id: Any) -> dict[str, Any]:
+    association_type_id = TASK_ASSOCIATION_TYPE_IDS[object_type]
+    return {
+        "to": {"id": str(object_id)},
+        "types": [{"associationCategory": "HUBSPOT_DEFINED", "associationTypeId": association_type_id}],
+    }
+
+
+def _assert_object_associated_to_company(object_type: str, object_id: Any, company_id: str) -> None:
+    normalized_id = str(object_id or "").strip()
+    if not normalized_id:
+        return
+    from_type = "contacts" if object_type == "contact" else "deals"
+    company_ids = _association_ids(from_type, normalized_id, "companies", 20)
+    if str(company_id) not in [str(candidate) for candidate in company_ids]:
+        raise ScopeError(f"Selected {object_type}_id is not associated to the scoped HubSpot company.")
+
+
+def _task_account_ref(company: dict[str, Any]) -> dict[str, Any]:
+    summary = _summarize_company(company)
+    return {
+        "company_id": summary.get("company_id"),
+        "company_name": summary.get("name"),
+        "country": summary.get("country"),
+        "owner_id": summary.get("owner_id"),
+        "owner_email": summary.get("owner_email"),
+    }
+
+
+def _resolve_scoped_task_company(company_id: Any, company_name: Any, scope: dict[str, Any]) -> dict[str, Any]:
+    normalized_company_id = _company_id_from_ref(company_id)
+    if normalized_company_id:
+        return _assert_company_access(normalized_company_id, scope)
+    name = _company_name_ref(company_name)
+    if not name:
+        raise ScopeError("Provide a scoped HubSpot company_id or exact company_name.")
+    resolved = _resolve_scoped_company_name(name, scope, limit=5)
+    if resolved.get("status") == "resolved" and resolved.get("company_id"):
+        return _assert_company_access(str(resolved["company_id"]), scope)
+    if resolved.get("status") == "ambiguous":
+        raise ScopeError("Company name is ambiguous; provide the exact scoped HubSpot company_id.")
+    raise ScopeError("Scoped HubSpot target account was not found.")
+
+
+def _sales_task_owner_for_company(company: dict[str, Any], scope: dict[str, Any], owner_email: Any = "") -> tuple[str, str]:
+    company_owner_id = str(company.get("properties", {}).get("hubspot_owner_id") or "")
+    if not company_owner_id:
+        raise ScopeError("Scoped HubSpot company has no owner; cannot create a sales-owned task.")
+    company_owner_email = _owner_email_by_id(company_owner_id)
+    target_email = _normalize_email(str(owner_email or ""))
+    if target_email:
+        target_owner_id, target_owner_email = _target_owner_id_for_scope(scope, target_email)
+        if str(target_owner_id or "") != company_owner_id:
+            raise ScopeError(
+                "Task owner must match the scoped HubSpot company owner. Fix HubSpot ownership before assigning a different AE."
+            )
+        return company_owner_id, target_owner_email or company_owner_email
+    if scope.get("kind") == "ae" and str(scope.get("owner_id") or "") != company_owner_id:
+        raise ScopeError("Caller is not authorized to create tasks for another owner's account.")
+    return company_owner_id, company_owner_email
+
+
+def _task_duplicate_window(due_dt: datetime) -> tuple[str, str]:
+    local_due = due_dt.astimezone(_task_local_timezone()).date()
+    start = local_due - timedelta(days=TASK_DUPLICATE_WINDOW_DAYS)
+    end = local_due + timedelta(days=TASK_DUPLICATE_WINDOW_DAYS)
+    return start.isoformat(), end.isoformat()
+
+
+def _task_sources_include_selected(
+    sources: list[dict[str, str]],
+    contact_id: str = "",
+    deal_id: str = "",
+) -> bool:
+    if contact_id:
+        return any(source.get("object_type") == "contact" and str(source.get("object_id")) == str(contact_id) for source in sources)
+    if deal_id:
+        return any(source.get("object_type") == "deal" and str(source.get("object_id")) == str(deal_id) for source in sources)
+    return True
+
+
+def _find_duplicate_sales_tasks(
+    company: dict[str, Any],
+    owner_id: str,
+    subject: str,
+    due_dt: datetime,
+    contact_id: str = "",
+    deal_id: str = "",
+) -> list[dict[str, Any]]:
+    company_id = str(company.get("id") or "")
+    if not company_id:
+        return []
+    due_start, due_end = _task_duplicate_window(due_dt)
+    task_data = _task_search(_task_search_filters(owner_id, due_start, due_end), limit=100)
+    task_ids = [str(task.get("id") or "") for task in task_data.get("results", []) if task.get("id")]
+    task_links = _task_company_links_for_tasks(task_ids)
+    subject_key = _normalize_task_subject(subject)
+    duplicates: list[dict[str, Any]] = []
+    for task in task_data.get("results", []):
+        task_id = str(task.get("id") or "")
+        if not task_id or not _is_incomplete_task(task):
+            continue
+        props = task.get("properties", {})
+        if str(props.get("hubspot_owner_id") or "") != str(owner_id):
+            continue
+        if _normalize_task_subject(props.get("hs_task_subject")) != subject_key:
+            continue
+        links = task_links.get(task_id, {})
+        if company_id not in [str(candidate) for candidate in links.get("company_ids", [])]:
+            continue
+        sources = links.get("company_sources", {}).get(company_id, [])
+        if not _task_sources_include_selected(sources, contact_id, deal_id):
+            continue
+        duplicates.append(_safe_task_summary(task, {task_id: sources}))
+    return _sort_tasks_by_due_at(duplicates)
+
+
+def _build_sales_task_preview(
+    slack_user_email: str,
+    company_id: Any = "",
+    company_name: Any = "",
+    subject: Any = "",
+    due_at: Any = "",
+    contact_id: Any = "",
+    deal_id: Any = "",
+    owner_email: Any = "",
+    source_summary: Any = "",
+    slack_permalink: Any = "",
+    priority: str = "HIGH",
+    task_type: str = "TODO",
+) -> dict[str, Any]:
+    scope = _caller_scope(slack_user_email)
+    if scope["kind"] == "blocked":
+        raise ScopeError("Caller identity is not mapped to an allowed scope.")
+    company = _resolve_scoped_task_company(company_id, company_name, scope)
+    normalized_company_id = str(company.get("id") or "")
+    normalized_contact_id = str(contact_id or "").strip()
+    normalized_deal_id = str(deal_id or "").strip()
+    _assert_object_associated_to_company("contact", normalized_contact_id, normalized_company_id)
+    _assert_object_associated_to_company("deal", normalized_deal_id, normalized_company_id)
+
+    due_dt = _parse_task_due_datetime(due_at)
+    _assert_not_past_task_due(due_dt)
+    due_iso = due_dt.replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    owner_id, resolved_owner_email = _sales_task_owner_for_company(company, scope, owner_email)
+    safe_subject = _short_text(str(subject or "").strip(), 180)
+    if not safe_subject:
+        raise ScopeError("Task subject is required.")
+    safe_priority = str(priority or "HIGH").strip().upper()
+    if safe_priority not in {"LOW", "MEDIUM", "HIGH"}:
+        safe_priority = "HIGH"
+    safe_type = str(task_type or "TODO").strip().upper()
+    if safe_type not in {"TODO", "CALL", "EMAIL"}:
+        safe_type = "TODO"
+
+    body = _safe_task_body(source_summary, slack_permalink)
+    properties = {
+        "hs_timestamp": due_iso,
+        "hs_task_body": body,
+        "hubspot_owner_id": owner_id,
+        "hs_task_subject": safe_subject,
+        "hs_task_status": "NOT_STARTED",
+        "hs_task_priority": safe_priority,
+        "hs_task_type": safe_type,
+    }
+    reminder_ms = _task_native_reminder_ms(due_dt)
+    if reminder_ms:
+        properties["hs_task_reminders"] = reminder_ms
+
+    associations = [_hubspot_task_association("company", normalized_company_id)]
+    if normalized_contact_id:
+        associations.append(_hubspot_task_association("contact", normalized_contact_id))
+    if normalized_deal_id:
+        associations.append(_hubspot_task_association("deal", normalized_deal_id))
+
+    duplicates = _find_duplicate_sales_tasks(
+        company,
+        owner_id,
+        safe_subject,
+        due_dt,
+        contact_id=normalized_contact_id,
+        deal_id=normalized_deal_id,
+    )
+    preview_properties = {key: value for key, value in properties.items() if key != "hs_task_body"}
+    preview_properties["hs_task_body_summary"] = _short_text(body, 260)
+    return {
+        "scope": scope,
+        "company": company,
+        "owner_id": owner_id,
+        "owner_email": resolved_owner_email,
+        "properties": properties,
+        "preview_properties": preview_properties,
+        "associations": associations,
+        "duplicate_active_tasks": duplicates,
+        "contact_id": normalized_contact_id,
+        "deal_id": normalized_deal_id,
+    }
+
+
+def _task_access_context(task_id: Any, scope: dict[str, Any], company_id: Any = "") -> dict[str, Any]:
+    normalized_task_id = str(task_id or "").strip()
+    if not normalized_task_id:
+        raise ScopeError("Task ID is required.")
+    task = _get(
+        f"/crm/v3/objects/tasks/{urllib.parse.quote(normalized_task_id, safe='')}",
+        {"properties": ",".join(TASK_PROPERTIES)},
+    )
+    links = _task_company_links_for_tasks([normalized_task_id]).get(
+        normalized_task_id, {"company_ids": [], "company_sources": {}, "truncated": False}
+    )
+    requested_company_id = _company_id_from_ref(company_id)
+    if requested_company_id:
+        company = _assert_company_access(requested_company_id, scope)
+        if requested_company_id not in [str(candidate) for candidate in links.get("company_ids", [])]:
+            raise ScopeError("Task is not associated to the requested scoped HubSpot company.")
+        return {"task": task, "company": company, "links": links}
+
+    companies = _batch_read("companies", [str(candidate) for candidate in links.get("company_ids", [])], COMPANY_PROPERTIES)
+    accessible = [company for company in companies if _has_company_access(company, scope)]
+    if not accessible:
+        raise ScopeError("Task is outside caller scope or is not associated to a scoped HubSpot target account.")
+    return {"task": task, "company": accessible[0], "links": links}
+
+
+def _task_update_preview_properties(action: Any, due_at: Any = "") -> tuple[str, dict[str, str], list[str]]:
+    normalized_action = _task_marker(action or "reschedule")
+    if normalized_action in {"complete", "mark done", "done", "completed"}:
+        return "complete", {"hs_task_status": "COMPLETED"}, sorted(TASK_COMPLETE_APPROVAL_MARKERS)
+    if normalized_action in {"reschedule", "update", "update task", "reminder", "due", "due date", "due-date"}:
+        due_dt = _parse_task_due_datetime(due_at)
+        _assert_not_past_task_due(due_dt)
+        properties = {"hs_timestamp": due_dt.replace(microsecond=0).isoformat().replace("+00:00", "Z")}
+        reminder_ms = _task_native_reminder_ms(due_dt)
+        if reminder_ms:
+            properties["hs_task_reminders"] = reminder_ms
+        return "reschedule", properties, sorted(TASK_RESCHEDULE_APPROVAL_MARKERS)
+    raise ScopeError("Task update action must be reschedule or complete.")
+
+
+def _parse_task_reminder_as_of(value: Any) -> datetime:
+    raw = str(value or "").strip()
+    local_tz = _task_local_timezone()
+    if not raw:
+        return datetime.now(local_tz)
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", raw):
+        return datetime.combine(date.fromisoformat(raw), datetime.min.time(), tzinfo=local_tz)
+    parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=local_tz)
+    return parsed.astimezone(local_tz)
+
+
+def _task_due_bucket(due_at: Any, today: date, include_tomorrow: bool) -> str:
+    due_date = _date_value(str(due_at or ""))
+    if not due_date:
+        return ""
+    if due_date < today:
+        return "overdue"
+    if due_date == today:
+        return "due_today"
+    if include_tomorrow and due_date == today + timedelta(days=1):
+        return "due_tomorrow"
+    return ""
+
+
 def _summarize_company_with_contacts(
     company: dict[str, Any],
     contacts: list[dict[str, Any]],
@@ -6913,57 +7356,6 @@ def _role_is_decision_maker(role: str) -> bool:
     return any(marker in text for marker in markers)
 
 
-def _contact_sort_label(contact: dict[str, Any]) -> str:
-    return " ".join(
-        str(contact.get(key) or "")
-        for key in ("display_name", "persona", "buying_role", "channel_fit", "contact_confidence")
-    ).strip()
-
-
-def _contact_title_text(contact: dict[str, Any]) -> str:
-    return str(contact.get("persona") or "").strip()
-
-
-def _contact_confidence_rank(contact: dict[str, Any]) -> int:
-    confidence = str(contact.get("contact_confidence") or "").strip().lower()
-    if confidence == "high":
-        return 0
-    if confidence == "medium":
-        return 1
-    if contact.get("is_verified_decision_maker"):
-        return 1
-    if contact.get("is_role_inferred_decision_maker"):
-        return 2
-    if confidence == "low":
-        return 4
-    return 3
-
-
-def _operating_contact_priority(contact: dict[str, Any]) -> tuple[int, str]:
-    text = _normalized_words(_contact_sort_label(contact))
-    role = str(contact.get("buying_role") or "").strip().upper()
-    if "CHAMPION" in role:
-        return (0, "champion")
-    if "INFLUENCER" in role:
-        return (1, "influencer")
-    if ("hr" in text or "people" in text) and ("director" in text or "manager" in text or "head" in text):
-        return (2, "hr_people")
-    if ("ops" in text or "operations" in text) and ("director" in text or "manager" in text or "head" in text):
-        return (3, "operations")
-    if "area manager" in text:
-        return (4, "area_manager")
-    if "outlet manager" in text:
-        return (5, "outlet_manager")
-    if any(marker in text for marker in ("finance manager", "payroll manager", "admin manager")):
-        return (6, "finance_payroll_admin")
-    return (99, "")
-
-
-def _is_champion_or_influencer_candidate(contact: dict[str, Any]) -> bool:
-    rank, _label = _operating_contact_priority(contact)
-    return rank < 99
-
-
 def _usable_contact_count(contacts: list[dict[str, Any]]) -> int:
     usable = 0
     for contact in contacts:
@@ -6978,78 +7370,6 @@ def _usable_contact_count(contacts: list[dict[str, Any]]) -> int:
         ):
             usable += 1
     return usable
-
-
-def _rank_singapore_people_candidates(contacts: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    ranked = []
-    for contact in contacts:
-        priority, persona_type = _operating_contact_priority(contact)
-        candidate = {
-            "contact_id": contact.get("contact_id"),
-            "display_name": contact.get("display_name"),
-            "persona": contact.get("persona"),
-            "buying_role": contact.get("buying_role"),
-            "persona_type": "decision_maker"
-            if contact.get("is_verified_decision_maker") or contact.get("is_role_inferred_decision_maker")
-            else persona_type or "associated_contact",
-            "decision_maker_status": "verified"
-            if contact.get("is_verified_decision_maker")
-            else "needs-check"
-            if contact.get("is_role_inferred_decision_maker")
-            else "",
-            "phone_verification_status": contact.get("phone_verification_status"),
-            "phone_verification_source": contact.get("phone_verification_source"),
-            "phone_verified_at": contact.get("phone_verified_at"),
-            "phone_available": bool(contact.get("phone_available")),
-            "is_phone_verified": bool(contact.get("is_phone_verified")),
-            "contact_confidence": contact.get("contact_confidence") or "needs-check",
-            "source": "HubSpot associated contact fields",
-            "ae_validation_status": "not_attempted",
-        }
-        ranked.append(
-            {
-                **candidate,
-                "_sort": (
-                    0 if contact.get("is_verified_decision_maker") else 1 if contact.get("is_role_inferred_decision_maker") else 2,
-                    priority,
-                    _contact_confidence_rank(contact),
-                    str(contact.get("display_name") or ""),
-                ),
-            }
-        )
-    ranked.sort(key=lambda item: item["_sort"])
-    for item in ranked:
-        item.pop("_sort", None)
-    return ranked
-
-
-def _singapore_stakeholder_slots(contacts: list[dict[str, Any]]) -> dict[str, Any]:
-    ranked = _rank_singapore_people_candidates(contacts)
-    decision_maker = next((item for item in ranked if item.get("decision_maker_status") == "verified"), None)
-    if decision_maker is None:
-        decision_maker = next((item for item in ranked if item.get("decision_maker_status") == "needs-check"), None)
-    operating_candidates = [
-        item
-        for item in ranked
-        if item.get("persona_type") in {"champion", "influencer", "hr_people", "operations", "area_manager", "outlet_manager", "finance_payroll_admin"}
-    ]
-    operating_contact = None
-    if operating_candidates:
-        if decision_maker:
-            operating_contact = next(
-                (item for item in operating_candidates if item.get("contact_id") != decision_maker.get("contact_id")),
-                operating_candidates[0],
-            )
-        else:
-            operating_contact = operating_candidates[0]
-    return {
-        "decision_maker": decision_maker,
-        "operating_contact": operating_contact,
-        "champion_influencer": operating_contact,
-        "distinct_contact_slots": bool(
-            decision_maker and operating_contact and decision_maker.get("contact_id") != operating_contact.get("contact_id")
-        ),
-    }
 
 
 def _safe_deal(deal: dict[str, Any]) -> dict[str, Any]:
@@ -13154,7 +13474,7 @@ def prepare_sales_navigator_decision_maker_queue(
             "truncated": len(queue) > requested_limit,
             "will_mutate_hubspot": False,
             "confidence": "needs-check" if not queue or len(queue) > requested_limit else "verified",
-            "caveat": "No LinkedIn scraping, no automated Sales Navigator browser action, no contact PII reveal, and no HubSpot mutation. Exa/Lusha are separate approved cost/credit-reporting flows.",
+            "caveat": "No LinkedIn scraping, no automated Sales Navigator browser action, no contact PII reveal, and no HubSpot mutation. Exa/Lusha/Prospeo are separate approved cost/credit-reporting flows.",
         }
     except ScopeError as error:
         return _blocked(str(error), {"caller_email": slack_user_email, "owner_email": owner_email})
@@ -13744,6 +14064,362 @@ def list_sales_followup_tasks(
         }
     except ScopeError as error:
         return _blocked(str(error), {"caller_email": slack_user_email, "owner_email": owner_email})
+    except HubSpotError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email})
+
+
+@mcp.tool()
+def preview_hubspot_sales_task(
+    slack_user_email: str,
+    company_id: str = "",
+    company_name: str = "",
+    subject: str = "",
+    due_at: str = "",
+    contact_id: str = "",
+    deal_id: str = "",
+    owner_email: str = "",
+    source_summary: str = "",
+    slack_permalink: str = "",
+    priority: str = "HIGH",
+    task_type: str = "TODO",
+    approval_marker: str = "",
+) -> dict[str, Any]:
+    """Preview a scoped HubSpot sales task create payload. This tool does not mutate HubSpot."""
+
+    try:
+        preview = _build_sales_task_preview(
+            slack_user_email=slack_user_email,
+            company_id=company_id,
+            company_name=company_name,
+            subject=subject,
+            due_at=due_at,
+            contact_id=contact_id,
+            deal_id=deal_id,
+            owner_email=owner_email,
+            source_summary=source_summary,
+            slack_permalink=slack_permalink,
+            priority=priority,
+            task_type=task_type,
+        )
+        scope = preview["scope"]
+        marker_ok = _is_task_approval_marker(approval_marker, TASK_CREATE_APPROVAL_MARKERS)
+        return {
+            "answer": {
+                "operation": "create_hubspot_task",
+                "will_mutate_hubspot": False,
+                "company": _task_account_ref(preview["company"]),
+                "contact_id": preview["contact_id"],
+                "deal_id": preview["deal_id"],
+                "owner_id": preview["owner_id"],
+                "owner_email": preview["owner_email"],
+                "properties": preview["preview_properties"],
+                "association_type_ids": TASK_ASSOCIATION_TYPE_IDS,
+                "duplicate_active_tasks": preview["duplicate_active_tasks"],
+                "duplicate_suppressed": bool(preview["duplicate_active_tasks"]),
+                "required_approval_markers": sorted(TASK_CREATE_APPROVAL_MARKERS),
+                "approval_marker_received": _task_marker(approval_marker),
+                "approval_ready": marker_ok and not preview["duplicate_active_tasks"],
+            },
+            "source": "NurtureAny HubSpot task create preview over scoped HubSpot target account",
+            "scope": _scope_response(scope, list(scope.get("countries", ()))),
+            "confidence": "needs-check" if preview["duplicate_active_tasks"] else "verified",
+            "caveat": (
+                "Preview only. HubSpot Task hs_timestamp is the due/reminder source; raw task bodies are not returned. "
+                "Reply exactly `create task` or `confirm task` to approve creation."
+            ),
+        }
+    except ScopeError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email, "company_id": company_id, "company_name": company_name})
+    except HubSpotError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email})
+
+
+@mcp.tool()
+def create_approved_hubspot_sales_task(
+    slack_user_email: str,
+    company_id: str = "",
+    company_name: str = "",
+    subject: str = "",
+    due_at: str = "",
+    approval_marker: str = "",
+    contact_id: str = "",
+    deal_id: str = "",
+    owner_email: str = "",
+    source_summary: str = "",
+    slack_permalink: str = "",
+    priority: str = "HIGH",
+    task_type: str = "TODO",
+) -> dict[str, Any]:
+    """Create one scoped HubSpot sales task after exact preview approval."""
+
+    try:
+        if not _is_task_approval_marker(approval_marker, TASK_CREATE_APPROVAL_MARKERS):
+            return _blocked(
+                "HubSpot task creation requires exact approval marker: create task or confirm task.",
+                {"caller_email": slack_user_email, "approval_marker": _task_marker(approval_marker)},
+            )
+        preview = _build_sales_task_preview(
+            slack_user_email=slack_user_email,
+            company_id=company_id,
+            company_name=company_name,
+            subject=subject,
+            due_at=due_at,
+            contact_id=contact_id,
+            deal_id=deal_id,
+            owner_email=owner_email,
+            source_summary=source_summary,
+            slack_permalink=slack_permalink,
+            priority=priority,
+            task_type=task_type,
+        )
+        if preview["duplicate_active_tasks"]:
+            return _blocked(
+                "Duplicate active HubSpot task found for this scoped account, owner, subject, and due window.",
+                {
+                    "caller_email": slack_user_email,
+                    "company": _task_account_ref(preview["company"]),
+                    "duplicate_active_tasks": preview["duplicate_active_tasks"],
+                },
+            )
+        created = _post(
+            "/crm/v3/objects/tasks",
+            {"properties": preview["properties"], "associations": preview["associations"]},
+        )
+        created_task = created if created.get("properties") else {"id": created.get("id"), "properties": preview["properties"]}
+        created_task_id = str(created_task.get("id") or "")
+        source_map = {created_task_id: [{"object_type": "company", "object_id": str(preview["company"].get("id") or "")}]}
+        return {
+            "answer": {
+                "operation": "create_hubspot_task",
+                "will_mutate_hubspot": True,
+                "created_task": _safe_task_summary(created_task, source_map),
+                "company": _task_account_ref(preview["company"]),
+                "contact_id": preview["contact_id"],
+                "deal_id": preview["deal_id"],
+                "approval_marker": _task_marker(approval_marker),
+            },
+            "source": "HubSpot Tasks API POST /crm/v3/objects/tasks",
+            "scope": _scope_response(preview["scope"], list(preview["scope"].get("countries", ()))),
+            "confidence": "verified",
+            "caveat": "Created one approved HubSpot Task. Task body was written as safe summary/provenance only and is not returned.",
+        }
+    except ScopeError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email, "company_id": company_id, "company_name": company_name})
+    except HubSpotError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email})
+
+
+@mcp.tool()
+def preview_hubspot_task_update(
+    slack_user_email: str,
+    task_id: str,
+    action: str = "reschedule",
+    due_at: str = "",
+    company_id: str = "",
+    approval_marker: str = "",
+) -> dict[str, Any]:
+    """Preview a scoped HubSpot task reschedule/reminder update or completion."""
+
+    try:
+        scope = _caller_scope(slack_user_email)
+        if scope["kind"] == "blocked":
+            return _blocked("Caller identity is not mapped to an allowed scope.", {"caller_email": slack_user_email})
+        context = _task_access_context(task_id, scope, company_id)
+        normalized_action, properties, markers = _task_update_preview_properties(action, due_at)
+        if normalized_action == "complete":
+            marker_ok = _is_task_approval_marker(approval_marker, TASK_COMPLETE_APPROVAL_MARKERS)
+        else:
+            marker_ok = _is_task_approval_marker(approval_marker, TASK_RESCHEDULE_APPROVAL_MARKERS)
+        links = context["links"]
+        return {
+            "answer": {
+                "operation": f"{normalized_action}_hubspot_task",
+                "will_mutate_hubspot": False,
+                "task": _safe_task_summary(context["task"], {str(task_id): links.get("company_sources", {}).get(str(context["company"].get("id")), [])}),
+                "company": _task_account_ref(context["company"]),
+                "properties": properties,
+                "required_approval_markers": markers,
+                "approval_marker_received": _task_marker(approval_marker),
+                "approval_ready": marker_ok,
+            },
+            "source": "NurtureAny HubSpot task update preview over scoped HubSpot target account",
+            "scope": _scope_response(scope, list(scope.get("countries", ()))),
+            "confidence": "verified",
+            "caveat": "Preview only. Use exact approval marker before PATCH. `run`, `ok`, `yes`, `+1`, and `^` do not approve HubSpot task writes.",
+        }
+    except ScopeError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email, "task_id": task_id})
+    except HubSpotError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email, "task_id": task_id})
+
+
+@mcp.tool()
+def apply_approved_hubspot_task_update(
+    slack_user_email: str,
+    task_id: str,
+    action: str = "reschedule",
+    approval_marker: str = "",
+    due_at: str = "",
+    company_id: str = "",
+) -> dict[str, Any]:
+    """Apply an approved scoped HubSpot task reschedule/reminder update or completion."""
+
+    try:
+        normalized_action, properties, _markers = _task_update_preview_properties(action, due_at)
+        if normalized_action == "complete":
+            allowed = TASK_COMPLETE_APPROVAL_MARKERS
+            marker_label = "mark done or complete task"
+        else:
+            allowed = TASK_RESCHEDULE_APPROVAL_MARKERS
+            marker_label = "update task or confirm reminder"
+        if not _is_task_approval_marker(approval_marker, allowed):
+            return _blocked(
+                f"HubSpot task {normalized_action} requires exact approval marker: {marker_label}.",
+                {"caller_email": slack_user_email, "task_id": task_id, "approval_marker": _task_marker(approval_marker)},
+            )
+        scope = _caller_scope(slack_user_email)
+        if scope["kind"] == "blocked":
+            return _blocked("Caller identity is not mapped to an allowed scope.", {"caller_email": slack_user_email})
+        context = _task_access_context(task_id, scope, company_id)
+        updated = _patch(
+            f"/crm/v3/objects/tasks/{urllib.parse.quote(str(task_id), safe='')}",
+            {"properties": properties},
+        )
+        updated_task = updated if updated.get("properties") else {
+            "id": str(task_id),
+            "properties": {**context["task"].get("properties", {}), **properties},
+        }
+        links = context["links"]
+        return {
+            "answer": {
+                "operation": f"{normalized_action}_hubspot_task",
+                "will_mutate_hubspot": True,
+                "updated_task": _safe_task_summary(updated_task, {str(task_id): links.get("company_sources", {}).get(str(context["company"].get("id")), [])}),
+                "company": _task_account_ref(context["company"]),
+                "approval_marker": _task_marker(approval_marker),
+                "updated_properties": properties,
+            },
+            "source": "HubSpot Tasks API PATCH /crm/v3/objects/tasks/{taskId}",
+            "scope": _scope_response(scope, list(scope.get("countries", ()))),
+            "confidence": "verified",
+            "caveat": "Updated only approved HubSpot Task fields. Raw task body was not read or returned.",
+        }
+    except ScopeError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email, "task_id": task_id})
+    except HubSpotError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email, "task_id": task_id})
+
+
+@mcp.tool()
+def list_due_hubspot_sales_task_reminders(
+    slack_user_email: str,
+    mode: str = "morning",
+    as_of: str = "",
+    countries: list[str] | None = None,
+    owner_email: str | None = None,
+    limit: int = 100,
+) -> dict[str, Any]:
+    """List incomplete scoped HubSpot sales tasks due for reminder digest windows."""
+
+    try:
+        scope = _caller_scope(slack_user_email)
+        if scope["kind"] == "blocked":
+            return _blocked("Caller identity is not mapped to an allowed scope.", {"caller_email": slack_user_email})
+        selected = _safe_countries(countries, scope["countries"])
+        if not selected:
+            return _blocked("Requested countries are outside caller scope.", _scope_response(scope, []))
+        normalized_mode = "eod" if _task_marker(mode) in {"eod", "end of day", "evening"} else "morning"
+        local_as_of = _parse_task_reminder_as_of(as_of)
+        today = local_as_of.date()
+        include_tomorrow = normalized_mode == "morning"
+        upper_due = today + timedelta(days=1 if include_tomorrow else 0)
+        requested_limit = _bounded_int(limit, default=100, maximum=TASK_RETURN_LIMIT)
+        target_owner_id, target_owner_email = _target_owner_id_for_scope(scope, owner_email)
+        search_limit = min(TASK_SEARCH_RESULT_LIMIT, max(requested_limit * 5, 50))
+        task_data = _task_search(_task_search_filters(target_owner_id, due_end=upper_due.isoformat()), search_limit)
+        task_ids = [str(task.get("id") or "") for task in task_data.get("results", []) if task.get("id")]
+        task_links = _task_company_links_for_tasks(task_ids)
+        candidate_company_ids: list[str] = []
+        for links in task_links.values():
+            for linked_company_id in links.get("company_ids", []):
+                if linked_company_id not in candidate_company_ids:
+                    candidate_company_ids.append(linked_company_id)
+        companies = {
+            str(company.get("id")): company
+            for company in _batch_read("companies", candidate_company_ids, COMPANY_PROPERTIES)
+            if company.get("id")
+        }
+        buckets: dict[str, list[dict[str, Any]]] = {"overdue": [], "due_today": [], "due_tomorrow": []}
+        seen_task_ids: set[str] = set()
+        association_truncated = False
+        for task in task_data.get("results", []):
+            task_id = str(task.get("id") or "")
+            if not task_id or task_id in seen_task_ids or not _is_incomplete_task(task):
+                continue
+            props = task.get("properties", {})
+            bucket = _task_due_bucket(props.get("hs_timestamp"), today, include_tomorrow)
+            if not bucket:
+                continue
+            links = task_links.get(task_id, {})
+            association_truncated = association_truncated or bool(links.get("truncated"))
+            task_owner_id = str(props.get("hubspot_owner_id") or "")
+            for linked_company_id in links.get("company_ids", []):
+                company = companies.get(str(linked_company_id))
+                if not company or not _has_company_access(company, scope):
+                    continue
+                company_props = company.get("properties", {})
+                if company_props.get("company_country") not in selected:
+                    continue
+                company_owner_id = str(company_props.get("hubspot_owner_id") or "")
+                if target_owner_id and company_owner_id != str(target_owner_id):
+                    continue
+                if task_owner_id and company_owner_id != task_owner_id:
+                    continue
+                task_summary = _safe_task_summary(
+                    task,
+                    {task_id: links.get("company_sources", {}).get(str(linked_company_id), [])},
+                )
+                summary = _summarize_company(company)
+                buckets[bucket].append(
+                    {
+                        "company_id": summary.get("company_id"),
+                        "company_name": summary.get("name"),
+                        "country": summary.get("country"),
+                        "owner_email": summary.get("owner_email"),
+                        **task_summary,
+                    }
+                )
+                seen_task_ids.add(task_id)
+                break
+
+        total_tasks = sum(len(items) for items in buckets.values())
+        truncated = bool(_search_metadata(task_data).get("truncated") or association_truncated or total_tasks > requested_limit)
+        remaining = requested_limit
+        returned_buckets: dict[str, list[dict[str, Any]]] = {}
+        for bucket_name in ["overdue", "due_today", "due_tomorrow"]:
+            sorted_items = _sort_tasks_by_due_at(buckets[bucket_name])
+            returned_buckets[bucket_name] = sorted_items[:remaining]
+            remaining = max(0, remaining - len(returned_buckets[bucket_name]))
+        return {
+            "answer": {
+                "mode": normalized_mode,
+                "date": today.isoformat(),
+                "window": "overdue, due today, due tomorrow" if include_tomorrow else "overdue, due today",
+                "buckets": returned_buckets,
+                "total_task_count": total_tasks,
+                "returned_task_count": sum(len(items) for items in returned_buckets.values()),
+                "will_mutate_hubspot": False,
+                "recurring_reminder_source": "HubSpot Task hs_timestamp; incomplete until hs_task_status=COMPLETED",
+            },
+            "source": "HubSpot Tasks API search over incomplete scoped sales-owned tasks",
+            "scope": _scope_response(scope, selected, target_owner_id, target_owner_email),
+            **_search_metadata(task_data),
+            "task_truncated": truncated,
+            "confidence": "needs-check" if truncated else "verified",
+            "caveat": "Reminder read only. Native hs_task_reminders is optional UI nudge, not recurring reminder truth.",
+        }
+    except (ScopeError, ValueError) as error:
+        return _blocked(str(error), {"caller_email": slack_user_email, "owner_email": owner_email or ""})
     except HubSpotError as error:
         return _blocked(str(error), {"caller_email": slack_user_email})
 
@@ -14438,6 +15114,43 @@ def score_nurture_accounts(
         return _blocked(str(error), {"caller_email": slack_user_email})
 
 
+
+def _singapore_lead_enrichment_deps() -> dict[str, Any]:
+    return {
+        "blocked": _blocked,
+        "bounded_int": _bounded_int,
+        "caller_scope": _caller_scope,
+        "coverage": _coverage,
+        "coverage_caveat": _coverage_caveat,
+        "batch_association_ids": _batch_association_ids,
+        "batch_read": _batch_read,
+        "company_search": _company_search,
+        "contact_properties": CONTACT_PROPERTIES,
+        "get_company": _get_company,
+        "safe_contact": _safe_contact,
+        "scope_response": _scope_response,
+        "score_company": _score_company,
+        "search_metadata": _search_metadata,
+        "short_text": _short_text,
+        "summarize_company_with_contacts": _summarize_company_with_contacts,
+        "target_filters": _target_filters,
+        "target_owner_id_for_scope": _target_owner_id_for_scope,
+        "buckets": SINGAPORE_LEAD_ENRICHMENT_BUCKETS,
+        "country": SINGAPORE_LEAD_ENRICHMENT_COUNTRY,
+        "default_batch_size": SINGAPORE_LEAD_ENRICHMENT_DEFAULT_BATCH_SIZE,
+        "default_limit": SINGAPORE_LEAD_ENRICHMENT_DEFAULT_LIMIT,
+        "max_limit": SINGAPORE_LEAD_ENRICHMENT_MAX_LIMIT,
+        "normalized_words": _normalized_words,
+        "phone_sources": PHONE_VERIFICATION_SOURCES,
+        "phone_stale_after_days": PHONE_VERIFICATION_DEFAULT_STALE_AFTER_DAYS,
+        "phone_statuses": PHONE_VERIFICATION_STATUSES,
+        "pilot_metrics": SINGAPORE_LEAD_ENRICHMENT_PILOT_METRICS,
+        "provider_jobs": SINGAPORE_LEAD_ENRICHMENT_PROVIDER_JOBS,
+        "scope_source": SCOPE_SOURCE,
+        "source_ladder": SINGAPORE_LEAD_ENRICHMENT_SOURCE_LADDER,
+    }
+
+
 @mcp.tool()
 def build_singapore_lead_enrichment_plan(
     slack_user_email: str,
@@ -14451,662 +15164,20 @@ def build_singapore_lead_enrichment_plan(
     """Build a review-first SG lead-enrichment plan for HubSpot companies before WhatsApp nurture."""
 
     try:
-        scope = _caller_scope(slack_user_email)
-        if scope["kind"] == "blocked":
-            return _blocked("Caller identity is not mapped to an allowed scope.", {"caller_email": slack_user_email})
-        if SINGAPORE_LEAD_ENRICHMENT_COUNTRY not in scope.get("countries", ()):
-            return _blocked(
-                "Singapore lead enrichment requires Singapore scope.",
-                _scope_response(scope, []),
-            )
-
-        requested_limit = _bounded_int(
-            limit,
-            default=SINGAPORE_LEAD_ENRICHMENT_DEFAULT_LIMIT,
-            maximum=SINGAPORE_LEAD_ENRICHMENT_MAX_LIMIT,
+        return _sg_lead_enrichment.build_singapore_lead_enrichment_plan(
+            slack_user_email,
+            deps=_singapore_lead_enrichment_deps(),
+            owner_email=owner_email,
+            company_ids=company_ids,
+            limit=limit,
+            batch_size=batch_size,
+            phone_stale_after_days=phone_stale_after_days,
+            output_mode=output_mode,
         )
-        requested_batch_size = _bounded_int(
-            batch_size,
-            default=SINGAPORE_LEAD_ENRICHMENT_DEFAULT_BATCH_SIZE,
-            maximum=SINGAPORE_LEAD_ENRICHMENT_DEFAULT_BATCH_SIZE,
-        )
-        requested_stale_days = _bounded_int(
-            phone_stale_after_days,
-            default=PHONE_VERIFICATION_DEFAULT_STALE_AFTER_DAYS,
-            maximum=3650,
-        )
-        requested_output_mode = str(output_mode or "full").strip().lower()
-        if requested_output_mode not in {"full", "compact"}:
-            requested_output_mode = "full"
-        target_owner_id, target_owner_email = _target_owner_id_for_scope(scope, owner_email)
-        metadata: dict[str, Any]
-        skipped_company_ids: list[dict[str, str]] = []
-
-        if company_ids:
-            input_ids = [str(company_id or "").strip() for company_id in company_ids if str(company_id or "").strip()]
-            selected_companies = []
-            for company_id in input_ids[:requested_limit]:
-                company = _get_company(company_id)
-                access_reason = _singapore_lead_enrichment_access_reason(company, scope, target_owner_id)
-                if access_reason:
-                    skipped_company_ids.append({"company_id": company_id, "reason": access_reason})
-                    continue
-                selected_companies.append(company)
-            metadata = {
-                "total": len(input_ids),
-                "requested_limit": requested_limit,
-                "returned_count": len(selected_companies),
-                "has_more": len(input_ids) > requested_limit,
-                "truncated": len(input_ids) > requested_limit,
-                "skipped_company_ids": skipped_company_ids,
-                "explicit_company_ids": True,
-            }
-        else:
-            data = _company_search(
-                _target_filters([SINGAPORE_LEAD_ENRICHMENT_COUNTRY], target_owner_id),
-                requested_limit,
-                maximum=SINGAPORE_LEAD_ENRICHMENT_MAX_LIMIT,
-            )
-            selected_companies = data.get("results", [])
-            metadata = {**_search_metadata(data), "explicit_company_ids": False}
-
-        company_ids_for_contacts = [str(company.get("id") or "") for company in selected_companies if company.get("id")]
-        contact_index = _batch_association_ids("companies", "contacts", company_ids_for_contacts)
-        raw_contacts_by_id = {
-            str(contact.get("id") or ""): contact
-            for contact in _batch_read(
-                "contacts",
-                sorted({contact_id for ids in contact_index.values() for contact_id in ids}),
-                CONTACT_PROPERTIES,
-            )
-            if contact.get("id")
-        }
-
-        rows = []
-        for company in selected_companies:
-            company_id = str(company.get("id") or "")
-            safe_contacts = [
-                _safe_contact(raw_contacts_by_id[contact_id], requested_stale_days)
-                for contact_id in contact_index.get(company_id, [])
-                if contact_id in raw_contacts_by_id
-            ]
-            rows.append(_singapore_lead_enrichment_row(company, safe_contacts, len(contact_index.get(company_id, [])), requested_stale_days))
-
-        rows.sort(
-            key=lambda row: (
-                SINGAPORE_LEAD_ENRICHMENT_BUCKETS.index(row["gap_bucket"])
-                if row.get("gap_bucket") in SINGAPORE_LEAD_ENRICHMENT_BUCKETS
-                else 99,
-                -row.get("priority_score", 0),
-                str(row.get("name") or ""),
-            )
-        )
-        buckets = {bucket: [] for bucket in SINGAPORE_LEAD_ENRICHMENT_BUCKETS}
-        for row in rows:
-            bucket_row = _singapore_bucket_row(row)
-            buckets.setdefault(row["gap_bucket"], []).append(bucket_row)
-            for secondary_bucket in row.get("secondary_buckets", []):
-                buckets.setdefault(secondary_bucket, []).append(bucket_row)
-
-        whatsapp_ready = [
-            _singapore_whatsapp_batch_row(row)
-            for row in rows
-            if row.get("gap_bucket") == "nurture_ready" and not row.get("do_not_contact")
-        ][:requested_batch_size]
-        buckets["ready_for_whatsapp_batch"] = [_singapore_bucket_row(row) for row in rows if row.get("gap_bucket") == "nurture_ready"][
-            :requested_batch_size
-        ]
-
-        account_rows = [_singapore_compact_account_row(row) for row in rows] if requested_output_mode == "compact" else rows
-        answer = {
-            "accounts": account_rows,
-            "output_mode": requested_output_mode,
-            "top_priority_accounts": [_singapore_compact_account_row(row) for row in rows[: min(10, len(rows))]],
-            "buckets": buckets,
-            "ready_for_whatsapp_batch": {
-                "account_count": len(whatsapp_ready),
-                "batch_size": requested_batch_size,
-                "draft_only": True,
-                "no_auto_send": True,
-                "kns_framework": "Knowledge / Network / Support",
-                "accounts": whatsapp_ready,
-            },
-            "pilot_contract": {
-                "ownership_policy": "Fixed AE account ownership is unchanged; owner_email scopes the plan but never reassigns accounts.",
-                "pilot_size": "Start with 20-30 priority accounts before scaling.",
-                "cost_mode": "capped_effective",
-                "cost_mode_policy": "Optimize for cost per usable AE handoff, not lowest cash spend. Paid steps run only when a real coverage gap remains.",
-                "khai_role": "Research, classify persona, verify company/title/duplicate/source, and hand off High/Medium confidence contacts.",
-                "ae_role": "Use the contact, validate commercial relevance through outreach, and update validation status within 3 working days.",
-                "ae_validation_options": ["valid", "wrong_person", "left_company", "no_response", "not_attempted"],
-                "definition_of_done_where_possible": [
-                    "1 verified decision maker",
-                    "1 champion/influencer or operating contact",
-                    "at least 3 usable contacts",
-                    "persona type captured",
-                    "source captured",
-                    "confidence level captured",
-                    "AE next action clear",
-                ],
-            },
-            "provider_waterfall_policy": _singapore_global_provider_waterfall_policy(),
-            "field_contract": {
-                "phone_statuses": sorted(PHONE_VERIFICATION_STATUSES),
-                "phone_sources": sorted(PHONE_VERIFICATION_SOURCES),
-                "truecaller_v1_policy": "Manual lookup/callability evidence only; no automated reverse lookup, scraping, or bulk enrichment.",
-                "prospeo_v1_1_policy": "Prospeo is a measured paid-provider pilot candidate only; no adapter, no auto-write, no bulk export, and no raw phone in default Slack summaries.",
-            },
-            "source_ladder": list(SINGAPORE_LEAD_ENRICHMENT_SOURCE_LADDER),
-            "counts": {
-                "account_count": len(rows),
-                "nurture_ready": len(buckets["nurture_ready"]),
-                "missing_associated_contact": len(buckets["missing_associated_contact"]),
-                "missing_decision_maker": len(buckets["missing_decision_maker"]),
-                "missing_verified_phone": len(buckets["missing_verified_phone"]),
-                "hubspot_rollup_mismatch": len(buckets["hubspot_rollup_mismatch"]),
-                "needs_paid_reveal": len(buckets["needs_paid_reveal"]),
-                "needs_manual_truecaller_check": len(buckets["needs_manual_truecaller_check"]),
-                "ready_for_whatsapp_batch": len(whatsapp_ready),
-            },
-        }
-        result_truncated = bool(metadata.get("truncated"))
-        return {
-            "answer": answer,
-            "source": "HubSpot Singapore companies, associated contact buying roles, NurtureAny phone-verification fields, and review-first enrichment ladder",
-            "scope": _scope_response(
-                scope,
-                [SINGAPORE_LEAD_ENRICHMENT_COUNTRY],
-                target_owner_id,
-                target_owner_email,
-            ),
-            **metadata,
-            "confidence": "needs-check" if result_truncated or any(row.get("gap_bucket") != "nurture_ready" for row in rows) else "verified",
-            "caveat": _coverage_caveat(
-                metadata,
-                "Plan is read-only. It returns HubSpot writeback previews and WhatsApp talking points only; no HubSpot mutation, paid Lusha/Prospeo reveal, Truecaller automation, WhatsApp send, or raw HubSpot phone exposure was performed.",
-            ),
-        }
     except ScopeError as error:
         return _blocked(str(error), {"caller_email": slack_user_email, "owner_email": owner_email})
     except HubSpotError as error:
         return _blocked(str(error), {"caller_email": slack_user_email, "owner_email": owner_email, "company_ids": company_ids or []})
-
-
-def _singapore_lead_enrichment_access_reason(
-    company: dict[str, Any],
-    scope: dict[str, Any],
-    target_owner_id: str | None = None,
-) -> str:
-    props = company.get("properties", {})
-    if props.get("company_country") != SINGAPORE_LEAD_ENRICHMENT_COUNTRY:
-        return "not_singapore_company"
-    if SINGAPORE_LEAD_ENRICHMENT_COUNTRY not in scope.get("countries", ()):
-        return "caller_missing_singapore_scope"
-    company_owner_id = str(props.get("hubspot_owner_id") or "")
-    if target_owner_id and company_owner_id != str(target_owner_id):
-        return "outside_selected_owner_scope"
-    if scope.get("kind") in {"admin", "manager"}:
-        return ""
-    if scope.get("kind") == "ae" and company_owner_id == str(scope.get("owner_id") or ""):
-        return ""
-    return "outside_caller_owner_scope"
-
-
-def _singapore_lead_enrichment_row(
-    company: dict[str, Any],
-    safe_contacts: list[dict[str, Any]],
-    associated_contact_count: int,
-    phone_stale_after_days: int,
-) -> dict[str, Any]:
-    props = company.get("properties", {})
-    company_summary = _summarize_company_with_contacts(company, safe_contacts, associated_contact_count)
-    coverage = _coverage(props, safe_contacts)
-    phone_summary = _singapore_phone_summary(safe_contacts, phone_stale_after_days)
-    slots = _singapore_stakeholder_slots(safe_contacts)
-    mismatch_notes = _singapore_rollup_mismatch_notes(company_summary, safe_contacts, phone_summary)
-    gap_bucket, secondary_buckets = _singapore_gap_bucket(company_summary, coverage, phone_summary, mismatch_notes)
-    recommended_next_source = _singapore_recommended_next_source(gap_bucket, company_summary, coverage, phone_summary, slots)
-    pilot_flags = _singapore_pilot_flags(coverage, slots)
-    provider_policy = _singapore_row_provider_waterfall_policy(
-        gap_bucket,
-        recommended_next_source,
-        company_summary,
-        coverage,
-        phone_summary,
-        secondary_buckets,
-    )
-    row = {
-        "company_id": company_summary.get("company_id"),
-        "hubspot_scoped": True,
-        "scope_source": SCOPE_SOURCE,
-        "name": company_summary.get("name"),
-        "domain": company_summary.get("domain"),
-        "country": company_summary.get("country"),
-        "owner_id": company_summary.get("owner_id"),
-        "owner_email": company_summary.get("owner_email"),
-        "owner_name": company_summary.get("owner_name"),
-        "is_target_account": str(props.get("hs_is_target_account") or "").strip().lower() == "true",
-        "account_status": company_summary.get("account_status"),
-        "industry": company_summary.get("industry"),
-        "headcount": company_summary.get("headcount"),
-        "current_tools": company_summary.get("current_tools"),
-        "associated_contact_count": associated_contact_count,
-        "verified_decision_maker_count": coverage.get("verified_decision_maker_count"),
-        "role_inferred_decision_maker_candidate_count": coverage.get("role_inferred_decision_maker_candidate_count"),
-        "usable_contact_count": coverage.get("usable_contact_count"),
-        "minimum_ready_state": {
-            "has_associated_contact": associated_contact_count >= 1,
-            "has_verified_decision_maker": coverage.get("verified_decision_maker_count", 0) >= 1,
-            "has_verified_phone": phone_summary.get("verified_phone_count", 0) >= 1,
-        },
-        "preferred_sg_ready_state": {
-            "has_distinct_decision_maker_and_operating_contact": slots.get("distinct_contact_slots"),
-            "has_champion_influencer_or_operating_contact": bool(slots.get("champion_influencer")),
-            "has_three_usable_contacts_where_possible": coverage.get("usable_contact_count", 0) >= 3,
-        },
-        "stakeholder_slots": slots,
-        "ranked_people_candidates": _rank_singapore_people_candidates(safe_contacts),
-        "phone_verification_summary": phone_summary,
-        "hubspot_mismatch_notes": mismatch_notes,
-        "pilot_flags": pilot_flags,
-        "gap_bucket": gap_bucket,
-        "secondary_buckets": secondary_buckets,
-        "recommended_next_source": recommended_next_source,
-        "provider_waterfall_policy": provider_policy,
-        "recommended_next_action": _singapore_next_action(gap_bucket, recommended_next_source, pilot_flags),
-        "hubspot_writeback_preview": _singapore_writeback_preview(company_summary, slots, phone_summary, gap_bucket),
-        "handoff_note": _singapore_handoff_note(company_summary, gap_bucket, recommended_next_source, pilot_flags),
-        "whatsapp_readiness": {
-            "ready": gap_bucket == "nurture_ready",
-            "draft_only": True,
-            "no_auto_send": True,
-        },
-        "confidence": "needs-check" if gap_bucket != "nurture_ready" or pilot_flags else "verified",
-        **_score_company(company_summary),
-    }
-    return row
-
-
-def _singapore_global_provider_waterfall_policy() -> dict[str, Any]:
-    return {
-        "cost_mode": "capped_effective",
-        "optimization_target": "lowest reasonable cost per usable AE outcome, not lowest possible spend",
-        "pilot_budget_default": "under_100_usd_monthly_unless_changed",
-        "run_rules": [
-            "Use HubSpot and existing activity/history before any external provider.",
-            "Use Tavily public research for company, careers, and SG job-board signals before paid contact reveal.",
-            "Use Exa for public people candidates when stakeholder coverage is still missing.",
-            "Use Lusha and Prospeo in a controlled parallel pilot only when a real paid contact-data gap remains.",
-            "Stop once minimum readiness is met: associated contact, verified decision maker, and fresh called_connected phone verification.",
-            "Provider candidates never count as verified decision makers or verified phones until HubSpot/call verification rules pass.",
-        ],
-        "provider_jobs": list(SINGAPORE_LEAD_ENRICHMENT_PROVIDER_JOBS),
-        "paid_parallel_test": {
-            "providers": ["lusha", "prospeo"],
-            "status": "pilot_contract_only",
-            "requires": [
-                "scoped HubSpot company IDs",
-                "explicit approval marker before reveal",
-                "cost or credit report",
-                "selected contacts only",
-                "no raw phone in default Slack summaries",
-            ],
-            "prospeo_status": "V1.1 provider candidate; no MCP adapter is enabled in this change.",
-        },
-        "metrics_to_track": list(SINGAPORE_LEAD_ENRICHMENT_PILOT_METRICS),
-        "unbrowse_policy": "Out of scope for this workflow because the safety model avoids automated gated, social, or shadow-API access for prospect enrichment.",
-    }
-
-
-def _singapore_row_provider_waterfall_policy(
-    gap_bucket: str,
-    recommended_next_source: str,
-    company_summary: dict[str, Any],
-    coverage: dict[str, Any],
-    phone_summary: dict[str, Any],
-    secondary_buckets: list[str],
-) -> dict[str, Any]:
-    paid_step_allowed = recommended_next_source == "lusha_prospeo_parallel_search_pilot" or "needs_paid_reveal" in secondary_buckets
-    minimum_ready = (
-        coverage.get("associated_contact_count", 0) >= 1
-        and coverage.get("verified_decision_maker_count", 0) >= 1
-        and phone_summary.get("verified_phone_count", 0) >= 1
-    )
-    return {
-        "cost_mode": "capped_effective",
-        "next_step": recommended_next_source,
-        "why": _singapore_provider_policy_reason(
-            gap_bucket,
-            recommended_next_source,
-            company_summary,
-            coverage,
-            phone_summary,
-        ),
-        "run_condition_met": not minimum_ready,
-        "paid_step_allowed": paid_step_allowed,
-        "paid_parallel_test": {
-            "eligible": paid_step_allowed,
-            "providers": ["lusha", "prospeo"] if paid_step_allowed else [],
-            "guardrail": "Run only with approval, cost/credit reporting, selected contacts, and no raw-phone Slack summary.",
-        },
-        "stop_condition": "Stop paid provider work once minimum readiness is met or once AE marks the handoff not useful.",
-        "verification_rule": "Provider output remains candidate evidence; verified decision maker requires hs_buying_role=DECISION_MAKER and verified phone requires called_connected within freshness window.",
-        "metrics_to_track": list(SINGAPORE_LEAD_ENRICHMENT_PILOT_METRICS),
-    }
-
-
-def _singapore_provider_policy_reason(
-    gap_bucket: str,
-    recommended_next_source: str,
-    company_summary: dict[str, Any],
-    coverage: dict[str, Any],
-    phone_summary: dict[str, Any],
-) -> str:
-    if recommended_next_source == "hubspot_field_diagnostic":
-        return "HubSpot fields disagree; fixing the source-of-truth record is cheaper and more accurate than prospecting more."
-    if recommended_next_source == "tavily_public_company_job_board_research":
-        return "The account lacks usable associated-contact coverage; use low-cost public company and job-board evidence before people/contact providers."
-    if recommended_next_source == "exa_people_candidate_discovery":
-        return "The account has some contact/account context but still lacks a verified decision maker; search public people candidates before contact reveal."
-    if recommended_next_source == "manual_truecaller_call_outcome":
-        return "A callable candidate or stale phone exists; manual callability check and call outcome are needed before spending reveal credits."
-    if recommended_next_source == "lusha_prospeo_parallel_search_pilot":
-        return "The account has a verified decision-maker path but lacks fresh callable phone coverage; compare paid providers only for this real gap."
-    if recommended_next_source == "whatsapp_batch_draft":
-        return "Minimum readiness is met; no paid enrichment is needed before draft-only nurture talking points."
-    if company_summary.get("associated_contact_count", 0) < 1 or coverage.get("associated_contact_count", 0) < 1:
-        return "No associated contact coverage is visible."
-    if phone_summary.get("verified_phone_count", 0) < 1:
-        return "Phone verification coverage is missing."
-    return f"Next source follows SG enrichment gap bucket {gap_bucket}."
-
-
-def _singapore_phone_summary(contacts: list[dict[str, Any]], phone_stale_after_days: int) -> dict[str, Any]:
-    verified = [contact for contact in contacts if contact.get("is_phone_verified")]
-    candidates = [contact for contact in contacts if contact.get("phone_available")]
-    stale = [contact for contact in contacts if contact.get("phone_verification_status") == "stale"]
-    truecaller_manual = [
-        contact
-        for contact in contacts
-        if contact.get("phone_verification_source") == "truecaller_manual_lookup"
-        and not contact.get("is_phone_verified")
-    ]
-    status_counts: dict[str, int] = {}
-    for contact in contacts:
-        status = str(contact.get("phone_verification_status") or "not_checked")
-        status_counts[status] = status_counts.get(status, 0) + 1
-    return {
-        "verified_phone_count": len(verified),
-        "phone_candidate_count": len(candidates),
-        "stale_phone_count": len(stale),
-        "manual_truecaller_needs_call_count": len(truecaller_manual),
-        "status_counts": status_counts,
-        "phone_stale_after_days": phone_stale_after_days,
-        "redaction_policy": "Raw phone numbers are omitted from Slack-facing output.",
-        "truecaller_policy": "truecaller_manual_lookup is candidate evidence only unless paired with called_connected phone verification status.",
-    }
-
-
-def _singapore_rollup_mismatch_notes(
-    company_summary: dict[str, Any],
-    contacts: list[dict[str, Any]],
-    phone_summary: dict[str, Any],
-) -> list[dict[str, str]]:
-    coverage = company_summary.get("decision_maker_coverage") or {}
-    notes = []
-    if coverage.get("decision_maker_count_from_hubspot_property", 0) > 0 and not any(
-        contact.get("is_verified_decision_maker") for contact in contacts
-    ):
-        notes.append(
-            {
-                "reason": "company_rollup_has_decision_maker_but_associated_contacts_missing_decision_maker_role",
-                "field_level_reason": "HubSpot company hs_num_decision_makers > 0 but returned associated contacts do not include hs_buying_role=DECISION_MAKER.",
-                "rep_action": "Fix the associated contact buying-role field if the DM exists; otherwise treat the company rollup as stale and keep prospecting.",
-            }
-        )
-    for issue in coverage.get("issues", []):
-        if issue == "company_rollup_has_decision_maker_but_no_associated_contact_returned":
-            notes.append(
-                {
-                    "reason": issue,
-                    "field_level_reason": "HubSpot company hs_num_decision_makers > 0 but no associated contacts were returned with hs_buying_role=DECISION_MAKER.",
-                    "rep_action": "Fix HubSpot association/buying role if the DM exists; keep prospecting if the rollup is stale.",
-                }
-            )
-        elif issue == "buying_role_contacts_exist_but_none_are_decision_maker":
-            notes.append(
-                {
-                    "reason": issue,
-                    "field_level_reason": "HubSpot company hs_num_contacts_with_buying_roles > 0 but returned associated contacts do not include hs_buying_role=DECISION_MAKER.",
-                    "rep_action": "Check whether persona/champion/influencer was tagged instead of the actual decision-maker field.",
-                }
-            )
-    if contacts and phone_summary.get("verified_phone_count", 0) < 1:
-        notes.append(
-            {
-                "reason": "associated_contacts_exist_but_no_verified_phone_status",
-                "field_level_reason": "Associated contacts exist, but none have nurtureany_phone_verification_status=called_connected within the freshness window.",
-                "rep_action": "Verify by call/manual lookup and update NurtureAny phone verification fields after outreach.",
-            }
-        )
-    for contact in contacts:
-        if (
-            contact.get("phone_verification_source") == "truecaller_manual_lookup"
-            and contact.get("phone_verification_status") != "called_connected"
-        ):
-            notes.append(
-                {
-                    "reason": "truecaller_manual_lookup_not_verified_call",
-                    "field_level_reason": "nurtureany_phone_verification_source=truecaller_manual_lookup without nurtureany_phone_verification_status=called_connected.",
-                    "rep_action": "Treat as callable candidate only until an actual call outcome or approved verification note confirms it.",
-                }
-            )
-            break
-    return notes
-
-
-def _singapore_gap_bucket(
-    company_summary: dict[str, Any],
-    coverage: dict[str, Any],
-    phone_summary: dict[str, Any],
-    mismatch_notes: list[dict[str, str]],
-) -> tuple[str, list[str]]:
-    secondary: list[str] = []
-    if any(
-        note.get("reason")
-        in {
-            "company_rollup_has_decision_maker_but_no_associated_contact_returned",
-            "company_rollup_has_decision_maker_but_associated_contacts_missing_decision_maker_role",
-            "buying_role_contacts_exist_but_none_are_decision_maker",
-        }
-        for note in mismatch_notes
-    ):
-        return "hubspot_rollup_mismatch", secondary
-    if coverage.get("associated_contact_count", 0) < 1:
-        return "missing_associated_contact", secondary
-    if coverage.get("verified_decision_maker_count", 0) < 1:
-        return "missing_decision_maker", secondary
-    if phone_summary.get("verified_phone_count", 0) < 1:
-        if phone_summary.get("stale_phone_count", 0):
-            return "missing_verified_phone", secondary
-        if phone_summary.get("manual_truecaller_needs_call_count", 0) or phone_summary.get("phone_candidate_count", 0):
-            return "needs_manual_truecaller_check", secondary
-        if company_summary.get("associated_contact_count", 0) >= 1:
-            secondary.append("needs_paid_reveal")
-        return "missing_verified_phone", secondary
-    return "nurture_ready", secondary
-
-
-def _singapore_recommended_next_source(
-    gap_bucket: str,
-    company_summary: dict[str, Any],
-    coverage: dict[str, Any],
-    phone_summary: dict[str, Any],
-    slots: dict[str, Any],
-) -> str:
-    if gap_bucket == "hubspot_rollup_mismatch":
-        return "hubspot_field_diagnostic"
-    if gap_bucket == "missing_associated_contact":
-        return "tavily_public_company_job_board_research"
-    if gap_bucket == "missing_decision_maker":
-        return "exa_people_candidate_discovery"
-    if gap_bucket == "needs_manual_truecaller_check":
-        return "manual_truecaller_call_outcome"
-    if gap_bucket == "missing_verified_phone":
-        if phone_summary.get("stale_phone_count", 0) or phone_summary.get("phone_candidate_count", 0):
-            return "manual_truecaller_call_outcome"
-        return "lusha_prospeo_parallel_search_pilot" if coverage.get("associated_contact_count", 0) else "tavily_public_company_job_board_research"
-    if gap_bucket == "nurture_ready":
-        return "whatsapp_batch_draft"
-    return "hubspot"
-
-
-def _singapore_pilot_flags(coverage: dict[str, Any], slots: dict[str, Any]) -> list[str]:
-    flags = []
-    if not slots.get("champion_influencer"):
-        flags.append("missing_champion_influencer_or_operating_contact")
-    if coverage.get("usable_contact_count", 0) < 3:
-        flags.append("below_three_usable_contacts_where_possible")
-    return flags
-
-
-def _singapore_next_action(gap_bucket: str, recommended_next_source: str, pilot_flags: list[str]) -> str:
-    if gap_bucket == "hubspot_rollup_mismatch":
-        return "Fix the exact HubSpot field mismatch before prospecting more contacts."
-    if gap_bucket == "missing_associated_contact":
-        return "Run Tavily/public company and SG job-board research first; then classify High/Medium/Low before any HubSpot writeback."
-    if gap_bucket == "missing_decision_maker":
-        return "Use Exa people candidates and gatekeeper calls to verify the boss/owner/director decision maker; title inference stays needs-check."
-    if gap_bucket == "needs_manual_truecaller_check":
-        return "Manual Truecaller/callability check and actual call outcome before marking phone verified."
-    if gap_bucket == "missing_verified_phone":
-        if recommended_next_source == "lusha_prospeo_parallel_search_pilot":
-            return "Run a controlled Lusha + Prospeo paid-provider pilot only with approval, then verify by actual call outcome."
-        return "Find or reveal a callable number only with approval, then verify by actual call outcome."
-    if pilot_flags:
-        return "Ready for nurture minimums; still improve pilot coverage flags before scaling if time allows."
-    return "Ready for WhatsApp talking-point drafting; no send without approval."
-
-
-def _singapore_writeback_preview(
-    company_summary: dict[str, Any],
-    slots: dict[str, Any],
-    phone_summary: dict[str, Any],
-    gap_bucket: str,
-) -> dict[str, Any]:
-    actions = []
-    decision_maker = slots.get("decision_maker") or {}
-    if decision_maker and decision_maker.get("decision_maker_status") == "needs-check":
-        actions.append(
-            {
-                "object_type": "contact",
-                "contact_id": decision_maker.get("contact_id"),
-                "condition": "Only after call verification confirms decision authority.",
-                "properties": {"hs_buying_role": "DECISION_MAKER"},
-            }
-        )
-    if gap_bucket in {"needs_manual_truecaller_check", "missing_verified_phone"}:
-        actions.append(
-            {
-                "object_type": "contact",
-                "condition": "Only after manual lookup/call outcome is complete; raw HubSpot phone fields stay out of this SG-plan Slack output.",
-                "properties": {
-                    "nurtureany_phone_verification_status": "called_connected | wrong_number | unreachable | no_answer | do_not_contact",
-                    "nurtureany_phone_verified_at": "YYYY-MM-DD",
-                    "nurtureany_phone_verified_by": "AE email",
-                    "nurtureany_phone_verification_source": "manual_call | truecaller_manual_lookup | lusha_reveal | apollo_manual | prospeo_manual",
-                    "nurtureany_phone_verification_notes": "short safe note, no raw number",
-                },
-            }
-        )
-    return {
-        "will_mutate_hubspot": False,
-        "company_id": company_summary.get("company_id"),
-        "actions": actions,
-        "phone_summary": phone_summary,
-    }
-
-
-def _singapore_handoff_note(
-    company_summary: dict[str, Any],
-    gap_bucket: str,
-    recommended_next_source: str,
-    pilot_flags: list[str],
-) -> str:
-    flags = f" Pilot flags: {', '.join(pilot_flags)}." if pilot_flags else ""
-    return _short_text(
-        f"{company_summary.get('name')}: {gap_bucket}; next source {recommended_next_source}. "
-        "Khai researches/classifies; AE validates through outreach within 3 working days."
-        f"{flags}",
-        320,
-    )
-
-
-def _singapore_bucket_row(row: dict[str, Any]) -> dict[str, Any]:
-    return {
-        "company_id": row.get("company_id"),
-        "name": row.get("name"),
-        "owner_email": row.get("owner_email"),
-        "gap_bucket": row.get("gap_bucket"),
-        "recommended_next_source": row.get("recommended_next_source"),
-        "associated_contact_count": row.get("associated_contact_count"),
-        "verified_decision_maker_count": row.get("verified_decision_maker_count"),
-        "verified_phone_count": row.get("phone_verification_summary", {}).get("verified_phone_count"),
-        "provider_waterfall_next_step": (row.get("provider_waterfall_policy") or {}).get("next_step"),
-        "paid_step_allowed": (row.get("provider_waterfall_policy") or {}).get("paid_step_allowed", False),
-        "pilot_flags": row.get("pilot_flags", []),
-    }
-
-
-def _singapore_compact_account_row(row: dict[str, Any]) -> dict[str, Any]:
-    phone_summary = row.get("phone_verification_summary") or {}
-    return {
-        "company_id": row.get("company_id"),
-        "name": row.get("name"),
-        "owner_email": row.get("owner_email"),
-        "gap_bucket": row.get("gap_bucket"),
-        "secondary_buckets": row.get("secondary_buckets", []),
-        "associated_contact_count": row.get("associated_contact_count"),
-        "verified_decision_maker_count": row.get("verified_decision_maker_count"),
-        "usable_contact_count": row.get("usable_contact_count"),
-        "verified_phone_count": phone_summary.get("verified_phone_count"),
-        "stale_phone_count": phone_summary.get("stale_phone_count"),
-        "recommended_next_source": row.get("recommended_next_source"),
-        "provider_waterfall_policy": row.get("provider_waterfall_policy"),
-        "hubspot_mismatch_notes": row.get("hubspot_mismatch_notes", [])[:2],
-        "pilot_flags": row.get("pilot_flags", []),
-        "handoff_note": row.get("handoff_note"),
-        "whatsapp_ready": (row.get("whatsapp_readiness") or {}).get("ready", False),
-        "confidence": row.get("confidence"),
-    }
-
-
-def _singapore_whatsapp_batch_row(row: dict[str, Any]) -> dict[str, Any]:
-    return {
-        "company_id": row.get("company_id"),
-        "name": row.get("name"),
-        "owner_email": row.get("owner_email"),
-        "draft_only": True,
-        "no_auto_send": True,
-        "talking_points": [
-            {
-                "kns": "Knowledge",
-                "angle": "salary benchmarking and labour-market context for F&B/retail teams",
-                "question": "Worth comparing how your team is thinking about wage pressure this month?",
-            },
-            {
-                "kns": "Network",
-                "angle": "HR/operator community and Malaysia launch/networking context",
-                "question": "Would it be useful if I connect you with what nearby operators are trying?",
-            },
-            {
-                "kns": "Support",
-                "angle": "approved StaffAny customer proof or case-study match when available",
-                "question": "Want me to share the closest approved example before we chat?",
-            },
-        ],
-        "name_drop_policy": "Use find_sales_case_studies or approved material registry before naming a customer; otherwise keep the angle generic.",
-    }
 
 
 @mcp.tool()
@@ -16514,7 +16585,10 @@ def plan_hubspot_writeback(
             "source": "NurtureAny HubSpot write-back dry run",
             "scope": _scope_response(scope, list(scope.get("countries", ()))),
             "confidence": "verified",
-            "caveat": "Preview only. Managers are read-only, and mutation tools are disabled in V1 until explicit write phase approval.",
+            "caveat": (
+                "Preview only for generic write-back. Managers are blocked from generic team write-back previews; "
+                "HubSpot Task writes use the separate exact-approval task primitives."
+            ),
         }
     except ScopeError as error:
         return _blocked(str(error), {"caller_email": slack_user_email})

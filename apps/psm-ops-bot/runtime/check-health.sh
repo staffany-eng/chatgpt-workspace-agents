@@ -5,6 +5,7 @@ PROFILE="${HERMES_PROFILE:-psmopsbot}"
 PROFILE_DIR="${HERMES_PROFILE_DIR:-$HOME/.hermes/profiles/$PROFILE}"
 GATEWAY_SERVICE_NAME="${PSM_OPS_GATEWAY_SERVICE_NAME:-hermes-gateway-$PROFILE.service}"
 HERMES_AGENT_DIR="${HERMES_AGENT_DIR:-$HOME/.hermes/hermes-agent}"
+HERMES_PYTHON="${HERMES_PYTHON:-$HERMES_AGENT_DIR/venv/bin/python}"
 PATH="$HOME/.local/bin:$HERMES_AGENT_DIR:$PATH"
 export PATH
 
@@ -29,7 +30,7 @@ if command -v hermes >/dev/null 2>&1; then
   for server in psm_jira psm_c360 psm_google_calendar; do
     out="$(hermes -p "$PROFILE" mcp test "$server" 2>&1 || true)"
     case "$server" in
-      psm_jira) expected=21 ;;
+      psm_jira) expected=23 ;;
       psm_c360) expected=3 ;;
       psm_google_calendar) expected=1 ;;
     esac
@@ -49,6 +50,53 @@ if [ -n "$config_path" ] && [ -r "$config_path" ]; then
     fail "slack:allowed-channels-should-be-empty-for-open-channel-mode"
   fi
   grep -q 'max_parallel_jobs: *1' "$config_path" || fail "cron:max_parallel_jobs-not-1"
+  [ -x "$HERMES_PYTHON" ] || fail "hermes:python-not-found"
+  "$HERMES_PYTHON" - "$config_path" "$HERMES_AGENT_DIR" <<'PY'
+import sys
+
+config_path, hermes_agent_dir = sys.argv[1:3]
+sys.path.insert(0, hermes_agent_dir)
+
+try:
+    import yaml
+    from gateway.display_config import resolve_display_setting
+except Exception as exc:
+    print(f"dependency:hermes-config-parser-failed:{exc.__class__.__name__}")
+    raise SystemExit(1)
+
+with open(config_path, "r", encoding="utf-8") as handle:
+    config = yaml.safe_load(handle) or {}
+
+display = config.get("display") or {}
+if display.get("interim_assistant_messages") is not False:
+    print("slack-display:interim-assistant-messages-not-disabled")
+    raise SystemExit(1)
+if resolve_display_setting(config, "slack", "tool_progress") != "off":
+    print("slack-display:tool-progress-not-off")
+    raise SystemExit(1)
+if resolve_display_setting(config, "slack", "streaming") is not False:
+    print("slack-display:streaming-not-disabled")
+    raise SystemExit(1)
+if ((config.get("slack") or {}).get("reactions")) is not False:
+    print("slack:reactions-not-disabled")
+    raise SystemExit(1)
+
+title_generation = ((config.get("auxiliary") or {}).get("title_generation") or {})
+if title_generation.get("provider") != "anthropic":
+    print("auxiliary:title-generation-provider-not-anthropic")
+    raise SystemExit(1)
+if title_generation.get("model") != "claude-haiku-4-5":
+    print("auxiliary:title-generation-model-not-haiku")
+    raise SystemExit(1)
+try:
+    title_timeout = float(title_generation.get("timeout"))
+except (TypeError, ValueError):
+    print("auxiliary:title-generation-timeout-invalid")
+    raise SystemExit(1)
+if title_timeout > 10:
+    print("auxiliary:title-generation-timeout-too-high")
+    raise SystemExit(1)
+PY
 fi
 
 for key in \
@@ -117,6 +165,30 @@ if central_channel:
     if channel.get("is_member") is False:
         print("slack:central-channel-bot-not-member")
         sys.exit(1)
+public_join_smoke_channel = os.environ.get("PSM_OPS_PUBLIC_CHANNEL_JOIN_SMOKE_CHANNEL_ID", "").strip() or central_channel
+if public_join_smoke_channel:
+    data = urllib.parse.urlencode({"channel": public_join_smoke_channel}).encode("utf-8")
+    request = urllib.request.Request(
+        "https://slack.com/api/conversations.join",
+        data=data,
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/x-www-form-urlencoded",
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=20) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except Exception:
+        print("slack:public-channel-join-smoke-unavailable")
+        sys.exit(1)
+    if not payload.get("ok"):
+        error = payload.get("error", "unknown_error")
+        if error == "missing_scope":
+            print("slack:public-channel-join-scope-missing")
+        else:
+            print(f"slack:public-channel-join-smoke:{error}")
+        sys.exit(1)
 PY
 
 if [ "${PSM_OPS_JIRA_MODE:-}" != "thin_poc" ]; then
@@ -141,9 +213,24 @@ enabled = [job for job in jobs if isinstance(job, dict) and job.get("enabled") i
 names = {str(job.get("name") or "") for job in enabled}
 missing = [
     name
-    for name in ["psmopsbot due-date reminders"]
+    for name in ["psmopsbot due-date reminders", "psmopsbot due-date eod catch-up", "psmopsbot roi tracker sync"]
     if name not in names
 ]
+scripts = {str(job.get("name") or ""): job for job in enabled}
+for name, expected_script in {
+    "psmopsbot due-date reminders": "psm_ops_due_date_reminders.py",
+    "psmopsbot due-date eod catch-up": "psm_ops_due_date_reminders_eod.py",
+    "psmopsbot roi tracker sync": "psm_ops_roi_tracker_sync.py",
+}.items():
+    job = scripts.get(name)
+    if not job:
+        continue
+    if job.get("script") != expected_script:
+        print(f"cron:{name}:script-unexpected")
+        sys.exit(1)
+    if job.get("no_agent") is not True:
+        print(f"cron:{name}:mode-unexpected")
+        sys.exit(1)
 if os.environ.get("PSM_OPS_ADOPTION_METRICS_ENABLED", "").strip().lower() in {"1", "true", "yes", "on"}:
     if "psmopsbot adoption digest" not in names:
         missing.append("psmopsbot adoption digest")

@@ -11,13 +11,14 @@ EXPECT_MODEL_PROVIDER="${EXPECT_MODEL_PROVIDER:-anthropic}"
 EXPECT_MODEL_DEFAULT="${EXPECT_MODEL_DEFAULT:-claude-sonnet-4-6}"
 EXPECT_SLACK_INTENT_TOOLS="${EXPECT_SLACK_INTENT_TOOLS:-3}"
 EXPECT_STAFFANY_BIGQUERY_TOOLS="${EXPECT_STAFFANY_BIGQUERY_TOOLS:-4}"
-EXPECT_HUBSPOT_TOOLS="${EXPECT_HUBSPOT_TOOLS:-49}"
-EXPECT_AIRCALL_TOOLS="${EXPECT_AIRCALL_TOOLS:-3}"
+EXPECT_HUBSPOT_TOOLS="${EXPECT_HUBSPOT_TOOLS:-54}"
+EXPECT_AIRCALL_TOOLS="${EXPECT_AIRCALL_TOOLS:-4}"
 EXPECT_GOOGLE_CALENDAR_TOOLS="${EXPECT_GOOGLE_CALENDAR_TOOLS:-2}"
 EXPECT_GOOGLE_DRIVE_TOOLS="${EXPECT_GOOGLE_DRIVE_TOOLS:-5}"
 EXPECT_EAZYBE_TOOLS="${EXPECT_EAZYBE_TOOLS:-4}"
 EXPECT_LUMA_TOOLS="${EXPECT_LUMA_TOOLS:-3}"
-EXPECT_LUSHA_TOOLS="${EXPECT_LUSHA_TOOLS:-3}"
+EXPECT_LUSHA_TOOLS="${EXPECT_LUSHA_TOOLS:-4}"
+EXPECT_PROSPEO_TOOLS="${EXPECT_PROSPEO_TOOLS:-4}"
 EXPECT_EXA_TOOLS="${EXPECT_EXA_TOOLS:-1}"
 EXPECT_PUBLIC_RESEARCH_TOOLS="${EXPECT_PUBLIC_RESEARCH_TOOLS:-2}"
 EXPECT_NEAR_ME_TOOLS="${EXPECT_NEAR_ME_TOOLS:-6}"
@@ -274,6 +275,7 @@ expected_servers = {
         "build_singapore_lead_enrichment_plan",
         "list_active_deals_missing_next_meeting",
         "list_sales_followup_tasks",
+        "list_due_hubspot_sales_task_reminders",
         "count_owner_whatsapp_sent_today",
         "check_account_followup_status",
         "check_event_followup_status",
@@ -286,6 +288,10 @@ expected_servers = {
         "scan_drive_event_photos",
         "propose_photo_people_matches",
         "plan_event_photo_followup",
+        "preview_hubspot_sales_task",
+        "create_approved_hubspot_sales_task",
+        "preview_hubspot_task_update",
+        "apply_approved_hubspot_task_update",
         "record_nurtureany_operation_checkpoint",
         "read_nurtureany_operation_ledger",
         "record_nurtureany_lesson_candidate",
@@ -294,7 +300,7 @@ expected_servers = {
         "draft_nurture_message",
         "plan_hubspot_writeback",
     ],
-    "aircall_nurtureany": ["find_aircall_calls", "transcribe_aircall_recording", "analyze_aircall_call_coaching"],
+    "aircall_nurtureany": ["find_aircall_calls", "resolve_aircall_call_for_coaching", "transcribe_aircall_recording", "analyze_aircall_call_coaching"],
     "google_calendar_nurtureany": ["list_google_calendar_events", "audit_google_calendar_meeting_quality"],
     "google_drive_nurtureany": [
         "list_drive_folder_images",
@@ -310,7 +316,8 @@ expected_servers = {
     ],
     "luma_nurtureany": ["list_luma_events", "get_luma_event_match_keys", "get_luma_event_context"],
     "public_research_nurtureany": ["research_public_company_signals", "find_brand_parent_candidates"],
-    "lusha_nurtureany": ["search_lusha_decision_maker_candidates", "reveal_lusha_contact_details", "get_lusha_credit_usage"],
+    "lusha_nurtureany": ["search_lusha_decision_maker_candidates", "search_lusha_candidates_by_linkedin_urls", "reveal_lusha_contact_details", "get_lusha_credit_usage"],
+    "prospeo_nurtureany": ["search_prospeo_decision_maker_candidates", "search_prospeo_candidates_by_linkedin_urls", "reveal_prospeo_contact_details", "get_prospeo_credit_usage"],
     "exa_nurtureany": ["search_exa_people_candidates"],
     "near_me_nurtureany": [
         "resolve_known_area_for_near_me",
@@ -660,6 +667,7 @@ mcp_test eazybe_nurtureany "$EXPECT_EAZYBE_TOOLS"
 mcp_test luma_nurtureany "$EXPECT_LUMA_TOOLS"
 mcp_test public_research_nurtureany "$EXPECT_PUBLIC_RESEARCH_TOOLS"
 mcp_test lusha_nurtureany "$EXPECT_LUSHA_TOOLS"
+mcp_test prospeo_nurtureany "$EXPECT_PROSPEO_TOOLS"
 mcp_test exa_nurtureany "$EXPECT_EXA_TOOLS"
 mcp_test near_me_nurtureany "$EXPECT_NEAR_ME_TOOLS"
 

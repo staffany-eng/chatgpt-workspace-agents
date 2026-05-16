@@ -62,7 +62,7 @@ Use these as framing guidance only. HubSpot and approved live tools still decide
 - Keep LinkedIn drafts light and relationship-led.
 - Use the contact persona and account trigger in the first sentence where possible.
 - Do not invent facts, incentives, relationships, or prior conversations.
-- Do not include raw HubSpot phone fields or unnecessary contact details in draft/queue Slack output. Selected Lusha reveal is the only raw-number exception, and only after explicit approval with `approval_marker` plus `reveal_phones=true`.
+- Do not include raw HubSpot phone fields or unnecessary contact details in draft/queue Slack output. Selected Lusha or Prospeo reveal is the only raw-number exception, and only after explicit approval with `approval_marker` plus `reveal_phones=true`.
 
 ## Daily Nurture Material Registry
 

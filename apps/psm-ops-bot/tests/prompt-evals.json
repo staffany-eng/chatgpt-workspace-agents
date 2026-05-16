@@ -136,6 +136,69 @@
       }
     },
     {
+      "id": "psm-tooltrace-tomoro-compact-missing-info",
+      "bot": "PSM Ops Hermes Bot",
+      "surface": "slack:#all-ps",
+      "lane": "tool-trace",
+      "input": "@PS WEE please create a ticket for CS to follow up regarding Tomoro Coffee unable to add staff in HRAny. Same phone number is linked to affected staff HUI SHAN WENG in inactive I LOVE TAIMEI; they need workaround advice.",
+      "setup": {
+        "after_user_request": true,
+        "stub_tools": true
+      },
+      "expected_tool_trace": {
+        "must_call": [
+          "find_ticket_by_slack_thread",
+          "create_ps_wee_intake_ticket"
+        ],
+        "must_not_call": [
+          "draft_pco_task",
+          "create_approved_pco_task"
+        ],
+        "argument_shape": {
+          "slack_thread_permalink": "required",
+          "known_facts_required": true,
+          "slack_missing_info_max": 2
+        }
+      },
+      "expected_answer_contract": {
+        "must_include": [
+          "Source: Jira PCO",
+          "Confidence:"
+        ],
+        "must_not_include": [
+          "1. *Customer/org*",
+          "2. *Affected outlet/user*",
+          "3. *Impact/urgency*",
+          "4. *Expected outcome*",
+          "5. *Due date*"
+        ]
+      },
+      "forbidden_behavior": [
+        "numbered follow-up questionnaire",
+        "asking for customer/org when customer was supplied",
+        "asking for issue details when issue_summary or known_details was supplied",
+        "more than two Slack-facing missing-info asks"
+      ],
+      "grade_notes": "Tomoro-style intake should still create first, but the tool must prune known facts and keep Slack missing-info compact.",
+      "assertions": {
+        "source_files": [
+          {
+            "path": "runtime/mcp/psm_jira_server.py",
+            "must_contain": [
+              "PS_WEE_SLACK_MISSING_INFO_LIMIT = 2",
+              "answer[\"missing_info\"] = slack_missing"
+            ]
+          },
+          {
+            "path": "profile/SOUL.md",
+            "must_contain": [
+              "Do not add numbered questionnaires or expand the missing-info list; ask only the tool-returned missing fields."
+            ]
+          }
+        ]
+      }
+    },
+    {
       "id": "psm-tooltrace-roi-direct-ticket-first",
       "bot": "PSM Ops Hermes Bot",
       "surface": "slack",
@@ -148,7 +211,8 @@
         "must_call": [
           "classify_roi_ticket_request",
           "find_roi_ticket_by_slack_thread",
-          "create_roi_ticket_from_slack"
+          "create_roi_ticket_from_slack",
+          "create_or_link_pco_roi_tracker"
         ],
         "must_not_call": [
           "create_ps_wee_intake_ticket",
@@ -158,22 +222,83 @@
       "expected_answer_contract": {
         "must_include": [
           "Source: Jira ROI",
+          "Jira PCO tracker",
           "Confidence:"
         ]
       },
       "forbidden_behavior": [
-        "PCO wrapper ticket for ROI-direct work",
+        "duplicate PCO execution wrapper for ROI-direct work",
         "team@staffany.com requester fallback",
         "bot requester fallback"
       ],
-      "grade_notes": "ROI-direct requests go straight to ROI JSM with requester resolution and same-thread idempotency.",
+      "grade_notes": "PS Team billing ROI-direct requests create/reuse ROI first, then add a linked PCO customer-loop tracker.",
       "assertions": {
         "source_files": [
           {
             "path": "profile/SOUL.md",
             "must_contain": [
               "ROI-direct requests are ticket-first.",
+              "pco_tracker_default=true",
+              "create_or_link_pco_roi_tracker",
               "No bot, team, or team@staffany.com requester fallback is allowed."
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "psm-tooltrace-engineering-issue-lookup-before-link",
+      "bot": "PSM Ops Hermes Bot",
+      "surface": "slack",
+      "lane": "tool-trace",
+      "input": "@PS WEE is there a home page ticket in KER? If yes, link it to PCO-146",
+      "setup": {
+        "stub_tools": true
+      },
+      "expected_tool_trace": {
+        "must_call": [
+          "find_engineering_issue",
+          "link_pco_to_engineering_issue"
+        ],
+        "must_not_call": [
+          "create_ps_wee_intake_ticket",
+          "draft_pco_task"
+        ],
+        "argument_shape": {
+          "find_engineering_issue.project_keys": [
+            "KER"
+          ],
+          "safe_fields_only": true,
+          "ambiguous_results_require_user_choice": true
+        }
+      },
+      "expected_answer_contract": {
+        "must_include": [
+          "Source: Jira",
+          "Confidence:"
+        ]
+      },
+      "forbidden_behavior": [
+        "answer that PS WEE cannot search KER",
+        "use Slack history as KER source of truth",
+        "use memory as KER source of truth",
+        "expose engineering issue descriptions, comments, or attachments"
+      ],
+      "grade_notes": "Natural-language KER lookup uses read-only Jira engineering search before linking; exact KER keys still link directly.",
+      "assertions": {
+        "source_files": [
+          {
+            "path": "skills/psm-ops-bot/SKILL.md",
+            "must_contain": [
+              "call read-only `find_engineering_issue` first",
+              "If multiple plausible matches are returned, ask the user to choose"
+            ]
+          },
+          {
+            "path": "runtime/mcp/psm_jira_server.py",
+            "must_contain": [
+              "def find_engineering_issue",
+              "ENGINEERING_SEARCH_SAFE_FIELDS"
             ]
           }
         ]

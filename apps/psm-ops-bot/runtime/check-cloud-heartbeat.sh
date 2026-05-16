@@ -5,11 +5,16 @@ PROFILE="${HERMES_PROFILE:-psmopsbot}"
 PROFILE_DIR="${HERMES_PROFILE_DIR:-$HOME/.hermes/profiles/$PROFILE}"
 GATEWAY_SERVICE="${GATEWAY_SERVICE:-hermes-gateway-psmopsbot.service}"
 EXPECTED_REMINDER_CRON_NAME="${EXPECTED_REMINDER_CRON_NAME:-psmopsbot due-date reminders}"
+EXPECTED_REMINDER_SCRIPT="${EXPECTED_REMINDER_SCRIPT:-psm_ops_due_date_reminders.py}"
+EXPECTED_EOD_REMINDER_CRON_NAME="${EXPECTED_EOD_REMINDER_CRON_NAME:-psmopsbot due-date eod catch-up}"
+EXPECTED_EOD_REMINDER_SCRIPT="${EXPECTED_EOD_REMINDER_SCRIPT:-psm_ops_due_date_reminders_eod.py}"
+EXPECTED_ROI_TRACKER_SYNC_CRON_NAME="${EXPECTED_ROI_TRACKER_SYNC_CRON_NAME:-psmopsbot roi tracker sync}"
+EXPECTED_ROI_TRACKER_SYNC_SCRIPT="${EXPECTED_ROI_TRACKER_SYNC_SCRIPT:-psm_ops_roi_tracker_sync.py}"
 EXPECTED_CLOUD_HEARTBEAT_CRON_NAME="${EXPECTED_CLOUD_HEARTBEAT_CRON_NAME:-psmopsbot local cloud heartbeat}"
 EXPECTED_CLOUD_HEARTBEAT_SCRIPT="${EXPECTED_CLOUD_HEARTBEAT_SCRIPT:-psmopsbot-check-cloud-heartbeat.sh}"
 EXPECTED_ADOPTION_DIGEST_CRON_NAME="${EXPECTED_ADOPTION_DIGEST_CRON_NAME:-psmopsbot adoption digest}"
 EXPECTED_ADOPTION_DIGEST_SCRIPT="${EXPECTED_ADOPTION_DIGEST_SCRIPT:-psm_ops_adoption_digest.py}"
-EXPECTED_ENABLED_CRON_COUNT="${EXPECTED_ENABLED_CRON_COUNT:-3}"
+EXPECTED_ENABLED_CRON_COUNT="${EXPECTED_ENABLED_CRON_COUNT:-5}"
 EXPECTED_CRON_TIMEZONE="${EXPECTED_CRON_TIMEZONE:-Asia/Singapore}"
 
 PATH="$HOME/.local/bin:$HOME/.hermes/hermes-agent/venv/bin:$HOME/.hermes/hermes-agent:$PATH"
@@ -39,6 +44,11 @@ cron_json="$PROFILE_DIR/cron/jobs.json"
 
 python3 - "$cron_json" \
   "$EXPECTED_REMINDER_CRON_NAME" \
+  "$EXPECTED_REMINDER_SCRIPT" \
+  "$EXPECTED_EOD_REMINDER_CRON_NAME" \
+  "$EXPECTED_EOD_REMINDER_SCRIPT" \
+  "$EXPECTED_ROI_TRACKER_SYNC_CRON_NAME" \
+  "$EXPECTED_ROI_TRACKER_SYNC_SCRIPT" \
   "$EXPECTED_CLOUD_HEARTBEAT_CRON_NAME" \
   "$EXPECTED_CLOUD_HEARTBEAT_SCRIPT" \
   "$EXPECTED_ADOPTION_DIGEST_CRON_NAME" \
@@ -51,13 +61,18 @@ import sys
 (
     jobs_path,
     reminder_name,
+    reminder_script,
+    eod_reminder_name,
+    eod_reminder_script,
+    roi_tracker_sync_name,
+    roi_tracker_sync_script,
     heartbeat_name,
     heartbeat_script,
     adoption_digest_name,
     adoption_digest_script,
     expected_enabled_count,
     expected_timezone,
-) = sys.argv[1:9]
+) = sys.argv[1:15]
 
 try:
     with open(jobs_path, "r", encoding="utf-8") as handle:
@@ -77,18 +92,62 @@ if len(enabled) != int(expected_enabled_count):
     raise SystemExit(1)
 
 by_name = {job.get("name"): job for job in enabled if isinstance(job, dict)}
-for required_name in [reminder_name, heartbeat_name, adoption_digest_name]:
+for required_name in [reminder_name, eod_reminder_name, roi_tracker_sync_name, heartbeat_name, adoption_digest_name]:
     if required_name not in by_name:
         print(f"cron:missing:{required_name}")
         raise SystemExit(1)
+
+def schedule_expr(job):
+    schedule = job.get("schedule")
+    return schedule.get("expr") if isinstance(schedule, dict) else schedule
+
+reminder = by_name[reminder_name]
+if reminder.get("script") != reminder_script:
+    print("cron:reminder-script-unexpected")
+    raise SystemExit(1)
+if schedule_expr(reminder) != "0 1 * * *":
+    print("cron:reminder-schedule-unexpected")
+    raise SystemExit(1)
+if reminder.get("deliver") != "slack:#ps-weeman-bot-test":
+    print("cron:reminder-delivery-unexpected")
+    raise SystemExit(1)
+if reminder.get("no_agent") is not True:
+    print("cron:reminder-mode-unexpected")
+    raise SystemExit(1)
+
+eod_reminder = by_name[eod_reminder_name]
+if eod_reminder.get("script") != eod_reminder_script:
+    print("cron:eod-reminder-script-unexpected")
+    raise SystemExit(1)
+if schedule_expr(eod_reminder) != "0 9 * * *":
+    print("cron:eod-reminder-schedule-unexpected")
+    raise SystemExit(1)
+if eod_reminder.get("deliver") != "slack:#ps-weeman-bot-test":
+    print("cron:eod-reminder-delivery-unexpected")
+    raise SystemExit(1)
+if eod_reminder.get("no_agent") is not True:
+    print("cron:eod-reminder-mode-unexpected")
+    raise SystemExit(1)
+
+roi_tracker_sync = by_name[roi_tracker_sync_name]
+if roi_tracker_sync.get("script") != roi_tracker_sync_script:
+    print("cron:roi-tracker-sync-script-unexpected")
+    raise SystemExit(1)
+if schedule_expr(roi_tracker_sync) != "*/30 1-10 * * 1-5":
+    print("cron:roi-tracker-sync-schedule-unexpected")
+    raise SystemExit(1)
+if roi_tracker_sync.get("deliver") != "slack:#ps-weeman-bot-test":
+    print("cron:roi-tracker-sync-delivery-unexpected")
+    raise SystemExit(1)
+if roi_tracker_sync.get("no_agent") is not True:
+    print("cron:roi-tracker-sync-mode-unexpected")
+    raise SystemExit(1)
 
 heartbeat = by_name[heartbeat_name]
 if heartbeat.get("script") != heartbeat_script:
     print("cron:heartbeat-script-unexpected")
     raise SystemExit(1)
-schedule = heartbeat.get("schedule")
-schedule_expr = schedule.get("expr") if isinstance(schedule, dict) else schedule
-if schedule_expr != "*/15 * * * *":
+if schedule_expr(heartbeat) != "*/15 * * * *":
     print("cron:heartbeat-schedule-unexpected")
     raise SystemExit(1)
 if heartbeat.get("timezone") != expected_timezone:
@@ -102,9 +161,7 @@ adoption_digest = by_name[adoption_digest_name]
 if adoption_digest.get("script") != adoption_digest_script:
     print("cron:adoption-digest-script-unexpected")
     raise SystemExit(1)
-adoption_schedule = adoption_digest.get("schedule")
-adoption_schedule_expr = adoption_schedule.get("expr") if isinstance(adoption_schedule, dict) else adoption_schedule
-if adoption_schedule_expr != "0 2 * * 1-5":
+if schedule_expr(adoption_digest) != "0 2 * * 1-5":
     print("cron:adoption-digest-schedule-unexpected")
     raise SystemExit(1)
 if adoption_digest.get("deliver") != "slack:#ps-weeman-bot-test":

@@ -11,9 +11,12 @@ display:
     slack:
       streaming: false
       tool_progress: "off"
+platforms:
+  slack:
+    gateway_restart_notification: false
 slack:
   require_mention: true
-  allowed_channels: "C0B32M34J3W,C0AJAUNCEL8"
+  allowed_channels: "C0B32M34J3W,C0AJAUNCEL8,C01RZ7SHC8K,CF8PK6V4J"
   reactions: false
 cron:
   max_parallel_jobs: 1
@@ -27,6 +30,16 @@ sources:
     deploy_key_env: "LAUNCHBOT_PANTHEON_SSH_KEY"
     default_deploy_key: "~/.hermes/profiles/launchbot/ssh/pantheon_deploy_key"
     status_json: "~/.hermes/profiles/launchbot/runtime/pantheon-repo-status.json"
+feature_intake_monitor:
+  mode: "no_agent_slack_poll"
+  script: "/home/leekaiyi/.hermes/profiles/launchbot/scripts/launchbot-monitor-feature-intake.py"
+  configured_channel_ids_env: "LAUNCHBOT_FEATURE_INTAKE_MONITOR_CHANNEL_IDS"
+  state_path_env: "LAUNCHBOT_FEATURE_INTAKE_MONITOR_STATE_PATH"
+  max_messages_per_run_env: "LAUNCHBOT_FEATURE_INTAKE_MONITOR_MAX_MESSAGES_PER_RUN"
+  overlap_seconds_env: "LAUNCHBOT_FEATURE_INTAKE_MONITOR_OVERLAP_SECONDS"
+  required_confirmation: "create intake"
+  no_raw_transcript_persistence: true
+  normal_gateway_require_mention: true
 kanban:
   dispatch_in_gateway: false
 model:
@@ -57,6 +70,43 @@ mcp_servers:
       default_channel_ids:
         - "C0B32M34J3W"
         - "C0AJAUNCEL8"
+        - "C01RZ7SHC8K"
+      no_slack_connector_fallback: true
+      no_user_token_fallback: true
+  launchbot_product_commitment:
+    description: "Read-only Slack thread to Jira KER/JPD product commitment checker for Launchbot."
+    command: "/home/leekaiyi/.hermes/hermes-agent/venv/bin/python"
+    args:
+      - "/home/leekaiyi/.hermes/profiles/launchbot/source/launchbot/runtime/mcp/launchbot_product_commitment_server.py"
+    timeout: 120
+    tool_allowlist:
+      - "check_product_commitment_from_slack_thread"
+    auth_metadata:
+      slack:
+        type: "bot_token_env"
+        env: "SLACK_BOT_TOKEN"
+      jira:
+        type: "basic_auth_env"
+        base_url_env: "JIRA_BASE_URL"
+        email_env: "JIRA_EMAIL"
+        api_token_env: "JIRA_API_TOKEN"
+    access_policy:
+      mode: "read_only_commitment_check"
+      configured_channel_ids_env: "LAUNCHBOT_PRODUCT_COMMITMENT_ALLOWED_CHANNEL_IDS"
+      default_channel_ids:
+        - "C0B32M34J3W"
+        - "C01RZ7SHC8K"
+      project_key: "KER"
+      reviewed_commitment_fields_env: "LAUNCHBOT_PRODUCT_COMMITMENT_FIELD_IDS"
+      standard_commitment_fields:
+        - "fixVersions"
+      no_slack_post_from_mcp: true
+      no_jira_mutation: true
+      no_jira_comments: true
+      no_jira_transitions: true
+      no_jira_assignment: true
+      no_timeline_inference: true
+      no_intake_creation: true
       no_slack_connector_fallback: true
       no_user_token_fallback: true
   launchbot_ifi:
@@ -93,6 +143,41 @@ mcp_servers:
       ambiguous_company_action: "ask_for_hubspot_company_link_or_numeric_id"
       no_slack_connector_fallback: true
       no_user_token_fallback: true
+  launchbot_feature_intake:
+    description: "Guarded Slack thread to Jira Product Discovery KER intake adapter for Launchbot."
+    command: "/home/leekaiyi/.hermes/hermes-agent/venv/bin/python"
+    args:
+      - "/home/leekaiyi/.hermes/profiles/launchbot/source/launchbot/runtime/mcp/launchbot_feature_intake_server.py"
+    timeout: 120
+    tool_allowlist:
+      - "preview_feature_intake_from_slack_thread"
+      - "create_feature_intake_from_slack_thread"
+    auth_metadata:
+      slack:
+        type: "bot_token_env"
+        env: "SLACK_BOT_TOKEN"
+      jira:
+        type: "basic_auth_env"
+        base_url_env: "JIRA_BASE_URL"
+        email_env: "JIRA_EMAIL"
+        api_token_env: "JIRA_API_TOKEN"
+    access_policy:
+      mode: "confirmed_jpd_intake_create"
+      configured_channel_ids_env: "LAUNCHBOT_FEATURE_INTAKE_ALLOWED_CHANNEL_IDS"
+      default_channel_ids:
+        - "C0B32M34J3W"
+        - "CF8PK6V4J"
+      project_key: "KER"
+      issue_type_id: "10043"
+      slack_prd_field_id: "customfield_10080"
+      required_confirmation: "create intake"
+      preview_first: true
+      no_slack_post_from_mcp: true
+      no_jira_comments: true
+      no_jira_transitions: true
+      no_jira_assignment: true
+      no_slack_connector_fallback: true
+      no_user_token_fallback: true
   launchbot_help_article:
     description: "Draft-only registered video-slot updater for StaffAny help articles."
     command: "/home/leekaiyi/.hermes/hermes-agent/venv/bin/python"
@@ -125,6 +210,13 @@ gateway:
     channel: "#launch-bot-testing"
 SLACK_HOME_CHANNEL: "C0B32M34J3W"
 SLACK_HOME_CHANNEL_NAME: "launch-bot-testing"
-LAUNCHBOT_KER_ALLOWED_CHANNEL_IDS: "C0B32M34J3W,C0AJAUNCEL8"
+LAUNCHBOT_KER_ALLOWED_CHANNEL_IDS: "C0B32M34J3W,C0AJAUNCEL8,C01RZ7SHC8K"
+LAUNCHBOT_PRODUCT_COMMITMENT_ALLOWED_CHANNEL_IDS: "C0B32M34J3W,C01RZ7SHC8K"
+LAUNCHBOT_PRODUCT_COMMITMENT_FIELD_IDS: ""
+LAUNCHBOT_FEATURE_INTAKE_ALLOWED_CHANNEL_IDS: "C0B32M34J3W,CF8PK6V4J"
+LAUNCHBOT_FEATURE_INTAKE_MONITOR_CHANNEL_IDS: "CF8PK6V4J"
+LAUNCHBOT_FEATURE_INTAKE_MONITOR_STATE_PATH: "~/.hermes/profiles/launchbot/runtime/feature-intake-monitor-state.json"
+LAUNCHBOT_FEATURE_INTAKE_MONITOR_MAX_MESSAGES_PER_RUN: "100"
+LAUNCHBOT_FEATURE_INTAKE_MONITOR_OVERLAP_SECONDS: "600"
 JIRA_IFI_HUBSPOT_COMPANY_ID_FIELD_ID: "customfield_10881"
 HUBSPOT_PORTAL_ID: "4137076"

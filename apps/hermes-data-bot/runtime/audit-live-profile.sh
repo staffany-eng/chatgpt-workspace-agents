@@ -10,6 +10,9 @@ EXPECTED_CLOUD_HEARTBEAT_CRON_NAME="${EXPECTED_CLOUD_HEARTBEAT_CRON_NAME:-staffa
 EXPECTED_DIGEST_CRON_NAME="${EXPECTED_DIGEST_CRON_NAME:-staffanydatabot high-priority release feature usage digest}"
 EXPECT_DIGEST_CRON="${EXPECT_DIGEST_CRON:-0}"
 EXPECTED_MCP_TOOLS="${EXPECTED_MCP_TOOLS:-4}"
+EXPECTED_SLACK_CONTEXT_MCP_TOOLS="${EXPECTED_SLACK_CONTEXT_MCP_TOOLS:-2}"
+EXPECTED_C360_MCP_TOOLS="${EXPECTED_C360_MCP_TOOLS:-1}"
+EXPECTED_GOOGLE_SHEETS_MCP_TOOLS="${EXPECTED_GOOGLE_SHEETS_MCP_TOOLS:-2}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROFILE_DIR="${HERMES_PROFILE_DIR:-$HOME/.hermes/profiles/$PROFILE}"
@@ -43,8 +46,15 @@ config_path="$(hermes -p "$PROFILE" config path 2>/dev/null)" || fail "hermes:co
 
 cmp -s "$APP_ROOT/profile/SOUL.md" "$PROFILE_DIR/SOUL.md" || fail "profile-drift:soul"
 diff -qr "$APP_ROOT/skills/staffany-data-bot" "$PROFILE_DIR/skills/staffany-data-bot" >/dev/null || fail "profile-drift:staffany-data-bot-skill"
+diff -qr "$APP_ROOT/../hermes-shared/google-sheets-output/skills/staffany-google-sheets-output" "$PROFILE_DIR/skills/staffany-google-sheets-output" >/dev/null || fail "profile-drift:staffany-google-sheets-output-skill"
 cmp -s "$APP_ROOT/runtime/check-health.sh" "$PROFILE_DIR/scripts/staffanydatabot-check-health.sh" || fail "profile-drift:health-script"
 cmp -s "$APP_ROOT/runtime/check-cloud-heartbeat.sh" "$PROFILE_DIR/scripts/staffanydatabot-check-cloud-heartbeat.sh" || fail "profile-drift:cloud-heartbeat-script"
+cmp -s "$APP_ROOT/runtime/staffanydatabot-cloud-doctor.sh" "$PROFILE_DIR/scripts/staffanydatabot-cloud-doctor.sh" || fail "profile-drift:cloud-doctor-script"
+cmp -s "$APP_ROOT/runtime/mcp/staffany_slack_context_server.py" "$PROFILE_DIR/runtime/mcp/staffany_slack_context_server.py" || fail "profile-drift:staffany-slack-context-mcp"
+cmp -s "$APP_ROOT/runtime/mcp/staffany_c360_server.py" "$PROFILE_DIR/runtime/mcp/staffany_c360_server.py" || fail "profile-drift:staffany-c360-mcp"
+cmp -s "$APP_ROOT/runtime/mcp/profile_env.py" "$PROFILE_DIR/runtime/mcp/profile_env.py" || fail "profile-drift:staffany-slack-context-profile-env"
+cmp -s "$APP_ROOT/../hermes-shared/google-sheets-output/runtime/mcp/staffany_google_sheets_server.py" "$PROFILE_DIR/source/hermes-shared/google-sheets-output/runtime/mcp/staffany_google_sheets_server.py" || fail "profile-drift:staffany-google-sheets-mcp"
+cmp -s "$APP_ROOT/../hermes-shared/google-sheets-output/runtime/mcp/google_oauth.py" "$PROFILE_DIR/source/hermes-shared/google-sheets-output/runtime/mcp/google_oauth.py" || fail "profile-drift:staffany-google-sheets-oauth-helper"
 
 hermes_python="$HERMES_AGENT_DIR/venv/bin/python"
 [ -x "$hermes_python" ] || fail "hermes:python-not-found"
@@ -98,6 +108,9 @@ if ((config.get("slack") or {}).get("reactions")) is not False:
 if ((config.get("kanban") or {}).get("dispatch_in_gateway")) is not False:
     print("kanban:dispatch-in-gateway-not-disabled")
     raise SystemExit(1)
+if ((config.get("cron") or {}).get("max_parallel_jobs")) != 1:
+    print("cron:max-parallel-jobs-not-one")
+    raise SystemExit(1)
 if ((config.get("security") or {}).get("redact_secrets")) is not True:
     print("security:redact-secrets-not-enabled")
     raise SystemExit(1)
@@ -117,6 +130,65 @@ if allowlist != expected_tools:
 if tools.get("resources") is not False or tools.get("prompts") is not False:
     print("mcp:staffany_bigquery-resources-prompts-enabled")
     raise SystemExit(1)
+
+slack_context = ((config.get("mcp_servers") or {}).get("staffany_slack_context") or {})
+slack_context_tools = slack_context.get("tools") or {}
+slack_context_allowlist = slack_context_tools.get("include") or slack_context.get("tool_allowlist") or []
+expected_slack_context_tools = [
+    "get_current_slack_thread_context",
+    "get_selected_slack_thread_context",
+]
+if slack_context_allowlist != expected_slack_context_tools:
+    print("mcp:staffany_slack_context-tool-allowlist-drift")
+    raise SystemExit(1)
+access_policy = slack_context.get("access_policy") or {}
+if (
+    access_policy.get("slack_posting") is not False
+    or access_policy.get("workspace_search") is not False
+    or access_policy.get("user_token_fallback") is not False
+    or access_policy.get("slack_connector_fallback") is not False
+):
+    print("mcp:staffany_slack_context-unsafe-access-policy")
+    raise SystemExit(1)
+
+c360 = ((config.get("mcp_servers") or {}).get("staffany_c360") or {})
+c360_allowlist = c360.get("tool_allowlist") or []
+if c360_allowlist != ["list_current_customer_orgs"]:
+    print("mcp:staffany_c360-tool-allowlist-drift")
+    raise SystemExit(1)
+c360_policy = c360.get("access_policy") or {}
+if (
+    c360_policy.get("custom_internal_header_only") is not True
+    or c360_policy.get("browser_cookie") is not False
+    or c360_policy.get("personal_customer360_session") is not False
+    or c360_policy.get("write_operations") is not False
+):
+    print("mcp:staffany_c360-unsafe-access-policy")
+    raise SystemExit(1)
+
+google_sheets = ((config.get("mcp_servers") or {}).get("staffany_google_sheets") or {})
+google_sheets_tools = google_sheets.get("tools") or {}
+google_sheets_allowlist = google_sheets_tools.get("include") or google_sheets.get("tool_allowlist") or []
+expected_google_sheets_tools = [
+    "check_google_sheets_output_access",
+    "create_spreadsheet_from_rows",
+]
+if google_sheets_allowlist != expected_google_sheets_tools:
+    print("mcp:staffany_google_sheets-tool-allowlist-drift")
+    raise SystemExit(1)
+google_sheets_policy = google_sheets.get("access_policy") or {}
+if (
+    google_sheets_policy.get("account_email") != "team@staffany.com"
+    or google_sheets_policy.get("service_account") is not False
+    or google_sheets_policy.get("requires_output_folder_or_share_target") is not True
+    or google_sheets_policy.get("create_spreadsheets") is not True
+    or google_sheets_policy.get("edit_existing_spreadsheets") is not False
+    or google_sheets_policy.get("read_arbitrary_spreadsheets") is not False
+    or google_sheets_policy.get("user_token_fallback") is not False
+    or google_sheets_policy.get("slack_connector_fallback") is not False
+):
+    print("mcp:staffany_google_sheets-unsafe-access-policy")
+    raise SystemExit(1)
 PY
 then
   fail "$(cat "$config_check_out")"
@@ -131,5 +203,11 @@ fi
 
 mcp_out="$(hermes -p "$PROFILE" mcp test staffany_bigquery 2>&1)" || fail "mcp:staffany_bigquery-test-failed"
 printf '%s\n' "$mcp_out" | grep -q "Tools discovered: $EXPECTED_MCP_TOOLS" || fail "mcp:staffany_bigquery-tool-count-unexpected"
+slack_context_mcp_out="$(hermes -p "$PROFILE" mcp test staffany_slack_context 2>&1)" || fail "mcp:staffany_slack_context-test-failed"
+printf '%s\n' "$slack_context_mcp_out" | grep -q "Tools discovered: $EXPECTED_SLACK_CONTEXT_MCP_TOOLS" || fail "mcp:staffany_slack_context-tool-count-unexpected"
+c360_mcp_out="$(hermes -p "$PROFILE" mcp test staffany_c360 2>&1)" || fail "mcp:staffany_c360-test-failed"
+printf '%s\n' "$c360_mcp_out" | grep -q "Tools discovered: $EXPECTED_C360_MCP_TOOLS" || fail "mcp:staffany_c360-tool-count-unexpected"
+google_sheets_mcp_out="$(hermes -p "$PROFILE" mcp test staffany_google_sheets 2>&1)" || fail "mcp:staffany_google_sheets-test-failed"
+printf '%s\n' "$google_sheets_mcp_out" | grep -q "Tools discovered: $EXPECTED_GOOGLE_SHEETS_MCP_TOOLS" || fail "mcp:staffany_google_sheets-tool-count-unexpected"
 
 printf 'live-profile:audit-ok\n'

@@ -39,6 +39,27 @@
 - Given user confirmation `draft it`, Launchbot should call `create_help_article_video_update_draft`, update only the registered Loom iframe, and send Intercom `state: "draft"` only.
 - Video-only updates must not rewrite article text, create Google Docs review docs, publish, delete, tag, move collections, or mutate unregistered videos.
 
+## Feature Intake Channel Monitor
+
+- A feature-like message in `#input-features-ux` causes at most one `Launchbot automation: Potential KER intake detected.` preview in the source thread.
+- A duplicate Slack source permalink returns the existing KER link instead of another create prompt.
+- Exact `create intake` or `create KER intake` in the previewed thread creates one KER Idea.
+- Replies such as `yes`, `ok`, `create`, and `+1` do not create Jira issues.
+- Bot messages, Launchbot automation messages, deleted/empty messages, and repeated source permalinks are ignored.
+- The monitor state stores safe summaries and source pointers only; raw Slack transcripts are not persisted.
+
+## Product Commitment Checks
+
+- Given `@Launch Bot check product commitment for this thread` in `#all-product-questions`, Launchbot should call only `check_product_commitment_from_slack_thread`.
+- Product commitment checks should be allowed by `LAUNCHBOT_PRODUCT_COMMITMENT_ALLOWED_CHANNEL_IDS` and should not widen the feature-intake channel allowlist.
+- The MCP should read bounded Slack context with the bot token, sanitize thread summaries, and never persist raw Slack transcripts.
+- The MCP should search Jira KER/JPD read-only and must not post Slack messages, create intake, create/update Jira issues, comment, transition, assign, delete, or bulk-update Jira.
+- Given no matching Jira issue, Launchbot should return `No matching KER/JPD issue found` with `Confidence: needs-check`.
+- Given a matching Jira issue without `fixVersions` or configured reviewed commitment fields, Launchbot should return `No committed Jira roadmap evidence found for <topic> yet` with `Confidence: needs-check`.
+- Given a matching Jira issue with `fixVersions`, Launchbot should return the issue key, summary, status, Jira link, and fixVersion commitment evidence with `Confidence: verified`.
+- Given a matching Jira issue with a non-empty field configured in `LAUNCHBOT_PRODUCT_COMMITMENT_FIELD_IDS`, Launchbot should treat that configured reviewed field as commitment evidence.
+- Launchbot must never infer an ETA from Slack wording, Jira status, assignee, priority, or model reasoning.
+
 ## IFI Feature Request Tracking
 
 - Given `track IFI for <HubSpot company URL>: Citibank bank file export`, Launchbot should call `preview_ifi_feature_request_tracking` first and should not mutate Jira.
@@ -89,6 +110,11 @@
 - Launchbot test runs should post to `#launch-bot-testing` (`C0B32M34J3W`) unless the user explicitly names another channel.
 - Slack Socket Mode subscriptions must include bot events `app_mention` and `message.channels`; if the gateway is connected but receives no inbound smoke event, debug Slack event subscription drift first.
 - Slack automation copy should start with `Launchbot automation:` and use a light cowboy voice without weakening the approval instruction.
+
+## Read-only KER Lookup
+
+- `#all-product-questions` (`C01RZ7SHC8K`) is an allowed Launchbot channel only for read-only product-commitment / KER lookup.
+- KER lookup in `#all-product-questions` must read bounded Slack context with the Launchbot bot token, call Jira KER read-only, and never create feature intake, post from the MCP, or mutate Jira.
 
 ## Slack Approval To Intercom Draft
 

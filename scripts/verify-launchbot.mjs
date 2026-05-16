@@ -59,6 +59,12 @@ if (!manifest) {
   if (manifest.slack?.socket_mode !== true) {
     fail("Manifest Slack socket_mode must be true");
   }
+  if (manifest.slack?.gateway_restart_notification !== false) {
+    fail("Manifest Slack gateway restart notifications must be disabled");
+  }
+  if (!manifest.channels?.includes("Slack #all-product-questions")) {
+    fail("Manifest channels must include #all-product-questions for read-only KER lookup");
+  }
   for (const eventName of ["app_mention", "message.channels"]) {
     if (!manifest.slack?.required_bot_events?.includes(eventName)) {
       fail(`Manifest Slack required bot events missing ${eventName}`);
@@ -151,24 +157,6 @@ if (!manifest) {
     fail("Manifest Pantheon daily update must be gated on VM GitHub SSH access");
   }
   const helpMcp = manifest.mcp?.launchbot_help_article || {};
-  const ifiMcp = manifest.mcp?.launchbot_ifi || {};
-  if (ifiMcp.mode !== "preview_first_confirmed_jira_mutation") fail("Manifest IFI MCP must be preview-first confirmed Jira mutation");
-  const ifiTools = new Set(ifiMcp.tools || []);
-  for (const tool of [
-    "preview_ifi_feature_request_tracking",
-    "create_or_update_ifi_feature_request_tracking",
-    "preview_ifi_feature_request_from_bd_note",
-    "create_or_update_ifi_feature_request_from_bd_note",
-  ]) {
-    if (!ifiTools.has(tool)) fail(`Manifest IFI MCP missing tool: ${tool}`);
-  }
-  if (ifiMcp.hubspot?.company_identity !== "HubSpot Company ID") fail("Manifest IFI MCP must anchor on HubSpot Company ID");
-  if (ifiMcp.jira?.project_key !== "IFI") fail("Manifest IFI MCP must write to IFI");
-  if (ifiMcp.jira?.hubspot_company_id_field_id !== "customfield_10881") {
-    fail("Manifest IFI MCP must register customfield_10881 as the HubSpot Company ID field");
-  }
-  if (ifiMcp.jira?.approval_marker !== "confirm IFI") fail("Manifest IFI MCP must require confirm IFI");
-  if (ifiMcp.jira?.slack_post !== false) fail("Manifest IFI MCP must not post Slack messages");
   if (helpMcp.mode !== "draft_only_registered_video_slots") fail("Manifest help article MCP must be draft-only registered video slots");
   const helpTools = new Set(helpMcp.tools || []);
   for (const tool of ["preview_help_article_video_update", "create_help_article_video_update_draft"]) {
@@ -187,6 +175,91 @@ if (!manifest) {
   if (helpMcp.video?.provider !== "loom") fail("Manifest help article MCP must be Loom-only");
   if (helpMcp.video?.reject_raw_video_files !== true) fail("Manifest help article MCP must reject raw video files");
   if (helpMcp.video?.reject_slack_file_urls !== true) fail("Manifest help article MCP must reject Slack file URLs");
+  for (const channelId of ["C0B32M34J3W", "C0AJAUNCEL8", "C01RZ7SHC8K", "CF8PK6V4J"]) {
+    if (!manifest.slack?.allowed_channel_ids?.includes(channelId)) {
+      fail(`Manifest Slack allowed channel IDs missing ${channelId}`);
+    }
+  }
+  const kerMcp = manifest.mcp?.launchbot_ker || {};
+  if (!kerMcp.slack_context?.default_channel_ids?.includes("C01RZ7SHC8K")) {
+    fail("Manifest KER MCP default channels must include all-product-questions C01RZ7SHC8K");
+  }
+  const ifiMcp = manifest.mcp?.launchbot_ifi || {};
+  if (ifiMcp.mode !== "preview_first_confirmed_jira_mutation") fail("Manifest IFI MCP must be preview-first confirmed Jira mutation");
+  const ifiTools = new Set(ifiMcp.tools || []);
+  for (const tool of [
+    "preview_ifi_feature_request_tracking",
+    "create_or_update_ifi_feature_request_tracking",
+    "preview_ifi_feature_request_from_bd_note",
+    "create_or_update_ifi_feature_request_from_bd_note",
+  ]) {
+    if (!ifiTools.has(tool)) fail(`Manifest IFI MCP missing tool: ${tool}`);
+  }
+  if (ifiMcp.hubspot?.company_identity !== "HubSpot Company ID") fail("Manifest IFI MCP must anchor on HubSpot Company ID");
+  if (ifiMcp.jira?.project_key !== "IFI") fail("Manifest IFI MCP must create/update IFI project issues");
+  if (ifiMcp.jira?.hubspot_company_id_field_id !== "customfield_10881") {
+    fail("Manifest IFI MCP must use customfield_10881 for HubSpot Company ID");
+  }
+  if (ifiMcp.jira?.approval_marker !== "confirm IFI") fail("Manifest IFI MCP must require confirm IFI");
+  if (ifiMcp.jira?.slack_post !== false) fail("Manifest IFI MCP must not post Slack");
+  if (ifiMcp.bd_notes?.requires_confirmed_hubspot_company_id !== true) {
+    fail("Manifest IFI BD notes mode must require confirmed HubSpot Company ID");
+  }
+  if (ifiMcp.bd_notes?.alias_auto_mapping !== false) fail("Manifest IFI BD notes mode must not auto-map aliases");
+  const productCommitmentMcp = manifest.mcp?.launchbot_product_commitment || {};
+  if (productCommitmentMcp.mode !== "read_only_commitment_check") fail("Manifest product commitment MCP must be read-only commitment check");
+  const productCommitmentTools = new Set(productCommitmentMcp.tools || []);
+  if (!productCommitmentTools.has("check_product_commitment_from_slack_thread")) {
+    fail("Manifest product commitment MCP missing tool: check_product_commitment_from_slack_thread");
+  }
+  if (productCommitmentMcp.slack_context?.configured_channel_ids_env_var !== "LAUNCHBOT_PRODUCT_COMMITMENT_ALLOWED_CHANNEL_IDS") {
+    fail("Manifest product commitment MCP must use LAUNCHBOT_PRODUCT_COMMITMENT_ALLOWED_CHANNEL_IDS");
+  }
+  if (!productCommitmentMcp.slack_context?.default_channel_ids?.includes("C01RZ7SHC8K")) {
+    fail("Manifest product commitment MCP default channels must include C01RZ7SHC8K");
+  }
+  if (productCommitmentMcp.slack_context?.raw_transcript_persistence !== false) {
+    fail("Manifest product commitment MCP must not persist raw Slack transcripts");
+  }
+  if (productCommitmentMcp.jira?.project_key !== "KER") fail("Manifest product commitment MCP must search KER");
+  if (productCommitmentMcp.jira?.reviewed_commitment_fields_env_var !== "LAUNCHBOT_PRODUCT_COMMITMENT_FIELD_IDS") {
+    fail("Manifest product commitment MCP must use LAUNCHBOT_PRODUCT_COMMITMENT_FIELD_IDS");
+  }
+  if (!productCommitmentMcp.jira?.standard_commitment_fields?.includes("fixVersions")) {
+    fail("Manifest product commitment MCP must count fixVersions as a standard commitment field");
+  }
+  for (const key of ["mutations", "comments", "transitions", "assignments", "timeline_inference", "intake_creation"]) {
+    if (productCommitmentMcp.jira?.[key] !== false) fail(`Manifest product commitment MCP must forbid Jira ${key}`);
+  }
+  const featureIntakeMcp = manifest.mcp?.launchbot_feature_intake || {};
+  if (featureIntakeMcp.mode !== "confirmed_jpd_intake_create") fail("Manifest feature intake MCP must be confirmed JPD intake create");
+  const featureIntakeTools = new Set(featureIntakeMcp.tools || []);
+  for (const tool of ["preview_feature_intake_from_slack_thread", "create_feature_intake_from_slack_thread"]) {
+    if (!featureIntakeTools.has(tool)) fail(`Manifest feature intake MCP missing tool: ${tool}`);
+  }
+  if (featureIntakeMcp.slack_context?.configured_channel_ids_env_var !== "LAUNCHBOT_FEATURE_INTAKE_ALLOWED_CHANNEL_IDS") {
+    fail("Manifest feature intake MCP must use LAUNCHBOT_FEATURE_INTAKE_ALLOWED_CHANNEL_IDS");
+  }
+  if (!featureIntakeMcp.slack_context?.default_channel_ids?.includes("CF8PK6V4J")) {
+    fail("Manifest feature intake MCP default channels must include CF8PK6V4J");
+  }
+  if (featureIntakeMcp.slack_context?.raw_transcript_persistence !== false) {
+    fail("Manifest feature intake MCP must not persist raw Slack transcripts");
+  }
+  if (featureIntakeMcp.jira?.project_key !== "KER") fail("Manifest feature intake MCP must create in KER");
+  if (featureIntakeMcp.jira?.issue_type_id !== "10043") fail("Manifest feature intake MCP must use KER Idea issue type");
+  if (featureIntakeMcp.jira?.slack_prd_field_id !== "customfield_10080") {
+    fail("Manifest feature intake MCP must use Slack / PRD customfield_10080");
+  }
+  if (!featureIntakeMcp.jira?.mutations?.includes("create_issue")) {
+    fail("Manifest feature intake MCP must expose only create_issue mutation");
+  }
+  for (const key of ["comments", "transitions", "assignments"]) {
+    if (featureIntakeMcp.jira?.[key] !== false) fail(`Manifest feature intake MCP must forbid Jira ${key}`);
+  }
+  if (featureIntakeMcp.confirmation?.phrase !== "create intake") {
+    fail("Manifest feature intake MCP confirmation phrase must be create intake");
+  }
   const healthCron = (manifest.expected_crons || []).find((cron) => cron.name === "launchbot health check");
   if (healthCron?.schedule !== "*/5 * * * *") fail("Manifest must define Launchbot health check cron");
   if (healthCron?.mode !== "no-agent") fail("Manifest health check cron must be no-agent");
@@ -196,6 +269,21 @@ if (!manifest) {
   if (pantheonCron?.requires !== "VM GitHub SSH access to staffany-eng/pantheon") {
     fail("Manifest Pantheon repo update cron must document the GitHub SSH access gate");
   }
+  const monitorCron = (manifest.expected_crons || []).find((cron) => cron.name === "launchbot feature intake monitor");
+  if (monitorCron?.schedule !== "* * * * *") fail("Manifest must define feature intake monitor cron");
+  if (monitorCron?.mode !== "no-agent") fail("Manifest feature intake monitor cron must be no-agent");
+  const monitor = manifest.feature_intake_monitor || {};
+  if (monitor.mode !== "no_agent_slack_poll") fail("Manifest feature intake monitor mode must be no_agent_slack_poll");
+  if (!monitor.default_channel_ids?.includes("CF8PK6V4J")) fail("Manifest feature intake monitor default channels must include CF8PK6V4J");
+  if (monitor.channel_ids_env_var !== "LAUNCHBOT_FEATURE_INTAKE_MONITOR_CHANNEL_IDS") fail("Manifest monitor channel env unexpected");
+  if (monitor.state_path_env_var !== "LAUNCHBOT_FEATURE_INTAKE_MONITOR_STATE_PATH") fail("Manifest monitor state path env unexpected");
+  if (monitor.default_state_path !== "~/.hermes/profiles/launchbot/runtime/feature-intake-monitor-state.json") fail("Manifest monitor state path unexpected");
+  if (monitor.default_max_messages_per_run !== 100) fail("Manifest monitor max messages default unexpected");
+  if (monitor.default_overlap_seconds !== 600) fail("Manifest monitor overlap default unexpected");
+  if (monitor.normal_gateway_require_mention !== true) fail("Manifest monitor must keep normal gateway mention-gated");
+  if (monitor.raw_transcript_persistence !== false) fail("Manifest monitor must not persist raw transcripts");
+  if (monitor.posts_slack_previews !== true) fail("Manifest monitor must post Launchbot-owned previews");
+  if (monitor.slack_reply_prefix !== "Launchbot automation:") fail("Manifest monitor must use Launchbot automation prefix");
 }
 
 for (const relPath of [
@@ -206,15 +294,21 @@ for (const relPath of [
   "runtime/check-health.sh",
   "runtime/audit-live-profile.sh",
   "runtime/update-pantheon-repo.sh",
+  "runtime/monitor-feature-intake.py",
+  "runtime/test_monitor_feature_intake.py",
   "runtime/intercom-format-gate.mjs",
   "runtime/intercom-format-gate.test.mjs",
   "runtime/mcp/profile_env.py",
   "runtime/mcp/launchbot_ker_server.py",
   "runtime/mcp/launchbot_ifi_server.py",
+  "runtime/mcp/launchbot_product_commitment_server.py",
+  "runtime/mcp/launchbot_feature_intake_core.py",
+  "runtime/mcp/launchbot_feature_intake_server.py",
   "runtime/mcp/launchbot_help_article_server.py",
   "runtime/mcp/test_helpers.py",
   "runtime/mcp/test_launchbot_ker_server.py",
   "runtime/mcp/test_launchbot_ifi_server.py",
+  "runtime/mcp/test_launchbot_feature_intake_server.py",
   "runtime/mcp/test_launchbot_help_article_server.py",
   "runtime/mcp/fixtures/help_article_video_fixtures.json",
   "skills/help-article-generator/SKILL.md",
@@ -242,10 +336,15 @@ for (const requiredText of [
   'tool_progress: "off"',
   "streaming: false",
   "reactions: false",
+  "gateway_restart_notification: false",
   "C0B32M34J3W",
   "C0AJAUNCEL8",
+  "C01RZ7SHC8K",
+  "CF8PK6V4J",
   "launchbot_ker",
   "launchbot_ifi",
+  "launchbot_product_commitment",
+  "launchbot_feature_intake",
   "launchbot_help_article",
   "find_ker_ticket_from_slack_thread",
   "lookup_ker_ticket_by_key",
@@ -253,13 +352,30 @@ for (const requiredText of [
   "create_or_update_ifi_feature_request_tracking",
   "preview_ifi_feature_request_from_bd_note",
   "create_or_update_ifi_feature_request_from_bd_note",
+  "preview_feature_intake_from_slack_thread",
+  "create_feature_intake_from_slack_thread",
   "preview_help_article_video_update",
   "create_help_article_video_update_draft",
+  "JIRA_API_TOKEN",
   "HUBSPOT_ACCESS_TOKEN",
   "JIRA_IFI_HUBSPOT_COMPANY_ID_FIELD_ID",
   "customfield_10881",
   "confirm IFI",
-  "JIRA_API_TOKEN",
+  "LAUNCHBOT_PRODUCT_COMMITMENT_ALLOWED_CHANNEL_IDS",
+  "LAUNCHBOT_PRODUCT_COMMITMENT_FIELD_IDS",
+  "read_only_commitment_check",
+  "no_timeline_inference: true",
+  "no_intake_creation: true",
+  "LAUNCHBOT_FEATURE_INTAKE_ALLOWED_CHANNEL_IDS",
+  "LAUNCHBOT_FEATURE_INTAKE_MONITOR_CHANNEL_IDS",
+  "LAUNCHBOT_FEATURE_INTAKE_MONITOR_STATE_PATH",
+  "LAUNCHBOT_FEATURE_INTAKE_MONITOR_MAX_MESSAGES_PER_RUN",
+  "LAUNCHBOT_FEATURE_INTAKE_MONITOR_OVERLAP_SECONDS",
+  "feature_intake_monitor",
+  "no_agent_slack_poll",
+  "no_raw_transcript_persistence: true",
+  "confirmed_jpd_intake_create",
+  "required_confirmation: \"create intake\"",
   "LAUNCH_STEP3_INTERCOM_ACCESS_TOKEN",
   "draft_only_registered_video_slots",
   "allow_publish: false",
@@ -290,7 +406,12 @@ if (!launchbotProfileBlock) {
     "deploy_host: hermes-data-bot-poc",
     "local_profile_policy: cloud_only",
     "systemd_unit: hermes-gateway-launchbot.service",
+    "C01RZ7SHC8K",
+    "CF8PK6V4J",
     "launchbot_ifi:",
+    "launchbot_product_commitment:",
+    "launchbot feature intake monitor",
+    "launchbot_feature_intake:",
     "launchbot_help_article:",
   ]) {
     if (!launchbotProfileBlock.includes(requiredText)) {
@@ -310,18 +431,29 @@ for (const requiredText of [
   "Kai Yi's user token",
   "Confidence: <verified | needs-check | blocked>",
   "find_ker_ticket_from_slack_thread",
+  "preview_ifi_feature_request_tracking",
+  "create_or_update_ifi_feature_request_tracking",
+  "preview_ifi_feature_request_from_bd_note",
+  "create_or_update_ifi_feature_request_from_bd_note",
+  "preview-first IFI tracking linked to HubSpot Company ID",
+  "customfield_10881",
+  "confirm IFI",
+  "Do not auto-map aliases",
+  "preview_feature_intake_from_slack_thread",
+  "create_feature_intake_from_slack_thread",
+  "check_product_commitment_from_slack_thread",
+  "read-only product commitment checks from Jira KER/JPD",
+  "LAUNCHBOT_PRODUCT_COMMITMENT_FIELD_IDS",
+  "create intake",
+  "confirmed Slack-to-KER feature intake",
+  "no-agent monitor",
+  "Broad channel monitoring must run through the no-agent feature-intake monitor",
+  "It must not store raw Slack transcripts",
   "KER-2109",
   "cached Intercom article planning",
   "Pantheon-grounded help article drafts",
   "registered video-slot update drafts",
   "Intercom format checks",
-  "preview-first IFI tracking linked to HubSpot Company ID",
-  "preview_ifi_feature_request_tracking",
-  "create_or_update_ifi_feature_request_tracking",
-  "preview_ifi_feature_request_from_bd_note",
-  "create_or_update_ifi_feature_request_from_bd_note",
-  "confirm IFI",
-  "customfield_10881",
   "message.channels",
   "Intercom draft/staging articles",
   "preview_help_article_video_update",
@@ -332,6 +464,8 @@ for (const requiredText of [
   "Launchbot packet",
   "Launch Superpower handoff is a Launchbot skill/workflow",
   "Never answer `Source: Launch Superpower Bot packet`",
+  "#all-product-questions",
+  "read-only product-commitment / KER lookup",
   "cloud-primary",
   "Launchbot's bot identity",
 ]) {
@@ -352,6 +486,7 @@ for (const requiredText of [
   "will_post_message",
   "transcript_persisted",
   "C0AJAUNCEL8",
+  "C01RZ7SHC8K",
 ]) {
   if (!mcpText.includes(requiredText)) fail(`launchbot_ker_server.py missing required text: ${requiredText}`);
 }
@@ -376,11 +511,95 @@ for (const requiredText of [
   "/rest/api/3/issue",
   "/rest/api/3/issueLink",
   "willPostMessage",
+  "COMPANY_CONFIRMATION_GUIDANCE",
 ]) {
   if (!ifiMcpText.includes(requiredText)) fail(`launchbot_ifi_server.py missing required text: ${requiredText}`);
 }
 for (const forbiddenText of ["chat.postMessage", "SLACK_USER_TOKEN"]) {
-  if (ifiMcpText.includes(forbiddenText)) fail(`launchbot_ifi_server.py must not contain forbidden Slack surface: ${forbiddenText}`);
+  if (ifiMcpText.includes(forbiddenText)) fail(`launchbot_ifi_server.py must not contain forbidden mutation surface: ${forbiddenText}`);
+}
+
+const productCommitmentMcpText = textOf("runtime/mcp/launchbot_product_commitment_server.py");
+for (const requiredText of [
+  "SLACK_BOT_TOKEN",
+  "JIRA_BASE_URL",
+  "JIRA_EMAIL",
+  "JIRA_API_TOKEN",
+  "conversations.replies",
+  "/rest/api/3/search/jql",
+  "check_product_commitment_from_slack_thread",
+  "LAUNCHBOT_PRODUCT_COMMITMENT_ALLOWED_CHANNEL_IDS",
+  "LAUNCHBOT_PRODUCT_COMMITMENT_FIELD_IDS",
+  "C01RZ7SHC8K",
+  "fixVersions",
+  "will_mutate_jira",
+  "will_post_message",
+  "transcript_persisted",
+  "will_create_intake",
+  "will_estimate_timeline",
+]) {
+  if (!productCommitmentMcpText.includes(requiredText)) fail(`launchbot_product_commitment_server.py missing required text: ${requiredText}`);
+}
+for (const forbiddenText of ["chat.postMessage", "transitionIssue", "/comment", "/transitions", "/rest/api/3/issue?notifyUsers=false", "method=\"PUT\"", "method='PUT'", "DELETE"]) {
+  if (productCommitmentMcpText.includes(forbiddenText)) fail(`launchbot_product_commitment_server.py must not contain forbidden mutation surface: ${forbiddenText}`);
+}
+
+const featureIntakeMcpText = textOf("runtime/mcp/launchbot_feature_intake_server.py");
+for (const requiredText of [
+  "launchbot_feature_intake_core",
+  "preview_feature_intake_from_slack_thread",
+  "create_feature_intake_from_slack_thread",
+  "CONFIRMATION_PHRASES",
+  "create intake",
+]) {
+  if (!featureIntakeMcpText.includes(requiredText)) fail(`launchbot_feature_intake_server.py missing required text: ${requiredText}`);
+}
+for (const forbiddenText of ["chat.postMessage", "transitionIssue", "/comment", "/transitions", "DELETE"]) {
+  if (featureIntakeMcpText.includes(forbiddenText)) fail(`launchbot_feature_intake_server.py must not contain forbidden mutation surface: ${forbiddenText}`);
+}
+
+const featureIntakeCoreText = textOf("runtime/mcp/launchbot_feature_intake_core.py");
+for (const requiredText of [
+  "SLACK_BOT_TOKEN",
+  "JIRA_BASE_URL",
+  "JIRA_EMAIL",
+  "JIRA_API_TOKEN",
+  "conversations.replies",
+  "/rest/api/3/search/jql",
+  "/rest/api/3/issue?notifyUsers=false",
+  "preview_feature_intake_from_slack_thread",
+  "create_feature_intake_from_slack_thread",
+  "CONFIRMATION_PHRASES",
+  "create intake",
+  "customfield_10080",
+  "CF8PK6V4J",
+  "will_mutate_jira",
+  "will_post_message",
+  "transcript_persisted",
+]) {
+  if (!featureIntakeCoreText.includes(requiredText)) fail(`launchbot_feature_intake_core.py missing required text: ${requiredText}`);
+}
+for (const forbiddenText of ["chat.postMessage", "transitionIssue", "/comment", "/transitions", "DELETE"]) {
+  if (featureIntakeCoreText.includes(forbiddenText)) fail(`launchbot_feature_intake_core.py must not contain forbidden mutation surface: ${forbiddenText}`);
+}
+
+const featureIntakeMonitorText = textOf("runtime/monitor-feature-intake.py");
+for (const requiredText of [
+  "conversations.history",
+  "conversations.replies",
+  "chat.postMessage",
+  "LAUNCHBOT_FEATURE_INTAKE_MONITOR_CHANNEL_IDS",
+  "LAUNCHBOT_FEATURE_INTAKE_MONITOR_STATE_PATH",
+  "LAUNCHBOT_FEATURE_INTAKE_MONITOR_MAX_MESSAGES_PER_RUN",
+  "LAUNCHBOT_FEATURE_INTAKE_MONITOR_OVERLAP_SECONDS",
+  "LAUNCHBOT_FEATURE_INTAKE_APPROVER_USER_IDS",
+  "Launchbot automation: Potential KER intake detected.",
+  "create intake",
+  "create ker intake",
+  "will_post_message",
+  "transcript_persisted",
+]) {
+  if (!featureIntakeMonitorText.includes(requiredText)) fail(`monitor-feature-intake.py missing required text: ${requiredText}`);
 }
 
 const helpArticleMcpText = textOf("runtime/mcp/launchbot_help_article_server.py");
@@ -407,14 +626,28 @@ for (const requiredText of [
   "pantheon:checkout-missing",
   "pantheon:remote-unexpected",
   "pantheon:status-stale",
+  "platforms:slack:gateway-restart-notification-not-disabled",
   "LAUNCHBOT_PANTHEON_REPO_DIR",
-  "mcp:launchbot_help_article",
   "mcp:launchbot_ifi",
+  "mcp:launchbot_help_article",
+  "mcp:launchbot_product_commitment",
+  "mcp:launchbot_feature_intake",
   "preview_ifi_feature_request_from_bd_note",
   "create_or_update_ifi_feature_request_from_bd_note",
   "HUBSPOT_ACCESS_TOKEN",
   "JIRA_IFI_HUBSPOT_COMPANY_ID_FIELD_ID",
-  "customfield_10881",
+  "EXPECT_KER_ALLOWED_CHANNELS",
+  "mcp:launchbot_ker:default-channel-missing",
+  "mcp:launchbot_ker:env-channel-missing",
+  "mcp:launchbot_ker:process-env-channel-missing",
+  "LAUNCHBOT_PRODUCT_COMMITMENT_ALLOWED_CHANNEL_IDS",
+  "mcp:launchbot_product_commitment:default-channel-missing",
+  "mcp:launchbot_product_commitment:env-channel-missing",
+  "feature-intake-monitor:script-missing",
+  "feature-intake-monitor:py-compile-failed",
+  "feature-intake-monitor:raw-transcript-persistence-not-disabled",
+  "LAUNCHBOT_FEATURE_INTAKE_MONITOR_CHANNEL_IDS",
+  "launchbot_feature_intake_core",
   "LAUNCH_STEP3_INTERCOM_ACCESS_TOKEN",
   "help-article-video-registry",
 ]) {
@@ -424,12 +657,19 @@ for (const requiredText of [
 const auditText = textOf("runtime/audit-live-profile.sh");
 for (const requiredText of [
   "cron:health-check-missing",
+  "cron:feature-intake-monitor-missing",
   "cron:pantheon-repo-update-missing",
   "cron:pantheon-repo-update-present-without-github-ssh",
   "GIT_TERMINAL_PROMPT=0 git ls-remote",
   "profile-drift:help-article-mcp",
   "profile-drift:ifi-mcp",
+  "profile-drift:product-commitment-mcp",
+  "profile-drift:feature-intake-mcp",
+  "profile-drift:feature-intake-core",
+  "profile-drift:feature-intake-monitor-script",
   "profile-drift:help-article-video-registry",
+  "sessions:stale-system-prompt",
+  "sessions:active-session-json-missing",
 ]) {
   if (!auditText.includes(requiredText)) fail(`audit-live-profile.sh missing required cron/access text: ${requiredText}`);
 }
@@ -555,14 +795,6 @@ for (const requiredText of [
   "live Intercom wins",
   "pre-stage target-article stale check",
   "Public publishing stays manual in Intercom",
-  "IFI Feature Request Tracking",
-  "preview_ifi_feature_request_tracking",
-  "create_or_update_ifi_feature_request_tracking",
-  "preview_ifi_feature_request_from_bd_note",
-  "create_or_update_ifi_feature_request_from_bd_note",
-  "HubSpot Company ID",
-  "customfield_10881",
-  "confirm IFI",
   "bot-owned posting credentials",
   "@Launch Bot",
   "U0ASVD79UT1",
@@ -570,6 +802,8 @@ for (const requiredText of [
   "message.channels",
   "channels:history",
   "#launch-bot-testing",
+  "#all-product-questions",
+  "C01RZ7SHC8K",
   "light cowboy voice",
   "Do not commit token values",
   "Step 4 launch derivatives are not implemented",
@@ -577,6 +811,11 @@ for (const requiredText of [
   "apps/kraken",
   "apps/gryphon",
   "apps/pixie",
+  "IFI Feature Request Tracking",
+  "preview_ifi_feature_request_tracking",
+  "preview_ifi_feature_request_from_bd_note",
+  "customfield_10881",
+  "confirm IFI",
   "Video-only Help Article Update",
   "video-placement-registry.json",
   "preview_help_article_video_update",
@@ -693,13 +932,7 @@ if (!existsSync(secretWrapperPath)) fail("Missing LaunchBot Secret Manager wrapp
 const secretWrapperText = existsSync(secretWrapperPath) ? readFileSync(secretWrapperPath, "utf8") : "";
 for (const requiredText of [
   "launchbot-step3-intercom-access-token",
-  "hubspot-access-token",
-  "customer-360-jira-email",
-  "customer-360-jira-api-token",
   "LAUNCH_STEP3_INTERCOM_ACCESS_TOKEN",
-  "HUBSPOT_ACCESS_TOKEN",
-  "JIRA_EMAIL",
-  "JIRA_API_TOKEN",
   "INTERCOM_ACCESS_TOKEN",
   "staffany-warehouse",
   "values_printed",
@@ -747,6 +980,8 @@ if (!existsSync(helpArticlePlanningSynthesisPath)) fail("Missing help article pl
 const regressionText = textOf("tests/launch-workflow-regression-cases.md");
 for (const requiredText of [
   "#launch-bot-testing",
+  "#all-product-questions",
+  "C01RZ7SHC8K",
   "@Launch Bot",
   "U0ASVD79UT1",
   "B0ATPPEGBCH",
@@ -758,11 +993,19 @@ for (const requiredText of [
   "intake.questions",
   "article_shape_stale_check.status: needs-refresh",
   "Video-only Help Article Updates",
+  "Feature Intake Channel Monitor",
+  "Launchbot automation: Potential KER intake detected.",
+  "create KER intake",
   "IFI Feature Request Tracking",
   "preview_ifi_feature_request_tracking",
   "preview_ifi_feature_request_from_bd_note",
+  "create_or_update_ifi_feature_request_tracking",
+  "create_or_update_ifi_feature_request_from_bd_note",
+  "Neon Group asked whether StaffAny can generate a native Citibank payroll bank file.",
+  "25638156628",
   "customfield_10881",
   "confirm IFI",
+  "raw Slack transcripts",
   "will_publish: false",
   "state: \"draft\"",
   "no registered slot match",
@@ -803,6 +1046,14 @@ const testRun = spawnSync("python3", ["-m", "unittest", "discover", "-s", join(a
 });
 if (testRun.status !== 0) {
   fail(`Launchbot MCP unit tests failed:\n${testRun.stdout || ""}${testRun.stderr || ""}`);
+}
+
+const monitorTestRun = spawnSync("python3", ["-m", "unittest", join(appRoot, "runtime", "test_monitor_feature_intake.py")], {
+  cwd: repoRoot,
+  encoding: "utf8",
+});
+if (monitorTestRun.status !== 0) {
+  fail(`Launchbot feature intake monitor tests failed:\n${monitorTestRun.stdout || ""}${monitorTestRun.stderr || ""}`);
 }
 
 if (failures.length > 0) {
