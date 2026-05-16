@@ -141,7 +141,7 @@ profiles:
       allowed_channel_ids: []
       report_prefix: "PSM Ops automation:"
     required_mcp:
-      psm_jira: 23
+      psm_jira: 24
       psm_c360: 3
     expected_crons:
       - name: psmopsbot due-date reminders

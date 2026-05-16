@@ -162,6 +162,7 @@ mcp_servers:
       - "find_engineering_issue"
       - "resolve_customer_channel_org"
       - "list_my_pco_tasks"
+      - "search_pco_tickets"
       - "find_ticket_by_slack_thread"
       - "find_roi_ticket_by_slack_thread"
       - "create_roi_ticket_from_slack"

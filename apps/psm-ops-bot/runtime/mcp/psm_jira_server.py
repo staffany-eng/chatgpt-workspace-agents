@@ -72,6 +72,7 @@ ENGINEERING_LINK_TARGET_RE = re.compile(r"^(KER|SCHE)-\d+$", re.IGNORECASE)
 ENGINEERING_SEARCH_ALLOWED_PROJECTS = {"KER", "SCHE"}
 ENGINEERING_SEARCH_SAFE_FIELDS = ["summary", "status", "issuetype", "updated"]
 PCO_ISSUE_RE = re.compile(r"^PCO-\d+$", re.IGNORECASE)
+PCO_ISSUE_FIND_RE = re.compile(r"\bPCO-\d+\b", re.IGNORECASE)
 ISSUE_LINK_TYPE_ALIASES = {
     "blocks": "Blocks",
     "is blocked by": "Blocks",
@@ -144,6 +145,68 @@ SENSITIVE_INFO_PATTERN = re.compile(
     r"\b(password|secret|token|api\s*key|credential)\b",
     re.IGNORECASE,
 )
+
+PCO_SEARCH_DOMAIN_TERMS = {
+    "attendance",
+    "deduction",
+    "payroll",
+    "proration",
+    "salaried",
+    "schedule",
+}
+PCO_SEARCH_STOP_WORDS = {
+    "about",
+    "after",
+    "already",
+    "also",
+    "and",
+    "are",
+    "ask",
+    "been",
+    "bot",
+    "can",
+    "context",
+    "create",
+    "created",
+    "did",
+    "does",
+    "for",
+    "from",
+    "have",
+    "help",
+    "here",
+    "how",
+    "into",
+    "is",
+    "it",
+    "jos",
+    "me",
+    "need",
+    "not",
+    "now",
+    "open",
+    "pco",
+    "please",
+    "ps",
+    "psm",
+    "tag",
+    "team",
+    "that",
+    "the",
+    "them",
+    "then",
+    "there",
+    "this",
+    "ticket",
+    "tracking",
+    "was",
+    "we",
+    "wee",
+    "what",
+    "when",
+    "why",
+    "with",
+}
 
 PS_TEAM_ALIASES = {
     "cs": "CS Duty",
@@ -619,6 +682,16 @@ def _blocked(message: str, scope: dict[str, Any], source: str = "Jira PCO") -> d
         "scope": scope,
         "confidence": "blocked",
         "caveat": message,
+    }
+
+
+def _needs_check(answer: Any, scope: dict[str, Any], caveat: str, source: str = "Jira PCO") -> dict[str, Any]:
+    return {
+        "answer": answer,
+        "source": source,
+        "scope": scope,
+        "confidence": "needs-check",
+        "caveat": caveat,
     }
 
 
@@ -1197,6 +1270,177 @@ def _safe_issue(issue: dict[str, Any]) -> dict[str, Any]:
         "request_type": (fields.get("issuetype") or {}).get("name", "Not set"),
         "reminder_at": fields.get(reminder_field) if reminder_field else "Automatic from due date",
     }
+
+
+def _slack_permalink_variants(slack_thread_url: str) -> list[str]:
+    source = (slack_thread_url or "").strip()
+    if not source:
+        return []
+    variants: list[str] = []
+
+    def add(value: str) -> None:
+        normalized = value.strip()
+        if normalized and normalized not in variants:
+            variants.append(normalized)
+
+    add(source)
+    parsed = urllib.parse.urlparse(source)
+    if parsed.scheme and parsed.netloc and parsed.path:
+        without_query = urllib.parse.urlunparse((parsed.scheme, parsed.netloc, parsed.path, "", "", ""))
+        add(without_query)
+        channel_match = re.search(r"/archives/([A-Z0-9]+)/p(\d+)", parsed.path)
+        query = urllib.parse.parse_qs(parsed.query)
+        thread_ts = (query.get("thread_ts") or [""])[0]
+        if channel_match and thread_ts:
+            channel = channel_match.group(1)
+            compact_ts = re.sub(r"\D", "", thread_ts)
+            if compact_ts:
+                add(f"{parsed.scheme}://{parsed.netloc}/archives/{channel}/p{compact_ts}")
+            add(thread_ts)
+            add(compact_ts)
+        elif channel_match:
+            add(channel_match.group(2))
+    return variants[:6]
+
+
+def _pco_search_terms(query: str, customer: str = "") -> list[str]:
+    haystack = " ".join(value for value in [query, customer] if value).lower()
+    haystack = re.sub(r"https?://\S+", " ", haystack)
+    haystack = PCO_ISSUE_FIND_RE.sub(" ", haystack)
+    raw_terms = re.findall(r"[a-z0-9][a-z0-9'-]{2,}", haystack)
+    counts: dict[str, int] = {}
+    first_seen: dict[str, int] = {}
+    for index, raw in enumerate(raw_terms):
+        term = raw.strip("-'")
+        if len(term) < 3 or term in PCO_SEARCH_STOP_WORDS:
+            continue
+        if term.isdigit():
+            continue
+        counts[term] = counts.get(term, 0) + 1
+        first_seen.setdefault(term, index)
+
+    def score(term: str) -> tuple[int, int, int]:
+        domain_boost = 40 if term in PCO_SEARCH_DOMAIN_TERMS else 0
+        return (domain_boost + min(len(term), 14) + counts[term] * 4, -first_seen[term], len(term))
+
+    ranked = sorted(counts, key=score, reverse=True)
+    return ranked[:3]
+
+
+def _pco_active_clause(include_done: bool) -> str:
+    return "" if include_done else " AND statusCategory != Done"
+
+
+def _pco_text_search_jql(clauses: list[str], include_done: bool) -> str:
+    return (
+        f"project = {_project_key()}{_pco_active_clause(include_done)} "
+        f"AND ({' OR '.join(clauses)}) ORDER BY updated DESC"
+    )
+
+
+def _pco_term_and_search_jql(terms: list[str], include_done: bool) -> str:
+    clauses = [f"text ~ {_quote_jql(term[:80])}" for term in terms]
+    return (
+        f"project = {_project_key()}{_pco_active_clause(include_done)} "
+        f"AND {' AND '.join(clauses)} ORDER BY updated DESC"
+    )
+
+
+def _pco_pair_or_search_jql(terms: list[str], include_done: bool) -> str:
+    pair_clauses: list[str] = []
+    for index, left in enumerate(terms):
+        for right in terms[index + 1 :]:
+            pair_clauses.append(
+                f"(text ~ {_quote_jql(left[:80])} AND text ~ {_quote_jql(right[:80])})"
+            )
+    if pair_clauses:
+        joined = " OR ".join(pair_clauses)
+    else:
+        joined = " OR ".join(f"text ~ {_quote_jql(term[:80])}" for term in terms)
+    return (
+        f"project = {_project_key()}{_pco_active_clause(include_done)} "
+        f"AND ({joined}) ORDER BY updated DESC"
+    )
+
+
+def _score_pco_search_match(
+    issue: dict[str, Any],
+    pass_name: str,
+    terms: list[str],
+    customer: str,
+    ps_team: str,
+    active_search: bool,
+) -> tuple[int, list[str]]:
+    summary = str(issue.get("summary") or "").lower()
+    issue_team = str(issue.get("ps_team") or "").lower()
+    reasons = [pass_name]
+    if pass_name == "issue_key":
+        score = 100
+    elif pass_name == "slack_permalink":
+        score = 95
+    elif pass_name == "keyword_and":
+        score = 62
+    elif pass_name == "keyword_pair":
+        score = 46
+    else:
+        score = 30
+
+    if active_search:
+        score += 5
+        reasons.append("active_pco")
+    for term in terms:
+        if term.lower() in summary:
+            score += 10
+            reasons.append(f"summary:{term}")
+    if customer and customer.lower() in summary:
+        score += 8
+        reasons.append("customer_hint")
+    if ps_team and ps_team.lower() == issue_team:
+        score += 6
+        reasons.append("ps_team_hint")
+    return score, reasons
+
+
+def _merge_pco_search_matches(
+    matches_by_key: dict[str, dict[str, Any]],
+    issues: list[dict[str, Any]],
+    pass_name: str,
+    terms: list[str],
+    customer: str,
+    ps_team: str,
+    active_search: bool,
+) -> None:
+    for raw_issue in issues:
+        safe = _safe_issue(raw_issue)
+        key = str(safe.get("issue_key") or "").upper()
+        if not key:
+            continue
+        score, reasons = _score_pco_search_match(safe, pass_name, terms, customer, ps_team, active_search)
+        existing = matches_by_key.get(key)
+        if existing:
+            existing["match_score"] = max(int(existing.get("match_score") or 0), score)
+            existing_reasons = list(existing.get("match_reasons") or [])
+            for reason in reasons:
+                if reason not in existing_reasons:
+                    existing_reasons.append(reason)
+            existing["match_reasons"] = existing_reasons
+            continue
+        safe["match_score"] = score
+        safe["match_reasons"] = reasons
+        matches_by_key[key] = safe
+
+
+def _rank_pco_search_matches(matches_by_key: dict[str, dict[str, Any]], max_results: int) -> list[dict[str, Any]]:
+    ranked = sorted(
+        matches_by_key.values(),
+        key=lambda issue: (
+            int(issue.get("match_score") or 0),
+            str(issue.get("updated") or ""),
+            str(issue.get("issue_key") or ""),
+        ),
+        reverse=True,
+    )
+    return ranked[:max_results]
 
 
 def _description_from_draft(draft: dict[str, Any]) -> str:
@@ -1921,6 +2165,140 @@ def find_ticket_by_slack_thread(slack_thread_url: str, max_results: int = 5) -> 
         {"matches": matches},
         scope,
         "Same Slack thread permalink is the V1 ticket idempotency key.",
+    )
+
+
+@mcp.tool()
+def search_pco_tickets(
+    query: str,
+    slack_thread_url: str = "",
+    customer: str = "",
+    ps_team: str = "",
+    include_done: bool = False,
+    max_results: int = 5,
+) -> dict[str, Any]:
+    """Search the PCO board for existing tickets using bounded safe JQL passes."""
+
+    search_query = re.sub(r"\s+", " ", (query or "").strip())
+    source = (slack_thread_url or "").strip()
+    normalized_customer = re.sub(r"\s+", " ", (customer or "").strip())
+    normalized_ps_team = _normalize_ps_team(ps_team) or re.sub(r"\s+", " ", (ps_team or "").strip())
+    capped_max = max(1, min(int(max_results or 5), 20))
+    scope = {
+        "query": search_query,
+        "slack_thread_url": source,
+        "customer": normalized_customer,
+        "ps_team": normalized_ps_team,
+        "include_done": bool(include_done),
+        "max_results": capped_max,
+    }
+    if not search_query and not source:
+        return _blocked("query or Slack thread URL is required for PCO board search.", scope)
+
+    terms = _pco_search_terms(search_query, normalized_customer)
+    slack_variants = _slack_permalink_variants(source)
+    matches_by_key: dict[str, dict[str, Any]] = {}
+    passes: list[dict[str, Any]] = []
+
+    def run_pass(pass_name: str, jql: str, pass_terms: list[str], active_search: bool, limit: int = 10) -> list[dict[str, Any]]:
+        issues = _search_issues(jql, _search_fields(), limit)
+        _merge_pco_search_matches(
+            matches_by_key,
+            issues,
+            pass_name,
+            pass_terms,
+            normalized_customer,
+            normalized_ps_team,
+            active_search,
+        )
+        passes.append({"name": pass_name, "result_count": len(issues), "active_only": active_search})
+        return issues
+
+    try:
+        issue_keys = []
+        for match in PCO_ISSUE_FIND_RE.findall(search_query):
+            key = match.upper()
+            if key not in issue_keys:
+                issue_keys.append(key)
+        for key in issue_keys[:3]:
+            run_pass("issue_key", f"project = {_project_key()} AND key = {key}", [], True, capped_max)
+        if matches_by_key:
+            ranked = _rank_pco_search_matches(matches_by_key, capped_max)
+            return _verified(
+                {
+                    "resolution": "auto_match",
+                    "best_match": ranked[0],
+                    "matches": ranked,
+                    "search_strategy": {"passes": passes, "terms": terms, "slack_variant_count": len(slack_variants)},
+                },
+                scope,
+                "Exact PCO issue key match.",
+            )
+
+        if slack_variants:
+            clauses = [f"text ~ {_quote_jql(variant[:180])}" for variant in slack_variants]
+            run_pass("slack_permalink", _pco_text_search_jql(clauses, bool(include_done)), [], not include_done, capped_max)
+        if matches_by_key:
+            ranked = _rank_pco_search_matches(matches_by_key, capped_max)
+            return _verified(
+                {
+                    "resolution": "auto_match",
+                    "best_match": ranked[0],
+                    "matches": ranked,
+                    "search_strategy": {"passes": passes, "terms": terms, "slack_variant_count": len(slack_variants)},
+                },
+                scope,
+                "Exact Slack permalink/source match.",
+            )
+
+        if terms:
+            run_pass("keyword_and", _pco_term_and_search_jql(terms, False), terms, True, capped_max)
+        if not matches_by_key and len(terms) >= 2:
+            run_pass("keyword_pair", _pco_pair_or_search_jql(terms, False), terms, True, capped_max)
+        if (include_done or not matches_by_key) and terms:
+            run_pass("keyword_all_statuses", _pco_term_and_search_jql(terms, True), terms, False, capped_max)
+            if not matches_by_key and len(terms) >= 2:
+                run_pass("keyword_pair_all_statuses", _pco_pair_or_search_jql(terms, True), terms, False, capped_max)
+    except JiraError as error:
+        return _blocked(str(error), scope)
+
+    ranked = _rank_pco_search_matches(matches_by_key, capped_max)
+    strategy = {"passes": passes, "terms": terms, "slack_variant_count": len(slack_variants)}
+    if not ranked:
+        return _verified(
+            {"resolution": "not_found", "matches": [], "search_strategy": strategy},
+            scope,
+            "No matching PCO ticket found after exact permalink and bounded keyword search.",
+        )
+    if len(ranked) == 1 and int(ranked[0].get("match_score") or 0) >= 60:
+        return _verified(
+            {
+                "resolution": "auto_match",
+                "best_match": ranked[0],
+                "matches": ranked,
+                "search_strategy": strategy,
+            },
+            scope,
+            "One strong active PCO match found by bounded board search.",
+        )
+    if len(ranked) > 1:
+        top_score = int(ranked[0].get("match_score") or 0)
+        next_score = int(ranked[1].get("match_score") or 0)
+        if top_score >= 75 and top_score - next_score >= 20:
+            return _verified(
+                {
+                    "resolution": "auto_match",
+                    "best_match": ranked[0],
+                    "matches": ranked,
+                    "search_strategy": strategy,
+                },
+                scope,
+                "One PCO match has a clear score margin.",
+            )
+    return _needs_check(
+        {"resolution": "choose_candidate", "matches": ranked, "search_strategy": strategy},
+        scope,
+        "Multiple plausible PCO tickets found; ask the user to choose the issue key before updating or creating.",
     )
 
 

@@ -227,6 +227,131 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertEqual(draft["owner_jira_account_id"], "acct-123")
         self.assertEqual(draft["request_type_id"], "101")
 
+    def test_search_pco_tickets_falls_back_to_keyword_match_when_slack_permalink_misses(self):
+        calls = []
+
+        def fake_request(method, path, body=None):
+            self.assertEqual(method, "GET")
+            jql = urllib.parse.parse_qs(urllib.parse.urlparse(path).query).get("jql", [""])[0]
+            calls.append(jql)
+            if "text ~ \"salaried\"" in jql and "text ~ \"proration\"" in jql:
+                return {
+                    "issues": [
+                        {
+                            "key": "PCO-78",
+                            "fields": {
+                                "summary": "Salaried Employee  Proration Setup",
+                                "status": {"name": "Open"},
+                                "priority": {"name": "Medium"},
+                                "assignee": {"displayName": "Josica"},
+                                "customfield_10876": {"value": "Josica"},
+                                "duedate": None,
+                                "updated": "2026-05-16T00:00:00.000+0000",
+                                "issuetype": {"name": "Task"},
+                                "description": "Raw description must never be exposed.",
+                                "comment": {"comments": [{"body": "Raw comment"}]},
+                            },
+                        }
+                    ]
+                }
+            return {"issues": []}
+
+        self.module._request_json = fake_request
+
+        result = self.module.search_pco_tickets(
+            query="Munchi salaried staff proration payroll follow-up",
+            slack_thread_url="https://staffany.slack.com/archives/C09139W008K/p1778895345394969?thread_ts=1778146948.007189&cid=C09139W008K",
+            customer="Munchi Pancakes",
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["answer"]["resolution"], "auto_match")
+        self.assertEqual(result["answer"]["best_match"]["issue_key"], "PCO-78")
+        self.assertTrue(any("1778895345394969" in call for call in calls))
+        self.assertTrue(any("salaried" in call and "proration" in call for call in calls))
+        self.assertNotIn("description", result["answer"]["best_match"])
+        self.assertNotIn("comment", result["answer"]["best_match"])
+
+    def test_search_pco_tickets_ambiguous_broad_match_returns_needs_check(self):
+        def fake_request(method, path, body=None):
+            self.assertEqual(method, "GET")
+            jql = urllib.parse.parse_qs(urllib.parse.urlparse(path).query).get("jql", [""])[0]
+            if "text ~ \"salaried\"" in jql and "text ~ \"proration\"" in jql:
+                return {
+                    "issues": [
+                        {
+                            "key": "PCO-78",
+                            "fields": {
+                                "summary": "Salaried Employee Proration Setup",
+                                "status": {"name": "Open"},
+                                "priority": {"name": "Medium"},
+                                "assignee": {"displayName": "Josica"},
+                                "customfield_10876": {"value": "Josica"},
+                                "duedate": None,
+                                "updated": "2026-05-16T00:00:00.000+0000",
+                                "issuetype": {"name": "Task"},
+                            },
+                        },
+                        {
+                            "key": "PCO-179",
+                            "fields": {
+                                "summary": "Salaried proration follow-up",
+                                "status": {"name": "Open"},
+                                "priority": {"name": "Medium"},
+                                "assignee": {"displayName": "Kai Yi"},
+                                "customfield_10876": {"value": "Kai Yi"},
+                                "duedate": None,
+                                "updated": "2026-05-15T00:00:00.000+0000",
+                                "issuetype": {"name": "Task"},
+                            },
+                        },
+                    ]
+                }
+            return {"issues": []}
+
+        self.module._request_json = fake_request
+
+        result = self.module.search_pco_tickets(query="salaried proration", customer="Munchi Pancakes")
+
+        self.assertEqual(result["confidence"], "needs-check")
+        self.assertEqual(result["answer"]["resolution"], "choose_candidate")
+        self.assertEqual([issue["issue_key"] for issue in result["answer"]["matches"]], ["PCO-78", "PCO-179"])
+
+    def test_search_pco_tickets_customer_hint_does_not_filter_out_manual_ticket(self):
+        calls = []
+
+        def fake_request(method, path, body=None):
+            self.assertEqual(method, "GET")
+            jql = urllib.parse.parse_qs(urllib.parse.urlparse(path).query).get("jql", [""])[0]
+            calls.append(jql)
+            if "text ~ \"salaried\"" in jql and "text ~ \"proration\"" in jql:
+                return {
+                    "issues": [
+                        {
+                            "key": "PCO-78",
+                            "fields": {
+                                "summary": "Salaried Employee Proration Setup",
+                                "status": {"name": "Open"},
+                                "priority": {"name": "Medium"},
+                                "assignee": {"displayName": "Josica"},
+                                "customfield_10876": {"value": "Josica"},
+                                "duedate": None,
+                                "updated": "2026-05-16T00:00:00.000+0000",
+                                "issuetype": {"name": "Task"},
+                            },
+                        }
+                    ]
+                }
+            return {"issues": []}
+
+        self.module._request_json = fake_request
+
+        result = self.module.search_pco_tickets(query="salaried proration", customer="Munchi Pancakes")
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["answer"]["best_match"]["issue_key"], "PCO-78")
+        self.assertFalse(any("Munchi" in call for call in calls), "customer hint must not become a hard JQL filter")
+
     def test_draft_infers_cs_duty_as_ps_team_not_assignee(self):
         def fake_request(method, path, body=None):
             self.assertEqual(method, "GET")

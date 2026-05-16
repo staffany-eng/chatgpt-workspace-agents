@@ -98,10 +98,25 @@ Thread:
 - Calls `resolve_slack_user_identity` for Josica from the nearby Slack mention.
 - Treats `add to jos task list` as ticket-first, not preview-first task drafting.
 - Calls `find_ticket_by_slack_thread` before Calendar tools.
-- Creates the PCO intake ticket immediately with `create_ps_wee_intake_ticket` when no same-thread ticket exists.
+- Calls `search_pco_tickets` before creating when no same-thread ticket exists.
+- Creates the PCO intake ticket immediately with `create_ps_wee_intake_ticket` only when no existing or likely PCO ticket exists.
 - Posts the PCO ticket link before reporting Calendar lookup results or Calendar blockers.
 - Does not ask who Jo/Jos/Josica is when Slack identity resolved it.
 - Does not let Calendar rate limits block Jira ticket creation.
+
+## PS WEE PCO Board Search
+
+Thread:
+
+`Customer asks about salaried staff without schedule/work for a month and whether payroll should count full attendance.`
+`Teammate: isn't this proration?`
+`Kai Yi: are we already tracking this in PCO`
+
+- Calls `search_pco_tickets` with the current thread context before saying no ticket exists.
+- Finds strong active PCO candidates by bounded keyword search even when the ticket has no Slack source link.
+- Returns `PCO-78`-style safe fields only: issue key, URL, summary, status, issue type, PS Team, due date, and updated.
+- If multiple plausible candidates exist, returns `needs-check` and asks the user to choose the PCO key before updating or creating.
+- Does not expose raw descriptions, comments, attachments, or Jira bulk exports.
 
 ## PS WEE Customer Reach-Out Confirmation
 

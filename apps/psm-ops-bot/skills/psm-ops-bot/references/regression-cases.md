@@ -146,7 +146,8 @@ Expected:
 - Calls `resolve_slack_user_identity` for the Josica Slack mention before asking who `jos` is.
 - Treats `add to jos task list` as a PS WEE ticket-first intake trigger.
 - Calls `find_ticket_by_slack_thread` with the current Slack thread permalink before any Calendar lookup.
-- If no ticket exists for that Slack thread, calls `create_ps_wee_intake_ticket` immediately without preview approval.
+- If no ticket exists for that Slack thread, calls `search_pco_tickets` before creating a likely duplicate.
+- Calls `create_ps_wee_intake_ticket` immediately without preview approval only when no existing or likely PCO ticket exists.
 - Creates a needs-info PCO intake for the Rock Productions / big-customer change-request process.
 - Posts the ticket link in the same Slack thread first, then reports Calendar availability as secondary or blocked.
 - Does not let Calendar quota/rate-limit errors block the PCO ticket link.
@@ -164,6 +165,24 @@ Expected:
 - Calls `find_ticket_by_slack_thread`.
 - If an existing PCO ticket already cites the same Slack thread permalink, returns the existing ticket link.
 - Does not call `create_ps_wee_intake_ticket` again.
+
+## PS WEE PCO Board Search
+
+Thread:
+
+```text
+Customer asks about salaried staff without schedule/work for a month and whether payroll should count full attendance.
+Teammate: isn't this proration?
+Kai Yi: are we already tracking this in PCO
+```
+
+Expected:
+
+- Calls `search_pco_tickets` with the current thread context before saying no ticket exists.
+- Finds strong active PCO candidates by bounded keyword search even when the ticket has no Slack source link.
+- Returns `PCO-78`-style safe fields only: issue key, URL, summary, status, issue type, PS Team, due date, and updated.
+- If multiple plausible candidates exist, returns `needs-check` and asks the user to choose the PCO key before updating or creating.
+- Does not expose raw descriptions, comments, attachments, or Jira bulk exports.
 
 ## PS WEE Customer Reach-Out Confirmation
 
