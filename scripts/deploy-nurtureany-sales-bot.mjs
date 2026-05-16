@@ -432,6 +432,18 @@ for server_name, template_server in template_servers.items():
         if key in template_tools and config_tools.get(key) != template_tools[key]:
             config_tools[key] = template_tools[key]
             changed = True
+    for key in ("auth_metadata", "access_policy", "env"):
+        expected_mapping = template_server.get(key)
+        if isinstance(expected_mapping, dict):
+            current_mapping = config_server.setdefault(key, {})
+            if not isinstance(current_mapping, dict):
+                config_server[key] = copy.deepcopy(expected_mapping)
+                changed = True
+                continue
+            for item_key, item_value in expected_mapping.items():
+                if current_mapping.get(item_key) != item_value:
+                    current_mapping[item_key] = copy.deepcopy(item_value)
+                    changed = True
 
 if changed:
     config_path.write_text(yaml.safe_dump(config, sort_keys=False))

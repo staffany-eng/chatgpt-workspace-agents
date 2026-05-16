@@ -95,6 +95,24 @@ Expected behavior:
 - Returns safe summaries/permalinks only, capped at 50 messages, and does not expose raw transcripts or PII.
 - Blocks cleanly when the permalink is malformed, private, outside configured channels while public-channel mode is disabled, or the bot token lacks required scope.
 
+## Stand-Up Down Accountability Inspector
+
+Prompt:
+
+```text
+@NurtureAny inspect sales rep, BD Ops and marketing stand up / stand down accountability in #team-rev-ps-syncup today
+```
+
+Expected behavior:
+
+- First response is plan-only and asks for `run`; this is not quick-autorun work.
+- After `run`, calls `audit_standup_down_accountability` with `channel_id="C013N5XL7EV"`, `date="today"` for the relative today prompt, `timezone="Asia/Singapore"`, and default `roster_lookback_days=30`.
+- Tool reads only configured public channels from `NURTUREANY_STANDUP_AUDIT_CHANNEL_IDS`, may join that configured public channel with the bot token, and blocks private/unconfigured channels.
+- Expected roster is active Slack channel members intersected with prior stand-up/down participants from the lookback window.
+- Final answer shows complete, missing stand-up, missing stand-down, and missing-both counts plus safe per-person status/permalinks.
+- Does not return raw stand-up/down note bodies, raw Slack transcripts, emails, phone numbers, broad user listings, private-channel data, Slack connector evidence, user-token evidence, Slack posting, or HubSpot mutation.
+- States that active member means Slack channel member, not HR employment truth; unknown role labels remain `role-needs-check`.
+
 ## Mutation Send Reveal Still Approval-Gated
 
 Prompt:
