@@ -197,6 +197,30 @@ if (!existsSync(manifestPath)) {
     if (manifest.quick_autorun?.slack_context?.slack_connector_fallback !== false) {
       fail("Manifest quick_autorun must disable Slack connector fallback");
     }
+    if (manifest.standup_down_accountability?.enabled !== true) {
+      fail("Manifest standup_down_accountability must be enabled");
+    }
+    if (manifest.standup_down_accountability?.tool !== "audit_standup_down_accountability") {
+      fail("Manifest standup_down_accountability tool must be audit_standup_down_accountability");
+    }
+    if (manifest.standup_down_accountability?.channel_ids_env_var !== "NURTUREANY_STANDUP_AUDIT_CHANNEL_IDS") {
+      fail("Manifest standup_down_accountability must name NURTUREANY_STANDUP_AUDIT_CHANNEL_IDS");
+    }
+    if (manifest.standup_down_accountability?.default_channel_id !== "C013N5XL7EV") {
+      fail("Manifest standup_down_accountability default channel must be C013N5XL7EV");
+    }
+    if (manifest.standup_down_accountability?.relative_today_tool_date !== "today") {
+      fail("Manifest standup_down_accountability must pass relative today as literal today");
+    }
+    if (manifest.standup_down_accountability?.requires_run !== true || manifest.standup_down_accountability?.quick_autorun_allowed !== false) {
+      fail("Manifest standup_down_accountability must be plan-first and not quick-autorun");
+    }
+    if (manifest.standup_down_accountability?.raw_note_bodies_returned !== false) {
+      fail("Manifest standup_down_accountability must not return raw note bodies");
+    }
+    if (manifest.standup_down_accountability?.user_token_fallback !== false || manifest.standup_down_accountability?.slack_connector_fallback !== false) {
+      fail("Manifest standup_down_accountability must disable unsafe Slack fallbacks");
+    }
 
     const paths = manifest.paths || {};
     for (const value of Object.values(paths)) {
@@ -232,6 +256,7 @@ if (!existsSync(manifestPath)) {
       "read_recent_slack_intent_context",
       "get_current_slack_thread_context",
       "get_selected_slack_thread_context",
+      "audit_standup_down_accountability",
       "list_inbound_threads",
       "get_inbound_thread_context",
       "audit_inbound_sla",
@@ -846,6 +871,8 @@ for (const text of [
   "apply-live-config-overrides.py",
   "copy.deepcopy(template_server)",
   "deploy:config-added-mcp-server:",
+  "for key in (\"auth_metadata\", \"access_policy\", \"env\"):",
+  "current_mapping = config_server.setdefault(key, {})",
   "gcloud secrets versions access latest",
   "deploy:secrets=preserved",
   "deploy:secrets=hydrated-latest",
@@ -925,9 +952,16 @@ for (const text of [
   "read_recent_slack_intent_context",
   "get_current_slack_thread_context",
   "get_selected_slack_thread_context",
+  "audit_standup_down_accountability",
   "slack_nurtureany",
   "runtime/mcp/slack_nurtureany_server.py",
   "NURTUREANY_SLACK_INTENT_CHANNEL_IDS",
+  "NURTUREANY_STANDUP_AUDIT_CHANNEL_IDS",
+  "NURTUREANY_STANDUP_AUDIT_CHANNEL_IDS: ${NURTUREANY_STANDUP_AUDIT_CHANNEL_IDS}",
+  "relative_today_tool_date: today",
+  "max_standup_roster_lookback_days: 90",
+  "safe per-person status/permalinks only",
+  "raw_note_bodies_returned: false",
   "safe summaries/permalinks only",
   "no_user_token_fallback: true",
   "no_slack_connector_fallback: true",
@@ -1066,6 +1100,9 @@ for (const text of [
   "Knowledge, Network, Support",
   "quick-autorun gate",
   "read_recent_slack_intent_context",
+  "audit_standup_down_accountability",
+  "NURTUREANY_STANDUP_AUDIT_CHANNEL_IDS",
+  "raw note bodies",
   "safe summaries/permalinks only",
   "no raw transcript persistence",
   "Smoke/test/eval prompts follow the same quick-autorun gate",
@@ -1136,7 +1173,12 @@ for (const text of [
   "get_campaign_social_effectiveness",
   "get_marketing_campaign_attribution",
   "SOCIAL_BROADCAST",
-  "raw social channel IDs"
+  "raw social channel IDs",
+  "audit_standup_down_accountability",
+  "NURTUREANY_STANDUP_AUDIT_CHANNEL_IDS",
+  "date=\"today\"",
+  "raw note bodies",
+  "HR employment truth"
 ]) {
   if (!soulText.includes(text)) fail(`SOUL.md missing required safety/contract text: ${text}`);
 }
@@ -1255,6 +1297,7 @@ for (const text of [
   "lead source",
   "AI/data readiness",
   "event attribution",
+  "date=\"today\"",
   "disabled in V1",
   "approval_marker",
   "selected Lusha reveal",
@@ -1303,6 +1346,9 @@ for (const text of [
   "Intent-gated Slack flow",
   "quick-autorun",
   "read_recent_slack_intent_context",
+  "audit_standup_down_accountability",
+  "NURTUREANY_STANDUP_AUDIT_CHANNEL_IDS",
+  "raw note bodies",
   "Access scope",
   "PII/body safety",
   "Cost/credit reporting",
@@ -1390,18 +1436,25 @@ for (const text of [
   "NURTUREANY_SLACK_INTENT_CHANNEL_IDS",
   "NURTUREANY_SLACK_THREAD_CONTEXT_CHANNEL_IDS",
   "NURTUREANY_SLACK_THREAD_CONTEXT_PUBLIC_CHANNELS",
+  "NURTUREANY_STANDUP_AUDIT_CHANNEL_IDS",
   "MAX_CONTEXT_MESSAGES = 10",
   "MAX_LOOKBACK_MINUTES = 30",
   "MAX_THREAD_CONTEXT_MESSAGES = 50",
+  "MAX_STANDUP_LOOKBACK_DAYS = 90",
   "conversations.info",
   "conversations.history",
   "conversations.replies",
+  "conversations.members",
   "conversations.join",
+  "users.info",
   "chat.getPermalink",
+  "date cannot be in the future",
   "read_recent_slack_intent_context",
   "get_current_slack_thread_context",
   "get_selected_slack_thread_context",
+  "audit_standup_down_accountability",
   "safe_summaries",
+  "raw_note_bodies_returned",
   "will_post_message",
   "transcript_persisted",
   "mcp.run(\"stdio\")"
@@ -1423,7 +1476,13 @@ for (const text of [
   "test_selected_permalink_can_auto_join_unconfigured_public_channel_when_enabled",
   "test_selected_permalink_blocks_private_channel_even_when_all_public_enabled",
   "test_selected_permalink_blocks_malformed_without_network",
-  "test_selected_permalink_blocks_unconfigured_channel_without_network"
+  "test_selected_permalink_blocks_unconfigured_channel_without_network",
+  "test_standup_audit_missing_allowlist_blocks_without_network",
+  "test_standup_audit_unconfigured_channel_blocks_without_network",
+  "test_standup_audit_blocks_private_configured_channel",
+  "test_standup_audit_blocks_future_date_without_network",
+  "test_standup_audit_uses_sgt_day_roster_and_safe_status_rows",
+  "test_standup_audit_marks_unknown_role_needs_check"
 ]) {
   if (!slackIntentTestText.includes(text)) fail(`runtime/mcp/test_slack_nurtureany_server.py missing required text: ${text}`);
 }
@@ -1772,10 +1831,18 @@ for (const text of [
   "read_recent_slack_intent_context",
   "get_current_slack_thread_context",
   "get_selected_slack_thread_context",
+  "audit_standup_down_accountability",
   "SLACK_BOT_TOKEN",
   "NURTUREANY_SLACK_THREAD_CONTEXT_PUBLIC_CHANNELS",
+  "NURTUREANY_STANDUP_AUDIT_CHANNEL_IDS",
+  "C013N5XL7EV",
+  "team-rev-ps-syncup",
+  "date=\"today\"",
   "public channels",
+  "conversations.members",
+  "users.info",
   "conversations.join",
+  "raw note bodies",
   "safe summaries/permalinks only",
   "conversations.history",
   "conversations.replies",
@@ -1810,13 +1877,20 @@ for (const text of [
   "Quick-autorun policy",
   "Slack intent-context smoke check",
   "Slack selected-thread smoke check",
+  "Slack stand-up/down accountability smoke check",
   "read_recent_slack_intent_context",
   "get_current_slack_thread_context",
   "get_selected_slack_thread_context",
+  "audit_standup_down_accountability",
   "SLACK_BOT_TOKEN",
   "NURTUREANY_SLACK_THREAD_CONTEXT_PUBLIC_CHANNELS",
+  "NURTUREANY_STANDUP_AUDIT_CHANNEL_IDS",
+  "C013N5XL7EV",
   "public channels",
+  "conversations.members",
+  "users.info",
   "conversations.join",
+  "raw note bodies",
   "safe summaries/permalinks only",
   "conversations.history",
   "conversations.replies",
@@ -1968,7 +2042,7 @@ const healthScriptText = textOf("runtime/check-health.sh");
 for (const text of [
   "PROFILE=\"${HERMES_PROFILE:-nurtureanysalesbot}\"",
   "export HERMES_HOME=\"$HOME/.hermes/profiles/$PROFILE\"",
-  "EXPECT_SLACK_INTENT_TOOLS=\"${EXPECT_SLACK_INTENT_TOOLS:-3}\"",
+  "EXPECT_SLACK_INTENT_TOOLS=\"${EXPECT_SLACK_INTENT_TOOLS:-4}\"",
   "EXPECT_HUBSPOT_TOOLS=\"${EXPECT_HUBSPOT_TOOLS:-54}\"",
   "EXPECT_AIRCALL_TOOLS=\"${EXPECT_AIRCALL_TOOLS:-4}\"",
   "NURTUREANY_GATEWAY_SERVICE_NAME",
@@ -1996,13 +2070,17 @@ for (const text of [
   "terminal:cwd-points-at-codex-worktree",
   "quick-autorun:not-enabled",
   "slack_nurtureany",
-  "EXPECT_SLACK_INTENT_TOOLS=\"${EXPECT_SLACK_INTENT_TOOLS:-3}\"",
+  "EXPECT_SLACK_INTENT_TOOLS=\"${EXPECT_SLACK_INTENT_TOOLS:-4}\"",
   "MCP_TEST_TIMEOUT_SECONDS=\"${MCP_TEST_TIMEOUT_SECONDS:-45}\"",
   "read_recent_slack_intent_context",
   "get_current_slack_thread_context",
   "get_selected_slack_thread_context",
+  "audit_standup_down_accountability",
   "slack-intent:configured-channel-ids-missing",
   "slack-thread-context:configured-channel-ids-missing",
+  "slack-standup:configured-channel-ids-missing",
+  "slack-standup:missing-conversations-members-scope",
+  "slack-standup:channel-not-public",
   "slack-intent:missing-conversations-history-scope",
   "slack-intent:channel-not-found-or-not-in-channel",
   "slack-thread-context:channel-not-found-or-not-in-channel",
@@ -2112,6 +2190,7 @@ for (const text of [
 
 const hermesProfilesText = repoTextOf("ops/hermes/profiles.yaml");
 for (const text of [
+  "slack_nurtureany: 4",
   "hubspot_nurtureany: 54",
   "nurtureanysalesbot HubSpot task reminders",
   "nurtureanysalesbot HubSpot task EOD catch-up",

@@ -118,7 +118,7 @@
     "format": "dotenv",
     "version_policy": "latest",
     "secret_values_committed": false,
-    "expected_key_count": 26,
+    "expected_key_count": 27,
     "expected_keys": [
       "AIRCALL_API_ID",
       "AIRCALL_API_TOKEN",
@@ -145,6 +145,7 @@
       "SLACK_HOME_CHANNEL",
       "SLACK_HOME_CHANNEL_NAME",
       "SLACK_HOME_CHANNEL_THREAD_ID",
+      "NURTUREANY_STANDUP_AUDIT_CHANNEL_IDS",
       "TAVILY_API_KEY"
     ],
     "secret_manager_labels": {
@@ -405,11 +406,37 @@
       "slack_connector_fallback": false
     }
   },
+  "standup_down_accountability": {
+    "enabled": true,
+    "tool": "audit_standup_down_accountability",
+    "requires_run": true,
+    "channel_ids_env_var": "NURTUREANY_STANDUP_AUDIT_CHANNEL_IDS",
+    "default_channel_id": "C013N5XL7EV",
+    "default_channel_name": "team-rev-ps-syncup",
+    "default_timezone": "Asia/Singapore",
+    "relative_today_tool_date": "today",
+    "default_roster_lookback_days": 30,
+    "max_roster_lookback_days": 90,
+    "active_member_source": "Slack channel membership",
+    "expected_roster_source": "active Slack channel members intersected with prior stand-up/down participants",
+    "plan_first_required": true,
+    "quick_autorun_allowed": false,
+    "safe_output": "safe per-person status/permalinks only",
+    "raw_note_bodies_returned": false,
+    "raw_transcript_persistence": false,
+    "will_post_message": false,
+    "user_token_fallback": false,
+    "slack_connector_fallback": false,
+    "allowed_tools": [
+      "audit_standup_down_accountability"
+    ]
+  },
   "tools": {
     "read": [
       "read_recent_slack_intent_context",
       "get_current_slack_thread_context",
       "get_selected_slack_thread_context",
+      "audit_standup_down_accountability",
       "list_inbound_threads",
       "get_inbound_thread_context",
       "audit_inbound_sla",

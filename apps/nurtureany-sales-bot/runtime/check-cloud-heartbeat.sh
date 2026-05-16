@@ -20,6 +20,7 @@ EXPECTED_ID_WHATSAPP_BLITZ_CRON_NAME="${EXPECTED_ID_WHATSAPP_BLITZ_CRON_NAME:-ID
 EXPECTED_CRON_TIMEZONE="${EXPECTED_CRON_TIMEZONE:-Asia/Singapore}"
 EXPECT_CLOUD_HEARTBEAT_CRON="${EXPECT_CLOUD_HEARTBEAT_CRON:-1}"
 EXPECT_ENABLED_CRON_COUNT="${EXPECT_ENABLED_CRON_COUNT:-9}"
+EXPECT_SLACK_INTENT_TOOLS="${EXPECT_SLACK_INTENT_TOOLS:-4}"
 EXPECT_HUBSPOT_TOOLS="${EXPECT_HUBSPOT_TOOLS:-54}"
 EXPECT_PUBLIC_RESEARCH_TOOLS="${EXPECT_PUBLIC_RESEARCH_TOOLS:-2}"
 EXPECT_PROSPEO_TOOLS="${EXPECT_PROSPEO_TOOLS:-4}"
@@ -177,6 +178,7 @@ if [ "$EXPECT_CLOUD_DOCTOR" = "1" ]; then
   grep -Fq "enabled_recurring=$EXPECT_ENABLED_CRON_COUNT:" "$doctor_out" || fail "cloud-doctor:cron-unhealthy"
   grep -Fq "missing_timezone=0:event_roi_enabled=0:unsafe_send_message=0" "$doctor_out" || fail "cloud-doctor:cron-unhealthy"
   for expected in \
+    "mcp:slack_nurtureany:tools=$EXPECT_SLACK_INTENT_TOOLS" \
     "mcp:staffany_bigquery:tools=4" \
     "mcp:hubspot_nurtureany:tools=$EXPECT_HUBSPOT_TOOLS" \
     "mcp:google_calendar_nurtureany:tools=2" \

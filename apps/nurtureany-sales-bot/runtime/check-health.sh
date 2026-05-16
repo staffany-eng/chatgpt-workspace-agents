@@ -9,7 +9,7 @@ EXPECT_GATEWAY="${EXPECT_GATEWAY:-1}"
 EXPECT_MODEL_AUTH="${EXPECT_MODEL_AUTH:-1}"
 EXPECT_MODEL_PROVIDER="${EXPECT_MODEL_PROVIDER:-anthropic}"
 EXPECT_MODEL_DEFAULT="${EXPECT_MODEL_DEFAULT:-claude-sonnet-4-6}"
-EXPECT_SLACK_INTENT_TOOLS="${EXPECT_SLACK_INTENT_TOOLS:-3}"
+EXPECT_SLACK_INTENT_TOOLS="${EXPECT_SLACK_INTENT_TOOLS:-4}"
 EXPECT_STAFFANY_BIGQUERY_TOOLS="${EXPECT_STAFFANY_BIGQUERY_TOOLS:-4}"
 EXPECT_HUBSPOT_TOOLS="${EXPECT_HUBSPOT_TOOLS:-54}"
 EXPECT_AIRCALL_TOOLS="${EXPECT_AIRCALL_TOOLS:-4}"
@@ -243,6 +243,7 @@ expected_servers = {
         "read_recent_slack_intent_context",
         "get_current_slack_thread_context",
         "get_selected_slack_thread_context",
+        "audit_standup_down_accountability",
     ],
     "staffany_bigquery": ["list_dataset_ids", "list_table_ids", "get_table_info", "execute_sql_readonly"],
     "hubspot_nurtureany": [
@@ -597,6 +598,81 @@ if thread_messages:
     if not thread_replies_data.get("ok"):
         print("slack-thread-context:replies-check-failed")
         raise SystemExit(1)
+
+standup_channels_raw = (
+    os.environ.get("NURTUREANY_STANDUP_AUDIT_CHANNEL_IDS")
+    or profile_env.get("NURTUREANY_STANDUP_AUDIT_CHANNEL_IDS")
+    or ""
+)
+standup_channels = [value.strip() for value in standup_channels_raw.split(",") if value.strip()]
+if not standup_channels:
+    print("slack-standup:configured-channel-ids-missing")
+    raise SystemExit(1)
+
+standup_channel_id = standup_channels[0]
+standup_info = slack_get("conversations.info", {"channel": standup_channel_id})
+if not standup_info.get("ok"):
+    print("slack-standup:channel-info-failed")
+    raise SystemExit(1)
+channel_info = standup_info.get("channel") or {}
+if not channel_info.get("is_channel") or channel_info.get("is_private"):
+    print("slack-standup:channel-not-public")
+    raise SystemExit(1)
+
+standup_members_data = slack_get("conversations.members", {"channel": standup_channel_id, "limit": "1"})
+if not standup_members_data.get("ok"):
+    error = str(standup_members_data.get("error") or "unknown")
+    if error == "not_in_channel":
+        join_data = slack_get("conversations.join", {"channel": standup_channel_id})
+        if not join_data.get("ok"):
+            print("slack-standup:join-failed")
+            raise SystemExit(1)
+        standup_members_data = slack_get("conversations.members", {"channel": standup_channel_id, "limit": "1"})
+        if not standup_members_data.get("ok"):
+            print("slack-standup:members-after-join-failed")
+            raise SystemExit(1)
+    elif error == "missing_scope":
+        print("slack-standup:missing-conversations-members-scope")
+        raise SystemExit(1)
+    else:
+        print("slack-standup:members-check-failed")
+        raise SystemExit(1)
+
+standup_history_data = slack_get("conversations.history", {"channel": standup_channel_id, "limit": "1"})
+if not standup_history_data.get("ok"):
+    error = str(standup_history_data.get("error") or "unknown")
+    if error == "not_in_channel":
+        join_data = slack_get("conversations.join", {"channel": standup_channel_id})
+        if not join_data.get("ok"):
+            print("slack-standup:join-failed")
+            raise SystemExit(1)
+        standup_history_data = slack_get("conversations.history", {"channel": standup_channel_id, "limit": "1"})
+        if not standup_history_data.get("ok"):
+            print("slack-standup:history-after-join-failed")
+            raise SystemExit(1)
+    elif error == "missing_scope":
+        print("slack-standup:missing-conversations-history-scope")
+        raise SystemExit(1)
+    elif error == "channel_not_found":
+        print("slack-standup:channel-not-found-or-not-in-channel")
+        raise SystemExit(1)
+    else:
+        print("slack-standup:history-check-failed")
+        raise SystemExit(1)
+
+standup_messages = standup_history_data.get("messages") or []
+if standup_messages:
+    standup_message_ts = str((standup_messages[0] or {}).get("ts") or "")
+    standup_permalink_data = slack_get("chat.getPermalink", {"channel": standup_channel_id, "message_ts": standup_message_ts})
+    if not standup_permalink_data.get("ok"):
+        print("slack-standup:permalink-check-failed")
+        raise SystemExit(1)
+    first_member = str((standup_members_data.get("members") or [""])[0] or "")
+    if first_member:
+        user_info_data = slack_get("users.info", {"user": first_member})
+        if not user_info_data.get("ok"):
+            print("slack-standup:users-info-check-failed")
+            raise SystemExit(1)
 PY
 then
   fail "$(cat "$slack_allowlist_out")"

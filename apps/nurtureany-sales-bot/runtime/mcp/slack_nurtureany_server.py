@@ -17,7 +17,10 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from datetime import date as date_cls
+from datetime import datetime, time as datetime_time, timedelta, timezone
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from mcp.server.fastmcp import FastMCP
 
@@ -32,7 +35,23 @@ DEFAULT_LOOKBACK_MINUTES = 30
 DEFAULT_CONTEXT_LIMIT = 10
 MAX_THREAD_CONTEXT_MESSAGES = 50
 DEFAULT_THREAD_CONTEXT_LIMIT = 50
+DEFAULT_STANDUP_LOOKBACK_DAYS = 30
+MAX_STANDUP_LOOKBACK_DAYS = 90
+MAX_STANDUP_AUDIT_MESSAGES = 2000
+MAX_STANDUP_AUDIT_MEMBERS = 2000
 USER_AGENT = "StaffAny-NurtureAny/1.0 (+https://staffany.com)"
+STANDUP_PATTERNS = (
+    re.compile(r"\bstand\s*[- ]?up\b", re.IGNORECASE),
+    re.compile(r"\bstandup\b", re.IGNORECASE),
+    re.compile(r"\bstart\s+of\s+day\b", re.IGNORECASE),
+    re.compile(r"\bsod\b", re.IGNORECASE),
+)
+STANDDOWN_PATTERNS = (
+    re.compile(r"\bstand\s*[- ]?down\b", re.IGNORECASE),
+    re.compile(r"\bstanddown\b", re.IGNORECASE),
+    re.compile(r"\bend\s+of\s+day\b", re.IGNORECASE),
+    re.compile(r"\beod\b", re.IGNORECASE),
+)
 
 
 mcp = FastMCP(
@@ -86,6 +105,22 @@ def _thread_scope(channel_id: str, thread_ts: str, limit: int, current_ts: str =
     }
 
 
+def _standup_scope(channel_id: str, audit_date: str, timezone_name: str, roster_lookback_days: int) -> dict[str, Any]:
+    return {
+        "channel_id": (channel_id or "").strip(),
+        "date": (audit_date or "").strip(),
+        "timezone": (timezone_name or "").strip(),
+        "roster_lookback_days": roster_lookback_days,
+        "max_roster_lookback_days": MAX_STANDUP_LOOKBACK_DAYS,
+        "max_audit_messages": MAX_STANDUP_AUDIT_MESSAGES,
+        "read_only": True,
+        "transcript_persisted": False,
+        "raw_note_bodies_returned": False,
+        "configured_channels_only": True,
+        "configured_public_channel_auto_join": True,
+    }
+
+
 def _blocked(message: str, scope: dict[str, Any] | None = None) -> dict[str, Any]:
     return blocked_response(message, "Slack conversations API", scope)
 
@@ -122,6 +157,10 @@ def _configured_thread_channel_ids() -> set[str]:
         "SLACK_ALLOWED_CHANNEL_IDS",
         "SLACK_HOME_CHANNEL",
     )
+
+
+def _configured_standup_channel_ids() -> set[str]:
+    return _channel_ids_from_env("NURTUREANY_STANDUP_AUDIT_CHANNEL_IDS")
 
 
 def _thread_channel_config_source() -> str:
@@ -202,6 +241,16 @@ def _safe_text(value: str) -> str:
     return text[:220]
 
 
+def _message_permalink(channel_id: str, ts: str) -> str:
+    if not ts:
+        return ""
+    try:
+        payload = _slack_api("chat.getPermalink", {"channel": channel_id, "message_ts": ts})
+    except SlackIntentError:
+        return ""
+    return str(payload.get("permalink") or "")
+
+
 def _message_ts(message: dict[str, Any]) -> float:
     return _ts_float(message.get("ts"), 0.0)
 
@@ -238,6 +287,52 @@ def _history_messages(channel_id: str, latest: float, oldest: float, limit: int)
     return [item for item in payload.get("messages", []) if isinstance(item, dict)], "Slack conversations.history API"
 
 
+def _history_messages_paginated(
+    channel_id: str,
+    latest: float,
+    oldest: float,
+    max_messages: int = MAX_STANDUP_AUDIT_MESSAGES,
+) -> tuple[list[dict[str, Any]], str, bool]:
+    messages: list[dict[str, Any]] = []
+    cursor = ""
+    has_more = False
+    while len(messages) < max_messages:
+        payload = _slack_api(
+            "conversations.history",
+            {
+                "channel": channel_id,
+                "latest": f"{latest:.6f}",
+                "oldest": f"{oldest:.6f}",
+                "inclusive": "true",
+                "limit": min(200, max_messages - len(messages)),
+                "cursor": cursor,
+            },
+        )
+        messages.extend(item for item in payload.get("messages", []) if isinstance(item, dict))
+        cursor = str(((payload.get("response_metadata") or {}).get("next_cursor") or "")).strip()
+        has_more = bool(cursor)
+        if not cursor:
+            break
+    return messages[:max_messages], "Slack conversations.history API", has_more
+
+
+def _history_messages_paginated_with_public_join(
+    channel_id: str,
+    latest: float,
+    oldest: float,
+    max_messages: int = MAX_STANDUP_AUDIT_MESSAGES,
+) -> tuple[list[dict[str, Any]], str, bool]:
+    try:
+        messages, source, truncated = _history_messages_paginated(channel_id, latest, oldest, max_messages)
+        return messages, source, truncated
+    except SlackIntentError as error:
+        if "not_in_channel" not in str(error):
+            raise
+        _join_public_channel(channel_id)
+        messages, source, truncated = _history_messages_paginated(channel_id, latest, oldest, max_messages)
+        return messages, f"{source} after Slack conversations.join", truncated
+
+
 def _thread_messages(
     channel_id: str, thread_ts: str, latest: float, oldest: float, limit: int
 ) -> tuple[list[dict[str, Any]], str]:
@@ -266,6 +361,106 @@ def _is_public_channel(channel_id: str) -> bool:
     if not isinstance(channel, dict):
         return False
     return bool(channel.get("is_channel")) and not bool(channel.get("is_private"))
+
+
+def _channel_member_ids(channel_id: str) -> tuple[set[str], bool]:
+    members: set[str] = set()
+    cursor = ""
+    has_more = False
+    while len(members) < MAX_STANDUP_AUDIT_MEMBERS:
+        payload = _slack_api(
+            "conversations.members",
+            {
+                "channel": channel_id,
+                "limit": min(200, MAX_STANDUP_AUDIT_MEMBERS - len(members)),
+                "cursor": cursor,
+            },
+        )
+        members.update(str(member) for member in payload.get("members", []) if member)
+        cursor = str(((payload.get("response_metadata") or {}).get("next_cursor") or "")).strip()
+        has_more = bool(cursor)
+        if not cursor:
+            break
+    return members, has_more
+
+
+def _channel_member_ids_with_public_join(channel_id: str) -> tuple[set[str], bool, bool]:
+    try:
+        members, truncated = _channel_member_ids(channel_id)
+        return members, truncated, False
+    except SlackIntentError as error:
+        if "not_in_channel" not in str(error):
+            raise
+        _join_public_channel(channel_id)
+        members, truncated = _channel_member_ids(channel_id)
+        return members, truncated, True
+
+
+def _user_profile(user_id: str) -> dict[str, Any]:
+    payload = _slack_api("users.info", {"user": user_id})
+    user = payload.get("user") if isinstance(payload, dict) else {}
+    if not isinstance(user, dict):
+        raise SlackIntentError("Slack users.info returned an invalid user payload.")
+    profile = user.get("profile") if isinstance(user.get("profile"), dict) else {}
+    display_name = (
+        profile.get("real_name_normalized")
+        or user.get("real_name")
+        or profile.get("display_name_normalized")
+        or user.get("name")
+        or user_id
+    )
+    title = str(profile.get("title") or "")
+    return {
+        "user_id": user_id,
+        "display_name": str(display_name),
+        "title": title,
+        "deleted": bool(user.get("deleted")),
+        "is_bot": bool(user.get("is_bot")) or bool(user.get("is_app_user")),
+        "role": _infer_standup_role(f"{display_name} {title}"),
+    }
+
+
+def _infer_standup_role(text: str) -> str:
+    lowered = str(text or "").lower()
+    if re.search(r"\b(marketing|mkt|growth|brand|campaign|content)\b", lowered):
+        return "marketing"
+    if re.search(r"\b(bd\s*ops|business development ops|business development operations|sales ops|revops|revenue ops)\b", lowered):
+        return "bd_ops"
+    if re.search(r"\b(sales|account executive|ae|business development|bd|revenue)\b", lowered):
+        return "sales"
+    return "unknown"
+
+
+def _standup_kind(text: str) -> set[str]:
+    value = str(text or "")
+    kinds: set[str] = set()
+    if any(pattern.search(value) for pattern in STANDUP_PATTERNS):
+        kinds.add("standup")
+    if any(pattern.search(value) for pattern in STANDDOWN_PATTERNS):
+        kinds.add("standdown")
+    return kinds
+
+
+def _parse_audit_window(audit_date: str, timezone_name: str) -> tuple[date_cls, float, float]:
+    tz_name = (timezone_name or "Asia/Singapore").strip()
+    try:
+        tz = ZoneInfo(tz_name)
+    except ZoneInfoNotFoundError as error:
+        raise SlackIntentError(f"Unsupported timezone: {tz_name}") from error
+    raw_date = (audit_date or "").strip().lower()
+    today = datetime.now(tz).date()
+    if raw_date in {"", "today"}:
+        local_date = today
+    else:
+        try:
+            local_date = date_cls.fromisoformat(raw_date)
+        except ValueError as error:
+            raise SlackIntentError("date must be YYYY-MM-DD or today.") from error
+    if local_date > today:
+        raise SlackIntentError("date cannot be in the future; pass today or an explicit past/current local date.")
+    start = datetime.combine(local_date, datetime_time.min, tzinfo=tz)
+    end = start + timedelta(days=1)
+    return local_date, start.astimezone(timezone.utc).timestamp(), end.astimezone(timezone.utc).timestamp()
 
 
 def _thread_messages_with_public_join(
@@ -419,6 +614,142 @@ def get_selected_slack_thread_context(permalink: str, limit: int = DEFAULT_THREA
         safe_limit = _clamp_int(limit, DEFAULT_THREAD_CONTEXT_LIMIT, 1, MAX_THREAD_CONTEXT_MESSAGES)
         return _blocked(str(error), _thread_scope("", "", safe_limit))
     return _thread_context(channel_id, thread_ts, "", limit)
+
+
+@mcp.tool()
+def audit_standup_down_accountability(
+    channel_id: str,
+    date: str,
+    timezone: str = "Asia/Singapore",
+    roster_lookback_days: int = DEFAULT_STANDUP_LOOKBACK_DAYS,
+) -> dict[str, Any]:
+    """Audit one allowed Slack channel for stand-up/down accountability. Pass date="today" for relative today."""
+
+    safe_lookback = _clamp_int(roster_lookback_days, DEFAULT_STANDUP_LOOKBACK_DAYS, 1, MAX_STANDUP_LOOKBACK_DAYS)
+    scope = _standup_scope(channel_id, date, timezone, safe_lookback)
+    channel = (channel_id or "").strip()
+    configured_channels = _configured_standup_channel_ids()
+    if not channel:
+        return _blocked("channel_id is required for stand-up/down accountability audit.", scope)
+    if not configured_channels:
+        return _blocked("NURTUREANY_STANDUP_AUDIT_CHANNEL_IDS is required.", scope)
+    if channel not in configured_channels:
+        return _blocked("Stand-up/down accountability audit is restricted to configured channel IDs.", scope)
+
+    try:
+        local_date, start_ts, end_ts = _parse_audit_window(date, timezone)
+        if not _is_public_channel(channel):
+            return _blocked("Stand-up/down accountability audit supports configured public Slack channels only.", scope)
+        active_member_ids, members_truncated, member_joined_public_channel = _channel_member_ids_with_public_join(channel)
+        baseline_oldest = start_ts - (safe_lookback * 24 * 60 * 60)
+        baseline_messages, baseline_source, baseline_truncated = _history_messages_paginated_with_public_join(
+            channel, start_ts, baseline_oldest
+        )
+        today_messages, today_source, today_truncated = _history_messages_paginated_with_public_join(channel, end_ts, start_ts)
+    except SlackIntentError as error:
+        return _blocked(str(error), scope)
+
+    baseline_user_ids = {
+        str(message.get("user") or "")
+        for message in baseline_messages
+        if str(message.get("user") or "") and _standup_kind(str(message.get("text") or ""))
+    }
+    today_hits_by_user: dict[str, dict[str, list[str]]] = {}
+    for message in today_messages:
+        user_id = str(message.get("user") or "")
+        if not user_id:
+            continue
+        kinds = _standup_kind(str(message.get("text") or ""))
+        if not kinds:
+            continue
+        hit = today_hits_by_user.setdefault(user_id, {"standup": [], "standdown": []})
+        ts = str(message.get("ts") or "")
+        permalink = _message_permalink(channel, ts)
+        for kind in kinds:
+            hit[kind].append(permalink or ts)
+
+    candidate_user_ids = sorted(baseline_user_ids & active_member_ids)
+    profiles: dict[str, dict[str, Any]] = {}
+    try:
+        for user_id in candidate_user_ids:
+            profile = _user_profile(user_id)
+            if profile["deleted"] or profile["is_bot"]:
+                continue
+            profiles[user_id] = profile
+    except SlackIntentError as error:
+        return _blocked(str(error), scope)
+
+    rows: list[dict[str, Any]] = []
+    status_counts = {"complete": 0, "missing_standup": 0, "missing_standdown": 0, "missing_both": 0}
+    for user_id, profile in sorted(profiles.items(), key=lambda item: item[1]["display_name"].lower()):
+        hits = today_hits_by_user.get(user_id, {"standup": [], "standdown": []})
+        has_standup = bool(hits.get("standup"))
+        has_standdown = bool(hits.get("standdown"))
+        if has_standup and has_standdown:
+            status = "complete"
+        elif has_standdown:
+            status = "missing_standup"
+        elif has_standup:
+            status = "missing_standdown"
+        else:
+            status = "missing_both"
+        status_counts[status] += 1
+        role = str(profile.get("role") or "unknown")
+        rows.append(
+            {
+                "user_id": user_id,
+                "display_name": profile["display_name"],
+                "role": role,
+                "role_needs_check": role == "unknown",
+                "status": status,
+                "has_standup": has_standup,
+                "has_standdown": has_standdown,
+                "standup_permalinks": hits.get("standup", [])[:3],
+                "standdown_permalinks": hits.get("standdown", [])[:3],
+            }
+        )
+
+    expected_user_ids = set(profiles)
+    today_participant_ids = set(today_hits_by_user)
+    extra_today_participants = sorted(today_participant_ids - expected_user_ids)
+    source = today_source if today_source == baseline_source else f"{baseline_source}; {today_source}"
+    truncated = bool(members_truncated or baseline_truncated or today_truncated)
+    joined_public_channel = member_joined_public_channel or "after Slack conversations.join" in source
+    confidence = "verified" if rows and not truncated else "needs-check"
+    caveat = (
+        "Safe per-person status/permalinks only; no raw note bodies returned. "
+        "Active member means Slack channel member, not HR employment truth."
+    )
+    return {
+        "answer": {
+            "date": local_date.isoformat(),
+            "timezone": timezone,
+            "channel_id": channel,
+            "expected_people_count": len(rows),
+            "complete_count": status_counts["complete"],
+            "missing_standup_count": status_counts["missing_standup"] + status_counts["missing_both"],
+            "missing_standdown_count": status_counts["missing_standdown"] + status_counts["missing_both"],
+            "missing_both_count": status_counts["missing_both"],
+            "role_needs_check_count": sum(1 for row in rows if row["role_needs_check"]),
+            "rows": rows,
+            "extra_today_participant_count": len(extra_today_participants),
+            "extra_today_participant_user_ids": extra_today_participants[:20],
+            "roster_source": "active Slack channel members intersected with prior stand-up/down participants",
+            "will_mutate_slack": False,
+            "will_post_message": False,
+            "transcript_persisted": False,
+            "raw_note_bodies_returned": False,
+            "may_join_configured_public_channel": True,
+            "joined_public_channel": joined_public_channel,
+            "members_truncated": members_truncated,
+            "baseline_messages_truncated": baseline_truncated,
+            "today_messages_truncated": today_truncated,
+        },
+        "source": source,
+        "scope": scope,
+        "confidence": confidence,
+        "caveat": caveat,
+    }
 
 
 if __name__ == "__main__":
