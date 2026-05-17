@@ -11,7 +11,7 @@ Canonical Hermes app packet for the Launchbot Slack profile.
 - Live runtime state: `~/.hermes/profiles/launchbot/` on `hermes-data-bot-poc`
 - Status: cloud-primary; release gate is green managed gateway health plus a bot-owned Slack smoke in `#launch-bot-testing`. Scheduled Pantheon refresh still requires VM GitHub SSH access.
 - Pantheon source checkout: `~/.hermes/profiles/launchbot/source/pantheon`, refreshed from `git@github.com:staffany-eng/pantheon.git` branch `develop` after VM GitHub SSH access is authorized.
-- Slack Socket Mode event subscriptions: `app_mention` and `message.channels`; OAuth scopes must include `app_mentions:read`, `channels:history`, `channels:read`, and `chat:write`.
+- Slack Socket Mode event subscriptions: `app_mention` and `message.channels`; OAuth scopes must include `app_mentions:read`, `channels:history`, `channels:read`, `channels:join`, and `chat:write`.
 - Help article planning: cached Intercom article-shape profile plus metadata inventory first, then live Intercom only for affected search and pre-stage stale checks.
 - Feature intake: guarded Slack thread to Jira Product Discovery KER preview/create in configured channels, with explicit confirmation before Jira mutation.
 - Feature-intake monitor: no-agent poller for `#input-features-ux` (`CF8PK6V4J`) that posts one Launchbot-owned preview for likely KER intake candidates, then creates only after exact `create intake` in-thread.
@@ -73,7 +73,7 @@ Canonical Hermes app packet for the Launchbot Slack profile.
       --script launchbot-monitor-feature-intake.py \
       --no-agent
     ```
-14. Install the support-watch cron only after BigQuery/Jira/Slack env is present, `#all-bugs-production` resolves with the Launchbot bot token, Launchbot is confirmed as a member, and a dry-run succeeds. Public support-watch channels resolve by name with `channels:read`; use explicit channel IDs only for private channels:
+14. Install the support-watch cron only after BigQuery/Jira/Slack env is present, `#all-bugs-production` resolves with the Launchbot bot token, Launchbot can join configured public channels with `channels:join`, and a dry-run succeeds. Public support-watch channels resolve by name with `channels:read`; use explicit channel IDs only for private channels:
     ```bash
     cp apps/launchbot/runtime/monitor-support-watch.py ~/.hermes/profiles/launchbot/scripts/launchbot-monitor-support-watch.py
     LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME=all-bugs-production \

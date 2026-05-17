@@ -78,6 +78,7 @@
       "app_mentions:read",
       "channels:history",
       "channels:read",
+      "channels:join",
       "chat:write"
     ],
     "event_subscription_drift_guard": "Launchbot Socket Mode must subscribe to message.channels or channel mentions/replies will not reach the Hermes gateway."

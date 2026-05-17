@@ -73,7 +73,7 @@ if (!manifest) {
       fail(`Manifest Slack required bot events missing ${eventName}`);
     }
   }
-  for (const scopeName of ["app_mentions:read", "channels:history", "channels:read", "chat:write"]) {
+  for (const scopeName of ["app_mentions:read", "channels:history", "channels:read", "channels:join", "chat:write"]) {
     if (!manifest.slack?.required_oauth_scopes?.includes(scopeName)) {
       fail(`Manifest Slack required OAuth scopes missing ${scopeName}`);
     }
@@ -955,10 +955,14 @@ for (const requiredText of [
   "slack:scope-missing:",
   "channels:read",
   "channels:history",
+  "channels:join",
   "chat:write",
   "conversations.info",
+  "conversations.join",
   "support-watch:output-channel-unresolved",
+  "support-watch:output-channel-join-failed",
   "support-watch:output-channel-not-member",
+  "support-watch:dedupe-channel-join-failed",
   "support-watch:dedupe-channel-unresolved",
 ]) {
   if (!launchbotHealthText.includes(requiredText)) fail(`Launchbot health check missing support-watch Slack validation text: ${requiredText}`);

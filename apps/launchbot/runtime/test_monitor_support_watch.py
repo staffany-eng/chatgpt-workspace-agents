@@ -123,6 +123,10 @@ class LaunchbotSupportWatchMonitorTest(unittest.TestCase):
             self.module,
             "slack_post",
             side_effect=lambda method, body: posted.append((method, body)) or {"ok": True, "ts": "1778752460.000000"},
+        ), patch.object(
+            self.module.support_core,
+            "slack_api",
+            return_value={"channel": {"is_member": True}},
         ):
             state_path = str(Path(tmp) / "support-watch-state.json")
             result = self.module.run_monitor(args_for(state_path))
@@ -130,6 +134,7 @@ class LaunchbotSupportWatchMonitorTest(unittest.TestCase):
 
         self.assertEqual(result["action"], "posted")
         self.assertEqual(result["output_channel_name"], "all-bugs-production")
+        self.assertEqual(result["output_channel_membership"], "member")
         self.assertEqual(posted[0][0], "chat.postMessage")
         self.assertEqual(posted[0][1]["channel"], "CBUGS")
         self.assertTrue(posted[0][1]["text"].startswith("Launchbot automation:"))
@@ -202,6 +207,36 @@ class LaunchbotSupportWatchMonitorTest(unittest.TestCase):
         self.assertEqual(result["output_channel_id"], "CBUGS")
         self.assertEqual(result["output_channel_id_source"], "resolved")
         self.assertFalse(state_path.exists())
+
+    def test_post_joins_public_output_channel_before_slack_report_when_needed(self):
+        posted = []
+
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(
+            os.environ,
+            {
+                "LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME": "all-bugs-production",
+                "LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_ID": "CBUGS",
+            },
+            clear=True,
+        ), patch.object(
+            self.module.support_core,
+            "preview_weekly_support_watch_report",
+            return_value={"confidence": "verified", "answer": report_with_findings()},
+        ), patch.object(
+            self.module.support_core,
+            "slack_api",
+            return_value={"channel": {"is_member": False}},
+        ), patch.object(
+            self.module,
+            "slack_post",
+            side_effect=lambda method, body: posted.append((method, body)) or {"ok": True, "ts": "1778752460.000000"},
+        ):
+            result = self.module.run_monitor(args_for(str(Path(tmp) / "support-watch-state.json")))
+
+        self.assertEqual(result["action"], "posted")
+        self.assertEqual(result["output_channel_membership"], "joined")
+        self.assertEqual(posted[0], ("conversations.join", {"channel": "CBUGS"}))
+        self.assertEqual(posted[1][0], "chat.postMessage")
 
 
 if __name__ == "__main__":

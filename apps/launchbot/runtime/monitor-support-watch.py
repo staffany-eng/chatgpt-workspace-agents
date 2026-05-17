@@ -106,6 +106,15 @@ def output_channel_id() -> tuple[str, str]:
     return resolved, "resolved"
 
 
+def ensure_output_channel_membership(channel_id: str) -> str:
+    info = support_core.slack_api("conversations.info", {"channel": channel_id})
+    channel = info.get("channel") or {}
+    if channel.get("is_member") is True:
+        return "member"
+    slack_post("conversations.join", {"channel": channel_id})
+    return "joined"
+
+
 def safe_findings(findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
     safe_items = []
     for finding in findings:
@@ -254,9 +263,11 @@ def run_monitor(args: argparse.Namespace) -> dict[str, Any]:
 
     channel_id = ""
     channel_id_source = ""
+    channel_membership = ""
     post_ts = ""
     if action == "posted":
         channel_id, channel_id_source = output_channel_id()
+        channel_membership = ensure_output_channel_membership(channel_id)
         text = str(report.get("slack_report") or "")
         if not text.startswith(AUTOMATION_PREFIX):
             raise support_core.LaunchbotSupportWatchError("Support-watch Slack report must start with Launchbot automation:.")
@@ -295,6 +306,7 @@ def run_monitor(args: argparse.Namespace) -> dict[str, Any]:
         "output_channel_name": output_channel_name(),
         "output_channel_id": channel_id,
         "output_channel_id_source": channel_id_source,
+        "output_channel_membership": channel_membership,
         "state_path": str(state_path),
         "dedupe_channel_ids_env": DEDUPE_CHANNEL_IDS_ENV,
         "dedupe_channel_names_env": "LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_NAMES",

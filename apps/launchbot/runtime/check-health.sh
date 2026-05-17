@@ -387,9 +387,62 @@ except Exception as error:
     fail(f"slack:auth-test-failed:{support_watch.safe_error(str(error))}")
 if not payload.get("ok"):
     fail(f"slack:auth-test-not-ok:{support_watch.safe_error(str(payload.get('error') or 'unknown_error'))}")
-for scope in ("channels:read", "channels:history", "chat:write"):
+for scope in ("channels:read", "channels:history", "channels:join", "chat:write"):
     if scope not in scopes:
         fail(f"slack:scope-missing:{scope}")
+
+
+def slack_post(method: str, body: dict[str, str]) -> dict:
+    request = urllib.request.Request(
+        urllib.parse.urljoin(support_watch.SLACK_API_BASE_URL, method),
+        data=urllib.parse.urlencode(body).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Accept": "application/json",
+            "User-Agent": support_watch.USER_AGENT,
+        },
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=20) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+SUPPORT_WATCH_CHANNEL_FAILURES = {
+    ("output", "info-failed"): "support-watch:output-channel-info-failed",
+    ("output", "join-failed"): "support-watch:output-channel-join-failed",
+    ("output", "not-member"): "support-watch:output-channel-not-member",
+    ("dedupe", "info-failed"): "support-watch:dedupe-channel-info-failed",
+    ("dedupe", "join-failed"): "support-watch:dedupe-channel-join-failed",
+    ("dedupe", "not-member"): "support-watch:dedupe-channel-not-member",
+}
+
+
+def fail_support_watch_channel(label: str, failure: str, detail: str) -> None:
+    prefix = SUPPORT_WATCH_CHANNEL_FAILURES.get((label, failure))
+    if prefix is None:
+        prefix = f"support-watch:{label}-channel-{failure}"
+    fail(f"{prefix}:{support_watch.safe_error(detail)}")
+
+
+def ensure_public_channel_membership(label: str, channel_id: str) -> None:
+    try:
+        info = support_watch.slack_api("conversations.info", {"channel": channel_id})
+    except Exception as error:
+        fail_support_watch_channel(label, "info-failed", str(error))
+    channel = info.get("channel") or {}
+    if channel.get("is_member") is not True:
+        try:
+            join_payload = slack_post("conversations.join", {"channel": channel_id})
+        except Exception as error:
+            fail_support_watch_channel(label, "join-failed", str(error))
+        if not join_payload.get("ok"):
+            fail_support_watch_channel(label, "join-failed", str(join_payload.get("error") or "unknown_error"))
+        info = support_watch.slack_api("conversations.info", {"channel": channel_id})
+        channel = info.get("channel") or {}
+    if channel.get("is_member") is not True:
+        fail_support_watch_channel(label, "not-member", channel_id)
+
 
 output_name = os.environ.get("LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME", support_watch.OUTPUT_CHANNEL_NAME).strip().lstrip("#")
 output_id = os.environ.get("LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_ID", "").strip() or support_watch.resolve_slack_channel_id(output_name)
@@ -402,17 +455,13 @@ except Exception as error:
 output_channel = output_info.get("channel") or {}
 if output_channel.get("name") != output_name:
     fail(f"support-watch:output-channel-name-mismatch:{output_id}")
-if output_channel.get("is_member") is not True:
-    fail(f"support-watch:output-channel-not-member:{output_id}")
+ensure_public_channel_membership("output", output_id)
 
 dedupe_ids = support_watch.dedupe_channel_ids()
 if not dedupe_ids:
     fail("support-watch:dedupe-channel-unresolved")
 for channel_id in dedupe_ids:
-    try:
-        support_watch.slack_api("conversations.info", {"channel": channel_id})
-    except Exception as error:
-        fail(f"support-watch:dedupe-channel-info-failed:{support_watch.safe_error(str(error))}")
+    ensure_public_channel_membership("dedupe", channel_id)
 PY
 
 [ -r "$HELP_ARTICLE_VIDEO_REGISTRY_PATH" ] || fail "help-article-video-registry:missing"
