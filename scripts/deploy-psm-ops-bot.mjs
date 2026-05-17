@@ -336,7 +336,7 @@ copy_dir "$deploy_dir/ops/hermes" "$remote_source_dir/ops/hermes"
 copy_dir "$deploy_dir/apps/psm-ops-bot" "$source_app"
 
 copy_dir "$deploy_dir/apps/psm-ops-bot" "$profile/source/psm-ops-bot"
-python3 - "$deploy_dir/apps/psm-ops-bot/profile/config.template.yaml" "$profile/config.yaml" "$runtime_owner" "$remote_source_dir" <<'PY'
+sudo python3 - "$deploy_dir/apps/psm-ops-bot/profile/config.template.yaml" "$profile/config.yaml" "$runtime_owner" "$remote_source_dir" <<'PY'
 import sys
 from pathlib import Path
 
