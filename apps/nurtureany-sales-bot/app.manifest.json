@@ -481,6 +481,11 @@
     "schedule_save_tool": "save_sales_whatsapp_window_report_schedule",
     "schedule_run_tool": "run_sales_whatsapp_window_report_schedule",
     "delivery_tool": "post_generated_sales_report",
+    "supported_countries": [
+      "Singapore",
+      "Malaysia",
+      "Indonesia"
+    ],
     "default_countries": [
       "Singapore",
       "Malaysia"
@@ -495,6 +500,36 @@
     "logical_cron": "35 10 * * 1-5",
     "logical_timezone": "Asia/Singapore",
     "production_cron_expression": "35 2 * * 1-5",
+    "known_production_cron_expressions": [
+      "35 2 * * 1-5",
+      "45 3 * * 1-5",
+      "35 3 * * 1-5"
+    ],
+    "production_cron_records": [
+      {
+        "name": "SG MY WhatsApp Morning Blitz Report",
+        "countries": [
+          "Singapore",
+          "Malaysia"
+        ],
+        "deliver": "slack:C04HYF0NM8A"
+      },
+      {
+        "name": "ID Morning WhatsApp Blitz Report",
+        "countries": [
+          "Indonesia"
+        ],
+        "deliver": "slack:C0B2UGK4DB6"
+      },
+      {
+        "name": "ID WhatsApp Morning Blitz Report",
+        "countries": [
+          "Indonesia"
+        ],
+        "deliver": "slack:C04MSJ1BGF9",
+        "source_thread": "https://staffany.slack.com/archives/C04MSJ1BGF9/p1778822647171049"
+      }
+    ],
     "delivery_channel_ids_env_var": "NURTUREANY_REPORT_DELIVERY_CHANNEL_IDS",
     "schedule_dir_env_var": "NURTUREANY_REPORT_SCHEDULE_DIR",
     "storage": "profile_runtime_state_not_repo_or_secret",

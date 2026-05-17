@@ -401,15 +401,15 @@ HubSpot Task management:
 
 `build_sales_whatsapp_window_report`:
 
-- Input: caller email, optional scoped owner emails, `for_date`, local window, countries, SG-first country order, `target_per_owner` default 30, and `include_kns=false`.
-- Output: generated SG/MY report rows by country and owner, access-policy timezone, local and UTC window, first target-account WhatsApp local time, target-account WhatsApp count, hit/miss against 30, truncation, confidence/caveat, and `slack_markdown`.
+- Input: caller email, optional scoped owner emails, `for_date`, local window, countries, country order, `target_per_owner` default 30, and `include_kns=false`.
+- Output: generated Singapore/Malaysia/Indonesia report rows by country and owner, access-policy timezone, local and UTC window, first target-account WhatsApp local time, target-account WhatsApp count, hit/miss against 30, truncation, confidence/caveat, and `slack_markdown`.
 - Owner, country, and timezone source of truth is `NURTUREANY_ACCESS_POLICY_PATH` through `resolve_sales_owners` / `_sales_owner_rows_for_scope`. Do not patch rosters from Slack memory or silently fall back to SGT. Missing timezone is `needs-check` and blocks the HubSpot query.
 - Slack answers should render the returned `slack_markdown` or summarize only the returned `country_rows` for the returned `countries`. Do not add owner rows, countries, timezone gaps, or admin-scope expansion commentary that the primitive did not return.
 - Ad hoc reruns such as `09:45-10:45 today` call this primitive only; they must not update the saved weekday schedule.
 
 `save_sales_whatsapp_window_report_schedule` and `run_sales_whatsapp_window_report_schedule`:
 
-- Schedule state is profile-runtime JSON, not repo state or secrets. It stores report args, logical cron `35 10 * * 1-5 Asia/Singapore`, current production cron expression `35 2 * * 1-5`, delivery channel, source Slack thread, idempotency key pattern, `created_by`, and `updated_by`.
+- Schedule state is profile-runtime JSON, not repo state or secrets. It stores report args, logical cron `35 10 * * 1-5 Asia/Singapore`, one of the existing production WhatsApp Blitz cron expressions, delivery channel, source Slack thread, idempotency key pattern, `created_by`, and `updated_by`.
 - The runner loads the saved state and calls `build_sales_whatsapp_window_report` deterministically. Weekends are skipped for the default weekday schedule.
 - Existing Eugene-owned SG/MY and ID WhatsApp Blitz crons stay active until a separate live migration changes them.
 

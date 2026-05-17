@@ -780,11 +780,29 @@ class SalesWhatsappWindowReportTest(unittest.TestCase):
             "aliases": {},
         }
 
+    def _id_report_policy(self):
+        return {
+            "admins": {},
+            "managers": {"sarah@staffany.com": ("Indonesia",)},
+            "sales_reps": {
+                "simone@staffany.com": {
+                    "hubspot_owner_email": "simone@staffany.com",
+                    "countries": ("Indonesia",),
+                    "timezone": "Asia/Jakarta",
+                },
+            },
+            "partnerships_viewers": {},
+            "event_operators": {},
+            "disabled": set(),
+            "aliases": {},
+        }
+
     def _owner_by_email(self, email):
         normalized = email.lower()
         owners = {
             "jeremy.wong@staffany.com": {"id": "owner-jeremy", "email": "jeremy.wong@staffany.com", "firstName": "Jeremy", "lastName": "Wong"},
             "nicholas@staffany.com": {"id": "owner-nicholas", "email": "nicholas@staffany.com", "firstName": "Nicholas", "lastName": "Tan"},
+            "simone@staffany.com": {"id": "owner-simone", "email": "simone@staffany.com", "firstName": "Simone", "lastName": "ID"},
         }
         return owners.get(normalized)
 
@@ -858,6 +876,74 @@ class SalesWhatsappWindowReportTest(unittest.TestCase):
         dumped = json.dumps(result)
         self.assertNotIn("hs_communication_body", dumped)
 
+    def test_report_supports_indonesia_manager_scope(self):
+        def fake_object_search(object_type, filters, properties, limit=100, maximum=500, sorts=None):
+            self.assertEqual(object_type, "communications")
+            self.assertNotIn("hs_communication_body", properties)
+            owner_id = next(item["value"] for item in filters if item["propertyName"] == "hubspot_owner_id")
+            self.assertEqual(owner_id, "owner-simone")
+            return {
+                "results": [
+                    {
+                        "id": f"id-comm-{index}",
+                        "properties": {
+                            "hs_timestamp": f"2026-05-15T02:{index % 60:02d}:00Z",
+                            "hubspot_owner_id": "owner-simone",
+                            "hs_communication_channel_type": "WHATS_APP",
+                            "hs_communication_logged_from": "Eazybe",
+                        },
+                    }
+                    for index in range(30)
+                ],
+                "total": 30,
+                "returned_count": 30,
+                "has_more": False,
+                "truncated": False,
+            }
+
+        def fake_company_search(filters, limit=100, maximum=500, sorts=None, query=""):
+            country = next(item["values"][0] for item in filters if item["propertyName"] == "company_country")
+            self.assertEqual(country, "Indonesia")
+            return {
+                "results": [{"id": "id-company", "properties": {"name": "ID Target", "company_country": "Indonesia", "hubspot_owner_id": "owner-simone"}}],
+                "total": 1,
+                "returned_count": 1,
+                "has_more": False,
+                "truncated": False,
+            }
+
+        def fake_batch_association_ids(from_type, to_type, ids):
+            if from_type == "companies":
+                return {str(item): [] for item in ids}
+            if from_type == "communications" and to_type == "companies":
+                return {str(item): ["id-company"] for item in ids}
+            return {str(item): [] for item in ids}
+
+        with patch.object(self.module, "_access_policy", return_value=self._id_report_policy()), patch.object(
+            self.module, "_owner_by_email", side_effect=self._owner_by_email
+        ), patch.object(self.module, "_object_search", side_effect=fake_object_search), patch.object(
+            self.module, "_company_search", side_effect=fake_company_search
+        ), patch.object(self.module, "_batch_association_ids", side_effect=fake_batch_association_ids):
+            result = self.module.build_sales_whatsapp_window_report(
+                "sarah@staffany.com",
+                countries=["Indonesia"],
+                country_order=["Indonesia"],
+                for_date="2026-05-15",
+                window_start_local="09:30",
+                window_end_local="10:30",
+            )
+
+        rows = result["answer"]["country_rows"]
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["answer"]["countries"], ["Indonesia"])
+        self.assertEqual([row["country"] for row in rows], ["Indonesia"])
+        self.assertEqual(rows[0]["owner_email"], "simone@staffany.com")
+        self.assertEqual(rows[0]["target_account_whatsapp_count"], 30)
+        self.assertEqual(rows[0]["target_status"], "hit")
+        self.assertIn("*Indonesia*", result["answer"]["slack_markdown"])
+        dumped = json.dumps(result)
+        self.assertNotIn("hs_communication_body", dumped)
+
     def test_report_missing_timezone_blocks_before_hubspot_query(self):
         policy = self._report_policy(nicholas_timezone="")
         with patch.object(self.module, "_access_policy", return_value=policy), patch.object(
@@ -905,6 +991,29 @@ class SalesWhatsappWindowReportTest(unittest.TestCase):
         self.assertEqual(before, after)
         self.assertFalse(report["answer"]["schedule_mutated"])
         self.assertEqual(report["answer"]["window_start_local"], "09:45")
+
+    def test_schedule_can_persist_indonesia_report_args(self):
+        with tempfile.TemporaryDirectory() as schedule_dir, patch.dict(
+            os.environ,
+            {
+                "NURTUREANY_REPORT_SCHEDULE_DIR": schedule_dir,
+                "NURTUREANY_REPORT_DELIVERY_CHANNEL_IDS": "C04MSJ1BGF9",
+            },
+        ), patch.object(self.module, "_caller_scope", return_value={"kind": "manager", "email": "sarah@staffany.com", "countries": ("Indonesia",), "owner_id": None}):
+            saved = self.module.save_sales_whatsapp_window_report_schedule(
+                "sarah@staffany.com",
+                schedule_id="id-whatsapp-morning-report",
+                report_args={"countries": ["Indonesia"], "country_order": ["Indonesia"]},
+                runtime_cron_expression="35 3 * * 1-5",
+                delivery_channel_id="C04MSJ1BGF9",
+                approval_marker="approved report send",
+                source_slack_thread="C04MSJ1BGF9:1778822647.171049",
+            )
+
+        self.assertEqual(saved["confidence"], "verified")
+        self.assertEqual(saved["answer"]["schedule_id"], "id-whatsapp-morning-report")
+        self.assertEqual(saved["answer"]["report_args"]["countries"], ["Indonesia"])
+        self.assertEqual(saved["answer"]["runtime_cron_expression"], "35 3 * * 1-5")
 
     def test_schedule_rejects_non_weekday_default_cron(self):
         with tempfile.TemporaryDirectory() as schedule_dir, patch.dict(

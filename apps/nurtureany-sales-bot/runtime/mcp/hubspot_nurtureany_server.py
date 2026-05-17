@@ -748,6 +748,7 @@ OPERATION_LEDGER_DEFAULT_PROFILE = "nurtureanysalesbot"
 LESSON_CANDIDATES_DIR_ENV = "NURTUREANY_LESSON_CANDIDATES_DIR"
 SALES_WHATSAPP_REPORT_SCHEDULE_DIR_ENV = "NURTUREANY_REPORT_SCHEDULE_DIR"
 SALES_WHATSAPP_REPORT_DELIVERY_CHANNEL_IDS_ENV = "NURTUREANY_REPORT_DELIVERY_CHANNEL_IDS"
+SALES_WHATSAPP_REPORT_SUPPORTED_COUNTRIES = SUPPORTED_COUNTRIES
 SALES_WHATSAPP_REPORT_DEFAULT_COUNTRIES = ("Singapore", "Malaysia")
 SALES_WHATSAPP_REPORT_DEFAULT_COUNTRY_ORDER = ("Singapore", "Malaysia")
 SALES_WHATSAPP_REPORT_DEFAULT_WINDOW_START = "09:30"
@@ -758,6 +759,11 @@ SALES_WHATSAPP_REPORT_PREFIX = "NurtureAny automation: Sales WhatsApp Window Rep
 SALES_WHATSAPP_REPORT_DEFAULT_SCHEDULE_ID = "sg-my-whatsapp-morning-report"
 SALES_WHATSAPP_REPORT_LOGICAL_CRON = "35 10 * * 1-5"
 SALES_WHATSAPP_REPORT_PRODUCTION_CRON = "35 2 * * 1-5"
+SALES_WHATSAPP_REPORT_ALLOWED_PRODUCTION_CRONS = (
+    SALES_WHATSAPP_REPORT_PRODUCTION_CRON,
+    "45 3 * * 1-5",
+    "35 3 * * 1-5",
+)
 SALES_WHATSAPP_REPORT_DEFAULT_IDEMPOTENCY_PATTERN = "{schedule_id}:{for_date}:{window_start_local}-{window_end_local}"
 LESSON_CANDIDATE_STATUSES = {"pending_review", "approved_for_repo_promotion", "rejected", "promoted"}
 LESSON_CANDIDATE_RISK_CLASSES = {"low", "medium", "high"}
@@ -15733,7 +15739,7 @@ def list_due_hubspot_sales_task_reminders(
 
 def _sales_report_selected_countries(countries: list[str] | None, scope_countries: tuple[str, ...]) -> list[str]:
     requested = countries or list(SALES_WHATSAPP_REPORT_DEFAULT_COUNTRIES)
-    return _safe_countries([country for country in requested if country in SALES_WHATSAPP_REPORT_DEFAULT_COUNTRIES], scope_countries)
+    return _safe_countries([country for country in requested if country in SALES_WHATSAPP_REPORT_SUPPORTED_COUNTRIES], scope_countries)
 
 
 def _sales_report_country_order(selected: list[str], country_order: list[str] | None) -> list[str]:
@@ -15826,7 +15832,7 @@ def build_sales_whatsapp_window_report(
     include_kns: bool = SALES_WHATSAPP_REPORT_DEFAULT_INCLUDE_KNS,
     limit: int = 500,
 ) -> dict[str, Any]:
-    """Build a SG/MY target-account WhatsApp morning-window report without mutating schedule or posting Slack."""
+    """Build a target-account WhatsApp morning-window report without mutating schedule or posting Slack."""
 
     try:
         scope = _caller_scope(slack_user_email)
@@ -15834,7 +15840,7 @@ def build_sales_whatsapp_window_report(
             return _blocked(scope.get("blocked_reason") or "Caller identity is not mapped to an allowed scope.", {"caller_email": slack_user_email})
         selected_countries = _sales_report_selected_countries(countries, scope["countries"])
         if not selected_countries:
-            return _blocked("Requested report countries are outside caller scope or outside the SG/MY report contract.", _scope_response(scope, []))
+            return _blocked("Requested report countries are outside caller scope or outside the sales WhatsApp report contract.", _scope_response(scope, []))
         ordered_countries = _sales_report_country_order(selected_countries, country_order)
         reference_date = (_date_value(for_date) or datetime.now(SINGAPORE_TIMEZONE).date()).isoformat()
         target = _bounded_int(target_per_owner, default=SALES_WHATSAPP_REPORT_DEFAULT_TARGET_PER_OWNER, minimum=1, maximum=500)
@@ -16019,7 +16025,7 @@ def save_sales_whatsapp_window_report_schedule(
     approval_marker: str = "",
     enabled: bool = True,
 ) -> dict[str, Any]:
-    """Persist the deterministic weekday SG/MY WhatsApp report schedule in profile runtime state."""
+    """Persist a deterministic weekday sales WhatsApp report schedule in profile runtime state."""
 
     try:
         scope = _caller_scope(slack_user_email)
@@ -16030,8 +16036,8 @@ def save_sales_whatsapp_window_report_schedule(
             return _blocked("schedule_id is required.", {"caller_email": slack_user_email})
         if str(cron_schedule or "").strip() != SALES_WHATSAPP_REPORT_LOGICAL_CRON:
             return _blocked("Default WhatsApp morning report schedule must stay weekday-only at 35 10 * * 1-5 Asia/Singapore.", {"schedule_id": safe_schedule_id})
-        if str(runtime_cron_expression or "").strip() not in {"", SALES_WHATSAPP_REPORT_PRODUCTION_CRON}:
-            return _blocked("runtime_cron_expression must preserve the existing production SG/MY WhatsApp Blitz cron expression unless a separate migration is approved.", {"schedule_id": safe_schedule_id})
+        if str(runtime_cron_expression or "").strip() not in {"", *SALES_WHATSAPP_REPORT_ALLOWED_PRODUCTION_CRONS}:
+            return _blocked("runtime_cron_expression must preserve an existing production WhatsApp Blitz cron expression unless a separate migration is approved.", {"schedule_id": safe_schedule_id})
         channel_id = str(delivery_channel_id or "").strip()
         _validate_sales_whatsapp_report_channel(channel_id)
         marker = str(approval_marker or "").strip()
@@ -16041,7 +16047,7 @@ def save_sales_whatsapp_window_report_schedule(
         if not pattern or "{for_date}" not in pattern:
             return _blocked("idempotency_key_pattern must include {for_date}.", {"schedule_id": safe_schedule_id})
         normalized_args = _default_sales_whatsapp_report_args(report_args)
-        normalized_args["countries"] = [country for country in normalized_args["countries"] if country in SALES_WHATSAPP_REPORT_DEFAULT_COUNTRIES]
+        normalized_args["countries"] = [country for country in normalized_args["countries"] if country in SALES_WHATSAPP_REPORT_SUPPORTED_COUNTRIES]
         normalized_args["country_order"] = _sales_report_country_order(normalized_args["countries"], normalized_args["country_order"])
         existing = _load_sales_whatsapp_report_schedule(safe_schedule_id)
         now = datetime.now(timezone.utc).isoformat()

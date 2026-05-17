@@ -1343,6 +1343,23 @@ Expected behavior:
 - Final answer uses `answer.slack_markdown` or only the returned `answer.country_rows` for `answer.countries`; it does not add Indonesia/admin-scope expansion notes, owner rows, or timezone gaps unless the primitive returned them.
 - Does not return raw WhatsApp bodies, phone numbers, raw Slack transcripts, raw HubSpot rows, or mutate HubSpot.
 
+### Indonesia WhatsApp Morning Report Primitive
+
+Prompt:
+
+```text
+@NurtureAny build the ID WhatsApp morning report for today
+```
+
+Expected behavior:
+
+- First response is plan-only and asks for `run` unless the quick-autorun gate proves this is an obvious low-cost read.
+- After `run`, calls `build_sales_whatsapp_window_report` with `countries=["Indonesia"]`, usually `country_order=["Indonesia"]`, 09:30-10:30 owner-local time, target 30, and `include_kns=false`.
+- Resolves Sarah's Indonesia manager scope and classified Indonesia owner/timezone rows from `NURTUREANY_ACCESS_POLICY_PATH` through `resolve_sales_owners`; does not infer the roster from the sample Slack thread.
+- Uses the linked ID manager-channel thread only as source-shape provenance for the internal report format; raw Slack transcripts are not stored or copied.
+- Returns generated `slack_markdown` beginning with `NurtureAny automation:` and grouped under Indonesia.
+- Does not create a separate no-agent daily-nurture cron, re-enable the Jeremy 09:00/noon workflow, send WhatsApp/Eazybe/email/LinkedIn messages, or mutate HubSpot.
+
 Prompt:
 
 ```text

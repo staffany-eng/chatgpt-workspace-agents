@@ -251,6 +251,40 @@ nurtureany:
     no_external_send: true
     no_hubspot_mutation: true
     slack_alert_chain_fallback: extract_inbound_lead_alerts -> resolve_inbound_slack_alerts_to_hubspot -> audit_inbound_sla
+  sales_whatsapp_window_report:
+    enabled: true
+    supported_countries:
+    - Singapore
+    - Malaysia
+    - Indonesia
+    default_countries:
+    - Singapore
+    - Malaysia
+    indonesia_countries:
+    - Indonesia
+    default_window_local: 09:30-10:30
+    target_per_owner: 30
+    source_of_truth: HubSpot target-account WhatsApp communication metadata plus runtime access policy owner/country/timezone
+    generation_tool: build_sales_whatsapp_window_report
+    schedule_save_tool: save_sales_whatsapp_window_report_schedule
+    schedule_run_tool: run_sales_whatsapp_window_report_schedule
+    delivery_tool: post_generated_sales_report
+    schedule_dir_env: NURTUREANY_REPORT_SCHEDULE_DIR
+    delivery_channel_ids_env: NURTUREANY_REPORT_DELIVERY_CHANNEL_IDS
+    default_schedule_id: sg-my-whatsapp-morning-report
+    indonesia_schedule_id: id-whatsapp-morning-report
+    known_production_crons:
+    - "35 2 * * 1-5"
+    - "45 3 * * 1-5"
+    - "35 3 * * 1-5"
+    id_manager_channel_id: C04MSJ1BGF9
+    id_source_thread: https://staffany.slack.com/archives/C04MSJ1BGF9/p1778822647171049
+    output_prefix: "NurtureAny automation:"
+    raw_bodies_returned: false
+    no_external_send: true
+    no_hubspot_mutation: true
+    user_token_fallback: false
+    slack_connector_fallback: false
   aircall_call_review:
     source_role: selected_call_enrichment_only
     source_of_truth: HubSpot remains account, owner, task, note, deal, contact, and nurture-field truth

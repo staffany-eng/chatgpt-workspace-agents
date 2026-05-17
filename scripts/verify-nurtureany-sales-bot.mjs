@@ -238,6 +238,22 @@ if (!existsSync(manifestPath)) {
     if (manifest.sales_whatsapp_window_report?.delivery_channel_ids_env_var !== "NURTUREANY_REPORT_DELIVERY_CHANNEL_IDS") {
       fail("Manifest sales_whatsapp_window_report must name NURTUREANY_REPORT_DELIVERY_CHANNEL_IDS");
     }
+    const salesReportCountries = manifest.sales_whatsapp_window_report?.supported_countries || [];
+    for (const country of ["Singapore", "Malaysia", "Indonesia"]) {
+      if (!salesReportCountries.includes(country)) {
+        fail(`Manifest sales_whatsapp_window_report must support ${country}`);
+      }
+    }
+    const salesReportCrons = manifest.sales_whatsapp_window_report?.known_production_cron_expressions || [];
+    for (const cronExpr of ["35 2 * * 1-5", "45 3 * * 1-5", "35 3 * * 1-5"]) {
+      if (!salesReportCrons.includes(cronExpr)) {
+        fail(`Manifest sales_whatsapp_window_report missing known production cron ${cronExpr}`);
+      }
+    }
+    const salesReportCronRecords = manifest.sales_whatsapp_window_report?.production_cron_records || [];
+    if (!salesReportCronRecords.some((record) => record?.name === "ID WhatsApp Morning Blitz Report" && record?.deliver === "slack:C04MSJ1BGF9")) {
+      fail("Manifest sales_whatsapp_window_report must include the ID manager channel cron record");
+    }
     if (manifest.sales_whatsapp_window_report?.adhoc_reruns_mutate_schedule !== false) {
       fail("Manifest sales_whatsapp_window_report must keep ad hoc reruns schedule-safe");
     }
@@ -1151,6 +1167,11 @@ for (const text of [
   "record_nurtureany_lesson_candidate",
   "list_nurtureany_lesson_candidates",
   "read_nurtureany_lesson_candidate",
+  "sales_whatsapp_window_report:",
+  "supported_countries:",
+  "indonesia_schedule_id: id-whatsapp-morning-report",
+  "id_manager_channel_id: C04MSJ1BGF9",
+  "id_source_thread: https://staffany.slack.com/archives/C04MSJ1BGF9/p1778822647171049",
   "NURTUREANY_REPORT_DELIVERY_CHANNEL_IDS",
   "NURTUREANY_REPORT_SCHEDULE_DIR",
   "build_sales_whatsapp_window_report",
@@ -1434,6 +1455,7 @@ for (const text of [
   "Cost/credit reporting",
   "Mutation policy",
   "build_sales_whatsapp_window_report",
+  "explicit Indonesia support",
   "NURTUREANY_REPORT_DELIVERY_CHANNEL_IDS",
   "Sales-best-practices usage",
   "Inbound/routing",
@@ -1479,6 +1501,7 @@ const combinedRegressionText = `${textOf("skills/nurtureany-sales-bot/references
 for (const text of [
   "Inbound Routing Quality",
   "SG/MY WhatsApp Morning Report Primitive",
+  "Indonesia WhatsApp Morning Report Primitive",
   "build_sales_whatsapp_window_report",
   "post_generated_sales_report",
   "Smoke/test prompts follow the same quick-intent gate",
@@ -2012,6 +2035,7 @@ for (const text of [
   "read_indonesia_event_registration_attendance",
   "Daily nurture automation is disabled pending refinement",
   "Eugene-owned WhatsApp Morning Blitz report crons are intended production crons",
+  "available for Singapore, Malaysia, and Indonesia",
   "ten enabled recurring operational crons",
   "HubSpot inbound monitor",
   "read-only internal exception report",
