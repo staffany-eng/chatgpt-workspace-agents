@@ -438,12 +438,13 @@ HubSpot Task management:
 
 `find_target_accounts_by_luma_match_keys`:
 
-- Input: Slack user email, safe Luma email domains, safe Luma company-name candidates, optional countries, optional owner email filter, and limit.
-- Output: HubSpot-scoped target-account candidates only, with `hubspot_scoped=true`, `scope_source=hubspot_nurtureany`, HubSpot `account_status` / `account_status_source`, owner fields, and Luma match reason metadata.
+- Input: Slack user email, Luma email domains, company-name candidates, optional `attendee_emails` from `get_luma_event_match_keys(include_contact_pii=true)`, optional countries, optional owner email filter, `include_contact_pii`, and limit.
+- Output: HubSpot-scoped target-account candidates only, with `hubspot_scoped=true`, `scope_source=hubspot_nurtureany`, HubSpot `account_status` / `account_status_source`, owner fields, Luma match reason metadata, and `matched_contacts` only for exact scoped HubSpot contact-email matches when `include_contact_pii=true`.
+- Match order: `exact_hubspot_contact_email` -> `exact_email_domain` -> `company_name_candidate`. Contact-email and domain matches are verified; company-name candidate matches return `Confidence: needs-check`. Contact-email matches dedupe into the same account row and upgrade confidence to verified.
 - Use after `get_luma_event_match_keys` for broad event-wide questions so the bot searches from Luma attendee keys into HubSpot instead of paging every target account.
 - Access: manager/admin/AE scopes plus explicit regional event operators. Event operators are country-scoped and may filter only to classified in-country AE owners.
-- Domain matches are stronger; company-name candidate matches return `Confidence: needs-check`.
-- Must not accept raw attendee exports, full Luma emails, phone numbers, or registration answers.
+- Matched-contact output may include contact ID, name/title/role, email, phone, mobile phone, buying role, and match reason for scoped matches only.
+- Must not accept raw attendee exports, phone exports, raw registration answers, message bodies, or write to HubSpot. Must not return unmatched attendee emails/phones or raw match-key lists.
 
 Slack-facing final answers must not include internal lifecycle noise such as `Self-improvement review`, `User profile updated`, `Queued for the next turn`, memory-update status, or queue/debug state unless the user explicitly asks to inspect runtime internals.
 

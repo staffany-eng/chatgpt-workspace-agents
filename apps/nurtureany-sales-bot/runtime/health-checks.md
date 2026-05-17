@@ -81,10 +81,10 @@ NurtureAny needs deterministic runtime checks because prompt correctness does no
 - Google Calendar meeting-quality smoke check uses HubSpot `calendar_audit_seed`, scans the resolved AE calendar through `team@staffany.com`, matches attendee email hashes internally, and returns no raw attendee emails, descriptions, guest lists, conference links, phone numbers, or raw HubSpot bodies.
 - Luma MCP lists only `list_luma_events`, `get_luma_event_match_keys`, and `get_luma_event_context` when Luma is enabled.
 - Luma event-link smoke check confirms found/selected event output includes `<event.url|event.name>` plus date and event ID when `event.url` is present.
-- Event-first Luma smoke check confirms `get_luma_event_match_keys` and `find_target_accounts_by_luma_match_keys` are available, and broad event questions do not page every HubSpot target account.
+- Event-first Luma smoke check confirms `get_luma_event_match_keys(include_contact_pii=true)` and `find_target_accounts_by_luma_match_keys(include_contact_pii=true)` are available for Jan-E/event-operator account breakdowns, broad event questions do not page every HubSpot target account, and matched contact PII appears only for scoped exact HubSpot contact-email matches.
 - Luma read-only smoke check succeeds when Luma is enabled, uses `LUMA_API_KEY`, and returns bounded event metadata.
 - Luma event-tag smoke check can filter by exact Luma event tags such as `Jakarta` plus `HR Happy Hour` or `Singapore` plus `Sports`, with country used for broader account scope.
-- Luma guest-context smoke check requires scoped HubSpot company IDs, caps guest reads, returns `has_more`/`truncated`, treats attendance as `checked_in_at` present, and does not expose raw attendee exports, phone numbers, full emails, registration answers, or mutation tools.
+- Luma guest-context smoke check requires scoped HubSpot company IDs, caps guest reads, returns `has_more`/`truncated`, treats attendance as `checked_in_at` present, and does not expose unmatched attendee exports, raw registration answers, raw match-key lists, message bodies, or mutation tools.
 - Exa MCP lists only `search_exa_people_candidates` when Exa is enabled.
 - Exa smoke check returns `cost_report`, requires scoped HubSpot company IDs, uses `category: "people"`, and does not fetch profile contents or expose email/phone.
 - Public research MCP lists only `research_public_company_signals` and `find_brand_parent_candidates` when Tavily is enabled.

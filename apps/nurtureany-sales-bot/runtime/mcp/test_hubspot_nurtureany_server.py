@@ -5044,7 +5044,7 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         self.assertNotIn({"propertyName": "domain", "operator": "EQ", "value": "noci.example"}, calls[0]["filters"])
         self.assertNotIn({"propertyName": "name", "operator": "CONTAINS_TOKEN", "value": "Bali Beans"}, calls[0]["filters"])
         self.assertEqual(result["scope"]["scanned_target_account_count"], 2)
-        self.assertIn("No raw Luma attendees", result["caveat"])
+        self.assertIn("Unmatched attendees", result["caveat"])
 
     def test_event_operator_can_resolve_luma_match_keys_read_only(self):
         def fake_company_search(filters, limit=5, after=None, maximum=None, sorts=None, query=None):
@@ -5105,7 +5105,151 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         for row in result["answer"]:
             self.assertNotIn("phone", row)
             self.assertNotIn("mobilephone", row)
-        self.assertIn("No raw Luma attendees", result["caveat"])
+        self.assertIn("Unmatched attendees", result["caveat"])
+
+    def test_luma_match_keys_exact_contact_email_returns_scoped_matched_contact_pii_and_dedupes(self):
+        company = {
+            "id": "company-contact",
+            "properties": {
+                "name": "Matched Cafe",
+                "domain": "matched.example",
+                "hs_is_target_account": "true",
+                "company_country": "Singapore",
+                "hubspot_owner_id": "owner-sales",
+                "type": "CUSTOMER",
+            },
+        }
+        contact = {
+            "id": "contact-1",
+            "properties": {
+                "firstname": "Ada",
+                "lastname": "Ng",
+                "jobtitle": "Operations Director",
+                "job_role": "Operations",
+                "email": "person@gmail.com",
+                "phone": "+6511111111",
+                "mobilephone": "+6599999999",
+                "hs_buying_role": "DECISION_MAKER",
+            },
+        }
+
+        def fake_contact_search(email, limit=10):
+            return [contact] if email == "person@gmail.com" else []
+
+        with patch.object(self.module, "_caller_scope", return_value=EVENT_OPERATOR_SCOPE), patch.object(
+            self.module, "_contact_search_by_email", side_effect=fake_contact_search
+        ), patch.object(
+            self.module, "_association_ids", return_value=["company-contact"]
+        ), patch.object(
+            self.module, "_get_company", return_value=company
+        ), patch.object(
+            self.module,
+            "_company_search",
+            return_value={
+                "results": [company],
+                "total": 1,
+                "requested_limit": self.module.HUBSPOT_SEARCH_TOTAL_LIMIT,
+                "returned_count": 1,
+                "has_more": False,
+                "truncated": False,
+            },
+        ), patch.object(
+            self.module,
+            "_owner_by_id",
+            return_value={"id": "owner-sales", "email": "sales.owner@staffany.com", "firstName": "Sales", "lastName": "Owner"},
+        ):
+            result = self.module.find_target_accounts_by_luma_match_keys(
+                "jan-e@staffany.com",
+                attendee_emails=["person@gmail.com", "unmatched@example.com"],
+                email_domains=["matched.example"],
+                countries=["Singapore"],
+            )
+
+        self.assertEqual(result["scope"]["scope_kind"], "event_operator")
+        self.assertEqual(result["scope"]["contact_email_key_count"], 2)
+        self.assertEqual(result["returned_count"], 1)
+        row = result["answer"][0]
+        self.assertEqual(row["company_id"], "company-contact")
+        self.assertEqual(row["luma_match_confidence"], "verified")
+        self.assertEqual(row["luma_match_reasons"], ["exact_hubspot_contact_email", "exact_email_domain"])
+        self.assertEqual(row["exact_contact_email_match_count"], 1)
+        self.assertEqual(len(row["matched_contacts"]), 1)
+        matched_contact = row["matched_contacts"][0]
+        self.assertEqual(matched_contact["contact_id"], "contact-1")
+        self.assertEqual(matched_contact["name"], "Ada Ng")
+        self.assertEqual(matched_contact["title"], "Operations Director")
+        self.assertEqual(matched_contact["role"], "Operations")
+        self.assertEqual(matched_contact["email"], "person@gmail.com")
+        self.assertEqual(matched_contact["phone"], "+6511111111")
+        self.assertEqual(matched_contact["mobile_phone"], "+6599999999")
+        self.assertEqual(matched_contact["buying_role"], "DECISION_MAKER")
+        self.assertEqual(matched_contact["match_reason"], "exact_hubspot_contact_email")
+        payload = json.dumps(result)
+        self.assertNotIn("unmatched@example.com", payload)
+
+    def test_luma_match_keys_contact_email_scope_enforced_and_pii_can_be_disabled(self):
+        scoped_company = {
+            "id": "company-scoped",
+            "properties": {
+                "name": "Scoped Cafe",
+                "domain": "scoped.example",
+                "hs_is_target_account": "true",
+                "company_country": "Singapore",
+                "hubspot_owner_id": "owner-sales",
+            },
+        }
+        out_of_scope_company = {
+            "id": "company-out",
+            "properties": {
+                "name": "Malaysia Cafe",
+                "domain": "out.example",
+                "hs_is_target_account": "true",
+                "company_country": "Malaysia",
+                "hubspot_owner_id": "owner-sales",
+            },
+        }
+        contact = {
+            "id": "contact-1",
+            "properties": {
+                "firstname": "Ada",
+                "lastname": "Ng",
+                "email": "person@gmail.com",
+                "phone": "+6511111111",
+                "mobilephone": "+6599999999",
+            },
+        }
+
+        def fake_get_company(company_id):
+            return scoped_company if company_id == "company-scoped" else out_of_scope_company
+
+        with patch.object(self.module, "_caller_scope", return_value=EVENT_OPERATOR_SCOPE), patch.object(
+            self.module, "_contact_search_by_email", return_value=[contact]
+        ), patch.object(
+            self.module, "_association_ids", return_value=["company-scoped", "company-out"]
+        ), patch.object(
+            self.module, "_get_company", side_effect=fake_get_company
+        ), patch.object(
+            self.module,
+            "_owner_by_id",
+            return_value={"id": "owner-sales", "email": "sales.owner@staffany.com", "firstName": "Sales", "lastName": "Owner"},
+        ):
+            result = self.module.find_target_accounts_by_luma_match_keys(
+                "jan-e@staffany.com",
+                attendee_emails=["person@gmail.com"],
+                include_contact_pii=False,
+                countries=["Singapore"],
+            )
+
+        self.assertEqual(result["returned_count"], 1)
+        row = result["answer"][0]
+        self.assertEqual(row["company_id"], "company-scoped")
+        self.assertEqual(row["exact_contact_email_match_count"], 1)
+        self.assertEqual(row["matched_contacts"], [])
+        payload = json.dumps(result)
+        self.assertNotIn("person@gmail.com", payload)
+        self.assertNotIn("+6511111111", payload)
+        self.assertNotIn("+6599999999", payload)
+        self.assertNotIn("company-out", payload)
 
     def test_event_operator_luma_owner_filter_requires_classified_in_country_ae(self):
         captured = {}

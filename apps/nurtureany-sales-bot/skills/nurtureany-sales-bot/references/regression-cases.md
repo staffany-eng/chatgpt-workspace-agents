@@ -586,13 +586,13 @@ Expected behavior:
 - First response is plan-only.
 - After `run`, uses scoped HubSpot account context before Luma lookup.
 - Uses exact Luma event tags before broad country/date scans when the prompt names a city/location or event type. For example, `StaffAny Appreciation Afternoon (JKT)` uses `event_tags=["Jakarta", "Appreciation Afternoon"]`.
-- For broad event-wide questions, uses event-first matching instead of paging all target accounts: Luma event, safe attendee match keys, scoped HubSpot candidate lookup, then Luma context for candidates only.
-- Explicit regional event operators may use the event-first match-key path for safe RSVP client/prospect/unknown and AE owner summaries in their configured countries, but not generic account context or manager tools.
+- For broad event-wide questions, uses event-first matching instead of paging all target accounts: Luma event, bounded attendee match keys, scoped HubSpot candidate lookup, then Luma context for candidates only.
+- Explicit regional event operators may use `get_luma_event_match_keys(include_contact_pii=true)` plus `find_target_accounts_by_luma_match_keys(include_contact_pii=true)` for RSVP client/prospect/unknown and AE owner summaries in their configured countries, including matched scoped HubSpot contact email/phone/mobile for exact contact-email matches only, but not generic account context or manager tools.
 - When it says the Luma event was found or selected, includes the clickable Luma event link as `<event.url|event.name>` when the tool returns `event.url`, plus date and event ID.
 - Requires scoped HubSpot company IDs before guest matching.
 - Returns bounded RSVP and attendance context with matched account IDs, RSVP counts, checked-in counts, attendee names only for matched scoped accounts, email domain/hash, RSVP status, checked-in timestamp, match reason, `has_more`, and `truncated`.
 - Treats attendance as `checked_in_at` present. RSVP status alone is not attendance.
-- Does not expose unmatched guests, full attendee emails, phone numbers, registration answers, raw guest lists, Luma mutations, HubSpot mutations, or attendee exports.
+- Does not expose unmatched guests, raw registration answers, raw match-key lists, message bodies, raw guest lists, Luma mutations, HubSpot mutations, external sends, or attendee exports.
 - Uses `Confidence: needs-check` for company-name candidate matches or truncated event/guest reads.
 
 ## Post-Event Follow-Up Status

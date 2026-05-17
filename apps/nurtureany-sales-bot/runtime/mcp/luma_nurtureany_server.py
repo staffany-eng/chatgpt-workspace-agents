@@ -707,18 +707,25 @@ def _is_personal_email_domain(domain: str) -> bool:
     return _clean_domain(domain) in PERSONAL_EMAIL_DOMAINS
 
 
-def _guest_match_keys(guests: list[dict[str, Any]]) -> dict[str, list[str]]:
+def _guest_match_keys(guests: list[dict[str, Any]], include_contact_pii: bool = False) -> dict[str, list[str]]:
     domains: list[str] = []
     company_names: list[str] = []
+    attendee_emails: list[str] = []
     for guest in guests:
-        domain = _email_domain(_guest_email(guest))
+        email = _guest_email(guest)
+        domain = _email_domain(email)
         if domain and not _is_personal_email_domain(domain):
             domains.append(domain)
         company_names.extend(_company_candidate_names_from_guest(guest))
-    return {
+        if include_contact_pii and email:
+            attendee_emails.append(email)
+    keys = {
         "email_domains": _unique_text(domains)[:MATCH_KEY_LIMIT],
         "company_name_candidates": _unique_text(company_names)[:MATCH_KEY_LIMIT],
     }
+    if include_contact_pii:
+        keys["attendee_emails"] = _unique_text(attendee_emails)[:MATCH_KEY_LIMIT]
+    return keys
 
 
 def _event_is_past(event: dict[str, Any]) -> bool:
@@ -921,13 +928,16 @@ def get_luma_event_match_keys(
     event_type: str = "",
     location: str = "",
     event_tags: list[str] | None = None,
+    include_contact_pii: bool = False,
 ) -> dict[str, Any]:
-    """Return safe attendee-derived keys for HubSpot target-account lookup.
+    """Return attendee-derived keys for HubSpot target-account lookup.
 
     This is the event-first path for broad questions such as "which target
     accounts are attending this event". It returns company domains and company
-    name candidates only, not attendee names, emails, phone numbers, raw
-    registration answers, or raw guest lists.
+    name candidates by default. When include_contact_pii is true, it also
+    returns bounded attendee emails as transient HubSpot exact-contact match
+    keys only; it never returns attendee names, phone numbers, raw registration
+    answers, or raw guest lists.
     """
 
     filters = _resolved_event_filters(country, event_type, location)
@@ -941,7 +951,11 @@ def get_luma_event_match_keys(
             "country_filter": filters["country"] or country,
             "event_type_filter": filters["event_type"],
             "max_guests_per_event": max(1, min(int(max_guests_per_event or MAX_GUESTS_PER_EVENT), MAX_GUESTS_PER_EVENT)),
-            "safety": "Safe match keys only; do not paste key lists in Slack or expose raw attendees.",
+            "include_contact_pii": bool(include_contact_pii),
+            "safety": (
+                "Bounded match keys only; attendee emails are returned only when include_contact_pii=true "
+                "for exact HubSpot contact matching. Do not paste key lists in Slack or expose raw attendees."
+            ),
         },
     )
 
@@ -975,12 +989,12 @@ def get_luma_event_match_keys(
             checked_in_guests = [guest for guest in guests if _checked_in_at(guest)]
             past_event = _event_is_past(event)
             key_source_guests = checked_in_guests if past_event else guests
-            keys = _guest_match_keys(key_source_guests)
+            keys = _guest_match_keys(key_source_guests, include_contact_pii=include_contact_pii)
             key_mode = "checked_in_attendance" if past_event else "rsvp_or_registration"
             next_step = (
                 "No checked-in attendees found for this past event. Do not match RSVP/no-show guests as attended; use a configured manual attendance fallback if available."
                 if past_event and not checked_in_guests
-                else "Search HubSpot target accounts with these safe match keys, then fetch scoped event context."
+                else "Search HubSpot target accounts with these match keys, then fetch scoped event context."
             )
             any_truncated = any_truncated or guests_truncated
             answer.append(
@@ -993,6 +1007,7 @@ def get_luma_event_match_keys(
                     "checked_in_count": counts["checked_in_count"],
                     "email_domain_key_count": len(keys["email_domains"]),
                     "company_name_candidate_count": len(keys["company_name_candidates"]),
+                    "contact_email_key_count": len(keys.get("attendee_emails", [])),
                     "next_step": next_step,
                     "has_more": guests_has_more,
                     "truncated": guests_truncated,
@@ -1009,9 +1024,10 @@ def get_luma_event_match_keys(
         "has_more": events_has_more,
         "truncated": any_truncated,
         "caveat": (
-            "Use these safe match keys to search HubSpot target accounts, then call "
-            "get_luma_event_context with the scoped candidate companies. Do not expose "
-            "raw Luma attendees or paste key lists in Slack."
+            "Use these match keys to search HubSpot target accounts, then call "
+            "get_luma_event_context with the scoped candidate companies. Contact-email keys are "
+            "for exact HubSpot matching only when explicitly requested; do not expose unmatched "
+            "Luma attendees, registration answers, or key lists in Slack."
         ),
     }
 
