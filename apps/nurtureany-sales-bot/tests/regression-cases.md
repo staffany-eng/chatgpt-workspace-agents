@@ -1318,6 +1318,7 @@ Expected behavior:
 - After `run`, calls `build_sales_whatsapp_window_report` with Singapore then Malaysia, 09:30-10:30 owner-local time, target 30, and `include_kns=false`.
 - Resolves owner, country, and timezone from `NURTUREANY_ACCESS_POLICY_PATH` through `resolve_sales_owners`; does not use Slack-memory roster corrections or silent SGT fallback.
 - Returns per-country/per-owner rows with timezone, local/UTC window, first target-account WhatsApp local time, target-account count, hit/miss, truncation, confidence, caveat, and generated `slack_markdown`.
+- Final answer uses `answer.slack_markdown` or only the returned `answer.country_rows` for `answer.countries`; it does not add Indonesia/admin-scope expansion notes, owner rows, or timezone gaps unless the primitive returned them.
 - Does not return raw WhatsApp bodies, phone numbers, raw Slack transcripts, raw HubSpot rows, or mutate HubSpot.
 
 Prompt:

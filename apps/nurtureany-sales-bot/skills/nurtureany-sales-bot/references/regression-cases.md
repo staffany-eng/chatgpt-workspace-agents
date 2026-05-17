@@ -1083,6 +1083,7 @@ Expected behavior:
 
 - After `run`, calls `build_sales_whatsapp_window_report` with Singapore then Malaysia, 09:30-10:30 owner-local time, target 30, and `include_kns=false`.
 - Resolves owner, country, and timezone from `NURTUREANY_ACCESS_POLICY_PATH` through `resolve_sales_owners`; no Slack-memory roster fixes and no silent SGT fallback.
+- Final answer uses `answer.slack_markdown` or only the returned `answer.country_rows` for `answer.countries`; it does not add Indonesia/admin-scope expansion notes, owner rows, or timezone gaps unless the primitive returned them.
 - Ad hoc reruns such as `9:45-10:45 today` call `build_sales_whatsapp_window_report` only and do not call `save_sales_whatsapp_window_report_schedule`.
 - Saved schedule changes use `save_sales_whatsapp_window_report_schedule` only on explicit schedule intent and store profile-runtime state outside the repo.
 - Approved report posting uses `post_generated_sales_report` with generated markdown, allowlisted `NURTUREANY_REPORT_DELIVERY_CHANNEL_IDS`, approval marker, idempotency key, and operation-ledger checkpoints. It blocks duplicates and returns `not_in_channel` remediation without user-token or Slack connector fallback.
