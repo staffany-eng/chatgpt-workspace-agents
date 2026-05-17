@@ -41,6 +41,7 @@
     "rock_productions_c360_smoke_script": "runtime/smoke-rock-productions-c360.sh",
     "adoption_digest_script": "runtime/psm_ops_adoption_digest.py",
     "due_date_reminder_script": "runtime/scripts/psm_ops_due_date_reminders.py",
+    "assignment_hygiene_script": "runtime/scripts/psm_ops_pco_assignment_hygiene.py",
     "roi_tracker_sync_script": "runtime/scripts/psm_ops_roi_tracker_sync.py",
     "assignment_hygiene_script": "runtime/scripts/psm_ops_pco_assignment_hygiene.py",
     "public_channel_join_script": "runtime/scripts/psm_ops_join_public_channels.py",
@@ -125,6 +126,7 @@
     ],
     "field_config_required": true,
     "public_comments_default": false,
+    "assignment_hygiene_cron": "15 1 * * 1-5",
     "roi_direct": {
       "source_of_truth": true,
       "project_key_env_var": "PSM_OPS_ROI_JIRA_PROJECT_KEY",

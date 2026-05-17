@@ -52,7 +52,7 @@
       "countries": ["Singapore"],
       "purpose": "regional_events",
       "access_profile": "regional_events_read_only",
-      "notes": "Read-only event sourcing across in-country AE target accounts only. Do not use this as manager/admin scope."
+      "notes": "Read-only event sourcing plus Luma RSVP match-key account resolution across in-country AE target accounts only. Do not use this as manager/admin scope."
     }
   ],
   "sales_reps": [

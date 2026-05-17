@@ -502,6 +502,7 @@ TASK_ASSOCIATION_LIMIT = 100
 TASK_RETURN_LIMIT = 100
 LUMA_MATCH_DOMAIN_LIMIT = 100
 LUMA_MATCH_NAME_LIMIT = 100
+LUMA_MATCH_ATTENDEE_EMAIL_LIMIT = 100
 LUMA_MATCH_RETURN_LIMIT = 75
 LUMA_MATCH_SCAN_LIMIT = HUBSPOT_SEARCH_TOTAL_LIMIT
 LUMA_MATCH_CANDIDATE_FIELDS = (
@@ -520,6 +521,8 @@ LUMA_MATCH_CANDIDATE_FIELDS = (
     "luma_match_key_kinds",
     "luma_match_key_count",
     "luma_match_confidence",
+    "matched_contacts",
+    "exact_contact_email_match_count",
 )
 TASK_SEARCH_RESULT_LIMIT = 300
 TASK_SEARCH_AIRTIGHT_RESULT_LIMIT = 10_000
@@ -2010,6 +2013,11 @@ def _normalize_company_name_key(value: Any) -> str:
     return text
 
 
+def _normalize_attendee_email_key(value: Any) -> str:
+    email = _normalize_email(str(value or ""))
+    return email if "@" in email else ""
+
+
 def _unique_values(values: list[str]) -> list[str]:
     seen: set[str] = set()
     unique: list[str] = []
@@ -2020,12 +2028,52 @@ def _unique_values(values: list[str]) -> list[str]:
     return unique
 
 
+def _company_matches_luma_key_scope(company: dict[str, Any], countries: list[str], owner_id: str | None) -> bool:
+    props = company.get("properties", {})
+    if str(props.get("hs_is_target_account") or "").lower() != "true":
+        return False
+    if countries and props.get("company_country") not in countries:
+        return False
+    if owner_id and str(props.get("hubspot_owner_id") or "") != str(owner_id):
+        return False
+    return True
+
+
+def _luma_matched_contact_summary(contact: dict[str, Any], attendee_email: str, match_reason: str) -> dict[str, Any]:
+    props = contact.get("properties", {})
+    return {
+        "contact_id": str(contact.get("id") or ""),
+        "name": _contact_display_name(contact),
+        "title": props.get("jobtitle") or "",
+        "role": props.get("job_role") or "",
+        "email": _normalize_email(str(props.get("email") or attendee_email)),
+        "phone": props.get("phone") or "",
+        "mobile_phone": props.get("mobilephone") or "",
+        "buying_role": props.get("hs_buying_role") or "",
+        "match_reason": match_reason,
+    }
+
+
+def _append_luma_matched_contact(summary: dict[str, Any], matched_contact: dict[str, Any]) -> None:
+    if not matched_contact:
+        return
+    contacts = summary.setdefault("matched_contacts", [])
+    contact_key = matched_contact.get("contact_id") or matched_contact.get("email")
+    for existing in contacts:
+        existing_key = existing.get("contact_id") or existing.get("email")
+        if contact_key and existing_key == contact_key:
+            return
+    contacts.append(matched_contact)
+
+
 def _add_luma_candidate(
     candidates: dict[str, dict[str, Any]],
     company: dict[str, Any],
     match_reason: str,
     match_key: str,
     confidence: str,
+    matched_contact: dict[str, Any] | None = None,
+    include_contact_pii: bool = True,
 ) -> None:
     company_id = str(company.get("id") or company.get("company_id") or "")
     if not company_id:
@@ -2038,10 +2086,14 @@ def _add_luma_candidate(
     if match_reason not in key_kinds:
         key_kinds.append(match_reason)
     summary["luma_match_key_count"] = int(summary.get("luma_match_key_count") or 0) + 1
-    if confidence == "needs-check":
+    if match_reason == "exact_hubspot_contact_email":
+        summary["exact_contact_email_match_count"] = int(summary.get("exact_contact_email_match_count") or 0) + 1
+    if matched_contact and include_contact_pii:
+        _append_luma_matched_contact(summary, matched_contact)
+    if confidence == "verified":
+        summary["luma_match_confidence"] = "verified"
+    elif summary.get("luma_match_confidence") != "verified":
         summary["luma_match_confidence"] = "needs-check"
-    else:
-        summary.setdefault("luma_match_confidence", "verified")
     candidates[company_id] = _compact_luma_candidate_summary(summary)
 
 
@@ -2071,6 +2123,8 @@ def _compact_luma_candidate_summary(summary: dict[str, Any]) -> dict[str, Any]:
     compact["luma_match_key_kinds"] = list(compact.get("luma_match_key_kinds") or [])
     compact["luma_match_key_count"] = int(compact.get("luma_match_key_count") or 0)
     compact["luma_match_confidence"] = compact.get("luma_match_confidence") or "verified"
+    compact["matched_contacts"] = list(compact.get("matched_contacts") or [])
+    compact["exact_contact_email_match_count"] = int(compact.get("exact_contact_email_match_count") or 0)
     return compact
 
 
@@ -2285,6 +2339,42 @@ def _luma_company_name_matches(company_name: str, candidate_name: str) -> bool:
     return False
 
 
+def _add_luma_contact_email_candidates(
+    candidates: dict[str, dict[str, Any]],
+    attendee_emails: list[str],
+    countries: list[str],
+    owner_id: str | None,
+    include_contact_pii: bool,
+    requested_limit: int,
+) -> bool:
+    truncated = False
+    for email in attendee_emails:
+        for contact in _contact_search_by_email(email):
+            contact_id = str(contact.get("id") or "")
+            if not contact_id:
+                continue
+            for company_id in _association_ids("contacts", contact_id, "companies", 10):
+                company_id = str(company_id or "")
+                if not company_id:
+                    continue
+                if len(candidates) >= requested_limit and company_id not in candidates:
+                    truncated = True
+                    continue
+                company = _get_company(company_id)
+                if not _company_matches_luma_key_scope(company, countries, owner_id):
+                    continue
+                _add_luma_candidate(
+                    candidates,
+                    company,
+                    "exact_hubspot_contact_email",
+                    email,
+                    "verified",
+                    matched_contact=_luma_matched_contact_summary(contact, email, "exact_hubspot_contact_email"),
+                    include_contact_pii=include_contact_pii,
+                )
+    return truncated
+
+
 def _target_owner_id_for_scope(scope: dict[str, Any], owner_email: str | None = None) -> tuple[str | None, str]:
     target_email = _normalize_email(owner_email or "")
     if scope.get("kind") == "event_operator":
@@ -2302,6 +2392,28 @@ def _target_owner_id_for_scope(scope: dict[str, Any], owner_email: str | None = 
     if scope["kind"] not in TEAM_READ_SCOPE_KINDS | {"ae"}:
         raise ScopeError("Caller identity is not mapped to an allowed scope.")
     return owner_id, target_email
+
+
+def _target_owner_id_for_luma_match_scope(
+    scope: dict[str, Any],
+    countries: list[str],
+    owner_email: str | None = None,
+) -> tuple[str | None, str]:
+    if scope.get("kind") != "event_operator":
+        return _target_owner_id_for_scope(scope, owner_email)
+
+    target_email = _normalize_email(owner_email or "")
+    if not target_email:
+        return None, ""
+
+    allowed_owner_emails = set(_policy_owner_emails_for_countries(countries))
+    if target_email not in allowed_owner_emails:
+        raise ScopeError("Regional event operators may filter only to classified in-country AE owners.")
+
+    owner = _owner_by_email(target_email)
+    if not owner:
+        raise ScopeError(f"HubSpot owner not found for {target_email}.")
+    return str(owner["id"]), target_email
 
 
 def _metric_needs_check(message: str, scope: dict[str, Any] | None = None, metric: str = "") -> dict[str, Any]:
@@ -8262,12 +8374,60 @@ def _pre_demo_case_study_matches(context: dict[str, Any]) -> list[dict[str, Any]
                 "industry": case.get("industry"),
                 "summary": case.get("name_drop"),
                 "source_url": case.get("primary_url"),
+                "video_url": case.get("video_url"),
+                "video_id": case.get("video_id"),
+                "transcript_source": case.get("transcript_source"),
+                "transcript_status": case.get("transcript_status"),
+                "video_evidence_path": case.get("video_evidence_path"),
+                "knowledge_hooks": case.get("knowledge_hooks") if isinstance(case.get("knowledge_hooks"), list) else [],
+                "kns_material": case.get("kns_material") if isinstance(case.get("kns_material"), dict) else {},
                 "match_score": score,
                 "match_reasons": reasons,
             }
         )
     matches.sort(key=lambda match: (-_int_value(match.get("match_score")), str(match.get("customer") or "")))
     return matches[:CASE_STUDY_MATCH_LIMIT]
+
+
+def _pre_demo_kns_knowledge_hooks(context: dict[str, Any]) -> list[dict[str, Any]]:
+    hooks: list[dict[str, Any]] = []
+    for case in _load_case_study_catalog():
+        if case.get("approved_for_name_drops") is not True:
+            continue
+        score, reasons = _case_study_score(case, context)
+        if score < CASE_STUDY_MIN_MATCH_SCORE:
+            continue
+        case_hooks = case.get("knowledge_hooks")
+        if not isinstance(case_hooks, list):
+            continue
+        for hook in case_hooks:
+            if not isinstance(hook, dict) or not hook.get("hook"):
+                continue
+            confidence = str(hook.get("confidence") or "needs-check")
+            rank_score = score if confidence == "verified_public_video" else score - 100
+            hooks.append(
+                {
+                    "customer": case.get("customer"),
+                    "hook": hook.get("hook"),
+                    "pain": hook.get("pain"),
+                    "outcome": hook.get("outcome"),
+                    "best_fit_prospect_pattern": hook.get("best_fit_prospect_pattern"),
+                    "source_timestamp": hook.get("source_timestamp"),
+                    "source_url": hook.get("source_url") or case.get("primary_url"),
+                    "video_url": hook.get("video_url") or case.get("video_url"),
+                    "video_id": case.get("video_id"),
+                    "transcript_status": case.get("transcript_status"),
+                    "video_evidence_path": case.get("video_evidence_path"),
+                    "confidence": confidence,
+                    "match_score": score,
+                    "match_reasons": reasons,
+                    "_rank_score": rank_score,
+                }
+            )
+    hooks.sort(key=lambda hook: (-_int_value(hook.get("_rank_score")), str(hook.get("customer") or "")))
+    for hook in hooks:
+        hook.pop("_rank_score", None)
+    return hooks[:CASE_STUDY_MATCH_LIMIT]
 
 
 def _case_study_sales_moment_allowed(case: dict[str, Any], sales_moment: str) -> bool:
@@ -8317,6 +8477,13 @@ def _sales_case_study_matches(context: dict[str, Any], sales_moment: str = "", l
                 "pain": case.get("pain"),
                 "outcome": case.get("outcome"),
                 "source_url": case.get("primary_url"),
+                "video_url": case.get("video_url"),
+                "video_id": case.get("video_id"),
+                "transcript_source": case.get("transcript_source"),
+                "transcript_status": case.get("transcript_status"),
+                "video_evidence_path": case.get("video_evidence_path"),
+                "knowledge_hooks": case.get("knowledge_hooks") if isinstance(case.get("knowledge_hooks"), list) else [],
+                "kns_material": case.get("kns_material") if isinstance(case.get("kns_material"), dict) else {},
                 "source_type": case.get("source_type") or "published_customer_story",
                 "approval_basis": case.get("approval_basis"),
                 "best_use_sales_moments": case.get("best_use_sales_moments", []),
@@ -8568,21 +8735,34 @@ def _case_study_materials(context: dict[str, Any]) -> list[dict[str, Any]]:
     materials = []
     for match in _pre_demo_case_study_matches(context):
         title = str(match.get("customer") or "case study").strip()
+        hooks = [hook for hook in (match.get("knowledge_hooks") or []) if isinstance(hook, dict) and hook.get("hook")]
+        hook = hooks[0] if hooks else {}
+        kns_material = match.get("kns_material") if isinstance(match.get("kns_material"), dict) else {}
+        message_hook = hook.get("hook") or match.get("summary") or ""
         materials.append(
             {
-                "material_id": f"case-study:{_normalize_name(title) or hashlib.sha256(title.encode('utf-8')).hexdigest()[:8]}",
+                "material_id": kns_material.get("material_id")
+                or f"case-study:{_normalize_name(title) or hashlib.sha256(title.encode('utf-8')).hexdigest()[:8]}",
                 "category": "case_study",
                 "title": title,
-                "url": match.get("source_url") or "",
+                "url": match.get("video_url") or match.get("source_url") or "",
                 "status": "approved",
                 "country_scope": match.get("country") or "",
                 "industry_tags": match.get("industry") or "",
-                "concept_tags": "case study, same industry",
+                "concept_tags": "case study, same industry, knowledge",
                 "persona_tags": "",
                 "template_name": DAILY_NURTURE_DEFAULT_TEMPLATE_NAME,
                 "template_params_schema": list(DAILY_NURTURE_DEFAULT_TEMPLATE_SCHEMA),
-                "message_hook": match.get("summary") or "",
+                "message_hook": message_hook,
                 "owner": "repo_case_study_catalog",
+                "kns_pillar": "Knowledge",
+                "pillar_summary": message_hook,
+                "buyer_value": hook.get("outcome") or match.get("summary") or "",
+                "ae_use_case": "knowledge_touch, pre_demo, nurture, case_study_proof",
+                "source_evidence_url": match.get("video_evidence_path") or match.get("source_url") or "",
+                "asset_url": match.get("video_url") or match.get("source_url") or "",
+                "talk_track": hook.get("best_fit_prospect_pattern") or "Use as a source-backed Knowledge proof point.",
+                "transcript_status": match.get("transcript_status") or "",
                 "match_reasons": match.get("match_reasons") or [],
                 "match_score": match.get("match_score") or 0,
             }
@@ -9512,6 +9692,7 @@ def _build_pre_demo_game_plan_row(
         "what_to_show_to_win": _pre_demo_show_to_win(context),
         "relevant_name_drops": _pre_demo_case_study_name_drops(context),
         "case_study_matches": _pre_demo_case_study_matches(context),
+        "kns_knowledge_hooks": _pre_demo_kns_knowledge_hooks(context),
         "game_plan_a": _pre_demo_game_plan(context, "A"),
         "game_plan_b": _pre_demo_game_plan(context, "B"),
         "ic_bant_prompts": _pre_demo_ic_bant_prompts(context),
@@ -13280,74 +13461,102 @@ def find_target_accounts_by_luma_match_keys(
     slack_user_email: str,
     email_domains: list[str] | None = None,
     company_name_candidates: list[str] | None = None,
+    attendee_emails: list[str] | None = None,
+    include_contact_pii: bool = True,
     countries: list[str] | None = None,
     limit: int = LUMA_MATCH_RETURN_LIMIT,
     owner_email: str | None = None,
 ) -> dict[str, Any]:
-    """Find scoped HubSpot target accounts from safe Luma attendee match keys.
+    """Find scoped HubSpot target accounts from Luma attendee match keys.
 
     Use after get_luma_event_match_keys. This avoids paging every target account
     for event-wide questions while still enforcing HubSpot target-account,
-    country, owner, and caller scope before any Luma guest details are shown.
+    country, owner, and caller scope before matched-contact PII is returned.
     """
 
     try:
         scope = _caller_scope(slack_user_email)
         if scope["kind"] == "blocked":
             return _blocked("Caller identity is not mapped to an allowed scope.", {"caller_email": slack_user_email})
-        if scope["kind"] not in MANAGER_ADMIN_SCOPE_KINDS | {"ae"}:
+        if scope["kind"] not in MANAGER_ADMIN_SCOPE_KINDS | {"ae", "event_operator"}:
             return _blocked(
-                "Event match-key account resolution requires manager/admin or AE scope.",
+                "Event match-key account resolution requires manager/admin, AE, or regional event-operator scope.",
                 _scope_response(scope, list(scope.get("countries", ()))),
             )
         selected = _safe_countries(countries, scope["countries"])
         if not selected:
             return _blocked("Requested countries are outside caller scope.", _scope_response(scope, []))
-        target_owner_id, target_owner_email = _target_owner_id_for_scope(scope, owner_email)
+        target_owner_id, target_owner_email = _target_owner_id_for_luma_match_scope(scope, selected, owner_email)
         requested_limit = _bounded_int(limit, default=LUMA_MATCH_RETURN_LIMIT, maximum=LUMA_MATCH_RETURN_LIMIT)
         raw_domains = [domain for value in (email_domains or []) if (domain := _normalize_domain_key(value))]
         raw_names = [name for value in (company_name_candidates or []) if (name := _normalize_company_name_key(value))]
+        raw_attendee_emails = [email for value in (attendee_emails or []) if (email := _normalize_attendee_email_key(value))]
         domains = _unique_values(raw_domains)[:LUMA_MATCH_DOMAIN_LIMIT]
         names = _unique_values(raw_names)[:LUMA_MATCH_NAME_LIMIT]
-        if not domains and not names:
-            return _blocked("No safe Luma match keys were provided.", _scope_response(scope, selected, target_owner_id, target_owner_email))
+        contact_emails = _unique_values(raw_attendee_emails)[:LUMA_MATCH_ATTENDEE_EMAIL_LIMIT]
+        if not domains and not names and not contact_emails:
+            return _blocked("No Luma match keys were provided.", _scope_response(scope, selected, target_owner_id, target_owner_email))
 
-        any_truncated = len(_unique_values(raw_domains)) > len(domains) or len(_unique_values(raw_names)) > len(names)
-        base_filters = _target_filters(selected, target_owner_id)
-
-        scoped_accounts = _company_search(
-            base_filters,
-            limit=LUMA_MATCH_SCAN_LIMIT,
-            maximum=HUBSPOT_SEARCH_TOTAL_LIMIT,
-            sorts=[{"propertyName": "name", "direction": "ASCENDING"}],
+        any_truncated = (
+            len(_unique_values(raw_domains)) > len(domains)
+            or len(_unique_values(raw_names)) > len(names)
+            or len(_unique_values(raw_attendee_emails)) > len(contact_emails)
         )
-        any_truncated = any_truncated or bool(scoped_accounts.get("truncated"))
-        domain_keys = set(domains)
+        base_filters = _target_filters(selected, target_owner_id)
         candidates: dict[str, dict[str, Any]] = {}
+        if contact_emails:
+            any_truncated = (
+                _add_luma_contact_email_candidates(
+                    candidates,
+                    contact_emails,
+                    selected,
+                    target_owner_id,
+                    bool(include_contact_pii),
+                    requested_limit,
+                )
+                or any_truncated
+            )
 
-        for company in scoped_accounts.get("results", []):
-            props = company.get("properties", {})
-            company_domain = _normalize_domain_key(props.get("domain") or company.get("domain"))
-            if company_domain and company_domain in domain_keys:
-                _add_luma_candidate(candidates, company, "exact_email_domain", company_domain, "verified")
+        scoped_accounts = {
+            "results": [],
+            "returned_count": 0,
+            "truncated": False,
+        }
+        if domains or names:
+            scoped_accounts = _company_search(
+                base_filters,
+                limit=LUMA_MATCH_SCAN_LIMIT,
+                maximum=HUBSPOT_SEARCH_TOTAL_LIMIT,
+                sorts=[{"propertyName": "name", "direction": "ASCENDING"}],
+            )
+            any_truncated = any_truncated or bool(scoped_accounts.get("truncated"))
+            domain_keys = set(domains)
 
-            company_name = str(props.get("name") or company.get("name") or "")
-            for name in names:
-                if _luma_company_name_matches(company_name, name):
-                    _add_luma_candidate(candidates, company, "company_name_candidate", name, "needs-check")
+            for company in scoped_accounts.get("results", []):
+                props = company.get("properties", {})
+                company_domain = _normalize_domain_key(props.get("domain") or company.get("domain"))
+                if company_domain and company_domain in domain_keys:
+                    _add_luma_candidate(candidates, company, "exact_email_domain", company_domain, "verified")
 
-            if len(candidates) >= requested_limit:
-                any_truncated = True
-                break
+                company_name = str(props.get("name") or company.get("name") or "")
+                for name in names:
+                    if _luma_company_name_matches(company_name, name):
+                        _add_luma_candidate(candidates, company, "company_name_candidate", name, "needs-check")
+
+                if len(candidates) >= requested_limit:
+                    any_truncated = True
+                    break
 
         answer = [_compact_luma_candidate_summary(candidate) for candidate in list(candidates.values())[:requested_limit]]
         return {
             "answer": answer,
-            "source": "HubSpot target-account lookup from Luma safe match keys",
+            "source": "HubSpot target-account lookup from Luma match keys",
             "scope": {
                 **_scope_response(scope, selected, target_owner_id, target_owner_email),
+                "contact_email_key_count": len(contact_emails),
                 "email_domain_key_count": len(domains),
                 "company_name_candidate_count": len(names),
+                "include_contact_pii": bool(include_contact_pii),
                 "scanned_target_account_count": scoped_accounts.get("returned_count", len(scoped_accounts.get("results", []))),
                 "requested_limit": requested_limit,
             },
@@ -13360,9 +13569,10 @@ def find_target_accounts_by_luma_match_keys(
             if any_truncated or any(account.get("luma_match_confidence") == "needs-check" for account in answer)
             else "verified",
             "caveat": (
-                "This is event-first HubSpot scoping from safe Luma match keys. "
-                "Domain matches are stronger; company-name candidates need review. "
-                "No raw Luma attendees, match-key values, emails, phone numbers, or registration answers are returned."
+                "This is event-first HubSpot scoping from Luma match keys. Match order is exact HubSpot contact email, "
+                "exact email domain, then company-name candidate. Matched contact email/phone/mobile may be returned "
+                "only for scoped HubSpot contact matches when include_contact_pii=true. Unmatched attendees, raw match-key "
+                "lists, phone exports, message bodies, registration answers, and HubSpot writes are blocked."
             ),
         }
     except ScopeError as error:

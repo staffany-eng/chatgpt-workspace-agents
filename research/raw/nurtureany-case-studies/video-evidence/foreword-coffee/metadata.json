@@ -1,0 +1,49 @@
+{
+  "case_id": "foreword-coffee",
+  "customer": "Foreword Coffee",
+  "market": "SG",
+  "country": "Singapore",
+  "industry": "F&B - specialty coffee",
+  "size": "4 outlets",
+  "page_url": "https://www.staffany.com/customers-foreword-coffee/",
+  "video_url": "https://www.youtube.com/watch?v=zZOyxPZoik4",
+  "video_id": "zZOyxPZoik4",
+  "source_language": "en",
+  "translation_language": "",
+  "transcript_source": "youtube_auto_english",
+  "transcript_status": "available",
+  "transcript_path": "research/raw/nurtureany-case-studies/video-evidence/foreword-coffee/transcript.md",
+  "keyframes": [
+    "research/raw/nurtureany-case-studies/video-evidence/foreword-coffee/keyframes/cover.jpg"
+  ],
+  "evidence_path": "research/raw/nurtureany-case-studies/video-evidence/foreword-coffee/evidence.md",
+  "full_video_archived": false,
+  "full_video_archive_policy": "not archived; YouTube URL retained as canonical public video source",
+  "blocker": "",
+  "knowledge_hooks": [
+    {
+      "type": "kns_knowledge",
+      "hook": "Use Foreword Coffee when a mission-led F&B prospect cares about adoption; QR clock-in can be simple enough for diverse frontline teams.",
+      "pain": "Expansion increased employee count and made scheduling across the company harder.",
+      "outcome": "StaffAny reduced scheduling time from about three hours to one hour and made QR clock-in intuitive for an inclusive workforce.",
+      "best_fit_prospect_pattern": "SG coffee/social-enterprise or inclusive employers with multi-outlet scheduling and adoption concerns.",
+      "source_timestamp": "00:00:03-00:01:34",
+      "source_url": "https://www.staffany.com/customers-foreword-coffee/",
+      "video_url": "https://www.youtube.com/watch?v=zZOyxPZoik4",
+      "confidence": "verified_public_video"
+    }
+  ],
+  "kns_material_row": {
+    "material_id": "case-study-video:foreword-coffee",
+    "status": "approved",
+    "title": "Foreword Coffee public video case study",
+    "kns_pillar": "Knowledge",
+    "pillar_summary": "Use Foreword Coffee when a mission-led F&B prospect cares about adoption; QR clock-in can be simple enough for diverse frontline teams.",
+    "buyer_value": "StaffAny reduced scheduling time from about three hours to one hour and made QR clock-in intuitive for an inclusive workforce.",
+    "ae_use_case": "knowledge_touch, pre_demo, nurture, case_study_proof",
+    "message_hook": "Use Foreword Coffee when a mission-led F&B prospect cares about adoption; QR clock-in can be simple enough for diverse frontline teams.",
+    "source_evidence_url": "research/raw/nurtureany-case-studies/video-evidence/foreword-coffee/evidence.md",
+    "asset_url": "https://www.youtube.com/watch?v=zZOyxPZoik4",
+    "owner": "repo_case_study_catalog"
+  }
+}

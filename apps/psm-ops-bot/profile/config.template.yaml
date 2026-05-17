@@ -74,6 +74,10 @@ psm_ops:
     source_of_truth: "jira_duedate"
     mention_map_path_env: "PSM_OPS_REMINDER_MENTION_MAP_PATH"
     customer_channel_map_path_env: "PSM_OPS_CUSTOMER_CHANNEL_MAP_PATH"
+    assignment_hygiene:
+      schedule: "15 1 * * 1-5"
+      ps_lead_default: "Josica"
+      lead_mention_source: "PSM_OPS_REMINDER_MENTION_MAP_PATH ps_leads.Josica"
   jira:
     mode: "thin_poc"
     project_key: "PCO"
@@ -92,7 +96,7 @@ psm_ops:
       staffany_orgs_field: "customfield_10667"
       ps_team_field: "customfield_10876"
       handoff_package: "disabled_until_request_type_exists"
-      reminders: "automatic_from_duedate_central_digest_0900_1700_sgt"
+      reminders: "automatic_from_duedate_central_digest_0900_1700_sgt_weekdays"
     request_type_envs:
       customer_next_action: "PSM_OPS_JIRA_REQUEST_TYPE_CUSTOMER_NEXT_ACTION"
       onboarding_task: "PSM_OPS_JIRA_REQUEST_TYPE_ONBOARDING_TASK"

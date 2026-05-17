@@ -20,6 +20,7 @@ Each account output must include:
 - Alternatives they may consider
 - What to show to win
 - 3 relevant name drops
+- KNS Knowledge hooks
 - Game Plan A
 - Game Plan B
 - IC-BANT prompts
@@ -43,7 +44,8 @@ Each account output must include:
 - Use customer/prospect status from HubSpot `type`, `lifecyclestage`, `prospecting_account`, and C360 when explicitly used. Say `renewal call` only for verified customers; for prospects use incumbent-tool contract timing, migration/procurement timing, or current-tool confirmation.
 - Social/gated sources such as LinkedIn, Instagram, Facebook, TikTok, and Google Maps are manual-check only unless the user provides snippets.
 - If the user explicitly asks for public research, use `include_public_research=true` with `research_mode` `light`, `standard`, or `deep`. Tavily public evidence may enrich Research / stalking signal only; it never overrides HubSpot owner, status, current tools, contract dates, contacts, tasks, notes, or follow-up truth. Include `cost_report`, `will_mutate_hubspot=false`, manual-check items, and missing-evidence notes.
-- Public StaffAny case-study pages in `case-studies.md` are approved for name drops; Slack-only or WIP case-study mentions are not approved until a published page or approved internal asset exists.
+- Public StaffAny case-study pages and KNS Knowledge video hooks in `case-studies.md` and `kns-knowledge-materials.md` are approved for name drops and Knowledge touches; Slack-only or WIP case-study mentions are not approved until a published page or approved internal asset exists.
+- KNS Knowledge hooks should be short AE-ready proof snippets with source timestamp or page evidence. Do not paste raw transcripts into Slack output.
 - Do not scrape social/gated sources, reveal unnecessary PII, fetch raw task bodies, mutate HubSpot, or send external messages.
 - If current tools, lead source, meeting reason, stakeholders, pricing, or case studies are missing, mark `Confidence: needs-check`.
 

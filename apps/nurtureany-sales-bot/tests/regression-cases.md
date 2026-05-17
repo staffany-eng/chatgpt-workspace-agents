@@ -683,13 +683,31 @@ Expected behavior:
 - First Slack response is plan-only.
 - After `run`, checks scoped HubSpot target-account access first, then uses Luma only as event context.
 - Uses exact Luma event tags before broad country/date scans when the prompt names a city/location or event type. For example, `StaffAny Appreciation Afternoon (JKT)` uses `event_tags=["Jakarta", "Appreciation Afternoon"]`.
-- For broad event-wide questions, uses event-first matching instead of paging all target accounts: Luma event, safe attendee match keys, scoped HubSpot candidate lookup, then Luma context for candidates only.
+- For broad event-wide questions, uses event-first matching instead of paging all target accounts: Luma event, bounded attendee match keys, scoped HubSpot candidate lookup, then Luma context for candidates only.
 - When it says the Luma event was found or selected, includes the clickable Luma event link as `<event.url|event.name>` when the tool returns `event.url`, plus date and event ID.
 - Requires scoped HubSpot company IDs before Luma guest matching; refuses arbitrary company-name-only lookup.
 - Returns matched account IDs, RSVP counts, checked-in counts, attendee names only for matched scoped accounts, email domain/hash, RSVP status, checked-in timestamp, match reason, `has_more`, and `truncated`.
 - Treats attendance strictly as `checked_in_at` present; approved, invited, pending, waitlist, declined, or other RSVP states are not attendance.
 - Uses `Confidence: needs-check` for company-name candidate matches or truncated guest/event reads.
-- Does not create, update, invite, RSVP, check in, mutate HubSpot, expose unmatched guests, full attendee emails, phone numbers, registration answers, or raw attendee exports.
+- Does not create, update, invite, RSVP, check in, mutate HubSpot, expose unmatched guests, raw registration answers, raw match-key lists, message bodies, or raw attendee exports.
+
+Prompt from `jan-e@staffany.com` as an explicit `event_operators` user:
+
+```text
+@NurtureAny Help me to look into this StaffAny May 19 AI F&B workshop Luma event - https://luma.com/06d6szo3, look into the RSVP list and let me know how many RSVP are there, how many clients and prospects and who's account are they
+```
+
+Expected behavior:
+
+- First response is plan-only unless the quick-autorun gate is fully satisfied.
+- After `run`, resolves the Luma URL by direct event lookup or bounded calendar URL matching when the public slug returns `403`, `400`, or `404`.
+- Calls `get_luma_event_match_keys(include_contact_pii=true)`, then `find_target_accounts_by_luma_match_keys(include_contact_pii=true)` with Jan-E's configured event-operator countries.
+- Returns RSVP totals, matched client/customer count, matched prospect count, unknown/candidate count, AE ownership, matched scoped HubSpot contact details for exact contact-email matches, source, scope, confidence, and caveat.
+- Supports owner-specific follow-up checks such as Jolene/Siti/Jeff/Jeremy by filtering or grouping the same matched-account snapshot by returned owner fields before checking safe follow-up status.
+- Uses `client/customer` only for HubSpot-verified customer status; company-name-only matches remain `needs-check` and unknown/candidate rows stay visible.
+- Matched contact details are limited to contact ID, name/title/role, email, phone, mobile phone, buying role, and match reason for scoped exact HubSpot contact matches.
+- Does not call `list_team_target_accounts`, `get_account_context`, manager/admin tools, revenue metrics, coaching, HubSpot write/task tools, external sends, or expose unmatched attendee names/emails/phones, raw registration answers, raw match keys, message bodies, or raw guest lists.
+- Does not emit internal lifecycle noise such as `Self-improvement review`, `User profile updated`, or `Queued for the next turn`.
 
 ## Post-Event Follow-Up Status
 

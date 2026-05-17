@@ -315,13 +315,14 @@ Friday sales review uses the same scoped association discipline, plus HubSpot ca
 `build_pre_demo_game_plans`:
 
 - Input: Slack user email and selected HubSpot company IDs, company links, or exact company names, capped at 5 accounts per run.
-- Output: Slack-first pre-demo game plans with Static Information, Research / stalking signal, Hypothesized interest, Alternatives, What to show to win, 3 name drops, Game Plan A, Game Plan B, IC-BANT prompts, Missing evidence, source, scope, confidence, and caveat.
-- Case-study source: `runtime/data/case-studies.json`, generated from the approved public StaffAny customer-story catalog plus full-video-reviewed BMC podcast cards. Matching uses country, industry, size, current-tool pain, and workflow tags.
+- Output: Slack-first pre-demo game plans with Static Information, Research / stalking signal, Hypothesized interest, Alternatives, What to show to win, 3 name drops, KNS Knowledge hooks, Game Plan A, Game Plan B, IC-BANT prompts, Missing evidence, source, scope, confidence, and caveat.
+- Case-study source: `runtime/data/case-studies.json`, generated from the approved public StaffAny customer-story catalog, StaffAny public video KNS Knowledge evidence, plus full-video-reviewed BMC podcast cards. Matching uses country, industry, size, current-tool pain, and workflow tags.
 - BMC podcast cards are AE-safe only when the card records video ID, source URL, transcript word count, first/last timestamp, no transcript gaps, `full_transcript_reviewed` status, do-not-claim caveats, and timestamped evidence refs. Use `find_sales_case_studies` for read-only scoped account or brainstorm lookup.
 - Must resolve company names only inside the caller's scoped HubSpot target accounts. Exact one-match results can run; ambiguous names must return scoped candidate company IDs and ask the user to pick; no broad account default.
 - On post-approval `run`, pass the selected IDs, links, or raw exact names directly into this tool. Do not call `list_team_target_accounts`, `score_nurture_accounts`, or `find_contact_gaps` as a pre-resolver for game-plan requests; this tool owns scoped name resolution, including compact-name matching such as `Tung Lok` to `Tunglok`.
 - Must output `pricing needed` and `case-study match needed` when pricing or approved case studies are missing.
 - Must not use Slack-only/WIP case-study mentions as approved name drops.
+- Must keep KNS Knowledge hooks short and source-backed. Do not paste raw transcripts or archive full MP4/audio in tool output.
 - Must not fetch social/gated sources, expose raw task bodies, reveal unnecessary PII, mutate HubSpot, or send external messages.
 
 `build_singapore_lead_enrichment_plan`:
@@ -437,11 +438,15 @@ HubSpot Task management:
 
 `find_target_accounts_by_luma_match_keys`:
 
-- Input: Slack user email, safe Luma email domains, safe Luma company-name candidates, optional countries, optional owner email filter, and limit.
-- Output: HubSpot-scoped target-account candidates only, with `hubspot_scoped=true`, `scope_source=hubspot_nurtureany`, HubSpot `account_status` / `account_status_source`, owner fields, and Luma match reason metadata.
+- Input: Slack user email, Luma email domains, company-name candidates, optional `attendee_emails` from `get_luma_event_match_keys(include_contact_pii=true)`, optional countries, optional owner email filter, `include_contact_pii`, and limit.
+- Output: HubSpot-scoped target-account candidates only, with `hubspot_scoped=true`, `scope_source=hubspot_nurtureany`, HubSpot `account_status` / `account_status_source`, owner fields, Luma match reason metadata, and `matched_contacts` only for exact scoped HubSpot contact-email matches when `include_contact_pii=true`.
+- Match order: `exact_hubspot_contact_email` -> `exact_email_domain` -> `company_name_candidate`. Contact-email and domain matches are verified; company-name candidate matches return `Confidence: needs-check`. Contact-email matches dedupe into the same account row and upgrade confidence to verified.
 - Use after `get_luma_event_match_keys` for broad event-wide questions so the bot searches from Luma attendee keys into HubSpot instead of paging every target account.
-- Domain matches are stronger; company-name candidate matches return `Confidence: needs-check`.
-- Must not accept raw attendee exports, full Luma emails, phone numbers, or registration answers.
+- Access: manager/admin/AE scopes plus explicit regional event operators. Event operators are country-scoped and may filter only to classified in-country AE owners.
+- Matched-contact output may include contact ID, name/title/role, email, phone, mobile phone, buying role, and match reason for scoped matches only.
+- Must not accept raw attendee exports, phone exports, raw registration answers, message bodies, or write to HubSpot. Must not return unmatched attendee emails/phones or raw match-key lists.
+
+Slack-facing final answers must not include internal lifecycle noise such as `Self-improvement review`, `User profile updated`, `Queued for the next turn`, memory-update status, or queue/debug state unless the user explicitly asks to inspect runtime internals.
 
 Reviewed lesson tools:
 

@@ -40,6 +40,25 @@ Use this reference for NurtureAny pre-demo game plans when the selected account 
 | Paan KL | MY | F&B - Pan-Asian restaurant | fnb, restaurant, malaysia, kl, punch-card, excel | Paan KL (MY restaurant): paper/Excel time tracking moved to automated attendance, about 15% labour-cost saving. | https://www.staffany.my/customer-case-study-paan-kl/ |
 | PastaGo | SG | F&B - fresh pasta chain | fnb, restaurant, pasta, multi-outlet, biometric, whatsapp | PastaGo (SG pasta, 4 locations): biometric/WhatsApp scheduling pain improved with ad hoc roster changes and no-show tracking. | https://www.staffany.com/customer-case-study-pastago/ |
 | Braud Group | ID | F&B - bakery and cafe group | fnb, bakery, cafe, indonesia, bali, jakarta | Braud Group (ID bakery/cafe, 3 outlets/220 staff): scheduling/payroll went from days of manual work to faster HR ops. | https://www.staffany.com/customer-case-study-braud-group/ |
+| Suwe Ora Jamu | ID | F&B - traditional jamu and cafe | fnb, beverage, jamu, indonesia, smb, startup, umkm, affordable | Suwe Ora Jamu (ID jamu/F&B): manual HRD became easier with affordable StaffAny HR workflows for SMB/startup ops. | https://www.staffany.com/customers/ |
+
+## Public Video KNS Knowledge Materials
+
+Use these public-video hooks for KNS `Knowledge` touches and AE pre-demo proof. They mirror the material-registry schema as `case-study-video:<case-id>` rows with `kns_pillar = Knowledge`. Keep them as sales proof only; HubSpot remains canonical for selected-account facts. Do not paste raw transcripts into Slack.
+
+| Customer | Video ID | Transcript status | KNS Knowledge hook | Material status |
+| --- | --- | --- | --- | --- |
+| Coffee Break | ieyqFaUdrNs | available | Use Coffee Break when a small heritage F&B operator worries that workforce systems are too heavy; start with accurate clock-in, then expand into timesheets when ready. | approved |
+| True Breakfast | ZBGt0mKMJgo | available | Use True Breakfast when a smaller F&B operator is still using manual schedules; fewer duplicate shifts plus easier attendance visibility is the Knowledge point. | approved |
+| Foreword Coffee | zZOyxPZoik4 | available | Use Foreword Coffee when a mission-led F&B prospect cares about adoption; QR clock-in can be simple enough for diverse frontline teams. | approved |
+| Mr Fish | UUFHf8Ct7Y8 | available | Use Mr Fish when a Malaysia F&B group is expanding outlets; HQ visibility over attendance/payroll becomes a growth enabler. | approved |
+| Belly & The Chef | kWZWrgESI7w | blocked | Use Belly & The Chef when a Malaysia F&B group is still collecting punch cards; one platform can replace outlet-by-outlet attendance admin. | needs-check |
+| Paan KL | PzEBLWoWBgE | available | Use Paan KL when a restaurant asks for ROI; accurate geotracked attendance can show direct labour-cost impact. | approved |
+| Braud Group | skMvLEwpOHE | available_translated_en | Use Braud Group when an Indonesian bakery/cafe group is scaling across cities; HR admin can drop from days to hours with the right workforce system. | approved |
+| L'Osteria | dRJBH3JJuWs | available | Use L'Osteria when an Indonesian F&B group is scaling outlets; multi-location growth turns Excel/fingerprint admin into management drag. | approved |
+| Keisuke Singapore | izFpndBfMf4 | blocked | Use Keisuke when a restaurant chain is trapped by old systems/hardware; centralised HR data matters once outlets and business lines multiply. | needs-check |
+| The Wine Company | 1vj8BWEBuC0 | available | Use The Wine Company when the prospect has flexi-work and OT leakage; attendance visibility protects both planning and payroll. | approved |
+| Suwe Ora Jamu | mwBuSiHysAI | available_translated_en | Use Suwe Ora Jamu when an Indonesian SMB says HR software sounds expensive; affordable HR workflow can replace manual HRD work without enterprise complexity. | approved |
 
 ## Not Approved Yet
 

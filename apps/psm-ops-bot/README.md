@@ -33,6 +33,7 @@ Alias note: `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` refer to this 
 | `runtime/hooks/psm-ops-adoption-telemetry/` | Hermes gateway hook for adoption metrics. |
 | `runtime/psm_ops_adoption_digest.py` | No-agent cron script for adoption digest delivery. |
 | `runtime/scripts/psm_ops_due_date_reminders.py` | No-agent Jira PCO due-date reminder digest script. |
+| `runtime/scripts/psm_ops_pco_assignment_hygiene.py` | No-agent Jira PCO assignee, PS Team, and due-date hygiene digest script. |
 | `runtime/scripts/psm_ops_roi_tracker_sync.py` | No-agent ROI-to-PCO customer-loop tracker sync script. |
 | `runtime/scripts/psm_ops_pco_assignment_hygiene.py` | No-agent Jira PCO assignment / PS Team / due-date hygiene digest script. |
 | `runtime/scripts/psm_ops_join_public_channels.py` | Bot-owned public/open Slack channel membership repair script. |

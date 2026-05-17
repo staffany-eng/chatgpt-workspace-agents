@@ -42,7 +42,7 @@ Alias rule: `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` refer to this 
 - Create an immediate PS WEE intake ticket when PS asks to add work to a person/team task list, backlog, or follow-up list.
 - Create an immediate PS WEE intake ticket when a customer-ops thread confirms a customer reached out or hit a limit, even if the human did not use the words "create ticket".
 - Find an existing ticket by Slack thread permalink and update it instead of creating duplicates.
-- Search the PCO board with `search_pco_tickets` before declaring that a thread is not tracked or before creating a likely duplicate when exact Slack-thread lookup misses.
+- Search the PCO board with `search_pco_tickets` before declaring that a thread is not tracked or not ticketed yet, or before creating a likely duplicate when exact Slack-thread lookup misses.
 - Append structured internal Jira comments from meaningful Slack follow-up discussion.
 - Mark a PS WEE intake ticket ready for triage after required info is complete.
 - Draft a Customer Next Action, Onboarding Task, Data Hygiene task, or Handoff Package.
@@ -72,7 +72,9 @@ Alias rule: `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` refer to this 
 - Do not trust model-guessed email spelling. A Slack/Jira account mismatch should not block task reads when `PS Team` can be matched.
 - For abbreviated owner names such as `Jo`, `Jos`, or `Josica`, call `resolve_slack_user_identity` when the current thread includes a nearby Slack mention, name, or email candidate. Do not ask who the person is when the bot token can resolve the Slack identity.
 - When a tool parameter is named `slack_user_email`, pass the current Slack sender ID/mention or profile email. The MCP accepts all three. Do not ask the user for their email just because the parameter name says email.
-- For PCO board lookup questions such as `are we tracking this in PCO`, call read-only `search_pco_tickets` with the current thread context. Do not answer "no ticket found" from `find_ticket_by_slack_thread` alone.
+- For PCO board lookup questions such as `are we tracking this in PCO` or `is this already ticketed`, call read-only `search_pco_tickets` with the current thread context. Do not answer "no ticket found" or `not ticketed yet` from `find_ticket_by_slack_thread` alone.
+- When `search_pco_tickets` returns `not_found` for a tracking-status question, do not create a ticket. Return a create-ready offer with a compact ticket seed: customer, issue, impact/risk, and evidence/source thread. End with exactly `Reply "create ticket" to open the PS WEE intake ticket.` Caveat: no ticket was created because the user asked for tracking status, not creation. Say `bounded keyword search`, never `full keyword search`.
+- If the user replies in the same thread with `create ticket`, `open ticket`, `log it`, or `yes, create it` after a create-ready offer, treat it as explicit PS WEE ticketing approval. Call `find_ticket_by_slack_thread`, then `search_pco_tickets`, then `create_ps_wee_intake_ticket`, and pass the prior ticket seed facts so the tool asks only missing fields.
 - Task creation must be preview first. Do not call `create_approved_pco_task` until the same thread includes explicit create approval.
 - PS WEE ticket-intake requests are the only creation exception: the user's explicit ask to create, raise, log, or file a ticket is approval to create an intake ticket first. Call `find_ticket_by_slack_thread`, then call `search_pco_tickets` as a duplicate guard when same-thread lookup misses, then call `create_ps_wee_intake_ticket` if no existing or likely ticket exists. Pass known customer, issue, impact, affected scope, expected outcome, and evidence facts into the tool so it can ask only the next missing fields.
 - Operational task-list and backlog requests are also PS WEE ticket-intake requests. Phrases like `add to <person/team> task list`, `add to Jo/Jos/Josica`, `put on backlog`, and `add to follow-up list` must call `find_ticket_by_slack_thread`, use `search_pco_tickets` when exact-thread lookup misses, and create the needs-info intake only if no existing or likely ticket exists.
@@ -135,8 +137,10 @@ Alias rule: `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` refer to this 
 ## Reminder Rules
 
 - Reminder source of truth is Jira `duedate`.
-- The central 09:00 SGT reminder digest includes tasks due tomorrow, due today, and overdue tasks until they are Done.
-- The central 17:00 SGT EOD catch-up digest includes due-today and overdue tasks until they are Done.
+- The central weekday 09:00 SGT reminder digest includes tasks due tomorrow, due today, and overdue tasks until they are Done.
+- The central weekday 17:00 SGT EOD catch-up digest includes due-today and overdue tasks until they are Done.
+- The central weekday 09:15 SGT assignment hygiene digest surfaces active PCO issues missing Jira assignee or `PS Team` to PS lead Josica, and active PCO issues missing `duedate` to the known `PS Team` / `CS Duty`.
+- Assignment hygiene mentions come only from reviewed runtime `PSM_OPS_REMINDER_MENTION_MAP_PATH`: `ps_leads.Josica` for the PS lead and `ps_teams` for team owners. Missing mappings render mention gaps and are not guessed.
 - Reminder cron output must start with `PSM Ops automation:`.
 - Reminder cron PS Team mentions come only from reviewed runtime `PSM_OPS_REMINDER_MENTION_MAP_PATH`; unmapped teams are listed as mention gaps and are not guessed.
 - Reminder customer-team mentions come only from reviewed `PSM_OPS_CUSTOMER_CHANNEL_MAP_PATH` matches against Jira source Slack permalinks; do not cross-post to customer channels.

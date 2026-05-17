@@ -6,12 +6,12 @@
 - Source class: StaffAny public customer case-study pages
 - Base URLs: https://www.staffany.com/ and https://www.staffany.my/
 - Date checked: 2026-05-11
-- Unique approved case studies: 26
+- Unique approved case studies: 27
 - Slack-only candidate count excluded from approved catalog: 5
 
 ## Raw Content Policy
 
-This catalog records public StaffAny customer-story URLs, short summaries, and matching tags only. It does not copy full page bodies, private Slack transcripts, raw customer data, HubSpot rows, contact details, phone numbers, or secrets. Slack was used only to discover candidate names and approval gaps; Slack-only candidates are summarized without raw message text.
+This catalog records public StaffAny customer-story URLs, public video URLs, short summaries, KNS Knowledge hooks, and matching tags only. It does not copy full page bodies, private Slack transcripts, raw customer data, HubSpot rows, contact details, phone numbers, or secrets. Slack was used only to discover candidate names and approval gaps; Slack-only candidates are summarized without raw message text.
 
 ## Source Inventory
 
@@ -43,6 +43,23 @@ This catalog records public StaffAny customer-story URLs, short summaries, and m
 | paan-kl | Paan KL | Malaysia | F&B - Pan-Asian restaurant | Restaurant team | https://www.staffany.my/customer-case-study-paan-kl/ | fnb, restaurant, malaysia, kl, punch-card, excel, payroll, attendance, labor-cost, accuracy | Paan KL (MY restaurant): paper/Excel time tracking moved to automated attendance, about 15% labour-cost saving. |
 | pastago | PastaGo | Singapore | F&B - fresh pasta chain | 4 locations | https://www.staffany.com/customer-case-study-pastago/ | fnb, restaurant, pasta, multi-outlet, biometric, whatsapp, scheduling, timesheets, latecomers, no-show, ad-hoc-changes | PastaGo (SG pasta, 4 locations): biometric/WhatsApp scheduling pain improved with ad hoc roster changes and no-show tracking. |
 | braud-group | Braud Group | Indonesia | F&B - bakery and cafe group | 3 outlets, 220 staff | https://www.staffany.com/customer-case-study-braud-group/ | fnb, bakery, cafe, indonesia, bali, jakarta, multi-outlet, large-team, scheduling, payroll, manual-process, communication | Braud Group (ID bakery/cafe, 3 outlets/220 staff): scheduling/payroll went from days of manual work to faster HR ops. |
+| suwe-ora-jamu | Suwe Ora Jamu | Indonesia | F&B - traditional jamu and cafe | Founded 2013, expanding through Indonesia | https://www.staffany.com/customers/ | fnb, beverage, jamu, indonesia, jakarta, smb, startup, umkm, hr, manual-process, affordable, scheduling, attendance | Suwe Ora Jamu (ID jamu/F&B): manual HRD became easier with affordable StaffAny HR workflows for SMB/startup ops. |
+
+## Public Video Evidence Inventory
+
+| Case ID | Customer | Video ID | Transcript status | KNS material ID | Evidence path | KNS Knowledge hook |
+| --- | --- | --- | --- | --- | --- | --- |
+| coffee-break | Coffee Break | ieyqFaUdrNs | available | case-study-video:coffee-break | research/raw/nurtureany-case-studies/video-evidence/coffee-break/evidence.md | Use Coffee Break when a small heritage F&B operator worries that workforce systems are too heavy; start with accurate clock-in, then expand into timesheets when ready. |
+| true-breakfast | True Breakfast | ZBGt0mKMJgo | available | case-study-video:true-breakfast | research/raw/nurtureany-case-studies/video-evidence/true-breakfast/evidence.md | Use True Breakfast when a smaller F&B operator is still using manual schedules; fewer duplicate shifts plus easier attendance visibility is the Knowledge point. |
+| foreword-coffee | Foreword Coffee | zZOyxPZoik4 | available | case-study-video:foreword-coffee | research/raw/nurtureany-case-studies/video-evidence/foreword-coffee/evidence.md | Use Foreword Coffee when a mission-led F&B prospect cares about adoption; QR clock-in can be simple enough for diverse frontline teams. |
+| mr-fish | Mr Fish | UUFHf8Ct7Y8 | available | case-study-video:mr-fish | research/raw/nurtureany-case-studies/video-evidence/mr-fish/evidence.md | Use Mr Fish when a Malaysia F&B group is expanding outlets; HQ visibility over attendance/payroll becomes a growth enabler. |
+| belly-and-the-chef | Belly & The Chef | kWZWrgESI7w | blocked | case-study-video:belly-and-the-chef | research/raw/nurtureany-case-studies/video-evidence/belly-and-the-chef/evidence.md | Use Belly & The Chef when a Malaysia F&B group is still collecting punch cards; one platform can replace outlet-by-outlet attendance admin. |
+| paan-kl | Paan KL | PzEBLWoWBgE | available | case-study-video:paan-kl | research/raw/nurtureany-case-studies/video-evidence/paan-kl/evidence.md | Use Paan KL when a restaurant asks for ROI; accurate geotracked attendance can show direct labour-cost impact. |
+| braud-group | Braud Group | skMvLEwpOHE | available_translated_en | case-study-video:braud-group | research/raw/nurtureany-case-studies/video-evidence/braud-group/evidence.md | Use Braud Group when an Indonesian bakery/cafe group is scaling across cities; HR admin can drop from days to hours with the right workforce system. |
+| losteria | L'Osteria | dRJBH3JJuWs | available | case-study-video:losteria | research/raw/nurtureany-case-studies/video-evidence/losteria/evidence.md | Use L'Osteria when an Indonesian F&B group is scaling outlets; multi-location growth turns Excel/fingerprint admin into management drag. |
+| keisuke | Keisuke Singapore | izFpndBfMf4 | blocked | case-study-video:keisuke | research/raw/nurtureany-case-studies/video-evidence/keisuke/evidence.md | Use Keisuke when a restaurant chain is trapped by old systems/hardware; centralised HR data matters once outlets and business lines multiply. |
+| the-wine-company | The Wine Company | 1vj8BWEBuC0 | available | case-study-video:the-wine-company | research/raw/nurtureany-case-studies/video-evidence/the-wine-company/evidence.md | Use The Wine Company when the prospect has flexi-work and OT leakage; attendance visibility protects both planning and payroll. |
+| suwe-ora-jamu | Suwe Ora Jamu | mwBuSiHysAI | available_translated_en | case-study-video:suwe-ora-jamu | research/raw/nurtureany-case-studies/video-evidence/suwe-ora-jamu/evidence.md | Use Suwe Ora Jamu when an Indonesian SMB says HR software sounds expensive; affordable HR workflow can replace manual HRD work without enterprise complexity. |
 
 ## Slack Candidate Inventory
 
@@ -56,11 +73,13 @@ This catalog records public StaffAny customer-story URLs, short summaries, and m
 
 ## Evidence Extracts
 
-- The approved catalog contains 26 unique published StaffAny customer case studies across StaffAny Singapore and Malaysia public sites.
+- The public video evidence inventory contains 11 StaffAny customer videos mapped to KNS Knowledge material rows.
+- Nine videos have caption evidence; Belly & The Chef and Keisuke have transcripts disabled and are marked needs-check for transcript verification.
+- The approved catalog contains 27 approved public StaffAny customer stories: 26 published page-based case studies plus Suwe Ora Jamu as a public video-only story linked from the Customers page.
 - The cases cover F&B, retail, fitness/health services, family entertainment, petrol retail, and automotive repair examples.
-- The case cards include country, industry, size, pain, outcome, and match tags so NurtureAny can choose source-backed name drops for pre-demo game plans.
+- The case cards include country, industry, size, pain, outcome, match tags, video evidence where available, and KNS Knowledge hooks so NurtureAny can choose source-backed name drops and Knowledge touches.
 - Slack-only names are excluded from approved matching until a published page or approved internal case-study asset exists.
-- Public case studies are sales-enablement context only; HubSpot remains the source of truth for target-account ownership, status, contacts, tools, activities, and follow-up state.
+- Public case studies and videos are sales-enablement context only; HubSpot remains the source of truth for target-account ownership, status, contacts, tools, activities, and follow-up state.
 
 ## Case Cards
 
@@ -401,3 +420,18 @@ This catalog records public StaffAny customer-story URLs, short summaries, and m
 - Pain summary: Scheduling and payroll for 220 staff across outlets took days using manual methods.
 - Outcome summary: Manual scheduling/payroll work became a faster, more efficient HR process across Braud locations.
 - Approved name-drop summary: Braud Group (ID bakery/cafe, 3 outlets/220 staff): scheduling/payroll went from days of manual work to faster HR ops.
+
+### Suwe Ora Jamu
+
+- ID: suwe-ora-jamu
+- Primary URL: https://www.staffany.com/customers/
+- Video URL: https://www.youtube.com/watch?v=mwBuSiHysAI
+- Alternate URLs: none recorded
+- Country / market: Indonesia / ID
+- Industry: F&B - traditional jamu and cafe
+- Size signal: Founded 2013, expanding through Indonesia
+- Match tags: fnb, beverage, jamu, indonesia, jakarta, smb, startup, umkm, hr, manual-process, affordable, scheduling, attendance
+- Pain summary: Manual HRD work was harder for an Indonesian SMB/startup F&B business.
+- Outcome summary: StaffAny made HR work easier and was positioned as useful, affordable HR support for startups and UMKM.
+- Approved name-drop summary: Suwe Ora Jamu (ID jamu/F&B): manual HRD became easier with affordable StaffAny HR workflows for SMB/startup ops.
+- KNS Knowledge hook: Use Suwe Ora Jamu when an Indonesian SMB says HR software sounds expensive; affordable HR workflow can replace manual HRD work without enterprise complexity.

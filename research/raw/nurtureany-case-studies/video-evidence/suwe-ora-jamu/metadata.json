@@ -1,0 +1,49 @@
+{
+  "case_id": "suwe-ora-jamu",
+  "customer": "Suwe Ora Jamu",
+  "market": "ID",
+  "country": "Indonesia",
+  "industry": "F&B - traditional jamu and cafe",
+  "size": "Founded 2013, expanding through Indonesia",
+  "page_url": "https://www.staffany.com/customers/",
+  "video_url": "https://www.youtube.com/watch?v=mwBuSiHysAI",
+  "video_id": "mwBuSiHysAI",
+  "source_language": "id",
+  "translation_language": "en",
+  "transcript_source": "youtube_auto_indonesian_translated_en",
+  "transcript_status": "available_translated_en",
+  "transcript_path": "research/raw/nurtureany-case-studies/video-evidence/suwe-ora-jamu/transcript.md",
+  "keyframes": [
+    "research/raw/nurtureany-case-studies/video-evidence/suwe-ora-jamu/keyframes/cover.jpg"
+  ],
+  "evidence_path": "research/raw/nurtureany-case-studies/video-evidence/suwe-ora-jamu/evidence.md",
+  "full_video_archived": false,
+  "full_video_archive_policy": "not archived; YouTube URL retained as canonical public video source",
+  "blocker": "",
+  "knowledge_hooks": [
+    {
+      "type": "kns_knowledge",
+      "hook": "Use Suwe Ora Jamu when an Indonesian SMB says HR software sounds expensive; affordable HR workflow can replace manual HRD work without enterprise complexity.",
+      "pain": "Manual HRD work was harder for an Indonesian SMB/startup F&B business.",
+      "outcome": "StaffAny made HR work easier and was positioned as useful, affordable HR support for startups and UMKM.",
+      "best_fit_prospect_pattern": "ID SMB/startup F&B, beverage, cafe, or UMKM operators with manual HR admin and budget sensitivity.",
+      "source_timestamp": "00:00:00-00:01:01",
+      "source_url": "https://www.staffany.com/customers/",
+      "video_url": "https://www.youtube.com/watch?v=mwBuSiHysAI",
+      "confidence": "verified_public_video"
+    }
+  ],
+  "kns_material_row": {
+    "material_id": "case-study-video:suwe-ora-jamu",
+    "status": "approved",
+    "title": "Suwe Ora Jamu public video case study",
+    "kns_pillar": "Knowledge",
+    "pillar_summary": "Use Suwe Ora Jamu when an Indonesian SMB says HR software sounds expensive; affordable HR workflow can replace manual HRD work without enterprise complexity.",
+    "buyer_value": "StaffAny made HR work easier and was positioned as useful, affordable HR support for startups and UMKM.",
+    "ae_use_case": "knowledge_touch, pre_demo, nurture, case_study_proof",
+    "message_hook": "Use Suwe Ora Jamu when an Indonesian SMB says HR software sounds expensive; affordable HR workflow can replace manual HRD work without enterprise complexity.",
+    "source_evidence_url": "research/raw/nurtureany-case-studies/video-evidence/suwe-ora-jamu/evidence.md",
+    "asset_url": "https://www.youtube.com/watch?v=mwBuSiHysAI",
+    "owner": "repo_case_study_catalog"
+  }
+}

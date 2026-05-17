@@ -219,12 +219,13 @@ enabled = [job for job in jobs if isinstance(job, dict) and job.get("enabled") i
 names = {str(job.get("name") or "") for job in enabled}
 missing = [
     name
-    for name in ["psmopsbot due-date reminders", "psmopsbot due-date eod catch-up", "psmopsbot roi tracker sync"]
+    for name in ["psmopsbot due-date reminders", "psmopsbot assignment hygiene", "psmopsbot due-date eod catch-up", "psmopsbot roi tracker sync"]
     if name not in names
 ]
 scripts = {str(job.get("name") or ""): job for job in enabled}
 for name, expected_script in {
     "psmopsbot due-date reminders": "psm_ops_due_date_reminders.py",
+    "psmopsbot assignment hygiene": "psm_ops_pco_assignment_hygiene.py",
     "psmopsbot due-date eod catch-up": "psm_ops_due_date_reminders_eod.py",
     "psmopsbot roi tracker sync": "psm_ops_roi_tracker_sync.py",
 }.items():

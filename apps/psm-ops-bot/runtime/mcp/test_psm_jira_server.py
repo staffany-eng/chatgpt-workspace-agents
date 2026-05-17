@@ -212,6 +212,14 @@ class PsmJiraServerTest(unittest.TestCase):
             return {"issues": []}
 
         self.module._request_json = fake_request
+        self.module._slack_users = lambda: [
+            {
+                "id": "UADA",
+                "name": "ada",
+                "real_name": "Ada PSM",
+                "profile": {"email": "psm@staffany.com", "display_name": "Ada PSM", "real_name": "Ada PSM"},
+            }
+        ]
 
         result = self.module.draft_pco_task(
             slack_user_email="psm@staffany.com",

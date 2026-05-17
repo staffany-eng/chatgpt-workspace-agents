@@ -25,6 +25,7 @@
       "skills/nurtureany-sales-bot/references/playbooks.md",
       "skills/nurtureany-sales-bot/references/pre-demo-game-plans.md",
       "skills/nurtureany-sales-bot/references/case-studies.md",
+      "skills/nurtureany-sales-bot/references/kns-knowledge-materials.md",
       "skills/nurtureany-sales-bot/references/regression-cases.md",
       "skills/nurtureany-sales-bot/references/rev-planning-and-metrics.md"
     ],
@@ -110,7 +111,7 @@
     "sales_rep_scope": "own_hubspot_target_accounts_only",
     "manager_scope": "country_scoped_team_view_plus_approved_hubspot_task_write",
     "partnerships_viewer_scope": "country_scoped_read_only_team_target_accounts_and_selected_account_context",
-    "event_operator_scope": "country_scoped_event_sourcing_read_only",
+    "event_operator_scope": "country_scoped_event_sourcing_and_luma_match_key_account_resolution_read_only_with_scoped_matched_contact_pii",
     "full_roster_committed": false
   },
   "runtime_secrets": {
@@ -724,6 +725,14 @@
       "template_name",
       "template_params_schema",
       "message_hook",
+      "kns_pillar",
+      "pillar_summary",
+      "buyer_value",
+      "ae_use_case",
+      "whatsapp_script",
+      "source_evidence_url",
+      "asset_url",
+      "talk_track",
       "owner"
     ],
     "presentation_text_extraction": "Selected Google Slides or Drive-hosted .pptx decks through team@staffany.com drive.readonly",
@@ -783,7 +792,10 @@
       "get_luma_event_context"
     ],
     "requires_scoped_hubspot_companies": true,
+    "contact_email_match_keys": "get_luma_event_match_keys_include_contact_pii_true_returns_bounded_attendee_emails_for_exact_hubspot_matching_only",
+    "matched_contact_pii_visibility": "internal_event_output_scoped_exact_hubspot_contact_matches_only_email_phone_mobile",
     "raw_attendee_exports": false,
+    "raw_registration_answer_exports": false,
     "event_mutations": false,
     "hubspot_writeback": "none"
   },

@@ -16,7 +16,10 @@ from pathlib import Path
 from typing import Any
 
 
-MCP_DIR = Path(__file__).resolve().parents[1] / "mcp"
+SCRIPT_PATH = Path(__file__).resolve()
+PROFILE_RUNTIME_MCP_DIR = SCRIPT_PATH.parents[1] / "runtime" / "mcp"
+SOURCE_RUNTIME_MCP_DIR = SCRIPT_PATH.parents[1] / "mcp"
+MCP_DIR = PROFILE_RUNTIME_MCP_DIR if PROFILE_RUNTIME_MCP_DIR.exists() else SOURCE_RUNTIME_MCP_DIR
 if str(MCP_DIR) not in sys.path:
     sys.path.insert(0, str(MCP_DIR))
 

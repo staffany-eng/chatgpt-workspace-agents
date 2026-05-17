@@ -28,8 +28,9 @@ PSM Ops Bot needs deterministic cloud health checks because prompt correctness d
 - C360 internal API token is configured.
 - Rock Productions C360 lookup smoke passes for `proj-cs-rockproductions`, including normalized variants, HubSpot company `8051493928`, and StaffAny org `Rock Productions`.
 - Cron concurrency is capped with `cron.max_parallel_jobs: 1`.
-- Morning reminder cron is enabled in cloud as a no-agent script and uses Jira `duedate` only.
-- EOD reminder catch-up cron is enabled in cloud as a no-agent script and uses Jira `duedate` only.
+- Morning reminder cron is enabled in cloud as a weekday no-agent script and uses Jira `duedate` only.
+- Assignment hygiene cron is enabled in cloud as a weekday no-agent script and uses safe Jira PCO assignee, `PS Team`, and `duedate` fields only.
+- EOD reminder catch-up cron is enabled in cloud as a weekday no-agent script and uses Jira `duedate` only.
 - Reminder Slack mentions use `PSM_OPS_REMINDER_MENTION_MAP_PATH` when configured; unmapped PS Team values remain visible as `Mention gaps` and are not guessed.
 - Reminder customer-team tags use reviewed `PSM_OPS_CUSTOMER_CHANNEL_MAP_PATH` source-link matches only and never cross-post to customer channels.
 - ROI tracker sync cron is enabled in cloud as a no-agent script every 30 minutes during Singapore workdays and watches only linked `ps-wee-roi-tracker` PCO issues.
@@ -81,13 +82,15 @@ c360:rock-productions:ok:hubspot=8051493928:org=Rock Productions
 
 ## Cron Pattern
 
-Install automatic due-date reminders under the cloud profile:
+Install automatic due-date reminders and assignment hygiene under the cloud profile:
 
 ```bash
 cp apps/psm-ops-bot/runtime/scripts/psm_ops_due_date_reminders.py \
   ~/.hermes/profiles/psmopsbot/scripts/psm_ops_due_date_reminders.py
 cp apps/psm-ops-bot/runtime/scripts/psm_ops_due_date_reminders.py \
   ~/.hermes/profiles/psmopsbot/scripts/psm_ops_due_date_reminders_eod.py
+cp apps/psm-ops-bot/runtime/scripts/psm_ops_pco_assignment_hygiene.py \
+  ~/.hermes/profiles/psmopsbot/scripts/psm_ops_pco_assignment_hygiene.py
 cp apps/psm-ops-bot/runtime/scripts/psm_ops_roi_tracker_sync.py \
   ~/.hermes/profiles/psmopsbot/scripts/psm_ops_roi_tracker_sync.py
 cp apps/psm-ops-bot/runtime/scripts/psm_ops_pco_assignment_hygiene.py \
@@ -98,6 +101,7 @@ cp apps/psm-ops-bot/runtime/scripts/psm_ops_appfollow_review_triage.py \
   ~/.hermes/profiles/psmopsbot/scripts/psm_ops_appfollow_review_triage.py
 chmod 755 ~/.hermes/profiles/psmopsbot/scripts/psm_ops_due_date_reminders.py \
   ~/.hermes/profiles/psmopsbot/scripts/psm_ops_due_date_reminders_eod.py \
+  ~/.hermes/profiles/psmopsbot/scripts/psm_ops_pco_assignment_hygiene.py \
   ~/.hermes/profiles/psmopsbot/scripts/psm_ops_roi_tracker_sync.py \
   ~/.hermes/profiles/psmopsbot/scripts/psm_ops_pco_assignment_hygiene.py \
   ~/.hermes/profiles/psmopsbot/scripts/psm_ops_join_public_channels.py \
@@ -106,6 +110,12 @@ chmod 755 ~/.hermes/profiles/psmopsbot/scripts/psm_ops_due_date_reminders.py \
 hermes -p psmopsbot cron create "0 1 * * 1-5" \
   --name "psmopsbot due-date reminders" \
   --script psm_ops_due_date_reminders.py \
+  --no-agent \
+  --deliver "slack:#ps-weeman-bot-test"
+
+hermes -p psmopsbot cron create "15 1 * * 1-5" \
+  --name "psmopsbot assignment hygiene" \
+  --script psm_ops_pco_assignment_hygiene.py \
   --no-agent \
   --deliver "slack:#ps-weeman-bot-test"
 
@@ -118,12 +128,6 @@ hermes -p psmopsbot cron create "0 9 * * 1-5" \
 hermes -p psmopsbot cron create "*/30 1-10 * * 1-5" \
   --name "psmopsbot roi tracker sync" \
   --script psm_ops_roi_tracker_sync.py \
-  --no-agent \
-  --deliver "slack:#ps-weeman-bot-test"
-
-hermes -p psmopsbot cron create "15 1 * * 1-5" \
-  --name "psmopsbot assignment hygiene" \
-  --script psm_ops_pco_assignment_hygiene.py \
   --no-agent \
   --deliver "slack:#ps-weeman-bot-test"
 
@@ -172,10 +176,13 @@ After Slack app reinstall or scope changes, repair public/open-channel membershi
 
 If this reports `slack:public-channel-join-failed:...:error=missing_scope`, the Slack app has not been reinstalled with `channels:join` yet.
 
-Optional reminder mention map:
+Optional reminder and assignment hygiene mention map:
 
 ```json
 {
+  "ps_leads": {
+    "Josica": [{"type": "user", "id": "U456", "label": "Josica"}]
+  },
   "ps_teams": {
     "Kai Yi": [{"type": "user", "id": "U123", "label": "Kai Yi"}],
     "CS Duty": [{"type": "usergroup", "id": "S123", "handle": "cs-duty"}]

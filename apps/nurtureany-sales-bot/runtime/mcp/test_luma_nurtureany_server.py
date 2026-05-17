@@ -91,6 +91,56 @@ class LumaNurtureAnyServerTest(unittest.TestCase):
         self.assertEqual(event["name"], "Bali Beans Dinner")
         self.assertNotIn("description", event)
 
+    def test_luma_slug_falls_back_to_calendar_url_match(self):
+        calls = []
+
+        def fake_request(path, params=None):
+            params = params or {}
+            calls.append((path, dict(params)))
+            if path == "/v1/event/get" and params == {"id": "06d6szo3"}:
+                raise self.module.LumaError("Luma API failed: 403 no access", 403)
+            if path == "/v1/event/get" and params == {"event_id": "06d6szo3"}:
+                raise self.module.LumaError("Luma API failed: 400 missing event identifier", 400)
+            if path == "/v1/calendar/list-events":
+                return {
+                    "entries": [
+                        {
+                            "event": {
+                                "api_id": "evt-workshop",
+                                "name": "AI Automation Workshop for F&B, Retail & Hospitality",
+                                "start_at": "2026-05-19T10:30:00Z",
+                                "end_at": "2026-05-19T13:30:00Z",
+                                "timezone": "Asia/Singapore",
+                                "url": "https://luma.com/06d6szo3",
+                            }
+                        }
+                    ],
+                    "has_more": False,
+                }
+            if path == "/v1/event/get" and params == {"id": "evt-workshop"}:
+                return {
+                    "api_id": "evt-workshop",
+                    "name": "AI Automation Workshop for F&B, Retail & Hospitality",
+                    "start_at": "2026-05-19T10:30:00Z",
+                    "end_at": "2026-05-19T13:30:00Z",
+                    "timezone": "Asia/Singapore",
+                    "url": "https://luma.com/06d6szo3",
+                }
+            if path == "/v1/event/get-guests":
+                self.assertEqual(params["event_id"], "evt-workshop")
+                return {"entries": [], "has_more": False}
+            raise AssertionError(f"unexpected call: {path} {params}")
+
+        with patch.dict(os.environ, {"LUMA_API_KEY": "test-key"}), patch.object(
+            self.module, "_request_json", side_effect=fake_request
+        ):
+            result = self.module.get_luma_event_match_keys("jan-e@staffany.com", event_ids=["06d6szo3"])
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["answer"][0]["event"]["event_id"], "evt-workshop")
+        self.assertEqual(result["answer"][0]["event"]["url"], "https://luma.com/06d6szo3")
+        self.assertIn(("/v1/calendar/list-events", calls[2][1]), calls)
+
     def test_date_only_end_includes_full_day(self):
         calls = []
 
@@ -724,9 +774,60 @@ class LumaNurtureAnyServerTest(unittest.TestCase):
         keys = result["answer"][0]["match_keys"]
         self.assertEqual(keys["email_domains"], ["balibeans.com"])
         self.assertEqual(keys["company_name_candidates"], ["Bali Beans"])
+        self.assertNotIn("attendee_emails", keys)
+        self.assertEqual(result["answer"][0]["contact_email_key_count"], 0)
         self.assertEqual(result["answer"][0]["match_key_mode"], "checked_in_attendance")
         self.assertNotIn("owner@balibeans.com", str(result["answer"]))
         self.assertNotIn("Owner One", str(result["answer"]))
+
+    def test_luma_event_match_keys_include_contact_pii_returns_bounded_attendee_emails(self):
+        def fake_request(path, params=None):
+            if path == "/v1/event/get":
+                return {
+                    "api_id": "evt-1",
+                    "name": "StaffAny AI F&B Workshop",
+                    "url": "https://luma.com/06d6szo3",
+                    "start_at": "2030-05-19T10:00:00Z",
+                }
+            if path == "/v1/event/get-guests":
+                return {
+                    "entries": [
+                        {
+                            "name": "Owner One",
+                            "email": "Owner@BaliBeans.com ",
+                            "approval_status": "approved",
+                            "registration_answers": [{"question": "Phone", "answer": "+6512345678"}],
+                        },
+                        {
+                            "name": "Personal Mail",
+                            "email": "person@gmail.com",
+                            "registration_answers": [{"question": "Organisation", "answer": "Noci Bakehouse"}],
+                        },
+                    ],
+                    "has_more": False,
+                }
+            raise AssertionError(f"unexpected call: {path} {params}")
+
+        with patch.dict(os.environ, {"LUMA_API_KEY": "test-key"}), patch.object(
+            self.module, "_request_json", side_effect=fake_request
+        ):
+            result = self.module.get_luma_event_match_keys(
+                "ae@staffany.com",
+                event_ids=["evt-1"],
+                include_contact_pii=True,
+            )
+
+        answer = result["answer"][0]
+        keys = answer["match_keys"]
+        self.assertEqual(keys["email_domains"], ["balibeans.com"])
+        self.assertEqual(keys["company_name_candidates"], ["Noci Bakehouse"])
+        self.assertEqual(keys["attendee_emails"], ["owner@balibeans.com", "person@gmail.com"])
+        self.assertEqual(answer["contact_email_key_count"], 2)
+        self.assertEqual(result["scope"]["include_contact_pii"], True)
+        serialized = str(result)
+        self.assertNotIn("Owner One", serialized)
+        self.assertNotIn("Personal Mail", serialized)
+        self.assertNotIn("+6512345678", serialized)
 
     def test_past_event_with_zero_checked_in_returns_no_rsvp_attendance_keys(self):
         def fake_request(path, params=None):

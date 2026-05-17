@@ -1592,7 +1592,9 @@ for (const text of [
   "PODCAST_EPISODE",
   "find_target_accounts_by_luma_match_keys",
   "LUMA_MATCH_DOMAIN_LIMIT",
-  "No raw Luma attendees"
+  "LUMA_MATCH_ATTENDEE_EMAIL_LIMIT",
+  "exact_hubspot_contact_email",
+  "Unmatched attendees"
 ]) {
   if (!hubspotServerText.includes(text)) fail(`runtime/mcp/hubspot_nurtureany_server.py missing required text: ${text}`);
 }

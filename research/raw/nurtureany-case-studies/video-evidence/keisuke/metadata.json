@@ -1,0 +1,49 @@
+{
+  "case_id": "keisuke",
+  "customer": "Keisuke Singapore",
+  "market": "SG",
+  "country": "Singapore",
+  "industry": "F&B - Japanese restaurant chain",
+  "size": "Multiple locations and businesses",
+  "page_url": "https://www.staffany.com/customer-case-study-keisuke-singapore/",
+  "video_url": "https://www.youtube.com/watch?v=izFpndBfMf4",
+  "video_id": "izFpndBfMf4",
+  "source_language": "unknown",
+  "translation_language": "",
+  "transcript_source": "transcripts_disabled",
+  "transcript_status": "blocked",
+  "transcript_path": "research/raw/nurtureany-case-studies/video-evidence/keisuke/transcript.md",
+  "keyframes": [
+    "research/raw/nurtureany-case-studies/video-evidence/keisuke/keyframes/cover.jpg"
+  ],
+  "evidence_path": "research/raw/nurtureany-case-studies/video-evidence/keisuke/evidence.md",
+  "full_video_archived": false,
+  "full_video_archive_policy": "not archived; YouTube URL retained as canonical public video source",
+  "blocker": "YouTube reports transcripts disabled. ASR/audio archival not added in this KNS material pass.",
+  "knowledge_hooks": [
+    {
+      "type": "kns_knowledge",
+      "hook": "Use Keisuke when a restaurant chain is trapped by old systems/hardware; centralised HR data matters once outlets and business lines multiply.",
+      "pain": "Old system/hardware pain and manual admin made multi-location scheduling and HR data hard to manage.",
+      "outcome": "The public case page says StaffAny improved centralised HR data and automated scheduling.",
+      "best_fit_prospect_pattern": "SG restaurant chains with old-system, hardware, leave, attendance, centralised data, or multi-business admin pain.",
+      "source_timestamp": "page evidence; video captions disabled",
+      "source_url": "https://www.staffany.com/customer-case-study-keisuke-singapore/",
+      "video_url": "https://www.youtube.com/watch?v=izFpndBfMf4",
+      "confidence": "needs-check"
+    }
+  ],
+  "kns_material_row": {
+    "material_id": "case-study-video:keisuke",
+    "status": "needs-check",
+    "title": "Keisuke Singapore public video case study",
+    "kns_pillar": "Knowledge",
+    "pillar_summary": "Use Keisuke when a restaurant chain is trapped by old systems/hardware; centralised HR data matters once outlets and business lines multiply.",
+    "buyer_value": "The public case page says StaffAny improved centralised HR data and automated scheduling.",
+    "ae_use_case": "knowledge_touch, pre_demo, nurture, case_study_proof",
+    "message_hook": "Use Keisuke when a restaurant chain is trapped by old systems/hardware; centralised HR data matters once outlets and business lines multiply.",
+    "source_evidence_url": "research/raw/nurtureany-case-studies/video-evidence/keisuke/evidence.md",
+    "asset_url": "https://www.youtube.com/watch?v=izFpndBfMf4",
+    "owner": "repo_case_study_catalog"
+  }
+}

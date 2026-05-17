@@ -1,6 +1,6 @@
 {
   "generated_at": "2026-05-13T00:00:00+08:00",
-  "source_note": "research/wiki/sources/staffany-public-customer-case-studies.md plus research/wiki/sources/bmc-podcast-case-study-source-set.md",
+  "source_note": "research/wiki/sources/staffany-public-customer-case-studies.md plus research/wiki/sources/bmc-podcast-case-study-source-set.md; StaffAny public video KNS evidence lives under research/raw/nurtureany-case-studies/video-evidence/",
   "cases": [
     {
       "id": "coffee-break",
@@ -29,7 +29,41 @@
       ],
       "pain": "Small family-run coffee business needed more efficient workforce management while staying lean.",
       "outcome": "Progressed from basic clock-ins to fuller timesheet tracking and better workforce productivity insight.",
-      "name_drop": "Coffee Break (SG heritage coffee, 3 stalls): clock-ins to timesheet visibility for lean F&B ops."
+      "name_drop": "Coffee Break (SG heritage coffee, 3 stalls): clock-ins to timesheet visibility for lean F&B ops.",
+      "video_url": "https://www.youtube.com/watch?v=ieyqFaUdrNs",
+      "video_id": "ieyqFaUdrNs",
+      "transcript_source": "youtube_auto_english",
+      "transcript_status": "available",
+      "video_evidence_path": "research/raw/nurtureany-case-studies/video-evidence/coffee-break/evidence.md",
+      "best_use_sales_moments": [
+        "knowledge_touch",
+        "pre_demo",
+        "demo",
+        "post_demo_followup"
+      ],
+      "knowledge_hooks": [
+        {
+          "type": "kns_knowledge",
+          "hook": "Use Coffee Break when a small heritage F&B operator worries that workforce systems are too heavy; start with accurate clock-in, then expand into timesheets when ready.",
+          "pain": "Family-run hawker/F&B team needed more accurate clock-in data and a better base for staff retention.",
+          "outcome": "StaffAny gave them a quick starting point for clock-in accuracy and room to expand into timesheets/integrations later.",
+          "best_fit_prospect_pattern": "SG small-chain or family-run F&B/hawker operators with clock-in accuracy, retention, or lightweight-system concerns.",
+          "source_timestamp": "00:00:05-00:04:42",
+          "source_url": "https://www.staffany.com/customer-case-study-coffee-break/",
+          "video_url": "https://www.youtube.com/watch?v=ieyqFaUdrNs",
+          "confidence": "verified_public_video"
+        }
+      ],
+      "kns_material": {
+        "material_id": "case-study-video:coffee-break",
+        "category": "case_study",
+        "status": "approved",
+        "kns_pillar": "Knowledge",
+        "message_hook": "Use Coffee Break when a small heritage F&B operator worries that workforce systems are too heavy; start with accurate clock-in, then expand into timesheets when ready.",
+        "source_evidence_url": "research/raw/nurtureany-case-studies/video-evidence/coffee-break/evidence.md",
+        "asset_url": "https://www.youtube.com/watch?v=ieyqFaUdrNs",
+        "owner": "repo_case_study_catalog"
+      }
     },
     {
       "id": "losteria",
@@ -58,7 +92,41 @@
       ],
       "pain": "Fast expansion made multi-location scheduling and spreadsheets too time-consuming.",
       "outcome": "Scheduling became easier and admin burden dropped, giving management more time for growth work.",
-      "name_drop": "L'Osteria (ID pizza, 5 locations/300 staff): multi-location scheduling moved off spreadsheets."
+      "name_drop": "L'Osteria (ID pizza, 5 locations/300 staff): multi-location scheduling moved off spreadsheets.",
+      "video_url": "https://www.youtube.com/watch?v=dRJBH3JJuWs",
+      "video_id": "dRJBH3JJuWs",
+      "transcript_source": "youtube_auto_english",
+      "transcript_status": "available",
+      "video_evidence_path": "research/raw/nurtureany-case-studies/video-evidence/losteria/evidence.md",
+      "best_use_sales_moments": [
+        "knowledge_touch",
+        "pre_demo",
+        "demo",
+        "post_demo_followup"
+      ],
+      "knowledge_hooks": [
+        {
+          "type": "kns_knowledge",
+          "hook": "Use L'Osteria when an Indonesian F&B group is scaling outlets; multi-location growth turns Excel/fingerprint admin into management drag.",
+          "pain": "Rapid growth from two restaurants toward Bali and Jakarta made Excel, fingerprints, scheduling, and salary recaps consume two to three days.",
+          "outcome": "StaffAny helped a roughly 300-staff multi-location F&B group bring scheduling and salary recap work below one day.",
+          "best_fit_prospect_pattern": "ID multi-outlet F&B groups with 100+ staff, cross-city expansion, Excel scheduling, or salary recap pain.",
+          "source_timestamp": "00:00:00-00:03:07",
+          "source_url": "https://www.staffany.com/customer-case-study-losteria/",
+          "video_url": "https://www.youtube.com/watch?v=dRJBH3JJuWs",
+          "confidence": "verified_public_video"
+        }
+      ],
+      "kns_material": {
+        "material_id": "case-study-video:losteria",
+        "category": "case_study",
+        "status": "approved",
+        "kns_pillar": "Knowledge",
+        "message_hook": "Use L'Osteria when an Indonesian F&B group is scaling outlets; multi-location growth turns Excel/fingerprint admin into management drag.",
+        "source_evidence_url": "research/raw/nurtureany-case-studies/video-evidence/losteria/evidence.md",
+        "asset_url": "https://www.youtube.com/watch?v=dRJBH3JJuWs",
+        "owner": "repo_case_study_catalog"
+      }
     },
     {
       "id": "mr-fish",
@@ -88,7 +156,41 @@
       ],
       "pain": "Family-owned F&B group needed consistency and efficiency across a growing outlet team.",
       "outcome": "StaffAny supported more consistent workforce management across outlets and back-office HR/ops work.",
-      "name_drop": "Mr Fish (MY family F&B, 100+ staff): consistency across outlets and back-office workforce ops."
+      "name_drop": "Mr Fish (MY family F&B, 100+ staff): consistency across outlets and back-office workforce ops.",
+      "video_url": "https://www.youtube.com/watch?v=UUFHf8Ct7Y8",
+      "video_id": "UUFHf8Ct7Y8",
+      "transcript_source": "youtube_auto_english",
+      "transcript_status": "available",
+      "video_evidence_path": "research/raw/nurtureany-case-studies/video-evidence/mr-fish/evidence.md",
+      "best_use_sales_moments": [
+        "knowledge_touch",
+        "pre_demo",
+        "demo",
+        "post_demo_followup"
+      ],
+      "knowledge_hooks": [
+        {
+          "type": "kns_knowledge",
+          "hook": "Use Mr Fish when a Malaysia F&B group is expanding outlets; HQ visibility over attendance/payroll becomes a growth enabler.",
+          "pain": "Opening new outlets made attendance, manpower visibility, and payroll calculation harder to control.",
+          "outcome": "StaffAny facilitated attendance-to-payroll flow and helped HQ see who was working across outlets.",
+          "best_fit_prospect_pattern": "MY multi-outlet F&B groups with expansion, attendance accuracy, payroll speed, or HQ visibility needs.",
+          "source_timestamp": "00:00:00-00:02:05",
+          "source_url": "https://www.staffany.com/customer-case-study-mr-fish/",
+          "video_url": "https://www.youtube.com/watch?v=UUFHf8Ct7Y8",
+          "confidence": "verified_public_video"
+        }
+      ],
+      "kns_material": {
+        "material_id": "case-study-video:mr-fish",
+        "category": "case_study",
+        "status": "approved",
+        "kns_pillar": "Knowledge",
+        "message_hook": "Use Mr Fish when a Malaysia F&B group is expanding outlets; HQ visibility over attendance/payroll becomes a growth enabler.",
+        "source_evidence_url": "research/raw/nurtureany-case-studies/video-evidence/mr-fish/evidence.md",
+        "asset_url": "https://www.youtube.com/watch?v=UUFHf8Ct7Y8",
+        "owner": "repo_case_study_catalog"
+      }
     },
     {
       "id": "retrofit",
@@ -143,7 +245,41 @@
       ],
       "pain": "Messy Excel rostering and documents caused attendance visibility gaps and overtime payroll pain.",
       "outcome": "Scheduling, attendance, real-time reports, and PayrollAny helped manage punctuality, overtime, and payroll processing.",
-      "name_drop": "The Wine Company (SG bistro): Excel rostering and overtime pain handled with HRMS, attendance, and PayrollAny."
+      "name_drop": "The Wine Company (SG bistro): Excel rostering and overtime pain handled with HRMS, attendance, and PayrollAny.",
+      "video_url": "https://www.youtube.com/watch?v=1vj8BWEBuC0",
+      "video_id": "1vj8BWEBuC0",
+      "transcript_source": "youtube_auto_english",
+      "transcript_status": "available",
+      "video_evidence_path": "research/raw/nurtureany-case-studies/video-evidence/the-wine-company/evidence.md",
+      "best_use_sales_moments": [
+        "knowledge_touch",
+        "pre_demo",
+        "demo",
+        "post_demo_followup"
+      ],
+      "knowledge_hooks": [
+        {
+          "type": "kns_knowledge",
+          "hook": "Use The Wine Company when the prospect has flexi-work and OT leakage; attendance visibility protects both planning and payroll.",
+          "pain": "Flexi-work shifts, lateness, Excel rosters, overtime, and payroll reports were difficult to track manually.",
+          "outcome": "StaffAny improved punctuality visibility, OT tracking, reporting, and payroll processing in a few clicks.",
+          "best_fit_prospect_pattern": "SG F&B/bar/bistro teams with flexi-work, lateness, overtime, payroll, and Excel rostering pain.",
+          "source_timestamp": "00:00:28-00:01:25",
+          "source_url": "https://www.staffany.com/customer-case-study-the-wine-company-hrms-singapore-hr-software/",
+          "video_url": "https://www.youtube.com/watch?v=1vj8BWEBuC0",
+          "confidence": "verified_public_video"
+        }
+      ],
+      "kns_material": {
+        "material_id": "case-study-video:the-wine-company",
+        "category": "case_study",
+        "status": "approved",
+        "kns_pillar": "Knowledge",
+        "message_hook": "Use The Wine Company when the prospect has flexi-work and OT leakage; attendance visibility protects both planning and payroll.",
+        "source_evidence_url": "research/raw/nurtureany-case-studies/video-evidence/the-wine-company/evidence.md",
+        "asset_url": "https://www.youtube.com/watch?v=1vj8BWEBuC0",
+        "owner": "repo_case_study_catalog"
+      }
     },
     {
       "id": "true-breakfast",
@@ -169,7 +305,41 @@
       ],
       "pain": "Managers used WhatsApp and Google Forms for manual scheduling while operating through Covid restrictions.",
       "outcome": "Scheduling became easier and managers spent less time juggling manual rosters.",
-      "name_drop": "True Breakfast (SG F&B, 2 branches): WhatsApp/Google Forms scheduling replaced by easier roster management."
+      "name_drop": "True Breakfast (SG F&B, 2 branches): WhatsApp/Google Forms scheduling replaced by easier roster management.",
+      "video_url": "https://www.youtube.com/watch?v=ZBGt0mKMJgo",
+      "video_id": "ZBGt0mKMJgo",
+      "transcript_source": "youtube_manual_english",
+      "transcript_status": "available",
+      "video_evidence_path": "research/raw/nurtureany-case-studies/video-evidence/true-breakfast/evidence.md",
+      "best_use_sales_moments": [
+        "knowledge_touch",
+        "pre_demo",
+        "demo",
+        "post_demo_followup"
+      ],
+      "knowledge_hooks": [
+        {
+          "type": "kns_knowledge",
+          "hook": "Use True Breakfast when a smaller F&B operator is still using manual schedules; fewer duplicate shifts plus easier attendance visibility is the Knowledge point.",
+          "pain": "Manual scheduling created duplicate-shift risk and made attendance harder to monitor remotely.",
+          "outcome": "StaffAny made scheduling faster and attendance easier to monitor, including late/no-arrival visibility.",
+          "best_fit_prospect_pattern": "SG small/mid F&B operators with manual scheduling, duplicate shifts, and attendance visibility pain.",
+          "source_timestamp": "00:00:01-00:00:33",
+          "source_url": "https://www.staffany.com/customer-case-study-true-breakfast/",
+          "video_url": "https://www.youtube.com/watch?v=ZBGt0mKMJgo",
+          "confidence": "verified_public_video"
+        }
+      ],
+      "kns_material": {
+        "material_id": "case-study-video:true-breakfast",
+        "category": "case_study",
+        "status": "approved",
+        "kns_pillar": "Knowledge",
+        "message_hook": "Use True Breakfast when a smaller F&B operator is still using manual schedules; fewer duplicate shifts plus easier attendance visibility is the Knowledge point.",
+        "source_evidence_url": "research/raw/nurtureany-case-studies/video-evidence/true-breakfast/evidence.md",
+        "asset_url": "https://www.youtube.com/watch?v=ZBGt0mKMJgo",
+        "owner": "repo_case_study_catalog"
+      }
     },
     {
       "id": "ya-kun",
@@ -370,7 +540,41 @@
       ],
       "pain": "Growing kiosk headcount made communication and scheduling increasingly time-consuming.",
       "outcome": "Scheduling time dropped from about 3 hours to 1 hour, with QR attendance and team communication support.",
-      "name_drop": "Foreword Coffee (SG, 4 outlets): scheduling reduced from about 3 hours to 1 hour with QR attendance."
+      "name_drop": "Foreword Coffee (SG, 4 outlets): scheduling reduced from about 3 hours to 1 hour with QR attendance.",
+      "video_url": "https://www.youtube.com/watch?v=zZOyxPZoik4",
+      "video_id": "zZOyxPZoik4",
+      "transcript_source": "youtube_auto_english",
+      "transcript_status": "available",
+      "video_evidence_path": "research/raw/nurtureany-case-studies/video-evidence/foreword-coffee/evidence.md",
+      "best_use_sales_moments": [
+        "knowledge_touch",
+        "pre_demo",
+        "demo",
+        "post_demo_followup"
+      ],
+      "knowledge_hooks": [
+        {
+          "type": "kns_knowledge",
+          "hook": "Use Foreword Coffee when a mission-led F&B prospect cares about adoption; QR clock-in can be simple enough for diverse frontline teams.",
+          "pain": "Expansion increased employee count and made scheduling across the company harder.",
+          "outcome": "StaffAny reduced scheduling time from about three hours to one hour and made QR clock-in intuitive for an inclusive workforce.",
+          "best_fit_prospect_pattern": "SG coffee/social-enterprise or inclusive employers with multi-outlet scheduling and adoption concerns.",
+          "source_timestamp": "00:00:03-00:01:34",
+          "source_url": "https://www.staffany.com/customers-foreword-coffee/",
+          "video_url": "https://www.youtube.com/watch?v=zZOyxPZoik4",
+          "confidence": "verified_public_video"
+        }
+      ],
+      "kns_material": {
+        "material_id": "case-study-video:foreword-coffee",
+        "category": "case_study",
+        "status": "approved",
+        "kns_pillar": "Knowledge",
+        "message_hook": "Use Foreword Coffee when a mission-led F&B prospect cares about adoption; QR clock-in can be simple enough for diverse frontline teams.",
+        "source_evidence_url": "research/raw/nurtureany-case-studies/video-evidence/foreword-coffee/evidence.md",
+        "asset_url": "https://www.youtube.com/watch?v=zZOyxPZoik4",
+        "owner": "repo_case_study_catalog"
+      }
     },
     {
       "id": "kiosks-collective",
@@ -571,7 +775,41 @@
       ],
       "pain": "Collecting punch cards and calculating hours across six outlets took nearly two days and delayed attendance visibility.",
       "outcome": "Scheduling and real-time attendance helped HR manage six outlets in one platform; announcements reduced outlet visits.",
-      "name_drop": "Belly & The Chef (MY F&B, 6 outlets): punch-card collection to one-platform scheduling and real-time attendance."
+      "name_drop": "Belly & The Chef (MY F&B, 6 outlets): punch-card collection to one-platform scheduling and real-time attendance.",
+      "video_url": "https://www.youtube.com/watch?v=kWZWrgESI7w",
+      "video_id": "kWZWrgESI7w",
+      "transcript_source": "transcripts_disabled",
+      "transcript_status": "blocked",
+      "video_evidence_path": "research/raw/nurtureany-case-studies/video-evidence/belly-and-the-chef/evidence.md",
+      "best_use_sales_moments": [
+        "knowledge_touch",
+        "pre_demo",
+        "demo",
+        "post_demo_followup"
+      ],
+      "knowledge_hooks": [
+        {
+          "type": "kns_knowledge",
+          "hook": "Use Belly & The Chef when a Malaysia F&B group is still collecting punch cards; one platform can replace outlet-by-outlet attendance admin.",
+          "pain": "Punch-card collection, leave/MC handling, announcements, and attendance visibility were hard to control across six outlets.",
+          "outcome": "The public case page positions StaffAny as one-platform scheduling and real-time attendance support for the group.",
+          "best_fit_prospect_pattern": "MY F&B groups with multi-outlet punch-card, leave, MC, announcement, or real-time attendance pain.",
+          "source_timestamp": "page evidence; video captions disabled",
+          "source_url": "https://www.staffany.my/customer-case-study-belly-and-the-chef/",
+          "video_url": "https://www.youtube.com/watch?v=kWZWrgESI7w",
+          "confidence": "needs-check"
+        }
+      ],
+      "kns_material": {
+        "material_id": "case-study-video:belly-and-the-chef",
+        "category": "case_study",
+        "status": "needs-check",
+        "kns_pillar": "Knowledge",
+        "message_hook": "Use Belly & The Chef when a Malaysia F&B group is still collecting punch cards; one platform can replace outlet-by-outlet attendance admin.",
+        "source_evidence_url": "research/raw/nurtureany-case-studies/video-evidence/belly-and-the-chef/evidence.md",
+        "asset_url": "https://www.youtube.com/watch?v=kWZWrgESI7w",
+        "owner": "repo_case_study_catalog"
+      }
     },
     {
       "id": "dreamus-group",
@@ -628,7 +866,41 @@
       ],
       "pain": "Old system had access restrictions, slow web workflows, hardware needs, and manual HR admin.",
       "outcome": "Centralised data, automated scheduling, attendance, leave, and reporting helped streamline HR operations.",
-      "name_drop": "Keisuke (SG Japanese chain): old system/hardware pain improved with centralised HR data and automated scheduling."
+      "name_drop": "Keisuke (SG Japanese chain): old system/hardware pain improved with centralised HR data and automated scheduling.",
+      "video_url": "https://www.youtube.com/watch?v=izFpndBfMf4",
+      "video_id": "izFpndBfMf4",
+      "transcript_source": "transcripts_disabled",
+      "transcript_status": "blocked",
+      "video_evidence_path": "research/raw/nurtureany-case-studies/video-evidence/keisuke/evidence.md",
+      "best_use_sales_moments": [
+        "knowledge_touch",
+        "pre_demo",
+        "demo",
+        "post_demo_followup"
+      ],
+      "knowledge_hooks": [
+        {
+          "type": "kns_knowledge",
+          "hook": "Use Keisuke when a restaurant chain is trapped by old systems/hardware; centralised HR data matters once outlets and business lines multiply.",
+          "pain": "Old system/hardware pain and manual admin made multi-location scheduling and HR data hard to manage.",
+          "outcome": "The public case page says StaffAny improved centralised HR data and automated scheduling.",
+          "best_fit_prospect_pattern": "SG restaurant chains with old-system, hardware, leave, attendance, centralised data, or multi-business admin pain.",
+          "source_timestamp": "page evidence; video captions disabled",
+          "source_url": "https://www.staffany.com/customer-case-study-keisuke-singapore/",
+          "video_url": "https://www.youtube.com/watch?v=izFpndBfMf4",
+          "confidence": "needs-check"
+        }
+      ],
+      "kns_material": {
+        "material_id": "case-study-video:keisuke",
+        "category": "case_study",
+        "status": "needs-check",
+        "kns_pillar": "Knowledge",
+        "message_hook": "Use Keisuke when a restaurant chain is trapped by old systems/hardware; centralised HR data matters once outlets and business lines multiply.",
+        "source_evidence_url": "research/raw/nurtureany-case-studies/video-evidence/keisuke/evidence.md",
+        "asset_url": "https://www.youtube.com/watch?v=izFpndBfMf4",
+        "owner": "repo_case_study_catalog"
+      }
     },
     {
       "id": "kongsee",
@@ -683,7 +955,41 @@
       ],
       "pain": "Paper punch cards and manual Excel entries made payroll accuracy and work-hour tracking difficult.",
       "outcome": "Automated time tracking improved payroll accuracy and the case estimates about 15% labour-cost savings.",
-      "name_drop": "Paan KL (MY restaurant): paper/Excel time tracking moved to automated attendance, about 15% labour-cost saving."
+      "name_drop": "Paan KL (MY restaurant): paper/Excel time tracking moved to automated attendance, about 15% labour-cost saving.",
+      "video_url": "https://www.youtube.com/watch?v=PzEBLWoWBgE",
+      "video_id": "PzEBLWoWBgE",
+      "transcript_source": "youtube_auto_english",
+      "transcript_status": "available",
+      "video_evidence_path": "research/raw/nurtureany-case-studies/video-evidence/paan-kl/evidence.md",
+      "best_use_sales_moments": [
+        "knowledge_touch",
+        "pre_demo",
+        "demo",
+        "post_demo_followup"
+      ],
+      "knowledge_hooks": [
+        {
+          "type": "kns_knowledge",
+          "hook": "Use Paan KL when a restaurant asks for ROI; accurate geotracked attendance can show direct labour-cost impact.",
+          "pain": "Paper hour tracking made accurate staff payment and part-timer payroll difficult.",
+          "outcome": "Geotracked clock-in/out saved payroll time and was estimated to save about 15% in part-time labour cost.",
+          "best_fit_prospect_pattern": "MY restaurant teams with paper hours, part-timer payroll, attendance accuracy, or labour-cost control pain.",
+          "source_timestamp": "00:00:01-00:01:24",
+          "source_url": "https://www.staffany.my/customer-case-study-paan-kl/",
+          "video_url": "https://www.youtube.com/watch?v=PzEBLWoWBgE",
+          "confidence": "verified_public_video"
+        }
+      ],
+      "kns_material": {
+        "material_id": "case-study-video:paan-kl",
+        "category": "case_study",
+        "status": "approved",
+        "kns_pillar": "Knowledge",
+        "message_hook": "Use Paan KL when a restaurant asks for ROI; accurate geotracked attendance can show direct labour-cost impact.",
+        "source_evidence_url": "research/raw/nurtureany-case-studies/video-evidence/paan-kl/evidence.md",
+        "asset_url": "https://www.youtube.com/watch?v=PzEBLWoWBgE",
+        "owner": "repo_case_study_catalog"
+      }
     },
     {
       "id": "pastago",
@@ -742,7 +1048,108 @@
       ],
       "pain": "Scheduling and payroll for 220 staff across outlets took days using manual methods.",
       "outcome": "Manual scheduling/payroll work became a faster, more efficient HR process across Braud locations.",
-      "name_drop": "Braud Group (ID bakery/cafe, 3 outlets/220 staff): scheduling/payroll went from days of manual work to faster HR ops."
+      "name_drop": "Braud Group (ID bakery/cafe, 3 outlets/220 staff): scheduling/payroll went from days of manual work to faster HR ops.",
+      "video_url": "https://www.youtube.com/watch?v=skMvLEwpOHE",
+      "video_id": "skMvLEwpOHE",
+      "transcript_source": "youtube_auto_indonesian_translated_en",
+      "transcript_status": "available_translated_en",
+      "video_evidence_path": "research/raw/nurtureany-case-studies/video-evidence/braud-group/evidence.md",
+      "best_use_sales_moments": [
+        "knowledge_touch",
+        "pre_demo",
+        "demo",
+        "post_demo_followup"
+      ],
+      "knowledge_hooks": [
+        {
+          "type": "kns_knowledge",
+          "hook": "Use Braud Group when an Indonesian bakery/cafe group is scaling across cities; HR admin can drop from days to hours with the right workforce system.",
+          "pain": "Manual scheduling and payroll control for about 220 staff across Bali and Jakarta took days.",
+          "outcome": "StaffAny helped attendance, leave requests, payroll, scheduling, and HR communication, reducing work to about one to two hours.",
+          "best_fit_prospect_pattern": "ID bakery/cafe/F&B groups with 200+ staff, cross-city outlets, scheduling, payroll, leave, or HR communication pain.",
+          "source_timestamp": "00:00:02-00:02:11",
+          "source_url": "https://www.staffany.com/customer-case-study-braud-group/",
+          "video_url": "https://www.youtube.com/watch?v=skMvLEwpOHE",
+          "confidence": "verified_public_video"
+        }
+      ],
+      "kns_material": {
+        "material_id": "case-study-video:braud-group",
+        "category": "case_study",
+        "status": "approved",
+        "kns_pillar": "Knowledge",
+        "message_hook": "Use Braud Group when an Indonesian bakery/cafe group is scaling across cities; HR admin can drop from days to hours with the right workforce system.",
+        "source_evidence_url": "research/raw/nurtureany-case-studies/video-evidence/braud-group/evidence.md",
+        "asset_url": "https://www.youtube.com/watch?v=skMvLEwpOHE",
+        "owner": "repo_case_study_catalog"
+      }
+    },
+    {
+      "id": "suwe-ora-jamu",
+      "customer": "Suwe Ora Jamu",
+      "approved_for_name_drops": true,
+      "approval_basis": "published_staffany_public_customers_page_video",
+      "country": "Indonesia",
+      "market": "ID",
+      "industry": "F&B - traditional jamu and cafe",
+      "size": "Founded 2013, expanding through Indonesia",
+      "primary_url": "https://www.staffany.com/customers/",
+      "alt_urls": [
+        "https://www.youtube.com/watch?v=mwBuSiHysAI"
+      ],
+      "match_tags": [
+        "fnb",
+        "beverage",
+        "jamu",
+        "indonesia",
+        "jakarta",
+        "smb",
+        "startup",
+        "umkm",
+        "hr",
+        "manual-process",
+        "affordable",
+        "scheduling",
+        "attendance",
+        "budget-sensitive"
+      ],
+      "pain": "Manual HRD work was harder for an Indonesian SMB/startup F&B business.",
+      "outcome": "StaffAny made HR work easier and was positioned as useful, affordable HR support for startups and UMKM.",
+      "name_drop": "Suwe Ora Jamu (ID F&B - traditional jamu and cafe): StaffAny made HR work easier and was positioned as useful, affordable HR support for startups and UMKM.",
+      "video_url": "https://www.youtube.com/watch?v=mwBuSiHysAI",
+      "video_id": "mwBuSiHysAI",
+      "transcript_source": "youtube_auto_indonesian_translated_en",
+      "transcript_status": "available_translated_en",
+      "video_evidence_path": "research/raw/nurtureany-case-studies/video-evidence/suwe-ora-jamu/evidence.md",
+      "best_use_sales_moments": [
+        "knowledge_touch",
+        "pre_demo",
+        "demo",
+        "post_demo_followup"
+      ],
+      "knowledge_hooks": [
+        {
+          "type": "kns_knowledge",
+          "hook": "Use Suwe Ora Jamu when an Indonesian SMB says HR software sounds expensive; affordable HR workflow can replace manual HRD work without enterprise complexity.",
+          "pain": "Manual HRD work was harder for an Indonesian SMB/startup F&B business.",
+          "outcome": "StaffAny made HR work easier and was positioned as useful, affordable HR support for startups and UMKM.",
+          "best_fit_prospect_pattern": "ID SMB/startup F&B, beverage, cafe, or UMKM operators with manual HR admin and budget sensitivity.",
+          "source_timestamp": "00:00:00-00:01:01",
+          "source_url": "https://www.staffany.com/customers/",
+          "video_url": "https://www.youtube.com/watch?v=mwBuSiHysAI",
+          "confidence": "verified_public_video"
+        }
+      ],
+      "kns_material": {
+        "material_id": "case-study-video:suwe-ora-jamu",
+        "category": "case_study",
+        "status": "approved",
+        "kns_pillar": "Knowledge",
+        "message_hook": "Use Suwe Ora Jamu when an Indonesian SMB says HR software sounds expensive; affordable HR workflow can replace manual HRD work without enterprise complexity.",
+        "source_evidence_url": "research/raw/nurtureany-case-studies/video-evidence/suwe-ora-jamu/evidence.md",
+        "asset_url": "https://www.youtube.com/watch?v=mwBuSiHysAI",
+        "owner": "repo_case_study_catalog"
+      }
     },
     {
       "id": "bmc-ah-hua-kelong-scaled",

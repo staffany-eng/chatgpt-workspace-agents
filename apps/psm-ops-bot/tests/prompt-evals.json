@@ -191,6 +191,141 @@
       }
     },
     {
+      "id": "psm-tooltrace-not-ticketed-create-ready-offer",
+      "bot": "PSM Ops Hermes Bot",
+      "surface": "slack:#team-rev-account-management",
+      "lane": "tool-trace",
+      "input": "@PS Wee Manager is this already ticketed? Thread context: Nathania from Ren Bakery keeps having app errors/lag, is frustrated, and mentioned churn risk.",
+      "setup": {
+        "after_user_request": true,
+        "stub_tools": true,
+        "stub_result": "search_pco_tickets returns resolution=not_found"
+      },
+      "expected_tool_trace": {
+        "must_call": [
+          "search_pco_tickets"
+        ],
+        "must_not_call": [
+          "create_ps_wee_intake_ticket",
+          "draft_pco_task",
+          "create_approved_pco_task"
+        ],
+        "argument_shape": {
+          "query_contains_thread_context": true,
+          "not_found_returns_create_ready_offer": true,
+          "ticket_seed_contains_customer_issue_impact_evidence": true
+        }
+      },
+      "expected_answer_contract": {
+        "must_include": [
+          "Answer: Not ticketed yet.",
+          "Ticket seed:",
+          "Reply \"create ticket\" to open the PS WEE intake ticket.",
+          "Source: Jira PCO",
+          "Confidence: verified",
+          "Caveat:"
+        ],
+        "must_not_include": [
+          "full keyword search"
+        ]
+      },
+      "forbidden_behavior": [
+        "create ticket from a tracking-status question",
+        "answer not ticketed from exact Slack permalink lookup alone",
+        "offer a fresh ticket when search_pco_tickets returns candidates",
+        "use Customer 360 as task truth"
+      ],
+      "grade_notes": "A not-found PCO tracking check should become create-ready but not auto-create.",
+      "assertions": {
+        "source_files": [
+          {
+            "path": "profile/SOUL.md",
+            "must_contain": [
+              "Reply \"create ticket\" to open the PS WEE intake ticket.",
+              "Say `bounded keyword search`, never `full keyword search`."
+            ]
+          },
+          {
+            "path": "runtime/slack.md",
+            "must_contain": [
+              "If `search_pco_tickets` returns `not_found` for a tracking-status question, do not auto-create.",
+              "compact ticket seed: customer, issue, impact/risk, and evidence/source thread"
+            ]
+          },
+          {
+            "path": "tests/regression-cases.md",
+            "must_contain": [
+              "PS WEE Not Ticketed Create-Ready Offer",
+              "Does not call `create_ps_wee_intake_ticket`, `draft_pco_task`, or `create_approved_pco_task` for the tracking-status question."
+            ]
+          }
+        ],
+        "answer_fixture": {
+          "output": "Answer: Not ticketed yet. I searched the current Slack thread permalink and bounded keyword search candidates in Jira PCO.\nTicket seed: Customer: Ren Bakery. Issue: recurring app errors/lag reported by Nathania. Impact/risk: churn risk. Evidence: current Slack thread.\nReply \"create ticket\" to open the PS WEE intake ticket.\nSource: Jira PCO\nScope: current Slack thread; ticket status check\nConfidence: verified\nCaveat: I did not create a ticket because this was a tracking-status question, not a create/log/file request."
+        }
+      }
+    },
+    {
+      "id": "psm-tooltrace-create-ready-followup-approval",
+      "bot": "PSM Ops Hermes Bot",
+      "surface": "slack:#team-rev-account-management",
+      "lane": "tool-trace",
+      "input": "Previous same-thread bot reply was a create-ready offer for Ren Bakery with ticket seed: Nathania reported recurring app errors/lag and churn risk. User replies: yes, create it",
+      "setup": {
+        "after_create_ready_offer": true,
+        "stub_tools": true
+      },
+      "expected_tool_trace": {
+        "must_call": [
+          "find_ticket_by_slack_thread",
+          "search_pco_tickets",
+          "create_ps_wee_intake_ticket"
+        ],
+        "must_not_call": [
+          "draft_pco_task",
+          "create_approved_pco_task"
+        ],
+        "argument_shape": {
+          "uses_prior_ticket_seed": true,
+          "customer": "Ren Bakery",
+          "contact_or_evidence_person": "Nathania",
+          "issue_contains": "recurring app errors/lag",
+          "impact_contains": "churn risk",
+          "slack_thread_permalink": "required"
+        }
+      },
+      "expected_answer_contract": {
+        "must_include": [
+          "Source: Jira PCO",
+          "Confidence:"
+        ]
+      },
+      "forbidden_behavior": [
+        "ask do you want me to log a ticket",
+        "drop prior ticket seed facts",
+        "draft instead of ticket-first intake"
+      ],
+      "grade_notes": "A same-thread yes/create response after a create-ready offer is explicit PS WEE ticketing approval.",
+      "assertions": {
+        "source_files": [
+          {
+            "path": "profile/SOUL.md",
+            "must_contain": [
+              "If the user replies in the same thread with `create ticket`, `open ticket`, `log it`, or `yes, create it` after a create-ready offer",
+              "passing the prior ticket seed facts so the Jira tool asks only missing fields"
+            ]
+          },
+          {
+            "path": "skills/psm-ops-bot/SKILL.md",
+            "must_contain": [
+              "If the user replies in the same thread with `create ticket`, `open ticket`, `log it`, or `yes, create it` after a create-ready offer",
+              "pass the prior ticket seed facts so the tool asks only missing fields"
+            ]
+          }
+        ]
+      }
+    },
+    {
       "id": "psm-tooltrace-tomoro-compact-missing-info",
       "bot": "PSM Ops Hermes Bot",
       "surface": "slack:#all-ps",

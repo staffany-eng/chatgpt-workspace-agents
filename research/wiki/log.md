@@ -137,3 +137,7 @@ Ingested official ElevenLabs public docs and articles covering Scribe v2, Scribe
 ## [2026-05-15] synthesis | ElevenLabs Voice For Call Coaching
 
 Synthesized ElevenLabs voice-stack evidence into NurtureAny call-coaching architecture guidance: ElevenLabs is future/alternative technical evidence only, not a current provider, integration, source of truth, or live-call access proof.
+
+## [2026-05-16] ingest | StaffAny Public Customer Case-Study Videos
+
+Added extracted evidence for 11 public StaffAny customer/case-study videos into the NurtureAny case-study corpus and KNS Knowledge material reference. Stored metadata, transcripts where captions were available, representative thumbnails/keyframe pointers, timestamped evidence bullets, and KNS Knowledge hooks. Keisuke and Belly & The Chef are recorded as transcript-blocked because YouTube reports captions disabled; full MP4/audio files were not archived.

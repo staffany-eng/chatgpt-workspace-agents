@@ -786,9 +786,18 @@ def _extract_first(patterns: list[str], haystack: str, flags: int = re.IGNORECAS
 
 
 def _extract_rating(haystack: str) -> int | None:
-    star_tokens = re.findall(r":star:|★|⭐", haystack, flags=re.IGNORECASE)
-    if star_tokens:
-        return len(star_tokens)
+    star_counts: list[int] = []
+    text = str(haystack or "")
+    for match in re.findall(r"(?:[★☆⭐]\s*){1,5}", text):
+        count = len(re.findall(r"★|⭐", match))
+        if count:
+            star_counts.append(count)
+    for match in re.findall(r"(?:(?::star:)\s*){1,5}", text, flags=re.IGNORECASE):
+        count = len(re.findall(r":star:", match, flags=re.IGNORECASE))
+        if count:
+            star_counts.append(count)
+    if star_counts:
+        return min(5, max(star_counts))
     numeric = _extract_first([r"(?:rating|stars?)\D{0,12}([1-5])(?:\s*/\s*5|\s+stars?)?"], haystack)
     if numeric:
         return int(numeric)

@@ -294,6 +294,20 @@ class PsmAppFollowServerTest(unittest.TestCase):
         self.assertEqual(classification["theme"], "clock_in")
         self.assertEqual(classification["severity"], "high")
 
+    def test_slack_alert_parser_does_not_sum_duplicate_star_blocks(self):
+        alert = sample_slack_alert()
+        alert["attachments"][0]["fallback"] = (
+            "StaffAny Employee Scheduling (App Store)★★★ MY v1.164.0 Missing Store Clock-In Section"
+        )
+        alert["attachments"][0]["text"] = (
+            "★★★☆☆ :flag-my: Malaysia *Missing Store Clock-In Section*\n"
+            "Hi, I cannot see the store clock-in section."
+        )
+        with patch.dict(os.environ, {"PSM_OPS_APPFOLLOW_APP_EXT_IDS": '{"app_store:staffany":"1038369065"}'}, clear=False):
+            extracted = self.core.extract_appfollow_review_from_slack_message(alert)
+
+        self.assertEqual(extracted["rating"], 3)
+
     def test_slack_alert_parser_supports_default_collection_name(self):
         env = {
             "PSM_OPS_APPFOLLOW_APP_EXT_IDS": "",

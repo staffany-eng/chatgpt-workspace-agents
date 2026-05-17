@@ -1,0 +1,49 @@
+{
+  "case_id": "the-wine-company",
+  "customer": "The Wine Company",
+  "market": "SG",
+  "country": "Singapore",
+  "industry": "F&B - wine bar and bistro",
+  "size": "20-year Singapore brand",
+  "page_url": "https://www.staffany.com/customer-case-study-the-wine-company-hrms-singapore-hr-software/",
+  "video_url": "https://www.youtube.com/watch?v=1vj8BWEBuC0",
+  "video_id": "1vj8BWEBuC0",
+  "source_language": "en",
+  "translation_language": "",
+  "transcript_source": "youtube_auto_english",
+  "transcript_status": "available",
+  "transcript_path": "research/raw/nurtureany-case-studies/video-evidence/the-wine-company/transcript.md",
+  "keyframes": [
+    "research/raw/nurtureany-case-studies/video-evidence/the-wine-company/keyframes/cover.jpg"
+  ],
+  "evidence_path": "research/raw/nurtureany-case-studies/video-evidence/the-wine-company/evidence.md",
+  "full_video_archived": false,
+  "full_video_archive_policy": "not archived; YouTube URL retained as canonical public video source",
+  "blocker": "",
+  "knowledge_hooks": [
+    {
+      "type": "kns_knowledge",
+      "hook": "Use The Wine Company when the prospect has flexi-work and OT leakage; attendance visibility protects both planning and payroll.",
+      "pain": "Flexi-work shifts, lateness, Excel rosters, overtime, and payroll reports were difficult to track manually.",
+      "outcome": "StaffAny improved punctuality visibility, OT tracking, reporting, and payroll processing in a few clicks.",
+      "best_fit_prospect_pattern": "SG F&B/bar/bistro teams with flexi-work, lateness, overtime, payroll, and Excel rostering pain.",
+      "source_timestamp": "00:00:28-00:01:25",
+      "source_url": "https://www.staffany.com/customer-case-study-the-wine-company-hrms-singapore-hr-software/",
+      "video_url": "https://www.youtube.com/watch?v=1vj8BWEBuC0",
+      "confidence": "verified_public_video"
+    }
+  ],
+  "kns_material_row": {
+    "material_id": "case-study-video:the-wine-company",
+    "status": "approved",
+    "title": "The Wine Company public video case study",
+    "kns_pillar": "Knowledge",
+    "pillar_summary": "Use The Wine Company when the prospect has flexi-work and OT leakage; attendance visibility protects both planning and payroll.",
+    "buyer_value": "StaffAny improved punctuality visibility, OT tracking, reporting, and payroll processing in a few clicks.",
+    "ae_use_case": "knowledge_touch, pre_demo, nurture, case_study_proof",
+    "message_hook": "Use The Wine Company when the prospect has flexi-work and OT leakage; attendance visibility protects both planning and payroll.",
+    "source_evidence_url": "research/raw/nurtureany-case-studies/video-evidence/the-wine-company/evidence.md",
+    "asset_url": "https://www.youtube.com/watch?v=1vj8BWEBuC0",
+    "owner": "repo_case_study_catalog"
+  }
+}
