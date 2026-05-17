@@ -1,0 +1,49 @@
+{
+  "case_id": "belly-and-the-chef",
+  "customer": "Belly & The Chef",
+  "market": "MY",
+  "country": "Malaysia",
+  "industry": "F&B - restaurant group",
+  "size": "6 outlets",
+  "page_url": "https://www.staffany.my/customer-case-study-belly-and-the-chef/",
+  "video_url": "https://www.youtube.com/watch?v=kWZWrgESI7w",
+  "video_id": "kWZWrgESI7w",
+  "source_language": "unknown",
+  "translation_language": "",
+  "transcript_source": "transcripts_disabled",
+  "transcript_status": "blocked",
+  "transcript_path": "research/raw/nurtureany-case-studies/video-evidence/belly-and-the-chef/transcript.md",
+  "keyframes": [
+    "research/raw/nurtureany-case-studies/video-evidence/belly-and-the-chef/keyframes/cover.jpg"
+  ],
+  "evidence_path": "research/raw/nurtureany-case-studies/video-evidence/belly-and-the-chef/evidence.md",
+  "full_video_archived": false,
+  "full_video_archive_policy": "not archived; YouTube URL retained as canonical public video source",
+  "blocker": "YouTube reports transcripts disabled. ASR/audio archival not added in this KNS material pass.",
+  "knowledge_hooks": [
+    {
+      "type": "kns_knowledge",
+      "hook": "Use Belly & The Chef when a Malaysia F&B group is still collecting punch cards; one platform can replace outlet-by-outlet attendance admin.",
+      "pain": "Punch-card collection, leave/MC handling, announcements, and attendance visibility were hard to control across six outlets.",
+      "outcome": "The public case page positions StaffAny as one-platform scheduling and real-time attendance support for the group.",
+      "best_fit_prospect_pattern": "MY F&B groups with multi-outlet punch-card, leave, MC, announcement, or real-time attendance pain.",
+      "source_timestamp": "page evidence; video captions disabled",
+      "source_url": "https://www.staffany.my/customer-case-study-belly-and-the-chef/",
+      "video_url": "https://www.youtube.com/watch?v=kWZWrgESI7w",
+      "confidence": "needs-check"
+    }
+  ],
+  "kns_material_row": {
+    "material_id": "case-study-video:belly-and-the-chef",
+    "status": "needs-check",
+    "title": "Belly & The Chef public video case study",
+    "kns_pillar": "Knowledge",
+    "pillar_summary": "Use Belly & The Chef when a Malaysia F&B group is still collecting punch cards; one platform can replace outlet-by-outlet attendance admin.",
+    "buyer_value": "The public case page positions StaffAny as one-platform scheduling and real-time attendance support for the group.",
+    "ae_use_case": "knowledge_touch, pre_demo, nurture, case_study_proof",
+    "message_hook": "Use Belly & The Chef when a Malaysia F&B group is still collecting punch cards; one platform can replace outlet-by-outlet attendance admin.",
+    "source_evidence_url": "research/raw/nurtureany-case-studies/video-evidence/belly-and-the-chef/evidence.md",
+    "asset_url": "https://www.youtube.com/watch?v=kWZWrgESI7w",
+    "owner": "repo_case_study_catalog"
+  }
+}

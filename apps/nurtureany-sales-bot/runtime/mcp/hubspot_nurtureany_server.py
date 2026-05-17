@@ -8262,12 +8262,60 @@ def _pre_demo_case_study_matches(context: dict[str, Any]) -> list[dict[str, Any]
                 "industry": case.get("industry"),
                 "summary": case.get("name_drop"),
                 "source_url": case.get("primary_url"),
+                "video_url": case.get("video_url"),
+                "video_id": case.get("video_id"),
+                "transcript_source": case.get("transcript_source"),
+                "transcript_status": case.get("transcript_status"),
+                "video_evidence_path": case.get("video_evidence_path"),
+                "knowledge_hooks": case.get("knowledge_hooks") if isinstance(case.get("knowledge_hooks"), list) else [],
+                "kns_material": case.get("kns_material") if isinstance(case.get("kns_material"), dict) else {},
                 "match_score": score,
                 "match_reasons": reasons,
             }
         )
     matches.sort(key=lambda match: (-_int_value(match.get("match_score")), str(match.get("customer") or "")))
     return matches[:CASE_STUDY_MATCH_LIMIT]
+
+
+def _pre_demo_kns_knowledge_hooks(context: dict[str, Any]) -> list[dict[str, Any]]:
+    hooks: list[dict[str, Any]] = []
+    for case in _load_case_study_catalog():
+        if case.get("approved_for_name_drops") is not True:
+            continue
+        score, reasons = _case_study_score(case, context)
+        if score < CASE_STUDY_MIN_MATCH_SCORE:
+            continue
+        case_hooks = case.get("knowledge_hooks")
+        if not isinstance(case_hooks, list):
+            continue
+        for hook in case_hooks:
+            if not isinstance(hook, dict) or not hook.get("hook"):
+                continue
+            confidence = str(hook.get("confidence") or "needs-check")
+            rank_score = score if confidence == "verified_public_video" else score - 100
+            hooks.append(
+                {
+                    "customer": case.get("customer"),
+                    "hook": hook.get("hook"),
+                    "pain": hook.get("pain"),
+                    "outcome": hook.get("outcome"),
+                    "best_fit_prospect_pattern": hook.get("best_fit_prospect_pattern"),
+                    "source_timestamp": hook.get("source_timestamp"),
+                    "source_url": hook.get("source_url") or case.get("primary_url"),
+                    "video_url": hook.get("video_url") or case.get("video_url"),
+                    "video_id": case.get("video_id"),
+                    "transcript_status": case.get("transcript_status"),
+                    "video_evidence_path": case.get("video_evidence_path"),
+                    "confidence": confidence,
+                    "match_score": score,
+                    "match_reasons": reasons,
+                    "_rank_score": rank_score,
+                }
+            )
+    hooks.sort(key=lambda hook: (-_int_value(hook.get("_rank_score")), str(hook.get("customer") or "")))
+    for hook in hooks:
+        hook.pop("_rank_score", None)
+    return hooks[:CASE_STUDY_MATCH_LIMIT]
 
 
 def _case_study_sales_moment_allowed(case: dict[str, Any], sales_moment: str) -> bool:
@@ -8317,6 +8365,13 @@ def _sales_case_study_matches(context: dict[str, Any], sales_moment: str = "", l
                 "pain": case.get("pain"),
                 "outcome": case.get("outcome"),
                 "source_url": case.get("primary_url"),
+                "video_url": case.get("video_url"),
+                "video_id": case.get("video_id"),
+                "transcript_source": case.get("transcript_source"),
+                "transcript_status": case.get("transcript_status"),
+                "video_evidence_path": case.get("video_evidence_path"),
+                "knowledge_hooks": case.get("knowledge_hooks") if isinstance(case.get("knowledge_hooks"), list) else [],
+                "kns_material": case.get("kns_material") if isinstance(case.get("kns_material"), dict) else {},
                 "source_type": case.get("source_type") or "published_customer_story",
                 "approval_basis": case.get("approval_basis"),
                 "best_use_sales_moments": case.get("best_use_sales_moments", []),
@@ -8568,21 +8623,34 @@ def _case_study_materials(context: dict[str, Any]) -> list[dict[str, Any]]:
     materials = []
     for match in _pre_demo_case_study_matches(context):
         title = str(match.get("customer") or "case study").strip()
+        hooks = [hook for hook in (match.get("knowledge_hooks") or []) if isinstance(hook, dict) and hook.get("hook")]
+        hook = hooks[0] if hooks else {}
+        kns_material = match.get("kns_material") if isinstance(match.get("kns_material"), dict) else {}
+        message_hook = hook.get("hook") or match.get("summary") or ""
         materials.append(
             {
-                "material_id": f"case-study:{_normalize_name(title) or hashlib.sha256(title.encode('utf-8')).hexdigest()[:8]}",
+                "material_id": kns_material.get("material_id")
+                or f"case-study:{_normalize_name(title) or hashlib.sha256(title.encode('utf-8')).hexdigest()[:8]}",
                 "category": "case_study",
                 "title": title,
-                "url": match.get("source_url") or "",
+                "url": match.get("video_url") or match.get("source_url") or "",
                 "status": "approved",
                 "country_scope": match.get("country") or "",
                 "industry_tags": match.get("industry") or "",
-                "concept_tags": "case study, same industry",
+                "concept_tags": "case study, same industry, knowledge",
                 "persona_tags": "",
                 "template_name": DAILY_NURTURE_DEFAULT_TEMPLATE_NAME,
                 "template_params_schema": list(DAILY_NURTURE_DEFAULT_TEMPLATE_SCHEMA),
-                "message_hook": match.get("summary") or "",
+                "message_hook": message_hook,
                 "owner": "repo_case_study_catalog",
+                "kns_pillar": "Knowledge",
+                "pillar_summary": message_hook,
+                "buyer_value": hook.get("outcome") or match.get("summary") or "",
+                "ae_use_case": "knowledge_touch, pre_demo, nurture, case_study_proof",
+                "source_evidence_url": match.get("video_evidence_path") or match.get("source_url") or "",
+                "asset_url": match.get("video_url") or match.get("source_url") or "",
+                "talk_track": hook.get("best_fit_prospect_pattern") or "Use as a source-backed Knowledge proof point.",
+                "transcript_status": match.get("transcript_status") or "",
                 "match_reasons": match.get("match_reasons") or [],
                 "match_score": match.get("match_score") or 0,
             }
@@ -9512,6 +9580,7 @@ def _build_pre_demo_game_plan_row(
         "what_to_show_to_win": _pre_demo_show_to_win(context),
         "relevant_name_drops": _pre_demo_case_study_name_drops(context),
         "case_study_matches": _pre_demo_case_study_matches(context),
+        "kns_knowledge_hooks": _pre_demo_kns_knowledge_hooks(context),
         "game_plan_a": _pre_demo_game_plan(context, "A"),
         "game_plan_b": _pre_demo_game_plan(context, "B"),
         "ic_bant_prompts": _pre_demo_ic_bant_prompts(context),

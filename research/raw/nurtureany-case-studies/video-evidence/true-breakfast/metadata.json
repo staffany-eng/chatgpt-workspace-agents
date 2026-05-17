@@ -1,0 +1,49 @@
+{
+  "case_id": "true-breakfast",
+  "customer": "True Breakfast",
+  "market": "SG",
+  "country": "Singapore",
+  "industry": "F&B - Taiwanese breakfast restaurant",
+  "size": "2 branches",
+  "page_url": "https://www.staffany.com/customer-case-study-true-breakfast/",
+  "video_url": "https://www.youtube.com/watch?v=ZBGt0mKMJgo",
+  "video_id": "ZBGt0mKMJgo",
+  "source_language": "en",
+  "translation_language": "",
+  "transcript_source": "youtube_manual_english",
+  "transcript_status": "available",
+  "transcript_path": "research/raw/nurtureany-case-studies/video-evidence/true-breakfast/transcript.md",
+  "keyframes": [
+    "research/raw/nurtureany-case-studies/video-evidence/true-breakfast/keyframes/cover.jpg"
+  ],
+  "evidence_path": "research/raw/nurtureany-case-studies/video-evidence/true-breakfast/evidence.md",
+  "full_video_archived": false,
+  "full_video_archive_policy": "not archived; YouTube URL retained as canonical public video source",
+  "blocker": "",
+  "knowledge_hooks": [
+    {
+      "type": "kns_knowledge",
+      "hook": "Use True Breakfast when a smaller F&B operator is still using manual schedules; fewer duplicate shifts plus easier attendance visibility is the Knowledge point.",
+      "pain": "Manual scheduling created duplicate-shift risk and made attendance harder to monitor remotely.",
+      "outcome": "StaffAny made scheduling faster and attendance easier to monitor, including late/no-arrival visibility.",
+      "best_fit_prospect_pattern": "SG small/mid F&B operators with manual scheduling, duplicate shifts, and attendance visibility pain.",
+      "source_timestamp": "00:00:01-00:00:33",
+      "source_url": "https://www.staffany.com/customer-case-study-true-breakfast/",
+      "video_url": "https://www.youtube.com/watch?v=ZBGt0mKMJgo",
+      "confidence": "verified_public_video"
+    }
+  ],
+  "kns_material_row": {
+    "material_id": "case-study-video:true-breakfast",
+    "status": "approved",
+    "title": "True Breakfast public video case study",
+    "kns_pillar": "Knowledge",
+    "pillar_summary": "Use True Breakfast when a smaller F&B operator is still using manual schedules; fewer duplicate shifts plus easier attendance visibility is the Knowledge point.",
+    "buyer_value": "StaffAny made scheduling faster and attendance easier to monitor, including late/no-arrival visibility.",
+    "ae_use_case": "knowledge_touch, pre_demo, nurture, case_study_proof",
+    "message_hook": "Use True Breakfast when a smaller F&B operator is still using manual schedules; fewer duplicate shifts plus easier attendance visibility is the Knowledge point.",
+    "source_evidence_url": "research/raw/nurtureany-case-studies/video-evidence/true-breakfast/evidence.md",
+    "asset_url": "https://www.youtube.com/watch?v=ZBGt0mKMJgo",
+    "owner": "repo_case_study_catalog"
+  }
+}

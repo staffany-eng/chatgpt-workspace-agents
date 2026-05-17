@@ -1,0 +1,49 @@
+{
+  "case_id": "coffee-break",
+  "customer": "Coffee Break",
+  "market": "SG",
+  "country": "Singapore",
+  "industry": "F&B - heritage coffee",
+  "size": "3 stalls",
+  "page_url": "https://www.staffany.com/customer-case-study-coffee-break/",
+  "video_url": "https://www.youtube.com/watch?v=ieyqFaUdrNs",
+  "video_id": "ieyqFaUdrNs",
+  "source_language": "en",
+  "translation_language": "",
+  "transcript_source": "youtube_auto_english",
+  "transcript_status": "available",
+  "transcript_path": "research/raw/nurtureany-case-studies/video-evidence/coffee-break/transcript.md",
+  "keyframes": [
+    "research/raw/nurtureany-case-studies/video-evidence/coffee-break/keyframes/cover.jpg"
+  ],
+  "evidence_path": "research/raw/nurtureany-case-studies/video-evidence/coffee-break/evidence.md",
+  "full_video_archived": false,
+  "full_video_archive_policy": "not archived; YouTube URL retained as canonical public video source",
+  "blocker": "",
+  "knowledge_hooks": [
+    {
+      "type": "kns_knowledge",
+      "hook": "Use Coffee Break when a small heritage F&B operator worries that workforce systems are too heavy; start with accurate clock-in, then expand into timesheets when ready.",
+      "pain": "Family-run hawker/F&B team needed more accurate clock-in data and a better base for staff retention.",
+      "outcome": "StaffAny gave them a quick starting point for clock-in accuracy and room to expand into timesheets/integrations later.",
+      "best_fit_prospect_pattern": "SG small-chain or family-run F&B/hawker operators with clock-in accuracy, retention, or lightweight-system concerns.",
+      "source_timestamp": "00:00:05-00:04:42",
+      "source_url": "https://www.staffany.com/customer-case-study-coffee-break/",
+      "video_url": "https://www.youtube.com/watch?v=ieyqFaUdrNs",
+      "confidence": "verified_public_video"
+    }
+  ],
+  "kns_material_row": {
+    "material_id": "case-study-video:coffee-break",
+    "status": "approved",
+    "title": "Coffee Break public video case study",
+    "kns_pillar": "Knowledge",
+    "pillar_summary": "Use Coffee Break when a small heritage F&B operator worries that workforce systems are too heavy; start with accurate clock-in, then expand into timesheets when ready.",
+    "buyer_value": "StaffAny gave them a quick starting point for clock-in accuracy and room to expand into timesheets/integrations later.",
+    "ae_use_case": "knowledge_touch, pre_demo, nurture, case_study_proof",
+    "message_hook": "Use Coffee Break when a small heritage F&B operator worries that workforce systems are too heavy; start with accurate clock-in, then expand into timesheets when ready.",
+    "source_evidence_url": "research/raw/nurtureany-case-studies/video-evidence/coffee-break/evidence.md",
+    "asset_url": "https://www.youtube.com/watch?v=ieyqFaUdrNs",
+    "owner": "repo_case_study_catalog"
+  }
+}

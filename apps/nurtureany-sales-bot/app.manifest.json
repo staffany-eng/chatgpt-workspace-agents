@@ -25,6 +25,7 @@
       "skills/nurtureany-sales-bot/references/playbooks.md",
       "skills/nurtureany-sales-bot/references/pre-demo-game-plans.md",
       "skills/nurtureany-sales-bot/references/case-studies.md",
+      "skills/nurtureany-sales-bot/references/kns-knowledge-materials.md",
       "skills/nurtureany-sales-bot/references/regression-cases.md",
       "skills/nurtureany-sales-bot/references/rev-planning-and-metrics.md"
     ],
@@ -724,6 +725,14 @@
       "template_name",
       "template_params_schema",
       "message_hook",
+      "kns_pillar",
+      "pillar_summary",
+      "buyer_value",
+      "ae_use_case",
+      "whatsapp_script",
+      "source_evidence_url",
+      "asset_url",
+      "talk_track",
       "owner"
     ],
     "presentation_text_extraction": "Selected Google Slides or Drive-hosted .pptx decks through team@staffany.com drive.readonly",

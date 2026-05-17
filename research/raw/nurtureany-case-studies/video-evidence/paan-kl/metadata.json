@@ -1,0 +1,49 @@
+{
+  "case_id": "paan-kl",
+  "customer": "Paan KL",
+  "market": "MY",
+  "country": "Malaysia",
+  "industry": "F&B - Pan-Asian restaurant",
+  "size": "Restaurant team",
+  "page_url": "https://www.staffany.my/customer-case-study-paan-kl/",
+  "video_url": "https://www.youtube.com/watch?v=PzEBLWoWBgE",
+  "video_id": "PzEBLWoWBgE",
+  "source_language": "en",
+  "translation_language": "",
+  "transcript_source": "youtube_auto_english",
+  "transcript_status": "available",
+  "transcript_path": "research/raw/nurtureany-case-studies/video-evidence/paan-kl/transcript.md",
+  "keyframes": [
+    "research/raw/nurtureany-case-studies/video-evidence/paan-kl/keyframes/cover.jpg"
+  ],
+  "evidence_path": "research/raw/nurtureany-case-studies/video-evidence/paan-kl/evidence.md",
+  "full_video_archived": false,
+  "full_video_archive_policy": "not archived; YouTube URL retained as canonical public video source",
+  "blocker": "",
+  "knowledge_hooks": [
+    {
+      "type": "kns_knowledge",
+      "hook": "Use Paan KL when a restaurant asks for ROI; accurate geotracked attendance can show direct labour-cost impact.",
+      "pain": "Paper hour tracking made accurate staff payment and part-timer payroll difficult.",
+      "outcome": "Geotracked clock-in/out saved payroll time and was estimated to save about 15% in part-time labour cost.",
+      "best_fit_prospect_pattern": "MY restaurant teams with paper hours, part-timer payroll, attendance accuracy, or labour-cost control pain.",
+      "source_timestamp": "00:00:01-00:01:24",
+      "source_url": "https://www.staffany.my/customer-case-study-paan-kl/",
+      "video_url": "https://www.youtube.com/watch?v=PzEBLWoWBgE",
+      "confidence": "verified_public_video"
+    }
+  ],
+  "kns_material_row": {
+    "material_id": "case-study-video:paan-kl",
+    "status": "approved",
+    "title": "Paan KL public video case study",
+    "kns_pillar": "Knowledge",
+    "pillar_summary": "Use Paan KL when a restaurant asks for ROI; accurate geotracked attendance can show direct labour-cost impact.",
+    "buyer_value": "Geotracked clock-in/out saved payroll time and was estimated to save about 15% in part-time labour cost.",
+    "ae_use_case": "knowledge_touch, pre_demo, nurture, case_study_proof",
+    "message_hook": "Use Paan KL when a restaurant asks for ROI; accurate geotracked attendance can show direct labour-cost impact.",
+    "source_evidence_url": "research/raw/nurtureany-case-studies/video-evidence/paan-kl/evidence.md",
+    "asset_url": "https://www.youtube.com/watch?v=PzEBLWoWBgE",
+    "owner": "repo_case_study_catalog"
+  }
+}

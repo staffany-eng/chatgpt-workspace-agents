@@ -5859,6 +5859,10 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         self.assertEqual(len(first["relevant_name_drops"]), 3)
         self.assertNotIn("case-study match needed", first["relevant_name_drops"])
         self.assertEqual(len(first["case_study_matches"]), 3)
+        self.assertEqual(len(first["kns_knowledge_hooks"]), 3)
+        self.assertTrue(all(hook.get("hook") for hook in first["kns_knowledge_hooks"]))
+        self.assertTrue(all(hook.get("video_url") for hook in first["kns_knowledge_hooks"]))
+        self.assertNotIn("transcript.md", json.dumps(first["kns_knowledge_hooks"]))
         self.assertIn("lead source", first["missing_evidence"])
         self.assertIn("social/gated research stays manual-check", result["caveat"])
 
@@ -5902,6 +5906,23 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         bmc_match = next(match for match in matches if match.get("source_type") == "bmc_podcast")
         self.assertEqual(bmc_match["full_video_review"]["reviewer_status"], "full_transcript_reviewed")
         self.assertTrue(bmc_match["evidence_refs"])
+
+    def test_find_sales_case_studies_returns_staffany_video_kns_material(self):
+        with patch.object(self.module, "_caller_scope", return_value=SCOPE):
+            result = self.module.find_sales_case_studies(
+                "kerren.fong@staffany.com",
+                sales_moment="knowledge_touch",
+                query="Indonesia jamu UMKM affordable HR manual process",
+                limit=5,
+            )
+
+        matches = result["answer"]["case_study_matches"]
+        suwe = next(match for match in matches if match.get("id") == "suwe-ora-jamu")
+        self.assertEqual(suwe["kns_material"]["kns_pillar"], "Knowledge")
+        self.assertEqual(suwe["transcript_status"], "available_translated_en")
+        self.assertTrue(suwe["knowledge_hooks"][0]["hook"])
+        self.assertIn("youtube.com", suwe["video_url"])
+        self.assertNotIn("transcript.md", json.dumps(suwe["knowledge_hooks"]))
 
     def test_find_sales_case_studies_returns_needed_when_no_good_match(self):
         with patch.object(self.module, "_caller_scope", return_value=SCOPE):

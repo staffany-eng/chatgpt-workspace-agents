@@ -77,7 +77,7 @@ Use one read-only Google Sheet as the material database. Tabs:
 
 Minimum fields: `material_id`, `category`, `title`, `url`, `status`, `country_scope`, `industry_tags`, `concept_tags`, `persona_tags`, `valid_from`, `valid_until`, `template_name`, `template_params_schema`, `message_hook`, `owner`.
 
-Allowed material categories include podcast, case study, same-industry/same-concept proof, event invite, community matching, talent matching, collaboration opportunity, speaking opportunity, fireside speaker or podcast speaker ask, future-speaker sourcing, venue opportunity, salary benchmark, fireside chat learning, and warm peer intro. Approved public case studies can stay in the repo catalog; Sheet rows may reference case-study IDs for matching.
+Allowed material categories include podcast, case study, same-industry/same-concept proof, event invite, community matching, talent matching, collaboration opportunity, speaking opportunity, fireside speaker or podcast speaker ask, future-speaker sourcing, venue opportunity, salary benchmark, fireside chat learning, and warm peer intro. Approved public case studies can stay in the repo catalog; Sheet rows may reference case-study IDs for matching. Repo-approved KNS Knowledge case-study video rows live in `kns-knowledge-materials.md` and use `case-study-video:<case-id>` material IDs.
 
 For Network KNS, use the registry and Luma only as source context. `Events`, `Peer Intros`, and collaboration rows can support AE-selected suggestions, but they do not prove attendance frequency, active supporter status, product adoption, intro willingness, or a "top 5 community members" match unless those fields exist in a real community-member source.
 

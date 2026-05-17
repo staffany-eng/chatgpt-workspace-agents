@@ -1,0 +1,49 @@
+{
+  "case_id": "braud-group",
+  "customer": "Braud Group",
+  "market": "ID",
+  "country": "Indonesia",
+  "industry": "F&B - bakery and cafe group",
+  "size": "3 outlets, 220 staff",
+  "page_url": "https://www.staffany.com/customer-case-study-braud-group/",
+  "video_url": "https://www.youtube.com/watch?v=skMvLEwpOHE",
+  "video_id": "skMvLEwpOHE",
+  "source_language": "id",
+  "translation_language": "en",
+  "transcript_source": "youtube_auto_indonesian_translated_en",
+  "transcript_status": "available_translated_en",
+  "transcript_path": "research/raw/nurtureany-case-studies/video-evidence/braud-group/transcript.md",
+  "keyframes": [
+    "research/raw/nurtureany-case-studies/video-evidence/braud-group/keyframes/cover.jpg"
+  ],
+  "evidence_path": "research/raw/nurtureany-case-studies/video-evidence/braud-group/evidence.md",
+  "full_video_archived": false,
+  "full_video_archive_policy": "not archived; YouTube URL retained as canonical public video source",
+  "blocker": "",
+  "knowledge_hooks": [
+    {
+      "type": "kns_knowledge",
+      "hook": "Use Braud Group when an Indonesian bakery/cafe group is scaling across cities; HR admin can drop from days to hours with the right workforce system.",
+      "pain": "Manual scheduling and payroll control for about 220 staff across Bali and Jakarta took days.",
+      "outcome": "StaffAny helped attendance, leave requests, payroll, scheduling, and HR communication, reducing work to about one to two hours.",
+      "best_fit_prospect_pattern": "ID bakery/cafe/F&B groups with 200+ staff, cross-city outlets, scheduling, payroll, leave, or HR communication pain.",
+      "source_timestamp": "00:00:02-00:02:11",
+      "source_url": "https://www.staffany.com/customer-case-study-braud-group/",
+      "video_url": "https://www.youtube.com/watch?v=skMvLEwpOHE",
+      "confidence": "verified_public_video"
+    }
+  ],
+  "kns_material_row": {
+    "material_id": "case-study-video:braud-group",
+    "status": "approved",
+    "title": "Braud Group public video case study",
+    "kns_pillar": "Knowledge",
+    "pillar_summary": "Use Braud Group when an Indonesian bakery/cafe group is scaling across cities; HR admin can drop from days to hours with the right workforce system.",
+    "buyer_value": "StaffAny helped attendance, leave requests, payroll, scheduling, and HR communication, reducing work to about one to two hours.",
+    "ae_use_case": "knowledge_touch, pre_demo, nurture, case_study_proof",
+    "message_hook": "Use Braud Group when an Indonesian bakery/cafe group is scaling across cities; HR admin can drop from days to hours with the right workforce system.",
+    "source_evidence_url": "research/raw/nurtureany-case-studies/video-evidence/braud-group/evidence.md",
+    "asset_url": "https://www.youtube.com/watch?v=skMvLEwpOHE",
+    "owner": "repo_case_study_catalog"
+  }
+}
