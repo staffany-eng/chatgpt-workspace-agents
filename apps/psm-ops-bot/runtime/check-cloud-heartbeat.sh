@@ -10,11 +10,13 @@ EXPECTED_EOD_REMINDER_CRON_NAME="${EXPECTED_EOD_REMINDER_CRON_NAME:-psmopsbot du
 EXPECTED_EOD_REMINDER_SCRIPT="${EXPECTED_EOD_REMINDER_SCRIPT:-psm_ops_due_date_reminders_eod.py}"
 EXPECTED_ROI_TRACKER_SYNC_CRON_NAME="${EXPECTED_ROI_TRACKER_SYNC_CRON_NAME:-psmopsbot roi tracker sync}"
 EXPECTED_ROI_TRACKER_SYNC_SCRIPT="${EXPECTED_ROI_TRACKER_SYNC_SCRIPT:-psm_ops_roi_tracker_sync.py}"
+EXPECTED_ASSIGNMENT_HYGIENE_CRON_NAME="${EXPECTED_ASSIGNMENT_HYGIENE_CRON_NAME:-psmopsbot assignment hygiene}"
+EXPECTED_ASSIGNMENT_HYGIENE_SCRIPT="${EXPECTED_ASSIGNMENT_HYGIENE_SCRIPT:-psm_ops_pco_assignment_hygiene.py}"
 EXPECTED_CLOUD_HEARTBEAT_CRON_NAME="${EXPECTED_CLOUD_HEARTBEAT_CRON_NAME:-psmopsbot local cloud heartbeat}"
 EXPECTED_CLOUD_HEARTBEAT_SCRIPT="${EXPECTED_CLOUD_HEARTBEAT_SCRIPT:-psmopsbot-check-cloud-heartbeat.sh}"
 EXPECTED_ADOPTION_DIGEST_CRON_NAME="${EXPECTED_ADOPTION_DIGEST_CRON_NAME:-psmopsbot adoption digest}"
 EXPECTED_ADOPTION_DIGEST_SCRIPT="${EXPECTED_ADOPTION_DIGEST_SCRIPT:-psm_ops_adoption_digest.py}"
-EXPECTED_ENABLED_CRON_COUNT="${EXPECTED_ENABLED_CRON_COUNT:-5}"
+EXPECTED_ENABLED_CRON_COUNT="${EXPECTED_ENABLED_CRON_COUNT:-6}"
 EXPECTED_CRON_TIMEZONE="${EXPECTED_CRON_TIMEZONE:-Asia/Singapore}"
 
 PATH="$HOME/.local/bin:$HOME/.hermes/hermes-agent/venv/bin:$HOME/.hermes/hermes-agent:$PATH"
@@ -49,6 +51,8 @@ python3 - "$cron_json" \
   "$EXPECTED_EOD_REMINDER_SCRIPT" \
   "$EXPECTED_ROI_TRACKER_SYNC_CRON_NAME" \
   "$EXPECTED_ROI_TRACKER_SYNC_SCRIPT" \
+  "$EXPECTED_ASSIGNMENT_HYGIENE_CRON_NAME" \
+  "$EXPECTED_ASSIGNMENT_HYGIENE_SCRIPT" \
   "$EXPECTED_CLOUD_HEARTBEAT_CRON_NAME" \
   "$EXPECTED_CLOUD_HEARTBEAT_SCRIPT" \
   "$EXPECTED_ADOPTION_DIGEST_CRON_NAME" \
@@ -66,13 +70,15 @@ import sys
     eod_reminder_script,
     roi_tracker_sync_name,
     roi_tracker_sync_script,
+    assignment_hygiene_name,
+    assignment_hygiene_script,
     heartbeat_name,
     heartbeat_script,
     adoption_digest_name,
     adoption_digest_script,
     expected_enabled_count,
     expected_timezone,
-) = sys.argv[1:15]
+) = sys.argv[1:17]
 
 try:
     with open(jobs_path, "r", encoding="utf-8") as handle:
@@ -92,7 +98,14 @@ if len(enabled) != int(expected_enabled_count):
     raise SystemExit(1)
 
 by_name = {job.get("name"): job for job in enabled if isinstance(job, dict)}
-for required_name in [reminder_name, eod_reminder_name, roi_tracker_sync_name, heartbeat_name, adoption_digest_name]:
+for required_name in [
+    reminder_name,
+    eod_reminder_name,
+    roi_tracker_sync_name,
+    assignment_hygiene_name,
+    heartbeat_name,
+    adoption_digest_name,
+]:
     if required_name not in by_name:
         print(f"cron:missing:{required_name}")
         raise SystemExit(1)
@@ -105,7 +118,7 @@ reminder = by_name[reminder_name]
 if reminder.get("script") != reminder_script:
     print("cron:reminder-script-unexpected")
     raise SystemExit(1)
-if schedule_expr(reminder) != "0 1 * * *":
+if schedule_expr(reminder) != "0 1 * * 1-5":
     print("cron:reminder-schedule-unexpected")
     raise SystemExit(1)
 if reminder.get("deliver") != "slack:#ps-weeman-bot-test":
@@ -119,7 +132,7 @@ eod_reminder = by_name[eod_reminder_name]
 if eod_reminder.get("script") != eod_reminder_script:
     print("cron:eod-reminder-script-unexpected")
     raise SystemExit(1)
-if schedule_expr(eod_reminder) != "0 9 * * *":
+if schedule_expr(eod_reminder) != "0 9 * * 1-5":
     print("cron:eod-reminder-schedule-unexpected")
     raise SystemExit(1)
 if eod_reminder.get("deliver") != "slack:#ps-weeman-bot-test":
@@ -141,6 +154,20 @@ if roi_tracker_sync.get("deliver") != "slack:#ps-weeman-bot-test":
     raise SystemExit(1)
 if roi_tracker_sync.get("no_agent") is not True:
     print("cron:roi-tracker-sync-mode-unexpected")
+    raise SystemExit(1)
+
+assignment_hygiene = by_name[assignment_hygiene_name]
+if assignment_hygiene.get("script") != assignment_hygiene_script:
+    print("cron:assignment-hygiene-script-unexpected")
+    raise SystemExit(1)
+if schedule_expr(assignment_hygiene) != "15 1 * * 1-5":
+    print("cron:assignment-hygiene-schedule-unexpected")
+    raise SystemExit(1)
+if assignment_hygiene.get("deliver") != "slack:#ps-weeman-bot-test":
+    print("cron:assignment-hygiene-delivery-unexpected")
+    raise SystemExit(1)
+if assignment_hygiene.get("no_agent") is not True:
+    print("cron:assignment-hygiene-mode-unexpected")
     raise SystemExit(1)
 
 heartbeat = by_name[heartbeat_name]

@@ -27,12 +27,13 @@ if command -v systemctl >/dev/null 2>&1; then
 fi
 
 if command -v hermes >/dev/null 2>&1; then
-  for server in psm_jira psm_c360 psm_google_calendar; do
+  for server in psm_jira psm_c360 psm_google_calendar psm_appfollow; do
     out="$(hermes -p "$PROFILE" mcp test "$server" 2>&1 || true)"
     case "$server" in
       psm_jira) expected=24 ;;
       psm_c360) expected=3 ;;
       psm_google_calendar) expected=1 ;;
+      psm_appfollow) expected=7 ;;
     esac
     count="$(printf '%s\n' "$out" | sed -nE 's/.*Tools discovered: ([0-9]+).*/\1/p' | tail -1)"
     [ "$count" = "$expected" ] || fail "mcp:$server:tools=${count:-unavailable}:expected=$expected"
@@ -114,6 +115,11 @@ for key in \
   value="${!key:-}"
   [ -n "$value" ] || fail "env:$key:missing"
 done
+
+appfollow_enabled="$(printf '%s' "${PSM_OPS_APPFOLLOW_ENABLED:-}" | tr '[:upper:]' '[:lower:]')"
+if [ "$appfollow_enabled" = "1" ] || [ "$appfollow_enabled" = "true" ] || [ "$appfollow_enabled" = "yes" ] || [ "$appfollow_enabled" = "on" ]; then
+  [ -n "${APPFOLLOW_API_TOKEN:-}" ] || fail "env:APPFOLLOW_API_TOKEN:missing"
+fi
 
 [ "${GOOGLE_CALENDAR_ACCOUNT_EMAIL:-team@staffany.com}" = "team@staffany.com" ] || fail "google_calendar:account-not-team"
 [ -r "${GOOGLE_CALENDAR_TOKEN_FILE:-}" ] || fail "google_calendar:token-file-unreadable"

@@ -144,6 +144,8 @@ profiles:
     required_mcp:
       psm_jira: 24
       psm_c360: 3
+      psm_google_calendar: 1
+      psm_appfollow: 7
     expected_crons:
       - name: psmopsbot due-date reminders
         schedule: "0 1 * * *"
@@ -159,6 +161,11 @@ profiles:
         schedule: "*/30 1-10 * * 1-5"
         mode: no-agent
         script: psm_ops_roi_tracker_sync.py
+        deliver: slack:#ps-weeman-bot-test
+      - name: psmopsbot assignment hygiene
+        schedule: "15 1 * * 1-5"
+        mode: no-agent
+        script: psm_ops_pco_assignment_hygiene.py
         deliver: slack:#ps-weeman-bot-test
       - name: psmopsbot local cloud heartbeat
         schedule: "*/15 * * * *"

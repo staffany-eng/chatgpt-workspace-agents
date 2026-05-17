@@ -131,6 +131,26 @@ if (!existsSync(manifestPath)) {
     if (manifest.google_calendar?.private_field_exports !== false) {
       fail("Manifest Google Calendar private_field_exports must be false");
     }
+    const expectedAppFollowTools = [
+      "list_appfollow_apps",
+      "get_appfollow_review",
+      "tag_appfollow_review",
+      "draft_appfollow_reply",
+      "suggest_appfollow_review_identity_candidates",
+      "confirm_appfollow_review_identity",
+      "publish_appfollow_reply_after_approval"
+    ];
+    const actualAppFollowTools = manifest.mcp?.psm_appfollow?.expected_tools || [];
+    for (const tool of expectedAppFollowTools) {
+      if (!actualAppFollowTools.includes(tool)) fail(`Manifest missing psm_appfollow tool: ${tool}`);
+    }
+    for (const tool of actualAppFollowTools) {
+      if (!expectedAppFollowTools.includes(tool)) fail(`Manifest has unexpected psm_appfollow tool: ${tool}`);
+    }
+    if (manifest.appfollow?.token_env_var !== "APPFOLLOW_API_TOKEN") fail("Manifest AppFollow token_env_var must be APPFOLLOW_API_TOKEN");
+    if (manifest.appfollow?.constant_polling !== false) fail("Manifest AppFollow must keep constant_polling=false");
+    if (manifest.appfollow?.public_reply_approval_required !== true) fail("Manifest AppFollow must require public reply approval");
+    if (manifest.appfollow?.state_key !== "store + ext_id + review_id") fail("Manifest AppFollow state_key must be store + ext_id + review_id");
     const expectedSlackScopes = [
       "app_mentions:read",
       "channels:read",
@@ -167,6 +187,7 @@ const filesToScan = [
   "runtime/jira.md",
   "runtime/c360.md",
   "runtime/google-calendar.md",
+  "runtime/appfollow.md",
   "runtime/health-checks.md",
   "runtime/check-health.sh",
   "runtime/check-cloud-heartbeat.sh",
@@ -175,17 +196,22 @@ const filesToScan = [
   "runtime/psm_ops_adoption_digest.py",
   "runtime/scripts/psm_ops_due_date_reminders.py",
   "runtime/scripts/psm_ops_roi_tracker_sync.py",
+  "runtime/scripts/psm_ops_pco_assignment_hygiene.py",
   "runtime/scripts/psm_ops_join_public_channels.py",
+  "runtime/scripts/psm_ops_appfollow_review_triage.py",
   "runtime/mcp/psm_slack_notifier.py",
   "runtime/mcp/psm_jira_server.py",
   "runtime/mcp/psm_c360_server.py",
   "runtime/mcp/google_oauth.py",
   "runtime/mcp/psm_google_calendar_server.py",
+  "runtime/mcp/appfollow_reviews_core.py",
+  "runtime/mcp/psm_appfollow_server.py",
   "runtime/hooks/psm-ops-adoption-telemetry/HOOK.yaml",
   "runtime/hooks/psm-ops-adoption-telemetry/handler.py",
   "runtime/test_psm_ops_due_date_reminders.py",
   "runtime/test_psm_ops_roi_tracker_sync.py",
   "runtime/test_psm_ops_join_public_channels.py",
+  "runtime/mcp/test_psm_appfollow_server.py",
   "deploy/gce-onboarding-runbook.md",
   "tests/regression-cases.md",
   "tests/prompt-evals.json"
@@ -229,7 +255,9 @@ if (!existsSync(deployScriptPath)) {
     "psm_ops_adoption_digest.py",
     "psm_ops_due_date_reminders.py",
     "psm_ops_due_date_reminders_eod.py",
+    "psm_ops_pco_assignment_hygiene.py",
     "psm_ops_join_public_channels.py",
+    "psm_ops_appfollow_review_triage.py",
     "psm-ops-adoption-telemetry",
     "smoke-rock-productions-c360.sh",
     "rock_productions_c360",
@@ -306,10 +334,23 @@ for (const requiredText of [
   "psm_jira",
   "psm_c360",
   "psm_google_calendar",
+  "psm_appfollow",
   "GOOGLE_CALENDAR_TOKEN_FILE",
   "GOOGLE_CALENDAR_CLIENT_SECRET_FILE",
   "team@staffany.com",
-  "calendar.readonly"
+  "calendar.readonly",
+  "APPFOLLOW_API_TOKEN",
+  "PSM_OPS_APPFOLLOW_STATE_PATH",
+  "PSM_OPS_APPFOLLOW_APP_EXT_IDS",
+  "PSM_OPS_APPFOLLOW_REPLY_PUBLISH_ENABLED",
+  "constant_polling: false",
+  "list_appfollow_apps",
+  "get_appfollow_review",
+  "tag_appfollow_review",
+  "draft_appfollow_reply",
+  "suggest_appfollow_review_identity_candidates",
+  "confirm_appfollow_review_identity",
+  "publish_appfollow_reply_after_approval"
 ]) {
   if (!configText.includes(requiredText)) fail(`config.template.yaml missing required text: ${requiredText}`);
 }
@@ -334,6 +375,12 @@ for (const requiredText of [
   "Google Calendar",
   "team@staffany.com",
   "read_customer_calendar_context",
+  "AppFollow",
+  "list_appfollow_apps",
+  "publish_appfollow_reply_after_approval",
+  "support@staffany.com",
+  "store + ext_id + review_id",
+  "post reply",
   "Do not use personal `customer360_session` cookies",
   "PSM Ops automation:"
 ]) {
@@ -372,7 +419,18 @@ for (const requiredText of [
   "Use `search_c360_customers`",
   "read_customer_calendar_context",
   "team@staffany.com",
-  "calendar.readonly"
+  "calendar.readonly",
+  "psm_appfollow",
+  "AppFollow",
+  "list_appfollow_apps",
+  "get_appfollow_review",
+  "tag_appfollow_review",
+  "draft_appfollow_reply",
+  "suggest_appfollow_review_identity_candidates",
+  "confirm_appfollow_review_identity",
+  "publish_appfollow_reply_after_approval",
+  "store + ext_id + review_id",
+  "post reply"
 ]) {
   if (!skillText.includes(requiredText)) fail(`Skill missing required text: ${requiredText}`);
 }
@@ -485,10 +543,14 @@ if (!psmOpsProfileBlock) {
     "open_channel_mode: true",
     "psm_jira: 24",
     "psm_c360: 3",
+    "psm_google_calendar: 1",
+    "psm_appfollow: 7",
     "psmopsbot due-date reminders",
     "psmopsbot due-date eod catch-up",
     "psmopsbot roi tracker sync",
+    "psmopsbot assignment hygiene",
     "psm_ops_roi_tracker_sync.py",
+    "psm_ops_pco_assignment_hygiene.py",
     "psm_ops_due_date_reminders.py",
     "psm_ops_due_date_reminders_eod.py",
     "psmopsbot local cloud heartbeat",
@@ -545,6 +607,78 @@ for (const requiredText of [
   if (!googleCalendarMcpText.includes(requiredText)) fail(`psm_google_calendar_server.py missing required text: ${requiredText}`);
 }
 
+const appfollowRuntimeText = textOf(appRoot, "runtime/appfollow.md");
+for (const requiredText of [
+  "APPFOLLOW_API_TOKEN",
+  "psm_appfollow",
+  "list_appfollow_apps",
+  "get_appfollow_review",
+  "tag_appfollow_review",
+  "draft_appfollow_reply",
+  "suggest_appfollow_review_identity_candidates",
+  "confirm_appfollow_review_identity",
+  "publish_appfollow_reply_after_approval",
+  "store + ext_id + review_id",
+  "Do not create a constant review polling cron",
+  "post reply",
+  "psm-ops-bot-appfollow-api-token"
+]) {
+  if (!appfollowRuntimeText.includes(requiredText)) fail(`runtime/appfollow.md missing required text: ${requiredText}`);
+}
+
+const appfollowCoreText = textOf(appRoot, "runtime/mcp/appfollow_reviews_core.py");
+for (const requiredText of [
+  "APPFOLLOW_API_BASE_URL",
+  "X-AppFollow-API-Token",
+  "APPFOLLOW_API_TOKEN",
+  "GET /account/apps",
+  "GET /reviews",
+  "POST /reviews/tags",
+  "POST /reviews/reply",
+  "PSM_OPS_APPFOLLOW_STATE_PATH",
+  "store + ext_id + review_id",
+  "PSM_OPS_APPFOLLOW_REPLY_PUBLISH_ENABLED",
+  "support@staffany.com",
+  "identity_requested_private",
+  "suggest_appfollow_review_identity_candidates",
+  "confirm_appfollow_review_identity",
+  "post reply",
+  "extract_appfollow_review_from_slack_message",
+  "classify_appfollow_review"
+]) {
+  if (!appfollowCoreText.includes(requiredText)) fail(`appfollow_reviews_core.py missing required text: ${requiredText}`);
+}
+
+const appfollowMcpText = textOf(appRoot, "runtime/mcp/psm_appfollow_server.py");
+for (const requiredText of [
+  "@mcp.tool()",
+  "list_appfollow_apps",
+  "get_appfollow_review",
+  "tag_appfollow_review",
+  "draft_appfollow_reply",
+  "suggest_appfollow_review_identity_candidates",
+  "confirm_appfollow_review_identity",
+  "publish_appfollow_reply_after_approval",
+  "same-thread approval"
+]) {
+  if (!appfollowMcpText.includes(requiredText)) fail(`psm_appfollow_server.py missing required text: ${requiredText}`);
+}
+
+const appfollowTriageText = textOf(appRoot, "runtime/scripts/psm_ops_appfollow_review_triage.py");
+for (const requiredText of [
+  "PSM Ops automation: AppFollow review triage",
+  "conversations.replies",
+  "chat.postMessage",
+  "store + ext_id + review_id",
+  "--slack-thread-url",
+  "--apply",
+  "--force",
+  "mark_triaged",
+  "already_triaged"
+]) {
+  if (!appfollowTriageText.includes(requiredText)) fail(`psm_ops_appfollow_review_triage.py missing required text: ${requiredText}`);
+}
+
 const notifierText = textOf(appRoot, "runtime/mcp/psm_slack_notifier.py");
 for (const requiredText of [
   "SLACK_BOT_TOKEN",
@@ -581,7 +715,14 @@ for (const requiredText of [
   "GOOGLE_CALENDAR_TOKEN_FILE",
   "team@staffany.com",
   "psm_ops_roi_tracker_sync.py",
-  "psmopsbot roi tracker sync"
+  "psmopsbot roi tracker sync",
+  "psm_ops_pco_assignment_hygiene.py",
+  "psmopsbot assignment hygiene",
+  "APPFOLLOW_API_TOKEN",
+  "psm-ops-bot-appfollow-api-token",
+  "psm_ops_appfollow_review_triage.py",
+  "PSM_OPS_APPFOLLOW_REPLY_PUBLISH_ENABLED=false",
+  "Do not create a constant AppFollow polling cron"
 ]) {
   if (!runbookText.includes(requiredText)) fail(`GCE runbook missing required text: ${requiredText}`);
 }
@@ -592,9 +733,11 @@ for (const requiredText of [
     "psmopsbot due-date reminders",
     "psmopsbot due-date eod catch-up",
     "psmopsbot roi tracker sync",
+    "psmopsbot assignment hygiene",
     "psm_ops_due_date_reminders.py",
     "psm_ops_due_date_reminders_eod.py",
     "psm_ops_roi_tracker_sync.py",
+    "psm_ops_pco_assignment_hygiene.py",
     "psmopsbot local cloud heartbeat",
     "psmopsbot adoption digest",
     "EXPECTED_ENABLED_CRON_COUNT",
@@ -609,7 +752,11 @@ const auditText = textOf(appRoot, "runtime/audit-live-profile.sh");
 for (const requiredText of [
   "profile:health-script-drift",
   "profile:public-channel-join-script-drift",
-  "psm_ops_join_public_channels.py"
+  "profile:assignment-hygiene-script-drift",
+  "profile:appfollow-review-triage-script-drift",
+  "psm_ops_join_public_channels.py",
+  "psm_ops_pco_assignment_hygiene.py",
+  "psm_ops_appfollow_review_triage.py"
 ]) {
   if (!auditText.includes(requiredText)) fail(`Audit script missing required text: ${requiredText}`);
 }
@@ -622,6 +769,9 @@ for (const requiredText of [
   "slack:reactions-not-disabled",
   "conversations.join",
   "slack:public-channel-join-scope-missing",
+  "psm_appfollow",
+  "APPFOLLOW_API_TOKEN",
+  "PSM_OPS_APPFOLLOW_ENABLED",
   "auxiliary:title-generation-provider-not-anthropic",
   "auxiliary:title-generation-model-not-haiku",
   "auxiliary:title-generation-timeout-too-high"
@@ -692,6 +842,27 @@ for (const requiredText of [
   if (!roiTrackerSyncText.includes(requiredText)) fail(`ROI tracker sync script missing required text: ${requiredText}`);
 }
 
+const assignmentHygieneText = textOf(appRoot, "runtime/scripts/psm_ops_pco_assignment_hygiene.py");
+for (const requiredText of [
+  "PSM Ops automation: PCO assignment hygiene",
+  "[SILENT] PSM Ops automation",
+  "assignee is EMPTY",
+  "duedate is EMPTY",
+  "customfield_10876",
+  "central digest only",
+  "PSM_OPS_REMINDER_MENTION_MAP_PATH",
+  "Mention gaps:",
+  "description",
+  "comment",
+  "transcript",
+  "attachment"
+]) {
+  if (!assignmentHygieneText.includes(requiredText)) fail(`Assignment hygiene script missing required text: ${requiredText}`);
+}
+if (assignmentHygieneText.includes("users.list")) {
+  fail("Assignment hygiene script must not call Slack users.list for inverse PS Team mapping");
+}
+
 const shellCheck = spawnSync("bash", [
   "-n",
   join(appRoot, "runtime", "check-health.sh"),
@@ -725,11 +896,15 @@ const pyCompile = spawnSync("python3", [
   join(appRoot, "runtime/mcp/psm_c360_server.py"),
   join(appRoot, "runtime/mcp/google_oauth.py"),
   join(appRoot, "runtime/mcp/psm_google_calendar_server.py"),
+  join(appRoot, "runtime/mcp/appfollow_reviews_core.py"),
+  join(appRoot, "runtime/mcp/psm_appfollow_server.py"),
   join(appRoot, "runtime/hooks/psm-ops-adoption-telemetry/handler.py"),
   join(appRoot, "runtime/psm_ops_adoption_digest.py"),
   join(appRoot, "runtime/scripts/psm_ops_due_date_reminders.py"),
   join(appRoot, "runtime/scripts/psm_ops_roi_tracker_sync.py"),
-  join(appRoot, "runtime/scripts/psm_ops_join_public_channels.py")
+  join(appRoot, "runtime/scripts/psm_ops_pco_assignment_hygiene.py"),
+  join(appRoot, "runtime/scripts/psm_ops_join_public_channels.py"),
+  join(appRoot, "runtime/scripts/psm_ops_appfollow_review_triage.py")
 ], {
   cwd: repoRoot,
   env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1" },

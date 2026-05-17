@@ -13,6 +13,7 @@ Alias note: `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` refer to this 
 - Jira scope: PCO Jira Service Management for PS/customer work; ROI Jira Service Management for RevOps, BD Ops, NYSS, and ROI-board work
 - Task ownership: Jira `PS Team`, matched from Slack users/profile identity
 - Customer context scope: Customer 360 internal API, all customers in V1
+- Review scope: AppFollow API for App Store / Google Play review metadata, tags, conservative private-follow-up identity candidates, and human-approved public replies; Slack `#all-reviews` alerts trigger event-driven hydration only
 - Source packet: this directory
 - Cloud host: GCE VM `hermes-psm-ops-bot-poc` in `staffany-warehouse` / `asia-southeast1`
 
@@ -26,15 +27,20 @@ Alias note: `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` refer to this 
 | `runtime/mcp/psm_jira_server.py` | PCO and ROI Jira MCP adapter. |
 | `runtime/mcp/psm_c360_server.py` | Customer 360 MCP adapter. |
 | `runtime/mcp/psm_google_calendar_server.py` | Read-only Google Calendar adapter using `team@staffany.com`. |
+| `runtime/mcp/psm_appfollow_server.py` | Event-driven AppFollow review metadata/tag/reply MCP adapter. |
+| `runtime/mcp/appfollow_reviews_core.py` | Shared AppFollow API, Slack alert parser, classifier, and idempotency helpers. |
 | `runtime/mcp/psm_slack_notifier.py` | Bot-owned central Slack audit notifier for PS WEE lifecycle and blocked events. |
 | `runtime/hooks/psm-ops-adoption-telemetry/` | Hermes gateway hook for adoption metrics. |
 | `runtime/psm_ops_adoption_digest.py` | No-agent cron script for adoption digest delivery. |
 | `runtime/scripts/psm_ops_due_date_reminders.py` | No-agent Jira PCO due-date reminder digest script. |
 | `runtime/scripts/psm_ops_roi_tracker_sync.py` | No-agent ROI-to-PCO customer-loop tracker sync script. |
+| `runtime/scripts/psm_ops_pco_assignment_hygiene.py` | No-agent Jira PCO assignment / PS Team / due-date hygiene digest script. |
 | `runtime/scripts/psm_ops_join_public_channels.py` | Bot-owned public/open Slack channel membership repair script. |
+| `runtime/scripts/psm_ops_appfollow_review_triage.py` | No-agent one-review AppFollow Slack alert triage script. |
 | `runtime/jira.md` | Jira field, workflow, and safety contract. |
 | `runtime/c360.md` | Customer 360 internal API contract. |
 | `runtime/google-calendar.md` | Google Calendar read-only access contract. |
+| `runtime/appfollow.md` | AppFollow direct API and review-triage contract. |
 | `runtime/slack.md` | Slack gateway behavior and output contracts. |
 | `runtime/health-checks.md` | Health, drift, and cron verification. |
 | `runtime/check-health.sh` | No-agent live health check. |
@@ -66,6 +72,18 @@ gcloud secrets versions access latest \
 chmod 600 ~/.hermes/profiles/psmopsbot/.env
 ```
 
+AppFollow review access is stored separately as `psm-ops-bot-appfollow-api-token`
+and exposed to the profile as `APPFOLLOW_API_TOKEN`. Keep
+`PSM_OPS_APPFOLLOW_ENABLED=true` only after the token and app `ext_id` mapping,
+or collection fallback via `PSM_OPS_APPFOLLOW_DEFAULT_COLLECTION_NAME`, is
+configured. Keep `PSM_OPS_APPFOLLOW_REPLY_PUBLISH_ENABLED=false` until one
+human-approved public reply smoke test passes.
+
+Public App Store / Google Play reply drafts should route reviewers to
+`support@staffany.com` for private follow-up with their StaffAny account email
+or phone number plus company/outlet. Keep the review id as internal correlation;
+do not make a public reference code the main customer action.
+
 ## Restore Order
 
 1. Provision or access the GCE cloud host. Do not run the production gateway from a laptop.
@@ -74,9 +92,10 @@ chmod 600 ~/.hermes/profiles/psmopsbot/.env
 4. Apply `profile/config.template.yaml` with real runtime paths and configured Jira field IDs.
 5. Copy `skills/psm-ops-bot/` into the profile skills directory.
 6. Set profile `.env` from Secret Manager values only, including `psm-ops-bot-roi-jira-env` for ROI-direct routing.
-7. Configure Slack, `psm_jira`, `psm_c360`, and `psm_google_calendar` MCP servers.
-8. Install health, audit, reminder, and ROI tracker sync cron jobs on the cloud host.
-9. Run health checks and regression cases before widening access.
+7. Configure Slack, `psm_jira`, `psm_c360`, `psm_google_calendar`, and `psm_appfollow` MCP servers.
+8. Install health, audit, reminder, assignment hygiene, and ROI tracker sync cron jobs on the cloud host.
+9. Install `psm_ops_appfollow_review_triage.py` for event-driven `#all-reviews` alerts. Do not create a constant AppFollow polling cron.
+10. Run health checks and regression cases before widening access.
 
 ## Verification
 

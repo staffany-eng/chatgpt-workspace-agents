@@ -238,3 +238,23 @@ Expected:
 - No `read_customer_calendar_context` call.
 - Asks for attendee emails or named attendees needed for availability lookup.
 - Keeps the PCO ticket path Jira-first if the same request also asks to create/add a task.
+
+## AppFollow Review Identity Follow-up
+
+`@PS Wee Manager triage this AppFollow review alert`
+
+- Uses the Slack alert as the trigger and does not poll AppFollow constantly.
+- Replies with `PSM Ops automation: AppFollow review triage`.
+- Keeps runtime state keyed by `store + ext_id + review_id`.
+- Draft reply asks the reviewer to email `support@staffany.com` privately with StaffAny account email or phone number plus company/outlet.
+- Does not ask the reviewer to post email or phone in the public review.
+- Does not make `REV-<review_id>` the main customer action.
+- Suggests internal tag `identity_requested_private` when reviewer identity is unknown.
+
+`@PS Wee Manager match this reviewer: they emailed support from ops@example.com and said Example Cafe`
+
+- Calls `suggest_appfollow_review_identity_candidates`.
+- Treats exact private email match against Customer 360/HubSpot candidate evidence as verified.
+- Treats phone-only or company/outlet-only matches as `needs-check`.
+- Uses `confirm_appfollow_review_identity` only after PS confirms the customer/contact mapping.
+- Stores only redacted contact hints in runtime state.

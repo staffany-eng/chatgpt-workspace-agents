@@ -1,6 +1,6 @@
 ---
 name: psm-ops-bot
-description: Use when answering PSM Jira task, PCO, status transition, comment, reminder, or Customer 360 context questions.
+description: Use when answering PSM Jira task, PCO, status transition, comment, reminder, Customer 360 context, or AppFollow review triage questions.
 version: 1.0.0
 author: StaffAny
 license: Internal
@@ -14,7 +14,7 @@ metadata:
 
 ## Overview
 
-Use this skill for StaffAny PSM operations in Slack. The bot manages PCO Jira Service Management tasks and answers Customer 360 context questions.
+Use this skill for StaffAny PSM operations in Slack. The bot manages PCO Jira Service Management tasks, answers Customer 360 context questions, and triages AppFollow review alerts.
 
 Alias rule: `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` refer to this same PSM Ops Bot. Do not create or route to a separate bot/profile.
 
@@ -25,6 +25,7 @@ Alias rule: `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` refer to this 
 3. `psm_jira` MCP for live PCO task reads/writes and ROI-direct JSM ticket creation.
 4. `psm_c360` MCP for live Customer 360 search/context/Q&A.
 5. `psm_google_calendar` MCP for read-only `team@staffany.com` scheduling context only through the gated `read_customer_calendar_context` tool.
+6. `psm_appfollow` MCP for event-driven AppFollow review metadata, tags, draft replies, and approved public replies.
 2. `references/customer-channel-candidates.md` for the public Slack customer-channel review queue. This is not an active runtime map.
 3. `references/regression-cases.md` for expected behavior.
 4. `psm_jira` MCP for live PCO task reads and writes.
@@ -54,6 +55,8 @@ Alias rule: `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` refer to this 
 - Set or update the Jira due date that drives automatic reminders.
 - Ask Customer 360 for any customer context in V1.
 - Read gated Google Calendar context from the read-only `team@staffany.com` account for explicit customer meeting, invite, scheduling, or follow-up requests.
+- Triage one AppFollow review from a `#all-reviews` Slack alert, classify severity/theme, draft a human-approved reply, and update a harmless internal tag.
+- Suggest and confirm reviewer identity candidates only from private support follow-up details plus Customer 360/HubSpot evidence.
 
 ## Jira Rules
 
@@ -114,6 +117,21 @@ Alias rule: `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` refer to this 
 - Do not mutate calendar data. Do not expose event descriptions, attendee emails, raw guest lists, conference links, phone numbers, or private calendar metadata.
 - Calendar is scheduling context only; Jira PCO remains task truth.
 
+## AppFollow Review Rules
+
+- AppFollow is the source of truth for App Store / Google Play review metadata, internal AppFollow tags, and public review replies.
+- Slack `#all-reviews` alerts are event triggers only. Do not run constant AppFollow polling on the Free plan.
+- Use `list_appfollow_apps` only for setup verification and `get_appfollow_review` only for one known review or a Slack-triggered review lookup.
+- The review idempotency key is `store + ext_id + review_id`; do not post duplicate Slack triage for the same key.
+- For a Slack AppFollow alert, extract the AppFollow URL and `review_id`, resolve `ext_id` from runtime config, fetch the canonical review when possible, classify severity/theme, and reply with `PSM Ops automation:` action options.
+- Use `tag_appfollow_review` with `apply=false` first. Apply only a harmless internal tag until the AppFollow write path is proven.
+- Use `draft_appfollow_reply` for suggested public response copy. Public replies stay blocked in `publish_appfollow_reply_after_approval` until same-thread approval says `post reply` or `publish reply` and `PSM_OPS_APPFOLLOW_REPLY_PUBLISH_ENABLED=true` has been set after one approved smoke test.
+- Default public reply copy asks the reviewer to email `support@staffany.com` privately with their StaffAny account email or phone number plus company/outlet. Do not ask for email/phone in the public review, and do not make a reference code the main customer action.
+- Use AppFollow tags `identity_unknown`, `identity_requested_private`, `identity_candidate`, and `identity_confirmed` for the identity workflow.
+- Use `suggest_appfollow_review_identity_candidates` after private support follow-up details are available. Exact private email match against Customer 360/HubSpot candidate evidence can be verified; phone-only or company/outlet-only matches stay `needs-check`.
+- Use `confirm_appfollow_review_identity` only after PS confirms the customer/contact mapping; it stores redacted runtime state keyed by `store + ext_id + review_id`.
+- Reviewer identity is not a StaffAny customer/org match. Use Customer 360 or Jira only when PS needs an internal follow-up path.
+
 ## Reminder Rules
 
 - Reminder source of truth is Jira `duedate`.
@@ -154,3 +172,4 @@ Caveat: <only the material caveat>
 8. Using Jira assignee or a guessed Slack email as the source of truth for "my tasks" instead of Jira `PS Team`.
 9. Letting Calendar lookup run before Jira ticket creation when one Slack request asks for both scheduling and task-list work.
 10. Treating Google Calendar as customer or task truth instead of bounded scheduling context.
+11. Polling AppFollow constantly or publishing public review replies without same-thread approval.

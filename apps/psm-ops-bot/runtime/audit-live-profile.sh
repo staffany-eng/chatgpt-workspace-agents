@@ -30,7 +30,9 @@ cmp -s "$SOURCE_DIR/runtime/psm_ops_adoption_digest.py" "$PROFILE_DIR/scripts/ps
 cmp -s "$SOURCE_DIR/runtime/scripts/psm_ops_due_date_reminders.py" "$PROFILE_DIR/scripts/psm_ops_due_date_reminders.py" || fail "profile:due-date-reminder-script-drift"
 cmp -s "$SOURCE_DIR/runtime/scripts/psm_ops_due_date_reminders.py" "$PROFILE_DIR/scripts/psm_ops_due_date_reminders_eod.py" || fail "profile:eod-due-date-reminder-script-drift"
 cmp -s "$SOURCE_DIR/runtime/scripts/psm_ops_roi_tracker_sync.py" "$PROFILE_DIR/scripts/psm_ops_roi_tracker_sync.py" || fail "profile:roi-tracker-sync-script-drift"
+cmp -s "$SOURCE_DIR/runtime/scripts/psm_ops_pco_assignment_hygiene.py" "$PROFILE_DIR/scripts/psm_ops_pco_assignment_hygiene.py" || fail "profile:assignment-hygiene-script-drift"
 cmp -s "$SOURCE_DIR/runtime/scripts/psm_ops_join_public_channels.py" "$PROFILE_DIR/scripts/psm_ops_join_public_channels.py" || fail "profile:public-channel-join-script-drift"
+cmp -s "$SOURCE_DIR/runtime/scripts/psm_ops_appfollow_review_triage.py" "$PROFILE_DIR/scripts/psm_ops_appfollow_review_triage.py" || fail "profile:appfollow-review-triage-script-drift"
 
 cron_out="$("$HERMES_PYTHON" "$HERMES_BIN" -p "$PROFILE" cron list 2>&1)" || fail "cron:list-failed"
 printf '%s\n' "$cron_out" | grep -Fq "$EXPECTED_REMINDER_CRON_NAME" || fail "cron:due-date-reminder-missing"

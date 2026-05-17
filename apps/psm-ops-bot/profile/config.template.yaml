@@ -146,6 +146,27 @@ psm_ops:
     client_secret_file_env: "GOOGLE_CALENDAR_CLIENT_SECRET_FILE"
     required_scope: "https://www.googleapis.com/auth/calendar.readonly"
     read_only: true
+  appfollow:
+    source_of_truth: "review_metadata_tags_and_replies"
+    event_mode: "slack_alert_triggered"
+    constant_polling: false
+    token_env: "APPFOLLOW_API_TOKEN"
+    enabled_env: "PSM_OPS_APPFOLLOW_ENABLED"
+    state_path_env: "PSM_OPS_APPFOLLOW_STATE_PATH"
+    app_ext_id_mapping_env: "PSM_OPS_APPFOLLOW_APP_EXT_IDS"
+    default_ext_id_env: "PSM_OPS_APPFOLLOW_DEFAULT_EXT_ID"
+    collection_name_mapping_env: "PSM_OPS_APPFOLLOW_COLLECTION_NAMES"
+    default_collection_name_env: "PSM_OPS_APPFOLLOW_DEFAULT_COLLECTION_NAME"
+    reply_publish_enabled_env: "PSM_OPS_APPFOLLOW_REPLY_PUBLISH_ENABLED"
+    all_reviews_channel_id_env: "PSM_OPS_APPFOLLOW_ALL_REVIEWS_CHANNEL_ID"
+    approval_phrase: "post reply"
+    idempotency_key: "store + ext_id + review_id"
+    private_support_email: "support@staffany.com"
+    identity_candidate_tags:
+      - "identity_unknown"
+      - "identity_requested_private"
+      - "identity_candidate"
+      - "identity_confirmed"
 
 mcp_servers:
   psm_jira:
@@ -201,6 +222,27 @@ mcp_servers:
       GOOGLE_CALENDAR_ACCOUNT_EMAIL: "team@staffany.com"
     tool_allowlist:
       - "read_customer_calendar_context"
+  psm_appfollow:
+    description: "Event-driven AppFollow review metadata, tag, and approved-reply adapter for PSM Ops Bot."
+    command: "/Users/leekaiyi/.hermes/hermes-agent/venv/bin/python"
+    args:
+      - "/Users/leekaiyi/workspace/agent builder/apps/psm-ops-bot/runtime/mcp/psm_appfollow_server.py"
+    timeout: 60
+    env:
+      APPFOLLOW_API_TOKEN: "${APPFOLLOW_API_TOKEN}"
+      PSM_OPS_APPFOLLOW_STATE_PATH: "${PSM_OPS_APPFOLLOW_STATE_PATH}"
+      PSM_OPS_APPFOLLOW_APP_EXT_IDS: "${PSM_OPS_APPFOLLOW_APP_EXT_IDS}"
+      PSM_OPS_APPFOLLOW_REPLY_PUBLISH_ENABLED: "${PSM_OPS_APPFOLLOW_REPLY_PUBLISH_ENABLED}"
+      CUSTOMER360_BASE_URL: "${CUSTOMER360_BASE_URL}"
+      CUSTOMER360_INTERNAL_API_TOKEN: "${CUSTOMER360_INTERNAL_API_TOKEN}"
+    tool_allowlist:
+      - "list_appfollow_apps"
+      - "get_appfollow_review"
+      - "tag_appfollow_review"
+      - "draft_appfollow_reply"
+      - "suggest_appfollow_review_identity_candidates"
+      - "confirm_appfollow_review_identity"
+      - "publish_appfollow_reply_after_approval"
 
 gateway:
   slack:

@@ -364,7 +364,9 @@ copy_file "$deploy_dir/apps/psm-ops-bot/runtime/psm_ops_adoption_digest.py" "$pr
 copy_file "$deploy_dir/apps/psm-ops-bot/runtime/scripts/psm_ops_due_date_reminders.py" "$profile/scripts/psm_ops_due_date_reminders.py" 0755
 copy_file "$deploy_dir/apps/psm-ops-bot/runtime/scripts/psm_ops_due_date_reminders.py" "$profile/scripts/psm_ops_due_date_reminders_eod.py" 0755
 copy_file "$deploy_dir/apps/psm-ops-bot/runtime/scripts/psm_ops_roi_tracker_sync.py" "$profile/scripts/psm_ops_roi_tracker_sync.py" 0755
+copy_file "$deploy_dir/apps/psm-ops-bot/runtime/scripts/psm_ops_pco_assignment_hygiene.py" "$profile/scripts/psm_ops_pco_assignment_hygiene.py" 0755
 copy_file "$deploy_dir/apps/psm-ops-bot/runtime/scripts/psm_ops_join_public_channels.py" "$profile/scripts/psm_ops_join_public_channels.py" 0755
+copy_file "$deploy_dir/apps/psm-ops-bot/runtime/scripts/psm_ops_appfollow_review_triage.py" "$profile/scripts/psm_ops_appfollow_review_triage.py" 0755
 
 uid=$(id -u "$runtime_owner")
 hermes_python="/home/$runtime_owner/.hermes/hermes-agent/venv/bin/python"
@@ -388,6 +390,7 @@ ensure_no_agent_cron() {
 }
 
 ensure_no_agent_cron "psmopsbot roi tracker sync" "*/30 1-10 * * 1-5" "psm_ops_roi_tracker_sync.py" "slack:#ps-weeman-bot-test"
+ensure_no_agent_cron "psmopsbot assignment hygiene" "15 1 * * 1-5" "psm_ops_pco_assignment_hygiene.py" "slack:#ps-weeman-bot-test"
 
 if command -v node >/dev/null 2>&1; then
   (cd "$remote_source_dir" && node scripts/verify-psm-ops-bot.mjs)
