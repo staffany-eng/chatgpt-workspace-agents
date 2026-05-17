@@ -25,6 +25,14 @@ json_escape() {
   printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
 }
 
+fail_git_access() {
+  message="$1"
+  if printf '%s\n' "$message" | grep -Fq "Permission denied (publickey)"; then
+    fail "pantheon:ssh-access-denied:$PANTHEON_REPO_URL"
+  fi
+  fail "pantheon:ssh-access-check-failed:$(printf '%s' "$message" | head -c 160)"
+}
+
 need_command git
 need_command date
 need_command mkdir
@@ -34,6 +42,8 @@ if [ -r "$PANTHEON_SSH_KEY" ]; then
 fi
 
 mkdir -p "$(dirname "$PANTHEON_REPO_DIR")" "$(dirname "$STATUS_PATH")" "$(dirname "$PANTHEON_SSH_KEY")"
+
+access_out="$(GIT_TERMINAL_PROMPT=0 git ls-remote "$PANTHEON_REPO_URL" "refs/heads/$PANTHEON_BRANCH" 2>&1)" || fail_git_access "$access_out"
 
 if [ -e "$PANTHEON_REPO_DIR" ] && [ ! -d "$PANTHEON_REPO_DIR/.git" ]; then
   fail "pantheon:path-exists-not-git:$PANTHEON_REPO_DIR"

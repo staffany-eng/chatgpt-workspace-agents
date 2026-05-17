@@ -7,6 +7,7 @@ HERMES_AGENT_DIR="${HERMES_AGENT_DIR:-$HOME/.hermes/hermes-agent}"
 HERMES_PYTHON="${HERMES_PYTHON:-$HERMES_AGENT_DIR/venv/bin/python}"
 HERMES_BIN="${HERMES_BIN:-$HERMES_AGENT_DIR/hermes}"
 EXPECT_PANTHEON_REPO_URL="${EXPECT_PANTHEON_REPO_URL:-git@github.com:staffany-eng/pantheon.git}"
+PANTHEON_SSH_KEY="${LAUNCHBOT_PANTHEON_SSH_KEY:-$PROFILE_DIR/ssh/pantheon_deploy_key}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [ -n "${LAUNCHBOT_APP_ROOT:-}" ]; then
   APP_ROOT="$LAUNCHBOT_APP_ROOT"
@@ -95,6 +96,9 @@ cron_out="$("$HERMES_PYTHON" "$HERMES_BIN" -p "$PROFILE" cron list 2>&1)" || fai
 printf '%s\n' "$cron_out" | grep -Fq "launchbot health check" || fail "cron:health-check-missing"
 printf '%s\n' "$cron_out" | grep -Fq "launchbot feature intake monitor" || fail "cron:feature-intake-monitor-missing"
 printf '%s\n' "$cron_out" | grep -Fq "launchbot support watch" || fail "cron:support-watch-missing"
+if [ -r "$PANTHEON_SSH_KEY" ]; then
+  export GIT_SSH_COMMAND="ssh -i $PANTHEON_SSH_KEY -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+fi
 if GIT_TERMINAL_PROMPT=0 git ls-remote "$EXPECT_PANTHEON_REPO_URL" HEAD >/dev/null 2>&1; then
   printf '%s\n' "$cron_out" | grep -Fq "launchbot pantheon repo update" || fail "cron:pantheon-repo-update-missing"
 elif printf '%s\n' "$cron_out" | grep -Fq "launchbot pantheon repo update"; then

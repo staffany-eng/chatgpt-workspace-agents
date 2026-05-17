@@ -814,6 +814,9 @@ const healthText = textOf("runtime/check-health.sh");
 for (const requiredText of [
   "pantheon:checkout-missing",
   "pantheon:remote-unexpected",
+  "pantheon:ssh-access-denied",
+  "git ls-remote",
+  "LAUNCHBOT_PANTHEON_SSH_KEY",
   "pantheon:status-stale",
   "platforms:slack:gateway-restart-notification-not-disabled",
   "LAUNCHBOT_PANTHEON_REPO_DIR",
@@ -861,6 +864,8 @@ for (const requiredText of [
   "cron:support-watch-missing",
   "cron:pantheon-repo-update-missing",
   "cron:pantheon-repo-update-present-without-github-ssh",
+  "LAUNCHBOT_PANTHEON_SSH_KEY",
+  "GIT_SSH_COMMAND",
   "GIT_TERMINAL_PROMPT=0 git ls-remote",
   "profile-drift:help-article-mcp",
   "profile-drift:ifi-mcp",
@@ -880,9 +885,12 @@ for (const requiredText of [
 
 const pantheonUpdateText = textOf("runtime/update-pantheon-repo.sh");
 for (const requiredText of [
+  "git ls-remote",
   "git clone --branch",
   "pull --ff-only",
   "pantheon:updated",
+  "pantheon:ssh-access-denied",
+  "GIT_TERMINAL_PROMPT=0",
   "LAUNCHBOT_PANTHEON_REPO_URL",
   "LAUNCHBOT_PANTHEON_SSH_KEY",
   "GIT_SSH_COMMAND",
@@ -1317,6 +1325,14 @@ const supportWatchMonitorTestRun = spawnSync("python3", ["-m", "unittest", join(
 });
 if (supportWatchMonitorTestRun.status !== 0) {
   fail(`Launchbot support watch monitor tests failed:\n${supportWatchMonitorTestRun.stdout || ""}${supportWatchMonitorTestRun.stderr || ""}`);
+}
+
+const pantheonUpdateTestRun = spawnSync("python3", ["-m", "unittest", join(appRoot, "runtime", "test_update_pantheon_repo.py")], {
+  cwd: repoRoot,
+  encoding: "utf8",
+});
+if (pantheonUpdateTestRun.status !== 0) {
+  fail(`Launchbot Pantheon update tests failed:\n${pantheonUpdateTestRun.stdout || ""}${pantheonUpdateTestRun.stderr || ""}`);
 }
 
 if (failures.length > 0) {

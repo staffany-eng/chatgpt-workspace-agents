@@ -29,6 +29,7 @@ fi
 EXPECT_PANTHEON_REPO_URL="${EXPECT_PANTHEON_REPO_URL:-git@github.com:staffany-eng/pantheon.git}"
 EXPECT_PANTHEON_BRANCH="${EXPECT_PANTHEON_BRANCH:-develop}"
 PANTHEON_REPO_DIR="${LAUNCHBOT_PANTHEON_REPO_DIR:-$PROFILE_DIR/source/pantheon}"
+PANTHEON_SSH_KEY="${LAUNCHBOT_PANTHEON_SSH_KEY:-$PROFILE_DIR/ssh/pantheon_deploy_key}"
 PANTHEON_STATUS_PATH="${LAUNCHBOT_PANTHEON_STATUS_PATH:-$PROFILE_DIR/runtime/pantheon-repo-status.json}"
 PANTHEON_STATUS_MAX_AGE_SECONDS="${LAUNCHBOT_PANTHEON_STATUS_MAX_AGE_SECONDS:-172800}"
 HELP_ARTICLE_VIDEO_REGISTRY_PATH="${LAUNCHBOT_VIDEO_PLACEMENT_REGISTRY:-$PROFILE_DIR/source/launchbot/skills/help-article-generator/references/video-placement-registry.json}"
@@ -508,6 +509,15 @@ pantheon_branch="$(git -C "$PANTHEON_REPO_DIR" rev-parse --abbrev-ref HEAD 2>/de
 [ "$pantheon_branch" = "$EXPECT_PANTHEON_BRANCH" ] || fail "pantheon:branch-unexpected"
 pantheon_status="$(git -C "$PANTHEON_REPO_DIR" status --porcelain=v1 2>/dev/null)" || fail "pantheon:status-unreadable"
 [ -z "$pantheon_status" ] || fail "pantheon:dirty-checkout"
+if [ -r "$PANTHEON_SSH_KEY" ]; then
+  export GIT_SSH_COMMAND="ssh -i $PANTHEON_SSH_KEY -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+fi
+pantheon_access_out="$(GIT_TERMINAL_PROMPT=0 git ls-remote "$EXPECT_PANTHEON_REPO_URL" "refs/heads/$EXPECT_PANTHEON_BRANCH" 2>&1)" || {
+  if printf '%s\n' "$pantheon_access_out" | grep -Fq "Permission denied (publickey)"; then
+    fail "pantheon:ssh-access-denied"
+  fi
+  fail "pantheon:ssh-access-check-failed"
+}
 [ -r "$PANTHEON_STATUS_PATH" ] || fail "pantheon:status-json-missing"
 
 "$hermes_python" - "$PANTHEON_STATUS_PATH" "$EXPECT_PANTHEON_REPO_URL" "$EXPECT_PANTHEON_BRANCH" "$PANTHEON_REPO_DIR" "$PANTHEON_STATUS_MAX_AGE_SECONDS" <<'PY' || exit 1
