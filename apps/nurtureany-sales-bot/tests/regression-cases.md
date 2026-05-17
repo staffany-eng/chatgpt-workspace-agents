@@ -1050,6 +1050,28 @@ Expected behavior:
 - Final per-alert Slack rows include `Context:` from safe contact/company/role/domain/summary metadata, or explicitly say context is missing and HubSpot match is needed.
 - Groups duplicates only when HubSpot confirms the same conversation thread, contact, ticket, or company; Slack-only "same person" hints or identical timestamps remain `needs-check` / duplicate candidates.
 - Excludes existing clients only when HubSpot verifies customer status from `type`, `lifecyclestage`, or `prospecting_account`; candidate or unmatched rows remain `needs-check`, not clean non-customers.
+
+### HubSpot-Source Inbound Monitor
+
+Runtime:
+
+```text
+runtime/scripts/nurtureany_inbound_monitor.py --dry-run --once
+```
+
+Expected behavior:
+
+- Uses HubSpot Conversations as the primary source through `audit_inbound_sla`; Slack inbound alerts remain fallback context only.
+- Is disabled for non-dry-run execution unless `NURTUREANY_INBOUND_MONITOR_ENABLED` is truthy.
+- Stores only runtime cursor/dedupe state, never business truth.
+- Prints nothing when all open inbound threads are already handled within SLA and have no routing/clean-lead exceptions.
+- Prints internal exception rows only, starting with `NurtureAny automation:`.
+- Row format is `Owner: <name/unknown> | Status: new / touched / stale / customer / duplicate / blocked | Next step: <action> | ETA: <time>`.
+- Existing customers are flagged as `customer` and routed to support/CSM check, not treated as new sales inbound.
+- Duplicate groups are visible only when HubSpot confirms the same conversation thread, contact, ticket, or company; candidate/unmatched rows stay `needs-check`.
+- Missing company/contact/current-tools/buying-role/lead-source/context triggers a clean-lead exception without inventing values.
+- Does not expose raw HubSpot message bodies, raw Slack transcripts, phone numbers, contact exports, or secrets.
+- Does not mutate HubSpot, create tasks, reassign owners, send WhatsApp/email, or post customer-facing messages.
 - Does not label automated HubSpot outbound as manual AE action; reports `first_hubspot_outbound_at` separately from `manual_ae_touch_status`.
 - Does not auto-reassign, mutate HubSpot, paste raw Slack transcripts, expose raw phone numbers, expose raw HubSpot message bodies, or send external messages. Phone output is at most `phone_hint=masked_last4`.
 

@@ -155,6 +155,38 @@ Post-event follow-up status uses safe HubSpot timeline evidence only. Count asso
 
 Friday sales review uses the same scoped association discipline, plus HubSpot calls and meetings. Connected calls are completed calls with `hs_call_duration >= 120000` milliseconds. Warm activity points are completed meetings whose title or activity type matches configured labels: HHH, LL, coffee, lunch, dinner, cosy, ABM, event, appreciation afternoon, or sports. QO, QO Met, and closed-won counts require runtime stage config through `NURTUREANY_QO_PIPELINE_IDS`, `NURTUREANY_QO_STAGE_IDS`, `NURTUREANY_QO_MET_STAGE_IDS`, and `NURTUREANY_CLOSED_WON_STAGE_IDS`; when missing, return hygiene and account coverage with `Confidence: needs-check`.
 
+## HubSpot-Source Inbound Monitor
+
+The optional no-agent monitor is `runtime/scripts/nurtureany_inbound_monitor.py`.
+It polls HubSpot Conversations as the primary source for open inbound threads,
+then calls `audit_inbound_sla` with `resolve_slack_alerts=false`.
+
+Runtime config:
+
+- `NURTUREANY_INBOUND_MONITOR_ENABLED`: must be truthy before non-dry-run output/state writes.
+- `NURTUREANY_INBOUND_MONITOR_CALLER_EMAIL`: defaults to `eugene@staffany.com`; this controls HubSpot access scope.
+- `NURTUREANY_INBOUND_MONITOR_INBOX_ID`: optional HubSpot inbox filter.
+- `NURTUREANY_INBOUND_MONITOR_STATE_PATH`: runtime-only cursor/dedupe state path, defaulting under the live profile.
+- `NURTUREANY_INBOUND_MONITOR_DELIVER_CHANNEL`: intended Slack delivery target for the Hermes cron runbook.
+- `NURTUREANY_INBOUND_MONITOR_LOOKBACK_MINUTES`: defaults to 30 so threads can become stale across cron ticks.
+
+The monitor is exception-first and quiet on healthy runs. It prints only rows
+that need action: unassigned or unclear owner, missing/late first touch,
+duplicate/candidate duplicate, existing customer routed into sales inbox, or
+missing clean-lead context such as company, role, current tools, lead source, or
+verified decision-maker signal. Output must start with `NurtureAny automation:`
+and use compact internal rows:
+
+```text
+Owner: <name/unknown> | Status: new / touched / stale / customer / duplicate / blocked | Next step: <action> | ETA: <time>
+```
+
+It never posts customer-facing messages, sends WhatsApp/email, reassigns owners,
+creates HubSpot Tasks, appends notes, updates fields, or stores business truth in
+local state. State is only runtime cursor/dedupe metadata. Slack inbound alerts
+remain fallback/secondary context through `extract_inbound_lead_alerts` ->
+`resolve_inbound_slack_alerts_to_hubspot` -> `audit_inbound_sla`.
+
 ## Tool Behavior
 
 `list_marketing_campaigns` / `get_campaign_assets`:

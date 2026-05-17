@@ -229,6 +229,28 @@ nurtureany:
       window: overdue_due_today
       script: nurtureany_sales_task_reminders_eod.py
       deliver: slack:#nurtureany-testing
+  hubspot_inbound_monitor:
+    enabled_env: NURTUREANY_INBOUND_MONITOR_ENABLED
+    default_enabled: false
+    source_of_truth: HubSpot Conversations
+    script: nurtureany_inbound_monitor.py
+    schedule: "*/2 * * * *"
+    caller_email_env: NURTUREANY_INBOUND_MONITOR_CALLER_EMAIL
+    default_caller_email: eugene@staffany.com
+    inbox_id_env: NURTUREANY_INBOUND_MONITOR_INBOX_ID
+    state_path_env: NURTUREANY_INBOUND_MONITOR_STATE_PATH
+    deliver_channel_env: NURTUREANY_INBOUND_MONITOR_DELIVER_CHANNEL
+    default_deliver_channel: slack:#nurtureany-testing
+    lookback_minutes_env: NURTUREANY_INBOUND_MONITOR_LOOKBACK_MINUTES
+    default_lookback_minutes: 30
+    ack_sla_minutes: 5
+    first_touch_sla_minutes: 15
+    output_prefix: "NurtureAny automation:"
+    quiet_success: true
+    no_agent: true
+    no_external_send: true
+    no_hubspot_mutation: true
+    slack_alert_chain_fallback: extract_inbound_lead_alerts -> resolve_inbound_slack_alerts_to_hubspot -> audit_inbound_sla
   aircall_call_review:
     source_role: selected_call_enrichment_only
     source_of_truth: HubSpot remains account, owner, task, note, deal, contact, and nurture-field truth

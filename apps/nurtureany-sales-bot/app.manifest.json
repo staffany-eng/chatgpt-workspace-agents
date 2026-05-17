@@ -67,6 +67,7 @@
     "slack_access_repair_script": "runtime/scripts/nurtureany_slack_access_repair.py",
     "hubspot_task_reminder_script": "runtime/scripts/nurtureany_sales_task_reminders.py",
     "hubspot_task_reminder_eod_script": "runtime/scripts/nurtureany_sales_task_reminders_eod.py",
+    "hubspot_inbound_monitor_script": "runtime/scripts/nurtureany_inbound_monitor.py",
     "live_profile_audit": "runtime/audit-live-profile.sh",
     "cloud_doctor": "runtime/nurtureany-cloud-doctor.sh",
     "regression_cases": "tests/regression-cases.md",
@@ -348,6 +349,38 @@
         "eod_window": "overdue, due today",
         "no_local_task_truth": true
       }
+    },
+    "inbound_monitor": {
+      "enabled_env_var": "NURTUREANY_INBOUND_MONITOR_ENABLED",
+      "default_enabled": false,
+      "source_of_truth": "HubSpot Conversations",
+      "script": "runtime/scripts/nurtureany_inbound_monitor.py",
+      "schedule": "*/2 * * * *",
+      "caller_email_env_var": "NURTUREANY_INBOUND_MONITOR_CALLER_EMAIL",
+      "default_caller_email": "eugene@staffany.com",
+      "inbox_id_env_var": "NURTUREANY_INBOUND_MONITOR_INBOX_ID",
+      "state_path_env_var": "NURTUREANY_INBOUND_MONITOR_STATE_PATH",
+      "deliver_channel_env_var": "NURTUREANY_INBOUND_MONITOR_DELIVER_CHANNEL",
+      "lookback_minutes_env_var": "NURTUREANY_INBOUND_MONITOR_LOOKBACK_MINUTES",
+      "default_lookback_minutes": 30,
+      "ack_sla_minutes": 5,
+      "first_touch_sla_minutes": 15,
+      "output_prefix": "NurtureAny automation:",
+      "quiet_success": true,
+      "no_agent": true,
+      "no_external_send": true,
+      "no_hubspot_mutation": true,
+      "state_is_runtime_only": true,
+      "allowed_tools": [
+        "list_inbound_threads",
+        "get_inbound_thread_context",
+        "audit_inbound_sla"
+      ],
+      "slack_alert_chain_fallback": [
+        "extract_inbound_lead_alerts",
+        "resolve_inbound_slack_alerts_to_hubspot",
+        "audit_inbound_sla"
+      ]
     }
   },
   "customer360": {

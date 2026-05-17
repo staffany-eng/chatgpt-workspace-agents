@@ -858,6 +858,8 @@ const filesToScan = [
   "runtime/scripts/nurtureany_sales_task_reminders.py",
   "runtime/scripts/nurtureany_sales_task_reminders_eod.py",
   "runtime/scripts/nurtureany_inbound_monitor.py",
+  "runtime/scripts/test_nurtureany_inbound_monitor.py",
+  "runtime/scripts/fixtures/nurtureany_inbound_monitor_fixture.json",
   "runtime/jobs/near_me_outlet_match_writer.py",
   "runtime/jobs/test_near_me_outlet_match_writer.py",
   "tests/regression-cases.md",
@@ -2344,20 +2346,39 @@ for (const [label, scriptPath] of [
 for (const relPath of [
   "runtime/scripts/nurtureany_sales_task_reminders.py",
   "runtime/scripts/nurtureany_sales_task_reminders_eod.py",
+  "runtime/scripts/nurtureany_inbound_monitor.py",
 ]) {
   const scriptText = textOf(relPath);
-  for (const text of [
-    "NurtureAny automation:",
-    "list_due_hubspot_sales_task_reminders",
-    "HubSpot Task hs_timestamp",
-    "hs_task_status=COMPLETED",
-  ]) {
+  const requiredScriptTexts = relPath.includes("inbound_monitor")
+    ? [
+        "NurtureAny automation:",
+        "audit_inbound_sla",
+        "HubSpot Conversations",
+        "NURTUREANY_INBOUND_MONITOR_ENABLED",
+        "will_mutate_hubspot",
+        "external_message_sending",
+      ]
+    : [
+        "NurtureAny automation:",
+        "list_due_hubspot_sales_task_reminders",
+        "HubSpot Task hs_timestamp",
+        "hs_task_status=COMPLETED",
+      ];
+  for (const text of requiredScriptTexts) {
     if (!scriptText.includes(text)) fail(`${relPath} missing required text: ${text}`);
   }
   const compile = spawnSync("python3", ["-m", "py_compile", join(appRoot, relPath)], { encoding: "utf8" });
   if (compile.status !== 0) {
     fail(`Python compile failed for ${relPath}: ${(compile.stderr || compile.stdout).trim()}`);
   }
+}
+
+const inboundMonitorUnitCheck = spawnSync("python3", ["-m", "unittest", "apps/nurtureany-sales-bot/runtime/scripts/test_nurtureany_inbound_monitor.py"], {
+  cwd: repoRoot,
+  encoding: "utf8"
+});
+if (inboundMonitorUnitCheck.status !== 0) {
+  fail(`Python unit tests failed for inbound monitor: ${(inboundMonitorUnitCheck.stderr || inboundMonitorUnitCheck.stdout).trim()}`);
 }
 
 const slackSocketScriptPath = join(appRoot, "runtime/check-slack-socket-health.sh");

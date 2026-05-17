@@ -56,6 +56,7 @@ NurtureAny needs deterministic runtime checks because prompt correctness does no
 - Daily nurture automation is disabled pending refinement for the Jeremy daily-pack workflow. Health checks must not require a Jeremy daily pack, 09:00 daily nurture cron, noon daily nurture reminder, or `NURTUREANY_DAILY_RUNS_DIR`; `read_nurture_material_registry` remains read-only material context only.
 - Eugene-owned WhatsApp Morning Blitz report crons are intended production crons. They are separate from the paused Jeremy daily nurture workflow and must stay active for SG/MY and Indonesia manager reporting.
 - HubSpot Task reminder automation is separate from daily nurture: morning no-agent digest reads overdue/due-today/due-tomorrow incomplete HubSpot Tasks, EOD no-agent digest reads overdue/due-today incomplete HubSpot Tasks, both start with `NurtureAny automation:`, and HubSpot Task `hs_timestamp` remains the source of truth until `hs_task_status=COMPLETED`.
+- HubSpot inbound monitor automation is optional and disabled unless `NURTUREANY_INBOUND_MONITOR_ENABLED` is truthy. It reads HubSpot Conversations through `audit_inbound_sla`, emits only exception rows starting with `NurtureAny automation:`, stores runtime-only cursor/dedupe state, and never mutates HubSpot or sends external messages.
 - Operation ledger tools `record_nurtureany_operation_checkpoint` and `read_nurtureany_operation_ledger` are available for restart-safe Slack workflow continuation.
 - Sales WhatsApp report primitives `build_sales_whatsapp_window_report`, `save_sales_whatsapp_window_report_schedule`, `run_sales_whatsapp_window_report_schedule`, and `post_generated_sales_report` are available. Delivery requires `NURTUREANY_REPORT_DELIVERY_CHANNEL_IDS`, generated report markdown, approval marker, idempotency key, and operation-ledger checkpoints; ad hoc reruns must not update the saved weekday schedule.
 - Reviewed lesson tools `record_nurtureany_lesson_candidate`, `list_nurtureany_lesson_candidates`, and `read_nurtureany_lesson_candidate` are available. They write/read runtime-only candidates, keep Honcho disabled, and do not change behavior before repo promotion.
@@ -211,6 +212,19 @@ hermes -p nurtureanysalesbot cron create "*/2 * * * *" \
 ```
 
 Daily nurture is available as an on-demand workflow, not a required production cron. Eugene-owned WhatsApp Blitz is separate and intended. The runtime audit expects ten enabled recurring operational crons: health check, live profile audit, local cloud heartbeat, Slack socket watchdog, HubSpot task reminders, HubSpot task EOD catch-up, HubSpot inbound monitor, SG MY WhatsApp Morning Blitz Report, ID Morning WhatsApp Blitz Report, and ID WhatsApp Morning Blitz Report. Safe enabled one-shot report jobs are allowed and must not change the recurring cron count. The HubSpot inbound monitor is a read-only internal exception report to `#nurtureany-testing`; it must use `audit_inbound_sla`, never mutate HubSpot, and never send external messages. The new saved SG/MY WhatsApp report schedule lives in profile-runtime JSON and is called by deterministic primitives; it does not remove or rename the existing WhatsApp Blitz cron records.
+
+To enable the optional HubSpot-source inbound monitor after a prod dry run,
+set `NURTUREANY_INBOUND_MONITOR_ENABLED=true`,
+`NURTUREANY_INBOUND_MONITOR_INBOX_ID=<hubspot inbox id>`, and create a no-agent
+cron whose Slack delivery matches `NURTUREANY_INBOUND_MONITOR_DELIVER_CHANNEL`:
+
+```bash
+hermes -p nurtureanysalesbot cron create "*/2 * * * *" \
+  --name "nurtureanysalesbot HubSpot inbound monitor" \
+  --script nurtureany_inbound_monitor.py \
+  --deliver slack:#nurtureany-testing \
+  --no-agent
+```
 
 The current Hermes CLI uses the deployment host timezone for cron scheduling and does not expose a `--timezone` flag.
 

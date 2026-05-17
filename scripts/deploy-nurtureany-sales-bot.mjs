@@ -596,7 +596,16 @@ run_post_deploy_check audit sudo -H -u "$runtime_owner" HERMES_PROFILE_DIR="$pro
 health_warmup_seconds="\${NURTUREANY_DEPLOY_HEALTH_WARMUP_SECONDS:-120}"
 if [ "$health_warmup_seconds" -gt 0 ]; then
   echo "deploy:check:health=warmup:$health_warmup_seconds"
-  sleep "$health_warmup_seconds"
+  remaining="$health_warmup_seconds"
+  while [ "$remaining" -gt 0 ]; do
+    step=30
+    if [ "$remaining" -lt "$step" ]; then
+      step="$remaining"
+    fi
+    sleep "$step"
+    remaining=$((remaining - step))
+    echo "deploy:check:health=warmup-remaining:$remaining"
+  done
 fi
 run_post_deploy_check health sudo -H -u "$runtime_owner" HERMES_PROFILE_DIR="$profile" HERMES_HOME="$profile" XDG_RUNTIME_DIR="/run/user/$uid" "$profile/scripts/nurtureanysalesbot-check-health.sh"
 run_post_deploy_check cloud_doctor sudo -H -u "$runtime_owner" HERMES_PROFILE_DIR="$profile" HERMES_HOME="$profile" XDG_RUNTIME_DIR="/run/user/$uid" "$profile/scripts/nurtureanysalesbot-cloud-doctor.sh"
