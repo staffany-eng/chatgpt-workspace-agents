@@ -68,6 +68,7 @@
     "hubspot_task_reminder_script": "runtime/scripts/nurtureany_sales_task_reminders.py",
     "hubspot_task_reminder_eod_script": "runtime/scripts/nurtureany_sales_task_reminders_eod.py",
     "hubspot_inbound_monitor_script": "runtime/scripts/nurtureany_inbound_monitor.py",
+    "sales_whatsapp_report_runner_script": "runtime/scripts/nurtureany_sales_whatsapp_report_runner.py",
     "live_profile_audit": "runtime/audit-live-profile.sh",
     "cloud_doctor": "runtime/nurtureany-cloud-doctor.sh",
     "regression_cases": "tests/regression-cases.md",
@@ -526,7 +527,10 @@
         "countries": [
           "Indonesia"
         ],
-        "deliver": "slack:C04MSJ1BGF9",
+        "deliver": "local",
+        "delivery_channel_id": "C04MSJ1BGF9",
+        "script": "runtime/scripts/nurtureany_sales_whatsapp_report_runner.py",
+        "no_agent": true,
         "source_thread": "https://staffany.slack.com/archives/C04MSJ1BGF9/p1778822647171049"
       }
     ],

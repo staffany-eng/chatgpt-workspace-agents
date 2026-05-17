@@ -145,7 +145,7 @@ require_job(task_reminder_eod_name, expr="0 9 * * 1-5", script="nurtureany_sales
 require_job(inbound_monitor_name, expr="*/2 * * * *", script="nurtureany_inbound_monitor.py", deliver="slack:#nurtureany-testing", no_agent=True)
 require_job(sg_my_blitz_name, expr="35 2 * * 1-5", deliver="slack:C04HYF0NM8A", no_agent=False)
 require_job(id_morning_blitz_name, expr="45 3 * * 1-5", deliver="slack:C0B2UGK4DB6", no_agent=False)
-require_job(id_blitz_name, expr="35 3 * * 1-5", deliver="slack:C04MSJ1BGF9", no_agent=False)
+require_job(id_blitz_name, expr="35 3 * * 1-5", script="nurtureany_sales_whatsapp_report_runner.py", deliver="local", no_agent=True)
 
 enabled = [job for job in jobs if isinstance(job, dict) and job.get("enabled") is True]
 enabled_recurring = [

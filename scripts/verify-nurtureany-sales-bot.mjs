@@ -251,8 +251,17 @@ if (!existsSync(manifestPath)) {
       }
     }
     const salesReportCronRecords = manifest.sales_whatsapp_window_report?.production_cron_records || [];
-    if (!salesReportCronRecords.some((record) => record?.name === "ID WhatsApp Morning Blitz Report" && record?.deliver === "slack:C04MSJ1BGF9")) {
-      fail("Manifest sales_whatsapp_window_report must include the ID manager channel cron record");
+    if (
+      !salesReportCronRecords.some(
+        (record) =>
+          record?.name === "ID WhatsApp Morning Blitz Report" &&
+          record?.deliver === "local" &&
+          record?.delivery_channel_id === "C04MSJ1BGF9" &&
+          record?.script === "runtime/scripts/nurtureany_sales_whatsapp_report_runner.py" &&
+          record?.no_agent === true,
+      )
+    ) {
+      fail("Manifest sales_whatsapp_window_report must include the no-agent ID manager channel cron record");
     }
     if (manifest.sales_whatsapp_window_report?.adhoc_reruns_mutate_schedule !== false) {
       fail("Manifest sales_whatsapp_window_report must keep ad hoc reruns schedule-safe");
@@ -875,6 +884,8 @@ const filesToScan = [
   "runtime/scripts/nurtureany_sales_task_reminders_eod.py",
   "runtime/scripts/nurtureany_inbound_monitor.py",
   "runtime/scripts/test_nurtureany_inbound_monitor.py",
+  "runtime/scripts/nurtureany_sales_whatsapp_report_runner.py",
+  "runtime/scripts/test_nurtureany_sales_whatsapp_report_runner.py",
   "runtime/scripts/fixtures/nurtureany_inbound_monitor_fixture.json",
   "runtime/jobs/near_me_outlet_match_writer.py",
   "runtime/jobs/test_near_me_outlet_match_writer.py",
@@ -940,6 +951,7 @@ for (const text of [
   "nurtureany_sales_task_reminders.py",
   "nurtureany_sales_task_reminders_eod.py",
   "nurtureany_inbound_monitor.py",
+  "nurtureany_sales_whatsapp_report_runner.py",
   "deploy:cron-timezone-repaired",
   "profile/config.template.yaml",
   "config.yaml",
@@ -1172,6 +1184,7 @@ for (const text of [
   "indonesia_schedule_id: id-whatsapp-morning-report",
   "id_manager_channel_id: C04MSJ1BGF9",
   "id_source_thread: https://staffany.slack.com/archives/C04MSJ1BGF9/p1778822647171049",
+  "runner_script: nurtureany_sales_whatsapp_report_runner.py",
   "NURTUREANY_REPORT_DELIVERY_CHANNEL_IDS",
   "NURTUREANY_REPORT_SCHEDULE_DIR",
   "build_sales_whatsapp_window_report",
@@ -2167,6 +2180,7 @@ for (const text of [
   "nurtureany_sales_task_reminders.py",
   "nurtureany_sales_task_reminders_eod.py",
   "nurtureany_inbound_monitor.py",
+  "nurtureany_sales_whatsapp_report_runner.py",
   "nurtureany-cloud-doctor.sh",
   "Prospeo MCP lists only",
   "*/5 * * * *",
@@ -2295,6 +2309,7 @@ for (const text of [
   "profile-drift:slack-socket-watchdog-script",
   "profile-drift:hs-reminder-file",
   "profile-drift:hs-reminder-eod-file",
+  "profile-drift:sales-whatsapp-report-runner-file",
   "profile-drift:cloud-doctor-script",
   "profile-drift:slack-access-repair-script",
   "profile-boundary:staffany-data-bot-skill-installed",
@@ -2350,6 +2365,7 @@ for (const text of [
   "ID WhatsApp Morning Blitz Report",
   "nurtureany_sales_task_reminders.py",
   "nurtureany_sales_task_reminders_eod.py",
+  "nurtureany_sales_whatsapp_report_runner.py",
   "NurtureAny automation:",
 ]) {
   if (!hermesProfilesText.includes(text)) fail(`ops/hermes/profiles.yaml missing required text: ${text}`);
@@ -2371,9 +2387,17 @@ for (const relPath of [
   "runtime/scripts/nurtureany_sales_task_reminders.py",
   "runtime/scripts/nurtureany_sales_task_reminders_eod.py",
   "runtime/scripts/nurtureany_inbound_monitor.py",
+  "runtime/scripts/nurtureany_sales_whatsapp_report_runner.py",
 ]) {
   const scriptText = textOf(relPath);
-  const requiredScriptTexts = relPath.includes("inbound_monitor")
+  const requiredScriptTexts = relPath.includes("sales_whatsapp_report_runner")
+    ? [
+        "NurtureAny automation:",
+        "run_sales_whatsapp_window_report_schedule",
+        "post to Slack",
+        "DEFAULT_SCHEDULE_ID",
+      ]
+    : relPath.includes("inbound_monitor")
     ? [
         "NurtureAny automation:",
         "audit_inbound_sla",
@@ -2403,6 +2427,14 @@ const inboundMonitorUnitCheck = spawnSync("python3", ["-m", "unittest", "apps/nu
 });
 if (inboundMonitorUnitCheck.status !== 0) {
   fail(`Python unit tests failed for inbound monitor: ${(inboundMonitorUnitCheck.stderr || inboundMonitorUnitCheck.stdout).trim()}`);
+}
+
+const salesReportRunnerUnitCheck = spawnSync("python3", ["-m", "unittest", "apps/nurtureany-sales-bot/runtime/scripts/test_nurtureany_sales_whatsapp_report_runner.py"], {
+  cwd: repoRoot,
+  encoding: "utf8"
+});
+if (salesReportRunnerUnitCheck.status !== 0) {
+  fail(`Python unit tests failed for sales WhatsApp report runner: ${(salesReportRunnerUnitCheck.stderr || salesReportRunnerUnitCheck.stdout).trim()}`);
 }
 
 const slackSocketScriptPath = join(appRoot, "runtime/check-slack-socket-health.sh");

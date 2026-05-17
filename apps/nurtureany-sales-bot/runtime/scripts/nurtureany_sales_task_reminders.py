@@ -15,6 +15,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 DEFAULT_TIMEZONE = "Asia/Singapore"
 DEFAULT_CALLER_EMAIL = "kaiyi@staffany.com"
 AUTOMATION_PREFIX = "NurtureAny automation:"
+HERMES_VENV_REEXEC_ENV = "_NURTUREANY_TASK_REMINDER_HERMES_VENV"
 
 
 class ReminderError(RuntimeError):
@@ -30,6 +31,22 @@ def _profile_dir() -> Path:
     if configured:
         return Path(configured).expanduser()
     return Path.home() / ".hermes" / "profiles" / "nurtureanysalesbot"
+
+
+def ensure_runtime_python() -> None:
+    """Use the Hermes venv when cron invokes the script through /usr/bin/env python3."""
+
+    if os.environ.get(HERMES_VENV_REEXEC_ENV):
+        return
+    hermes_home = _profile_dir().parents[1]
+    venv_python = hermes_home / "hermes-agent" / "venv" / "bin" / "python"
+    if not venv_python.exists():
+        return
+    current = Path(sys.executable)
+    if current == venv_python:
+        return
+    os.environ[HERMES_VENV_REEXEC_ENV] = "1"
+    os.execv(str(venv_python), [str(venv_python), *sys.argv])
 
 
 def load_profile_env() -> None:
@@ -50,7 +67,14 @@ def load_profile_env() -> None:
 
 
 def _runtime_root() -> Path:
-    return Path(__file__).resolve().parents[1]
+    current = Path(__file__).resolve()
+    repo_runtime = current.parents[1]
+    if (repo_runtime / "mcp").exists():
+        return repo_runtime
+    profile_runtime = _profile_dir() / "runtime"
+    if (profile_runtime / "mcp").exists():
+        return profile_runtime
+    return repo_runtime
 
 
 def _load_hubspot_module():
@@ -149,6 +173,7 @@ def format_digest(result: dict[str, Any], mode: str, as_of: datetime, dry_run: b
 
 
 def main(argv: list[str] | None = None) -> int:
+    ensure_runtime_python()
     load_profile_env()
     args = parse_args(argv or sys.argv[1:])
     try:

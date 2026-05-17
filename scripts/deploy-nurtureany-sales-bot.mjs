@@ -500,6 +500,7 @@ sudo install -o "$runtime_owner" -g "$runtime_owner" -m 0755 "$deploy_dir/apps/n
 sudo install -o "$runtime_owner" -g "$runtime_owner" -m 0755 "$deploy_dir/apps/nurtureany-sales-bot/runtime/scripts/nurtureany_sales_task_reminders.py" "$profile/scripts/nurtureany_sales_task_reminders.py"
 sudo install -o "$runtime_owner" -g "$runtime_owner" -m 0755 "$deploy_dir/apps/nurtureany-sales-bot/runtime/scripts/nurtureany_sales_task_reminders_eod.py" "$profile/scripts/nurtureany_sales_task_reminders_eod.py"
 sudo install -o "$runtime_owner" -g "$runtime_owner" -m 0755 "$deploy_dir/apps/nurtureany-sales-bot/runtime/scripts/nurtureany_inbound_monitor.py" "$profile/scripts/nurtureany_inbound_monitor.py"
+sudo install -o "$runtime_owner" -g "$runtime_owner" -m 0755 "$deploy_dir/apps/nurtureany-sales-bot/runtime/scripts/nurtureany_sales_whatsapp_report_runner.py" "$profile/scripts/nurtureany_sales_whatsapp_report_runner.py"
 
 sudo -H -u "$runtime_owner" python3 - "$profile/cron/jobs.json" <<'PY'
 import json
@@ -534,6 +535,17 @@ for job in jobs:
     if job.get("enabled") is True and schedule.get("kind") != "once" and job.get("name") in expected_names and not job.get("timezone"):
         job["timezone"] = "Asia/Singapore"
         changed += 1
+    if job.get("name") == "ID WhatsApp Morning Blitz Report":
+        expected = {
+            "script": "nurtureany_sales_whatsapp_report_runner.py",
+            "no_agent": True,
+            "deliver": "local",
+            "prompt": "",
+        }
+        for key, value in expected.items():
+            if job.get(key) != value:
+                job[key] = value
+                changed += 1
 if changed:
     jobs_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\\n", encoding="utf-8")
 print(f"deploy:cron-timezone-repaired={changed}")

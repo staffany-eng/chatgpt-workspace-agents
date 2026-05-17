@@ -269,6 +269,7 @@ nurtureany:
     schedule_save_tool: save_sales_whatsapp_window_report_schedule
     schedule_run_tool: run_sales_whatsapp_window_report_schedule
     delivery_tool: post_generated_sales_report
+    runner_script: nurtureany_sales_whatsapp_report_runner.py
     schedule_dir_env: NURTUREANY_REPORT_SCHEDULE_DIR
     delivery_channel_ids_env: NURTUREANY_REPORT_DELIVERY_CHANNEL_IDS
     default_schedule_id: sg-my-whatsapp-morning-report
