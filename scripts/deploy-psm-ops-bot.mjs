@@ -363,6 +363,7 @@ copy_file "$deploy_dir/apps/psm-ops-bot/runtime/smoke-rock-productions-c360.sh" 
 copy_file "$deploy_dir/apps/psm-ops-bot/runtime/psm_ops_adoption_digest.py" "$profile/scripts/psm_ops_adoption_digest.py" 0755
 copy_file "$deploy_dir/apps/psm-ops-bot/runtime/scripts/psm_ops_due_date_reminders.py" "$profile/scripts/psm_ops_due_date_reminders.py" 0755
 copy_file "$deploy_dir/apps/psm-ops-bot/runtime/scripts/psm_ops_due_date_reminders.py" "$profile/scripts/psm_ops_due_date_reminders_eod.py" 0755
+copy_file "$deploy_dir/apps/psm-ops-bot/runtime/scripts/psm_ops_pco_assignment_hygiene.py" "$profile/scripts/psm_ops_pco_assignment_hygiene.py" 0755
 copy_file "$deploy_dir/apps/psm-ops-bot/runtime/scripts/psm_ops_roi_tracker_sync.py" "$profile/scripts/psm_ops_roi_tracker_sync.py" 0755
 copy_file "$deploy_dir/apps/psm-ops-bot/runtime/scripts/psm_ops_join_public_channels.py" "$profile/scripts/psm_ops_join_public_channels.py" 0755
 
@@ -375,10 +376,72 @@ ensure_no_agent_cron() {
   schedule="$2"
   script_name="$3"
   deliver="$4"
-  cron_out="$(sudo -H -u "$runtime_owner" XDG_RUNTIME_DIR="/run/user/$uid" "$hermes_python" "$hermes_bin" -p "$profile_name" cron list 2>&1 || true)"
-  if printf '%s\\n' "$cron_out" | grep -Fq "$cron_name"; then
+  cron_json="$profile/cron/jobs.json"
+  if sudo -H -u "$runtime_owner" python3 - "$cron_json" "$cron_name" "$schedule" "$script_name" "$deliver" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+jobs_path, cron_name, expected_schedule, expected_script, expected_deliver = sys.argv[1:6]
+path = Path(jobs_path)
+if not path.exists():
+    raise SystemExit(1)
+payload = json.loads(path.read_text(encoding="utf-8"))
+jobs = payload.get("jobs", payload) if isinstance(payload, dict) else payload
+if not isinstance(jobs, list):
+    raise SystemExit(1)
+
+def schedule_expr(job):
+    schedule = job.get("schedule")
+    return schedule.get("expr") if isinstance(schedule, dict) else schedule
+
+for job in jobs:
+    if not isinstance(job, dict) or job.get("name") != cron_name:
+        continue
+    if job.get("enabled", True) is False:
+        continue
+    if schedule_expr(job) != expected_schedule:
+        raise SystemExit(1)
+    if job.get("script") != expected_script:
+        raise SystemExit(1)
+    if job.get("deliver") != expected_deliver:
+        raise SystemExit(1)
+    if job.get("no_agent") is not True:
+        raise SystemExit(1)
+    raise SystemExit(0)
+raise SystemExit(1)
+PY
+  then
     return 0
   fi
+  sudo -H -u "$runtime_owner" python3 - "$cron_json" "$cron_name" <<'PY'
+import json
+import shutil
+import sys
+from pathlib import Path
+
+jobs_path, cron_name = sys.argv[1:3]
+path = Path(jobs_path)
+if not path.exists():
+    raise SystemExit(0)
+payload = json.loads(path.read_text(encoding="utf-8"))
+jobs = payload.get("jobs", payload) if isinstance(payload, dict) else payload
+if not isinstance(jobs, list):
+    raise SystemExit("cron:jobs-json-invalid")
+filtered = [job for job in jobs if not (isinstance(job, dict) and job.get("name") == cron_name)]
+if len(filtered) == len(jobs):
+    raise SystemExit(0)
+backup = path.with_suffix(path.suffix + ".bak")
+shutil.copy2(path, backup)
+if isinstance(payload, dict):
+    payload["jobs"] = filtered
+    text = json.dumps(payload, indent=2, sort_keys=False) + "\\n"
+else:
+    text = json.dumps(filtered, indent=2, sort_keys=False) + "\\n"
+tmp = path.with_suffix(path.suffix + ".tmp")
+tmp.write_text(text, encoding="utf-8")
+tmp.replace(path)
+PY
   sudo -H -u "$runtime_owner" XDG_RUNTIME_DIR="/run/user/$uid" "$hermes_python" "$hermes_bin" -p "$profile_name" cron create \
     --name "$cron_name" \
     --script "$script_name" \
@@ -387,7 +450,11 @@ ensure_no_agent_cron() {
     "$schedule"
 }
 
+ensure_no_agent_cron "psmopsbot due-date reminders" "0 1 * * 1-5" "psm_ops_due_date_reminders.py" "slack:#ps-weeman-bot-test"
+ensure_no_agent_cron "psmopsbot assignment hygiene" "15 1 * * 1-5" "psm_ops_pco_assignment_hygiene.py" "slack:#ps-weeman-bot-test"
+ensure_no_agent_cron "psmopsbot due-date eod catch-up" "0 9 * * 1-5" "psm_ops_due_date_reminders_eod.py" "slack:#ps-weeman-bot-test"
 ensure_no_agent_cron "psmopsbot roi tracker sync" "*/30 1-10 * * 1-5" "psm_ops_roi_tracker_sync.py" "slack:#ps-weeman-bot-test"
+ensure_no_agent_cron "psmopsbot adoption digest" "0 2 * * 1-5" "psm_ops_adoption_digest.py" "slack:#ps-weeman-bot-test"
 
 if command -v node >/dev/null 2>&1; then
   (cd "$remote_source_dir" && node scripts/verify-psm-ops-bot.mjs)

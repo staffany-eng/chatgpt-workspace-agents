@@ -204,6 +204,16 @@ Thread:
 - Updates Jira `duedate` only.
 - Explains that the issue appears in the central 09:00 SGT / 17:00 SGT reminder digest while not Done.
 
+## Assignment Hygiene
+
+Weekday 09:15 SGT no-agent cron:
+
+- Queries Jira PCO active issues with missing Jira assignee, missing `PS Team`, or missing `duedate`.
+- Surfaces missing assignee / missing `PS Team` under `Needs PS lead triage: Josica`.
+- Surfaces missing `duedate` with known `PS Team` under that PS Team, including `CS Duty`.
+- Uses `PSM_OPS_REMINDER_MENTION_MAP_PATH` only; `ps_leads.Josica` and `ps_teams` mappings are never guessed.
+- Outputs safe issue summaries only and starts with `PSM Ops automation:`.
+
 ## Customer Context
 
 `@PSM Ops what is going on with Fei Siong payroll?`

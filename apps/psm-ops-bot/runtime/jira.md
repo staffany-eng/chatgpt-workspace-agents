@@ -13,7 +13,7 @@ PSM Ops Bot uses Jira PCO as the PS/customer-ops task source of truth and Jira R
 - Status transitions: Jira Cloud issue transitions API.
 - Engineering and internal-team links: Jira Cloud issue link API, restricted to existing `PCO-*` issues linked to `KER-*`/`SCHE-*`, plus `ROI-*` links created only by the PCO ROI tracker primitive.
 - Comments: Jira Service Management request comment API with `public=false` by default.
-- Reminders: Jira JQL over the standard `duedate` field. No separate reminder database or custom reminder field is required for thin POC.
+- Reminders and assignment hygiene: Jira JQL over active PCO issues and the standard `duedate`, Jira assignee, and `PS Team` fields. No separate reminder database or custom reminder field is required for thin POC.
 
 ## Thin POC Runtime Config
 
@@ -50,9 +50,11 @@ Task creation sends only fields that exist on today's PCO request forms, includi
 
 Task creation blocks past due dates before writing to Jira. Today is evaluated in `Asia/Singapore` by default, or `PSM_OPS_TIMEZONE` if configured. If a draft date is before today's date, ask for a corrected future due date.
 
-Automatic reminders use `duedate` and `statusCategory != Done`. The 09:00 SGT morning digest includes overdue, due-today, and due-tomorrow tasks. The 17:00 SGT EOD catch-up digest includes overdue and due-today tasks so same-day follow-ups created after the morning run still surface. `set_pco_reminder` updates the issue due date because due date is the reminder source of truth in thin POC; it does not create a separate Slack-thread reminder or local reminder record.
+Automatic reminders use `duedate` and `statusCategory != Done`. The weekday 09:00 SGT morning digest includes overdue, due-today, and due-tomorrow tasks. The weekday 17:00 SGT EOD catch-up digest includes overdue and due-today tasks so same-day follow-ups created after the morning run still surface. `set_pco_reminder` updates the issue due date because due date is the reminder source of truth in thin POC; it does not create a separate Slack-thread reminder or local reminder record.
 
-Reminder Slack formatting is deterministic mrkdwn in the central digest only. `PSM_OPS_REMINDER_MENTION_MAP_PATH` may point to a reviewed runtime JSON map from Jira `PS Team` values to Slack user or usergroup targets. Unmapped `PS Team` values are not guessed; the digest should list them under `Mention gaps`. When `PSM_OPS_JIRA_FIELD_SOURCE_LINKS` is configured and a source Slack permalink belongs to a reviewed channel in `PSM_OPS_CUSTOMER_CHANNEL_MAP_PATH`, the central row may include `Customer team: <#CHANNEL_ID|channel-name>`. Do not infer customer channels from summary text or customer names.
+Reminder Slack formatting is deterministic mrkdwn in the central digest only. `PSM_OPS_REMINDER_MENTION_MAP_PATH` may point to a reviewed runtime JSON map from Jira `PS Team` values to Slack user or usergroup targets, plus optional `ps_leads.Josica` for assignment hygiene lead triage. Unmapped `PS Team` values are not guessed; the digest should list them under `Mention gaps`. Missing Josica lead mapping is listed as `Lead mention gap`. When `PSM_OPS_JIRA_FIELD_SOURCE_LINKS` is configured and a source Slack permalink belongs to a reviewed channel in `PSM_OPS_CUSTOMER_CHANNEL_MAP_PATH`, the central row may include `Customer team: <#CHANNEL_ID|channel-name>`. Do not infer customer channels from summary text or customer names.
+
+Assignment hygiene runs as a weekday 09:15 SGT no-agent cron. It uses safe Jira fields only. Active PCO issues with missing Jira assignee or missing `PS Team` are grouped under `Needs PS lead triage` for Josica. Active PCO issues with missing `duedate` and a known `PS Team` are grouped by `PS Team`, including `CS Duty`.
 
 For portal/request-form visibility, add the field named `Due date` / field ID `duedate` to PCO request types `81` Customer Success Work, `82` Onboarding, and `83` Data Setup. The bot does not require the form field to be visible because it sets `duedate` after creation, but PSMs will see a cleaner form if Jira admins add it.
 
@@ -112,7 +114,7 @@ Required env vars:
 - `PSM_OPS_JIRA_FIELD_RISK_REASON`
 - `PSM_OPS_JIRA_FIELD_SOURCE_LINKS`
 - `PSM_OPS_JIRA_FIELD_REMINDER_AT` if a separate reminder field is introduced later
-- `PSM_OPS_REMINDER_MENTION_MAP_PATH` for optional central-digest PS Team Slack mentions
+- `PSM_OPS_REMINDER_MENTION_MAP_PATH` for optional central-digest PS lead and PS Team Slack mentions
 
 The access policy file maps Slack email to Jira account ID:
 

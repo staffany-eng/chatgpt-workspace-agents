@@ -174,6 +174,7 @@ const filesToScan = [
   "runtime/smoke-rock-productions-c360.sh",
   "runtime/psm_ops_adoption_digest.py",
   "runtime/scripts/psm_ops_due_date_reminders.py",
+  "runtime/scripts/psm_ops_pco_assignment_hygiene.py",
   "runtime/scripts/psm_ops_roi_tracker_sync.py",
   "runtime/scripts/psm_ops_join_public_channels.py",
   "runtime/mcp/psm_slack_notifier.py",
@@ -184,6 +185,7 @@ const filesToScan = [
   "runtime/hooks/psm-ops-adoption-telemetry/HOOK.yaml",
   "runtime/hooks/psm-ops-adoption-telemetry/handler.py",
   "runtime/test_psm_ops_due_date_reminders.py",
+  "runtime/test_psm_ops_pco_assignment_hygiene.py",
   "runtime/test_psm_ops_roi_tracker_sync.py",
   "runtime/test_psm_ops_join_public_channels.py",
   "deploy/gce-onboarding-runbook.md",
@@ -229,6 +231,7 @@ if (!existsSync(deployScriptPath)) {
     "psm_ops_adoption_digest.py",
     "psm_ops_due_date_reminders.py",
     "psm_ops_due_date_reminders_eod.py",
+    "psm_ops_pco_assignment_hygiene.py",
     "psm_ops_join_public_channels.py",
     "psm-ops-adoption-telemetry",
     "smoke-rock-productions-c360.sh",
@@ -286,6 +289,8 @@ for (const requiredText of [
     "PSM_OPS_CENTRAL_SLACK_CHANNEL_ID",
     "PSM_OPS_ADOPTION_METRICS_PATH",
     "PSM_OPS_REMINDER_MENTION_MAP_PATH",
+    "assignment_hygiene:",
+    "ps_leads.Josica",
     "central_digest_only",
     "classify_roi_ticket_request",
   "find_engineering_issue",
@@ -486,10 +491,12 @@ if (!psmOpsProfileBlock) {
     "psm_jira: 24",
     "psm_c360: 3",
     "psmopsbot due-date reminders",
+    "psmopsbot assignment hygiene",
     "psmopsbot due-date eod catch-up",
     "psmopsbot roi tracker sync",
     "psm_ops_roi_tracker_sync.py",
     "psm_ops_due_date_reminders.py",
+    "psm_ops_pco_assignment_hygiene.py",
     "psm_ops_due_date_reminders_eod.py",
     "psmopsbot local cloud heartbeat",
     "psmopsbot adoption digest"
@@ -581,6 +588,7 @@ for (const requiredText of [
   "GOOGLE_CALENDAR_TOKEN_FILE",
   "team@staffany.com",
   "psm_ops_roi_tracker_sync.py",
+  "psm_ops_pco_assignment_hygiene.py",
   "psmopsbot roi tracker sync"
 ]) {
   if (!runbookText.includes(requiredText)) fail(`GCE runbook missing required text: ${requiredText}`);
@@ -590,9 +598,11 @@ const heartbeatText = textOf(appRoot, "runtime/check-cloud-heartbeat.sh");
 for (const requiredText of [
   "hermes-gateway-psmopsbot.service",
     "psmopsbot due-date reminders",
+    "psmopsbot assignment hygiene",
     "psmopsbot due-date eod catch-up",
     "psmopsbot roi tracker sync",
     "psm_ops_due_date_reminders.py",
+    "psm_ops_pco_assignment_hygiene.py",
     "psm_ops_due_date_reminders_eod.py",
     "psm_ops_roi_tracker_sync.py",
     "psmopsbot local cloud heartbeat",
@@ -609,6 +619,7 @@ const auditText = textOf(appRoot, "runtime/audit-live-profile.sh");
 for (const requiredText of [
   "profile:health-script-drift",
   "profile:public-channel-join-script-drift",
+  "profile:assignment-hygiene-script-drift",
   "psm_ops_join_public_channels.py"
 ]) {
   if (!auditText.includes(requiredText)) fail(`Audit script missing required text: ${requiredText}`);
@@ -678,6 +689,32 @@ if (dueDateReminderText.includes("users.list")) {
   fail("Due-date reminder script must not call Slack users.list for inverse PS Team mapping");
 }
 
+const assignmentHygieneText = textOf(appRoot, "runtime/scripts/psm_ops_pco_assignment_hygiene.py");
+for (const requiredText of [
+  "PSM Ops automation: PCO assignment hygiene",
+  "[SILENT] PSM Ops automation",
+  "statusCategory != Done",
+  "assignee is EMPTY",
+  "duedate is EMPTY",
+  "customfield_10876",
+  "Needs PS lead triage",
+  "Needs due date by PS Team",
+  "Lead mention gap:",
+  "Mention gaps:",
+  "PSM_OPS_REMINDER_MENTION_MAP_PATH",
+  "ps_leads",
+  "ps_teams",
+  "description",
+  "comment",
+  "transcript",
+  "attachment"
+]) {
+  if (!assignmentHygieneText.includes(requiredText)) fail(`Assignment hygiene script missing required text: ${requiredText}`);
+}
+if (assignmentHygieneText.includes("users.list")) {
+  fail("Assignment hygiene script must not call Slack users.list for inverse PS Team mapping");
+}
+
 const roiTrackerSyncText = textOf(appRoot, "runtime/scripts/psm_ops_roi_tracker_sync.py");
 for (const requiredText of [
   "PSM Ops automation: ROI tracker sync",
@@ -728,6 +765,7 @@ const pyCompile = spawnSync("python3", [
   join(appRoot, "runtime/hooks/psm-ops-adoption-telemetry/handler.py"),
   join(appRoot, "runtime/psm_ops_adoption_digest.py"),
   join(appRoot, "runtime/scripts/psm_ops_due_date_reminders.py"),
+  join(appRoot, "runtime/scripts/psm_ops_pco_assignment_hygiene.py"),
   join(appRoot, "runtime/scripts/psm_ops_roi_tracker_sync.py"),
   join(appRoot, "runtime/scripts/psm_ops_join_public_channels.py")
 ], {
@@ -780,6 +818,19 @@ const roiTrackerScriptUnitCheck = spawnSync("python3", [
 });
 if (roiTrackerScriptUnitCheck.status !== 0) {
   fail(`ROI tracker sync unit tests failed: ${roiTrackerScriptUnitCheck.stderr || roiTrackerScriptUnitCheck.stdout}`);
+}
+
+const assignmentHygieneScriptUnitCheck = spawnSync("python3", [
+  "-m",
+  "unittest",
+  join(appRoot, "runtime/test_psm_ops_pco_assignment_hygiene.py")
+], {
+  cwd: repoRoot,
+  env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1" },
+  encoding: "utf8"
+});
+if (assignmentHygieneScriptUnitCheck.status !== 0) {
+  fail(`Assignment hygiene unit tests failed: ${assignmentHygieneScriptUnitCheck.stderr || assignmentHygieneScriptUnitCheck.stdout}`);
 }
 
 const joinPublicChannelsUnitCheck = spawnSync("python3", [

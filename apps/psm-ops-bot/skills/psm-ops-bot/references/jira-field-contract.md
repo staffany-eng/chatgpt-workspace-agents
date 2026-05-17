@@ -86,6 +86,7 @@ For ROI urgency fields, match the field's configured options exactly. If the req
 - Jira assignee is still available for explicit person-assignment requests such as `assign PCO-135 to @Alya`.
 - Use `set_pco_assignee` for existing issues. Resolve the target through Slack profile data or Jira user search, then call Jira Cloud's issue assignee API.
 - Do not use assignee for "my tasks", reminders, or duty routing; those remain scoped by Jira `PS Team`.
+- The assignment hygiene cron treats missing Jira assignee as a PS lead triage gap, not as task ownership truth.
 
 ## Engineering Issue Links
 
@@ -124,6 +125,8 @@ The MCP adapter must retrieve available transitions for the issue and choose the
 ## Reminder Policy
 
 - Use Jira `duedate` as the thin POC reminder source of truth.
-- The 09:00 SGT central digest queries tasks due tomorrow, due today, and overdue tasks until they are Done.
-- The 17:00 SGT EOD catch-up digest queries due-today and overdue tasks until they are Done.
+- The weekday 09:00 SGT central digest queries tasks due tomorrow, due today, and overdue tasks until they are Done.
+- The weekday 17:00 SGT EOD catch-up digest queries due-today and overdue tasks until they are Done.
+- The weekday 09:15 SGT assignment hygiene digest queries active PCO issues missing Jira assignee, `PS Team`, or `duedate`.
+- Missing assignee or missing `PS Team` appears under `Needs PS lead triage` for Josica. Missing `duedate` with a known `PS Team` appears under that `PS Team`, including `CS Duty`.
 - Do not store reminders in files, memory, cron prompts, Slack messages, or local databases.

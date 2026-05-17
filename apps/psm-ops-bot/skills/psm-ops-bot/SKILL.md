@@ -117,8 +117,10 @@ Alias rule: `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` refer to this 
 ## Reminder Rules
 
 - Reminder source of truth is Jira `duedate`.
-- The central 09:00 SGT reminder digest includes tasks due tomorrow, due today, and overdue tasks until they are Done.
-- The central 17:00 SGT EOD catch-up digest includes due-today and overdue tasks until they are Done.
+- The central weekday 09:00 SGT reminder digest includes tasks due tomorrow, due today, and overdue tasks until they are Done.
+- The central weekday 17:00 SGT EOD catch-up digest includes due-today and overdue tasks until they are Done.
+- The central weekday 09:15 SGT assignment hygiene digest surfaces active PCO issues missing Jira assignee or `PS Team` to PS lead Josica, and active PCO issues missing `duedate` to the known `PS Team` / `CS Duty`.
+- Assignment hygiene mentions come only from reviewed runtime `PSM_OPS_REMINDER_MENTION_MAP_PATH`: `ps_leads.Josica` for the PS lead and `ps_teams` for team owners. Missing mappings render mention gaps and are not guessed.
 - Reminder cron output must start with `PSM Ops automation:`.
 - Reminder cron PS Team mentions come only from reviewed runtime `PSM_OPS_REMINDER_MENTION_MAP_PATH`; unmapped teams are listed as mention gaps and are not guessed.
 - Reminder customer-team mentions come only from reviewed `PSM_OPS_CUSTOMER_CHANNEL_MAP_PATH` matches against Jira source Slack permalinks; do not cross-post to customer channels.

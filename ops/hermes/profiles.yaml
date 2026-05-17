@@ -146,12 +146,17 @@ profiles:
       psm_c360: 3
     expected_crons:
       - name: psmopsbot due-date reminders
-        schedule: "0 1 * * *"
+        schedule: "0 1 * * 1-5"
         mode: no-agent
         script: psm_ops_due_date_reminders.py
         deliver: slack:#ps-weeman-bot-test
+      - name: psmopsbot assignment hygiene
+        schedule: "15 1 * * 1-5"
+        mode: no-agent
+        script: psm_ops_pco_assignment_hygiene.py
+        deliver: slack:#ps-weeman-bot-test
       - name: psmopsbot due-date eod catch-up
-        schedule: "0 9 * * *"
+        schedule: "0 9 * * 1-5"
         mode: no-agent
         script: psm_ops_due_date_reminders_eod.py
         deliver: slack:#ps-weeman-bot-test

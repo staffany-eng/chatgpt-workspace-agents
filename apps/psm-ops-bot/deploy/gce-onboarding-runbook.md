@@ -94,10 +94,13 @@ Handoff Package intentionally returns a blocked response until PCO has the missi
 
 Customer-specific Slack channel auto-tagging reads a reviewed JSON map from `PSM_OPS_CUSTOMER_CHANNEL_MAP_PATH`. Keep the map in profile/runtime storage, not in git. Each reviewed row must include `channel_id`, `channel_name`, `customer_key`, `customer_name`, `staffany_orgs`, and `status=reviewed`.
 
-Reminder PS Team tagging reads a reviewed JSON map from `PSM_OPS_REMINDER_MENTION_MAP_PATH`. Keep this map in profile/runtime storage, not in git. The reminder cron does not call Slack `users.list` or guess team membership:
+Reminder and assignment hygiene tagging reads a reviewed JSON map from `PSM_OPS_REMINDER_MENTION_MAP_PATH`. Keep this map in profile/runtime storage, not in git. The reminder cron does not call Slack `users.list` or guess team membership:
 
 ```json
 {
+  "ps_leads": {
+    "Josica": [{"type": "user", "id": "U456", "label": "Josica"}]
+  },
   "ps_teams": {
     "Kai Yi": [{"type": "user", "id": "U123", "label": "Kai Yi"}],
     "CS Duty": [{"type": "usergroup", "id": "S123", "handle": "cs-duty"}]
@@ -153,11 +156,13 @@ rsync -a apps/psm-ops-bot/runtime/hooks/psm-ops-adoption-telemetry/ ~/.hermes/pr
 cp apps/psm-ops-bot/runtime/psm_ops_adoption_digest.py ~/.hermes/profiles/psmopsbot/scripts/psm_ops_adoption_digest.py
 cp apps/psm-ops-bot/runtime/scripts/psm_ops_due_date_reminders.py ~/.hermes/profiles/psmopsbot/scripts/psm_ops_due_date_reminders.py
 cp apps/psm-ops-bot/runtime/scripts/psm_ops_due_date_reminders.py ~/.hermes/profiles/psmopsbot/scripts/psm_ops_due_date_reminders_eod.py
+cp apps/psm-ops-bot/runtime/scripts/psm_ops_pco_assignment_hygiene.py ~/.hermes/profiles/psmopsbot/scripts/psm_ops_pco_assignment_hygiene.py
 cp apps/psm-ops-bot/runtime/scripts/psm_ops_roi_tracker_sync.py ~/.hermes/profiles/psmopsbot/scripts/psm_ops_roi_tracker_sync.py
 cp apps/psm-ops-bot/runtime/scripts/psm_ops_join_public_channels.py ~/.hermes/profiles/psmopsbot/scripts/psm_ops_join_public_channels.py
 chmod 755 ~/.hermes/profiles/psmopsbot/scripts/psm_ops_adoption_digest.py \
   ~/.hermes/profiles/psmopsbot/scripts/psm_ops_due_date_reminders.py \
   ~/.hermes/profiles/psmopsbot/scripts/psm_ops_due_date_reminders_eod.py \
+  ~/.hermes/profiles/psmopsbot/scripts/psm_ops_pco_assignment_hygiene.py \
   ~/.hermes/profiles/psmopsbot/scripts/psm_ops_roi_tracker_sync.py \
   ~/.hermes/profiles/psmopsbot/scripts/psm_ops_join_public_channels.py
 ```
@@ -226,16 +231,22 @@ npm run psm-ops-bot:deploy -- --apply --skip-restart
 
 ## Cron
 
-Install automatic due-date reminders on the cloud host only:
+Install automatic due-date reminders and assignment hygiene on the cloud host only:
 
 ```bash
-hermes -p psmopsbot cron create "0 1 * * *" \
+hermes -p psmopsbot cron create "0 1 * * 1-5" \
   --name "psmopsbot due-date reminders" \
   --script psm_ops_due_date_reminders.py \
   --no-agent \
   --deliver "slack:#ps-weeman-bot-test"
 
-hermes -p psmopsbot cron create "0 9 * * *" \
+hermes -p psmopsbot cron create "15 1 * * 1-5" \
+  --name "psmopsbot assignment hygiene" \
+  --script psm_ops_pco_assignment_hygiene.py \
+  --no-agent \
+  --deliver "slack:#ps-weeman-bot-test"
+
+hermes -p psmopsbot cron create "0 9 * * 1-5" \
   --name "psmopsbot due-date eod catch-up" \
   --script psm_ops_due_date_reminders_eod.py \
   --no-agent \
@@ -254,7 +265,7 @@ hermes -p psmopsbot cron create "0 2 * * 1-5" \
   --deliver "slack:#ps-weeman-bot-test"
 ```
 
-The GCE host runs UTC, so `0 1 * * *` is 09:00 Asia/Singapore daily, `0 9 * * *` is 17:00 Asia/Singapore daily, and `*/30 1-10 * * 1-5` checks ROI trackers every 30 minutes during Singapore workdays. The EOD cron uses the same source script copied under an `eod` filename because Hermes cron does not pass script flags to no-agent scripts.
+The GCE host runs UTC, so `0 1 * * 1-5` is 09:00 Asia/Singapore on weekdays, `15 1 * * 1-5` is 09:15 Asia/Singapore on weekdays, `0 9 * * 1-5` is 17:00 Asia/Singapore on weekdays, and `*/30 1-10 * * 1-5` checks ROI trackers every 30 minutes during Singapore workdays. The EOD cron uses the same source script copied under an `eod` filename because Hermes cron does not pass script flags to no-agent scripts.
 
 Install the no-agent PS WEE adoption digest:
 
@@ -282,7 +293,7 @@ Cloud smoke:
 2. Draft and approve-create one PCO test task.
 3. Transition it to Scheduled.
 4. Add an internal comment.
-5. Run `psm_ops_due_date_reminders.py --mode morning --dry-run`, `psm_ops_due_date_reminders.py --mode eod --dry-run`, and `psm_ops_roi_tracker_sync.py --dry-run`; verify they output Slack-safe mrkdwn, optional reviewed PS Team mentions, reviewed customer-channel mentions from source links only, safe Jira issue summaries, and `[SILENT]` when empty.
+5. Run `psm_ops_due_date_reminders.py --mode morning --dry-run`, `psm_ops_pco_assignment_hygiene.py --dry-run`, `psm_ops_due_date_reminders.py --mode eod --dry-run`, and `psm_ops_roi_tracker_sync.py --dry-run`; verify they output Slack-safe mrkdwn, optional reviewed PS lead / PS Team mentions, reviewed customer-channel mentions from source links only, safe Jira issue summaries, and `[SILENT]` when empty.
 6. Ask for Rock Productions from a channel-style hint such as `proj-cs-rockproductions`; verify the bot finds `Rock Productions Pte Ltd`, shows the searched variants safely, and does not say a generic customer cannot be found.
 7. Ask one calendar follow-up question and verify `psm_google_calendar.read_customer_calendar_context` returns bounded event metadata from `team@staffany.com` without descriptions, attendee emails, raw guest lists, or conference links.
 8. Ask one C360 customer question and verify a C360 link/citation appears.
