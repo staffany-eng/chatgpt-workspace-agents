@@ -1070,3 +1070,20 @@ Expected behavior:
 - `truecaller_manual_lookup` stays candidate evidence unless paired with `nurtureany_phone_verification_status=called_connected`.
 - Returns field-level HubSpot mismatch reasons when rollups and associated contacts disagree.
 - Returns KNS talking points only; no HubSpot mutation, Lusha/Prospeo reveal, automated Truecaller lookup, raw phone-number export, or WhatsApp send.
+
+### SG/MY WhatsApp Morning Report Primitive
+
+Prompt:
+
+```text
+@NurtureAny build the SG/MY WhatsApp morning report for today
+```
+
+Expected behavior:
+
+- After `run`, calls `build_sales_whatsapp_window_report` with Singapore then Malaysia, 09:30-10:30 owner-local time, target 30, and `include_kns=false`.
+- Resolves owner, country, and timezone from `NURTUREANY_ACCESS_POLICY_PATH` through `resolve_sales_owners`; no Slack-memory roster fixes and no silent SGT fallback.
+- Ad hoc reruns such as `9:45-10:45 today` call `build_sales_whatsapp_window_report` only and do not call `save_sales_whatsapp_window_report_schedule`.
+- Saved schedule changes use `save_sales_whatsapp_window_report_schedule` only on explicit schedule intent and store profile-runtime state outside the repo.
+- Approved report posting uses `post_generated_sales_report` with generated markdown, allowlisted `NURTUREANY_REPORT_DELIVERY_CHANNEL_IDS`, approval marker, idempotency key, and operation-ledger checkpoints. It blocks duplicates and returns `not_in_channel` remediation without user-token or Slack connector fallback.
+- No raw WhatsApp bodies, phone numbers, raw Slack transcripts, raw HubSpot rows, HubSpot mutation, or external WhatsApp sending.

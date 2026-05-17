@@ -122,7 +122,7 @@
     "format": "dotenv",
     "version_policy": "latest",
     "secret_values_committed": false,
-    "expected_key_count": 27,
+    "expected_key_count": 28,
     "expected_keys": [
       "AIRCALL_API_ID",
       "AIRCALL_API_TOKEN",
@@ -136,6 +136,7 @@
       "NURTUREANY_C360_INTERNAL_API_TOKEN",
       "NURTUREANY_CLOSED_WON_STAGE_IDS",
       "NURTUREANY_MATERIAL_REGISTRY_SPREADSHEET_ID",
+      "NURTUREANY_REPORT_DELIVERY_CHANNEL_IDS",
       "NURTUREANY_QO_MET_STAGE_IDS",
       "NURTUREANY_QO_PIPELINE_IDS",
       "NURTUREANY_QO_STAGE_IDS",
@@ -437,6 +438,35 @@
       "audit_standup_down_accountability"
     ]
   },
+  "sales_whatsapp_window_report": {
+    "enabled": true,
+    "generation_tool": "build_sales_whatsapp_window_report",
+    "schedule_save_tool": "save_sales_whatsapp_window_report_schedule",
+    "schedule_run_tool": "run_sales_whatsapp_window_report_schedule",
+    "delivery_tool": "post_generated_sales_report",
+    "default_countries": [
+      "Singapore",
+      "Malaysia"
+    ],
+    "country_order": [
+      "Singapore",
+      "Malaysia"
+    ],
+    "default_window_local": "09:30-10:30",
+    "target_per_owner": 30,
+    "include_kns_default": false,
+    "logical_cron": "35 10 * * 1-5",
+    "logical_timezone": "Asia/Singapore",
+    "production_cron_expression": "35 2 * * 1-5",
+    "delivery_channel_ids_env_var": "NURTUREANY_REPORT_DELIVERY_CHANNEL_IDS",
+    "schedule_dir_env_var": "NURTUREANY_REPORT_SCHEDULE_DIR",
+    "storage": "profile_runtime_state_not_repo_or_secret",
+    "owner_country_timezone_source": "runtime_access_policy_and_resolve_sales_owners",
+    "adhoc_reruns_mutate_schedule": false,
+    "raw_bodies_returned": false,
+    "slack_connector_fallback": false,
+    "user_token_fallback": false
+  },
   "tools": {
     "read": [
       "read_recent_slack_intent_context",
@@ -480,7 +510,9 @@
       "list_active_deals_missing_next_meeting",
       "list_sales_followup_tasks",
       "list_due_hubspot_sales_task_reminders",
+      "build_sales_whatsapp_window_report",
       "count_owner_whatsapp_sent_today",
+      "run_sales_whatsapp_window_report_schedule",
       "check_account_followup_status",
       "check_event_followup_status",
       "find_target_accounts_by_luma_match_keys",
@@ -497,6 +529,7 @@
       "read_nurture_material_registry",
       "read_indonesia_event_registration_attendance",
       "check_eazybe_send_status",
+      "save_sales_whatsapp_window_report_schedule",
       "record_nurtureany_operation_checkpoint",
       "read_nurtureany_operation_ledger",
       "record_nurtureany_lesson_candidate",
@@ -540,7 +573,8 @@
       "reveal_prospeo_contact_details"
     ],
     "approval_gated_external_message_sending": [
-      "send_approved_eazybe_messages"
+      "send_approved_eazybe_messages",
+      "post_generated_sales_report"
     ],
     "write_phase_planned_disabled": {
       "state": "disabled_in_v1",

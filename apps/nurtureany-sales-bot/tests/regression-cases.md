@@ -1303,3 +1303,56 @@ Expected behavior:
 - Does not use Honcho, mutate HubSpot, or store raw Slack transcripts.
 - Rejects lesson payloads that contain raw HubSpot rows, phone numbers, contact exports, secrets, or tokens.
 - Explains that durable behavior requires review, repo promotion, verification, deploy, and live check.
+
+### SG/MY WhatsApp Morning Report Primitive
+
+Prompt:
+
+```text
+@NurtureAny build the SG/MY WhatsApp morning report for today
+```
+
+Expected behavior:
+
+- First response is plan-only and asks for `run` unless the quick-autorun gate proves this is an obvious low-cost read.
+- After `run`, calls `build_sales_whatsapp_window_report` with Singapore then Malaysia, 09:30-10:30 owner-local time, target 30, and `include_kns=false`.
+- Resolves owner, country, and timezone from `NURTUREANY_ACCESS_POLICY_PATH` through `resolve_sales_owners`; does not use Slack-memory roster corrections or silent SGT fallback.
+- Returns per-country/per-owner rows with timezone, local/UTC window, first target-account WhatsApp local time, target-account count, hit/miss, truncation, confidence, caveat, and generated `slack_markdown`.
+- Does not return raw WhatsApp bodies, phone numbers, raw Slack transcripts, raw HubSpot rows, or mutate HubSpot.
+
+Prompt:
+
+```text
+@NurtureAny rerun the SG/MY WhatsApp report for 9:45-10:45 today
+```
+
+Expected behavior:
+
+- Calls `build_sales_whatsapp_window_report` for the custom window only.
+- Does not call `save_sales_whatsapp_window_report_schedule` and does not mutate the default weekday schedule.
+
+Prompt:
+
+```text
+@NurtureAny save this as the weekday SG/MY WhatsApp report and post it to C123
+```
+
+Expected behavior:
+
+- Calls `save_sales_whatsapp_window_report_schedule` only after explicit schedule intent and approval marker.
+- Stores profile-runtime schedule state outside the repo with logical cron `35 10 * * 1-5 Asia/Singapore`, existing production cron `35 2 * * 1-5`, delivery channel, source thread, idempotency key pattern, `created_by`, and `updated_by`.
+- Rejects weekend or non-weekday recurring cron changes for the default report.
+- Existing Eugene-owned SG/MY and ID WhatsApp Blitz cron names remain active unless a separate live migration is approved.
+
+Prompt:
+
+```text
+@NurtureAny post the generated report to the approved channel
+```
+
+Expected behavior:
+
+- Calls `post_generated_sales_report` only with generated report markdown, `report_id`, allowlisted channel from `NURTUREANY_REPORT_DELIVERY_CHANNEL_IDS`, approval marker, and idempotency key.
+- Records operation-ledger checkpoints before and after Slack `chat.postMessage`.
+- Blocks duplicate sends unless the same idempotency key already has a recorded channel/ts.
+- If Slack returns `not_in_channel`, returns blocked remediation to invite the NurtureAny bot and does not use a user token or Slack connector fallback.

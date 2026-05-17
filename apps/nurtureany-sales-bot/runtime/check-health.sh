@@ -11,7 +11,7 @@ EXPECT_MODEL_PROVIDER="${EXPECT_MODEL_PROVIDER:-anthropic}"
 EXPECT_MODEL_DEFAULT="${EXPECT_MODEL_DEFAULT:-claude-sonnet-4-6}"
 EXPECT_SLACK_INTENT_TOOLS="${EXPECT_SLACK_INTENT_TOOLS:-5}"
 EXPECT_STAFFANY_BIGQUERY_TOOLS="${EXPECT_STAFFANY_BIGQUERY_TOOLS:-4}"
-EXPECT_HUBSPOT_TOOLS="${EXPECT_HUBSPOT_TOOLS:-56}"
+EXPECT_HUBSPOT_TOOLS="${EXPECT_HUBSPOT_TOOLS:-60}"
 EXPECT_AIRCALL_TOOLS="${EXPECT_AIRCALL_TOOLS:-4}"
 EXPECT_GOOGLE_CALENDAR_TOOLS="${EXPECT_GOOGLE_CALENDAR_TOOLS:-2}"
 EXPECT_GOOGLE_DRIVE_TOOLS="${EXPECT_GOOGLE_DRIVE_TOOLS:-5}"
@@ -280,7 +280,11 @@ expected_servers = {
         "list_active_deals_missing_next_meeting",
         "list_sales_followup_tasks",
         "list_due_hubspot_sales_task_reminders",
+        "build_sales_whatsapp_window_report",
         "count_owner_whatsapp_sent_today",
+        "save_sales_whatsapp_window_report_schedule",
+        "run_sales_whatsapp_window_report_schedule",
+        "post_generated_sales_report",
         "check_account_followup_status",
         "check_event_followup_status",
         "score_nurture_accounts",

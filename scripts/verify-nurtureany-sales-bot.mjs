@@ -229,6 +229,18 @@ if (!existsSync(manifestPath)) {
     if (manifest.standup_down_accountability?.user_token_fallback !== false || manifest.standup_down_accountability?.slack_connector_fallback !== false) {
       fail("Manifest standup_down_accountability must disable unsafe Slack fallbacks");
     }
+    if (manifest.sales_whatsapp_window_report?.generation_tool !== "build_sales_whatsapp_window_report") {
+      fail("Manifest sales_whatsapp_window_report must name build_sales_whatsapp_window_report");
+    }
+    if (manifest.sales_whatsapp_window_report?.delivery_tool !== "post_generated_sales_report") {
+      fail("Manifest sales_whatsapp_window_report must name post_generated_sales_report");
+    }
+    if (manifest.sales_whatsapp_window_report?.delivery_channel_ids_env_var !== "NURTUREANY_REPORT_DELIVERY_CHANNEL_IDS") {
+      fail("Manifest sales_whatsapp_window_report must name NURTUREANY_REPORT_DELIVERY_CHANNEL_IDS");
+    }
+    if (manifest.sales_whatsapp_window_report?.adhoc_reruns_mutate_schedule !== false) {
+      fail("Manifest sales_whatsapp_window_report must keep ad hoc reruns schedule-safe");
+    }
 
     const paths = manifest.paths || {};
     for (const value of Object.values(paths)) {
@@ -301,7 +313,9 @@ if (!existsSync(manifestPath)) {
       "list_active_deals_missing_next_meeting",
       "list_sales_followup_tasks",
       "list_due_hubspot_sales_task_reminders",
+      "build_sales_whatsapp_window_report",
       "count_owner_whatsapp_sent_today",
+      "run_sales_whatsapp_window_report_schedule",
       "check_account_followup_status",
       "check_event_followup_status",
       "find_target_accounts_by_luma_match_keys",
@@ -318,6 +332,7 @@ if (!existsSync(manifestPath)) {
       "read_nurture_material_registry",
       "read_indonesia_event_registration_attendance",
       "check_eazybe_send_status",
+      "save_sales_whatsapp_window_report_schedule",
       "record_nurtureany_operation_checkpoint",
       "read_nurtureany_operation_ledger",
       "record_nurtureany_lesson_candidate",
@@ -378,6 +393,9 @@ if (!existsSync(manifestPath)) {
     }
     if (!manifest.tools?.approval_gated_external_message_sending?.includes("send_approved_eazybe_messages")) {
       fail("Manifest missing approval-gated Eazybe tool: send_approved_eazybe_messages");
+    }
+    if (!manifest.tools?.approval_gated_external_message_sending?.includes("post_generated_sales_report")) {
+      fail("Manifest missing constrained report delivery tool: post_generated_sales_report");
     }
     const plannedWriteTools = ["create_hubspot_task", "append_hubspot_note", "update_nurture_fields"];
     if (manifest.tools?.write_phase_planned_disabled?.state !== "disabled_in_v1") {
@@ -1099,7 +1117,13 @@ for (const text of [
   "runtime_candidates_env: NURTUREANY_LESSON_CANDIDATES_DIR",
   "record_nurtureany_lesson_candidate",
   "list_nurtureany_lesson_candidates",
-  "read_nurtureany_lesson_candidate"
+  "read_nurtureany_lesson_candidate",
+  "NURTUREANY_REPORT_DELIVERY_CHANNEL_IDS",
+  "NURTUREANY_REPORT_SCHEDULE_DIR",
+  "build_sales_whatsapp_window_report",
+  "save_sales_whatsapp_window_report_schedule",
+  "run_sales_whatsapp_window_report_schedule",
+  "post_generated_sales_report"
 ]) {
   if (!configText.includes(text)) fail(`config.template.yaml missing required text: ${text}`);
 }
@@ -1192,7 +1216,12 @@ for (const text of [
   "NURTUREANY_STANDUP_AUDIT_CHANNEL_IDS",
   "date=\"today\"",
   "raw note bodies",
-  "HR employment truth"
+  "HR employment truth",
+  "build_sales_whatsapp_window_report",
+  "save_sales_whatsapp_window_report_schedule",
+  "post_generated_sales_report",
+  "NURTUREANY_REPORT_DELIVERY_CHANNEL_IDS",
+  "no silent SGT fallback"
 ]) {
   if (!soulText.includes(text)) fail(`SOUL.md missing required safety/contract text: ${text}`);
 }
@@ -1250,6 +1279,10 @@ for (const text of [
   "No Sheet, memory, Honcho, Slack reaction, or JSON file becomes task truth.",
   "audit_owner_whatsapp_kns_window",
   "count_owner_whatsapp_sent_today",
+  "build_sales_whatsapp_window_report",
+  "save_sales_whatsapp_window_report_schedule",
+  "run_sales_whatsapp_window_report_schedule",
+  "post_generated_sales_report",
   "sales-owned HubSpot follow-up tasks",
   "check_account_followup_status",
   "check_event_followup_status",
@@ -1367,6 +1400,8 @@ for (const text of [
   "PII/body safety",
   "Cost/credit reporting",
   "Mutation policy",
+  "build_sales_whatsapp_window_report",
+  "NURTUREANY_REPORT_DELIVERY_CHANNEL_IDS",
   "Sales-best-practices usage",
   "Inbound/routing",
   "Event attribution",
@@ -1410,6 +1445,9 @@ for (const tool of [
 const combinedRegressionText = `${textOf("skills/nurtureany-sales-bot/references/regression-cases.md")}\n${textOf("tests/regression-cases.md")}`;
 for (const text of [
   "Inbound Routing Quality",
+  "SG/MY WhatsApp Morning Report Primitive",
+  "build_sales_whatsapp_window_report",
+  "post_generated_sales_report",
   "Smoke/test prompts follow the same quick-intent gate",
   "Quick Intent Auto-Run",
   "Ambiguous Recent Context Still Preflight",
@@ -1548,6 +1586,11 @@ for (const text of [
   "list_due_hubspot_sales_task_reminders",
   "audit_owner_whatsapp_kns_window",
   "count_owner_whatsapp_sent_today",
+  "build_sales_whatsapp_window_report",
+  "save_sales_whatsapp_window_report_schedule",
+  "run_sales_whatsapp_window_report_schedule",
+  "post_generated_sales_report",
+  "NURTUREANY_REPORT_DELIVERY_CHANNEL_IDS",
   "check_account_followup_status",
   "check_event_followup_status",
   "COMMUNICATION_PROPERTIES",
@@ -2056,6 +2099,9 @@ for (const text of [
   "nurtureanysalesbot HubSpot task reminders",
   "nurtureanysalesbot HubSpot task EOD catch-up",
   "nine enabled recurring operational crons",
+  "build_sales_whatsapp_window_report",
+  "post_generated_sales_report",
+  "NURTUREANY_REPORT_DELIVERY_CHANNEL_IDS",
   "check-cloud-heartbeat.sh",
   "check-slack-socket-health.sh",
   "nurtureany_sales_task_reminders.py",
@@ -2073,7 +2119,7 @@ for (const text of [
   "PROFILE=\"${HERMES_PROFILE:-nurtureanysalesbot}\"",
   "export HERMES_HOME=\"$HOME/.hermes/profiles/$PROFILE\"",
   "EXPECT_SLACK_INTENT_TOOLS=\"${EXPECT_SLACK_INTENT_TOOLS:-5}\"",
-  "EXPECT_HUBSPOT_TOOLS=\"${EXPECT_HUBSPOT_TOOLS:-56}\"",
+  "EXPECT_HUBSPOT_TOOLS=\"${EXPECT_HUBSPOT_TOOLS:-60}\"",
   "EXPECT_AIRCALL_TOOLS=\"${EXPECT_AIRCALL_TOOLS:-4}\"",
   "NURTUREANY_GATEWAY_SERVICE_NAME",
   "systemctl --user is-active --quiet \"$GATEWAY_SERVICE_NAME\"",
@@ -2144,7 +2190,7 @@ for (const text of [
   "EXPECTED_CLOUD_HEARTBEAT_CRON_NAME",
   "nurtureanysalesbot local cloud heartbeat",
   "EXPECT_ENABLED_CRON_COUNT=\"${EXPECT_ENABLED_CRON_COUNT:-9}\"",
-  "EXPECT_HUBSPOT_TOOLS=\"${EXPECT_HUBSPOT_TOOLS:-56}\"",
+  "EXPECT_HUBSPOT_TOOLS=\"${EXPECT_HUBSPOT_TOOLS:-60}\"",
   "EXPECTED_TASK_REMINDER_CRON_NAME",
   "EXPECTED_TASK_REMINDER_EOD_CRON_NAME",
   "EXPECTED_SG_MY_WHATSAPP_BLITZ_CRON_NAME",
@@ -2229,7 +2275,7 @@ for (const text of [
 const hermesProfilesText = repoTextOf("ops/hermes/profiles.yaml");
 for (const text of [
   "slack_nurtureany: 5",
-  "hubspot_nurtureany: 56",
+  "hubspot_nurtureany: 60",
   "nurtureanysalesbot HubSpot task reminders",
   "nurtureanysalesbot HubSpot task EOD catch-up",
   "SG MY WhatsApp Morning Blitz Report",

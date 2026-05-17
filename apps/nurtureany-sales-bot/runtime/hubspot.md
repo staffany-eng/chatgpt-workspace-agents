@@ -88,7 +88,11 @@ It exposes these tools:
 - `preview_hubspot_task_update`
 - `apply_approved_hubspot_task_update`
 - `list_due_hubspot_sales_task_reminders`
+- `build_sales_whatsapp_window_report`
 - `count_owner_whatsapp_sent_today`
+- `save_sales_whatsapp_window_report_schedule`
+- `run_sales_whatsapp_window_report_schedule`
+- `post_generated_sales_report`
 - `check_account_followup_status`
 - `check_event_followup_status`
 - `score_nurture_accounts`
@@ -360,6 +364,25 @@ HubSpot Task management:
 - Output: communications-only count of HubSpot WhatsApp metadata for the selected owner's scoped target accounts on that date.
 - Use this direct fast path for prompts like "how many WhatsApp messages did Jeremy send today" instead of Friday review or priority-account coverage.
 - Must not expose raw WhatsApp bodies, phone numbers, notes, tasks, meetings, or mutate HubSpot.
+
+`build_sales_whatsapp_window_report`:
+
+- Input: caller email, optional scoped owner emails, `for_date`, local window, countries, SG-first country order, `target_per_owner` default 30, and `include_kns=false`.
+- Output: generated SG/MY report rows by country and owner, access-policy timezone, local and UTC window, first target-account WhatsApp local time, target-account WhatsApp count, hit/miss against 30, truncation, confidence/caveat, and `slack_markdown`.
+- Owner, country, and timezone source of truth is `NURTUREANY_ACCESS_POLICY_PATH` through `resolve_sales_owners` / `_sales_owner_rows_for_scope`. Do not patch rosters from Slack memory or silently fall back to SGT. Missing timezone is `needs-check` and blocks the HubSpot query.
+- Ad hoc reruns such as `09:45-10:45 today` call this primitive only; they must not update the saved weekday schedule.
+
+`save_sales_whatsapp_window_report_schedule` and `run_sales_whatsapp_window_report_schedule`:
+
+- Schedule state is profile-runtime JSON, not repo state or secrets. It stores report args, logical cron `35 10 * * 1-5 Asia/Singapore`, current production cron expression `35 2 * * 1-5`, delivery channel, source Slack thread, idempotency key pattern, `created_by`, and `updated_by`.
+- The runner loads the saved state and calls `build_sales_whatsapp_window_report` deterministically. Weekends are skipped for the default weekday schedule.
+- Existing Eugene-owned SG/MY and ID WhatsApp Blitz crons stay active until a separate live migration changes them.
+
+`post_generated_sales_report`:
+
+- Input is only `report_id`, allowlisted `channel_id`, `approval_marker`, `idempotency_key`, and generated report markdown.
+- Validates `NURTUREANY_REPORT_DELIVERY_CHANNEL_IDS`, the generated report prefix, no raw WhatsApp bodies, no phone numbers, no raw Slack transcripts, and no raw HubSpot rows.
+- Posts with `SLACK_BOT_TOKEN` as NurtureAny automation/report output. It records the operation ledger before and after `chat.postMessage`; duplicate sends are blocked unless the same idempotency key already has a recorded channel/ts. `not_in_channel` returns a blocked remediation and never falls back to a user token or Slack connector.
 
 `check_account_followup_status`:
 

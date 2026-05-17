@@ -754,6 +754,261 @@ class OwnerWhatsAppSentTodayTest(unittest.TestCase):
         self.assertIn("manager/admin", result["caveat"])
 
 
+class SalesWhatsappWindowReportTest(unittest.TestCase):
+    def setUp(self):
+        self.module = load_hubspot_module()
+
+    def _report_policy(self, nicholas_timezone="Asia/Kuala_Lumpur"):
+        return {
+            "admins": {},
+            "managers": {"kerren.fong@staffany.com": ("Singapore", "Malaysia")},
+            "sales_reps": {
+                "jeremy.wong@staffany.com": {
+                    "hubspot_owner_email": "jeremy.wong@staffany.com",
+                    "countries": ("Singapore",),
+                    "timezone": "Asia/Singapore",
+                },
+                "nicholas@staffany.com": {
+                    "hubspot_owner_email": "nicholas@staffany.com",
+                    "countries": ("Malaysia",),
+                    "timezone": nicholas_timezone,
+                },
+            },
+            "partnerships_viewers": {},
+            "event_operators": {},
+            "disabled": set(),
+            "aliases": {},
+        }
+
+    def _owner_by_email(self, email):
+        normalized = email.lower()
+        owners = {
+            "jeremy.wong@staffany.com": {"id": "owner-jeremy", "email": "jeremy.wong@staffany.com", "firstName": "Jeremy", "lastName": "Wong"},
+            "nicholas@staffany.com": {"id": "owner-nicholas", "email": "nicholas@staffany.com", "firstName": "Nicholas", "lastName": "Tan"},
+        }
+        return owners.get(normalized)
+
+    def test_report_groups_sg_my_sg_first_and_uses_access_policy_country(self):
+        def fake_object_search(object_type, filters, properties, limit=100, maximum=500, sorts=None):
+            self.assertEqual(object_type, "communications")
+            self.assertNotIn("hs_communication_body", properties)
+            owner_id = next(item["value"] for item in filters if item["propertyName"] == "hubspot_owner_id")
+            count = 30 if owner_id == "owner-jeremy" else 29
+            prefix = "sg" if owner_id == "owner-jeremy" else "my"
+            return {
+                "results": [
+                    {
+                        "id": f"{prefix}-comm-{index}",
+                        "properties": {
+                            "hs_timestamp": f"2026-05-13T0{1 if owner_id == 'owner-jeremy' else 2}:{index % 60:02d}:00Z",
+                            "hubspot_owner_id": owner_id,
+                            "hs_communication_channel_type": "WHATS_APP",
+                            "hs_communication_logged_from": "Eazybe",
+                        },
+                    }
+                    for index in range(count)
+                ],
+                "total": count,
+                "returned_count": count,
+                "has_more": False,
+                "truncated": False,
+            }
+
+        def fake_company_search(filters, limit=100, maximum=500, sorts=None, query=""):
+            owner_id = next(item["value"] for item in filters if item["propertyName"] == "hubspot_owner_id")
+            country = next(item["values"][0] for item in filters if item["propertyName"] == "company_country")
+            company_id = "sg-company" if owner_id == "owner-jeremy" else "my-company"
+            return {
+                "results": [{"id": company_id, "properties": {"name": f"{country} Target", "company_country": country, "hubspot_owner_id": owner_id}}],
+                "total": 1,
+                "returned_count": 1,
+                "has_more": False,
+                "truncated": False,
+            }
+
+        def fake_batch_association_ids(from_type, to_type, ids):
+            if from_type == "companies":
+                return {str(item): [] for item in ids}
+            if from_type == "communications" and to_type == "companies":
+                return {str(item): (["sg-company"] if str(item).startswith("sg-") else ["my-company"]) for item in ids}
+            return {str(item): [] for item in ids}
+
+        with patch.object(self.module, "_access_policy", return_value=self._report_policy()), patch.object(
+            self.module, "_owner_by_email", side_effect=self._owner_by_email
+        ), patch.object(self.module, "_object_search", side_effect=fake_object_search), patch.object(
+            self.module, "_company_search", side_effect=fake_company_search
+        ), patch.object(self.module, "_batch_association_ids", side_effect=fake_batch_association_ids):
+            result = self.module.build_sales_whatsapp_window_report(
+                "kerren.fong@staffany.com",
+                for_date="2026-05-13",
+                window_start_local="09:30",
+                window_end_local="10:30",
+            )
+
+        rows = result["answer"]["country_rows"]
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual([row["country"] for row in rows], ["Singapore", "Malaysia"])
+        self.assertEqual(rows[1]["owner_email"], "nicholas@staffany.com")
+        self.assertEqual(rows[1]["country"], "Malaysia")
+        self.assertEqual(rows[0]["target_account_whatsapp_count"], 30)
+        self.assertEqual(rows[0]["target_status"], "hit")
+        self.assertEqual(rows[1]["target_account_whatsapp_count"], 29)
+        self.assertEqual(rows[1]["target_status"], "miss")
+        self.assertEqual(result["answer"]["target_per_owner"], 30)
+        dumped = json.dumps(result)
+        self.assertNotIn("hs_communication_body", dumped)
+
+    def test_report_missing_timezone_blocks_before_hubspot_query(self):
+        policy = self._report_policy(nicholas_timezone="")
+        with patch.object(self.module, "_access_policy", return_value=policy), patch.object(
+            self.module, "_owner_by_email", side_effect=self._owner_by_email
+        ), patch.object(self.module, "_object_search", side_effect=AssertionError("should not query without timezone")), patch.object(
+            self.module, "_company_search", side_effect=AssertionError("should not query without timezone")
+        ):
+            result = self.module.build_sales_whatsapp_window_report(
+                "kerren.fong@staffany.com",
+                countries=["Malaysia"],
+                owner_emails=["nicholas@staffany.com"],
+                for_date="2026-05-13",
+            )
+
+        self.assertEqual(result["confidence"], "needs-check")
+        row = result["answer"]["country_rows"][0]
+        self.assertEqual(row["status"], "needs-check")
+        self.assertEqual(row["target_account_whatsapp_count"], "needs-check")
+
+    def test_schedule_state_and_custom_one_off_report_stay_separate(self):
+        with tempfile.TemporaryDirectory() as schedule_dir, patch.dict(
+            os.environ,
+            {
+                "NURTUREANY_REPORT_SCHEDULE_DIR": schedule_dir,
+                "NURTUREANY_REPORT_DELIVERY_CHANNEL_IDS": "C123",
+            },
+        ), patch.object(self.module, "_caller_scope", return_value=SCOPE):
+            saved = self.module.save_sales_whatsapp_window_report_schedule(
+                "kerren.fong@staffany.com",
+                delivery_channel_id="C123",
+                approval_marker="approved report send",
+                source_slack_thread="C0B2UGK4DB6:1778814173.849539",
+            )
+            before = Path(schedule_dir, "sg-my-whatsapp-morning-report.json").read_text(encoding="utf-8")
+            with patch.object(self.module, "_sales_owner_rows_for_scope", return_value=([], [])):
+                report = self.module.build_sales_whatsapp_window_report(
+                    "kerren.fong@staffany.com",
+                    for_date="2026-05-13",
+                    window_start_local="09:45",
+                    window_end_local="10:45",
+                )
+            after = Path(schedule_dir, "sg-my-whatsapp-morning-report.json").read_text(encoding="utf-8")
+
+        self.assertEqual(saved["confidence"], "verified")
+        self.assertEqual(before, after)
+        self.assertFalse(report["answer"]["schedule_mutated"])
+        self.assertEqual(report["answer"]["window_start_local"], "09:45")
+
+    def test_schedule_rejects_non_weekday_default_cron(self):
+        with tempfile.TemporaryDirectory() as schedule_dir, patch.dict(
+            os.environ,
+            {"NURTUREANY_REPORT_SCHEDULE_DIR": schedule_dir, "NURTUREANY_REPORT_DELIVERY_CHANNEL_IDS": "C123"},
+        ), patch.object(self.module, "_caller_scope", return_value=SCOPE):
+            result = self.module.save_sales_whatsapp_window_report_schedule(
+                "kerren.fong@staffany.com",
+                cron_schedule="35 10 * * *",
+                delivery_channel_id="C123",
+                approval_marker="approved report send",
+            )
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("weekday-only", result["caveat"])
+
+
+class SalesReportDeliveryTest(unittest.TestCase):
+    def setUp(self):
+        self.module = load_hubspot_module()
+
+    def _markdown(self, report_id="sales-whatsapp-window-report:2026-05-13:test"):
+        return (
+            f"{self.module.SALES_WHATSAPP_REPORT_PREFIX}\n"
+            f"Report ID: `{report_id}`\n"
+            "Date/window: 2026-05-13 09:30-10:30 local owner time\n"
+            "Summary: 1/1 owner-country rows hit target.\n"
+            "Safety: raw WhatsApp bodies, phone numbers, raw Slack transcripts, and raw HubSpot rows are not returned."
+        )
+
+    def test_delivery_requires_allowlist_marker_prefix_and_is_idempotent(self):
+        report_id = "sales-whatsapp-window-report:2026-05-13:test"
+        with tempfile.TemporaryDirectory() as ledger_dir, patch.dict(
+            os.environ,
+            {
+                "NURTUREANY_OPERATION_LEDGER_DIR": ledger_dir,
+                "NURTUREANY_REPORT_DELIVERY_CHANNEL_IDS": "C123",
+                "SLACK_BOT_TOKEN": "fake-slack-token",
+            },
+        ), patch.object(self.module, "_slack_chat_post_message", return_value={"ok": True, "channel": "C123", "ts": "1778814885.096909"}) as post:
+            first = self.module.post_generated_sales_report(
+                report_id,
+                "C123",
+                "approved report send",
+                "sg-my:2026-05-13:09:30-10:30",
+                self._markdown(report_id),
+            )
+            second = self.module.post_generated_sales_report(
+                report_id,
+                "C123",
+                "approved report send",
+                "sg-my:2026-05-13:09:30-10:30",
+                self._markdown(report_id),
+            )
+
+        self.assertEqual(first["confidence"], "verified")
+        self.assertEqual(first["answer"]["delivery_status"], "posted")
+        self.assertTrue(second["answer"]["already_posted"])
+        self.assertEqual(post.call_count, 1)
+
+    def test_delivery_blocks_not_in_channel_without_fallback(self):
+        report_id = "sales-whatsapp-window-report:2026-05-13:test"
+        with tempfile.TemporaryDirectory() as ledger_dir, patch.dict(
+            os.environ,
+            {
+                "NURTUREANY_OPERATION_LEDGER_DIR": ledger_dir,
+                "NURTUREANY_REPORT_DELIVERY_CHANNEL_IDS": "C123",
+                "SLACK_BOT_TOKEN": "fake-slack-token",
+            },
+        ), patch.object(self.module, "_slack_chat_post_message", return_value={"ok": False, "error": "not_in_channel"}):
+            result = self.module.post_generated_sales_report(
+                report_id,
+                "C123",
+                "approved report send",
+                "sg-my:2026-05-13:09:30-10:30",
+                self._markdown(report_id),
+            )
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertEqual(result["answer"]["delivery_status"], "blocked_not_in_channel")
+        self.assertIn("Invite the NurtureAny Slack bot", result["answer"]["remediation"])
+        self.assertIn("No user-token or Slack connector fallback", result["caveat"])
+
+    def test_delivery_rejects_freeform_raw_or_unallowlisted_payloads(self):
+        report_id = "sales-whatsapp-window-report:2026-05-13:test"
+        with tempfile.TemporaryDirectory() as ledger_dir, patch.dict(
+            os.environ,
+            {"NURTUREANY_OPERATION_LEDGER_DIR": ledger_dir, "NURTUREANY_REPORT_DELIVERY_CHANNEL_IDS": "C123", "SLACK_BOT_TOKEN": "fake-slack-token"},
+        ), patch.object(self.module, "_slack_chat_post_message", side_effect=AssertionError("unsafe payload should not post")):
+            freeform = self.module.post_generated_sales_report(report_id, "C123", "approved", "key-1", "hello team")
+            raw = self.module.post_generated_sales_report(
+                report_id,
+                "C123",
+                "approved",
+                "key-2",
+                self._markdown(report_id) + '\n{"properties": {"hs_communication_body": "hello", "phone": "+65 9123 4567"}}',
+            )
+            channel = self.module.post_generated_sales_report(report_id, "C999", "approved", "key-3", self._markdown(report_id))
+
+        self.assertEqual(freeform["confidence"], "blocked")
+        self.assertEqual(raw["confidence"], "blocked")
+        self.assertEqual(channel["confidence"], "blocked")
+
+
 class HubSpotNurtureAnyServerTest(unittest.TestCase):
     def setUp(self):
         self.module = load_hubspot_module()

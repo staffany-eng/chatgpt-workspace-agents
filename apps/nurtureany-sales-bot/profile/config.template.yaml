@@ -331,6 +331,8 @@ mcp_servers:
     auth_metadata:
       type: bearer_env
       env: HUBSPOT_PRIVATE_APP_TOKEN
+      report_delivery_channel_ids_env: NURTUREANY_REPORT_DELIVERY_CHANNEL_IDS
+      report_schedule_dir_env: NURTUREANY_REPORT_SCHEDULE_DIR
       note: check_event_followup_status also reads LUMA_API_KEY from the profile environment
         for read-only event lookup.
     customer360_links:
@@ -375,7 +377,11 @@ mcp_servers:
     - list_active_deals_missing_next_meeting
     - list_sales_followup_tasks
     - list_due_hubspot_sales_task_reminders
+    - build_sales_whatsapp_window_report
     - count_owner_whatsapp_sent_today
+    - save_sales_whatsapp_window_report_schedule
+    - run_sales_whatsapp_window_report_schedule
+    - post_generated_sales_report
     - check_account_followup_status
     - check_event_followup_status
     - score_nurture_accounts

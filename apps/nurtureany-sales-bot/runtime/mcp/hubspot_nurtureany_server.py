@@ -746,6 +746,19 @@ DAILY_NURTURE_RUNS_DIR_ENV = "NURTUREANY_DAILY_RUNS_DIR"
 OPERATION_LEDGER_DIR_ENV = "NURTUREANY_OPERATION_LEDGER_DIR"
 OPERATION_LEDGER_DEFAULT_PROFILE = "nurtureanysalesbot"
 LESSON_CANDIDATES_DIR_ENV = "NURTUREANY_LESSON_CANDIDATES_DIR"
+SALES_WHATSAPP_REPORT_SCHEDULE_DIR_ENV = "NURTUREANY_REPORT_SCHEDULE_DIR"
+SALES_WHATSAPP_REPORT_DELIVERY_CHANNEL_IDS_ENV = "NURTUREANY_REPORT_DELIVERY_CHANNEL_IDS"
+SALES_WHATSAPP_REPORT_DEFAULT_COUNTRIES = ("Singapore", "Malaysia")
+SALES_WHATSAPP_REPORT_DEFAULT_COUNTRY_ORDER = ("Singapore", "Malaysia")
+SALES_WHATSAPP_REPORT_DEFAULT_WINDOW_START = "09:30"
+SALES_WHATSAPP_REPORT_DEFAULT_WINDOW_END = "10:30"
+SALES_WHATSAPP_REPORT_DEFAULT_TARGET_PER_OWNER = 30
+SALES_WHATSAPP_REPORT_DEFAULT_INCLUDE_KNS = False
+SALES_WHATSAPP_REPORT_PREFIX = "NurtureAny automation: Sales WhatsApp Window Report"
+SALES_WHATSAPP_REPORT_DEFAULT_SCHEDULE_ID = "sg-my-whatsapp-morning-report"
+SALES_WHATSAPP_REPORT_LOGICAL_CRON = "35 10 * * 1-5"
+SALES_WHATSAPP_REPORT_PRODUCTION_CRON = "35 2 * * 1-5"
+SALES_WHATSAPP_REPORT_DEFAULT_IDEMPOTENCY_PATTERN = "{schedule_id}:{for_date}:{window_start_local}-{window_end_local}"
 LESSON_CANDIDATE_STATUSES = {"pending_review", "approved_for_repo_promotion", "rejected", "promoted"}
 LESSON_CANDIDATE_RISK_CLASSES = {"low", "medium", "high"}
 LESSON_CANDIDATE_TARGET_SURFACES = {
@@ -4373,6 +4386,122 @@ def _sort_followup_evidence(evidence: list[dict[str, Any]]) -> list[dict[str, An
         return _datetime_value(str(item.get("timestamp") or "")) or datetime.min.replace(tzinfo=timezone.utc)
 
     return sorted(evidence, key=key, reverse=True)
+
+
+def _owner_target_account_whatsapp_context(
+    countries: list[str],
+    owner_id: str,
+    start_utc: str,
+    end_utc: str,
+    limit: int,
+    *,
+    include_bodies: bool = False,
+    include_kns: bool = False,
+    local_zone: ZoneInfo | None = None,
+) -> dict[str, Any]:
+    requested_limit = _bounded_int(limit, default=500, maximum=1000)
+    communication_filters = [
+        {"propertyName": "hubspot_owner_id", "operator": "EQ", "value": owner_id},
+        {"propertyName": "hs_timestamp", "operator": "GTE", "value": start_utc},
+        {"propertyName": "hs_timestamp", "operator": "LTE", "value": end_utc},
+    ]
+    communication_data = _object_search(
+        "communications",
+        communication_filters,
+        COMMUNICATION_EVENT_PROPERTIES if include_bodies or include_kns else COMMUNICATION_PROPERTIES,
+        limit=requested_limit,
+        maximum=1000,
+        sorts=[{"propertyName": "hs_timestamp", "direction": "ASCENDING"}],
+    )
+    owner_whatsapp_messages = [
+        communication for communication in communication_data.get("results", []) if _is_whatsapp_communication(communication)
+    ]
+    owner_whatsapp_ids = [str(communication.get("id") or "") for communication in owner_whatsapp_messages if communication.get("id")]
+
+    company_data = _company_search(
+        _target_filters(countries, owner_id),
+        requested_limit,
+        maximum=HUBSPOT_SEARCH_TOTAL_LIMIT,
+        sorts=[{"propertyName": "name", "direction": "ASCENDING"}],
+    )
+    companies = company_data.get("results", [])
+    company_by_id = {str(company.get("id") or ""): company for company in companies if company.get("id")}
+    company_ids = list(company_by_id.keys())
+    selected_company_ids = set(company_ids)
+
+    contact_to_companies = _reverse_company_association_index(_batch_association_ids("companies", "contacts", company_ids)) if company_ids else {}
+    deal_to_companies = _reverse_company_association_index(_batch_association_ids("companies", "deals", company_ids)) if company_ids else {}
+    comm_company_index = _batch_association_ids("communications", "companies", owner_whatsapp_ids) if owner_whatsapp_ids else {}
+    comm_contact_index = _batch_association_ids("communications", "contacts", owner_whatsapp_ids) if owner_whatsapp_ids else {}
+    comm_deal_index = _batch_association_ids("communications", "deals", owner_whatsapp_ids) if owner_whatsapp_ids else {}
+
+    target_linked_messages: list[dict[str, Any]] = []
+    target_company_ids_with_whatsapp: set[str] = set()
+    for communication in owner_whatsapp_messages:
+        communication_id = str(communication.get("id") or "")
+        if not communication_id:
+            continue
+        associated_target_company_ids: set[str] = set()
+        source_by_key: dict[tuple[str, str], dict[str, str]] = {}
+
+        def add_source(source_type: str, source_id: str, company_ids_for_source: list[str]) -> None:
+            matched_company_ids = [source_company_id for source_company_id in company_ids_for_source if source_company_id in selected_company_ids]
+            if not matched_company_ids:
+                return
+            source_by_key.setdefault((source_type, str(source_id)), {"object_type": source_type, "object_id": str(source_id)})
+            associated_target_company_ids.update(matched_company_ids)
+
+        for company_id in comm_company_index.get(communication_id, []):
+            if company_id in selected_company_ids:
+                add_source("company", str(company_id), [str(company_id)])
+        for contact_id in comm_contact_index.get(communication_id, []):
+            add_source("contact", str(contact_id), contact_to_companies.get(str(contact_id), []))
+        for deal_id in comm_deal_index.get(communication_id, []):
+            add_source("deal", str(deal_id), deal_to_companies.get(str(deal_id), []))
+        if not associated_target_company_ids:
+            continue
+
+        timestamp = _activity_timestamp(communication)
+        timestamp_dt = _datetime_value(timestamp)
+        target_company_ids = sorted(associated_target_company_ids)
+        target_company_ids_with_whatsapp.update(target_company_ids)
+        safe_message = {
+            **_safe_followup_evidence("communication", communication, {communication_id: list(source_by_key.values())}),
+            "timestamp_local": timestamp_dt.astimezone(local_zone).isoformat() if timestamp_dt and local_zone else "",
+            "target_company_ids": target_company_ids,
+            "target_accounts": [
+                {
+                    "company_id": company_id,
+                    "company_name": company_by_id.get(company_id, {}).get("properties", {}).get("name") or "",
+                }
+                for company_id in target_company_ids
+            ],
+        }
+        if include_kns:
+            safe_message.update(_whatsapp_kns_audit_from_body(communication.get("properties", {}).get("hs_communication_body")))
+        target_linked_messages.append(safe_message)
+
+    target_linked_messages = sorted(
+        target_linked_messages,
+        key=lambda item: _datetime_value(str(item.get("timestamp") or "")) or datetime.min.replace(tzinfo=timezone.utc),
+    )
+    owner_messages = sorted(
+        [_safe_followup_evidence("communication", communication, {str(communication.get("id") or ""): []}) for communication in owner_whatsapp_messages],
+        key=lambda item: _datetime_value(str(item.get("timestamp") or "")) or datetime.min.replace(tzinfo=timezone.utc),
+    )
+    return {
+        "communication_data": communication_data,
+        "company_data": company_data,
+        "companies": companies,
+        "company_by_id": company_by_id,
+        "owner_whatsapp_messages": owner_whatsapp_messages,
+        "owner_messages": owner_messages,
+        "target_linked_messages": target_linked_messages,
+        "target_company_ids_with_whatsapp": sorted(target_company_ids_with_whatsapp),
+        "truncated": bool(company_data.get("truncated") or communication_data.get("truncated")),
+        "requested_limit": requested_limit,
+        "raw_bodies_returned": False,
+    }
 
 
 def _account_followup_status(
@@ -9001,6 +9130,13 @@ def _operation_ledger_dir() -> Path:
     return _profile_runtime_dir() / "operation-ledger"
 
 
+def _sales_whatsapp_report_schedule_dir() -> Path:
+    raw = os.environ.get(SALES_WHATSAPP_REPORT_SCHEDULE_DIR_ENV, "").strip()
+    if raw:
+        return Path(raw).expanduser()
+    return _profile_runtime_dir() / "report-schedules"
+
+
 def _lesson_candidates_dir() -> Path:
     raw = os.environ.get(LESSON_CANDIDATES_DIR_ENV, "").strip()
     if raw:
@@ -9019,6 +9155,10 @@ def _ledger_path(operation_id: str) -> Path:
     return _operation_ledger_dir() / f"{_safe_file_stem(operation_id)}.json"
 
 
+def _sales_whatsapp_report_schedule_path(schedule_id: str) -> Path:
+    return _sales_whatsapp_report_schedule_dir() / f"{_safe_file_stem(schedule_id)}.json"
+
+
 def _lesson_candidate_path(lesson_id: str) -> Path:
     return _lesson_candidates_dir() / f"{_safe_file_stem(lesson_id)}.json"
 
@@ -9032,6 +9172,15 @@ def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
 
 def _load_operation_record(operation_id: str) -> dict[str, Any]:
     path = _ledger_path(operation_id)
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _load_sales_whatsapp_report_schedule(schedule_id: str) -> dict[str, Any]:
+    path = _sales_whatsapp_report_schedule_path(schedule_id)
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (FileNotFoundError, json.JSONDecodeError, OSError):
@@ -9076,9 +9225,158 @@ def _compact_ledger_record(record: dict[str, Any]) -> dict[str, Any]:
         "idempotency_key": record.get("idempotency_key") or "",
         "side_effect": record.get("side_effect") or "none",
         "compact_error": record.get("compact_error") or "",
+        "report_id": record.get("report_id") or "",
+        "delivery_status": record.get("delivery_status") or "",
+        "delivery_channel_id": record.get("delivery_channel_id") or "",
+        "delivery_ts": record.get("delivery_ts") or "",
         "updated_at": record.get("updated_at") or "",
         "history_count": len(history),
     }
+
+
+def _compact_sales_whatsapp_report_schedule(record: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "schedule_id": record.get("schedule_id") or "",
+        "enabled": bool(record.get("enabled")),
+        "logical_cron": record.get("logical_cron") or "",
+        "timezone": record.get("timezone") or "Asia/Singapore",
+        "runtime_cron_expression": record.get("runtime_cron_expression") or "",
+        "delivery_channel_id": record.get("delivery_channel_id") or "",
+        "source_slack_thread": record.get("source_slack_thread") or "",
+        "idempotency_key_pattern": record.get("idempotency_key_pattern") or "",
+        "created_by": record.get("created_by") or "",
+        "updated_by": record.get("updated_by") or "",
+        "created_at": record.get("created_at") or "",
+        "updated_at": record.get("updated_at") or "",
+        "report_args": record.get("report_args") if isinstance(record.get("report_args"), dict) else {},
+    }
+
+
+def _sales_report_payload_unsafe(*values: Any) -> str:
+    combined = "\n".join(str(value or "") for value in values)
+    text = combined.strip()
+    lowered = text.lower()
+    if not text:
+        return ""
+    if re.search(r"\b(xox[baprs]-|api[_-]?key|secret|token|authorization:\s*bearer)\b", lowered):
+        return "secrets"
+    if re.search(r"(?im)^\s*(user|bot|assistant|kai yi|eugene)\s*:", text) and "\n" in text:
+        return "raw Slack transcripts"
+    if any(marker in lowered for marker in ("hs_communication_body", '"properties"', "'properties'")):
+        return "raw HubSpot rows"
+    if re.search(r"\b(phone|mobilephone|mobile_phone|whatsapp_number|contact_number)\b\s*[:=]", lowered):
+        return "phone fields"
+    for match in re.finditer(r"(?<![A-Za-z0-9])\+?\d[\d\s().-]{6,}\d(?![A-Za-z0-9])", text):
+        candidate = match.group(0).strip()
+        digits = re.sub(r"\D", "", candidate)
+        if re.fullmatch(r"\d{4}-\d{2}-\d{2}", candidate) or re.match(r"^\d{4}-\d{2}-\d{2}\s+\d{1,2}$", candidate):
+            continue
+        if len(digits) >= 8 and (candidate.startswith("+") or re.search(r"[\s().-]", candidate)):
+            return "phone numbers"
+    return ""
+
+
+def _sales_whatsapp_report_allowed_channels() -> set[str]:
+    return _env_csv(SALES_WHATSAPP_REPORT_DELIVERY_CHANNEL_IDS_ENV)
+
+
+def _validate_sales_whatsapp_report_channel(channel_id: str) -> None:
+    allowed = _sales_whatsapp_report_allowed_channels()
+    if not allowed:
+        raise ScopeError(f"{SALES_WHATSAPP_REPORT_DELIVERY_CHANNEL_IDS_ENV} is required before report delivery.")
+    if str(channel_id or "").strip() not in allowed:
+        raise ScopeError("delivery channel_id is not allowlisted for NurtureAny report delivery.")
+
+
+def _slack_chat_post_message(channel_id: str, text: str) -> dict[str, Any]:
+    token = os.environ.get("SLACK_BOT_TOKEN", "").strip()
+    if not token:
+        return {"ok": False, "error": "missing_slack_bot_token"}
+    body = json.dumps({"channel": channel_id, "text": text, "mrkdwn": True, "unfurl_links": False, "unfurl_media": False}).encode("utf-8")
+    request = urllib.request.Request(
+        "https://slack.com/api/chat.postMessage",
+        data=body,
+        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json; charset=utf-8"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=15) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as error:
+        payload_text = error.read().decode("utf-8", errors="replace")
+        try:
+            payload = json.loads(payload_text)
+        except json.JSONDecodeError:
+            payload = {"ok": False, "error": f"http_{error.code}"}
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as error:
+        payload = {"ok": False, "error": error.__class__.__name__}
+    return payload if isinstance(payload, dict) else {"ok": False, "error": "invalid_slack_response"}
+
+
+def _sales_whatsapp_report_operation_id(idempotency_key: str) -> str:
+    return f"sales-whatsapp-report:{_safe_file_stem(idempotency_key)}"
+
+
+def _record_sales_whatsapp_report_delivery_checkpoint(
+    operation_id: str,
+    phase: str,
+    checkpoint: str,
+    approval_marker: str,
+    idempotency_key: str,
+    report_id: str,
+    channel_id: str,
+    delivery_status: str,
+    delivery_ts: str = "",
+    compact_error: str = "",
+) -> dict[str, Any]:
+    now = datetime.now(timezone.utc).isoformat()
+    record = _load_operation_record(operation_id)
+    history = record.get("history") if isinstance(record.get("history"), list) else []
+    event = {
+        "at": now,
+        "phase": phase,
+        "checkpoint": checkpoint[:1000],
+        "side_effect": "external_send",
+        "approval_marker_present": bool(approval_marker),
+        "idempotency_key": idempotency_key,
+        "report_id": report_id,
+        "delivery_status": delivery_status,
+        "delivery_channel_id": channel_id,
+        "delivery_ts": delivery_ts,
+        "compact_error": compact_error[:500],
+    }
+    history.append(event)
+    record.update(
+        {
+            "operation_id": operation_id,
+            "slack_thread": channel_id,
+            "phase": phase,
+            "last_checkpoint": checkpoint[:1000],
+            "approval_marker": approval_marker,
+            "idempotency_key": idempotency_key,
+            "side_effect": "external_send",
+            "compact_error": compact_error[:500],
+            "report_id": report_id,
+            "delivery_status": delivery_status,
+            "delivery_channel_id": channel_id,
+            "delivery_ts": delivery_ts or record.get("delivery_ts") or "",
+            "updated_at": now,
+            "history": history[-50:],
+        }
+    )
+    _atomic_write_json(_ledger_path(operation_id), record)
+    return record
+
+
+def _existing_sales_whatsapp_report_delivery(record: dict[str, Any], report_id: str, channel_id: str, idempotency_key: str) -> bool:
+    return bool(
+        record
+        and record.get("delivery_status") == "posted"
+        and record.get("report_id") == report_id
+        and record.get("delivery_channel_id") == channel_id
+        and record.get("idempotency_key") == idempotency_key
+        and record.get("delivery_ts")
+    )
 
 
 def _compact_lesson_candidate(record: dict[str, Any]) -> dict[str, Any]:
@@ -15433,6 +15731,527 @@ def list_due_hubspot_sales_task_reminders(
         return _blocked(str(error), {"caller_email": slack_user_email})
 
 
+def _sales_report_selected_countries(countries: list[str] | None, scope_countries: tuple[str, ...]) -> list[str]:
+    requested = countries or list(SALES_WHATSAPP_REPORT_DEFAULT_COUNTRIES)
+    return _safe_countries([country for country in requested if country in SALES_WHATSAPP_REPORT_DEFAULT_COUNTRIES], scope_countries)
+
+
+def _sales_report_country_order(selected: list[str], country_order: list[str] | None) -> list[str]:
+    requested_order = country_order or list(SALES_WHATSAPP_REPORT_DEFAULT_COUNTRY_ORDER)
+    ordered = [country for country in requested_order if country in selected]
+    ordered.extend(country for country in selected if country not in ordered)
+    return ordered
+
+
+def _sales_whatsapp_report_id(
+    reference_date: str,
+    window_start_local: str,
+    window_end_local: str,
+    countries: list[str],
+    owner_rows: list[dict[str, Any]],
+) -> str:
+    owner_ids = ",".join(sorted(str(row.get("owner_id") or "") for row in owner_rows))
+    digest = hashlib.sha256(f"{reference_date}|{window_start_local}|{window_end_local}|{','.join(countries)}|{owner_ids}".encode("utf-8")).hexdigest()[:10]
+    return f"sales-whatsapp-window-report:{reference_date}:{window_start_local}-{window_end_local}:{digest}"
+
+
+def _sales_report_time_from_iso(timestamp_local: str) -> str:
+    parsed = _datetime_value(timestamp_local)
+    return _time_label(parsed.timetz().replace(tzinfo=None)) if parsed else ""
+
+
+def _sales_whatsapp_report_markdown(
+    report_id: str,
+    reference_date: str,
+    window_start_local: str,
+    window_end_local: str,
+    target_per_owner: int,
+    country_order: list[str],
+    country_rows: list[dict[str, Any]],
+    summary: dict[str, Any],
+) -> str:
+    lines = [
+        SALES_WHATSAPP_REPORT_PREFIX,
+        f"Report ID: `{report_id}`",
+        f"Date/window: {reference_date} {window_start_local}-{window_end_local} local owner time",
+        f"Target: {target_per_owner} target-account WhatsApp messages per owner",
+        "",
+        f"Summary: {summary.get('owners_hit_target', 0)}/{summary.get('owner_country_rows', 0)} owner-country rows hit target; {summary.get('target_account_whatsapp_count', 0)} target-account WhatsApp messages counted.",
+    ]
+    for country in country_order:
+        rows = [row for row in country_rows if row.get("country") == country]
+        if not rows:
+            continue
+        lines.extend(["", f"*{country}*"])
+        for row in rows:
+            first_time = row.get("first_message_local_time") or "-"
+            status = row.get("target_status") or row.get("status") or "needs-check"
+            count = row.get("target_account_whatsapp_count")
+            count_label = str(count) if isinstance(count, int) else "needs-check"
+            caveat = f" ({row.get('caveat')})" if row.get("caveat") and row.get("status") == "needs-check" else ""
+            lines.append(f"- {row.get('owner_name') or row.get('owner_email')}: {count_label}/{target_per_owner} {status}, first {first_time}, tz {row.get('timezone') or 'missing'}{caveat}")
+    lines.extend(
+        [
+            "",
+            "Source: HubSpot target-account WhatsApp communication metadata plus NurtureAny runtime access policy.",
+            "Safety: raw WhatsApp bodies, phone numbers, raw Slack transcripts, and raw HubSpot rows are not returned.",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def _default_sales_whatsapp_report_args(report_args: dict[str, Any] | None = None) -> dict[str, Any]:
+    args = report_args if isinstance(report_args, dict) else {}
+    return {
+        "countries": args.get("countries") if isinstance(args.get("countries"), list) else list(SALES_WHATSAPP_REPORT_DEFAULT_COUNTRIES),
+        "owner_emails": args.get("owner_emails") if isinstance(args.get("owner_emails"), list) else [],
+        "window_start_local": str(args.get("window_start_local") or SALES_WHATSAPP_REPORT_DEFAULT_WINDOW_START).strip(),
+        "window_end_local": str(args.get("window_end_local") or SALES_WHATSAPP_REPORT_DEFAULT_WINDOW_END).strip(),
+        "target_per_owner": _bounded_int(args.get("target_per_owner"), default=SALES_WHATSAPP_REPORT_DEFAULT_TARGET_PER_OWNER, minimum=1, maximum=500),
+        "country_order": args.get("country_order") if isinstance(args.get("country_order"), list) else list(SALES_WHATSAPP_REPORT_DEFAULT_COUNTRY_ORDER),
+        "include_kns": bool(args.get("include_kns", SALES_WHATSAPP_REPORT_DEFAULT_INCLUDE_KNS)),
+    }
+
+
+@mcp.tool()
+def build_sales_whatsapp_window_report(
+    slack_user_email: str,
+    countries: list[str] | None = None,
+    owner_emails: list[str] | None = None,
+    for_date: str = "",
+    window_start_local: str = SALES_WHATSAPP_REPORT_DEFAULT_WINDOW_START,
+    window_end_local: str = SALES_WHATSAPP_REPORT_DEFAULT_WINDOW_END,
+    target_per_owner: int = SALES_WHATSAPP_REPORT_DEFAULT_TARGET_PER_OWNER,
+    country_order: list[str] | None = None,
+    include_kns: bool = SALES_WHATSAPP_REPORT_DEFAULT_INCLUDE_KNS,
+    limit: int = 500,
+) -> dict[str, Any]:
+    """Build a SG/MY target-account WhatsApp morning-window report without mutating schedule or posting Slack."""
+
+    try:
+        scope = _caller_scope(slack_user_email)
+        if scope["kind"] == "blocked":
+            return _blocked(scope.get("blocked_reason") or "Caller identity is not mapped to an allowed scope.", {"caller_email": slack_user_email})
+        selected_countries = _sales_report_selected_countries(countries, scope["countries"])
+        if not selected_countries:
+            return _blocked("Requested report countries are outside caller scope or outside the SG/MY report contract.", _scope_response(scope, []))
+        ordered_countries = _sales_report_country_order(selected_countries, country_order)
+        reference_date = (_date_value(for_date) or datetime.now(SINGAPORE_TIMEZONE).date()).isoformat()
+        target = _bounded_int(target_per_owner, default=SALES_WHATSAPP_REPORT_DEFAULT_TARGET_PER_OWNER, minimum=1, maximum=500)
+        rows, unresolved = _sales_owner_rows_for_scope(
+            scope,
+            selected_countries,
+            owner_emails=owner_emails,
+            classified_sales_reps_only=True,
+            limit=HUBSPOT_SEARCH_TOTAL_LIMIT,
+        )
+        report_id = _sales_whatsapp_report_id(reference_date, window_start_local, window_end_local, ordered_countries, rows)
+        owner_rows: list[dict[str, Any]] = []
+        country_rows: list[dict[str, Any]] = []
+        truncated = False
+        missing_timezone = False
+
+        for owner in rows:
+            owner_id = str(owner.get("owner_id") or "")
+            owner_email = _normalize_email(str(owner.get("owner_email") or ""))
+            owner_countries = [country for country in ordered_countries if country in (owner.get("countries") or [])]
+            window = _coaching_window_contract(owner_email, None, window_start_local, window_end_local, reference_date)
+            base_owner = {
+                "owner_id": owner_id,
+                "owner_email": owner_email,
+                "owner_name": owner.get("owner_name") or owner_email,
+                "countries": owner_countries,
+                "timezone": window["timezone"],
+                "timezone_source": window["timezone_source"],
+                "local_window": window["local_window"],
+                "utc_window": window["utc_window"],
+            }
+            if window["timezone_source"] in {"missing", "invalid"} or not window["utc_window"]:
+                missing_timezone = True
+                for country in owner_countries:
+                    country_rows.append(
+                        {
+                            **base_owner,
+                            "country": country,
+                            "status": "needs-check",
+                            "target_status": "needs-check",
+                            "target_account_whatsapp_count": "needs-check",
+                            "target_hit": False,
+                            "target_gap": target,
+                            "target_per_owner": target,
+                            "target_account_count_scanned": "needs-check",
+                            "target_account_count_with_whatsapp": "needs-check",
+                            "first_message_local": "",
+                            "first_message_local_time": "",
+                            "sample_evidence": [],
+                            "truncated": False,
+                            "source": "runtime access policy timezone required before HubSpot window query",
+                            "scope": {"country": country, "owner_id": owner_id, "owner_email": owner_email},
+                            "confidence": "needs-check",
+                            "caveat": "Owner timezone missing or invalid in runtime access policy; HubSpot query was not executed.",
+                        }
+                    )
+                owner_rows.append({**base_owner, "target_account_whatsapp_count": "needs-check", "target_status": "needs-check", "confidence": "needs-check"})
+                continue
+
+            owner_total = 0
+            owner_hit_rows = 0
+            for country in owner_countries:
+                context = _owner_target_account_whatsapp_context(
+                    [country],
+                    owner_id,
+                    window["utc_window"]["start"],
+                    window["utc_window"]["end"],
+                    limit,
+                    include_bodies=include_kns,
+                    include_kns=include_kns,
+                    local_zone=window["zone"],
+                )
+                messages = context["target_linked_messages"]
+                first_local = messages[0].get("timestamp_local") if messages else ""
+                count = len(messages)
+                hit = count >= target
+                truncated = truncated or bool(context["truncated"])
+                owner_total += count
+                owner_hit_rows += 1 if hit else 0
+                country_rows.append(
+                    {
+                        **base_owner,
+                        "country": country,
+                        "status": "ok",
+                        "target_status": "hit" if hit else "miss",
+                        "target_account_whatsapp_count": count,
+                        "owner_whatsapp_count_in_window": len(context["owner_whatsapp_messages"]),
+                        "target_hit": hit,
+                        "target_gap": max(0, target - count),
+                        "target_per_owner": target,
+                        "target_account_count_scanned": len(context["companies"]),
+                        "target_account_count_with_whatsapp": len(context["target_company_ids_with_whatsapp"]),
+                        "first_message_local": first_local,
+                        "first_message_local_time": _sales_report_time_from_iso(first_local),
+                        "sample_evidence": messages[:5],
+                        "truncated": bool(context["truncated"]),
+                        "source": "HubSpot target-account WhatsApp communication metadata plus runtime access policy owner/country/timezone",
+                        "scope": {"country": country, "owner_id": owner_id, "owner_email": owner_email},
+                        "confidence": "needs-check" if context["truncated"] else "verified",
+                        "caveat": "KNS flags are heuristic and raw bodies are omitted." if include_kns else "Metadata-only count; raw WhatsApp bodies were not read.",
+                    }
+                )
+            owner_rows.append(
+                {
+                    **base_owner,
+                    "target_account_whatsapp_count": owner_total,
+                    "country_row_count": len(owner_countries),
+                    "target_status": "hit" if owner_countries and owner_hit_rows == len(owner_countries) else "miss",
+                    "confidence": "needs-check" if truncated else "verified",
+                }
+            )
+
+        country_rank = {country: index for index, country in enumerate(ordered_countries)}
+        country_rows.sort(key=lambda row: (country_rank.get(str(row.get("country") or ""), len(country_rank)), str(row.get("owner_name") or row.get("owner_email") or "")))
+        hit_rows = sum(1 for row in country_rows if row.get("target_hit"))
+        numeric_counts = [row.get("target_account_whatsapp_count") for row in country_rows if isinstance(row.get("target_account_whatsapp_count"), int)]
+        summary = {
+            "owner_count": len(owner_rows),
+            "owner_country_rows": len(country_rows),
+            "owners_hit_target": hit_rows,
+            "owners_missed_target": sum(1 for row in country_rows if row.get("target_status") == "miss"),
+            "needs_check_rows": sum(1 for row in country_rows if row.get("status") == "needs-check"),
+            "target_account_whatsapp_count": sum(numeric_counts),
+            "unresolved_owners": unresolved,
+            "truncated": truncated,
+            "missing_timezone": missing_timezone,
+        }
+        slack_markdown = _sales_whatsapp_report_markdown(
+            report_id,
+            reference_date,
+            window_start_local,
+            window_end_local,
+            target,
+            ordered_countries,
+            country_rows,
+            summary,
+        )
+        return {
+            "answer": {
+                "report_id": report_id,
+                "for_date": reference_date,
+                "countries": selected_countries,
+                "country_order": ordered_countries,
+                "window_start_local": window_start_local,
+                "window_end_local": window_end_local,
+                "target_per_owner": target,
+                "include_kns": bool(include_kns),
+                "owner_rows": owner_rows,
+                "country_rows": country_rows,
+                "summary": summary,
+                "slack_markdown": slack_markdown,
+                "raw_bodies_returned": False,
+                "will_mutate_hubspot": False,
+                "schedule_mutated": False,
+            },
+            "source": "HubSpot target-account WhatsApp communication metadata plus NurtureAny runtime access policy; schedule state is not read or mutated.",
+            "scope": _scope_response(scope, selected_countries),
+            "total": len(country_rows),
+            "requested_limit": _bounded_int(limit, default=500, maximum=1000),
+            "returned_count": len(country_rows),
+            "has_more": truncated,
+            "truncated": truncated,
+            "confidence": "needs-check" if truncated or missing_timezone or unresolved else "verified",
+            "caveat": "Ad hoc reports do not update saved schedules. Owner/country/timezone truth comes only from the runtime access policy and resolve_sales_owners path.",
+        }
+    except (AccessPolicyError, ScopeError, MetricClarification, ValueError) as error:
+        return _blocked(str(error), {"caller_email": slack_user_email})
+    except HubSpotError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email})
+
+
+@mcp.tool()
+def save_sales_whatsapp_window_report_schedule(
+    slack_user_email: str,
+    schedule_id: str = SALES_WHATSAPP_REPORT_DEFAULT_SCHEDULE_ID,
+    report_args: dict[str, Any] | None = None,
+    cron_schedule: str = SALES_WHATSAPP_REPORT_LOGICAL_CRON,
+    runtime_cron_expression: str = SALES_WHATSAPP_REPORT_PRODUCTION_CRON,
+    delivery_channel_id: str = "",
+    source_slack_thread: str = "",
+    idempotency_key_pattern: str = SALES_WHATSAPP_REPORT_DEFAULT_IDEMPOTENCY_PATTERN,
+    approval_marker: str = "",
+    enabled: bool = True,
+) -> dict[str, Any]:
+    """Persist the deterministic weekday SG/MY WhatsApp report schedule in profile runtime state."""
+
+    try:
+        scope = _caller_scope(slack_user_email)
+        if scope["kind"] not in {"admin", "manager"}:
+            return _blocked("Saving report schedules requires manager/admin scope.", {"caller_email": slack_user_email})
+        safe_schedule_id = _safe_file_stem(schedule_id or SALES_WHATSAPP_REPORT_DEFAULT_SCHEDULE_ID)
+        if not safe_schedule_id:
+            return _blocked("schedule_id is required.", {"caller_email": slack_user_email})
+        if str(cron_schedule or "").strip() != SALES_WHATSAPP_REPORT_LOGICAL_CRON:
+            return _blocked("Default WhatsApp morning report schedule must stay weekday-only at 35 10 * * 1-5 Asia/Singapore.", {"schedule_id": safe_schedule_id})
+        if str(runtime_cron_expression or "").strip() not in {"", SALES_WHATSAPP_REPORT_PRODUCTION_CRON}:
+            return _blocked("runtime_cron_expression must preserve the existing production SG/MY WhatsApp Blitz cron expression unless a separate migration is approved.", {"schedule_id": safe_schedule_id})
+        channel_id = str(delivery_channel_id or "").strip()
+        _validate_sales_whatsapp_report_channel(channel_id)
+        marker = str(approval_marker or "").strip()
+        if not marker:
+            return _blocked("approval_marker is required before saving a deliverable report schedule.", {"schedule_id": safe_schedule_id})
+        pattern = str(idempotency_key_pattern or "").strip()
+        if not pattern or "{for_date}" not in pattern:
+            return _blocked("idempotency_key_pattern must include {for_date}.", {"schedule_id": safe_schedule_id})
+        normalized_args = _default_sales_whatsapp_report_args(report_args)
+        normalized_args["countries"] = [country for country in normalized_args["countries"] if country in SALES_WHATSAPP_REPORT_DEFAULT_COUNTRIES]
+        normalized_args["country_order"] = _sales_report_country_order(normalized_args["countries"], normalized_args["country_order"])
+        existing = _load_sales_whatsapp_report_schedule(safe_schedule_id)
+        now = datetime.now(timezone.utc).isoformat()
+        record = {
+            "schedule_id": safe_schedule_id,
+            "enabled": bool(enabled),
+            "logical_cron": SALES_WHATSAPP_REPORT_LOGICAL_CRON,
+            "timezone": "Asia/Singapore",
+            "runtime_cron_expression": str(runtime_cron_expression or SALES_WHATSAPP_REPORT_PRODUCTION_CRON).strip(),
+            "delivery_channel_id": channel_id,
+            "source_slack_thread": str(source_slack_thread or "").strip(),
+            "idempotency_key_pattern": pattern,
+            "approval_marker": marker,
+            "report_args": normalized_args,
+            "created_by": existing.get("created_by") or scope.get("email") or slack_user_email,
+            "updated_by": scope.get("email") or slack_user_email,
+            "created_at": existing.get("created_at") or now,
+            "updated_at": now,
+            "storage_boundary": "profile_runtime_state_not_repo_or_secret",
+            "will_mutate_hubspot": False,
+        }
+        _atomic_write_json(_sales_whatsapp_report_schedule_path(safe_schedule_id), record)
+        return {
+            "answer": _compact_sales_whatsapp_report_schedule(record),
+            "source": "NurtureAny profile-runtime report schedule state",
+            "scope": {"schedule_id": safe_schedule_id, "schedule_dir": str(_sales_whatsapp_report_schedule_dir()), "caller_email": scope.get("email")},
+            "confidence": "verified",
+            "caveat": "Schedule state is outside the repo. Ad hoc reruns should call build_sales_whatsapp_window_report and must not mutate this schedule.",
+        }
+    except (AccessPolicyError, ScopeError, OSError) as error:
+        return _blocked(str(error), {"caller_email": slack_user_email, "schedule_id": schedule_id})
+
+
+@mcp.tool()
+def post_generated_sales_report(
+    report_id: str,
+    channel_id: str,
+    approval_marker: str,
+    idempotency_key: str,
+    generated_report_markdown: str,
+) -> dict[str, Any]:
+    """Post one generated NurtureAny sales report to an allowlisted Slack channel with ledger idempotency."""
+
+    report_id = str(report_id or "").strip()
+    channel_id = str(channel_id or "").strip()
+    approval_marker = str(approval_marker or "").strip()
+    idempotency_key = str(idempotency_key or "").strip()
+    markdown = str(generated_report_markdown or "").strip()
+    scope = {"report_id": report_id, "channel_id": channel_id, "idempotency_key": idempotency_key}
+    try:
+        if not report_id or not channel_id or not approval_marker or not idempotency_key:
+            return _blocked("report_id, channel_id, approval_marker, and idempotency_key are required.", scope)
+        _validate_sales_whatsapp_report_channel(channel_id)
+        if not markdown.startswith(SALES_WHATSAPP_REPORT_PREFIX):
+            return _blocked("generated report markdown must start with the NurtureAny generated report prefix.", scope)
+        if report_id not in markdown:
+            return _blocked("generated report markdown must include the report_id.", scope)
+        unsafe_reason = _sales_report_payload_unsafe(markdown, approval_marker, idempotency_key)
+        if unsafe_reason:
+            return _blocked(f"generated report markdown contains disallowed {unsafe_reason}.", {**scope, "unsafe_reason": unsafe_reason})
+        operation_id = _sales_whatsapp_report_operation_id(idempotency_key)
+        existing = _load_operation_record(operation_id)
+        if _existing_sales_whatsapp_report_delivery(existing, report_id, channel_id, idempotency_key):
+            return {
+                "answer": {**_compact_ledger_record(existing), "already_posted": True, "will_post_slack": False},
+                "source": "NurtureAny operation ledger idempotency record",
+                "scope": scope,
+                "confidence": "verified",
+                "caveat": "Duplicate send blocked; returning the previously recorded Slack channel/ts.",
+            }
+        _record_sales_whatsapp_report_delivery_checkpoint(
+            operation_id,
+            "before_post",
+            "Generated sales report approved for Slack delivery.",
+            approval_marker,
+            idempotency_key,
+            report_id,
+            channel_id,
+            "pending",
+        )
+        response = _slack_chat_post_message(channel_id, markdown)
+        if not response.get("ok"):
+            error = str(response.get("error") or "slack_post_failed")
+            status = "blocked_not_in_channel" if error == "not_in_channel" else "blocked"
+            record = _record_sales_whatsapp_report_delivery_checkpoint(
+                operation_id,
+                "post_blocked",
+                f"Slack post blocked: {error}",
+                approval_marker,
+                idempotency_key,
+                report_id,
+                channel_id,
+                status,
+                compact_error=error,
+            )
+            remediation = "Invite the NurtureAny Slack bot to the allowlisted channel, then rerun with the same idempotency key." if error == "not_in_channel" else "Check SLACK_BOT_TOKEN, Slack app scopes, and channel allowlist."
+            return {
+                "answer": {**_compact_ledger_record(record), "already_posted": False, "will_post_slack": False, "slack_error": error, "remediation": remediation},
+                "source": "Slack chat.postMessage via SLACK_BOT_TOKEN plus NurtureAny operation ledger",
+                "scope": scope,
+                "confidence": "blocked",
+                "caveat": "No user-token or Slack connector fallback is allowed for report delivery.",
+            }
+        ts = str(response.get("ts") or "")
+        record = _record_sales_whatsapp_report_delivery_checkpoint(
+            operation_id,
+            "posted",
+            "Slack report post completed.",
+            approval_marker,
+            idempotency_key,
+            report_id,
+            channel_id,
+            "posted",
+            delivery_ts=ts,
+        )
+        return {
+            "answer": {**_compact_ledger_record(record), "already_posted": False, "will_post_slack": False},
+            "source": "Slack chat.postMessage via SLACK_BOT_TOKEN plus NurtureAny operation ledger",
+            "scope": scope,
+            "confidence": "verified",
+            "caveat": "Report delivery is limited to generated report output and allowlisted channels.",
+        }
+    except (ScopeError, OSError) as error:
+        return _blocked(str(error), scope)
+
+
+@mcp.tool()
+def run_sales_whatsapp_window_report_schedule(schedule_id: str, for_date: str = "", dry_run: bool = False) -> dict[str, Any]:
+    """Run one persisted Sales WhatsApp Window Report schedule deterministically."""
+
+    safe_schedule_id = _safe_file_stem(str(schedule_id or "").strip())
+    if not safe_schedule_id:
+        return _blocked("schedule_id is required.", {"schedule": "sales_whatsapp_window_report"})
+    schedule = _load_sales_whatsapp_report_schedule(safe_schedule_id)
+    if not schedule:
+        return _blocked("No sales WhatsApp report schedule found for this schedule_id.", {"schedule_id": safe_schedule_id})
+    if not schedule.get("enabled", True):
+        return {
+            "answer": {"schedule_id": safe_schedule_id, "status": "skipped_disabled", "will_post_slack": False},
+            "source": "NurtureAny profile-runtime report schedule state",
+            "scope": {"schedule_id": safe_schedule_id},
+            "confidence": "verified",
+            "caveat": "Schedule exists but is disabled.",
+        }
+    reference_date = (_date_value(for_date) or datetime.now(SINGAPORE_TIMEZONE).date()).isoformat()
+    reference_day = date.fromisoformat(reference_date)
+    if reference_day.weekday() >= 5 and schedule.get("logical_cron") == SALES_WHATSAPP_REPORT_LOGICAL_CRON:
+        return {
+            "answer": {"schedule_id": safe_schedule_id, "for_date": reference_date, "status": "skipped_weekend", "will_post_slack": False},
+            "source": "NurtureAny profile-runtime report schedule state",
+            "scope": {"schedule_id": safe_schedule_id, "logical_cron": schedule.get("logical_cron")},
+            "confidence": "verified",
+            "caveat": "Weekday-only report schedule skips Saturday/Sunday.",
+        }
+    args = _default_sales_whatsapp_report_args(schedule.get("report_args") if isinstance(schedule.get("report_args"), dict) else {})
+    report = build_sales_whatsapp_window_report(
+        slack_user_email=str(schedule.get("updated_by") or schedule.get("created_by") or ""),
+        countries=args["countries"],
+        owner_emails=args["owner_emails"],
+        for_date=reference_date,
+        window_start_local=args["window_start_local"],
+        window_end_local=args["window_end_local"],
+        target_per_owner=args["target_per_owner"],
+        country_order=args["country_order"],
+        include_kns=args["include_kns"],
+    )
+    if report.get("confidence") == "blocked":
+        return report
+    answer = report.get("answer") if isinstance(report.get("answer"), dict) else {}
+    if dry_run:
+        return {
+            "answer": {"schedule": _compact_sales_whatsapp_report_schedule(schedule), "report": answer, "status": "dry_run", "will_post_slack": False},
+            "source": "NurtureAny report schedule runner dry run",
+            "scope": {"schedule_id": safe_schedule_id, "for_date": reference_date},
+            "confidence": report.get("confidence", "needs-check"),
+            "caveat": "Dry run generated report only; no Slack delivery attempted.",
+        }
+    pattern = str(schedule.get("idempotency_key_pattern") or SALES_WHATSAPP_REPORT_DEFAULT_IDEMPOTENCY_PATTERN)
+    try:
+        idempotency_key = pattern.format(
+            schedule_id=safe_schedule_id,
+            for_date=reference_date,
+            window_start_local=args["window_start_local"],
+            window_end_local=args["window_end_local"],
+            report_id=answer.get("report_id") or "",
+        )
+    except (KeyError, IndexError, ValueError) as error:
+        return _blocked(f"Invalid idempotency_key_pattern: {error.__class__.__name__}", {"schedule_id": safe_schedule_id})
+    delivery = post_generated_sales_report(
+        report_id=str(answer.get("report_id") or ""),
+        channel_id=str(schedule.get("delivery_channel_id") or ""),
+        approval_marker=str(schedule.get("approval_marker") or ""),
+        idempotency_key=idempotency_key,
+        generated_report_markdown=str(answer.get("slack_markdown") or ""),
+    )
+    return {
+        "answer": {
+            "schedule": _compact_sales_whatsapp_report_schedule(schedule),
+            "report": answer,
+            "delivery": delivery.get("answer"),
+            "status": "posted" if delivery.get("confidence") == "verified" else "blocked",
+            "will_post_slack": False,
+        },
+        "source": "NurtureAny report schedule runner",
+        "scope": {"schedule_id": safe_schedule_id, "for_date": reference_date},
+        "confidence": delivery.get("confidence", "needs-check"),
+        "caveat": delivery.get("caveat", ""),
+    }
+
+
 @mcp.tool()
 def audit_owner_whatsapp_kns_window(
     slack_user_email: str,
@@ -15510,96 +16329,26 @@ def audit_owner_whatsapp_kns_window(
                 ),
             }
 
-        requested_limit = _bounded_int(limit, default=WHATSAPP_KNS_AUDIT_DEFAULT_LIMIT, maximum=1000)
-        communication_filters = [
-            {"propertyName": "hubspot_owner_id", "operator": "EQ", "value": target_owner_id},
-            {"propertyName": "hs_timestamp", "operator": "GTE", "value": window["utc_window"]["start"]},
-            {"propertyName": "hs_timestamp", "operator": "LTE", "value": window["utc_window"]["end"]},
-        ]
-        communication_data = _object_search(
-            "communications",
-            communication_filters,
-            COMMUNICATION_EVENT_PROPERTIES,
-            limit=requested_limit,
-            maximum=1000,
-            sorts=[{"propertyName": "hs_timestamp", "direction": "ASCENDING"}],
+        context = _owner_target_account_whatsapp_context(
+            selected_countries,
+            target_owner_id,
+            window["utc_window"]["start"],
+            window["utc_window"]["end"],
+            limit,
+            include_bodies=True,
+            include_kns=True,
+            local_zone=window["zone"],
         )
-        owner_whatsapp_messages = [
-            communication for communication in communication_data.get("results", []) if _is_whatsapp_communication(communication)
-        ]
-        owner_whatsapp_ids = [str(communication.get("id") or "") for communication in owner_whatsapp_messages if communication.get("id")]
-
-        company_data = _company_search(
-            _target_filters(selected_countries, target_owner_id),
-            requested_limit,
-            maximum=HUBSPOT_SEARCH_TOTAL_LIMIT,
-            sorts=[{"propertyName": "name", "direction": "ASCENDING"}],
-        )
-        companies = company_data.get("results", [])
-        company_by_id = {str(company.get("id") or ""): company for company in companies if company.get("id")}
-        company_ids = list(company_by_id.keys())
-        selected_company_ids = set(company_ids)
-        contact_to_companies = _reverse_company_association_index(_batch_association_ids("companies", "contacts", company_ids))
-        deal_to_companies = _reverse_company_association_index(_batch_association_ids("companies", "deals", company_ids))
-        comm_company_index = _batch_association_ids("communications", "companies", owner_whatsapp_ids)
-        comm_contact_index = _batch_association_ids("communications", "contacts", owner_whatsapp_ids)
-        comm_deal_index = _batch_association_ids("communications", "deals", owner_whatsapp_ids)
-
-        target_linked_messages: list[dict[str, Any]] = []
-        target_company_ids_with_whatsapp: set[str] = set()
-        for communication in owner_whatsapp_messages:
-            communication_id = str(communication.get("id") or "")
-            if not communication_id:
-                continue
-            associated_target_company_ids: set[str] = set()
-            source_by_key: dict[tuple[str, str], dict[str, str]] = {}
-
-            def add_source(source_type: str, source_id: str, company_ids_for_source: list[str]) -> None:
-                matched_company_ids = [source_company_id for source_company_id in company_ids_for_source if source_company_id in selected_company_ids]
-                if not matched_company_ids:
-                    return
-                source_key = (source_type, str(source_id))
-                source_by_key.setdefault(source_key, {"object_type": source_type, "object_id": str(source_id)})
-                associated_target_company_ids.update(matched_company_ids)
-
-            for company_id in comm_company_index.get(communication_id, []):
-                if company_id in selected_company_ids:
-                    add_source("company", str(company_id), [str(company_id)])
-            for contact_id in comm_contact_index.get(communication_id, []):
-                add_source("contact", str(contact_id), contact_to_companies.get(str(contact_id), []))
-            for deal_id in comm_deal_index.get(communication_id, []):
-                add_source("deal", str(deal_id), deal_to_companies.get(str(deal_id), []))
-            if not associated_target_company_ids:
-                continue
-
-            props = communication.get("properties", {})
-            timestamp = _activity_timestamp(communication)
-            timestamp_dt = _datetime_value(timestamp)
-            kns = _whatsapp_kns_audit_from_body(props.get("hs_communication_body"))
-            target_company_ids = sorted(associated_target_company_ids)
-            target_company_ids_with_whatsapp.update(target_company_ids)
-            safe_message = {
-                **_safe_followup_evidence("communication", communication, {communication_id: list(source_by_key.values())}),
-                "timestamp_local": timestamp_dt.astimezone(window["zone"]).isoformat() if timestamp_dt and window["zone"] else "",
-                "target_company_ids": target_company_ids,
-                "target_accounts": [
-                    {
-                        "company_id": company_id,
-                        "company_name": company_by_id.get(company_id, {}).get("properties", {}).get("name") or "",
-                    }
-                    for company_id in target_company_ids
-                ],
-                **kns,
-            }
-            target_linked_messages.append(safe_message)
-
-        target_linked_messages = sorted(
-            target_linked_messages,
-            key=lambda item: _datetime_value(str(item.get("timestamp") or "")) or datetime.min.replace(tzinfo=timezone.utc),
-        )
+        requested_limit = context["requested_limit"]
+        communication_data = context["communication_data"]
+        company_data = context["company_data"]
+        owner_whatsapp_messages = context["owner_whatsapp_messages"]
+        companies = context["companies"]
+        target_linked_messages = context["target_linked_messages"]
+        target_company_ids_with_whatsapp = context["target_company_ids_with_whatsapp"]
         messages_missing_kns = [message for message in target_linked_messages if message.get("kns_status") != "pass"]
         body_unavailable_count = sum(1 for message in target_linked_messages if not message.get("body_available"))
-        truncated = bool(company_data.get("truncated") or communication_data.get("truncated"))
+        truncated = bool(context["truncated"])
         return {
             "answer": {
                 "owner_email": target_owner_email or owner_email,
@@ -15672,73 +16421,24 @@ def count_owner_whatsapp_sent_today(
             )
 
         day = _singapore_day_window(for_date)
-        requested_limit = _bounded_int(limit, default=500, maximum=1000)
-        communication_filters = [
-            {"propertyName": "hubspot_owner_id", "operator": "EQ", "value": target_owner_id},
-            {"propertyName": "hs_timestamp", "operator": "GTE", "value": day["start_dt"].isoformat().replace("+00:00", "Z")},
-            {"propertyName": "hs_timestamp", "operator": "LTE", "value": day["end_dt"].isoformat().replace("+00:00", "Z")},
-        ]
-        communication_data = _object_search(
-            "communications",
-            communication_filters,
-            COMMUNICATION_PROPERTIES,
-            limit=requested_limit,
-            maximum=1000,
-            sorts=[{"propertyName": "hs_timestamp", "direction": "DESCENDING"}],
+        context = _owner_target_account_whatsapp_context(
+            selected_countries,
+            target_owner_id,
+            day["start_dt"].isoformat().replace("+00:00", "Z"),
+            day["end_dt"].isoformat().replace("+00:00", "Z"),
+            limit,
+            include_bodies=False,
+            include_kns=False,
         )
-        owner_whatsapp_messages = [
-            communication for communication in communication_data.get("results", []) if _is_whatsapp_communication(communication)
-        ]
-        owner_whatsapp_ids = [str(communication.get("id") or "") for communication in owner_whatsapp_messages if communication.get("id")]
-
-        company_data = _company_search(
-            _target_filters(selected_countries, target_owner_id),
-            requested_limit,
-            maximum=HUBSPOT_SEARCH_TOTAL_LIMIT,
-            sorts=[{"propertyName": "name", "direction": "ASCENDING"}],
-        )
-        companies = company_data.get("results", [])
-        company_ids = [str(company.get("id") or "") for company in companies if company.get("id")]
-        contact_index = _batch_association_ids("companies", "contacts", company_ids)
-        deal_index = _batch_association_ids("companies", "deals", company_ids)
-        selected_company_ids = set(company_ids)
-        contact_to_companies = _reverse_company_association_index(contact_index)
-        deal_to_companies = _reverse_company_association_index(deal_index)
-        comm_company_index = _batch_association_ids("communications", "companies", owner_whatsapp_ids)
-        comm_contact_index = _batch_association_ids("communications", "contacts", owner_whatsapp_ids)
-        comm_deal_index = _batch_association_ids("communications", "deals", owner_whatsapp_ids)
-
-        target_linked_messages: list[dict[str, Any]] = []
-        target_company_ids_with_whatsapp: set[str] = set()
-        for communication in owner_whatsapp_messages:
-            communication_id = str(communication.get("id") or "")
-            if not communication_id:
-                continue
-            associated_target_company_ids: set[str] = set()
-            sources: list[dict[str, str]] = []
-            for company_id in comm_company_index.get(communication_id, []):
-                if company_id in selected_company_ids:
-                    associated_target_company_ids.add(company_id)
-                    sources.append({"object_type": "company", "object_id": company_id})
-            for contact_id in comm_contact_index.get(communication_id, []):
-                for company_id in contact_to_companies.get(str(contact_id), []):
-                    associated_target_company_ids.add(company_id)
-                    sources.append({"object_type": "contact", "object_id": str(contact_id)})
-            for deal_id in comm_deal_index.get(communication_id, []):
-                for company_id in deal_to_companies.get(str(deal_id), []):
-                    associated_target_company_ids.add(company_id)
-                    sources.append({"object_type": "deal", "object_id": str(deal_id)})
-            if not associated_target_company_ids:
-                continue
-            target_company_ids_with_whatsapp.update(associated_target_company_ids)
-            target_linked_messages.append(_safe_followup_evidence("communication", communication, {communication_id: sources}))
-
-        target_linked_messages = _sort_followup_evidence(target_linked_messages)
-        owner_messages = _sort_followup_evidence(
-            [_safe_followup_evidence("communication", communication, {str(communication.get("id") or ""): []}) for communication in owner_whatsapp_messages]
-        )
+        requested_limit = context["requested_limit"]
+        communication_data = context["communication_data"]
+        company_data = context["company_data"]
+        owner_whatsapp_messages = context["owner_whatsapp_messages"]
+        companies = context["companies"]
+        target_linked_messages = _sort_followup_evidence(context["target_linked_messages"])
+        owner_messages = _sort_followup_evidence(context["owner_messages"])
         latest_sent_at = owner_messages[0]["timestamp"] if owner_messages else ""
-        truncated = bool(company_data.get("truncated") or communication_data.get("truncated"))
+        truncated = bool(context["truncated"])
         return {
             "answer": {
                 "owner_email": target_owner_email or owner_email or scope.get("email"),
@@ -15748,7 +16448,7 @@ def count_owner_whatsapp_sent_today(
                 "whatsapp_sent_count": len(owner_messages),
                 "target_account_whatsapp_sent_count": len(target_linked_messages),
                 "target_account_count_scanned": len(companies),
-                "target_account_count_with_whatsapp": len(target_company_ids_with_whatsapp),
+                "target_account_count_with_whatsapp": len(context["target_company_ids_with_whatsapp"]),
                 "latest_sent_at": latest_sent_at,
                 "sample_evidence": owner_messages[:10],
                 "target_account_sample_evidence": target_linked_messages[:10],
