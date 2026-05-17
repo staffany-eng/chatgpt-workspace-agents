@@ -385,6 +385,12 @@ if (!existsSync(manifestPath)) {
         fail(`Manifest missing approval-gated HubSpot task write tool: ${tool}`);
       }
     }
+    if (!manifest.tools?.preview?.includes("preview_analysis_sheet_export")) {
+      fail("Manifest missing preview tool: preview_analysis_sheet_export");
+    }
+    if (!manifest.tools?.internal_sheet_write?.includes("apply_analysis_sheet_export")) {
+      fail("Manifest missing internal Sheet write tool: apply_analysis_sheet_export");
+    }
     if (!manifest.tools?.approval_gated_enrichment?.includes("reveal_lusha_contact_details")) {
       fail("Manifest missing approval-gated enrichment tool: reveal_lusha_contact_details");
     }
@@ -419,6 +425,7 @@ if (!existsSync(manifestPath)) {
       ...(manifest.tools?.read || []),
       ...(manifest.tools?.preview || []),
       ...(manifest.tools?.approval_gated_hubspot_task_writes || []),
+      ...(manifest.tools?.internal_sheet_write || []),
       ...(manifest.tools?.approval_gated_enrichment || []),
       ...(manifest.tools?.approval_gated_external_message_sending || [])
     ];
@@ -428,6 +435,7 @@ if (!existsSync(manifestPath)) {
       "runtime/mcp/aircall_nurtureany_server.py",
       "runtime/mcp/google_calendar_nurtureany_server.py",
       "runtime/mcp/google_drive_nurtureany_server.py",
+      "runtime/mcp/google_sheets_nurtureany_server.py",
       "runtime/mcp/eazybe_nurtureany_server.py",
       "runtime/mcp/luma_nurtureany_server.py",
       "runtime/mcp/near_me_nurtureany_server.py",
@@ -618,6 +626,25 @@ if (!existsSync(manifestPath)) {
     }
     if (manifest.google_drive?.file_downloads !== false) fail("Manifest Google Drive file_downloads must be false");
     if (manifest.google_drive?.drive_mutations !== false) fail("Manifest Google Drive drive_mutations must be false");
+    if (manifest.google_sheets?.account_email !== "team@staffany.com") fail("Manifest Google Sheets account_email must be team@staffany.com");
+    if (manifest.google_sheets?.access_mode !== "team_oauth_spreadsheets_write") {
+      fail("Manifest Google Sheets access_mode must be team_oauth_spreadsheets_write");
+    }
+    if (manifest.google_sheets?.service_account !== false) fail("Manifest Google Sheets must not claim service_account=true");
+    if (manifest.google_sheets?.required_scope !== "https://www.googleapis.com/auth/spreadsheets") {
+      fail("Manifest Google Sheets required_scope must be spreadsheets write scope");
+    }
+    if (manifest.google_sheets?.shared_workbook_env_var !== "NURTUREANY_ANALYSIS_OUTPUT_SPREADSHEET_ID") {
+      fail("Manifest Google Sheets must name NURTUREANY_ANALYSIS_OUTPUT_SPREADSHEET_ID");
+    }
+    if (manifest.google_sheets?.runs_index_tab !== "Runs") fail("Manifest Google Sheets runs_index_tab must be Runs");
+    for (const tool of ["preview_analysis_sheet_export", "apply_analysis_sheet_export"]) {
+      if (!manifest.google_sheets?.allowed_tools?.includes(tool)) fail(`Manifest Google Sheets missing allowed tool: ${tool}`);
+    }
+    if (manifest.google_sheets?.safe_fields_only !== true) fail("Manifest Google Sheets safe_fields_only must be true");
+    for (const forbidden of ["raw_slack_transcripts", "phone_numbers", "full_attendee_emails", "raw_hubspot_bodies", "raw_guest_exports"]) {
+      if (!manifest.google_sheets?.forbidden_outputs?.includes(forbidden)) fail(`Manifest Google Sheets missing forbidden output: ${forbidden}`);
+    }
     if (manifest.daily_nurture?.status !== "disabled_pending_refinement") fail("Manifest daily_nurture must be disabled pending refinement");
     if (manifest.daily_nurture?.approved_runtime_workflow !== false) fail("Manifest daily_nurture must not be an approved runtime workflow");
     if (manifest.daily_nurture?.cron_enabled !== false) fail("Manifest daily_nurture cron must be disabled");
@@ -830,6 +857,7 @@ const filesToScan = [
   "runtime/scripts/test_nurtureany_runtime_watchdogs.py",
   "runtime/scripts/nurtureany_sales_task_reminders.py",
   "runtime/scripts/nurtureany_sales_task_reminders_eod.py",
+  "runtime/scripts/nurtureany_inbound_monitor.py",
   "runtime/jobs/near_me_outlet_match_writer.py",
   "runtime/jobs/test_near_me_outlet_match_writer.py",
   "tests/regression-cases.md",
@@ -879,6 +907,7 @@ for (const text of [
   "source/nurtureany-sales-bot",
   "skills/nurtureany-sales-bot",
   "skills/target-account-news-scout",
+  "skills/publish-analysis-to-sheets",
   "runtime/mcp",
   "runtime/data",
   "runtime/jobs",
@@ -892,6 +921,8 @@ for (const text of [
   "nurtureany_slack_access_repair.py",
   "nurtureany_sales_task_reminders.py",
   "nurtureany_sales_task_reminders_eod.py",
+  "nurtureany_inbound_monitor.py",
+  "deploy:cron-timezone-repaired",
   "profile/config.template.yaml",
   "config.yaml",
   "template_nurtureany",
@@ -1979,7 +2010,9 @@ for (const text of [
   "read_indonesia_event_registration_attendance",
   "Daily nurture automation is disabled pending refinement",
   "Eugene-owned WhatsApp Morning Blitz report crons are intended production crons",
-  "nine enabled recurring operational crons",
+  "ten enabled recurring operational crons",
+  "HubSpot inbound monitor",
+  "read-only internal exception report",
   "Safe enabled one-shot report jobs are allowed",
   "read_nurture_material_registry",
   "Eazybe approval-gated smoke check",
@@ -2098,7 +2131,8 @@ for (const text of [
   "nurtureanysalesbot Slack socket watchdog",
   "nurtureanysalesbot HubSpot task reminders",
   "nurtureanysalesbot HubSpot task EOD catch-up",
-  "nine enabled recurring operational crons",
+  "nurtureanysalesbot HubSpot inbound monitor",
+  "ten enabled recurring operational crons",
   "build_sales_whatsapp_window_report",
   "post_generated_sales_report",
   "NURTUREANY_REPORT_DELIVERY_CHANNEL_IDS",
@@ -2106,6 +2140,7 @@ for (const text of [
   "check-slack-socket-health.sh",
   "nurtureany_sales_task_reminders.py",
   "nurtureany_sales_task_reminders_eod.py",
+  "nurtureany_inbound_monitor.py",
   "nurtureany-cloud-doctor.sh",
   "Prospeo MCP lists only",
   "*/5 * * * *",
@@ -2167,6 +2202,7 @@ for (const text of [
   "regional_event_operators",
   "mcp:near_me_nurtureany:missing-google-places-env",
   "google-drive:token-permissions-not-600",
+  "partnerships_viewers",
   "slack-allowlist:missing-policy-users",
   "slack-allowlist:extra-users",
   "find_event_sourcing_target_accounts",
@@ -2189,15 +2225,17 @@ for (const text of [
   "systemctl --user is-enabled \"$GATEWAY_SERVICE_NAME\"",
   "EXPECTED_CLOUD_HEARTBEAT_CRON_NAME",
   "nurtureanysalesbot local cloud heartbeat",
-  "EXPECT_ENABLED_CRON_COUNT=\"${EXPECT_ENABLED_CRON_COUNT:-9}\"",
+  "EXPECT_ENABLED_CRON_COUNT=\"${EXPECT_ENABLED_CRON_COUNT:-10}\"",
   "EXPECT_HUBSPOT_TOOLS=\"${EXPECT_HUBSPOT_TOOLS:-60}\"",
   "EXPECTED_TASK_REMINDER_CRON_NAME",
   "EXPECTED_TASK_REMINDER_EOD_CRON_NAME",
+  "EXPECTED_INBOUND_MONITOR_CRON_NAME",
   "EXPECTED_SG_MY_WHATSAPP_BLITZ_CRON_NAME",
   "EXPECTED_ID_MORNING_WHATSAPP_BLITZ_CRON_NAME",
   "EXPECTED_ID_WHATSAPP_BLITZ_CRON_NAME",
   "nurtureany_sales_task_reminders.py",
   "nurtureany_sales_task_reminders_eod.py",
+  "nurtureany_inbound_monitor.py",
   "SG MY WhatsApp Morning Blitz Report",
   "ID Morning WhatsApp Blitz Report",
   "ID WhatsApp Morning Blitz Report",
@@ -2211,6 +2249,7 @@ for (const text of [
   "cloud-doctor:cron-unhealthy",
   "enabled_recurring=$EXPECT_ENABLED_CRON_COUNT",
   "mcp:hubspot_nurtureany:tools=$EXPECT_HUBSPOT_TOOLS",
+  "mcp:google_sheets_nurtureany:tools=2",
   "mcp:public_research_nurtureany:tools=$EXPECT_PUBLIC_RESEARCH_TOOLS",
   "mcp:prospeo_nurtureany:tools=$EXPECT_PROSPEO_TOOLS"
 ]) {
@@ -2240,10 +2279,12 @@ for (const text of [
   "cron:slack-socket-watchdog-missing",
   "cron:hs-reminder-missing",
   "cron:hs-reminder-eod-missing",
+  "cron:inbound-monitor-missing",
   "cron:sg-my-whatsapp-blitz-missing",
   "cron:id-morning-whatsapp-blitz-missing",
   "cron:id-whatsapp-blitz-missing",
   "SG MY WhatsApp Morning Blitz Report",
+  "nurtureanysalesbot HubSpot inbound monitor",
   "ID Morning WhatsApp Blitz Report",
   "ID WhatsApp Morning Blitz Report",
   "live-profile:audit-ok"
@@ -2541,6 +2582,13 @@ if (googleDriveCompileCheck.status !== 0) {
   fail(`Python compile failed for Google Drive MCP: ${(googleDriveCompileCheck.stderr || googleDriveCompileCheck.stdout).trim()}`);
 }
 
+const googleSheetsCompileCheck = spawnSync("python3", ["-m", "py_compile", join(appRoot, "runtime/mcp/google_sheets_nurtureany_server.py")], {
+  encoding: "utf8"
+});
+if (googleSheetsCompileCheck.status !== 0) {
+  fail(`Python compile failed for Google Sheets MCP: ${(googleSheetsCompileCheck.stderr || googleSheetsCompileCheck.stdout).trim()}`);
+}
+
 const eazybeCompileCheck = spawnSync("python3", ["-m", "py_compile", join(appRoot, "runtime/mcp/eazybe_nurtureany_server.py")], {
   encoding: "utf8"
 });
@@ -2592,6 +2640,14 @@ const googleDriveUnitCheck = spawnSync("python3", ["-m", "unittest", "apps/nurtu
 });
 if (googleDriveUnitCheck.status !== 0) {
   fail(`Python unit tests failed for Google Drive MCP: ${(googleDriveUnitCheck.stderr || googleDriveUnitCheck.stdout).trim()}`);
+}
+
+const googleSheetsUnitCheck = spawnSync("python3", ["-m", "unittest", "apps/nurtureany-sales-bot/runtime/mcp/test_google_sheets_nurtureany_server.py"], {
+  cwd: repoRoot,
+  encoding: "utf8"
+});
+if (googleSheetsUnitCheck.status !== 0) {
+  fail(`Python unit tests failed for Google Sheets MCP: ${(googleSheetsUnitCheck.stderr || googleSheetsUnitCheck.stdout).trim()}`);
 }
 
 const eazybeUnitCheck = spawnSync("python3", ["-m", "unittest", "apps/nurtureany-sales-bot/runtime/mcp/test_eazybe_nurtureany_server.py"], {

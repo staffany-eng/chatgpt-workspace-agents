@@ -715,6 +715,40 @@ mcp_servers:
     - extract_drive_image_clues
     - read_nurture_material_registry
     - read_indonesia_event_registration_attendance
+  google_sheets_nurtureany:
+    description: Write sanitized table-shaped analyses to the shared NurtureAny
+      Google Sheets workbook.
+    command: /Users/leekaiyi/.hermes/hermes-agent/venv/bin/python
+    args:
+    - /Users/leekaiyi/workspace/agent builder/apps/nurtureany-sales-bot/runtime/mcp/google_sheets_nurtureany_server.py
+    env:
+      GOOGLE_SHEETS_TOKEN_FILE: ${GOOGLE_SHEETS_TOKEN_FILE}
+      GOOGLE_SHEETS_CLIENT_SECRET_FILE: ${GOOGLE_SHEETS_CLIENT_SECRET_FILE}
+      GOOGLE_SHEETS_ACCOUNT_EMAIL: team@staffany.com
+      NURTUREANY_ANALYSIS_OUTPUT_SPREADSHEET_ID: ${NURTUREANY_ANALYSIS_OUTPUT_SPREADSHEET_ID}
+    auth_metadata:
+      type: oauth_token_file
+      account_email: team@staffany.com
+      token_file_env: GOOGLE_SHEETS_TOKEN_FILE
+      client_secret_file_env: GOOGLE_SHEETS_CLIENT_SECRET_FILE
+      account_email_env: GOOGLE_SHEETS_ACCOUNT_EMAIL
+      required_scope: https://www.googleapis.com/auth/spreadsheets
+    output_workbook:
+      spreadsheet_id_env: NURTUREANY_ANALYSIS_OUTPUT_SPREADSHEET_ID
+      index_tab: Runs
+      run_tab_strategy: one_tab_per_analysis_run_by_idempotency_key
+    access_policy:
+      mode: sanitized_internal_sheet_write
+      mutation_scope: one_configured_workbook_only
+      same_run_approval: true
+      raw_slack_transcripts: false
+      raw_hubspot_bodies: false
+      full_attendee_emails: false
+      phone_numbers: false
+      raw_guest_exports: false
+    tool_allowlist:
+    - preview_analysis_sheet_export
+    - apply_analysis_sheet_export
   luma_nurtureany:
     description: Read-only Luma event context adapter for RSVP, attendance, and no-show
       nurture.

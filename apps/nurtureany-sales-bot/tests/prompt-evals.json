@@ -497,6 +497,70 @@
       }
     },
     {
+      "id": "nurtureany-tooltrace-partnerships-luma-sheets-export",
+      "bot": "NurtureAny Sales Bot",
+      "surface": "slack",
+      "lane": "tool-trace",
+      "input": "@NurtureAny analyze this Luma event for total RSVPs, clients vs prospects, and invited by: https://luma.com/06d6szo3",
+      "setup": {
+        "caller_email": "jan-e@staffany.com",
+        "first_slack_mention": true,
+        "after_run": "partnerships_luma_event_breakdown"
+      },
+      "expected_tool_trace": {
+        "must_call_after_run": [
+          "resolve_nurture_scope",
+          "list_luma_events",
+          "get_luma_event_match_keys",
+          "find_target_accounts_by_luma_match_keys",
+          "get_luma_event_context",
+          "preview_analysis_sheet_export",
+          "apply_analysis_sheet_export"
+        ],
+        "must_not_call": [
+          "build_friday_sales_review",
+          "build_ae_coaching_audit",
+          "audit_owner_whatsapp_kns_window",
+          "plan_hubspot_writeback",
+          "send_approved_eazybe_messages"
+        ]
+      },
+      "expected_answer_contract": {
+        "must_include": [
+          "Sheet:",
+          "Source:",
+          "Scope:",
+          "Confidence:",
+          "Caveat:"
+        ]
+      },
+      "forbidden_behavior": [
+        "raw guest list",
+        "full attendee email",
+        "phone-number export",
+        "HubSpot mutation",
+        "manager coaching audit"
+      ],
+      "grade_notes": "Partnerships event breakdowns use SG/MY target-account classification and publish sanitized rows to the shared Sheet.",
+      "assertions": {
+        "source_files": [
+          {
+            "path": "skills/nurtureany-sales-bot/references/regression-cases.md",
+            "must_contain": [
+              "Partnerships RSVP Breakdown With Sheets Export"
+            ]
+          },
+          {
+            "path": "skills/nurtureany-sales-bot/SKILL.md",
+            "must_contain": [
+              "preview_analysis_sheet_export",
+              "apply_analysis_sheet_export"
+            ]
+          }
+        ]
+      }
+    },
+    {
       "id": "nurtureany-live-smoke-compact-sg-enrichment",
       "bot": "NurtureAny Sales Bot",
       "surface": "slack:#nurtureany-testing",

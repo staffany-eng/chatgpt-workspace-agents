@@ -11,6 +11,7 @@
     "soul": "profile/SOUL.md",
     "config_template": "profile/config.template.yaml",
     "skill": "skills/nurtureany-sales-bot/SKILL.md",
+    "publish_analysis_to_sheets_skill": "skills/publish-analysis-to-sheets/SKILL.md",
     "target_account_news_scout_skill": "skills/target-account-news-scout/SKILL.md",
     "target_account_news_scout_references": [
       "skills/target-account-news-scout/references/search-playbook.md",
@@ -42,6 +43,8 @@
     "google_calendar_mcp": "runtime/mcp/google_calendar_nurtureany_server.py",
     "google_drive_runtime": "runtime/google-drive.md",
     "google_drive_mcp": "runtime/mcp/google_drive_nurtureany_server.py",
+    "google_sheets_runtime": "runtime/google-sheets.md",
+    "google_sheets_mcp": "runtime/mcp/google_sheets_nurtureany_server.py",
     "eazybe_runtime": "runtime/eazybe.md",
     "eazybe_mcp": "runtime/mcp/eazybe_nurtureany_server.py",
     "luma_runtime": "runtime/luma.md",
@@ -135,6 +138,7 @@
       "MCP_STAFFANY_BIGQUERY_API_KEY",
       "NURTUREANY_C360_INTERNAL_API_TOKEN",
       "NURTUREANY_CLOSED_WON_STAGE_IDS",
+      "NURTUREANY_ANALYSIS_OUTPUT_SPREADSHEET_ID",
       "NURTUREANY_MATERIAL_REGISTRY_SPREADSHEET_ID",
       "NURTUREANY_REPORT_DELIVERY_CHANNEL_IDS",
       "NURTUREANY_QO_MET_STAGE_IDS",
@@ -562,7 +566,11 @@
       "plan_event_photo_followup",
       "preview_hubspot_sales_task",
       "preview_hubspot_task_update",
-      "preview_eazybe_template_messages"
+      "preview_eazybe_template_messages",
+      "preview_analysis_sheet_export"
+    ],
+    "internal_sheet_write": [
+      "apply_analysis_sheet_export"
     ],
     "approval_gated_hubspot_task_writes": [
       "create_approved_hubspot_sales_task",
@@ -786,6 +794,33 @@
     "uploader_profile_lookup": "best_effort_slack_users_info",
     "file_downloads": false,
     "drive_mutations": false
+  },
+  "google_sheets": {
+    "account_email": "team@staffany.com",
+    "access_mode": "team_oauth_spreadsheets_write",
+    "service_account": false,
+    "auth_env_vars": [
+      "GOOGLE_SHEETS_TOKEN_FILE",
+      "GOOGLE_SHEETS_CLIENT_SECRET_FILE",
+      "GOOGLE_SHEETS_ACCOUNT_EMAIL",
+      "NURTUREANY_ANALYSIS_OUTPUT_SPREADSHEET_ID"
+    ],
+    "required_scope": "https://www.googleapis.com/auth/spreadsheets",
+    "shared_workbook_env_var": "NURTUREANY_ANALYSIS_OUTPUT_SPREADSHEET_ID",
+    "runs_index_tab": "Runs",
+    "run_tab_strategy": "one_tab_per_analysis_run_by_idempotency_key",
+    "allowed_tools": [
+      "preview_analysis_sheet_export",
+      "apply_analysis_sheet_export"
+    ],
+    "safe_fields_only": true,
+    "forbidden_outputs": [
+      "raw_slack_transcripts",
+      "phone_numbers",
+      "full_attendee_emails",
+      "raw_hubspot_bodies",
+      "raw_guest_exports"
+    ]
   },
   "luma": {
     "auth_env_var": "LUMA_API_KEY",

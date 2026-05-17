@@ -66,7 +66,7 @@ def validate_scope(
     scopes = token_scopes(payload)
     if scopes and not scopes.intersection(allowed_scopes):
         allowed = ", ".join(sorted(allowed_scopes))
-        raise error_cls(f"{source_label} OAuth token is missing a permitted read scope: {allowed}.")
+        raise error_cls(f"{source_label} OAuth token is missing a permitted OAuth scope: {allowed}.")
 
 
 def client_credentials(
