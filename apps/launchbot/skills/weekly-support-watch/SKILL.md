@@ -45,8 +45,9 @@ Required or deploy-resolved:
 - `LAUNCHBOT_SUPPORT_WATCH_INCLUDE_WHATSAPP=true`
 - `LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_VIEW=gsheets.cs_tickets_logs_all_view`
 - `LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME=all-bugs-production`
-- `LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_ID=<resolved during deploy>`
-- `LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_IDS=<team-cs-eng-duty channel id>`
+- `LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_ID=<optional pre-resolved output channel id>`
+- `LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_NAMES=team-cs-eng-duty`
+- `LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_IDS=<optional pre-resolved dedupe channel ids>`
 - `LAUNCHBOT_SUPPORT_WATCH_EDT_JQL='project = PCO AND "PS Team" = "Eng Duty" AND statusCategory != Done ORDER BY updated DESC'`
 
 Optional:
@@ -77,8 +78,8 @@ No new findings means no Slack post. The monitor may still advance state with sa
 
 Before enabling the cron in production:
 
-1. Resolve `#all-bugs-production` with the Launchbot bot token and set `LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_ID`.
+1. Resolve `#all-bugs-production` with the Launchbot bot token using public-channel lookup; set `LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_ID` only if name resolution cannot be used.
 2. Confirm Launchbot is a member of `#all-bugs-production`.
-3. Set `LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_IDS` to the `#team-cs-eng-duty` channel ID.
+3. Keep `LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_NAMES=team-cs-eng-duty`, or set `LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_IDS` only when the dedupe channel must be referenced by ID.
 4. Run a dry-run against a small BigQuery report window and confirm full source counts, fetched candidate counts, and `hit_limit` flags are shown.
 5. Post exactly one test report from Launchbot identity, prefixed `Launchbot automation:`.

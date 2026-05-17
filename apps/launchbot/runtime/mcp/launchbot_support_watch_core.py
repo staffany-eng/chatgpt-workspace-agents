@@ -34,6 +34,7 @@ DEFAULT_WHATSAPP_BIGQUERY_VIEW = "gsheets.cs_tickets_logs_all_view"
 DEFAULT_INCLUDE_WHATSAPP = True
 DEFAULT_MAX_SUPPORT_ITEMS = 100
 DEFAULT_MAX_TICKETS = DEFAULT_MAX_SUPPORT_ITEMS
+DEFAULT_DEDUPE_CHANNEL_NAMES = "team-cs-eng-duty"
 SUPPORT_PROBLEM_PATTERN = r"\b(cannot|unable|failed|failure|error|blocked|missing|wrong|incorrect|stuck|down|outage|bug|broken|not working|doesn.?t work|trouble|issue|crash|timeout)\b"
 SUPPORT_PRODUCT_PATTERN = r"\b(payroll|clock|timesheet|attendance|leave|overtime|schedule|shift|login|mobile|permission|cpf|bank file|payslip|salary|statutory|onboarding)\b"
 SUPPORT_NOISE_PATTERN = r"\b(in the help center|article inserter|troubleshooting:|how to|learn how to)\b"
@@ -182,6 +183,7 @@ def scope(window_start: datetime, window_end: datetime, max_tickets: int) -> dic
         "output_channel_name": os.environ.get("LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME", OUTPUT_CHANNEL_NAME) or OUTPUT_CHANNEL_NAME,
         "output_channel_id": os.environ.get("LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_ID", ""),
         "dedupe_channel_ids_env": "LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_IDS",
+        "dedupe_channel_names_env": "LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_NAMES",
         "edt_jql_env": "LAUNCHBOT_SUPPORT_WATCH_EDT_JQL",
         "will_post_message": False,
         "will_create_ticket": False,
@@ -1061,13 +1063,29 @@ def parse_list(value: str) -> list[str]:
     return [item.strip() for item in re.split(r"[\s,]+", value or "") if item.strip()]
 
 
-def fetch_slack_dedupe_texts(window_start: datetime) -> tuple[list[dict[str, str]], str]:
+def dedupe_channel_names() -> list[str]:
+    configured = os.environ.get("LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_NAMES", DEFAULT_DEDUPE_CHANNEL_NAMES)
+    return [item.lstrip("#") for item in parse_list(configured)]
+
+
+def dedupe_channel_ids() -> list[str]:
     channel_ids = parse_list(os.environ.get("LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_IDS", ""))
-    if not channel_ids:
-        return [], "skipped:no-dedupe-channel-configured"
+    seen = set(channel_ids)
+    for channel_name in dedupe_channel_names():
+        resolved = resolve_slack_channel_id(channel_name)
+        if resolved and resolved not in seen:
+            channel_ids.append(resolved)
+            seen.add(resolved)
+    return channel_ids
+
+
+def fetch_slack_dedupe_texts(window_start: datetime) -> tuple[list[dict[str, str]], str]:
     results: list[dict[str, str]] = []
     oldest = str(unix_timestamp(window_start))
     try:
+        channel_ids = dedupe_channel_ids()
+        if not channel_ids:
+            return [], "skipped:no-dedupe-channel-configured"
         for channel_id in channel_ids:
             payload = slack_api("conversations.history", {"channel": channel_id, "oldest": oldest, "limit": 100, "inclusive": "true"})
             for message in payload.get("messages", []) or []:
@@ -1239,7 +1257,7 @@ def resolve_slack_channel_id(channel_name: str) -> str:
         payload = slack_api(
             "conversations.list",
             {
-                "types": "public_channel,private_channel",
+                "types": "public_channel",
                 "limit": 200,
                 "cursor": cursor,
                 "exclude_archived": "true",

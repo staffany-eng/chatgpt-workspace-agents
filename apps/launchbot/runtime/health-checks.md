@@ -27,7 +27,8 @@ Expected checks:
 - Product commitment checks have `LAUNCHBOT_PRODUCT_COMMITMENT_ALLOWED_CHANNEL_IDS` in config or the live profile env. `LAUNCHBOT_PRODUCT_COMMITMENT_FIELD_IDS` is optional and must contain only reviewed Jira commitment field IDs.
 - The feature-intake monitor uses the same `SLACK_BOT_TOKEN`, `JIRA_BASE_URL`, `JIRA_EMAIL`, and `JIRA_API_TOKEN`, and uses Slack `chat.postMessage` only for Launchbot-owned `Launchbot automation:` previews/results.
 - The support-watch MCP uses service-account or ADC BigQuery access to `staffany-warehouse.intercom.conversations`, `staffany-warehouse.intercom.conversation_parts`, and optionally `staffany-warehouse.gsheets.cs_tickets_logs_all_view`; it uses Slack/Jira read-only for dedupe and never posts Slack or creates tickets.
-- The support-watch monitor uses BigQuery access, `SLACK_BOT_TOKEN`, `JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN`, `LAUNCHBOT_SUPPORT_WATCH_SOURCE=bigquery`, `LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME=all-bugs-production`, deploy-resolved `LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_ID`, `LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_IDS`, and `LAUNCHBOT_SUPPORT_WATCH_EDT_JQL`.
+- The support-watch monitor uses BigQuery access, `SLACK_BOT_TOKEN`, `JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN`, `LAUNCHBOT_SUPPORT_WATCH_SOURCE=bigquery`, `LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME=all-bugs-production`, optional `LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_ID`, `LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_NAMES=team-cs-eng-duty` or explicit `LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_IDS`, and `LAUNCHBOT_SUPPORT_WATCH_EDT_JQL`.
+- The support-watch health check verifies the Launchbot bot token has `channels:read`, `channels:history`, and `chat:write`, resolves public support-watch channels without requesting private-channel scope, and confirms Launchbot is a member of the output channel before cron is considered healthy.
 - Video-only help article updates have `LAUNCH_STEP3_INTERCOM_ACCESS_TOKEN` in the live profile env.
 - Help article video placement registry is readable at `~/.hermes/profiles/launchbot/source/launchbot/skills/help-article-generator/references/video-placement-registry.json`.
 - Pantheon is cloned at `~/.hermes/profiles/launchbot/source/pantheon`, with remote `git@github.com:staffany-eng/pantheon.git`, branch `develop`, clean worktree, and a fresh update status JSON.
@@ -51,6 +52,7 @@ hermes -p launchbot cron create "* * * * *" \
   --script launchbot-monitor-feature-intake.py \
   --no-agent
 LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME=all-bugs-production \
+LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_NAMES=team-cs-eng-duty \
   ~/.hermes/profiles/launchbot/scripts/launchbot-monitor-support-watch.py --dry-run --max-tickets 20
 hermes -p launchbot cron create "0 1 * * 4" \
   --name "launchbot support watch" \

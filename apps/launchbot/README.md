@@ -73,10 +73,11 @@ Canonical Hermes app packet for the Launchbot Slack profile.
       --script launchbot-monitor-feature-intake.py \
       --no-agent
     ```
-14. Install the support-watch cron only after BigQuery/Jira/Slack env is present, `#all-bugs-production` is resolved with the Launchbot bot token, Launchbot is confirmed as a member, and a dry-run succeeds:
+14. Install the support-watch cron only after BigQuery/Jira/Slack env is present, `#all-bugs-production` resolves with the Launchbot bot token, Launchbot is confirmed as a member, and a dry-run succeeds. Public support-watch channels resolve by name with `channels:read`; use explicit channel IDs only for private channels:
     ```bash
     cp apps/launchbot/runtime/monitor-support-watch.py ~/.hermes/profiles/launchbot/scripts/launchbot-monitor-support-watch.py
     LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME=all-bugs-production \
+      LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_NAMES=team-cs-eng-duty \
       ~/.hermes/profiles/launchbot/scripts/launchbot-monitor-support-watch.py --dry-run --max-tickets 20
     hermes -p launchbot cron create "0 1 * * 4" \
       --name "launchbot support watch" \

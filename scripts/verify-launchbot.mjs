@@ -288,6 +288,9 @@ if (!manifest) {
   if (supportWatchMcp.slack_context?.default_output_channel_name !== "all-bugs-production") {
     fail("Manifest support watch default output channel must be all-bugs-production");
   }
+  if (supportWatchMcp.slack_context?.dedupe_channel_names_env_var !== "LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_NAMES") {
+    fail("Manifest support watch dedupe channel names env unexpected");
+  }
   if (supportWatchMcp.slack_context?.mcp_posts_slack !== false) fail("Manifest support watch MCP must not post Slack");
   if (supportWatchMcp.jira?.default_edt_jql !== 'project = PCO AND "PS Team" = "Eng Duty" AND statusCategory != Done ORDER BY updated DESC') {
     fail("Manifest support watch default EDT JQL unexpected");
@@ -333,6 +336,8 @@ if (!manifest) {
   if (supportWatchMonitor.output_channel_name_env_var !== "LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME") fail("Manifest support watch channel name env unexpected");
   if (supportWatchMonitor.output_channel_id_env_var !== "LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_ID") fail("Manifest support watch channel ID env unexpected");
   if (supportWatchMonitor.dedupe_channel_ids_env_var !== "LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_IDS") fail("Manifest support watch dedupe env unexpected");
+  if (supportWatchMonitor.dedupe_channel_names_env_var !== "LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_NAMES") fail("Manifest support watch dedupe names env unexpected");
+  if (supportWatchMonitor.default_dedupe_channel_names !== "team-cs-eng-duty") fail("Manifest support watch default dedupe channel name unexpected");
   if (supportWatchMonitor.edt_jql_env_var !== "LAUNCHBOT_SUPPORT_WATCH_EDT_JQL") fail("Manifest support watch EDT JQL env unexpected");
   if (supportWatchMonitor.default_state_path !== "~/.hermes/profiles/launchbot/runtime/support-watch-state.json") fail("Manifest support watch state path unexpected");
   if (supportWatchMonitor.default_lookback_days !== 7) fail("Manifest support watch lookback default unexpected");
@@ -738,8 +743,10 @@ for (const requiredText of [
   "total_matching_rows",
   "source_status",
   "conversations.history",
+  "public_channel",
   "/rest/api/3/search/jql",
   "LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_IDS",
+  "LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_NAMES",
   "LAUNCHBOT_SUPPORT_WATCH_EDT_JQL",
   "LAUNCHBOT_PANTHEON_REPO_DIR",
   "preview_weekly_support_watch_report",
@@ -755,6 +762,9 @@ for (const requiredText of [
 for (const forbiddenText of ["chat.postMessage", "/tickets/search", "Intercom-Version", "transitionIssue", "/comment", "/transitions", "/rest/api/3/issue?notifyUsers=false", "method=\"PUT\"", "method='PUT'", "DELETE"]) {
   if (supportWatchCoreText.includes(forbiddenText)) fail(`launchbot_support_watch_core.py must not contain forbidden mutation surface: ${forbiddenText}`);
 }
+if (supportWatchCoreText.includes("public_channel,private_channel")) {
+  fail("launchbot_support_watch_core.py must not request private-channel scope for public channel resolution");
+}
 
 const supportWatchMonitorText = textOf("runtime/monitor-support-watch.py");
 for (const requiredText of [
@@ -762,6 +772,7 @@ for (const requiredText of [
   "LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME",
   "LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_ID",
   "LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_IDS",
+  "LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_NAMES",
   "LAUNCHBOT_SUPPORT_WATCH_EDT_JQL",
   "LAUNCHBOT_SUPPORT_WATCH_STATE_PATH",
   "LAUNCHBOT_SUPPORT_WATCH_LOOKBACK_DAYS",
@@ -833,6 +844,7 @@ for (const requiredText of [
   "LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME",
   "LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_ID",
   "LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_IDS",
+  "LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_NAMES",
   "LAUNCHBOT_SUPPORT_WATCH_EDT_JQL",
   "LAUNCHBOT_SUPPORT_WATCH_STATE_PATH",
   "launchbot_support_watch_core",
@@ -936,6 +948,20 @@ for (const requiredText of [
   "No new findings",
 ]) {
   if (!supportWatchSkillText.includes(requiredText)) fail(`Weekly support-watch skill missing required text: ${requiredText}`);
+}
+
+const launchbotHealthText = textOf("runtime/check-health.sh");
+for (const requiredText of [
+  "slack:scope-missing:",
+  "channels:read",
+  "channels:history",
+  "chat:write",
+  "conversations.info",
+  "support-watch:output-channel-unresolved",
+  "support-watch:output-channel-not-member",
+  "support-watch:dedupe-channel-unresolved",
+]) {
+  if (!launchbotHealthText.includes(requiredText)) fail(`Launchbot health check missing support-watch Slack validation text: ${requiredText}`);
 }
 
 const skeletonText = textOf("skills/help-article-generator/references/help-article-skeleton.md");

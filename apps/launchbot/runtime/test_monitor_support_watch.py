@@ -181,6 +181,28 @@ class LaunchbotSupportWatchMonitorTest(unittest.TestCase):
         self.assertTrue(result["will_post_message"])
         self.assertFalse(state_path.exists())
 
+    def test_dry_run_resolves_public_output_channel_without_posting(self):
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(
+            os.environ,
+            {"LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME": "all-bugs-production"},
+            clear=True,
+        ), patch.object(
+            self.module.support_core,
+            "preview_weekly_support_watch_report",
+            return_value={"confidence": "verified", "answer": report_with_findings()},
+        ), patch.object(
+            self.module.support_core,
+            "resolve_slack_channel_id",
+            return_value="CBUGS",
+        ), patch.object(self.module, "slack_post", side_effect=AssertionError("should not post in dry-run")):
+            state_path = Path(tmp) / "support-watch-state.json"
+            result = self.module.run_monitor(args_for(str(state_path), dry_run=True))
+
+        self.assertEqual(result["action"], "would_post")
+        self.assertEqual(result["output_channel_id"], "CBUGS")
+        self.assertEqual(result["output_channel_id_source"], "resolved")
+        self.assertFalse(state_path.exists())
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -176,6 +176,8 @@ if support_watch_monitor.get("output_channel_id_env") != "LAUNCHBOT_SUPPORT_WATC
     fail("support-watch-monitor:output-channel-id-env-unexpected")
 if support_watch_monitor.get("dedupe_channel_ids_env") != "LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_IDS":
     fail("support-watch-monitor:dedupe-channel-env-unexpected")
+if support_watch_monitor.get("dedupe_channel_names_env") != "LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_NAMES":
+    fail("support-watch-monitor:dedupe-channel-names-env-unexpected")
 if support_watch_monitor.get("edt_jql_env") != "LAUNCHBOT_SUPPORT_WATCH_EDT_JQL":
     fail("support-watch-monitor:edt-jql-env-unexpected")
 if support_watch_monitor.get("state_path_env") != "LAUNCHBOT_SUPPORT_WATCH_STATE_PATH":
@@ -341,9 +343,77 @@ check_mcp_server launchbot_help_article 2 launchbot_help_article_server.py
 "$hermes_python" -m py_compile "$PROFILE_DIR/source/launchbot/runtime/mcp/launchbot_support_watch_core.py" || fail "mcp:launchbot_support_watch_core:py-compile-failed"
 
 [ "${LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME:-all-bugs-production}" = "all-bugs-production" ] || fail "env:LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME:unexpected"
-[ -n "${LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_ID:-}" ] || fail "env:LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_ID:missing"
-[ -n "${LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_IDS:-}" ] || fail "env:LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_IDS:missing"
 [ -n "${LAUNCHBOT_SUPPORT_WATCH_EDT_JQL:-}" ] || fail "env:LAUNCHBOT_SUPPORT_WATCH_EDT_JQL:missing"
+"$hermes_python" - "$PROFILE_DIR" <<'PY' || exit 1
+import json
+import os
+import sys
+import urllib.parse
+import urllib.request
+from pathlib import Path
+
+profile_dir = Path(sys.argv[1])
+mcp_dir = profile_dir / "source" / "launchbot" / "runtime" / "mcp"
+sys.path.insert(0, str(mcp_dir))
+
+import launchbot_support_watch_core as support_watch  # noqa: E402
+
+
+def fail(message: str) -> None:
+    print(message, file=sys.stderr)
+    raise SystemExit(1)
+
+
+token = os.environ.get("SLACK_BOT_TOKEN", "").strip()
+if not token:
+    fail("env:SLACK_BOT_TOKEN:missing")
+
+request = urllib.request.Request(
+    urllib.parse.urljoin(support_watch.SLACK_API_BASE_URL, "auth.test"),
+    data=urllib.parse.urlencode({}).encode("utf-8"),
+    headers={
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Accept": "application/json",
+        "User-Agent": support_watch.USER_AGENT,
+    },
+    method="POST",
+)
+try:
+    with urllib.request.urlopen(request, timeout=20) as response:
+        payload = json.loads(response.read().decode("utf-8"))
+        scopes = {item.strip() for item in (response.headers.get("x-oauth-scopes") or "").split(",") if item.strip()}
+except Exception as error:
+    fail(f"slack:auth-test-failed:{support_watch.safe_error(str(error))}")
+if not payload.get("ok"):
+    fail(f"slack:auth-test-not-ok:{support_watch.safe_error(str(payload.get('error') or 'unknown_error'))}")
+for scope in ("channels:read", "channels:history", "chat:write"):
+    if scope not in scopes:
+        fail(f"slack:scope-missing:{scope}")
+
+output_name = os.environ.get("LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME", support_watch.OUTPUT_CHANNEL_NAME).strip().lstrip("#")
+output_id = os.environ.get("LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_ID", "").strip() or support_watch.resolve_slack_channel_id(output_name)
+if not output_id:
+    fail(f"support-watch:output-channel-unresolved:{output_name}")
+try:
+    output_info = support_watch.slack_api("conversations.info", {"channel": output_id})
+except Exception as error:
+    fail(f"support-watch:output-channel-info-failed:{support_watch.safe_error(str(error))}")
+output_channel = output_info.get("channel") or {}
+if output_channel.get("name") != output_name:
+    fail(f"support-watch:output-channel-name-mismatch:{output_id}")
+if output_channel.get("is_member") is not True:
+    fail(f"support-watch:output-channel-not-member:{output_id}")
+
+dedupe_ids = support_watch.dedupe_channel_ids()
+if not dedupe_ids:
+    fail("support-watch:dedupe-channel-unresolved")
+for channel_id in dedupe_ids:
+    try:
+        support_watch.slack_api("conversations.info", {"channel": channel_id})
+    except Exception as error:
+        fail(f"support-watch:dedupe-channel-info-failed:{support_watch.safe_error(str(error))}")
+PY
 
 [ -r "$HELP_ARTICLE_VIDEO_REGISTRY_PATH" ] || fail "help-article-video-registry:missing"
 "$hermes_python" - "$HELP_ARTICLE_VIDEO_REGISTRY_PATH" <<'PY' || exit 1

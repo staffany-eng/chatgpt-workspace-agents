@@ -271,8 +271,11 @@ def run_monitor(args: argparse.Namespace) -> dict[str, Any]:
         )
         post_ts = str(posted.get("ts") or "")
     elif action == "would_post":
-        channel_id = os.environ.get("LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_ID", "").strip()
-        channel_id_source = "env" if channel_id else "not-resolved-dry-run"
+        try:
+            channel_id, channel_id_source = output_channel_id()
+        except support_core.LaunchbotSupportWatchError as error:
+            channel_id = ""
+            channel_id_source = f"blocked:{support_core.safe_error(str(error))}"
 
     if not args.dry_run:
         record_state(state, report, channel_id=channel_id, post_ts=post_ts, action=action)
@@ -294,6 +297,7 @@ def run_monitor(args: argparse.Namespace) -> dict[str, Any]:
         "output_channel_id_source": channel_id_source,
         "state_path": str(state_path),
         "dedupe_channel_ids_env": DEDUPE_CHANNEL_IDS_ENV,
+        "dedupe_channel_names_env": "LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_NAMES",
         "edt_jql_env": EDT_JQL_ENV,
         "cron_schedule_utc": DEFAULT_CRON_SCHEDULE,
         "transcript_persisted": False,

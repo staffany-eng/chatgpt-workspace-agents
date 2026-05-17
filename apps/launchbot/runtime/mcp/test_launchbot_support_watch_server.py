@@ -161,6 +161,49 @@ class LaunchbotSupportWatchServerTest(unittest.TestCase):
         self.assertEqual(deduped[0]["dedupe_match"]["source"], "slack")
         self.assertEqual(sources["slack"], "verified")
 
+    def test_resolve_slack_channel_id_uses_public_channel_lookup_only(self):
+        calls = []
+
+        def fake_slack_api(method, params):
+            calls.append((method, params))
+            return {
+                "channels": [
+                    {"name": "all-bugs-production", "id": "CBUGS"},
+                ],
+                "response_metadata": {"next_cursor": ""},
+            }
+
+        with patch.object(self.module.core, "slack_api", side_effect=fake_slack_api):
+            channel_id = self.module.core.resolve_slack_channel_id("all-bugs-production")
+
+        self.assertEqual(channel_id, "CBUGS")
+        self.assertEqual(calls[0][0], "conversations.list")
+        self.assertEqual(calls[0][1]["types"], "public_channel")
+        self.assertNotIn("private_channel", calls[0][1]["types"])
+
+    def test_dedupe_channel_ids_resolve_default_public_channel_name(self):
+        with patch.dict(os.environ, {}, clear=True), patch.object(
+            self.module.core,
+            "resolve_slack_channel_id",
+            return_value="CDUTY",
+        ):
+            self.assertEqual(self.module.core.dedupe_channel_ids(), ["CDUTY"])
+
+    def test_dedupe_channel_ids_preserve_explicit_ids_and_add_name_resolution(self):
+        with patch.dict(
+            os.environ,
+            {
+                "LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_IDS": "CEXPLICIT",
+                "LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_NAMES": "team-cs-eng-duty",
+            },
+            clear=True,
+        ), patch.object(
+            self.module.core,
+            "resolve_slack_channel_id",
+            return_value="CDUTY",
+        ):
+            self.assertEqual(self.module.core.dedupe_channel_ids(), ["CEXPLICIT", "CDUTY"])
+
 
 if __name__ == "__main__":
     unittest.main()

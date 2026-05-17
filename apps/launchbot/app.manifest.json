@@ -115,6 +115,7 @@
     "output_channel_name_env_var": "LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME",
     "output_channel_id_env_var": "LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_ID",
     "dedupe_channel_ids_env_var": "LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_IDS",
+    "dedupe_channel_names_env_var": "LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_NAMES",
     "edt_jql_env_var": "LAUNCHBOT_SUPPORT_WATCH_EDT_JQL",
     "state_path_env_var": "LAUNCHBOT_SUPPORT_WATCH_STATE_PATH",
     "default_state_path": "~/.hermes/profiles/launchbot/runtime/support-watch-state.json",
@@ -134,6 +135,7 @@
     "whatsapp_view_env_var": "LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_VIEW",
     "default_whatsapp_view": "gsheets.cs_tickets_logs_all_view",
     "dedupe_channel_name": "team-cs-eng-duty",
+    "default_dedupe_channel_names": "team-cs-eng-duty",
     "normal_gateway_require_mention": true,
     "raw_transcript_persistence": false,
     "posts_slack_reports": true,
@@ -313,6 +315,7 @@
       "slack_context": {
         "token_env_var": "SLACK_BOT_TOKEN",
         "dedupe_channel_ids_env_var": "LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_IDS",
+        "dedupe_channel_names_env_var": "LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_NAMES",
         "dedupe_channel_name": "team-cs-eng-duty",
         "output_channel_name_env_var": "LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME",
         "output_channel_id_env_var": "LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_ID",

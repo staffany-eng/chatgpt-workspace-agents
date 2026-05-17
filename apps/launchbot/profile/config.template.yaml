@@ -58,6 +58,7 @@ support_watch_monitor:
   output_channel_name_env: "LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME"
   output_channel_id_env: "LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_ID"
   dedupe_channel_ids_env: "LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_IDS"
+  dedupe_channel_names_env: "LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_NAMES"
   edt_jql_env: "LAUNCHBOT_SUPPORT_WATCH_EDT_JQL"
   state_path_env: "LAUNCHBOT_SUPPORT_WATCH_STATE_PATH"
   lookback_days_env: "LAUNCHBOT_SUPPORT_WATCH_LOOKBACK_DAYS"
@@ -66,6 +67,7 @@ support_watch_monitor:
   local_time: "Thursday 09:00 SGT"
   no_raw_transcript_persistence: true
   output_channel_name: "all-bugs-production"
+  dedupe_channel_names: "team-cs-eng-duty"
   report_prefix: "Launchbot automation:"
   no_ticket_creation: true
   no_engineer_tags: true
@@ -242,6 +244,7 @@ mcp_servers:
       output_channel_name_env: "LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME"
       output_channel_id_env: "LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_ID"
       dedupe_channel_ids_env: "LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_IDS"
+      dedupe_channel_names_env: "LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_NAMES"
       edt_jql_env: "LAUNCHBOT_SUPPORT_WATCH_EDT_JQL"
       default_edt_jql: "project = PCO AND \"PS Team\" = \"Eng Duty\" AND statusCategory != Done ORDER BY updated DESC"
       no_slack_post_from_mcp: true
@@ -294,6 +297,7 @@ LAUNCHBOT_FEATURE_INTAKE_MONITOR_OVERLAP_SECONDS: "600"
 LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME: "all-bugs-production"
 LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_ID: ""
 LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_IDS: ""
+LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_NAMES: "team-cs-eng-duty"
 LAUNCHBOT_SUPPORT_WATCH_EDT_JQL: "project = PCO AND \"PS Team\" = \"Eng Duty\" AND statusCategory != Done ORDER BY updated DESC"
 LAUNCHBOT_SUPPORT_WATCH_STATE_PATH: "~/.hermes/profiles/launchbot/runtime/support-watch-state.json"
 LAUNCHBOT_SUPPORT_WATCH_LOOKBACK_DAYS: "7"
