@@ -91,6 +91,56 @@ class LumaNurtureAnyServerTest(unittest.TestCase):
         self.assertEqual(event["name"], "Bali Beans Dinner")
         self.assertNotIn("description", event)
 
+    def test_luma_slug_falls_back_to_calendar_url_match(self):
+        calls = []
+
+        def fake_request(path, params=None):
+            params = params or {}
+            calls.append((path, dict(params)))
+            if path == "/v1/event/get" and params == {"id": "06d6szo3"}:
+                raise self.module.LumaError("Luma API failed: 403 no access", 403)
+            if path == "/v1/event/get" and params == {"event_id": "06d6szo3"}:
+                raise self.module.LumaError("Luma API failed: 400 missing event identifier", 400)
+            if path == "/v1/calendar/list-events":
+                return {
+                    "entries": [
+                        {
+                            "event": {
+                                "api_id": "evt-workshop",
+                                "name": "AI Automation Workshop for F&B, Retail & Hospitality",
+                                "start_at": "2026-05-19T10:30:00Z",
+                                "end_at": "2026-05-19T13:30:00Z",
+                                "timezone": "Asia/Singapore",
+                                "url": "https://luma.com/06d6szo3",
+                            }
+                        }
+                    ],
+                    "has_more": False,
+                }
+            if path == "/v1/event/get" and params == {"id": "evt-workshop"}:
+                return {
+                    "api_id": "evt-workshop",
+                    "name": "AI Automation Workshop for F&B, Retail & Hospitality",
+                    "start_at": "2026-05-19T10:30:00Z",
+                    "end_at": "2026-05-19T13:30:00Z",
+                    "timezone": "Asia/Singapore",
+                    "url": "https://luma.com/06d6szo3",
+                }
+            if path == "/v1/event/get-guests":
+                self.assertEqual(params["event_id"], "evt-workshop")
+                return {"entries": [], "has_more": False}
+            raise AssertionError(f"unexpected call: {path} {params}")
+
+        with patch.dict(os.environ, {"LUMA_API_KEY": "test-key"}), patch.object(
+            self.module, "_request_json", side_effect=fake_request
+        ):
+            result = self.module.get_luma_event_match_keys("jan-e@staffany.com", event_ids=["06d6szo3"])
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["answer"][0]["event"]["event_id"], "evt-workshop")
+        self.assertEqual(result["answer"][0]["event"]["url"], "https://luma.com/06d6szo3")
+        self.assertIn(("/v1/calendar/list-events", calls[2][1]), calls)
+
     def test_date_only_end_includes_full_day(self):
         calls = []
 

@@ -131,12 +131,14 @@ Use Slack user email as the caller identity.
 - AE calls require an explicit `sales_reps` policy entry that maps Slack email to HubSpot owner email, then restrict to owned HubSpot target accounts.
 - Manager calls require explicit email allowlist and are team read-only.
 - Partnerships viewer calls require an explicit `partnerships_viewers` policy entry and are country-scoped read-only target-account/account-context access only.
-- Regional event operator calls require an explicit `event_operators` access-policy entry and must route to `find_event_sourcing_target_accounts` only. They can source in-country AE target-account candidates for event outreach, but cannot use manager/admin tools, revenue metrics, coaching, HubSpot writes, task primitives, or generic account context.
+- Regional event operator calls require an explicit `event_operators` access-policy entry. Event sourcing routes to `find_event_sourcing_target_accounts`; event RSVP/client-prospect-account breakdown routes to `get_luma_event_match_keys` followed by `find_target_accounts_by_luma_match_keys`. They can source in-country AE target-account candidates and get safe client/prospect/unknown plus AE ownership summaries for event RSVPs, but cannot use manager/admin tools, revenue metrics, coaching, HubSpot writes, task primitives, generic account context, raw attendee exports, or raw contact PII.
 - Unclassified HubSpot owners are blocked even if Slack email matches a HubSpot owner record.
 - Country filters come from the manager scope, not from channel name.
 - Known Slack or Google email variants must be configured as access-policy aliases. Never infer `slack_user_email` from a display name.
 
 If Slack cannot provide the user email, return `Confidence: blocked` and ask for the missing identity mapping. If the Slack email is not classified, ask for runtime access policy classification.
+
+Do not post internal lifecycle/debug status as Slack answers. Suppress self-improvement notices, memory/profile update notices, queued-next-turn messages, and runtime queue state unless the user explicitly asks to inspect runtime internals.
 
 ## Output Contract
 

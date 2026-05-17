@@ -2304,6 +2304,28 @@ def _target_owner_id_for_scope(scope: dict[str, Any], owner_email: str | None = 
     return owner_id, target_email
 
 
+def _target_owner_id_for_luma_match_scope(
+    scope: dict[str, Any],
+    countries: list[str],
+    owner_email: str | None = None,
+) -> tuple[str | None, str]:
+    if scope.get("kind") != "event_operator":
+        return _target_owner_id_for_scope(scope, owner_email)
+
+    target_email = _normalize_email(owner_email or "")
+    if not target_email:
+        return None, ""
+
+    allowed_owner_emails = set(_policy_owner_emails_for_countries(countries))
+    if target_email not in allowed_owner_emails:
+        raise ScopeError("Regional event operators may filter only to classified in-country AE owners.")
+
+    owner = _owner_by_email(target_email)
+    if not owner:
+        raise ScopeError(f"HubSpot owner not found for {target_email}.")
+    return str(owner["id"]), target_email
+
+
 def _metric_needs_check(message: str, scope: dict[str, Any] | None = None, metric: str = "") -> dict[str, Any]:
     answer: dict[str, Any] = {
         "requires_clarification": True,
@@ -13364,15 +13386,15 @@ def find_target_accounts_by_luma_match_keys(
         scope = _caller_scope(slack_user_email)
         if scope["kind"] == "blocked":
             return _blocked("Caller identity is not mapped to an allowed scope.", {"caller_email": slack_user_email})
-        if scope["kind"] not in MANAGER_ADMIN_SCOPE_KINDS | {"ae"}:
+        if scope["kind"] not in MANAGER_ADMIN_SCOPE_KINDS | {"ae", "event_operator"}:
             return _blocked(
-                "Event match-key account resolution requires manager/admin or AE scope.",
+                "Event match-key account resolution requires manager/admin, AE, or regional event-operator scope.",
                 _scope_response(scope, list(scope.get("countries", ()))),
             )
         selected = _safe_countries(countries, scope["countries"])
         if not selected:
             return _blocked("Requested countries are outside caller scope.", _scope_response(scope, []))
-        target_owner_id, target_owner_email = _target_owner_id_for_scope(scope, owner_email)
+        target_owner_id, target_owner_email = _target_owner_id_for_luma_match_scope(scope, selected, owner_email)
         requested_limit = _bounded_int(limit, default=LUMA_MATCH_RETURN_LIMIT, maximum=LUMA_MATCH_RETURN_LIMIT)
         raw_domains = [domain for value in (email_domains or []) if (domain := _normalize_domain_key(value))]
         raw_names = [name for value in (company_name_candidates or []) if (name := _normalize_company_name_key(value))]

@@ -441,8 +441,11 @@ HubSpot Task management:
 - Input: Slack user email, safe Luma email domains, safe Luma company-name candidates, optional countries, optional owner email filter, and limit.
 - Output: HubSpot-scoped target-account candidates only, with `hubspot_scoped=true`, `scope_source=hubspot_nurtureany`, HubSpot `account_status` / `account_status_source`, owner fields, and Luma match reason metadata.
 - Use after `get_luma_event_match_keys` for broad event-wide questions so the bot searches from Luma attendee keys into HubSpot instead of paging every target account.
+- Access: manager/admin/AE scopes plus explicit regional event operators. Event operators are country-scoped and may filter only to classified in-country AE owners.
 - Domain matches are stronger; company-name candidate matches return `Confidence: needs-check`.
 - Must not accept raw attendee exports, full Luma emails, phone numbers, or registration answers.
+
+Slack-facing final answers must not include internal lifecycle noise such as `Self-improvement review`, `User profile updated`, `Queued for the next turn`, memory-update status, or queue/debug state unless the user explicitly asks to inspect runtime internals.
 
 Reviewed lesson tools:
 

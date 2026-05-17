@@ -344,9 +344,59 @@ def _safe_tag_catalog() -> dict[str, str]:
         return {}
 
 
+def _luma_url_slug(value: str) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    match = re.search(r"(?:https?://)?(?:www\.)?(?:luma\.com|lu\.ma)/([^/?#]+)", text, re.IGNORECASE)
+    if match:
+        return match.group(1).strip()
+    return text
+
+
+def _event_from_calendar_url_fallback(event_id: str) -> dict[str, Any] | None:
+    slug = _luma_url_slug(event_id)
+    if not slug or slug.startswith("evt-"):
+        return None
+    now = datetime.now(timezone.utc)
+    start = (now - timedelta(days=365)).date().isoformat()
+    end = (now + timedelta(days=365)).date().isoformat()
+    events, _, _ = _list_events_raw(slug, start, end, MAX_EVENTS)
+    for event in events:
+        event_url = str(event.get("url") or "")
+        if event.get("event_id") == slug or re.search(rf"/{re.escape(slug)}(?:[/?#]|$)", event_url):
+            api_event_id = str(event.get("event_id") or "").strip()
+            if api_event_id and api_event_id != event_id:
+                try:
+                    return _event_payload(_request_json("/v1/event/get", {"id": api_event_id}))
+                except LumaError:
+                    return event
+            return event
+    return None
+
+
 def _event_detail_payload(event_id: str) -> dict[str, Any]:
+    first_error: LumaError | None = None
     try:
         return _event_payload(_request_json("/v1/event/get", {"id": event_id}))
+    except LumaError as error:
+        first_error = error
+        if error.status_code in {400, 403, 404}:
+            try:
+                return _event_payload(_request_json("/v1/event/get", {"event_id": event_id}))
+            except LumaError as second_error:
+                if second_error.status_code not in {400, 403, 404}:
+                    raise
+                fallback = _event_from_calendar_url_fallback(event_id)
+                if fallback:
+                    return fallback
+                raise first_error
+        raise
+
+
+def _safe_event_detail_payload(event_id: str) -> dict[str, Any]:
+    try:
+        return _event_detail_payload(event_id)
     except LumaError as error:
         if error.status_code == 400:
             return _event_payload(_request_json("/v1/event/get", {"event_id": event_id}))
@@ -417,7 +467,7 @@ def _safe_event_for_list(item: dict[str, Any], tags_by_id: dict[str, str], requi
     if not require_luma_tags or event["tag_match_source"] == "luma_event_tags" or not event["event_id"]:
         return event
     try:
-        detailed_event = _safe_event(_event_detail_payload(event["event_id"]), tags_by_id)
+        detailed_event = _safe_event(_safe_event_detail_payload(event["event_id"]), tags_by_id)
         if detailed_event["tag_match_source"] == "luma_event_tags":
             return detailed_event
     except LumaError:

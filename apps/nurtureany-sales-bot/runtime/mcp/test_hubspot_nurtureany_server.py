@@ -1129,6 +1129,7 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
                 start_date="2026-05-01",
                 end_date="2026-05-15",
             )
+            team_accounts = self.module.list_team_target_accounts("jan-e@staffany.com", countries=["Singapore"])
 
         self.assertEqual(writeback["confidence"], "blocked")
         self.assertIn("event operators", writeback["answer"])
@@ -1142,6 +1143,8 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         self.assertIn("outside caller scope", task_preview["answer"])
         self.assertEqual(metric["confidence"], "blocked")
         self.assertIn("manager/admin or AE", metric["answer"])
+        self.assertEqual(team_accounts["confidence"], "blocked")
+        self.assertIn("team read scope", team_accounts["answer"])
 
     def test_summarize_sales_call_stats_uses_deterministic_thresholds(self):
         policy = {
@@ -5042,6 +5045,111 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         self.assertNotIn({"propertyName": "name", "operator": "CONTAINS_TOKEN", "value": "Bali Beans"}, calls[0]["filters"])
         self.assertEqual(result["scope"]["scanned_target_account_count"], 2)
         self.assertIn("No raw Luma attendees", result["caveat"])
+
+    def test_event_operator_can_resolve_luma_match_keys_read_only(self):
+        def fake_company_search(filters, limit=5, after=None, maximum=None, sorts=None, query=None):
+            return {
+                "results": [
+                    {
+                        "id": "company-domain",
+                        "properties": {
+                            "name": "Client Cafe",
+                            "domain": "client.example",
+                            "hs_is_target_account": "true",
+                            "company_country": "Singapore",
+                            "hubspot_owner_id": "owner-sales",
+                            "type": "CUSTOMER",
+                        },
+                    },
+                    {
+                        "id": "company-name",
+                        "properties": {
+                            "name": "Prospect Beans",
+                            "domain": "prospect.example",
+                            "hs_is_target_account": "true",
+                            "company_country": "Singapore",
+                            "hubspot_owner_id": "owner-sales",
+                            "lifecyclestage": "opportunity",
+                        },
+                    },
+                ],
+                "total": 2,
+                "requested_limit": limit,
+                "returned_count": 2,
+                "has_more": False,
+                "truncated": False,
+            }
+
+        with patch.object(self.module, "_caller_scope", return_value=EVENT_OPERATOR_SCOPE), patch.object(
+            self.module, "_company_search", side_effect=fake_company_search
+        ), patch.object(
+            self.module,
+            "_owner_by_id",
+            return_value={"id": "owner-sales", "email": "sales.owner@staffany.com", "firstName": "Sales", "lastName": "Owner"},
+        ):
+            result = self.module.find_target_accounts_by_luma_match_keys(
+                "jan-e@staffany.com",
+                email_domains=["client.example"],
+                company_name_candidates=["Prospect Beans"],
+                countries=["Singapore"],
+            )
+
+        self.assertEqual(result["scope"]["scope_kind"], "event_operator")
+        self.assertEqual(result["scope"]["access_profile"], "regional_events_read_only")
+        self.assertEqual(result["returned_count"], 2)
+        self.assertEqual(result["answer"][0]["owner_email"], "sales.owner@staffany.com")
+        self.assertEqual(result["answer"][0]["account_status"], "customer")
+        self.assertEqual(result["answer"][1]["account_status"], "prospect")
+        payload = json.dumps(result)
+        self.assertNotIn("client@example", payload)
+        for row in result["answer"]:
+            self.assertNotIn("phone", row)
+            self.assertNotIn("mobilephone", row)
+        self.assertIn("No raw Luma attendees", result["caveat"])
+
+    def test_event_operator_luma_owner_filter_requires_classified_in_country_ae(self):
+        captured = {}
+
+        def fake_company_search(filters, limit=5, after=None, maximum=None, sorts=None, query=None):
+            captured["filters"] = filters
+            return {
+                "results": [],
+                "total": 0,
+                "requested_limit": limit,
+                "returned_count": 0,
+                "has_more": False,
+                "truncated": False,
+            }
+
+        with patch.object(self.module, "_caller_scope", return_value=EVENT_OPERATOR_SCOPE), patch.object(
+            self.module, "_policy_owner_emails_for_countries", return_value=["sales.owner@staffany.com"]
+        ), patch.object(
+            self.module, "_owner_by_email", return_value={"id": "owner-sales", "email": "sales.owner@staffany.com"}
+        ), patch.object(
+            self.module, "_company_search", side_effect=fake_company_search
+        ):
+            result = self.module.find_target_accounts_by_luma_match_keys(
+                "jan-e@staffany.com",
+                email_domains=["client.example"],
+                countries=["Singapore"],
+                owner_email="sales.owner@staffany.com",
+            )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertIn({"propertyName": "hubspot_owner_id", "operator": "EQ", "value": "owner-sales"}, captured["filters"])
+
+        with patch.object(self.module, "_caller_scope", return_value=EVENT_OPERATOR_SCOPE), patch.object(
+            self.module, "_policy_owner_emails_for_countries", return_value=["sales.owner@staffany.com"]
+        ):
+            blocked = self.module.find_target_accounts_by_luma_match_keys(
+                "jan-e@staffany.com",
+                email_domains=["client.example"],
+                countries=["Singapore"],
+                owner_email="outside.owner@staffany.com",
+            )
+
+        self.assertEqual(blocked["confidence"], "blocked")
+        self.assertIn("classified in-country AE owners", blocked["answer"])
 
     def test_score_uses_sales_followup_task_signals(self):
         with patch.object(self.module, "_caller_scope", return_value={**SCOPE, "kind": "admin", "email": "kaiyi@staffany.com"}), patch.object(

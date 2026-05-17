@@ -691,6 +691,22 @@ Expected behavior:
 - Uses `Confidence: needs-check` for company-name candidate matches or truncated guest/event reads.
 - Does not create, update, invite, RSVP, check in, mutate HubSpot, expose unmatched guests, full attendee emails, phone numbers, registration answers, or raw attendee exports.
 
+Prompt from `jan-e@staffany.com` as an explicit `event_operators` user:
+
+```text
+@NurtureAny Help me to look into this StaffAny Luma event - https://luma.com/06d6szo3, look into the RSVP list and let me know how many RSVP are there, how many clients and prospects and who's account are they
+```
+
+Expected behavior:
+
+- First response is plan-only unless the quick-autorun gate is fully satisfied.
+- After `run`, resolves the Luma URL by direct event lookup or bounded calendar URL matching when the public slug returns `403`, `400`, or `404`.
+- Calls `get_luma_event_match_keys`, then `find_target_accounts_by_luma_match_keys` with Jan-E's configured event-operator countries.
+- Returns RSVP totals, matched client/customer count, matched prospect count, unknown/candidate count, AE ownership, source, scope, confidence, and caveat.
+- Uses `client/customer` only for HubSpot-verified customer status; company-name-only matches remain `needs-check` and unknown/candidate rows stay visible.
+- Does not call `list_team_target_accounts`, `get_account_context`, manager/admin tools, revenue metrics, coaching, HubSpot write/task tools, or expose raw attendee names, full emails, phones, registration answers, raw match keys, or raw guest lists.
+- Does not emit internal lifecycle noise such as `Self-improvement review`, `User profile updated`, or `Queued for the next turn`.
+
 ## Post-Event Follow-Up Status
 
 Prompt:
