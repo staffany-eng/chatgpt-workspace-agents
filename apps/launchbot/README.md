@@ -15,6 +15,7 @@ Canonical Hermes app packet for the Launchbot Slack profile.
 - Help article planning: cached Intercom article-shape profile plus metadata inventory first, then live Intercom only for affected search and pre-stage stale checks.
 - Feature intake: guarded Slack thread to Jira Product Discovery KER preview/create in configured channels, with explicit confirmation before Jira mutation.
 - Feature-intake monitor: no-agent poller for `#input-features-ux` (`CF8PK6V4J`) that posts one Launchbot-owned preview for likely KER intake candidates, then creates only after exact `create intake` in-thread.
+- Weekly support watch: no-agent Thursday 09:00 SGT report-only scan of BigQuery-backed Intercom conversations plus optional WhatsApp support logs, deduped against `#team-cs-eng-duty`, EDT, and prior state, posting only new findings to `#all-bugs-production`.
 - Product commitment check: read-only Slack thread to Jira KER/JPD lookup in configured channels, with explicit commitment evidence from reviewed Jira fields only.
 - Publish surface: Intercom draft/staging output only; public publish stays manual in Intercom.
 
@@ -31,14 +32,18 @@ Canonical Hermes app packet for the Launchbot Slack profile.
 | `runtime/audit-live-profile.sh` | Live profile drift audit. |
 | `runtime/update-pantheon-repo.sh` | Daily Pantheon checkout refresher for code-grounded help article verification. |
 | `runtime/monitor-feature-intake.py` | No-agent Slack channel monitor for guarded feature-intake previews and approvals. |
+| `runtime/monitor-support-watch.py` | No-agent weekly support-watch runner that posts only new reports to `#all-bugs-production`. |
 | `runtime/mcp/launchbot_ker_server.py` | Read-only Slack thread to Jira KER lookup tool. |
 | `runtime/mcp/launchbot_ifi_server.py` | Preview-first HubSpot company to IFI feature request tracking tool, including BD-notes intake into the same IFI contract. |
 | `runtime/mcp/launchbot_product_commitment_server.py` | Read-only Slack thread to Jira KER/JPD product commitment checker. |
 | `runtime/mcp/launchbot_feature_intake_core.py` | Shared Slack/Jira feature-intake preview and create contract. |
 | `runtime/mcp/launchbot_feature_intake_server.py` | Confirmed Slack thread to Jira Product Discovery KER intake tool. |
+| `runtime/mcp/launchbot_support_watch_core.py` | Shared BigQuery support-source query, clustering, Slack/EDT dedupe, and Pantheon trace logic. |
+| `runtime/mcp/launchbot_support_watch_server.py` | Read-only weekly support-watch preview tool. |
 | `runtime/mcp/launchbot_help_article_server.py` | Draft-only registered Loom video-slot updater for existing help articles. |
 | `skills/help-article-generator/` | Launchbot help-article drafting skill upgraded from the 2026-05-11 handoff. |
 | `skills/help-article-generator/references/video-placement-registry.json` | Registry authority for help article video placement. |
+| `skills/weekly-support-watch/SKILL.md` | Weekly support-watch operating contract and live-smoke checklist. |
 | `runtime/launch-workflow.md` | Help-article, Google Docs review, Slack approval, and Intercom draft workflow contract. |
 | `runtime/launchbot_e2e.py` | Minimal VM-safe handoff runner when the external source checkout is absent. |
 | `runtime/intercom-format-gate.mjs` | Pantheon evidence scan/check, Intercom search, cached article-shape planning, curated format-profile pull, and pre-publish format check CLI. |
@@ -54,8 +59,8 @@ Canonical Hermes app packet for the Launchbot Slack profile.
 5. Set Slack and model secrets from the approved secret store only.
 6. Set Jira env vars (`JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN`) in the live profile `.env` before enabling KER lookup, IFI tracking, product commitment checks, or confirmed feature intake.
 7. Copy `skills/help-article-generator/` into `~/.hermes/profiles/launchbot/skills/` when enabling article drafting and registered video-slot updates.
-8. Copy runtime scripts into `~/.hermes/profiles/launchbot/scripts/`, including `launchbot-monitor-feature-intake.py`.
-9. Copy `runtime/mcp/launchbot_ifi_server.py` and `runtime/mcp/launchbot_help_article_server.py` into the live profile source tree before enabling the matching MCP servers.
+8. Copy runtime scripts into `~/.hermes/profiles/launchbot/scripts/`, including `launchbot-monitor-feature-intake.py` and `launchbot-monitor-support-watch.py`.
+9. Copy `runtime/mcp/launchbot_ifi_server.py`, `runtime/mcp/launchbot_support_watch_server.py`, `runtime/mcp/launchbot_support_watch_core.py`, and `runtime/mcp/launchbot_help_article_server.py` into the live profile source tree before enabling the matching MCP servers.
 10. Set `HUBSPOT_ACCESS_TOKEN` and `JIRA_IFI_HUBSPOT_COMPANY_ID_FIELD_ID=customfield_10881` before enabling IFI tracking. `HUBSPOT_PORTAL_ID` defaults to `4137076`.
 11. Seed `~/.hermes/profiles/launchbot/source/pantheon` for code-grounded article verification. Install the daily Pantheon updater cron only after the VM has GitHub SSH access to `staffany-eng/pantheon`.
 12. Start the managed gateway and install the no-agent health check cron.
@@ -68,8 +73,18 @@ Canonical Hermes app packet for the Launchbot Slack profile.
       --script launchbot-monitor-feature-intake.py \
       --no-agent
     ```
-14. Confirm no Mac-local `launchbot` profile or gateway exists before live Slack testing. Only the cloud Launchbot runtime should be connected to Slack, otherwise stale local profile state can answer first.
-15. Treat the restore as verified only after the health check passes and the Slack smoke replies from Launchbot's bot identity in `#launch-bot-testing`.
+14. Install the support-watch cron only after BigQuery/Jira/Slack env is present, `#all-bugs-production` is resolved with the Launchbot bot token, Launchbot is confirmed as a member, and a dry-run succeeds:
+    ```bash
+    cp apps/launchbot/runtime/monitor-support-watch.py ~/.hermes/profiles/launchbot/scripts/launchbot-monitor-support-watch.py
+    LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME=all-bugs-production \
+      ~/.hermes/profiles/launchbot/scripts/launchbot-monitor-support-watch.py --dry-run --max-tickets 20
+    hermes -p launchbot cron create "0 1 * * 4" \
+      --name "launchbot support watch" \
+      --script launchbot-monitor-support-watch.py \
+      --no-agent
+    ```
+15. Confirm no Mac-local `launchbot` profile or gateway exists before live Slack testing. Only the cloud Launchbot runtime should be connected to Slack, otherwise stale local profile state can answer first.
+16. Treat the restore as verified only after the health check passes and the Slack smoke replies from Launchbot's bot identity in `#launch-bot-testing`.
 
 ## Launch Workflow Skill
 
@@ -116,3 +131,5 @@ IFI tracking is a preview-first customer-demand lane. Preview APQ or Slack reque
 Product commitment checks are read-only. Use `check_product_commitment_from_slack_thread` for prompts like `check product commitment for this thread` or `can u check if this is committed on roadmap`. The commitment lane is allowed in `#all-product-questions` (`C01RZ7SHC8K`) through `LAUNCHBOT_PRODUCT_COMMITMENT_ALLOWED_CHANNEL_IDS`; keep it separate from feature intake. Only Jira `fixVersions` and reviewed field IDs from `LAUNCHBOT_PRODUCT_COMMITMENT_FIELD_IDS` count as commitment evidence. If no reviewed evidence is present, Launchbot must say no committed Jira roadmap evidence was found and must not infer an ETA or create intake.
 
 For `#input-features-ux`, the no-agent monitor watches top-level messages and thread replies with the Launchbot bot token. It keeps normal Launchbot replies mention-gated, stores only safe summaries and source pointers, posts one `Launchbot automation:` preview for high-confidence candidates, and creates a KER Idea only after exact `create intake` / `create KER intake` in the same thread.
+
+Weekly support watch is report-only. Preview with `preview_weekly_support_watch_report`; scheduled runs use `runtime/monitor-support-watch.py` on cron `0 1 * * 4` UTC. It queries BigQuery-backed Intercom conversations and optional WhatsApp support logs, clusters repeated or severe production-bug signals, traces Pantheon evidence heuristically, dedupes against `#team-cs-eng-duty`, EDT, and prior state, and posts only new findings to `#all-bugs-production` with `Launchbot automation:`. It must not create Jira/Linear tickets, tag engineers, assign owners, or persist raw support transcripts.

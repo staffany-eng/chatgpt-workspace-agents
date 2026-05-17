@@ -12,6 +12,7 @@ EXPECT_HOME_CHANNEL="${EXPECT_HOME_CHANNEL:-C0B32M34J3W}"
 EXPECT_ALLOWED_CHANNELS="${EXPECT_ALLOWED_CHANNELS:-C0B32M34J3W,C0AJAUNCEL8,C01RZ7SHC8K,CF8PK6V4J}"
 EXPECT_KER_ALLOWED_CHANNELS="${EXPECT_KER_ALLOWED_CHANNELS:-C0B32M34J3W,C0AJAUNCEL8,C01RZ7SHC8K}"
 EXPECT_PRODUCT_COMMITMENT_ALLOWED_CHANNELS="${EXPECT_PRODUCT_COMMITMENT_ALLOWED_CHANNELS:-C0B32M34J3W,C01RZ7SHC8K}"
+EXPECT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME="${EXPECT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME:-all-bugs-production}"
 GATEWAY_LAUNCHD_LABEL="${LAUNCHBOT_GATEWAY_LAUNCHD_LABEL:-ai.hermes.gateway-$PROFILE}"
 GATEWAY_SERVICE_NAME="${LAUNCHBOT_GATEWAY_SERVICE_NAME:-hermes-gateway-$PROFILE.service}"
 HERMES_AGENT_DIR="${HERMES_AGENT_DIR:-$HOME/.hermes/hermes-agent}"
@@ -32,6 +33,7 @@ PANTHEON_STATUS_PATH="${LAUNCHBOT_PANTHEON_STATUS_PATH:-$PROFILE_DIR/runtime/pan
 PANTHEON_STATUS_MAX_AGE_SECONDS="${LAUNCHBOT_PANTHEON_STATUS_MAX_AGE_SECONDS:-172800}"
 HELP_ARTICLE_VIDEO_REGISTRY_PATH="${LAUNCHBOT_VIDEO_PLACEMENT_REGISTRY:-$PROFILE_DIR/source/launchbot/skills/help-article-generator/references/video-placement-registry.json}"
 FEATURE_INTAKE_MONITOR_SCRIPT="${LAUNCHBOT_FEATURE_INTAKE_MONITOR_SCRIPT:-$PROFILE_DIR/scripts/launchbot-monitor-feature-intake.py}"
+SUPPORT_WATCH_MONITOR_SCRIPT="${LAUNCHBOT_SUPPORT_WATCH_MONITOR_SCRIPT:-$PROFILE_DIR/scripts/launchbot-monitor-support-watch.py}"
 
 fail() {
   printf '%s\n' "$1" >&2
@@ -80,14 +82,14 @@ case "$(uname -s)" in
     ;;
 esac
 
-"$hermes_python" - "$config_path" "$EXPECT_MODEL_PROVIDER" "$EXPECT_MODEL_DEFAULT" "$EXPECT_HOME_CHANNEL" "$EXPECT_ALLOWED_CHANNELS" "$EXPECT_KER_ALLOWED_CHANNELS" "$EXPECT_PRODUCT_COMMITMENT_ALLOWED_CHANNELS" <<'PY' || exit 1
+"$hermes_python" - "$config_path" "$EXPECT_MODEL_PROVIDER" "$EXPECT_MODEL_DEFAULT" "$EXPECT_HOME_CHANNEL" "$EXPECT_ALLOWED_CHANNELS" "$EXPECT_KER_ALLOWED_CHANNELS" "$EXPECT_PRODUCT_COMMITMENT_ALLOWED_CHANNELS" "$EXPECT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME" <<'PY' || exit 1
 import os
 import sys
 from pathlib import Path
 
 import yaml
 
-config_path, expected_provider, expected_model, expected_home_channel, expected_allowed_channels, expected_ker_channels, expected_commitment_channels = sys.argv[1:8]
+config_path, expected_provider, expected_model, expected_home_channel, expected_allowed_channels, expected_ker_channels, expected_commitment_channels, expected_support_watch_output = sys.argv[1:9]
 config = yaml.safe_load(Path(config_path).read_text(encoding="utf-8")) or {}
 
 def fail(message: str) -> None:
@@ -150,6 +152,62 @@ if str(config.get("LAUNCHBOT_FEATURE_INTAKE_MONITOR_MAX_MESSAGES_PER_RUN") or ""
     fail("feature-intake-monitor:max-messages-unexpected")
 if str(config.get("LAUNCHBOT_FEATURE_INTAKE_MONITOR_OVERLAP_SECONDS") or "").strip('"') != "600":
     fail("feature-intake-monitor:overlap-unexpected")
+
+support_watch_monitor = config.get("support_watch_monitor") or {}
+if support_watch_monitor.get("mode") != "no_agent_weekly_report":
+    fail("support-watch-monitor:mode-unexpected")
+if support_watch_monitor.get("source") != "bigquery":
+    fail("support-watch-monitor:source-unexpected")
+if support_watch_monitor.get("source_env") != "LAUNCHBOT_SUPPORT_WATCH_SOURCE":
+    fail("support-watch-monitor:source-env-unexpected")
+if support_watch_monitor.get("intercom_project_env") != "LAUNCHBOT_SUPPORT_WATCH_INTERCOM_PROJECT":
+    fail("support-watch-monitor:intercom-project-env-unexpected")
+if support_watch_monitor.get("intercom_dataset_env") != "LAUNCHBOT_SUPPORT_WATCH_INTERCOM_DATASET":
+    fail("support-watch-monitor:intercom-dataset-env-unexpected")
+if support_watch_monitor.get("analytics_dataset_env") != "LAUNCHBOT_SUPPORT_WATCH_ANALYTICS_DATASET":
+    fail("support-watch-monitor:analytics-dataset-env-unexpected")
+if support_watch_monitor.get("include_whatsapp_env") != "LAUNCHBOT_SUPPORT_WATCH_INCLUDE_WHATSAPP":
+    fail("support-watch-monitor:include-whatsapp-env-unexpected")
+if support_watch_monitor.get("whatsapp_view_env") != "LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_VIEW":
+    fail("support-watch-monitor:whatsapp-view-env-unexpected")
+if support_watch_monitor.get("output_channel_name_env") != "LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME":
+    fail("support-watch-monitor:output-channel-name-env-unexpected")
+if support_watch_monitor.get("output_channel_id_env") != "LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_ID":
+    fail("support-watch-monitor:output-channel-id-env-unexpected")
+if support_watch_monitor.get("dedupe_channel_ids_env") != "LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_IDS":
+    fail("support-watch-monitor:dedupe-channel-env-unexpected")
+if support_watch_monitor.get("edt_jql_env") != "LAUNCHBOT_SUPPORT_WATCH_EDT_JQL":
+    fail("support-watch-monitor:edt-jql-env-unexpected")
+if support_watch_monitor.get("state_path_env") != "LAUNCHBOT_SUPPORT_WATCH_STATE_PATH":
+    fail("support-watch-monitor:state-path-env-unexpected")
+if support_watch_monitor.get("schedule_utc") != "0 1 * * 4":
+    fail("support-watch-monitor:schedule-unexpected")
+if support_watch_monitor.get("no_raw_transcript_persistence") is not True:
+    fail("support-watch-monitor:raw-transcript-persistence-not-disabled")
+if support_watch_monitor.get("no_ticket_creation") is not True:
+    fail("support-watch-monitor:ticket-creation-not-disabled")
+if support_watch_monitor.get("no_engineer_tags") is not True:
+    fail("support-watch-monitor:engineer-tags-not-disabled")
+if str(config.get("LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME") or "").strip('"') != expected_support_watch_output:
+    fail("support-watch-monitor:output-channel-name-unexpected")
+if str(config.get("LAUNCHBOT_SUPPORT_WATCH_STATE_PATH") or "").strip('"') != "~/.hermes/profiles/launchbot/runtime/support-watch-state.json":
+    fail("support-watch-monitor:state-path-unexpected")
+if str(config.get("LAUNCHBOT_SUPPORT_WATCH_LOOKBACK_DAYS") or "").strip('"') != "7":
+    fail("support-watch-monitor:lookback-unexpected")
+if str(config.get("LAUNCHBOT_SUPPORT_WATCH_SOURCE") or "").strip('"') != "bigquery":
+    fail("support-watch-monitor:source-config-unexpected")
+if str(config.get("LAUNCHBOT_SUPPORT_WATCH_INTERCOM_PROJECT") or "").strip('"') != "staffany-warehouse":
+    fail("support-watch-monitor:intercom-project-unexpected")
+if str(config.get("LAUNCHBOT_SUPPORT_WATCH_INTERCOM_DATASET") or "").strip('"') != "intercom":
+    fail("support-watch-monitor:intercom-dataset-unexpected")
+if str(config.get("LAUNCHBOT_SUPPORT_WATCH_ANALYTICS_DATASET") or "").strip('"') != "analytics":
+    fail("support-watch-monitor:analytics-dataset-unexpected")
+if str(config.get("LAUNCHBOT_SUPPORT_WATCH_INCLUDE_WHATSAPP") or "").strip('"') != "true":
+    fail("support-watch-monitor:include-whatsapp-unexpected")
+if str(config.get("LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_VIEW") or "").strip('"') != "gsheets.cs_tickets_logs_all_view":
+    fail("support-watch-monitor:whatsapp-view-unexpected")
+if str(config.get("LAUNCHBOT_SUPPORT_WATCH_MAX_TICKETS") or "").strip('"') != "100":
+    fail("support-watch-monitor:max-tickets-unexpected")
 
 mcp_servers = config.get("mcp_servers") or {}
 launchbot_ker = mcp_servers.get("launchbot_ker") or {}
@@ -226,6 +284,22 @@ for key in ["no_slack_post_from_mcp", "no_jira_comments", "no_jira_transitions",
     if feature_intake_policy.get(key) is not True:
         fail(f"mcp:launchbot_feature_intake:{key}:must-be-true")
 
+launchbot_support_watch = mcp_servers.get("launchbot_support_watch") or {}
+support_watch_tools = set(launchbot_support_watch.get("tool_allowlist") or [])
+expected_support_watch_tools = {"preview_weekly_support_watch_report"}
+if support_watch_tools != expected_support_watch_tools:
+    fail("mcp:launchbot_support_watch:tool-allowlist-unexpected")
+support_watch_policy = launchbot_support_watch.get("access_policy") or {}
+if support_watch_policy.get("mode") != "read_only_weekly_support_watch":
+    fail("mcp:launchbot_support_watch:mode-unexpected")
+if support_watch_policy.get("source") != "bigquery":
+    fail("mcp:launchbot_support_watch:source-unexpected")
+if support_watch_policy.get("output_channel_name") != expected_support_watch_output:
+    fail("mcp:launchbot_support_watch:output-channel-unexpected")
+for key in ["no_slack_post_from_mcp", "no_ticket_creation", "no_engineer_tags", "no_owner_assignment", "no_raw_support_transcript_persistence", "no_slack_connector_fallback", "no_user_token_fallback"]:
+    if support_watch_policy.get(key) is not True:
+        fail(f"mcp:launchbot_support_watch:{key}:must-be-true")
+
 launchbot_help_article = mcp_servers.get("launchbot_help_article") or {}
 video_tools = set(launchbot_help_article.get("tool_allowlist") or [])
 expected_video_tools = {"preview_help_article_video_update", "create_help_article_video_update_draft"}
@@ -256,11 +330,20 @@ check_mcp_server launchbot_ker 2 launchbot_ker_server.py
 check_mcp_server launchbot_ifi 4 launchbot_ifi_server.py
 check_mcp_server launchbot_product_commitment 1 launchbot_product_commitment_server.py
 check_mcp_server launchbot_feature_intake 2 launchbot_feature_intake_server.py
+check_mcp_server launchbot_support_watch 1 launchbot_support_watch_server.py
 check_mcp_server launchbot_help_article 2 launchbot_help_article_server.py
 
 [ -r "$FEATURE_INTAKE_MONITOR_SCRIPT" ] || fail "feature-intake-monitor:script-missing"
 "$hermes_python" -m py_compile "$FEATURE_INTAKE_MONITOR_SCRIPT" || fail "feature-intake-monitor:py-compile-failed"
 "$hermes_python" -m py_compile "$PROFILE_DIR/source/launchbot/runtime/mcp/launchbot_feature_intake_core.py" || fail "mcp:launchbot_feature_intake_core:py-compile-failed"
+[ -r "$SUPPORT_WATCH_MONITOR_SCRIPT" ] || fail "support-watch-monitor:script-missing"
+"$hermes_python" -m py_compile "$SUPPORT_WATCH_MONITOR_SCRIPT" || fail "support-watch-monitor:py-compile-failed"
+"$hermes_python" -m py_compile "$PROFILE_DIR/source/launchbot/runtime/mcp/launchbot_support_watch_core.py" || fail "mcp:launchbot_support_watch_core:py-compile-failed"
+
+[ "${LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME:-all-bugs-production}" = "all-bugs-production" ] || fail "env:LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME:unexpected"
+[ -n "${LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_ID:-}" ] || fail "env:LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_ID:missing"
+[ -n "${LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_IDS:-}" ] || fail "env:LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_IDS:missing"
+[ -n "${LAUNCHBOT_SUPPORT_WATCH_EDT_JQL:-}" ] || fail "env:LAUNCHBOT_SUPPORT_WATCH_EDT_JQL:missing"
 
 [ -r "$HELP_ARTICLE_VIDEO_REGISTRY_PATH" ] || fail "help-article-video-registry:missing"
 "$hermes_python" - "$HELP_ARTICLE_VIDEO_REGISTRY_PATH" <<'PY' || exit 1

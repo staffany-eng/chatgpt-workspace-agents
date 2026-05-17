@@ -1,6 +1,6 @@
 # Slack Runtime
 
-Launchbot's current surfaces are `#launch-bot-testing`, explicitly configured project channels, and read-only product-commitment / KER lookup in `#all-product-questions`.
+Launchbot's current surfaces are `#launch-bot-testing`, explicitly configured project channels, read-only product-commitment / KER lookup in `#all-product-questions`, and weekly support-watch reports to `#all-bugs-production`.
 
 ## Required Behavior
 
@@ -10,6 +10,7 @@ Launchbot's current surfaces are `#launch-bot-testing`, explicitly configured pr
   - `C0AJAUNCEL8` (`#proj-cs-seonggong-seorae`) for Seorae KER lookup.
   - `C01RZ7SHC8K` (`#all-product-questions`) for read-only product-commitment / KER lookup.
   - `CF8PK6V4J` (`#input-features-ux`) for confirmed feature intake.
+  - `LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_ID` (`#all-bugs-production`) for weekly support-watch output after deploy resolution.
 - Disable tool progress, streaming, interim assistant messages, and reactions.
 - Suppress gateway lifecycle notices with `platforms.slack.gateway_restart_notification=false`; restarts should not post `Gateway shutting down` into active Slack threads.
 - Slack Socket Mode event subscriptions must include bot events `app_mention` and `message.channels`. `message.channels` is required for channel thread/mention events to reach the Hermes gateway; without it, the service can be connected but never receive smoke messages.
@@ -26,6 +27,12 @@ Launchbot's current surfaces are `#launch-bot-testing`, explicitly configured pr
 - The monitor default channel is `CF8PK6V4J` (`#input-features-ux`) via `LAUNCHBOT_FEATURE_INTAKE_MONITOR_CHANNEL_IDS`. It may post one `Launchbot automation:` preview per source permalink, then create only after exact `create intake` or `create KER intake` in the same thread.
 - The monitor state path is `~/.hermes/profiles/launchbot/runtime/feature-intake-monitor-state.json`. It stores channel IDs, timestamps, source permalinks, safe summaries, status, and issue keys only; it must not persist raw Slack transcripts.
 - The monitor needs Slack bot-token access to `conversations.history`, `conversations.replies`, and `chat.postMessage` for configured channels, plus the existing Jira read/create credentials.
+- For weekly support watch, the MCP preview may read Slack history only for dedupe. It must not post Slack or mutate Jira/Linear. The no-agent `launchbot support watch` cron is the only support-watch lane allowed to call `chat.postMessage`.
+- Support-watch output channel is `#all-bugs-production` through `LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME=all-bugs-production` and deploy-resolved `LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_ID`.
+- Support-watch dedupe reads recent `#team-cs-eng-duty` posts through `LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_IDS`, EDT through `LAUNCHBOT_SUPPORT_WATCH_EDT_JQL`, and prior state through `LAUNCHBOT_SUPPORT_WATCH_STATE_PATH`.
+- Support-watch posts only when there are new, untracked findings. No new findings means no Slack post.
+- Support-watch Slack reports must start with `Launchbot automation:` and state that no tickets, owners, or engineer tags were created.
+- Support-watch state path is `~/.hermes/profiles/launchbot/runtime/support-watch-state.json`. It stores support-source IDs, safe summaries, source URLs, state, available team/admin assignee IDs, timestamps, signatures, and safe counters only; it must not persist raw support transcripts.
 
 ## Output Contract
 

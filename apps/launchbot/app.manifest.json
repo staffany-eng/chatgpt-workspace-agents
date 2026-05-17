@@ -28,6 +28,11 @@
     "feature_intake_mcp_tests": "runtime/mcp/test_launchbot_feature_intake_server.py",
     "feature_intake_monitor": "runtime/monitor-feature-intake.py",
     "feature_intake_monitor_tests": "runtime/test_monitor_feature_intake.py",
+    "support_watch_core": "runtime/mcp/launchbot_support_watch_core.py",
+    "support_watch_mcp_server": "runtime/mcp/launchbot_support_watch_server.py",
+    "support_watch_mcp_tests": "runtime/mcp/test_launchbot_support_watch_server.py",
+    "support_watch_monitor": "runtime/monitor-support-watch.py",
+    "support_watch_monitor_tests": "runtime/test_monitor_support_watch.py",
     "help_article_mcp_server": "runtime/mcp/launchbot_help_article_server.py",
     "help_article_mcp_tests": "runtime/mcp/test_launchbot_help_article_server.py",
     "help_article_video_fixtures": "runtime/mcp/fixtures/help_article_video_fixtures.json",
@@ -41,6 +46,7 @@
     "article_planning_profile": "skills/help-article-generator/references/article-planning-profile.json",
     "intercom_article_inventory": "skills/help-article-generator/references/intercom-article-inventory.json",
     "help_article_video_registry": "skills/help-article-generator/references/video-placement-registry.json",
+    "support_watch_skill": "skills/weekly-support-watch/SKILL.md",
     "launch_workflow_regression_cases": "tests/launch-workflow-regression-cases.md",
     "prompt_evals": "tests/prompt-evals.json"
   },
@@ -48,7 +54,8 @@
     "Slack #launch-bot-testing",
     "Slack #proj-cs-seonggong-seorae",
     "Slack #all-product-questions",
-    "Slack #input-features-ux"
+    "Slack #input-features-ux",
+    "Slack #all-bugs-production"
   ],
   "slack": {
     "home_channel_id": "C0B32M34J3W",
@@ -99,6 +106,46 @@
     "cron": {
       "name": "launchbot feature intake monitor",
       "schedule": "* * * * *",
+      "mode": "no-agent"
+    }
+  },
+  "support_watch_monitor": {
+    "mode": "no_agent_weekly_report",
+    "default_output_channel_name": "all-bugs-production",
+    "output_channel_name_env_var": "LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME",
+    "output_channel_id_env_var": "LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_ID",
+    "dedupe_channel_ids_env_var": "LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_IDS",
+    "edt_jql_env_var": "LAUNCHBOT_SUPPORT_WATCH_EDT_JQL",
+    "state_path_env_var": "LAUNCHBOT_SUPPORT_WATCH_STATE_PATH",
+    "default_state_path": "~/.hermes/profiles/launchbot/runtime/support-watch-state.json",
+    "lookback_days_env_var": "LAUNCHBOT_SUPPORT_WATCH_LOOKBACK_DAYS",
+    "default_lookback_days": 7,
+    "max_tickets_env_var": "LAUNCHBOT_SUPPORT_WATCH_MAX_TICKETS",
+    "default_max_tickets": 100,
+    "default_edt_jql": "project = PCO AND \"PS Team\" = \"Eng Duty\" AND statusCategory != Done ORDER BY updated DESC",
+    "source_env_var": "LAUNCHBOT_SUPPORT_WATCH_SOURCE",
+    "default_source": "bigquery",
+    "intercom_project_env_var": "LAUNCHBOT_SUPPORT_WATCH_INTERCOM_PROJECT",
+    "default_intercom_project": "staffany-warehouse",
+    "intercom_dataset_env_var": "LAUNCHBOT_SUPPORT_WATCH_INTERCOM_DATASET",
+    "default_intercom_dataset": "intercom",
+    "include_whatsapp_env_var": "LAUNCHBOT_SUPPORT_WATCH_INCLUDE_WHATSAPP",
+    "default_include_whatsapp": true,
+    "whatsapp_view_env_var": "LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_VIEW",
+    "default_whatsapp_view": "gsheets.cs_tickets_logs_all_view",
+    "dedupe_channel_name": "team-cs-eng-duty",
+    "normal_gateway_require_mention": true,
+    "raw_transcript_persistence": false,
+    "posts_slack_reports": true,
+    "slack_reply_prefix": "Launchbot automation:",
+    "ticket_creation": false,
+    "engineer_tags": false,
+    "owner_assignment": false,
+    "cron": {
+      "name": "launchbot support watch",
+      "schedule": "0 1 * * 4",
+      "timezone": "UTC",
+      "local_time": "Thursday 09:00 SGT",
       "mode": "no-agent"
     }
   },
@@ -238,6 +285,65 @@
         "preview_first": true
       }
     },
+    "launchbot_support_watch": {
+      "mode": "read_only_weekly_support_watch",
+      "tools": [
+        "preview_weekly_support_watch_report"
+      ],
+      "bigquery": {
+        "source_env_var": "LAUNCHBOT_SUPPORT_WATCH_SOURCE",
+        "default_source": "bigquery",
+        "project_env_var": "LAUNCHBOT_SUPPORT_WATCH_INTERCOM_PROJECT",
+        "default_project": "staffany-warehouse",
+        "intercom_dataset_env_var": "LAUNCHBOT_SUPPORT_WATCH_INTERCOM_DATASET",
+        "default_intercom_dataset": "intercom",
+        "intercom_tables": [
+          "conversations",
+          "conversation_parts"
+        ],
+        "analytics_dataset_env_var": "LAUNCHBOT_SUPPORT_WATCH_ANALYTICS_DATASET",
+        "default_analytics_dataset": "analytics",
+        "org_mapping_table": "dim_org_company",
+        "include_whatsapp_env_var": "LAUNCHBOT_SUPPORT_WATCH_INCLUDE_WHATSAPP",
+        "default_include_whatsapp": true,
+        "whatsapp_view_env_var": "LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_VIEW",
+        "default_whatsapp_view": "gsheets.cs_tickets_logs_all_view",
+        "raw_transcript_persistence": false
+      },
+      "slack_context": {
+        "token_env_var": "SLACK_BOT_TOKEN",
+        "dedupe_channel_ids_env_var": "LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_IDS",
+        "dedupe_channel_name": "team-cs-eng-duty",
+        "output_channel_name_env_var": "LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME",
+        "output_channel_id_env_var": "LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_ID",
+        "default_output_channel_name": "all-bugs-production",
+        "raw_transcript_persistence": false,
+        "user_token_fallback": false,
+        "slack_connector_fallback": false,
+        "mcp_posts_slack": false
+      },
+      "jira": {
+        "base_url_env_var": "JIRA_BASE_URL",
+        "email_env_var": "JIRA_EMAIL",
+        "api_token_env_var": "JIRA_API_TOKEN",
+        "edt_jql_env_var": "LAUNCHBOT_SUPPORT_WATCH_EDT_JQL",
+        "default_edt_jql": "project = PCO AND \"PS Team\" = \"Eng Duty\" AND statusCategory != Done ORDER BY updated DESC",
+        "mutations": false,
+        "comments": false,
+        "transitions": false,
+        "assignments": false
+      },
+      "pantheon": {
+        "checkout_env_var": "LAUNCHBOT_PANTHEON_REPO_DIR",
+        "trace_mode": "local_read_only_heuristic"
+      },
+      "v1_forbidden_actions": [
+        "linear_ticket_create",
+        "jira_ticket_create",
+        "engineer_tag",
+        "owner_assignment"
+      ]
+    },
     "launchbot_help_article": {
       "mode": "draft_only_registered_video_slots",
       "tools": [
@@ -291,6 +397,12 @@
       "name": "launchbot feature intake monitor",
       "schedule": "* * * * *",
       "mode": "no-agent"
+    },
+    {
+      "name": "launchbot support watch",
+      "schedule": "0 1 * * 4",
+      "mode": "no-agent",
+      "local_time": "Thursday 09:00 SGT"
     },
     {
       "name": "launchbot pantheon repo update",
@@ -367,6 +479,19 @@
       "LAUNCHBOT_FEATURE_INTAKE_MONITOR_MAX_MESSAGES_PER_RUN",
       "LAUNCHBOT_FEATURE_INTAKE_MONITOR_OVERLAP_SECONDS",
       "LAUNCHBOT_FEATURE_INTAKE_APPROVER_USER_IDS",
+      "LAUNCHBOT_SUPPORT_WATCH_SOURCE",
+      "LAUNCHBOT_SUPPORT_WATCH_INTERCOM_PROJECT",
+      "LAUNCHBOT_SUPPORT_WATCH_INTERCOM_DATASET",
+      "LAUNCHBOT_SUPPORT_WATCH_ANALYTICS_DATASET",
+      "LAUNCHBOT_SUPPORT_WATCH_INCLUDE_WHATSAPP",
+      "LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_VIEW",
+      "LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME",
+      "LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_ID",
+      "LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_IDS",
+      "LAUNCHBOT_SUPPORT_WATCH_EDT_JQL",
+      "LAUNCHBOT_SUPPORT_WATCH_STATE_PATH",
+      "LAUNCHBOT_SUPPORT_WATCH_LOOKBACK_DAYS",
+      "LAUNCHBOT_SUPPORT_WATCH_MAX_TICKETS",
       "LAUNCH_PANTHEON_REPO",
       "LAUNCH_PANTHEON_APPS",
       "LAUNCH_GOOGLE_AUTH_JSON",

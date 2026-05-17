@@ -48,6 +48,18 @@
 - Bot messages, Launchbot automation messages, deleted/empty messages, and repeated source permalinks are ignored.
 - The monitor state stores safe summaries and source pointers only; raw Slack transcripts are not persisted.
 
+## Weekly Support Watch
+
+- A repeated Intercom conversation or WhatsApp support-log topic should produce a single clustered finding, not one finding per source row.
+- A high-severity single support blocker should produce a `needs-check` finding with source IDs and safe summaries only.
+- Email addresses, phone numbers, raw conversation bodies, and raw support-log bodies must be redacted or omitted from support-watch output and state.
+- Findings already present in recent `#team-cs-eng-duty` posts must be deduped and must not post to `#all-bugs-production`.
+- Findings already present in EDT Jira results from `LAUNCHBOT_SUPPORT_WATCH_EDT_JQL` must be deduped and must not post to `#all-bugs-production`.
+- Findings already present in `support-watch-state.json` must be deduped and must not post again.
+- No new findings means no Slack post.
+- New untracked findings post one compact `Launchbot automation:` report to `#all-bugs-production`.
+- Support watch must not create Linear/Jira tickets, tag engineers, assign owners, comment on issues, transition issues, or persist raw support transcripts.
+
 ## Product Commitment Checks
 
 - Given `@Launch Bot check product commitment for this thread` in `#all-product-questions`, Launchbot should call only `check_product_commitment_from_slack_thread`.

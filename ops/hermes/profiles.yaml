@@ -210,6 +210,8 @@ profiles:
         tools: 1
       launchbot_feature_intake:
         tools: 2
+      launchbot_support_watch:
+        tools: 1
       launchbot_help_article:
         tools: 2
     expected_crons:
@@ -218,6 +220,9 @@ profiles:
         mode: no-agent
       - name: launchbot feature intake monitor
         schedule: "* * * * *"
+        mode: no-agent
+      - name: launchbot support watch
+        schedule: "0 1 * * 4"
         mode: no-agent
       - name: launchbot pantheon repo update
         schedule: "0 22 * * *"

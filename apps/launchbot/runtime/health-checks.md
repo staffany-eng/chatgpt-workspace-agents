@@ -14,15 +14,20 @@ Expected checks:
 - Normal Slack gateway replies keep `slack.require_mention=true`; `#input-features-ux` monitoring is handled by the no-agent feature-intake monitor cron.
 - Feature-intake monitor channel IDs default to `CF8PK6V4J`, state path defaults to `~/.hermes/profiles/launchbot/runtime/feature-intake-monitor-state.json`, max messages per run defaults to `100`, and overlap defaults to `600` seconds.
 - Feature-intake monitor script is readable and compiles at `~/.hermes/profiles/launchbot/scripts/launchbot-monitor-feature-intake.py`.
+- Support-watch output channel defaults to `#all-bugs-production`, source defaults to BigQuery Intercom conversations with WhatsApp support logs enabled, dry-runs report full window counts plus fetched candidate counts, state path defaults to `~/.hermes/profiles/launchbot/runtime/support-watch-state.json`, lookback defaults to `7` days, max support rows defaults to `100`, and cron is `0 1 * * 4` UTC / Thursday 09:00 SGT.
+- Support-watch monitor script is readable and compiles at `~/.hermes/profiles/launchbot/scripts/launchbot-monitor-support-watch.py`.
 - `launchbot_ker` MCP exposes only `find_ker_ticket_from_slack_thread` and `lookup_ker_ticket_by_key`.
 - `launchbot_ifi` MCP exposes only `preview_ifi_feature_request_tracking`, `create_or_update_ifi_feature_request_tracking`, `preview_ifi_feature_request_from_bd_note`, and `create_or_update_ifi_feature_request_from_bd_note`.
 - `launchbot_product_commitment` MCP exposes only `check_product_commitment_from_slack_thread`.
 - `launchbot_feature_intake` MCP exposes only `preview_feature_intake_from_slack_thread` and `create_feature_intake_from_slack_thread`.
+- `launchbot_support_watch` MCP exposes only `preview_weekly_support_watch_report`.
 - `launchbot_help_article` MCP exposes only `preview_help_article_video_update` and `create_help_article_video_update_draft`.
 - KER lookup, product commitment checks, and feature intake have `SLACK_BOT_TOKEN`, `JIRA_BASE_URL`, `JIRA_EMAIL`, and `JIRA_API_TOKEN` in the live profile env.
 - IFI tracking has `HUBSPOT_ACCESS_TOKEN`, `JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN`, and `JIRA_IFI_HUBSPOT_COMPANY_ID_FIELD_ID=customfield_10881` in the live profile env.
 - Product commitment checks have `LAUNCHBOT_PRODUCT_COMMITMENT_ALLOWED_CHANNEL_IDS` in config or the live profile env. `LAUNCHBOT_PRODUCT_COMMITMENT_FIELD_IDS` is optional and must contain only reviewed Jira commitment field IDs.
 - The feature-intake monitor uses the same `SLACK_BOT_TOKEN`, `JIRA_BASE_URL`, `JIRA_EMAIL`, and `JIRA_API_TOKEN`, and uses Slack `chat.postMessage` only for Launchbot-owned `Launchbot automation:` previews/results.
+- The support-watch MCP uses service-account or ADC BigQuery access to `staffany-warehouse.intercom.conversations`, `staffany-warehouse.intercom.conversation_parts`, and optionally `staffany-warehouse.gsheets.cs_tickets_logs_all_view`; it uses Slack/Jira read-only for dedupe and never posts Slack or creates tickets.
+- The support-watch monitor uses BigQuery access, `SLACK_BOT_TOKEN`, `JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN`, `LAUNCHBOT_SUPPORT_WATCH_SOURCE=bigquery`, `LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME=all-bugs-production`, deploy-resolved `LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_ID`, `LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_IDS`, and `LAUNCHBOT_SUPPORT_WATCH_EDT_JQL`.
 - Video-only help article updates have `LAUNCH_STEP3_INTERCOM_ACCESS_TOKEN` in the live profile env.
 - Help article video placement registry is readable at `~/.hermes/profiles/launchbot/source/launchbot/skills/help-article-generator/references/video-placement-registry.json`.
 - Pantheon is cloned at `~/.hermes/profiles/launchbot/source/pantheon`, with remote `git@github.com:staffany-eng/pantheon.git`, branch `develop`, clean worktree, and a fresh update status JSON.
@@ -35,6 +40,7 @@ Install profile-local health script:
 mkdir -p ~/.hermes/profiles/launchbot/scripts
 cp apps/launchbot/runtime/check-health.sh ~/.hermes/profiles/launchbot/scripts/launchbot-check-health.sh
 cp apps/launchbot/runtime/monitor-feature-intake.py ~/.hermes/profiles/launchbot/scripts/launchbot-monitor-feature-intake.py
+cp apps/launchbot/runtime/monitor-support-watch.py ~/.hermes/profiles/launchbot/scripts/launchbot-monitor-support-watch.py
 hermes -p launchbot cron create "*/5 * * * *" \
   --name "launchbot health check" \
   --script launchbot-check-health.sh \
@@ -43,6 +49,12 @@ hermes -p launchbot cron create "*/5 * * * *" \
 hermes -p launchbot cron create "* * * * *" \
   --name "launchbot feature intake monitor" \
   --script launchbot-monitor-feature-intake.py \
+  --no-agent
+LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME=all-bugs-production \
+  ~/.hermes/profiles/launchbot/scripts/launchbot-monitor-support-watch.py --dry-run --max-tickets 20
+hermes -p launchbot cron create "0 1 * * 4" \
+  --name "launchbot support watch" \
+  --script launchbot-monitor-support-watch.py \
   --no-agent
 ```
 
@@ -63,5 +75,7 @@ hermes -p launchbot cron create "0 22 * * *" \
 Without VM GitHub SSH access, seed `~/.hermes/profiles/launchbot/source/pantheon` from a trusted bundle and keep the health check honest: it will fail once `pantheon-repo-status.json` is older than `LAUNCHBOT_PANTHEON_STATUS_MAX_AGE_SECONDS`.
 
 The Pantheon cron uses `0 22 * * *`, which is 06:00 Asia/Singapore on the current UTC GCP VM default. If the deployment host timezone is changed, keep the job daily and document the host timezone in the live repair note.
+
+The support-watch cron uses `0 1 * * 4`, which is Thursday 09:00 Asia/Singapore on the current UTC GCP VM default.
 
 The current Hermes CLI uses the deployment host timezone for cron scheduling and does not expose a `--timezone` flag.
