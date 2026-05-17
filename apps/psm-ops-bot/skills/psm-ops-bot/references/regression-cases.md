@@ -184,6 +184,36 @@ Expected:
 - If multiple plausible candidates exist, returns `needs-check` and asks the user to choose the PCO key before updating or creating.
 - Does not expose raw descriptions, comments, attachments, or Jira bulk exports.
 
+## PS WEE Not Ticketed Create-Ready Offer
+
+Thread:
+
+```text
+Hi team, I just spoke to Nathania from Ren Bakery. She keeps having app errors/lag, is frustrated, and mentioned churn risk.
+Kai Yi: @PS Wee Manager is this already ticketed
+```
+
+Expected:
+
+- Calls `search_pco_tickets` with the current thread context before saying `not ticketed yet`.
+- Does not call `create_ps_wee_intake_ticket`, `draft_pco_task`, or `create_approved_pco_task` for the tracking-status question.
+- If no match is found, returns a compact ticket seed with customer, issue, impact/risk, and evidence/source thread.
+- Ends with `Reply "create ticket" to open the PS WEE intake ticket.`
+- Says `bounded keyword search`, not `full keyword search`.
+- Caveat says no ticket was created because the user asked for tracking status, not creation.
+
+Follow-up:
+
+```text
+yes, create it
+```
+
+Expected:
+
+- Treats the follow-up as explicit PS WEE ticketing approval only because it follows the create-ready offer in the same thread.
+- Calls `find_ticket_by_slack_thread`, then `search_pco_tickets`, then `create_ps_wee_intake_ticket`.
+- Passes Ren Bakery, Nathania, recurring app errors/lag, churn risk, and the Slack thread evidence into the ticket tool.
+
 ## PS WEE Customer Reach-Out Confirmation
 
 Thread:

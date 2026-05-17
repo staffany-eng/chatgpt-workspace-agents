@@ -181,7 +181,7 @@ Field rules:
 - `resolve_slack_user_identity`: safe read; resolve one Slack mention, email, or exact name through `users.list` before asking avoidable owner questions.
 - `classify_roi_ticket_request`: safe read; route actionable ROI/RevOps/BD Ops/NYSS requests to ROI when create/add/log/handle/task wording is present, and treat PS Team billing/invoice operational asks as ROI + PCO tracker candidates by default.
 - `list_my_pco_tasks`: safe read, caller-scoped by Jira `PS Team`.
-- `search_pco_tickets`: safe read; use before saying a current Slack thread is not tracked in PCO or before creating a likely duplicate when same-thread lookup misses. It returns only safe issue fields and uses deterministic scoring: exact key/source matches auto-match, one strong active keyword match auto-matches, ambiguous candidates return `needs-check`.
+- `search_pco_tickets`: safe read; use before saying a current Slack thread is not tracked in PCO or not ticketed yet, or before creating a likely duplicate when same-thread lookup misses. It returns only safe issue fields and uses deterministic scoring: exact key/source matches auto-match, one strong active keyword match auto-matches, ambiguous candidates return `needs-check`, and no match returns a bounded not-found result suitable for a create-ready offer.
 - `find_ticket_by_slack_thread`: safe read; use the Slack thread permalink as the PS WEE idempotency key.
 - `find_roi_ticket_by_slack_thread`: safe read; use the Slack thread permalink as the ROI idempotency key.
 - `create_roi_ticket_from_slack`: mutation; creates direct ROI JSM tickets for actionable RevOps/BD Ops/NYSS/ROI-board requests with first-class requester, required-field checks, source Slack thread, and no duplicate PCO execution wrapper.
