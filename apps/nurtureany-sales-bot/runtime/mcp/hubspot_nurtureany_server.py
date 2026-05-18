@@ -4817,11 +4817,17 @@ def _owner_target_account_whatsapp_context(
     end_utc: str,
     limit: int,
     *,
+    company_limit: int | None = None,
     include_bodies: bool = False,
     include_kns: bool = False,
     local_zone: ZoneInfo | None = None,
 ) -> dict[str, Any]:
     requested_limit = _bounded_int(limit, default=500, maximum=1000)
+    company_requested_limit = _bounded_int(
+        company_limit if company_limit is not None else requested_limit,
+        default=requested_limit,
+        maximum=HUBSPOT_SEARCH_TOTAL_LIMIT,
+    )
     communication_filters = [
         {"propertyName": "hubspot_owner_id", "operator": "EQ", "value": owner_id},
         {"propertyName": "hs_timestamp", "operator": "GTE", "value": start_utc},
@@ -4842,7 +4848,7 @@ def _owner_target_account_whatsapp_context(
 
     company_data = _company_search(
         _target_filters(countries, owner_id),
-        requested_limit,
+        company_requested_limit,
         maximum=HUBSPOT_SEARCH_TOTAL_LIMIT,
         sorts=[{"propertyName": "name", "direction": "ASCENDING"}],
     )
@@ -4922,6 +4928,7 @@ def _owner_target_account_whatsapp_context(
         "target_company_ids_with_whatsapp": sorted(target_company_ids_with_whatsapp),
         "truncated": bool(company_data.get("truncated") or communication_data.get("truncated")),
         "requested_limit": requested_limit,
+        "company_requested_limit": company_requested_limit,
         "raw_bodies_returned": False,
     }
 
@@ -16355,6 +16362,7 @@ def build_sales_whatsapp_window_report(
                     window["utc_window"]["start"],
                     window["utc_window"]["end"],
                     limit,
+                    company_limit=HUBSPOT_SEARCH_TOTAL_LIMIT,
                     include_bodies=include_kns,
                     include_kns=include_kns,
                     local_zone=window["zone"],

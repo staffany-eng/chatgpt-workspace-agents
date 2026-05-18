@@ -944,6 +944,71 @@ class SalesWhatsappWindowReportTest(unittest.TestCase):
         dumped = json.dumps(result)
         self.assertNotIn("hs_communication_body", dumped)
 
+    def test_report_scans_full_target_account_pool_for_manager_report(self):
+        def fake_object_search(object_type, filters, properties, limit=100, maximum=500, sorts=None):
+            self.assertEqual(object_type, "communications")
+            self.assertEqual(limit, 500)
+            self.assertEqual(maximum, 1000)
+            return {
+                "results": [
+                    {
+                        "id": "id-comm-late-company",
+                        "properties": {
+                            "hs_timestamp": "2026-05-15T02:15:00Z",
+                            "hubspot_owner_id": "owner-simone",
+                            "hs_communication_channel_type": "WHATS_APP",
+                            "hs_communication_logged_from": "Eazybe",
+                        },
+                    }
+                ],
+                "total": 1,
+                "returned_count": 1,
+                "has_more": False,
+                "truncated": False,
+            }
+
+        def fake_company_search(filters, limit=100, maximum=500, sorts=None, query=""):
+            self.assertEqual(limit, self.module.HUBSPOT_SEARCH_TOTAL_LIMIT)
+            self.assertEqual(maximum, self.module.HUBSPOT_SEARCH_TOTAL_LIMIT)
+            return {
+                "results": [
+                    {
+                        "id": "id-company-beyond-default-cap",
+                        "properties": {"name": "ID Deep Target", "company_country": "Indonesia", "hubspot_owner_id": "owner-simone"},
+                    }
+                ],
+                "total": 1,
+                "returned_count": 1,
+                "has_more": False,
+                "truncated": False,
+            }
+
+        def fake_batch_association_ids(from_type, to_type, ids):
+            if from_type == "companies":
+                return {str(item): [] for item in ids}
+            if from_type == "communications" and to_type == "companies":
+                return {str(item): ["id-company-beyond-default-cap"] for item in ids}
+            return {str(item): [] for item in ids}
+
+        with patch.object(self.module, "_access_policy", return_value=self._id_report_policy()), patch.object(
+            self.module, "_owner_by_email", side_effect=self._owner_by_email
+        ), patch.object(self.module, "_object_search", side_effect=fake_object_search), patch.object(
+            self.module, "_company_search", side_effect=fake_company_search
+        ), patch.object(self.module, "_batch_association_ids", side_effect=fake_batch_association_ids):
+            result = self.module.build_sales_whatsapp_window_report(
+                "sarah@staffany.com",
+                countries=["Indonesia"],
+                country_order=["Indonesia"],
+                for_date="2026-05-15",
+                window_start_local="09:30",
+                window_end_local="10:30",
+            )
+
+        row = result["answer"]["country_rows"][0]
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(row["target_account_count_scanned"], 1)
+        self.assertEqual(row["target_account_whatsapp_count"], 1)
+
     def test_report_missing_timezone_blocks_before_hubspot_query(self):
         policy = self._report_policy(nicholas_timezone="")
         with patch.object(self.module, "_access_policy", return_value=policy), patch.object(
