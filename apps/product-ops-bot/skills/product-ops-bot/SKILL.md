@@ -11,6 +11,8 @@ license: Internal
 ## Overview
 
 Use this skill for Product Ops coordination in Slack.
+Primary execution flow should route to `product-ops-intake-linking`.
+Use `staffany-product-delivery-workflow` as a supporting workflow when intake moves into delivery execution.
 
 ## Source Order
 

@@ -9,6 +9,8 @@ Canonical Hermes app packet for a Product Operations assistant bot.
 - Surface: Slack mentions in product operations channels
 - Model: Anthropic provider, `claude-sonnet-4-6`
 - Primary systems (safe defaults): Slack + Jira only
+- Primary skill flow: `product-ops-intake-linking`
+- Supporting workflow skill: `staffany-product-delivery-workflow`
 - Source packet: this directory
 - Live runtime state: `~/.hermes/profiles/productopsbot/`
 
@@ -18,7 +20,10 @@ Canonical Hermes app packet for a Product Operations assistant bot.
 | --- | --- |
 | `profile/SOUL.md` | Source-controlled profile soul prompt. |
 | `profile/config.template.yaml` | Non-secret Hermes profile config template. |
+| `profile/.env.template` | Runtime env template for Slack, Anthropic, Jira, and Notion keys. |
 | `skills/product-ops-bot/` | Hermes skill and references. |
+| `skills/product-ops-intake-linking/` | Main Product Ops intake and linking flow. |
+| `skills/staffany-product-delivery-workflow/` | Supporting delivery workflow and agent routing. |
 | `runtime/slack.md` | Slack gateway behavior and output contract. |
 | `runtime/jira.md` | Jira read-first and approval-gated write contract. |
 | `runtime/health-checks.md` | Operational checks and expected silence. |
