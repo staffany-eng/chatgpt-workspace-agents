@@ -50,6 +50,7 @@ Run from repo root:
 
 ```bash
 npm run product-ops-bot:verify
+npm run product-ops-bot:deploy
 ```
 
 ## Canonical Source Rule

@@ -19,3 +19,22 @@ Use this template to deploy Product Ops Bot on GCE.
 6. Configure gateway and MCP servers.
 7. Install/enable `hermes-gateway-productopsbot.service`.
 8. Run health checks and Slack smoke test.
+
+
+## Automated Deploy
+
+```bash
+npm run product-ops-bot:deploy -- --apply \
+  --project staffany-warehouse \
+  --zone asia-southeast1-a \
+  --vm hermes-product-ops-bot-poc \
+  --profile productopsbot \
+  --runtime-owner leekaiyi \
+  --ref origin/main
+```
+
+For preview only (no remote changes):
+
+```bash
+npm run product-ops-bot:deploy
+```
