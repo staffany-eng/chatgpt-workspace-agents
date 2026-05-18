@@ -12,6 +12,8 @@
     "soul": "profile/SOUL.md",
     "config_template": "profile/config.template.yaml",
     "skill": "skills/product-ops-bot/SKILL.md",
+    "main_flow_skill": "skills/product-ops-intake-linking/SKILL.md",
+    "delivery_workflow_skill": "skills/staffany-product-delivery-workflow/SKILL.md",
     "references": [
       "skills/product-ops-bot/references/workflow-contract.md",
       "skills/product-ops-bot/references/regression-cases.md"
@@ -34,6 +36,13 @@
   "write_policy": {
     "default_mode": "read_first",
     "jira_writes": "approval_gated_same_thread_run"
+  },
+  "skill_routing": {
+    "primary": "product-ops-intake-linking",
+    "supporting": [
+      "staffany-product-delivery-workflow",
+      "product-ops-bot"
+    ]
   },
   "channels": ["Slack product-ops pilot channel"],
   "secrets_copied": false
