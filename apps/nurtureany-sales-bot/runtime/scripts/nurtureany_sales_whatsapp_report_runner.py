@@ -56,18 +56,23 @@ def ensure_runtime_python() -> None:
 def load_profile_env() -> None:
     """Load profile .env values when Hermes does not inject them into no-agent jobs."""
 
+    profile_dir = _profile_dir()
     env_path = _profile_dir() / ".env"
     if not env_path.exists():
-        return
-    for raw_line in env_path.read_text(encoding="utf-8").splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        key = key.strip()
-        if not key or key in os.environ:
-            continue
-        os.environ[key] = value.strip().strip('"').strip("'")
+        pass
+    else:
+        for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+            line = raw_line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            key = key.strip()
+            if not key or key in os.environ:
+                continue
+            os.environ[key] = value.strip().strip('"').strip("'")
+    access_policy = profile_dir / "runtime" / "access-policy.json"
+    if "NURTUREANY_ACCESS_POLICY_PATH" not in os.environ and access_policy.exists():
+        os.environ["NURTUREANY_ACCESS_POLICY_PATH"] = str(access_policy)
 
 
 def _runtime_root() -> Path:

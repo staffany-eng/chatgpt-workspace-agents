@@ -524,6 +524,33 @@ LUMA_MATCH_CANDIDATE_FIELDS = (
     "matched_contacts",
     "exact_contact_email_match_count",
 )
+HUBSPOT_PORTAL_ID_ENV = "HUBSPOT_PORTAL_ID"
+DEFAULT_HUBSPOT_PORTAL_ID = "4137076"
+EVENT_MATCH_ACTION_COLUMNS = [
+    "event_id",
+    "event_name",
+    "rsvp_status",
+    "account_name",
+    "hubspot_company_link",
+    "hubspot_contact_link_if_exact_match",
+    "owner",
+    "customer_or_prospect",
+    "match_level",
+    "confidence",
+    "root_cause",
+    "next_action",
+    "action_owner",
+    "due_by",
+    "status",
+    "source_run_link",
+]
+EVENT_MATCH_ACTION_BUCKETS = (
+    "Follow up now",
+    "CRM cleanup",
+    "Target-account review",
+    "Net-new enrichment",
+    "Defer/exclude",
+)
 TASK_SEARCH_RESULT_LIMIT = 300
 TASK_SEARCH_AIRTIGHT_RESULT_LIMIT = 10_000
 TASK_CREATE_APPROVAL_MARKERS = {"create task", "confirm task"}
@@ -2145,6 +2172,395 @@ def _compact_luma_candidate_summary(summary: dict[str, Any]) -> dict[str, Any]:
     compact["matched_contacts"] = list(compact.get("matched_contacts") or [])
     compact["exact_contact_email_match_count"] = int(compact.get("exact_contact_email_match_count") or 0)
     return compact
+
+
+def _hubspot_portal_id() -> str:
+    return str(os.environ.get(HUBSPOT_PORTAL_ID_ENV) or DEFAULT_HUBSPOT_PORTAL_ID).strip() or DEFAULT_HUBSPOT_PORTAL_ID
+
+
+def _hubspot_record_url(object_type_id: str, object_id: Any) -> str:
+    normalized = str(object_id or "").strip()
+    if not normalized:
+        return ""
+    return f"https://app.hubspot.com/contacts/{_hubspot_portal_id()}/record/{object_type_id}/{urllib.parse.quote(normalized)}"
+
+
+def _event_action_record_email(record: dict[str, Any]) -> str:
+    for key in ("contact_email_match_key", "attendee_email", "email"):
+        email = _normalize_attendee_email_key(record.get(key))
+        if email:
+            return email
+    return ""
+
+
+def _event_action_record_domain(record: dict[str, Any], email: str = "") -> str:
+    explicit = _normalize_domain_key(record.get("email_domain") or record.get("domain"))
+    if explicit:
+        return explicit
+    return _normalize_domain_key(_email_domain(email))
+
+
+def _event_action_record_company_names(record: dict[str, Any]) -> list[str]:
+    raw = record.get("company_name_candidates")
+    values = raw if isinstance(raw, list) else [raw] if raw else []
+    values.extend(record.get(key) for key in ("company_name_candidate", "company", "account_name") if record.get(key))
+    return _unique_values([name for value in values if (name := _normalize_company_name_key(value))])[:5]
+
+
+def _event_action_event_is_past(event: dict[str, Any] | None, explicit: bool | None = None) -> bool:
+    if explicit is not None:
+        return bool(explicit)
+    if not isinstance(event, dict):
+        return False
+    raw_value = str(event.get("end_at") or event.get("endAt") or event.get("start_at") or event.get("startAt") or "").strip()
+    if not raw_value:
+        return False
+    try:
+        parsed = datetime.fromisoformat(raw_value.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc) < datetime.now(timezone.utc)
+
+
+def _event_action_safe_owner(summary: dict[str, Any] | None) -> str:
+    if not summary:
+        return ""
+    return str(summary.get("owner_name") or "").strip() or "AE owner needed"
+
+
+def _event_action_candidate_by_domain(candidates: list[dict[str, Any]], domain: str) -> dict[str, Any] | None:
+    normalized = _normalize_domain_key(domain)
+    if not normalized:
+        return None
+    for candidate in candidates:
+        if _normalize_domain_key(candidate.get("domain")) == normalized and "exact_email_domain" in set(candidate.get("luma_match_reasons") or []):
+            return candidate
+    return None
+
+
+def _event_action_candidate_by_company_name(candidates: list[dict[str, Any]], names: list[str]) -> dict[str, Any] | None:
+    for name in names:
+        for candidate in candidates:
+            if "company_name_candidate" in set(candidate.get("luma_match_reasons") or []) and _luma_company_name_matches(str(candidate.get("name") or ""), name):
+                return candidate
+    return None
+
+
+def _event_action_scoped_contact_match(
+    email: str,
+    countries: list[str],
+    owner_id: str | None,
+) -> dict[str, Any]:
+    contacts = _contact_search_by_email(email)
+    saw_contact = False
+    for contact in contacts:
+        contact_id = str(contact.get("id") or "")
+        if not contact_id:
+            continue
+        saw_contact = True
+        for company_id in _association_ids("contacts", contact_id, "companies", 10):
+            company_id = str(company_id or "")
+            if not company_id:
+                continue
+            company = _get_company(company_id)
+            if _company_matches_luma_key_scope(company, countries, owner_id):
+                return {
+                    "status": "scoped_target_contact",
+                    "company": _compact_luma_candidate_summary(_summarize_luma_candidate_company(company)),
+                    "contact_id": contact_id,
+                }
+    return {"status": "hubspot_contact_outside_scoped_target" if saw_contact else "no_exact_hubspot_contact"}
+
+
+def _event_action_domain_exists_in_hubspot(domain: str, cache: dict[str, bool]) -> bool:
+    normalized = _normalize_domain_key(domain)
+    if not normalized or normalized in GENERIC_EMAIL_DOMAINS:
+        return False
+    if normalized not in cache:
+        data = _company_search([{"propertyName": "domain", "operator": "EQ", "value": normalized}], limit=3, maximum=3)
+        cache[normalized] = bool(data.get("results"))
+    return cache[normalized]
+
+
+def _event_action_empty_row(event: dict[str, Any] | None, source_run_link: str, due_by: str) -> dict[str, str]:
+    event = event or {}
+    return {
+        "event_id": str(event.get("event_id") or event.get("id") or "").strip(),
+        "event_name": str(event.get("name") or event.get("title") or "").strip(),
+        "rsvp_status": "",
+        "account_name": "",
+        "hubspot_company_link": "",
+        "hubspot_contact_link_if_exact_match": "",
+        "owner": "",
+        "customer_or_prospect": "",
+        "match_level": "",
+        "confidence": "",
+        "root_cause": "",
+        "next_action": "",
+        "action_owner": "",
+        "due_by": due_by,
+        "status": "not_started",
+        "source_run_link": source_run_link,
+    }
+
+
+def _event_action_row_for_company(
+    event: dict[str, Any] | None,
+    source_run_link: str,
+    due_by: str,
+    rsvp_status: str,
+    company: dict[str, Any] | None,
+    bucket: str,
+    match_level: str,
+    confidence: str,
+    root_cause: str,
+    next_action: str,
+    action_owner: str,
+    contact_id: str = "",
+) -> dict[str, str]:
+    row = _event_action_empty_row(event, source_run_link, due_by)
+    company = company or {}
+    row.update(
+        {
+            "rsvp_status": rsvp_status,
+            "account_name": str(company.get("name") or "").strip() or "Attendee redacted",
+            "hubspot_company_link": _hubspot_record_url("0-2", company.get("company_id")),
+            "hubspot_contact_link_if_exact_match": _hubspot_record_url("0-1", contact_id),
+            "owner": _event_action_safe_owner(company),
+            "customer_or_prospect": str(company.get("account_status") or "").strip(),
+            "match_level": match_level,
+            "confidence": confidence,
+            "root_cause": root_cause,
+            "next_action": next_action,
+            "action_owner": action_owner,
+            "status": "not_started",
+        }
+    )
+    row["_bucket"] = bucket
+    return row
+
+
+def _event_action_pack(
+    attendee_records: list[dict[str, Any]],
+    event: dict[str, Any] | None,
+    candidates: list[dict[str, Any]],
+    countries: list[str],
+    owner_id: str | None,
+    source_run_link: str = "",
+    due_by: str = "",
+    event_is_past: bool | None = None,
+) -> dict[str, Any]:
+    records = [record for record in (attendee_records or []) if isinstance(record, dict)][:LUMA_MATCH_ATTENDEE_EMAIL_LIMIT]
+    if not records:
+        return {}
+    past_event = _event_action_event_is_past(event, event_is_past)
+    domain_exists_cache: dict[str, bool] = {}
+    rows: list[dict[str, str]] = []
+    rsvp_counts: dict[str, int] = {}
+    checked_in_count = 0
+
+    for record in records:
+        rsvp_status = str(record.get("rsvp_status") or record.get("approval_status") or record.get("status") or "unknown").strip() or "unknown"
+        rsvp_counts[rsvp_status] = rsvp_counts.get(rsvp_status, 0) + 1
+        checked_in_at = str(record.get("checked_in_at") or "").strip()
+        if checked_in_at:
+            checked_in_count += 1
+        email = _event_action_record_email(record)
+        domain = _event_action_record_domain(record, email)
+        names = _event_action_record_company_names(record)
+        approved = rsvp_status == "approved"
+
+        if not approved:
+            account_name = names[0] if names else "Attendee redacted"
+            row = _event_action_empty_row(event, source_run_link, due_by)
+            row.update(
+                {
+                    "rsvp_status": rsvp_status,
+                    "account_name": account_name,
+                    "match_level": "deferred",
+                    "confidence": "needs-check",
+                    "root_cause": f"RSVP status is {rsvp_status}; do not action as matched account yet.",
+                    "next_action": "Defer until RSVP is approved or manually selected for review.",
+                    "action_owner": "event operator",
+                }
+            )
+            row["_bucket"] = "Defer/exclude"
+            rows.append(row)
+            continue
+        if past_event and not checked_in_at:
+            row = _event_action_empty_row(event, source_run_link, due_by)
+            row.update(
+                {
+                    "rsvp_status": rsvp_status,
+                    "account_name": names[0] if names else "Attendee redacted",
+                    "match_level": "no_checked_in_at",
+                    "confidence": "needs-check",
+                    "root_cause": "Past-event RSVP has no checked_in_at; RSVP is not attendance.",
+                    "next_action": "Exclude from attended follow-up unless a manual attendance source verifies presence.",
+                    "action_owner": "event operator",
+                }
+            )
+            row["_bucket"] = "Defer/exclude"
+            rows.append(row)
+            continue
+
+        contact_match = _event_action_scoped_contact_match(email, countries, owner_id) if email else {"status": "no_exact_hubspot_contact"}
+        if contact_match.get("status") == "scoped_target_contact":
+            company = contact_match.get("company") or {}
+            rows.append(
+                _event_action_row_for_company(
+                    event,
+                    source_run_link,
+                    due_by,
+                    rsvp_status,
+                    company,
+                    "Follow up now",
+                    "exact_contact_email",
+                    "verified",
+                    "Approved RSVP matched to scoped HubSpot target account by exact contact email.",
+                    "AE follow up from HubSpot account context.",
+                    _event_action_safe_owner(company),
+                    str(contact_match.get("contact_id") or ""),
+                )
+            )
+            continue
+        if contact_match.get("status") == "hubspot_contact_outside_scoped_target":
+            row = _event_action_empty_row(event, source_run_link, due_by)
+            row.update(
+                {
+                    "rsvp_status": rsvp_status,
+                    "account_name": names[0] if names else "HubSpot contact exists; company needs cleanup",
+                    "match_level": "exact_contact_email_unscoped",
+                    "confidence": "needs-check",
+                    "root_cause": "Exact email exists in HubSpot, but the associated company is missing or outside scoped target accounts.",
+                    "next_action": "RevOps fix contact-company association, country, owner, or target-account mapping before AE handoff.",
+                    "action_owner": "RevOps",
+                }
+            )
+            row["_bucket"] = "CRM cleanup"
+            rows.append(row)
+            continue
+
+        domain_candidate = _event_action_candidate_by_domain(candidates, domain)
+        if domain_candidate:
+            rows.append(
+                _event_action_row_for_company(
+                    event,
+                    source_run_link,
+                    due_by,
+                    rsvp_status,
+                    domain_candidate,
+                    "Follow up now",
+                    "exact_email_domain",
+                    "verified",
+                    "Approved RSVP matched to scoped HubSpot target account by business email domain.",
+                    "AE follow up from HubSpot account context.",
+                    _event_action_safe_owner(domain_candidate),
+                )
+            )
+            continue
+
+        name_candidate = _event_action_candidate_by_company_name(candidates, names)
+        if name_candidate:
+            rows.append(
+                _event_action_row_for_company(
+                    event,
+                    source_run_link,
+                    due_by,
+                    rsvp_status,
+                    name_candidate,
+                    "Defer/exclude",
+                    "company_name_candidate",
+                    "needs-check",
+                    "Company-name-only candidate; needs human review before treating as a CRM match.",
+                    "Review manually; do not treat as verified account follow-up.",
+                    "event operator",
+                )
+            )
+            continue
+
+        if _event_action_domain_exists_in_hubspot(domain, domain_exists_cache):
+            row = _event_action_empty_row(event, source_run_link, due_by)
+            row.update(
+                {
+                    "rsvp_status": rsvp_status,
+                    "account_name": names[0] if names else f"Domain in HubSpot: {domain}",
+                    "match_level": "business_domain_in_hubspot_not_scoped_target",
+                    "confidence": "needs-check",
+                    "root_cause": "Business email domain exists in HubSpot company data, but not as a scoped target account match.",
+                    "next_action": "RevOps review target-account, country, owner, or duplicate-company classification.",
+                    "action_owner": "RevOps",
+                }
+            )
+            row["_bucket"] = "Target-account review"
+            rows.append(row)
+            continue
+
+        row = _event_action_empty_row(event, source_run_link, due_by)
+        row.update(
+            {
+                "rsvp_status": rsvp_status,
+                "account_name": names[0] if names else "Attendee redacted",
+                "match_level": "not_matched",
+                "confidence": "needs-check",
+                "root_cause": "No exact HubSpot contact or scoped target-account domain match.",
+                "next_action": "Event operator enrich company/contact manually before AE handoff.",
+                "action_owner": "event operator",
+            }
+        )
+        row["_bucket"] = "Net-new enrichment"
+        rows.append(row)
+
+    bucket_counts = {bucket: 0 for bucket in EVENT_MATCH_ACTION_BUCKETS}
+    owner_load: dict[str, int] = {}
+    sheet_rows: list[dict[str, str]] = []
+    approved_unmatched = 0
+    for row in rows:
+        bucket = row.pop("_bucket", "")
+        if bucket in bucket_counts:
+            bucket_counts[bucket] += 1
+        if row["rsvp_status"] == "approved" and bucket != "Follow up now":
+            approved_unmatched += 1
+        action_owner = row.get("action_owner") or "unassigned"
+        owner_load[action_owner] = owner_load.get(action_owner, 0) + 1
+        sheet_rows.append({column: row.get(column, "") for column in EVENT_MATCH_ACTION_COLUMNS})
+
+    event_id = str((event or {}).get("event_id") or (event or {}).get("id") or "").strip()
+    event_name = str((event or {}).get("name") or (event or {}).get("title") or event_id or "Luma event").strip()
+    idempotency_material = "|".join(["event_match_action_queue", event_id, source_run_link, str(len(sheet_rows))])
+    idempotency_key = hashlib.sha1(idempotency_material.encode("utf-8")).hexdigest()[:16]
+    return {
+        "summary": {
+            "rsvp_truth": {
+                "total": len(records),
+                "rsvp_counts": rsvp_counts,
+                "checked_in_count": checked_in_count,
+            },
+            "match_truth": {
+                "attendee_level_verified_matched_count": bucket_counts["Follow up now"],
+                "approved_unmatched_or_needs_action_count": approved_unmatched,
+                "method": "attendee-level action records, not matched-account count subtraction",
+            },
+            "action_buckets": bucket_counts,
+            "owner_load": owner_load,
+            "caveat": "RSVP is not attendance unless checked_in_at is present. Company-name-only matches are needs-check.",
+        },
+        "sheet_export_payload": {
+            "analysis_type": "event_match_action_queue",
+            "title": f"{event_name} Event Match Action Queue",
+            "sheet_tab_name": "Event Match Action Queue",
+            "idempotency_key": idempotency_key,
+            "source_permalink": source_run_link,
+            "source_summary": "Luma RSVP keys resolved against HubSpot target-account truth; sanitized action queue only.",
+            "columns": EVENT_MATCH_ACTION_COLUMNS,
+            "rows": sheet_rows,
+        },
+        "next_step": "Call preview_analysis_sheet_export with sheet_export_payload. Call apply_analysis_sheet_export only after explicit Sheet approval.",
+        "will_mutate_hubspot": False,
+        "will_mutate_google_sheets": False,
+    }
 
 
 def _event_sourcing_owner_scope(
@@ -4401,11 +4817,17 @@ def _owner_target_account_whatsapp_context(
     end_utc: str,
     limit: int,
     *,
+    company_limit: int | None = None,
     include_bodies: bool = False,
     include_kns: bool = False,
     local_zone: ZoneInfo | None = None,
 ) -> dict[str, Any]:
     requested_limit = _bounded_int(limit, default=500, maximum=1000)
+    company_requested_limit = _bounded_int(
+        company_limit if company_limit is not None else requested_limit,
+        default=requested_limit,
+        maximum=HUBSPOT_SEARCH_TOTAL_LIMIT,
+    )
     communication_filters = [
         {"propertyName": "hubspot_owner_id", "operator": "EQ", "value": owner_id},
         {"propertyName": "hs_timestamp", "operator": "GTE", "value": start_utc},
@@ -4426,7 +4848,7 @@ def _owner_target_account_whatsapp_context(
 
     company_data = _company_search(
         _target_filters(countries, owner_id),
-        requested_limit,
+        company_requested_limit,
         maximum=HUBSPOT_SEARCH_TOTAL_LIMIT,
         sorts=[{"propertyName": "name", "direction": "ASCENDING"}],
     )
@@ -4506,6 +4928,7 @@ def _owner_target_account_whatsapp_context(
         "target_company_ids_with_whatsapp": sorted(target_company_ids_with_whatsapp),
         "truncated": bool(company_data.get("truncated") or communication_data.get("truncated")),
         "requested_limit": requested_limit,
+        "company_requested_limit": company_requested_limit,
         "raw_bodies_returned": False,
     }
 
@@ -13766,6 +14189,11 @@ def find_target_accounts_by_luma_match_keys(
     email_domains: list[str] | None = None,
     company_name_candidates: list[str] | None = None,
     attendee_emails: list[str] | None = None,
+    attendee_records: list[dict[str, Any]] | None = None,
+    event: dict[str, Any] | None = None,
+    source_run_link: str = "",
+    due_by: str = "",
+    event_is_past: bool | None = None,
     include_contact_pii: bool = True,
     countries: list[str] | None = None,
     limit: int = LUMA_MATCH_RETURN_LIMIT,
@@ -13792,9 +14220,21 @@ def find_target_accounts_by_luma_match_keys(
             return _blocked("Requested countries are outside caller scope.", _scope_response(scope, []))
         target_owner_id, target_owner_email = _target_owner_id_for_luma_match_scope(scope, selected, owner_email)
         requested_limit = _bounded_int(limit, default=LUMA_MATCH_RETURN_LIMIT, maximum=LUMA_MATCH_RETURN_LIMIT)
-        raw_domains = [domain for value in (email_domains or []) if (domain := _normalize_domain_key(value))]
-        raw_names = [name for value in (company_name_candidates or []) if (name := _normalize_company_name_key(value))]
-        raw_attendee_emails = [email for value in (attendee_emails or []) if (email := _normalize_attendee_email_key(value))]
+        safe_attendee_records = [record for record in (attendee_records or []) if isinstance(record, dict)]
+        record_domains = [
+            domain
+            for record in safe_attendee_records
+            if (domain := _event_action_record_domain(record, _event_action_record_email(record))) and domain not in GENERIC_EMAIL_DOMAINS
+        ]
+        record_names: list[str] = []
+        record_emails: list[str] = []
+        for record in safe_attendee_records:
+            record_names.extend(_event_action_record_company_names(record))
+            if email := _event_action_record_email(record):
+                record_emails.append(email)
+        raw_domains = [domain for value in [*(email_domains or []), *record_domains] if (domain := _normalize_domain_key(value))]
+        raw_names = [name for value in [*(company_name_candidates or []), *record_names] if (name := _normalize_company_name_key(value))]
+        raw_attendee_emails = [email for value in [*(attendee_emails or []), *record_emails] if (email := _normalize_attendee_email_key(value))]
         domains = _unique_values(raw_domains)[:LUMA_MATCH_DOMAIN_LIMIT]
         names = _unique_values(raw_names)[:LUMA_MATCH_NAME_LIMIT]
         contact_emails = _unique_values(raw_attendee_emails)[:LUMA_MATCH_ATTENDEE_EMAIL_LIMIT]
@@ -13852,14 +14292,26 @@ def find_target_accounts_by_luma_match_keys(
                     break
 
         answer = [_compact_luma_candidate_summary(candidate) for candidate in list(candidates.values())[:requested_limit]]
+        action_pack = _event_action_pack(
+            safe_attendee_records,
+            event,
+            answer,
+            selected,
+            target_owner_id,
+            source_run_link=source_run_link,
+            due_by=due_by,
+            event_is_past=event_is_past,
+        )
         return {
             "answer": answer,
+            "event_action_pack": action_pack,
             "source": "HubSpot target-account lookup from Luma match keys",
             "scope": {
                 **_scope_response(scope, selected, target_owner_id, target_owner_email),
                 "contact_email_key_count": len(contact_emails),
                 "email_domain_key_count": len(domains),
                 "company_name_candidate_count": len(names),
+                "attendee_action_record_count": len(safe_attendee_records),
                 "include_contact_pii": bool(include_contact_pii),
                 "scanned_target_account_count": scoped_accounts.get("returned_count", len(scoped_accounts.get("results", []))),
                 "requested_limit": requested_limit,
@@ -13874,9 +14326,10 @@ def find_target_accounts_by_luma_match_keys(
             else "verified",
             "caveat": (
                 "This is event-first HubSpot scoping from Luma match keys. Match order is exact HubSpot contact email, "
-                "exact email domain, then company-name candidate. Matched contact email/phone/mobile may be returned "
-                "only for scoped HubSpot contact matches when include_contact_pii=true. Unmatched attendees, raw match-key "
-                "lists, phone exports, message bodies, registration answers, and HubSpot writes are blocked."
+                "exact email domain, then company-name candidate. When attendee_records are supplied, event_action_pack "
+                "uses attendee-level rows instead of subtracting matched accounts from RSVP totals. Matched contact "
+                "email/phone/mobile may be returned only for scoped HubSpot contact matches when include_contact_pii=true. "
+                "Unmatched attendees, raw match-key lists, phone exports, message bodies, registration answers, and HubSpot writes are blocked."
             ),
         }
     except ScopeError as error:
@@ -15909,6 +16362,7 @@ def build_sales_whatsapp_window_report(
                     window["utc_window"]["start"],
                     window["utc_window"]["end"],
                     limit,
+                    company_limit=HUBSPOT_SEARCH_TOTAL_LIMIT,
                     include_bodies=include_kns,
                     include_kns=include_kns,
                     local_zone=window["zone"],

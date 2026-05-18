@@ -719,8 +719,10 @@ Expected behavior:
 
 - First response is plan-only unless the quick-autorun gate is fully satisfied.
 - After `run`, resolves the Luma URL by direct event lookup or bounded calendar URL matching when the public slug returns `403`, `400`, or `404`.
-- Calls `get_luma_event_match_keys(include_contact_pii=true)`, then `find_target_accounts_by_luma_match_keys(include_contact_pii=true)` with Jan-E's configured event-operator countries.
-- Returns RSVP totals, matched client/customer count, matched prospect count, unknown/candidate count, AE ownership, matched scoped HubSpot contact details for exact contact-email matches, source, scope, confidence, and caveat.
+- Calls `get_luma_event_match_keys(include_contact_pii=true)`, then `find_target_accounts_by_luma_match_keys(include_contact_pii=true)` with Jan-E's configured event-operator countries and the returned `event_match_action_inputs` as `attendee_records`.
+- Returns RSVP totals/statuses, attendee-level verified match count, approved unmatched/needs-action count, action buckets (`Follow up now`, `CRM cleanup`, `Target-account review`, `Net-new enrichment`, `Defer/exclude`), AE/RevOps/event-operator owner load, matched scoped HubSpot contact details for exact contact-email matches, source, scope, confidence, and caveat.
+- Does not say unmatched attendees by subtracting matched account count from RSVP count.
+- For Sheet output, calls `preview_analysis_sheet_export` with `event_action_pack.sheet_export_payload` for one tab named `Event Match Action Queue`, and calls `apply_analysis_sheet_export` only after explicit Sheet approval.
 - Supports owner-specific follow-up checks such as Jolene/Siti/Jeff/Jeremy by filtering or grouping the same matched-account snapshot by returned owner fields before checking safe follow-up status.
 - Uses `client/customer` only for HubSpot-verified customer status; company-name-only matches remain `needs-check` and unknown/candidate rows stay visible.
 - Matched contact details are limited to contact ID, name/title/role, email, phone, mobile phone, buying role, and match reason for scoped exact HubSpot contact matches.

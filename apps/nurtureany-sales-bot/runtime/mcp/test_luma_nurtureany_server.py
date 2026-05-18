@@ -467,6 +467,56 @@ class LumaNurtureAnyServerTest(unittest.TestCase):
         self.assertNotIn("owner@noci.example", serialized)
         self.assertNotIn("person@gmail.com", serialized)
 
+    def test_luma_event_match_keys_can_return_transient_action_inputs_when_contact_pii_requested(self):
+        def fake_request(path, params=None):
+            if path == "/v1/event/get":
+                return {
+                    "event_id": "evt-1",
+                    "name": "StaffAny HR Happy Hour",
+                    "url": "https://lu.ma/hhh",
+                    "start_at": "2030-05-13T08:00:00Z",
+                }
+            if path == "/v1/event/get-guests":
+                return {
+                    "entries": [
+                        {
+                            "name": "Owner One",
+                            "email": "owner@noci.example",
+                            "company": "Noci Bakehouse",
+                            "approval_status": "approved",
+                            "checked_in_at": "2026-05-13T08:20:00Z",
+                        },
+                        {
+                            "name": "Personal Email",
+                            "email": "person@gmail.com",
+                            "registration_answers": [{"question": "Company name", "answer": "Bali Beans"}],
+                            "approval_status": "pending_approval",
+                        },
+                    ],
+                    "has_more": False,
+                }
+            raise AssertionError(f"unexpected call: {path} {params}")
+
+        with patch.dict(os.environ, {"LUMA_API_KEY": "test-key"}), patch.object(
+            self.module, "_request_json", side_effect=fake_request
+        ):
+            result = self.module.get_luma_event_match_keys(
+                "ae@staffany.com",
+                event_ids=["evt-1"],
+                include_contact_pii=True,
+            )
+
+        answer = result["answer"][0]
+        self.assertEqual(answer["event_match_action_input_count"], 2)
+        self.assertEqual(answer["event_match_action_inputs"][0]["contact_email_match_key"], "owner@noci.example")
+        self.assertEqual(answer["event_match_action_inputs"][0]["email_domain_type"], "business_email_domain")
+        self.assertEqual(answer["event_match_action_inputs"][1]["email_domain_type"], "personal_or_free_email")
+        self.assertEqual(answer["event_match_action_inputs"][1]["rsvp_status"], "pending_approval")
+        serialized = str(result)
+        self.assertNotIn("Owner One", serialized)
+        self.assertNotIn("Personal Email", serialized)
+        self.assertNotIn("registration_answers", serialized)
+
     def test_luma_event_tag_filters_fall_back_to_metadata_as_needs_check(self):
         def fake_request(path, params=None):
             if path == "/v1/calendar/event-tags/list":

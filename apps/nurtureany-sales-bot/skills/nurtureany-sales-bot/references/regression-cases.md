@@ -613,7 +613,7 @@ Expected behavior:
 - Does not expose unmatched guests, raw registration answers, raw match-key lists, message bodies, raw guest lists, Luma mutations, HubSpot mutations, external sends, or attendee exports.
 - Uses `Confidence: needs-check` for company-name candidate matches or truncated event/guest reads.
 
-### Partnerships RSVP Breakdown With Sheets Export
+### Regional Event RSVP Breakdown With Sheets Preview
 
 Prompt from `jan-e@staffany.com`:
 
@@ -624,11 +624,12 @@ Prompt from `jan-e@staffany.com`:
 Expected behavior:
 
 - First response is plan-only unless quick-autorun is clearly satisfied.
-- Preflight says the run will export sanitized rows to the shared Google Sheets workbook in addition to the Slack summary.
-- After `run`, resolves Jan-E as `scope_kind=partnerships_viewer` with Singapore/Malaysia country scope and no HubSpot owner restriction.
-- Route: `list_luma_events` or selected Luma event lookup -> `get_luma_event_match_keys` -> `find_target_accounts_by_luma_match_keys` for SG/MY -> `get_luma_event_context` only for scoped matched candidate companies -> `preview_analysis_sheet_export` -> `apply_analysis_sheet_export`.
-- Output uses HubSpot `account_status` / `account_status_source`, owner fields, Luma match reason/confidence, RSVP status, invited-by label when safe, and source permalink.
-- Slack final answer includes short answer, key counts, Sheet link, source, scope, confidence, and caveat.
+- Preflight says the run will prepare a sanitized Sheet preview in addition to the Slack summary.
+- After `run`, resolves Jan-E as `scope_kind=event_operator` with configured country scope and no manager/admin escalation.
+- Route: `list_luma_events` or selected Luma event lookup -> `get_luma_event_match_keys(include_contact_pii=true)` -> `find_target_accounts_by_luma_match_keys` for SG/MY with returned `event_match_action_inputs` as `attendee_records` -> `get_luma_event_context` only for scoped matched candidate companies when needed -> `preview_analysis_sheet_export`.
+- Output uses `event_action_pack.summary`: RSVP truth, attendee-level match truth, action buckets, owner load, and caveat. It does not compute unmatched attendees by subtracting matched account count from RSVP count.
+- Sheet preview uses one tab named `Event Match Action Queue`, safe HubSpot company/contact links, match level/confidence, root cause, next action, action owner, due date, status, and source permalink. `apply_analysis_sheet_export` runs only after explicit Sheet approval in the same thread.
+- Slack final answer includes short answer, key counts, Sheet preview/write status, source, scope, confidence, and caveat.
 - Does not mutate HubSpot, dump raw guest lists, expose phone numbers/full attendee emails/raw registration answers, run manager/coaching audits, or inspect raw WhatsApp/task/note bodies.
 
 ## Post-Event Follow-Up Status

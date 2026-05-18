@@ -20,9 +20,9 @@ NurtureAny may use the StaffAny `team@staffany.com` Google Sheets OAuth account 
 ## Query Rules
 
 - Use Sheets export for table-shaped team analyses where Slack-only output is hard to consume.
-- The Slack preflight must say sanitized rows will be exported to the shared workbook. The same `run` approval covers the internal Sheet write.
+- The Slack preflight must say sanitized rows will be previewed for the shared workbook. The same `run` approval covers row preparation and preview only; `apply_analysis_sheet_export` requires explicit Sheet approval in the same thread.
 - Always call `preview_analysis_sheet_export` before `apply_analysis_sheet_export` when the output shape is not already deterministic.
 - Use stable `idempotency_key` values from the Slack channel/thread/run or selected source so reruns update the same tab and `Runs` row.
 - Write only Slack-safe / CRM-safe fields. Do not write raw Slack transcripts, phone numbers, full attendee emails, raw HubSpot bodies, raw guest exports, secrets, or raw Luma registration answers.
-- For Luma/event analyses, use safe fields such as account name, HubSpot company ID, country, owner name/email when already returned safely by HubSpot, account status, RSVP status, invited-by label, match reason, match confidence, and source permalink.
-- Final Slack response should include the short answer, key counts, Sheet link, source, scope, confidence, and caveat.
+- For Luma/event analyses, use safe fields such as account name, HubSpot company link, HubSpot contact link for exact scoped matches, country, owner name, account status, RSVP status, match level, match confidence, root cause, next action, action owner, and source permalink.
+- Event match action queues use one tab named `Event Match Action Queue`. The Slack summary should show RSVP truth, attendee-level match truth, action buckets, owner load, preview status, source, scope, confidence, and caveat. Include a Sheet link only after the approved apply step succeeds.
