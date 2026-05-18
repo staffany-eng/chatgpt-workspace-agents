@@ -296,7 +296,11 @@ import yaml
 
 template_path, config_path, runtime_owner = sys.argv[1:4]
 template = yaml.safe_load(Path(template_path).read_text()) or {}
-config = yaml.safe_load(Path(config_path).read_text()) or {}
+config_file = Path(config_path)
+if config_file.exists():
+    config = yaml.safe_load(config_file.read_text()) or {}
+else:
+    config = {}
 
 changed = False
 for key in ("security", "display", "model", "agent", "slack"):
@@ -309,8 +313,8 @@ if gateway and config.get("gateway") != gateway:
     config["gateway"] = gateway
     changed = True
 
-if changed:
-    Path(config_path).write_text(yaml.safe_dump(config, sort_keys=False))
+if changed or not config_file.exists():
+    config_file.write_text(yaml.safe_dump(config, sort_keys=False))
 PY
 sudo chown "$runtime_owner:$runtime_owner" "$profile/config.yaml"
 sudo chmod 0644 "$profile/config.yaml"
