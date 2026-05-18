@@ -1591,12 +1591,12 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
             "aliases": {},
         }
         calls = [
-            {"id": "call-60", "properties": {"hs_timestamp": "2026-05-14T06:10:00Z", "hubspot_owner_id": "owner-1", "hs_call_status": "COMPLETED", "hs_call_duration": "60000"}},
-            {"id": "call-61", "properties": {"hs_timestamp": "2026-05-14T06:20:00Z", "hubspot_owner_id": "owner-1", "hs_call_status": "COMPLETED", "hs_call_duration": "61000"}},
-            {"id": "call-119", "properties": {"hs_timestamp": "2026-05-14T06:30:00Z", "hubspot_owner_id": "owner-1", "hs_call_status": "COMPLETED", "hs_call_duration": "119000"}},
-            {"id": "call-120", "properties": {"hs_timestamp": "2026-05-14T06:40:00Z", "hubspot_owner_id": "owner-1", "hs_call_status": "COMPLETED", "hs_call_duration": "120000"}},
-            {"id": "call-done", "properties": {"hs_timestamp": "2026-05-14T06:50:00Z", "hubspot_owner_id": "owner-1", "hs_call_status": "DONE", "hs_call_duration": "130000"}},
-            {"id": "call-scheduled", "properties": {"hs_timestamp": "2026-05-14T06:55:00Z", "hubspot_owner_id": "owner-1", "hs_call_status": "SCHEDULED", "hs_call_duration": "300000"}},
+            {"id": "call-60", "properties": {"hs_timestamp": "2026-05-14T06:10:00Z", "hubspot_owner_id": "owner-1", "hs_call_status": "COMPLETED", "hs_call_direction": "OUTBOUND", "hs_call_duration": "60000"}},
+            {"id": "call-61", "properties": {"hs_timestamp": "2026-05-14T06:20:00Z", "hubspot_owner_id": "owner-1", "hs_call_status": "COMPLETED", "hs_call_direction": "OUTBOUND", "hs_call_duration": "61000"}},
+            {"id": "call-119", "properties": {"hs_timestamp": "2026-05-14T06:30:00Z", "hubspot_owner_id": "owner-1", "hs_call_status": "COMPLETED", "hs_call_direction": "OUTBOUND", "hs_call_duration": "119000"}},
+            {"id": "call-120", "properties": {"hs_timestamp": "2026-05-14T06:40:00Z", "hubspot_owner_id": "owner-1", "hs_call_status": "COMPLETED", "hs_call_direction": "OUTBOUND", "hs_call_title": "Discovery call", "hs_call_duration": "120000"}},
+            {"id": "call-done", "properties": {"hs_timestamp": "2026-05-14T06:50:00Z", "hubspot_owner_id": "owner-1", "hs_call_status": "DONE", "hs_call_direction": "OUTBOUND", "hs_call_title": "Follow-up call", "hs_call_duration": "130000"}},
+            {"id": "call-scheduled", "properties": {"hs_timestamp": "2026-05-14T06:55:00Z", "hubspot_owner_id": "owner-1", "hs_call_status": "SCHEDULED", "hs_call_direction": "OUTBOUND", "hs_call_duration": "300000"}},
         ]
 
         def fake_object_search(object_type, filters, *_args, **_kwargs):
@@ -1634,6 +1634,8 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         self.assertEqual(result["answer"]["totals"]["completed_calls_gt_60s"], 4)
         self.assertEqual(result["answer"]["totals"]["completed_calls_exactly_60s_excluded_from_gt_60s"], 1)
         self.assertEqual(result["answer"]["totals"]["connected_calls_120s_guardrail"], 2)
+        self.assertEqual(result["answer"]["totals"]["outbound_connected_calls_120s_guardrail"], 1)
+        self.assertEqual(result["answer"]["totals"]["follow_up_calls_excluded_from_outbound_connected"], 1)
 
     def test_list_sales_call_events_shows_target_account_association_mode(self):
         policy = {
@@ -4815,6 +4817,7 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
             self.assertNotIn("hs_meeting_body", properties)
             if object_type == "calls":
                 self.assertIn("hs_call_external_id", properties)
+                self.assertIn("hs_call_direction", properties)
                 self.assertIn("hs_object_source_detail_1", properties)
                 return [
                     {
@@ -4823,6 +4826,7 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
                             "hs_timestamp": "2026-05-04T02:00:00Z",
                             "hubspot_owner_id": "owner-sales",
                             "hs_call_status": "COMPLETED",
+                            "hs_call_direction": "OUTBOUND",
                             "hs_call_duration": "119000",
                             "hs_call_title": "Call +6512345678",
                         },
@@ -4833,6 +4837,7 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
                             "hs_timestamp": "2026-05-04T03:00:00Z",
                             "hubspot_owner_id": "owner-sales",
                             "hs_call_status": "COMPLETED",
+                            "hs_call_direction": "OUTBOUND",
                             "hs_call_duration": "180000",
                             "hs_call_title": "Discovery call",
                             "hs_call_external_id": "3770565512",
@@ -4846,6 +4851,7 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
                             "hs_timestamp": "2026-05-04T04:00:00Z",
                             "hubspot_owner_id": "owner-sales",
                             "hs_call_status": "SCHEDULED",
+                            "hs_call_direction": "OUTBOUND",
                             "hs_call_duration": "300000",
                         },
                     },
@@ -4894,6 +4900,119 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         self.assertEqual(connected["aircall_call_id"], "3770565512")
         self.assertNotIn("+6512345678", json.dumps(result))
         self.assertNotIn("body", json.dumps(result).lower())
+
+    def test_meaningful_call_touch_requires_outbound_non_follow_up(self):
+        meaningful = {
+            "properties": {
+                "hs_call_status": "COMPLETED",
+                "hs_call_direction": "OUTBOUND",
+                "hs_call_title": "Discovery call",
+            }
+        }
+        inbound = {
+            "properties": {
+                "hs_call_status": "COMPLETED",
+                "hs_call_direction": "INBOUND",
+                "hs_call_title": "Discovery call",
+            }
+        }
+        follow_up = {
+            "properties": {
+                "hs_call_status": "COMPLETED",
+                "hs_call_direction": "OUTBOUND",
+                "hs_call_title": "Follow-up call",
+            }
+        }
+        missing_direction = {"properties": {"hs_call_status": "COMPLETED", "hs_call_title": "Discovery call"}}
+
+        self.assertTrue(self.module._is_meaningful_call_touch(meaningful))
+        self.assertFalse(self.module._is_meaningful_call_touch(inbound))
+        self.assertFalse(self.module._is_meaningful_call_touch(follow_up))
+        self.assertFalse(self.module._is_meaningful_call_touch(missing_direction))
+
+    def test_week_activity_index_uses_bulk_owner_activity_search_for_large_pools(self):
+        companies = [
+            {
+                "id": str(index),
+                "properties": {"name": f"Account {index}", "hubspot_owner_id": "owner-1"},
+            }
+            for index in range(self.module.PRIORITY_ACCOUNT_BULK_ACTIVITY_INDEX_THRESHOLD)
+        ]
+        contact_index = {"10": ["contact-10"]}
+        deal_index = {"20": ["deal-20"]}
+        activities = {
+            "communications": [
+                {
+                    "id": "comm-1",
+                    "properties": {
+                        "hs_timestamp": "2026-05-12T02:00:00Z",
+                        "hubspot_owner_id": "owner-1",
+                        "hs_communication_channel_type": "WHATS_APP",
+                    },
+                }
+            ],
+            "calls": [
+                {
+                    "id": "call-1",
+                    "properties": {
+                        "hs_timestamp": "2026-05-12T03:00:00Z",
+                        "hubspot_owner_id": "owner-1",
+                        "hs_call_status": "COMPLETED",
+                        "hs_call_direction": "OUTBOUND",
+                        "hs_call_duration": "130000",
+                    },
+                }
+            ],
+            "meetings": [
+                {
+                    "id": "meeting-1",
+                    "properties": {
+                        "hs_timestamp": "2026-05-12T04:00:00Z",
+                        "hubspot_owner_id": "owner-1",
+                        "hs_meeting_outcome": "COMPLETED",
+                    },
+                }
+            ],
+        }
+
+        def fake_object_search(object_type, filters, *_args, **_kwargs):
+            self.assertIn({"propertyName": "hubspot_owner_id", "operator": "EQ", "value": "owner-1"}, filters)
+            return {
+                "results": activities.get(object_type, []),
+                "total": len(activities.get(object_type, [])),
+                "requested_limit": 1000,
+                "returned_count": len(activities.get(object_type, [])),
+                "has_more": False,
+                "truncated": False,
+            }
+
+        def fake_batch_associations(from_type, to_type, ids, deadline=None):
+            self.assertNotEqual(from_type, "companies")
+            if (from_type, to_type) == ("communications", "contacts"):
+                return {"comm-1": ["contact-10"]}
+            if (from_type, to_type) == ("calls", "companies"):
+                return {"call-1": ["10"]}
+            if (from_type, to_type) == ("meetings", "deals"):
+                return {"meeting-1": ["deal-20"]}
+            return {str(object_id): [] for object_id in ids}
+
+        with patch.object(self.module, "_object_search", side_effect=fake_object_search), patch.object(
+            self.module, "_batch_association_ids_until", side_effect=fake_batch_associations
+        ):
+            result = self.module._week_activity_index_for_companies(
+                companies,
+                contact_index,
+                deal_index,
+                self.module.datetime.fromisoformat("2026-05-11T00:00:00+00:00"),
+                self.module.datetime.fromisoformat("2026-05-15T23:59:59+00:00"),
+            )
+
+        self.assertEqual(result["10"]["counts"]["touches"], 2)
+        self.assertEqual(result["10"]["counts"]["whatsapp_communications"], 1)
+        self.assertEqual(result["10"]["counts"]["connected_calls"], 1)
+        self.assertEqual(result["20"]["counts"]["touches"], 1)
+        self.assertEqual(result["20"]["counts"]["completed_meetings"], 1)
+        self.assertEqual(result["10"]["confidence"], "verified")
 
     def test_priority_account_coverage_reports_hits_misses_stale_dirty_and_truncation(self):
         companies = [
@@ -5162,6 +5281,206 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         self.assertTrue(result["truncated"])
         self.assertEqual(result["tasks_by_company"], {"1": []})
         self.assertTrue(result["metadata"]["partial_due_to_soft_timeout"])
+
+    def test_priority_account_coverage_returns_owner_rows_on_soft_timeout(self):
+        companies = [
+            {
+                "id": str(index),
+                "properties": {
+                    "name": f"Jeffrey Account {index}",
+                    "hs_is_target_account": "true",
+                    "company_country": "Singapore",
+                    "hubspot_owner_id": "owner-jeffrey",
+                    "nurtureany_priority_score": str(index),
+                },
+            }
+            for index in range(150)
+        ]
+
+        with patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
+            self.module,
+            "_target_owner_id_for_scope",
+            return_value=("owner-jeffrey", "jeffrey@staffany.com"),
+        ), patch.object(
+            self.module,
+            "_hubspot_soft_deadline",
+            return_value=self.module.time.monotonic() - 1,
+        ), patch.object(
+            self.module,
+            "_company_search",
+            return_value={
+                "results": companies,
+                "total": 595,
+                "requested_limit": 150,
+                "returned_count": 150,
+                "has_more": True,
+                "truncated": True,
+            },
+        ), patch.object(
+            self.module,
+            "_batch_read",
+            side_effect=AssertionError("expired deadline should skip batch reads"),
+        ), patch.object(
+            self.module,
+            "_week_activity_index_for_companies",
+            side_effect=AssertionError("expired deadline should skip activity fanout"),
+        ):
+            result = self.module.audit_priority_account_coverage(
+                "eugene@staffany.com",
+                countries=["Singapore", "Malaysia"],
+                owner_email="jeffrey@staffany.com",
+                week_start="2026-05-11",
+                week_end="2026-05-15",
+                limit=150,
+                soft_timeout_seconds=30,
+            )
+
+        self.assertEqual(result["confidence"], "needs-check")
+        self.assertTrue(result["partial_due_to_soft_timeout"])
+        self.assertEqual(result["returned_count"], 150)
+        self.assertEqual(result["total"], 595)
+        self.assertEqual(len(result["answer"]["owners"]), 1)
+        owner = result["answer"]["owners"][0]
+        self.assertEqual(owner["owner_id"], "owner-jeffrey")
+        self.assertEqual(owner["locked_pool_count"], 150)
+        self.assertEqual(owner["evidence_completeness"], "needs-check")
+        self.assertTrue(owner["activity_truncated"])
+
+    def test_priority_account_coverage_selects_deterministic_top_150_per_owner(self):
+        companies = [
+            {
+                "id": f"{index:03d}",
+                "properties": {
+                    "name": f"Account {index:03d}",
+                    "hs_is_target_account": "true",
+                    "company_country": "Singapore",
+                    "hubspot_owner_id": "owner-1",
+                    "numberofemployees": "80",
+                    "nurtureany_priority_score": str(index),
+                },
+            }
+            for index in range(1, 161)
+        ]
+
+        def fake_company_search(filters, limit, **_kwargs):
+            self.assertEqual(limit, self.module.PRIORITY_ACCOUNT_RETURN_LIMIT)
+            self.assertIn({"propertyName": "numberofemployees", "operator": "GTE", "value": "21"}, filters)
+            return {
+                "results": companies,
+                "total": 160,
+                "requested_limit": limit,
+                "returned_count": 160,
+                "has_more": False,
+                "truncated": False,
+            }
+
+        empty_activity = {company["id"]: self.module._empty_week_activity() for company in companies}
+        with patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
+            self.module, "_target_owner_id_for_scope", return_value=("owner-1", "ae@example.com")
+        ), patch.object(self.module, "_company_search", side_effect=fake_company_search), patch.object(
+            self.module, "_batch_association_ids_until", return_value={}
+        ), patch.object(self.module, "_safe_contact_index", return_value={}), patch.object(
+            self.module, "_week_activity_index_for_companies", return_value=empty_activity
+        ), patch.object(
+            self.module,
+            "_sales_followup_task_index_for_company_associations",
+            return_value={"tasks_by_company": {}, "truncated": False, "partial_due_to_soft_timeout": False},
+        ), patch.object(
+            self.module, "_owner_lookup_by_id", return_value={"owner-1": {"id": "owner-1", "email": "ae@example.com", "firstName": "AE"}}
+        ):
+            result = self.module._priority_account_coverage(
+                "eugene@staffany.com",
+                countries=["Singapore"],
+                owner_email="ae@example.com",
+                week_start="2026-05-11",
+                week_end="2026-05-15",
+                limit=150,
+                include_internal=True,
+                headcount_min=21,
+            )
+
+        selected_ids = [company["id"] for company in result["_internal"]["companies"]]
+        self.assertEqual(len(selected_ids), 150)
+        self.assertEqual(selected_ids[0], "160")
+        self.assertEqual(selected_ids[-1], "011")
+        self.assertNotIn("010", selected_ids)
+        self.assertEqual(result["scope"]["target_pool_selection"]["per_owner_limit"], 150)
+        self.assertEqual(result["scope"]["target_pool_selection"]["owners"]["owner-1"]["candidate_count_after_filters"], 160)
+
+    def test_priority_account_coverage_intersects_pipeline_stage_deal_bucket(self):
+        companies = [
+            {
+                "id": "1",
+                "properties": {
+                    "name": "High Priority No Deal",
+                    "hs_is_target_account": "true",
+                    "company_country": "Singapore",
+                    "hubspot_owner_id": "owner-1",
+                    "nurtureany_priority_score": "100",
+                },
+            },
+            {
+                "id": "2",
+                "properties": {
+                    "name": "Lower Priority In Deal Bucket",
+                    "hs_is_target_account": "true",
+                    "company_country": "Singapore",
+                    "hubspot_owner_id": "owner-1",
+                    "nurtureany_priority_score": "1",
+                },
+            },
+        ]
+
+        def fake_deal_search(filters, *_args, **_kwargs):
+            self.assertIn({"propertyName": "hubspot_owner_id", "operator": "EQ", "value": "owner-1"}, filters)
+            self.assertIn({"propertyName": "pipeline", "operator": "IN", "values": ["pipeline-a"]}, filters)
+            self.assertIn({"propertyName": "dealstage", "operator": "IN", "values": ["stage-qo"]}, filters)
+            return {
+                "results": [{"id": "deal-2", "properties": {"hubspot_owner_id": "owner-1", "pipeline": "pipeline-a", "dealstage": "stage-qo"}}],
+                "total": 1,
+                "requested_limit": 1000,
+                "returned_count": 1,
+                "has_more": False,
+                "truncated": False,
+            }
+
+        def fake_associations(from_type, to_type, ids, deadline=None):
+            if (from_type, to_type) == ("deals", "companies"):
+                return {"deal-2": ["2"]}
+            return {str(object_id): [] for object_id in ids}
+
+        with patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
+            self.module, "_target_owner_id_for_scope", return_value=("owner-1", "ae@example.com")
+        ), patch.object(
+            self.module,
+            "_company_search",
+            return_value={"results": companies, "total": 2, "requested_limit": 1000, "returned_count": 2, "has_more": False, "truncated": False},
+        ), patch.object(self.module, "_deal_search", side_effect=fake_deal_search), patch.object(
+            self.module, "_batch_association_ids_until", side_effect=fake_associations
+        ), patch.object(self.module, "_safe_contact_index", return_value={}), patch.object(
+            self.module, "_week_activity_index_for_companies", return_value={"2": self.module._empty_week_activity()}
+        ), patch.object(
+            self.module,
+            "_sales_followup_task_index_for_company_associations",
+            return_value={"tasks_by_company": {}, "truncated": False, "partial_due_to_soft_timeout": False},
+        ), patch.object(
+            self.module, "_owner_lookup_by_id", return_value={"owner-1": {"id": "owner-1", "email": "ae@example.com", "firstName": "AE"}}
+        ):
+            result = self.module._priority_account_coverage(
+                "eugene@staffany.com",
+                countries=["Singapore"],
+                owner_email="ae@example.com",
+                week_start="2026-05-11",
+                week_end="2026-05-15",
+                include_internal=True,
+                pipeline_ids=["pipeline-a"],
+                dealstage_ids=["stage-qo"],
+            )
+
+        self.assertEqual([company["id"] for company in result["_internal"]["companies"]], ["2"])
+        deal_filter = result["scope"]["target_pool_selection"]["owners"]["owner-1"]["deal_filter"]
+        self.assertTrue(deal_filter["applied"])
+        self.assertEqual(deal_filter["company_count"], 1)
 
     def test_ae_can_audit_self_but_not_another_owner(self):
         ae_scope = {"kind": "ae", "email": "ae@staffany.com", "countries": ("Singapore",), "owner_id": "owner-ae"}

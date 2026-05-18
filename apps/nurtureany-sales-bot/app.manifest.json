@@ -254,9 +254,21 @@
       "hs_lastmodifieddate"
     ],
     "friday_sales_review": {
-      "locked_pool_source": "hs_is_target_account=true plus hubspot_owner_id and company_country",
+      "locked_pool_source": "per-owner top 150 from hs_is_target_account=true plus hubspot_owner_id and company_country, with optional headcount and associated deal pipeline/stage filters",
       "weekly_account_target": "120 of locked 150",
       "connected_call_definition": "HubSpot calls with hs_call_status=COMPLETED and hs_call_duration>=120000 ms",
+      "meaningful_activity_definition": "HubSpot WhatsApp communications, completed outbound non-follow-up calls, and completed meetings; notes/tasks excluded",
+      "priority_account_headcount_min_env_var": "NURTUREANY_PRIORITY_ACCOUNT_HEADCOUNT_MIN",
+      "priority_account_headcount_max_env_var": "NURTUREANY_PRIORITY_ACCOUNT_HEADCOUNT_MAX",
+      "priority_account_pipeline_ids_env_var": "NURTUREANY_PRIORITY_ACCOUNT_PIPELINE_IDS",
+      "priority_account_deal_stage_ids_env_var": "NURTUREANY_PRIORITY_ACCOUNT_DEAL_STAGE_IDS",
+      "priority_account_sort": [
+        "nurtureany_priority_score DESC",
+        "nurtureany_last_nurtured_at ASC",
+        "nurtureany_last_reviewed_at ASC",
+        "name ASC",
+        "company_id ASC"
+      ],
       "warm_activity_labels": [
         "HHH",
         "LL",

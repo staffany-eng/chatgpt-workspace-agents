@@ -400,6 +400,18 @@ mcp_servers:
       default_org_url_template: https://customer-360-qv4r5xkisq-as.a.run.app/companies/{customer360_route_key}/orgs/{organisation_id}
       known_route_keys:
         '1991281569': fei-siong-group
+    meaningful_activity_target_pool:
+      headcount_min_env: NURTUREANY_PRIORITY_ACCOUNT_HEADCOUNT_MIN
+      headcount_max_env: NURTUREANY_PRIORITY_ACCOUNT_HEADCOUNT_MAX
+      pipeline_ids_env: NURTUREANY_PRIORITY_ACCOUNT_PIPELINE_IDS
+      deal_stage_ids_env: NURTUREANY_PRIORITY_ACCOUNT_DEAL_STAGE_IDS
+      selected_pool_size: 150
+      sort:
+      - nurtureany_priority_score DESC
+      - nurtureany_last_nurtured_at ASC
+      - nurtureany_last_reviewed_at ASC
+      - name ASC
+      - company_id ASC
     timeout: 600
     tool_allowlist:
     - list_inbound_threads
