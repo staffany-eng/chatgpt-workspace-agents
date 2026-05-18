@@ -20,9 +20,10 @@ PSM Ops Bot needs deterministic cloud health checks because prompt correctness d
 - `psm_jira` MCP lists exactly the expected tools.
 - `psm_c360` MCP lists exactly the expected tools.
 - `psm_google_calendar` MCP lists exactly `read_customer_calendar_context` when Google Calendar is enabled.
-- `psm_appfollow` MCP lists exactly `list_appfollow_apps`, `get_appfollow_review`, `tag_appfollow_review`, `draft_appfollow_reply`, `suggest_appfollow_review_identity_candidates`, `confirm_appfollow_review_identity`, and `publish_appfollow_reply_after_approval`.
+- `psm_store_reviews` MCP lists exactly `list_store_review_apps`, `list_store_reviews`, `get_store_review`, `draft_store_review_reply`, `suggest_store_review_identity_candidates`, and `confirm_store_review_identity`.
 - Google Calendar OAuth is configured for `team@staffany.com` with `calendar.readonly`, returns bounded event metadata, and exposes no mutation or attendee-export tools.
-- If `PSM_OPS_APPFOLLOW_ENABLED=true`, `APPFOLLOW_API_TOKEN` is configured and AppFollow review access stays event-driven; no constant review polling cron exists.
+- Direct store review credentials are configured through `GOOGLE_PLAY_SERVICE_ACCOUNT_FILE` or `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`, plus `APP_STORE_CONNECT_CONFIG_FILE` or `APP_STORE_CONNECT_CONFIG_JSON`.
+- `openssl` is available for Google Play service-account and App Store Connect JWT signing.
 - `validate_jira_configuration` reports thin POC defaults or full configured fields and request types, including `PS Team`.
 - `validate_roi_jira_configuration` reports exactly one ROI project key, service desk ID, request type ID, and mapped required request fields before ROI-direct creation is enabled.
 - C360 internal API token is configured.
@@ -34,6 +35,7 @@ PSM Ops Bot needs deterministic cloud health checks because prompt correctness d
 - Reminder Slack mentions use `PSM_OPS_REMINDER_MENTION_MAP_PATH` when configured; unmapped PS Team values remain visible as `Mention gaps` and are not guessed.
 - Reminder customer-team tags use reviewed `PSM_OPS_CUSTOMER_CHANNEL_MAP_PATH` source-link matches only and never cross-post to customer channels.
 - ROI tracker sync cron is enabled in cloud as a no-agent script every 30 minutes during Singapore workdays and watches only linked `ps-wee-roi-tracker` PCO issues.
+- Store review poll cron is enabled hourly as a no-agent direct store review script and reports only new or meaningfully changed reviews.
 - PCO assignment hygiene cron is enabled in cloud as a no-agent script on Singapore workdays and reports missing assignee, `PS Team`, or due date using safe Jira fields only.
 - VM-local cloud heartbeat cron is enabled every 15 minutes with local delivery disabled.
 - PS WEE adoption digest cron is enabled as a no-agent weekday Slack automation with the `PSM Ops automation:` prefix.
@@ -97,15 +99,15 @@ cp apps/psm-ops-bot/runtime/scripts/psm_ops_pco_assignment_hygiene.py \
   ~/.hermes/profiles/psmopsbot/scripts/psm_ops_pco_assignment_hygiene.py
 cp apps/psm-ops-bot/runtime/scripts/psm_ops_join_public_channels.py \
   ~/.hermes/profiles/psmopsbot/scripts/psm_ops_join_public_channels.py
-cp apps/psm-ops-bot/runtime/scripts/psm_ops_appfollow_review_triage.py \
-  ~/.hermes/profiles/psmopsbot/scripts/psm_ops_appfollow_review_triage.py
+cp apps/psm-ops-bot/runtime/scripts/psm_ops_store_review_poll.py \
+  ~/.hermes/profiles/psmopsbot/scripts/psm_ops_store_review_poll.py
 chmod 755 ~/.hermes/profiles/psmopsbot/scripts/psm_ops_due_date_reminders.py \
   ~/.hermes/profiles/psmopsbot/scripts/psm_ops_due_date_reminders_eod.py \
   ~/.hermes/profiles/psmopsbot/scripts/psm_ops_pco_assignment_hygiene.py \
   ~/.hermes/profiles/psmopsbot/scripts/psm_ops_roi_tracker_sync.py \
   ~/.hermes/profiles/psmopsbot/scripts/psm_ops_pco_assignment_hygiene.py \
   ~/.hermes/profiles/psmopsbot/scripts/psm_ops_join_public_channels.py \
-  ~/.hermes/profiles/psmopsbot/scripts/psm_ops_appfollow_review_triage.py
+  ~/.hermes/profiles/psmopsbot/scripts/psm_ops_store_review_poll.py
 
 hermes -p psmopsbot cron create "0 1 * * 1-5" \
   --name "psmopsbot due-date reminders" \
@@ -131,6 +133,12 @@ hermes -p psmopsbot cron create "*/30 1-10 * * 1-5" \
   --no-agent \
   --deliver "slack:#ps-weeman-bot-test"
 
+hermes -p psmopsbot cron create "0 * * * *" \
+  --name "psmopsbot store review poll" \
+  --script psm_ops_store_review_poll.py \
+  --no-agent \
+  --deliver "slack:#ps-weeman-bot-test"
+
 cp apps/psm-ops-bot/runtime/check-cloud-heartbeat.sh ~/.hermes/profiles/psmopsbot/scripts/psmopsbot-check-cloud-heartbeat.sh
 hermes -p psmopsbot cron create "*/15 * * * *" \
   --name "psmopsbot local cloud heartbeat" \
@@ -145,9 +153,7 @@ hermes -p psmopsbot cron create "0 2 * * 1-5" \
   --deliver "slack:#ps-weeman-bot-test"
 ```
 
-The GCE host runs UTC, so `0 1 * * 1-5` is 09:00 Asia/Singapore on weekdays, `15 1 * * 1-5` is 09:15 Asia/Singapore on weekdays, `0 9 * * 1-5` is 17:00 Asia/Singapore on weekdays, and `*/30 1-10 * * 1-5` checks ROI trackers every 30 minutes during Singapore workdays. Hermes cron does not pass script arguments, so the EOD cron uses the same source script copied under an `eod` filename; direct dry runs can still use `--mode morning|eod`.
-
-Do not install an AppFollow review polling cron. Trigger `psm_ops_appfollow_review_triage.py` only from a specific Slack alert permalink or an explicit human action.
+The GCE host runs UTC, so `0 1 * * 1-5` is 09:00 Asia/Singapore on weekdays, `15 1 * * 1-5` is 09:15 Asia/Singapore on weekdays, `0 9 * * 1-5` is 17:00 Asia/Singapore on weekdays, and `*/30 1-10 * * 1-5` checks ROI trackers every 30 minutes during Singapore workdays. `0 * * * *` checks direct store reviews hourly. Hermes cron does not pass script arguments, so the EOD cron uses the same source script copied under an `eod` filename; direct dry runs can still use `--mode morning|eod`.
 
 Install central audit/adoption telemetry after the profile exists:
 

@@ -26,14 +26,16 @@ if command -v systemctl >/dev/null 2>&1; then
   [ "$active" = "active" ] || fail "gateway_service:not-active:$GATEWAY_SERVICE_NAME"
 fi
 
+command -v openssl >/dev/null 2>&1 || fail "dependency:openssl:not-found"
+
 if command -v hermes >/dev/null 2>&1; then
-  for server in psm_jira psm_c360 psm_google_calendar psm_appfollow; do
+  for server in psm_jira psm_c360 psm_google_calendar psm_store_reviews; do
     out="$(hermes -p "$PROFILE" mcp test "$server" 2>&1 || true)"
     case "$server" in
       psm_jira) expected=24 ;;
       psm_c360) expected=3 ;;
       psm_google_calendar) expected=1 ;;
-      psm_appfollow) expected=7 ;;
+      psm_store_reviews) expected=6 ;;
     esac
     count="$(printf '%s\n' "$out" | sed -nE 's/.*Tools discovered: ([0-9]+).*/\1/p' | tail -1)"
     [ "$count" = "$expected" ] || fail "mcp:$server:tools=${count:-unavailable}:expected=$expected"
@@ -116,9 +118,19 @@ for key in \
   [ -n "$value" ] || fail "env:$key:missing"
 done
 
-appfollow_enabled="$(printf '%s' "${PSM_OPS_APPFOLLOW_ENABLED:-}" | tr '[:upper:]' '[:lower:]')"
-if [ "$appfollow_enabled" = "1" ] || [ "$appfollow_enabled" = "true" ] || [ "$appfollow_enabled" = "yes" ] || [ "$appfollow_enabled" = "on" ]; then
-  [ -n "${APPFOLLOW_API_TOKEN:-}" ] || fail "env:APPFOLLOW_API_TOKEN:missing"
+if [ -z "${GOOGLE_PLAY_SERVICE_ACCOUNT_JSON:-}" ]; then
+  [ -r "${GOOGLE_PLAY_SERVICE_ACCOUNT_FILE:-}" ] || fail "store_reviews:google-play-service-account-missing"
+fi
+if [ -z "${APP_STORE_CONNECT_CONFIG_JSON:-}" ]; then
+  if [ -n "${APP_STORE_CONNECT_CONFIG_FILE:-}" ]; then
+    [ -r "$APP_STORE_CONNECT_CONFIG_FILE" ] || fail "store_reviews:app-store-connect-config-missing"
+  else
+    [ -n "${APP_STORE_CONNECT_ISSUER_ID:-}" ] || fail "store_reviews:app-store-connect-issuer-missing"
+    [ -n "${APP_STORE_CONNECT_KEY_ID:-}" ] || fail "store_reviews:app-store-connect-key-id-missing"
+    if [ -z "${APP_STORE_CONNECT_PRIVATE_KEY:-}" ]; then
+      [ -r "${APP_STORE_CONNECT_PRIVATE_KEY_FILE:-}" ] || fail "store_reviews:app-store-connect-private-key-missing"
+    fi
+  fi
 fi
 
 [ "${GOOGLE_CALENDAR_ACCOUNT_EMAIL:-team@staffany.com}" = "team@staffany.com" ] || fail "google_calendar:account-not-team"

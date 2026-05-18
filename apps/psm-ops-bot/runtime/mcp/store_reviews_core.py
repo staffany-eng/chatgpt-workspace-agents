@@ -1,0 +1,1127 @@
+#!/usr/bin/env python3
+"""Direct App Store / Google Play review helpers for PSM Ops Bot.
+
+This module is shared by the MCP adapter and the no-agent polling script.
+Third-party aggregators are intentionally not used here: store APIs are review
+truth, Slack is the PS Wee action surface, and public reply publishing is not
+exposed in V1.
+"""
+
+from __future__ import annotations
+
+import base64
+import hashlib
+import json
+import os
+import re
+import socket
+import subprocess
+import tempfile
+import urllib.error
+import urllib.parse
+import urllib.request
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from typing import Any
+
+
+STORE_REVIEWS_SOURCE = "Direct App Store Connect + Google Play APIs"
+USER_AGENT = "StaffAny-PSMOps/1.0 (+https://staffany.com)"
+TIMEOUT_SECONDS = 20
+DEFAULT_LOOKBACK_DAYS = 7
+DEFAULT_STATE_PATH = "~/.hermes/profiles/psmopsbot/state/store_reviews.json"
+STATE_KEY_DESCRIPTION = "store + app_ref + review_id"
+STAFFANY_SUPPORT_EMAIL = "support@staffany.com"
+MAX_REPLY_CHARS = 350
+GOOGLE_PLAY_SCOPE = "https://www.googleapis.com/auth/androidpublisher"
+GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
+GOOGLE_ANDROID_PUBLISHER_BASE_URL = "https://androidpublisher.googleapis.com/androidpublisher/v3"
+APP_STORE_CONNECT_BASE_URL = "https://api.appstoreconnect.apple.com/v1"
+APP_STORE_CONNECT_AUDIENCE = "appstoreconnect-v1"
+DEFAULT_GOOGLE_PACKAGE_NAME = "com.staffany.pixie"
+DEFAULT_APP_STORE_APP_ID = "1360658903"
+IDENTITY_LABEL_UNKNOWN = "identity_unknown"
+IDENTITY_LABEL_REQUESTED_PRIVATE = "identity_requested_private"
+IDENTITY_LABEL_CANDIDATE = "identity_candidate"
+IDENTITY_LABEL_CONFIRMED = "identity_confirmed"
+
+
+class StoreReviewError(RuntimeError):
+    def __init__(self, message: str, status_code: int | None = None):
+        super().__init__(message)
+        self.status_code = status_code
+
+
+def _env(name: str, default: str = "") -> str:
+    return os.environ.get(name, default).strip()
+
+
+def _safe_detail(value: Any, limit: int = 400) -> str:
+    text = " ".join(str(value or "").split())
+    for key in [
+        "GOOGLE_PLAY_SERVICE_ACCOUNT_JSON",
+        "APP_STORE_CONNECT_PRIVATE_KEY",
+        "APP_STORE_CONNECT_CONFIG_JSON",
+    ]:
+        secret = os.environ.get(key, "")
+        if secret:
+            text = text.replace(secret, "[redacted]")
+    text = re.sub(r"-----BEGIN [^-]+-----.*?-----END [^-]+-----", "[redacted-private-key]", text, flags=re.DOTALL)
+    text = re.sub(r"\b[A-Za-z0-9_-]{24,}\b", "[redacted]", text)
+    return text[:limit]
+
+
+def _b64url(data: bytes) -> str:
+    return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
+
+
+def _json_b64url(payload: dict[str, Any]) -> str:
+    return _b64url(json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8"))
+
+
+def _read_json_source(*, env_json: str, env_file: str, default_file: str, label: str) -> dict[str, Any]:
+    raw = _env(env_json)
+    if raw and not (raw.startswith("${") and raw.endswith("}")):
+        try:
+            payload = json.loads(raw)
+        except json.JSONDecodeError as error:
+            raise StoreReviewError(f"{label} JSON env {env_json} is invalid.") from error
+        if not isinstance(payload, dict):
+            raise StoreReviewError(f"{label} JSON env {env_json} must be an object.")
+        return payload
+    path_value = _env(env_file)
+    path = Path(path_value).expanduser() if path_value and not (path_value.startswith("${") and path_value.endswith("}")) else Path(default_file).expanduser()
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError as error:
+        raise StoreReviewError(f"{label} credentials file is missing: {path}") from error
+    except json.JSONDecodeError as error:
+        raise StoreReviewError(f"{label} credentials file is invalid JSON: {path}") from error
+    if not isinstance(payload, dict):
+        raise StoreReviewError(f"{label} credentials file must contain a JSON object: {path}")
+    return payload
+
+
+def _openssl_sign(message: bytes, private_key_pem: str, *, digest: str = "-sha256") -> bytes:
+    if not private_key_pem.strip():
+        raise StoreReviewError("Private key is missing for JWT signing.")
+    with tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=False) as handle:
+        handle.write(private_key_pem)
+        key_path = Path(handle.name)
+    try:
+        key_path.chmod(0o600)
+        process = subprocess.run(
+            ["openssl", "dgst", digest, "-sign", str(key_path)],
+            input=message,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+        )
+    except FileNotFoundError as error:
+        raise StoreReviewError("openssl is required for store API JWT signing but was not found.") from error
+    finally:
+        try:
+            key_path.unlink()
+        except OSError:
+            pass
+    if process.returncode != 0:
+        raise StoreReviewError(f"openssl signing failed: {_safe_detail(process.stderr.decode('utf-8', errors='replace'))}")
+    return process.stdout
+
+
+def _der_ecdsa_to_raw(signature: bytes, size: int = 32) -> bytes:
+    if not signature or signature[0] != 0x30:
+        raise StoreReviewError("ES256 signature was not DER encoded.")
+    index = 2
+    if signature[1] & 0x80:
+        length_octets = signature[1] & 0x7F
+        index = 2 + length_octets
+    values: list[bytes] = []
+    for _ in range(2):
+        if index >= len(signature) or signature[index] != 0x02:
+            raise StoreReviewError("ES256 signature DER integer is invalid.")
+        length = signature[index + 1]
+        start = index + 2
+        raw = signature[start : start + length]
+        raw = raw.lstrip(b"\x00")
+        values.append(raw.rjust(size, b"\x00")[-size:])
+        index = start + length
+    return b"".join(values)
+
+
+def _jwt(header: dict[str, Any], claims: dict[str, Any], private_key_pem: str, alg: str) -> str:
+    signing_input = f"{_json_b64url(header)}.{_json_b64url(claims)}".encode("ascii")
+    signature = _openssl_sign(signing_input, private_key_pem)
+    if alg == "ES256":
+        signature = _der_ecdsa_to_raw(signature)
+    return f"{signing_input.decode('ascii')}.{_b64url(signature)}"
+
+
+def _request_json(
+    method: str,
+    url: str,
+    *,
+    access_token: str = "",
+    params: dict[str, Any] | None = None,
+    body: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    query = urllib.parse.urlencode({key: value for key, value in (params or {}).items() if value not in (None, "")})
+    full_url = f"{url}?{query}" if query else url
+    data = json.dumps(body).encode("utf-8") if body is not None else None
+    headers = {"accept": "application/json", "user-agent": USER_AGENT}
+    if data is not None:
+        headers["content-type"] = "application/json; charset=utf-8"
+    if access_token:
+        headers["authorization"] = f"Bearer {access_token}"
+    request = urllib.request.Request(full_url, data=data, headers=headers, method=method.upper())
+    try:
+        with urllib.request.urlopen(request, timeout=TIMEOUT_SECONDS) as response:
+            raw = response.read().decode("utf-8")
+            return json.loads(raw) if raw else {}
+    except urllib.error.HTTPError as error:
+        detail = error.read().decode("utf-8", errors="replace")
+        raise StoreReviewError(f"Store review API failed: HTTP {error.code} {_safe_detail(detail)}", error.code) from error
+    except (urllib.error.URLError, socket.timeout, TimeoutError) as error:
+        reason = getattr(error, "reason", error)
+        raise StoreReviewError(f"Store review API request timed out or failed: {_safe_detail(reason)}") from error
+
+
+def blocked(message: str, scope: dict[str, Any] | None = None) -> dict[str, Any]:
+    return {
+        "answer": {"status": "blocked", "message": message},
+        "source": STORE_REVIEWS_SOURCE,
+        "scope": scope or {},
+        "confidence": "blocked",
+        "caveat": message,
+    }
+
+
+def tool_result(
+    answer: Any,
+    scope: dict[str, Any],
+    *,
+    confidence: str = "needs-check",
+    caveat: str = "Direct store APIs are review truth. Slack remains the PS Wee triage surface.",
+) -> dict[str, Any]:
+    return {
+        "answer": answer,
+        "source": STORE_REVIEWS_SOURCE,
+        "scope": scope,
+        "confidence": confidence,
+        "caveat": caveat,
+    }
+
+
+def google_package_name() -> str:
+    return _env("PSM_OPS_GOOGLE_PLAY_PACKAGE_NAME") or _env("GOOGLE_PLAY_PACKAGE_NAME") or DEFAULT_GOOGLE_PACKAGE_NAME
+
+
+def app_store_app_id() -> str:
+    return _env("PSM_OPS_APP_STORE_APP_ID") or _env("APP_STORE_CONNECT_APP_ID") or DEFAULT_APP_STORE_APP_ID
+
+
+def _google_service_account() -> dict[str, Any]:
+    payload = _read_json_source(
+        env_json="GOOGLE_PLAY_SERVICE_ACCOUNT_JSON",
+        env_file="GOOGLE_PLAY_SERVICE_ACCOUNT_FILE",
+        default_file="~/.hermes/profiles/psmopsbot/google-play-service-account.json",
+        label="Google Play service account",
+    )
+    if payload.get("type") != "service_account":
+        raise StoreReviewError("Google Play credentials must be a service_account JSON.")
+    if not payload.get("client_email") or not payload.get("private_key"):
+        raise StoreReviewError("Google Play service account JSON is missing client_email/private_key.")
+    return payload
+
+
+def google_play_access_token() -> str:
+    service_account = _google_service_account()
+    now = int(datetime.now(timezone.utc).timestamp())
+    assertion = _jwt(
+        {"alg": "RS256", "typ": "JWT"},
+        {
+            "iss": service_account["client_email"],
+            "scope": GOOGLE_PLAY_SCOPE,
+            "aud": service_account.get("token_uri") or GOOGLE_TOKEN_URL,
+            "iat": now,
+            "exp": now + 3600,
+        },
+        str(service_account["private_key"]),
+        "RS256",
+    )
+    body = urllib.parse.urlencode(
+        {
+            "grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer",
+            "assertion": assertion,
+        }
+    ).encode("utf-8")
+    request = urllib.request.Request(
+        str(service_account.get("token_uri") or GOOGLE_TOKEN_URL),
+        data=body,
+        headers={"content-type": "application/x-www-form-urlencoded", "user-agent": USER_AGENT},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=TIMEOUT_SECONDS) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as error:
+        detail = error.read().decode("utf-8", errors="replace")
+        raise StoreReviewError(f"Google Play OAuth failed: HTTP {error.code} {_safe_detail(detail)}", error.code) from error
+    except (urllib.error.URLError, socket.timeout, TimeoutError) as error:
+        reason = getattr(error, "reason", error)
+        raise StoreReviewError(f"Google Play OAuth timed out or failed: {_safe_detail(reason)}") from error
+    token = str(payload.get("access_token") or "").strip()
+    if not token:
+        raise StoreReviewError("Google Play OAuth did not return an access token.")
+    return token
+
+
+def _app_store_connect_config() -> dict[str, str]:
+    payload: dict[str, Any] = {}
+    raw = _env("APP_STORE_CONNECT_CONFIG_JSON")
+    if raw and not (raw.startswith("${") and raw.endswith("}")):
+        try:
+            decoded = json.loads(raw)
+        except json.JSONDecodeError as error:
+            raise StoreReviewError("APP_STORE_CONNECT_CONFIG_JSON is invalid JSON.") from error
+        if isinstance(decoded, dict):
+            payload.update(decoded)
+    config_file = _env("APP_STORE_CONNECT_CONFIG_FILE")
+    if config_file and not (config_file.startswith("${") and config_file.endswith("}")):
+        try:
+            decoded = json.loads(Path(config_file).expanduser().read_text(encoding="utf-8"))
+        except FileNotFoundError as error:
+            raise StoreReviewError(f"App Store Connect config file is missing: {config_file}") from error
+        except json.JSONDecodeError as error:
+            raise StoreReviewError(f"App Store Connect config file is invalid JSON: {config_file}") from error
+        if isinstance(decoded, dict):
+            payload.update(decoded)
+    issuer_id = str(payload.get("issuer_id") or payload.get("issuerId") or _env("APP_STORE_CONNECT_ISSUER_ID")).strip()
+    key_id = str(payload.get("key_id") or payload.get("keyId") or _env("APP_STORE_CONNECT_KEY_ID")).strip()
+    private_key = str(payload.get("private_key") or payload.get("privateKey") or _env("APP_STORE_CONNECT_PRIVATE_KEY")).strip()
+    private_key_file = str(payload.get("private_key_file") or payload.get("privateKeyFile") or _env("APP_STORE_CONNECT_PRIVATE_KEY_FILE")).strip()
+    if not private_key and private_key_file:
+        try:
+            private_key = Path(private_key_file).expanduser().read_text(encoding="utf-8")
+        except FileNotFoundError as error:
+            raise StoreReviewError(f"App Store Connect private key file is missing: {private_key_file}") from error
+    if "\\n" in private_key and "BEGIN PRIVATE KEY" in private_key:
+        private_key = private_key.replace("\\n", "\n")
+    if not issuer_id or not key_id or not private_key:
+        raise StoreReviewError("App Store Connect credentials need issuer_id, key_id, and .p8 private key.")
+    return {"issuer_id": issuer_id, "key_id": key_id, "private_key": private_key}
+
+
+def app_store_connect_token() -> str:
+    config = _app_store_connect_config()
+    now = int(datetime.now(timezone.utc).timestamp())
+    return _jwt(
+        {"alg": "ES256", "kid": config["key_id"], "typ": "JWT"},
+        {"iss": config["issuer_id"], "iat": now, "exp": now + 20 * 60, "aud": APP_STORE_CONNECT_AUDIENCE},
+        config["private_key"],
+        "ES256",
+    )
+
+
+def _google_last_modified(payload: dict[str, Any]) -> str:
+    raw = payload.get("lastModified") or {}
+    seconds = raw.get("seconds") if isinstance(raw, dict) else None
+    if seconds in (None, ""):
+        return ""
+    try:
+        return datetime.fromtimestamp(int(seconds), timezone.utc).isoformat()
+    except (TypeError, ValueError, OSError):
+        return ""
+
+
+def _latest_google_comments(review: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+    latest_user: dict[str, Any] = {}
+    latest_developer: dict[str, Any] = {}
+    for wrapper in review.get("comments") or []:
+        if not isinstance(wrapper, dict):
+            continue
+        if isinstance(wrapper.get("userComment"), dict):
+            latest_user = wrapper["userComment"]
+        if isinstance(wrapper.get("developerComment"), dict):
+            latest_developer = wrapper["developerComment"]
+    return latest_user, latest_developer
+
+
+def normalize_google_play_review(review: dict[str, Any], package_name: str | None = None) -> dict[str, Any]:
+    package = package_name or google_package_name()
+    user_comment, developer_comment = _latest_google_comments(review)
+    review_id = str(review.get("reviewId") or review.get("review_id") or review.get("id") or "").strip()
+    updated_at = _google_last_modified(user_comment) or _google_last_modified(review)
+    body = str(user_comment.get("text") or review.get("text") or "").strip()
+    app_version = str(user_comment.get("appVersionName") or user_comment.get("appVersionCode") or "").strip()
+    locale = str(user_comment.get("reviewerLanguage") or "").strip()
+    rating = user_comment.get("starRating")
+    try:
+        rating = int(rating) if rating not in (None, "") else None
+    except (TypeError, ValueError):
+        rating = None
+    return {
+        "store": "google_play",
+        "app_ref": package,
+        "review_id": review_id,
+        "rating": rating,
+        "title": "",
+        "body": body,
+        "author_nickname": str(review.get("authorName") or "").strip(),
+        "country": "",
+        "locale": locale,
+        "app_version": app_version,
+        "created_at": updated_at,
+        "updated_at": updated_at,
+        "reply_status": "replied" if developer_comment else "no_reply",
+        "review_url": f"https://play.google.com/store/apps/details?id={urllib.parse.quote(package)}",
+        "raw": review,
+    }
+
+
+def normalize_app_store_review(review: dict[str, Any], app_id: str | None = None) -> dict[str, Any]:
+    app_ref = app_id or app_store_app_id()
+    attributes = review.get("attributes") if isinstance(review.get("attributes"), dict) else review
+    review_id = str(review.get("id") or attributes.get("id") or attributes.get("review_id") or "").strip()
+    rating = attributes.get("rating")
+    try:
+        rating = int(rating) if rating not in (None, "") else None
+    except (TypeError, ValueError):
+        rating = None
+    return {
+        "store": "app_store",
+        "app_ref": app_ref,
+        "review_id": review_id,
+        "rating": rating,
+        "title": str(attributes.get("title") or "").strip(),
+        "body": str(attributes.get("body") or attributes.get("review") or "").strip(),
+        "author_nickname": str(attributes.get("reviewerNickname") or attributes.get("nickname") or "").strip(),
+        "country": str(attributes.get("territory") or attributes.get("country") or "").strip(),
+        "locale": str(attributes.get("locale") or "").strip(),
+        "app_version": str(attributes.get("appVersionString") or attributes.get("appVersion") or "").strip(),
+        "created_at": str(attributes.get("createdDate") or "").strip(),
+        "updated_at": str(attributes.get("createdDate") or "").strip(),
+        "reply_status": "unknown",
+        "review_url": f"https://apps.apple.com/app/id{urllib.parse.quote(app_ref)}",
+        "raw": review,
+    }
+
+
+def list_store_review_apps() -> dict[str, Any]:
+    apps = [
+        {
+            "store": "google_play",
+            "app_ref": google_package_name(),
+            "credential_source": "GOOGLE_PLAY_SERVICE_ACCOUNT_JSON or GOOGLE_PLAY_SERVICE_ACCOUNT_FILE",
+            "required_scope": GOOGLE_PLAY_SCOPE,
+        },
+        {
+            "store": "app_store",
+            "app_ref": app_store_app_id(),
+            "credential_source": "APP_STORE_CONNECT_CONFIG_JSON/FILE or issuer/key env vars",
+            "required_role": "Customer Support or Admin",
+        },
+    ]
+    return tool_result({"status": "configured", "apps": apps}, {"endpoint": "local config"}, confidence="verified")
+
+
+def list_store_reviews(
+    *,
+    store: str = "",
+    app_ref: str = "",
+    limit: int = 20,
+    page_token: str = "",
+    lookback_days: int = DEFAULT_LOOKBACK_DAYS,
+) -> dict[str, Any]:
+    stores = [store] if store else ["google_play", "app_store"]
+    reviews: list[dict[str, Any]] = []
+    next_page_tokens: dict[str, str] = {}
+    scope = {"stores": stores, "limit": limit, "lookback_days": lookback_days}
+    for current_store in stores:
+        current_store = normalize_store(current_store)
+        try:
+            if current_store == "google_play":
+                package = app_ref or google_package_name()
+                token = google_play_access_token()
+                payload = _request_json(
+                    "GET",
+                    f"{GOOGLE_ANDROID_PUBLISHER_BASE_URL}/applications/{urllib.parse.quote(package, safe='')}/reviews",
+                    access_token=token,
+                    params={"maxResults": max(1, min(int(limit or 20), 100)), "token": page_token},
+                )
+                for item in payload.get("reviews") or []:
+                    if isinstance(item, dict):
+                        reviews.append(normalize_google_play_review(item, package))
+                if payload.get("tokenPagination", {}).get("nextPageToken"):
+                    next_page_tokens["google_play"] = payload["tokenPagination"]["nextPageToken"]
+            elif current_store == "app_store":
+                app_id = app_ref or app_store_app_id()
+                token = app_store_connect_token()
+                payload = _request_json(
+                    "GET",
+                    f"{APP_STORE_CONNECT_BASE_URL}/apps/{urllib.parse.quote(app_id, safe='')}/customerReviews",
+                    access_token=token,
+                    params={
+                        "limit": max(1, min(int(limit or 20), 200)),
+                        "sort": "-createdDate",
+                        "fields[customerReviews]": "rating,title,body,reviewerNickname,createdDate,territory,appVersionString",
+                    },
+                )
+                for item in payload.get("data") or []:
+                    if isinstance(item, dict):
+                        reviews.append(normalize_app_store_review(item, app_id))
+            else:
+                return blocked(f"Unsupported store: {current_store}", scope)
+        except StoreReviewError as error:
+            return blocked(str(error), {**scope, "store": current_store, "app_ref": app_ref})
+    cutoff = datetime.now(timezone.utc) - timedelta(days=max(1, int(lookback_days or DEFAULT_LOOKBACK_DAYS)))
+    bounded = [review for review in reviews if _within_lookback(review, cutoff)]
+    return tool_result(
+        {"status": "ok", "reviews": bounded, "next_page_tokens": next_page_tokens},
+        scope,
+        confidence="verified",
+    )
+
+
+def get_store_review(*, store: str, review_id: str, app_ref: str = "") -> dict[str, Any]:
+    current_store = normalize_store(store)
+    review_id = str(review_id or "").strip()
+    scope = {"store": current_store, "app_ref": app_ref, "review_id": review_id}
+    if not current_store or not review_id:
+        return blocked("store and review_id are required before fetching a store review.", scope)
+    try:
+        if current_store == "google_play":
+            package = app_ref or google_package_name()
+            token = google_play_access_token()
+            payload = _request_json(
+                "GET",
+                f"{GOOGLE_ANDROID_PUBLISHER_BASE_URL}/applications/{urllib.parse.quote(package, safe='')}/reviews/{urllib.parse.quote(review_id, safe='')}",
+                access_token=token,
+            )
+            review = normalize_google_play_review(payload, package)
+        elif current_store == "app_store":
+            app_id = app_ref or app_store_app_id()
+            token = app_store_connect_token()
+            payload = _request_json(
+                "GET",
+                f"{APP_STORE_CONNECT_BASE_URL}/customerReviews/{urllib.parse.quote(review_id, safe='')}",
+                access_token=token,
+                params={"fields[customerReviews]": "rating,title,body,reviewerNickname,createdDate,territory,appVersionString"},
+            )
+            data = payload.get("data") if isinstance(payload, dict) else payload
+            review = normalize_app_store_review(data if isinstance(data, dict) else payload, app_id)
+        else:
+            return blocked(f"Unsupported store: {current_store}", scope)
+    except StoreReviewError as error:
+        return blocked(str(error), scope)
+    return tool_result({"status": "ok", "review": review}, scope, confidence="verified")
+
+
+def normalize_store(store: str) -> str:
+    raw = re.sub(r"[^a-z0-9]+", "_", str(store or "").strip().lower()).strip("_")
+    aliases = {
+        "google": "google_play",
+        "play": "google_play",
+        "play_store": "google_play",
+        "googleplay": "google_play",
+        "android": "google_play",
+        "ios": "app_store",
+        "apple": "app_store",
+        "appstore": "app_store",
+        "app_store_connect": "app_store",
+    }
+    return aliases.get(raw, raw)
+
+
+def _parse_datetime(value: str) -> datetime | None:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    try:
+        if text.endswith("Z"):
+            text = f"{text[:-1]}+00:00"
+        parsed = datetime.fromisoformat(text)
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc)
+    except ValueError:
+        return None
+
+
+def _within_lookback(review: dict[str, Any], cutoff: datetime) -> bool:
+    parsed = _parse_datetime(str(review.get("updated_at") or review.get("created_at") or ""))
+    if parsed is None:
+        return True
+    return parsed >= cutoff
+
+
+def _review_text_from_payload(review: dict[str, Any]) -> str:
+    candidates = [review.get("title"), review.get("body"), review.get("text"), review.get("content"), review.get("review")]
+    return " ".join(str(value or "") for value in candidates if str(value or "").strip()).strip()
+
+
+def _shorten(text: str, limit: int) -> str:
+    value = re.sub(r"\s+", " ", text or "").strip()
+    if len(value) <= limit:
+        return value
+    return value[: max(0, limit - 1)].rstrip() + "..."
+
+
+def _public_private_contact_cta() -> str:
+    return (
+        f"Please email {STAFFANY_SUPPORT_EMAIL} with your StaffAny account email or phone number, "
+        "plus your company/outlet, so we can follow up privately."
+    )
+
+
+def draft_store_review_reply(review: dict[str, Any] | None = None, issue_summary: str = "") -> dict[str, Any]:
+    review = review or {}
+    text = _review_text_from_payload(review)
+    title = str(review.get("title") or "").strip()
+    theme = classify_store_review(review).get("theme") or "app experience"
+    issue = _shorten(issue_summary or title or text or f"{theme} issue", 90)
+    reply = f"Thanks for flagging this. We are checking the issue on our side ({issue}). {_public_private_contact_cta()}"
+    if len(reply) > MAX_REPLY_CHARS:
+        reply = _shorten(reply, MAX_REPLY_CHARS)
+    scope = {
+        "store": review.get("store", ""),
+        "app_ref": review.get("app_ref", ""),
+        "review_id": review.get("review_id", ""),
+        "theme": theme,
+        "support_email": STAFFANY_SUPPORT_EMAIL,
+        "publish_tool": "not_exposed_in_v1",
+    }
+    return tool_result(
+        {"status": "draft", "answer_text": reply, "support_email": STAFFANY_SUPPORT_EMAIL},
+        scope,
+        confidence="draft",
+        caveat=(
+            "Draft only. Direct public store reply publishing is intentionally not exposed in V1. "
+            "Never ask the reviewer to post email or phone in the public review."
+        ),
+    )
+
+
+def _walk_values(value: Any) -> list[str]:
+    values: list[str] = []
+    if isinstance(value, str):
+        values.append(value)
+    elif isinstance(value, dict):
+        for child in value.values():
+            values.extend(_walk_values(child))
+    elif isinstance(value, list):
+        for child in value:
+            values.extend(_walk_values(child))
+    elif value not in {None, ""}:
+        values.append(str(value))
+    return values
+
+
+def _normalize_email(value: str) -> str:
+    return re.sub(r"\s+", "", value or "").strip().lower()
+
+
+def _normalize_phone(value: str) -> str:
+    return re.sub(r"\D+", "", value or "")
+
+
+def _redact_email(value: str) -> str:
+    email = _normalize_email(value)
+    if "@" not in email:
+        return ""
+    local, domain = email.split("@", 1)
+    if not local or not domain:
+        return "[redacted-email]"
+    if len(local) <= 2:
+        return f"{local[0]}***@{domain}"
+    return f"{local[:2]}***@{domain}"
+
+
+def _redact_phone(value: str) -> str:
+    digits = _normalize_phone(value)
+    if not digits:
+        return ""
+    tail = digits[-4:] if len(digits) >= 4 else digits
+    return f"[redacted-phone:{tail}]"
+
+
+def _redact_private_text(value: str) -> str:
+    text = str(value or "")
+    text = re.sub(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", lambda match: _redact_email(match.group(0)), text)
+    text = re.sub(r"(?:\+?\d[\d\s().-]{6,}\d)", lambda match: _redact_phone(match.group(0)), text)
+    return text
+
+
+def _extract_emails(value: Any) -> set[str]:
+    emails: set[str] = set()
+    for text in _walk_values(value):
+        for match in re.findall(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", text):
+            emails.add(_normalize_email(match))
+    return emails
+
+
+def _extract_phone_digits(value: Any) -> set[str]:
+    phones: set[str] = set()
+    for text in _walk_values(value):
+        for match in re.findall(r"(?:\+?\d[\d\s().-]{6,}\d)", text):
+            digits = _normalize_phone(match)
+            if len(digits) >= 7:
+                phones.add(digits)
+    return phones
+
+
+def _safe_c360_group_summary(group: Any) -> dict[str, Any]:
+    if not isinstance(group, dict):
+        return {"raw_type": type(group).__name__}
+    safe: dict[str, Any] = {}
+    for source_key, output_key in [
+        ("customerKey", "customer_key"),
+        ("customer_key", "customer_key"),
+        ("routeKey", "route_key"),
+        ("route_key", "route_key"),
+        ("hubspotCompanyId", "hubspot_company_id"),
+        ("companyName", "company_name"),
+        ("customerName", "customer_name"),
+        ("displayName", "display_name"),
+        ("name", "name"),
+    ]:
+        if group.get(source_key) not in {None, ""} and output_key not in safe:
+            safe[output_key] = group.get(source_key)
+    org_matches = group.get("orgMatches")
+    if isinstance(org_matches, list):
+        safe["org_match_count"] = len(org_matches)
+    matched_fields = group.get("matchedFields")
+    if isinstance(matched_fields, list):
+        safe["matched_fields"] = matched_fields[:8]
+    return safe
+
+
+def _c360_search_by_company(company_or_outlet: str, slack_thread_url: str = "") -> dict[str, Any]:
+    try:
+        from psm_c360_server import search_c360_customers  # type: ignore
+    except Exception as error:
+        return {
+            "status": "blocked",
+            "message": f"Customer 360 search adapter unavailable: {error.__class__.__name__}",
+            "answer": [],
+        }
+    return search_c360_customers(company_or_outlet, limit=5, slack_thread_url=slack_thread_url)
+
+
+def _private_claim_from_inputs(
+    private_claim: dict[str, Any] | None,
+    *,
+    email: str = "",
+    phone: str = "",
+    company_or_outlet: str = "",
+    reviewer_nickname: str = "",
+    review_text: str = "",
+) -> dict[str, str]:
+    claim = private_claim or {}
+    return {
+        "email": str(email or claim.get("email") or claim.get("account_email") or "").strip(),
+        "phone": str(phone or claim.get("phone") or claim.get("account_phone") or "").strip(),
+        "company_or_outlet": str(company_or_outlet or claim.get("company_or_outlet") or claim.get("company") or claim.get("outlet") or "").strip(),
+        "reviewer_nickname": str(reviewer_nickname or claim.get("reviewer_nickname") or claim.get("reviewer") or "").strip(),
+        "review_text": str(review_text or claim.get("review_text") or claim.get("text") or "").strip(),
+    }
+
+
+def suggest_store_review_identity_candidates(
+    *,
+    review: dict[str, Any] | None = None,
+    private_claim: dict[str, Any] | None = None,
+    c360_candidates: list[Any] | None = None,
+    email: str = "",
+    phone: str = "",
+    company_or_outlet: str = "",
+    reviewer_nickname: str = "",
+    review_text: str = "",
+    slack_thread_url: str = "",
+    state_path: str = "",
+) -> dict[str, Any]:
+    review = review or {}
+    claim = _private_claim_from_inputs(
+        private_claim,
+        email=email,
+        phone=phone,
+        company_or_outlet=company_or_outlet,
+        reviewer_nickname=reviewer_nickname,
+        review_text=review_text,
+    )
+    normalized_email = _normalize_email(claim["email"])
+    normalized_phone = _normalize_phone(claim["phone"])
+    review_key = review_state_key(review)
+    scope = {
+        "review_key": review_key,
+        "review_id": str(review.get("review_id") or "").strip(),
+        "state_key": STATE_KEY_DESCRIPTION,
+        "signals": {
+            "email": bool(normalized_email),
+            "phone": bool(normalized_phone),
+            "company_or_outlet": bool(claim["company_or_outlet"]),
+            "reviewer_nickname": bool(claim["reviewer_nickname"]),
+            "review_text": bool(claim["review_text"] or _review_text_from_payload(review)),
+        },
+        "slack_thread_url": slack_thread_url,
+    }
+    if not any([normalized_email, normalized_phone, claim["company_or_outlet"]]):
+        return tool_result(
+            {
+                "status": "unknown",
+                "review_key": review_key,
+                "candidates": [],
+                "internal_labels": [IDENTITY_LABEL_UNKNOWN, IDENTITY_LABEL_REQUESTED_PRIVATE],
+                "public_reply_cta": _public_private_contact_cta(),
+                "next_action": "Ask the reviewer to email support@staffany.com with their StaffAny account email or phone number plus company/outlet.",
+            },
+            scope,
+            confidence="needs-check",
+            caveat="Reviewer nickname/review text alone is not enough to identify a StaffAny customer or contact.",
+        )
+
+    c360_status = "not_run"
+    groups: list[Any] = list(c360_candidates or [])
+    if not groups and claim["company_or_outlet"]:
+        c360_result = _c360_search_by_company(claim["company_or_outlet"], slack_thread_url=slack_thread_url)
+        c360_status = str(c360_result.get("confidence") or c360_result.get("status") or "unknown")
+        answer = c360_result.get("answer")
+        if isinstance(answer, list):
+            groups = answer
+        elif isinstance(answer, dict):
+            groups = [answer]
+    elif groups:
+        c360_status = "provided"
+
+    candidates: list[dict[str, Any]] = []
+    seen_candidates: set[str] = set()
+    for group in groups:
+        group_emails = _extract_emails(group)
+        group_phones = _extract_phone_digits(group)
+        group_summary = _safe_c360_group_summary(group)
+        key_seed = json.dumps(group_summary, sort_keys=True, default=str)
+        if normalized_email and normalized_email in group_emails:
+            key = f"email:{normalized_email}:{key_seed}"
+            if key not in seen_candidates:
+                seen_candidates.add(key)
+                candidates.append(
+                    {
+                        "match_type": "exact_email",
+                        "confidence": "verified",
+                        "source": "Customer 360 candidate evidence",
+                        "customer": group_summary,
+                        "contact": {"email": _redact_email(normalized_email)},
+                        "reason": "Private support email exactly matches Customer 360/HubSpot candidate evidence.",
+                    }
+                )
+        if normalized_phone and normalized_phone in group_phones:
+            key = f"phone:{normalized_phone}:{key_seed}"
+            if key not in seen_candidates:
+                seen_candidates.add(key)
+                candidates.append(
+                    {
+                        "match_type": "phone",
+                        "confidence": "needs-check",
+                        "source": "Customer 360 candidate evidence",
+                        "customer": group_summary,
+                        "contact": {"phone": _redact_phone(normalized_phone)},
+                        "reason": "Phone appears in Customer 360 candidate evidence, but phone-only linkage is ambiguous until human-confirmed.",
+                    }
+                )
+        if claim["company_or_outlet"]:
+            key = f"company:{claim['company_or_outlet'].lower()}:{key_seed}"
+            if key not in seen_candidates:
+                seen_candidates.add(key)
+                candidates.append(
+                    {
+                        "match_type": "company_or_outlet",
+                        "confidence": "needs-check",
+                        "source": "Customer 360 /api/companies",
+                        "customer": group_summary,
+                        "contact": {
+                            "email": _redact_email(normalized_email) if normalized_email else "",
+                            "phone": _redact_phone(normalized_phone) if normalized_phone else "",
+                        },
+                        "reason": "Company/outlet from the private support follow-up matched a Customer 360 customer candidate.",
+                    }
+                )
+
+    if not candidates:
+        if normalized_email:
+            candidates.append(
+                {
+                    "match_type": "private_email_claim",
+                    "confidence": "needs-check",
+                    "source": "private support follow-up",
+                    "customer": {},
+                    "contact": {"email": _redact_email(normalized_email)},
+                    "reason": "Email was provided privately, but no Customer 360/HubSpot candidate evidence matched it yet.",
+                }
+            )
+        if normalized_phone:
+            candidates.append(
+                {
+                    "match_type": "private_phone_claim",
+                    "confidence": "needs-check",
+                    "source": "private support follow-up",
+                    "customer": {},
+                    "contact": {"phone": _redact_phone(normalized_phone)},
+                    "reason": "Phone was provided privately, but phone-only linkage is ambiguous until human-confirmed.",
+                }
+            )
+        if claim["company_or_outlet"]:
+            candidates.append(
+                {
+                    "match_type": "company_or_outlet_claim",
+                    "confidence": "needs-check",
+                    "source": "private support follow-up",
+                    "customer": {"company_or_outlet": _redact_private_text(claim["company_or_outlet"])},
+                    "contact": {},
+                    "reason": "Company/outlet was provided privately, but Customer 360 did not return a verified candidate.",
+                }
+            )
+    status = "verified" if any(candidate.get("confidence") == "verified" for candidate in candidates) else "candidate"
+    return tool_result(
+        {
+            "status": status,
+            "review_key": review_key,
+            "c360_status": c360_status,
+            "candidates": candidates,
+            "internal_labels": [IDENTITY_LABEL_CANDIDATE],
+            "confirmation_tool": "confirm_store_review_identity",
+            "public_reply_cta": _public_private_contact_cta(),
+            "private_claim_redacted": {
+                "email": _redact_email(normalized_email) if normalized_email else "",
+                "phone": _redact_phone(normalized_phone) if normalized_phone else "",
+                "company_or_outlet": _redact_private_text(claim["company_or_outlet"]),
+                "reviewer_nickname": _redact_private_text(claim["reviewer_nickname"]),
+            },
+        },
+        scope,
+        confidence="verified" if status == "verified" else "needs-check",
+        caveat="Exact email match can be verified. Phone-only or company/outlet-only candidates need human confirmation.",
+    )
+
+
+def confirm_store_review_identity(
+    *,
+    review: dict[str, Any] | None = None,
+    review_key: str = "",
+    store: str = "",
+    app_ref: str = "",
+    review_id: str = "",
+    customer_key: str = "",
+    customer_name: str = "",
+    contact_email: str = "",
+    contact_phone: str = "",
+    confirmation_text: str = "",
+    confirmed_by: str = "",
+    state_path: str = "",
+) -> dict[str, Any]:
+    key = review_key or review_state_key({**(review or {}), "store": store or (review or {}).get("store"), "app_ref": app_ref or (review or {}).get("app_ref"), "review_id": review_id or (review or {}).get("review_id")})
+    scope = {"review_key": key, "state_key": STATE_KEY_DESCRIPTION, "customer_key": customer_key, "customer_name": customer_name}
+    if not key or key.endswith(":unknown-review"):
+        return blocked("review_id or review_key is required before confirming reviewer identity.", scope)
+    if not (customer_key or customer_name):
+        return blocked("customer_key or customer_name is required before confirming reviewer identity.", scope)
+    if not confirmation_text.strip():
+        return blocked("confirmation_text is required so the human approval evidence is recorded.", scope)
+    confirmation = {
+        "status": IDENTITY_LABEL_CONFIRMED,
+        "review_key": key,
+        "customer_key": str(customer_key or "").strip(),
+        "customer_name": str(customer_name or "").strip(),
+        "contact_email": _redact_email(contact_email),
+        "contact_phone": _redact_phone(contact_phone),
+        "confirmed_by": _redact_private_text(confirmed_by),
+        "confirmation_text": _redact_private_text(confirmation_text),
+        "confirmed_at": datetime.now(timezone.utc).isoformat(),
+    }
+    state = load_state(state_path)
+    state.setdefault("identity_confirmations", {})[key] = confirmation
+    review_entry = state.setdefault("reviews", {}).setdefault(key, {})
+    review_entry["identity_status"] = IDENTITY_LABEL_CONFIRMED
+    review_entry["identity_confirmed_at"] = confirmation["confirmed_at"]
+    save_state(state, state_path)
+    return tool_result(
+        {"status": IDENTITY_LABEL_CONFIRMED, "review_key": key, "confirmation": confirmation, "internal_labels": [IDENTITY_LABEL_CONFIRMED]},
+        scope,
+        confidence="verified",
+        caveat="Stored only the human-confirmed mapping and redacted contact hints in runtime state outside git.",
+    )
+
+
+def classify_store_review(review: dict[str, Any]) -> dict[str, str]:
+    fields = [review.get("title"), review.get("body"), review.get("text"), review.get("content"), review.get("review")]
+    text = " ".join(str(value or "") for value in fields).lower()
+    rating = review.get("rating") or review.get("score") or review.get("stars")
+    try:
+        rating_value = int(rating) if rating is not None else 0
+    except (TypeError, ValueError):
+        rating_value = 0
+    theme = "other"
+    for candidate, markers in [
+        ("clock_in", ["clock-in", "clock in", "clockin", "clock", "store clock"]),
+        ("scheduling", ["schedule", "shift", "roster"]),
+        ("payroll", ["payroll", "pay", "salary", "payslip"]),
+        ("leave", ["leave", "time off", "annual leave"]),
+        ("login", ["login", "log in", "otp", "password", "sign in"]),
+        ("performance", ["slow", "lag", "crash", "hang", "freeze"]),
+        ("usability", ["confusing", "hard to use", "cannot find", "missing"]),
+    ]:
+        if any(marker in text for marker in markers):
+            theme = candidate
+            break
+    severe_markers = ["cannot", "can't", "unable", "missing", "crash", "bug", "broken", "not working", "fail"]
+    if rating_value and rating_value <= 2:
+        severity = "high"
+    elif any(marker in text for marker in severe_markers):
+        severity = "high" if rating_value <= 3 or not rating_value else "medium"
+    elif rating_value == 3:
+        severity = "needs-check"
+    else:
+        severity = "normal"
+    return {"severity": severity, "theme": theme}
+
+
+def _state_path(path: str = "") -> Path:
+    configured = path or _env("PSM_OPS_STORE_REVIEWS_STATE_PATH") or DEFAULT_STATE_PATH
+    return Path(configured).expanduser()
+
+
+def load_state(path: str = "") -> dict[str, Any]:
+    state_file = _state_path(path)
+    if not state_file.exists():
+        return {"reviews": {}}
+    try:
+        payload = json.loads(state_file.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {"reviews": {}}
+    if not isinstance(payload, dict):
+        return {"reviews": {}}
+    if not isinstance(payload.get("reviews"), dict):
+        payload["reviews"] = {}
+    return payload
+
+
+def save_state(state: dict[str, Any], path: str = "") -> None:
+    state_file = _state_path(path)
+    state_file.parent.mkdir(parents=True, exist_ok=True)
+    state_file.write_text(json.dumps(state, ensure_ascii=True, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def review_state_key(review: dict[str, Any]) -> str:
+    store = normalize_store(str(review.get("store") or "")) or "unknown-store"
+    app_ref = str(review.get("app_ref") or review.get("package_name") or review.get("app_id") or "").strip() or "unknown-app"
+    review_id = str(review.get("review_id") or review.get("id") or "").strip() or "unknown-review"
+    return f"{store}:{app_ref}:{review_id}"
+
+
+def review_fingerprint(review: dict[str, Any]) -> str:
+    payload = {
+        "rating": review.get("rating"),
+        "title": review.get("title"),
+        "body": review.get("body"),
+        "reply_status": review.get("reply_status"),
+        "updated_at": review.get("updated_at") or review.get("created_at"),
+    }
+    return hashlib.sha256(json.dumps(payload, ensure_ascii=True, sort_keys=True, default=str).encode("utf-8")).hexdigest()
+
+
+def state_summary(review: dict[str, Any], *, state_path: str = "") -> dict[str, Any]:
+    key = review_state_key(review)
+    state = load_state(state_path)
+    entry = (state.get("reviews") or {}).get(key)
+    fingerprint = review_fingerprint(review)
+    return {
+        "key": key,
+        "already_triaged": bool(entry and entry.get("fingerprint") == fingerprint),
+        "changed": bool(entry and entry.get("fingerprint") != fingerprint),
+        "fingerprint": fingerprint,
+        "entry": entry or {},
+    }
+
+
+def already_triaged(review: dict[str, Any], *, state_path: str = "") -> bool:
+    return bool(state_summary(review, state_path=state_path)["already_triaged"])
+
+
+def mark_triaged(
+    review: dict[str, Any],
+    *,
+    slack_thread_url: str = "",
+    state_path: str = "",
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    key = review_state_key(review)
+    entry = {
+        "store": review.get("store", ""),
+        "app_ref": review.get("app_ref", ""),
+        "review_id": review.get("review_id", ""),
+        "rating": review.get("rating"),
+        "updated_at": review.get("updated_at", ""),
+        "fingerprint": review_fingerprint(review),
+        "slack_thread_url": slack_thread_url,
+        "triaged_at": datetime.now(timezone.utc).isoformat(),
+    }
+    if dry_run:
+        return {"status": "preview", "key": key, "entry": entry}
+    state = load_state(state_path)
+    state.setdefault("reviews", {})[key] = entry
+    save_state(state, state_path)
+    return {"status": "stored", "key": key, "entry": entry}
+
+
+def poll_new_reviews(*, store: str = "", limit: int = 20, lookback_days: int = DEFAULT_LOOKBACK_DAYS, state_path: str = "", include_changed: bool = True) -> dict[str, Any]:
+    result = list_store_reviews(store=store, limit=limit, lookback_days=lookback_days)
+    if result.get("confidence") == "blocked":
+        return result
+    reviews = ((result.get("answer") or {}) if isinstance(result, dict) else {}).get("reviews") or []
+    candidates: list[dict[str, Any]] = []
+    skipped: list[str] = []
+    for review in reviews:
+        summary = state_summary(review, state_path=state_path)
+        if summary["already_triaged"]:
+            skipped.append(summary["key"])
+            continue
+        if not include_changed and summary["changed"]:
+            skipped.append(summary["key"])
+            continue
+        candidates.append({**review, "state_key": summary["key"], "changed_since_last_triage": summary["changed"]})
+    return tool_result(
+        {"status": "ok", "reviews": candidates, "skipped_duplicate_keys": skipped},
+        {"store": store or "all", "limit": limit, "lookback_days": lookback_days, "state_key": STATE_KEY_DESCRIPTION},
+        confidence="verified",
+    )
+
+
+def build_slack_triage_text(review: dict[str, Any], *, changed: bool = False) -> str:
+    classification = classify_store_review(review)
+    draft = draft_store_review_reply(review)
+    answer_text = ((draft.get("answer") or {}) if isinstance(draft, dict) else {}).get("answer_text", "")
+    rating = review.get("rating")
+    stars = f"{rating}/5" if rating else "unknown rating"
+    title = review.get("title") or _shorten(review.get("body", ""), 80) or "Untitled review"
+    app_version = review.get("app_version") or "unknown app version"
+    country = review.get("country") or review.get("locale") or "unknown country/locale"
+    state_note = "Updated review detected" if changed else "New review detected"
+    lines = [
+        "PSM Ops automation: Store review triage",
+        f"{state_note}: {stars} {review.get('store') or 'unknown store'} {country} {app_version} - {_shorten(str(title), 120)}",
+        f"Review ID: {review.get('review_id') or 'missing'}",
+        f"App ref: {review.get('app_ref') or 'missing'}",
+        f"Theme: {classification['theme']} | Severity: {classification['severity']}",
+        f"Review link: {review.get('review_url') or 'n/a'}",
+        (
+            f"Actions: request private contact details via {STAFFANY_SUPPORT_EMAIL}, mark internal label "
+            f"`{IDENTITY_LABEL_REQUESTED_PRIVATE}`, and watch for support follow-up. Public store reply publishing is not enabled in V1."
+        ),
+        (
+            "Identity: unknown until the reviewer follows up privately with their StaffAny account email or phone "
+            "plus company/outlet. Do not ask for email/phone in the public review."
+        ),
+        f"Internal correlation: {review_state_key(review)}",
+        f"Draft reply for approval: {_shorten(answer_text, 300)}",
+        "Caveat: reviewer nickname is not enough to map a StaffAny customer/org. Use private support follow-up plus Customer 360/Jira evidence for internal follow-up.",
+    ]
+    return "\n".join(lines)

@@ -145,7 +145,7 @@ profiles:
       psm_jira: 24
       psm_c360: 3
       psm_google_calendar: 1
-      psm_appfollow: 7
+      psm_store_reviews: 6
     expected_crons:
       - name: psmopsbot due-date reminders
         schedule: "0 1 * * 1-5"
@@ -166,6 +166,11 @@ profiles:
         schedule: "*/30 1-10 * * 1-5"
         mode: no-agent
         script: psm_ops_roi_tracker_sync.py
+        deliver: slack:#ps-weeman-bot-test
+      - name: psmopsbot store review poll
+        schedule: "0 * * * *"
+        mode: no-agent
+        script: psm_ops_store_review_poll.py
         deliver: slack:#ps-weeman-bot-test
       - name: psmopsbot assignment hygiene
         schedule: "15 1 * * 1-5"

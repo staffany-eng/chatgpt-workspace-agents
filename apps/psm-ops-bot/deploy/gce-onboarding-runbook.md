@@ -23,7 +23,8 @@ Store these in Secret Manager and load them into the profile `.env` on the cloud
 - `customer-360-jira-email`
 - `customer-360-jira-api-token`
 - `customer-360-internal-api-token`
-- `psm-ops-bot-appfollow-api-token`
+- Google Play service account JSON for `com.staffany.pixie`
+- App Store Connect API key config for app `1360658903`
 - `hermes-data-bot-anthropic-api-key`
 - Google Calendar OAuth JSON for `team@staffany.com` with `https://www.googleapis.com/auth/calendar.readonly`
 - Google Calendar OAuth client secret JSON for the same StaffAny OAuth client
@@ -62,11 +63,13 @@ Thin POC Jira IDs must also be present in the profile `.env`:
 - `PSM_OPS_CENTRAL_SLACK_CHANNEL_ID` for bot-owned PS WEE central audit copies
 - `PSM_OPS_CENTRAL_FETCH_SLACK_THREAD=true` if bounded source-thread transcript excerpts should be included
 - `PSM_OPS_ADOPTION_METRICS_ENABLED=true` or `PSM_OPS_ADOPTION_METRICS_PATH` for adoption telemetry
-- `APPFOLLOW_API_TOKEN` from `psm-ops-bot-appfollow-api-token`
-- `PSM_OPS_APPFOLLOW_ENABLED=true` after `psm_appfollow` MCP access is configured
-- `PSM_OPS_APPFOLLOW_STATE_PATH=/home/leekaiyi/.hermes/profiles/psmopsbot/state/appfollow_reviews.json`
-- `PSM_OPS_APPFOLLOW_APP_EXT_IDS` or `PSM_OPS_APPFOLLOW_DEFAULT_EXT_ID` so `#all-reviews` Slack alerts can resolve AppFollow `ext_id`. If `/account/apps` exposes only a collection, use `PSM_OPS_APPFOLLOW_COLLECTION_NAMES` or `PSM_OPS_APPFOLLOW_DEFAULT_COLLECTION_NAME`.
-- Keep `PSM_OPS_APPFOLLOW_REPLY_PUBLISH_ENABLED=false` until one same-thread `post reply` smoke is approved
+- `PSM_OPS_GOOGLE_PLAY_PACKAGE_NAME=com.staffany.pixie`
+- `GOOGLE_PLAY_SERVICE_ACCOUNT_FILE=/home/leekaiyi/.hermes/profiles/psmopsbot/google-play-service-account.json` or `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`
+- Google Play service account must have Android Publisher review access, including `Reply to reviews`, even though V1 is draft-only
+- `PSM_OPS_APP_STORE_APP_ID=1360658903`
+- `APP_STORE_CONNECT_CONFIG_FILE=/home/leekaiyi/.hermes/profiles/psmopsbot/app-store-connect.json` or `APP_STORE_CONNECT_CONFIG_JSON`
+- App Store Connect API key role should be `Customer Support` or `Admin`
+- `PSM_OPS_STORE_REVIEWS_STATE_PATH=/home/leekaiyi/.hermes/profiles/psmopsbot/state/store_reviews.json`
 
 ROI-direct Jira IDs must also be present before enabling RevOps / BD Ops / NYSS routing:
 
@@ -166,7 +169,7 @@ cp apps/psm-ops-bot/runtime/scripts/psm_ops_pco_assignment_hygiene.py ~/.hermes/
 cp apps/psm-ops-bot/runtime/scripts/psm_ops_roi_tracker_sync.py ~/.hermes/profiles/psmopsbot/scripts/psm_ops_roi_tracker_sync.py
 cp apps/psm-ops-bot/runtime/scripts/psm_ops_pco_assignment_hygiene.py ~/.hermes/profiles/psmopsbot/scripts/psm_ops_pco_assignment_hygiene.py
 cp apps/psm-ops-bot/runtime/scripts/psm_ops_join_public_channels.py ~/.hermes/profiles/psmopsbot/scripts/psm_ops_join_public_channels.py
-cp apps/psm-ops-bot/runtime/scripts/psm_ops_appfollow_review_triage.py ~/.hermes/profiles/psmopsbot/scripts/psm_ops_appfollow_review_triage.py
+cp apps/psm-ops-bot/runtime/scripts/psm_ops_store_review_poll.py ~/.hermes/profiles/psmopsbot/scripts/psm_ops_store_review_poll.py
 chmod 755 ~/.hermes/profiles/psmopsbot/scripts/psm_ops_adoption_digest.py \
   ~/.hermes/profiles/psmopsbot/scripts/psm_ops_due_date_reminders.py \
   ~/.hermes/profiles/psmopsbot/scripts/psm_ops_due_date_reminders_eod.py \
@@ -174,7 +177,7 @@ chmod 755 ~/.hermes/profiles/psmopsbot/scripts/psm_ops_adoption_digest.py \
   ~/.hermes/profiles/psmopsbot/scripts/psm_ops_roi_tracker_sync.py \
   ~/.hermes/profiles/psmopsbot/scripts/psm_ops_pco_assignment_hygiene.py \
   ~/.hermes/profiles/psmopsbot/scripts/psm_ops_join_public_channels.py \
-  ~/.hermes/profiles/psmopsbot/scripts/psm_ops_appfollow_review_triage.py
+  ~/.hermes/profiles/psmopsbot/scripts/psm_ops_store_review_poll.py
 ```
 
 Write the approved `team@staffany.com` OAuth files from Secret Manager to the paths configured above. Do not commit or paste those JSON files into the repo.
@@ -230,7 +233,7 @@ The script:
 - runs the Rock Productions C360 lookup smoke against the live Customer 360 API
 - preserves and verifies the PS WEE no-agent adoption digest cron
 - preserves and verifies the PS WEE no-agent PCO assignment hygiene cron
-- copies `psm_ops_appfollow_review_triage.py` for event-driven AppFollow review alerts without creating a polling cron
+- copies `psm_ops_store_review_poll.py` for direct App Store / Google Play review polling
 - stamps `$profile/VERSION` with the deployed SHA, branch, and UTC timestamp
 
 Useful options:
@@ -270,6 +273,12 @@ hermes -p psmopsbot cron create "*/30 1-10 * * 1-5" \
   --no-agent \
   --deliver "slack:#ps-weeman-bot-test"
 
+hermes -p psmopsbot cron create "0 * * * *" \
+  --name "psmopsbot store review poll" \
+  --script psm_ops_store_review_poll.py \
+  --no-agent \
+  --deliver "slack:#ps-weeman-bot-test"
+
 hermes -p psmopsbot cron create "0 2 * * 1-5" \
   --name "psmopsbot adoption digest" \
   --script psm_ops_adoption_digest.py \
@@ -277,15 +286,15 @@ hermes -p psmopsbot cron create "0 2 * * 1-5" \
   --deliver "slack:#ps-weeman-bot-test"
 ```
 
-The GCE host runs UTC, so `0 1 * * 1-5` is 09:00 Asia/Singapore on weekdays, `15 1 * * 1-5` is 09:15 Asia/Singapore on weekdays, `0 9 * * 1-5` is 17:00 Asia/Singapore on weekdays, and `*/30 1-10 * * 1-5` checks ROI trackers every 30 minutes during Singapore workdays. The EOD cron uses the same source script copied under an `eod` filename because Hermes cron does not pass script flags to no-agent scripts.
-
-Do not create a constant AppFollow polling cron on the Free plan. Use the direct Slack alert permalink path instead:
+The GCE host runs UTC, so `0 1 * * 1-5` is 09:00 Asia/Singapore on weekdays, `15 1 * * 1-5` is 09:15 Asia/Singapore on weekdays, `0 9 * * 1-5` is 17:00 Asia/Singapore on weekdays, `*/30 1-10 * * 1-5` checks ROI trackers every 30 minutes during Singapore workdays, and `0 * * * *` checks direct store reviews hourly. The EOD cron uses the same source script copied under an `eod` filename because Hermes cron does not pass script flags to no-agent scripts.
 
 ```bash
-~/.hermes/profiles/psmopsbot/scripts/psm_ops_appfollow_review_triage.py \
-  --slack-thread-url "https://staffany.slack.com/archives/<all-reviews-channel>/p<message-ts>"
-~/.hermes/profiles/psmopsbot/scripts/psm_ops_appfollow_review_triage.py \
-  --slack-thread-url "https://staffany.slack.com/archives/<all-reviews-channel>/p<message-ts>" \
+~/.hermes/profiles/psmopsbot/scripts/psm_ops_store_review_poll.py \
+  --store app_store \
+  --limit 5
+~/.hermes/profiles/psmopsbot/scripts/psm_ops_store_review_poll.py \
+  --store google_play \
+  --limit 5 \
   --apply
 ```
 
@@ -318,13 +327,14 @@ Cloud smoke:
 5. Run `psm_ops_due_date_reminders.py --mode morning --dry-run`, `psm_ops_pco_assignment_hygiene.py --dry-run`, `psm_ops_due_date_reminders.py --mode eod --dry-run`, and `psm_ops_roi_tracker_sync.py --dry-run`; verify they output Slack-safe mrkdwn, optional reviewed PS lead / PS Team mentions, reviewed customer-channel mentions from source links only, safe Jira issue summaries, and `[SILENT]` when empty.
 6. Ask for Rock Productions from a channel-style hint such as `proj-cs-rockproductions`; verify the bot finds `Rock Productions Pte Ltd`, shows the searched variants safely, and does not say a generic customer cannot be found.
 7. Ask one calendar follow-up question and verify `psm_google_calendar.read_customer_calendar_context` returns bounded event metadata from `team@staffany.com` without descriptions, attendee emails, raw guest lists, or conference links.
-8. Run `hermes -p psmopsbot mcp test psm_appfollow` and verify it discovers 7 tools.
-9. Run `list_appfollow_apps` and confirm the two StaffAny apps are returned.
-10. Run `get_appfollow_review` for `review_id=345030591` with the approved `ext_id`; do not run broad polling.
-11. Draft the public reply and verify it asks the reviewer to email `support@staffany.com` privately with account email/phone plus company/outlet, without exposing a public `REV-<review_id>` code as the main CTA.
-12. Dry-run `tag_appfollow_review` with a harmless internal tag such as `identity_requested_private`, then apply only after confirming the target review.
-13. Test `suggest_appfollow_review_identity_candidates` with a private support email/phone claim; exact email can verify only when Customer 360/HubSpot candidate evidence matches, while phone-only stays candidate.
-14. Leave public reply publishing disabled until one same-thread `post reply` smoke is approved.
+8. Run `hermes -p psmopsbot mcp test psm_store_reviews` and verify it discovers 6 tools.
+9. Run `list_store_review_apps` and confirm Google Play package `com.staffany.pixie` plus App Store app `1360658903`.
+10. Run `list_store_reviews` for Google Play and App Store with `limit=5`.
+11. Run `get_store_review` for one known direct store review id after credentials are proven.
+12. Draft the public reply and verify it asks the reviewer to email `support@staffany.com` privately with account email/phone plus company/outlet, without exposing a public `REV-<review_id>` code as the main CTA.
+13. Run `psm_ops_store_review_poll.py --limit 5` without `--apply`; verify it reports candidate Slack payload or `[SILENT]` and does not persist state.
+14. Test `suggest_store_review_identity_candidates` with a private support email/phone claim; exact email can verify only when Customer 360/HubSpot candidate evidence matches, while phone-only stays candidate.
+15. Keep public reply publishing absent in V1.
 15. Ask one C360 customer question and verify a C360 link/citation appears.
 16. Create a PS WEE intake ticket from a non-home public channel and verify the same Slack thread gets the ticket link while the central ops channel gets a `PSM Ops automation:` audit copy with the source thread permalink.
 17. Run `hermes -p psmopsbot insights --days 30 --source slack` and `hermes -p psmopsbot sessions stats` for native Hermes adoption checks.

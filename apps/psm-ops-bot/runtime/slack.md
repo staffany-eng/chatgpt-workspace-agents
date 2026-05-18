@@ -38,9 +38,9 @@ The Slack surface is mention-required usage in public/open StaffAny Slack channe
 - Assignment hygiene digests use deterministic Slack mrkdwn over safe Jira PCO fields only. Josica lead mention comes only from `ps_leads.Josica`; PS Team mentions come only from `ps_teams`. Missing mappings render `Lead mention gap` or `Mention gaps`.
 - Customer-team tagging in reminders is central-channel-only. Render a customer channel mention only when a Jira source link contains a Slack permalink whose channel is reviewed in `PSM_OPS_CUSTOMER_CHANNEL_MAP_PATH`; do not cross-post to customer channels.
 - Explicit customer scheduling or follow-up requests may use `read_customer_calendar_context` through the read-only `team@staffany.com` account. Do not call Calendar for vague names, task-list ownership, or missing attendee slot requests. Return only bounded safe metadata and never expose descriptions, attendee emails, raw guest lists, conference links, or phone numbers.
-- AppFollow `#all-reviews` alerts are event triggers, not a polling source. The no-agent `psm_ops_appfollow_review_triage.py --slack-thread-url <permalink> --apply` path may read one AppFollow alert, hydrate one review through `psm_appfollow`, classify severity/theme, and post a same-thread `PSM Ops automation:` triage reply. Runtime state must be keyed by `store + ext_id + review_id` so duplicate alerts do not create duplicate triage.
-- Unknown AppFollow reviewer identity should trigger the private support CTA, not a public reference-code ask: draft replies ask the reviewer to email `support@staffany.com` with their StaffAny account email or phone number plus company/outlet. Do not ask for email/phone in the public review. If private support details arrive, use `suggest_appfollow_review_identity_candidates`; only `confirm_appfollow_review_identity` after human confirmation.
-- Public App Store / Google Play replies are blocked until a human approves in the same Slack thread with `post reply` or `publish reply`. Drafts may be generated in Slack, but `publish_appfollow_reply_after_approval` must stay disabled until one approved smoke test passes.
+- Direct store review polling uses `psm_ops_store_review_poll.py` as an hourly no-agent cron. It calls direct Google Play / App Store Connect APIs through `psm_store_reviews`, classifies severity/theme, and emits `PSM Ops automation: Store review triage` only for new or meaningfully changed reviews. Runtime state must be keyed by `store + app_ref + review_id` so duplicate polls do not create duplicate triage.
+- Unknown store reviewer identity should trigger the private support CTA, not a public reference-code ask: draft replies ask the reviewer to email `support@staffany.com` with their StaffAny account email or phone number plus company/outlet. Do not ask for email/phone in the public review. If private support details arrive, use `suggest_store_review_identity_candidates`; only `confirm_store_review_identity` after human confirmation.
+- Public App Store / Google Play reply publishing is not exposed in V1. Drafts may be generated in Slack, but direct public reply publish tools must remain absent until a separate approved smoke-test plan is implemented.
 
 ## Output Contracts
 
@@ -102,7 +102,7 @@ The PSM Jira MCP needs `users:read` and `users:read.email` so it can fetch Slack
 
 Central audit copies need bot-owned `chat:write`. If raw source-thread excerpt fetch is enabled, the bot also needs `channels:history` for public channels it is in and `groups:history` only for private channels where the bot has explicitly been invited. Do not request broad private-channel enumeration for V1.
 
-AppFollow review triage also uses bot-owned `conversations.replies` and `chat.postMessage` on the specific `#all-reviews` Slack permalink. Do not use Kai Yi's user token or the Slack connector to reply on behalf of PS WEE.
+Store review triage is delivered through the PSM Ops bot-owned Slack delivery path. Do not use Kai Yi's user token or the Slack connector to reply on behalf of PS WEE.
 
 Open public-channel mode is not proven by `SLACK_ALLOWED_CHANNELS=""` alone. The Slack app must have `channels:join`, then the bot-owned public-channel join script must be run from the cloud profile:
 

@@ -27,13 +27,13 @@
     "jira_runtime": "runtime/jira.md",
     "c360_runtime": "runtime/c360.md",
     "google_calendar_runtime": "runtime/google-calendar.md",
-    "appfollow_runtime": "runtime/appfollow.md",
+    "store_reviews_runtime": "runtime/store-reviews.md",
     "slack_runtime": "runtime/slack.md",
     "psm_jira_mcp": "runtime/mcp/psm_jira_server.py",
     "psm_c360_mcp": "runtime/mcp/psm_c360_server.py",
     "psm_google_calendar_mcp": "runtime/mcp/psm_google_calendar_server.py",
-    "psm_appfollow_mcp": "runtime/mcp/psm_appfollow_server.py",
-    "appfollow_reviews_core": "runtime/mcp/appfollow_reviews_core.py",
+    "psm_store_reviews_mcp": "runtime/mcp/psm_store_reviews_server.py",
+    "store_reviews_core": "runtime/mcp/store_reviews_core.py",
     "health_checks": "runtime/health-checks.md",
     "health_check_script": "runtime/check-health.sh",
     "cloud_heartbeat_script": "runtime/check-cloud-heartbeat.sh",
@@ -45,7 +45,7 @@
     "roi_tracker_sync_script": "runtime/scripts/psm_ops_roi_tracker_sync.py",
     "assignment_hygiene_script": "runtime/scripts/psm_ops_pco_assignment_hygiene.py",
     "public_channel_join_script": "runtime/scripts/psm_ops_join_public_channels.py",
-    "appfollow_review_triage_script": "runtime/scripts/psm_ops_appfollow_review_triage.py",
+    "store_review_poll_script": "runtime/scripts/psm_ops_store_review_poll.py",
     "slack_notifier": "runtime/mcp/psm_slack_notifier.py",
     "adoption_hook": "runtime/hooks/psm-ops-adoption-telemetry/HOOK.yaml",
     "adoption_hook_handler": "runtime/hooks/psm-ops-adoption-telemetry/handler.py",
@@ -97,16 +97,15 @@
         "read_customer_calendar_context"
       ]
     },
-    "psm_appfollow": {
+    "psm_store_reviews": {
       "command_env": "PSM_OPS_PYTHON",
       "expected_tools": [
-        "list_appfollow_apps",
-        "get_appfollow_review",
-        "tag_appfollow_review",
-        "draft_appfollow_reply",
-        "suggest_appfollow_review_identity_candidates",
-        "confirm_appfollow_review_identity",
-        "publish_appfollow_reply_after_approval"
+        "list_store_review_apps",
+        "list_store_reviews",
+        "get_store_review",
+        "draft_store_review_reply",
+        "suggest_store_review_identity_candidates",
+        "confirm_store_review_identity"
       ]
     }
   },
@@ -173,22 +172,23 @@
     "attendee_exports": false,
     "private_field_exports": false
   },
-  "appfollow": {
+  "store_reviews": {
     "source_of_truth": true,
-    "source_of_truth_scope": "app_store_google_play_review_metadata_tags_and_replies",
-    "token_env_var": "APPFOLLOW_API_TOKEN",
-    "enabled_env_var": "PSM_OPS_APPFOLLOW_ENABLED",
-    "default_ext_id_env_var": "PSM_OPS_APPFOLLOW_DEFAULT_EXT_ID",
-    "app_ext_id_mapping_env_var": "PSM_OPS_APPFOLLOW_APP_EXT_IDS",
-    "default_collection_name_env_var": "PSM_OPS_APPFOLLOW_DEFAULT_COLLECTION_NAME",
-    "collection_name_mapping_env_var": "PSM_OPS_APPFOLLOW_COLLECTION_NAMES",
-    "state_path_env_var": "PSM_OPS_APPFOLLOW_STATE_PATH",
-    "state_key": "store + ext_id + review_id",
-    "event_mode": "slack_alert_triggered",
-    "constant_polling": false,
-    "slack_source_channel": "all-reviews",
+    "source_of_truth_scope": "app_store_google_play_review_metadata_and_identity_correlation",
+    "google_play_package_name": "com.staffany.pixie",
+    "google_play_service_account_file_env_var": "GOOGLE_PLAY_SERVICE_ACCOUNT_FILE",
+    "google_play_service_account_json_env_var": "GOOGLE_PLAY_SERVICE_ACCOUNT_JSON",
+    "google_play_required_scope": "https://www.googleapis.com/auth/androidpublisher",
+    "app_store_app_id": "1360658903",
+    "app_store_connect_config_file_env_var": "APP_STORE_CONNECT_CONFIG_FILE",
+    "app_store_connect_config_json_env_var": "APP_STORE_CONNECT_CONFIG_JSON",
+    "app_store_connect_required_role": "Customer Support or Admin",
+    "state_path_env_var": "PSM_OPS_STORE_REVIEWS_STATE_PATH",
+    "state_key": "store + app_ref + review_id",
+    "event_mode": "scheduled_direct_polling",
+    "polling_cron": "0 * * * *",
     "private_support_email": "support@staffany.com",
-    "identity_candidate_tags": [
+    "identity_internal_labels": [
       "identity_unknown",
       "identity_requested_private",
       "identity_candidate",
@@ -196,9 +196,7 @@
     ],
     "verified_identity_rule": "private exact email match plus Customer 360 or HubSpot evidence",
     "phone_only_identity_rule": "candidate only until human confirmed",
-    "public_reply_approval_required": true,
-    "reply_publish_enabled_env_var": "PSM_OPS_APPFOLLOW_REPLY_PUBLISH_ENABLED",
-    "credits_policy": "event_driven_only_free_plan"
+    "public_reply_publish_v1": false
   },
   "channels": [
     "Slack public/open channels with mention-required gateway"
@@ -242,8 +240,8 @@
       "c360_account_context",
       "c360_customer_answer",
       "c360_blocked",
-      "appfollow_review_triaged",
-      "appfollow_blocked"
+      "store_review_triaged",
+      "store_review_blocked"
     ]
   },
   "secrets_copied": false

@@ -150,23 +150,23 @@ psm_ops:
     client_secret_file_env: "GOOGLE_CALENDAR_CLIENT_SECRET_FILE"
     required_scope: "https://www.googleapis.com/auth/calendar.readonly"
     read_only: true
-  appfollow:
-    source_of_truth: "review_metadata_tags_and_replies"
-    event_mode: "slack_alert_triggered"
-    constant_polling: false
-    token_env: "APPFOLLOW_API_TOKEN"
-    enabled_env: "PSM_OPS_APPFOLLOW_ENABLED"
-    state_path_env: "PSM_OPS_APPFOLLOW_STATE_PATH"
-    app_ext_id_mapping_env: "PSM_OPS_APPFOLLOW_APP_EXT_IDS"
-    default_ext_id_env: "PSM_OPS_APPFOLLOW_DEFAULT_EXT_ID"
-    collection_name_mapping_env: "PSM_OPS_APPFOLLOW_COLLECTION_NAMES"
-    default_collection_name_env: "PSM_OPS_APPFOLLOW_DEFAULT_COLLECTION_NAME"
-    reply_publish_enabled_env: "PSM_OPS_APPFOLLOW_REPLY_PUBLISH_ENABLED"
-    all_reviews_channel_id_env: "PSM_OPS_APPFOLLOW_ALL_REVIEWS_CHANNEL_ID"
-    approval_phrase: "post reply"
-    idempotency_key: "store + ext_id + review_id"
+  store_reviews:
+    source_of_truth: "google_play_developer_api_and_app_store_connect_api"
+    event_mode: "scheduled_direct_polling"
+    polling_cron: "0 * * * *"
+    publish_replies_v1: false
+    google_play_package_name_env: "PSM_OPS_GOOGLE_PLAY_PACKAGE_NAME"
+    google_play_service_account_file_env: "GOOGLE_PLAY_SERVICE_ACCOUNT_FILE"
+    google_play_service_account_json_env: "GOOGLE_PLAY_SERVICE_ACCOUNT_JSON"
+    google_play_required_scope: "https://www.googleapis.com/auth/androidpublisher"
+    app_store_app_id_env: "PSM_OPS_APP_STORE_APP_ID"
+    app_store_connect_config_file_env: "APP_STORE_CONNECT_CONFIG_FILE"
+    app_store_connect_config_json_env: "APP_STORE_CONNECT_CONFIG_JSON"
+    app_store_connect_required_role: "Customer Support or Admin"
+    state_path_env: "PSM_OPS_STORE_REVIEWS_STATE_PATH"
+    idempotency_key: "store + app_ref + review_id"
     private_support_email: "support@staffany.com"
-    identity_candidate_tags:
+    identity_internal_labels:
       - "identity_unknown"
       - "identity_requested_private"
       - "identity_candidate"
@@ -226,27 +226,33 @@ mcp_servers:
       GOOGLE_CALENDAR_ACCOUNT_EMAIL: "team@staffany.com"
     tool_allowlist:
       - "read_customer_calendar_context"
-  psm_appfollow:
-    description: "Event-driven AppFollow review metadata, tag, and approved-reply adapter for PSM Ops Bot."
+  psm_store_reviews:
+    description: "Direct Google Play Developer API and App Store Connect review adapter for PSM Ops Bot."
     command: "/Users/leekaiyi/.hermes/hermes-agent/venv/bin/python"
     args:
-      - "/Users/leekaiyi/workspace/agent builder/apps/psm-ops-bot/runtime/mcp/psm_appfollow_server.py"
+      - "/Users/leekaiyi/workspace/agent builder/apps/psm-ops-bot/runtime/mcp/psm_store_reviews_server.py"
     timeout: 60
     env:
-      APPFOLLOW_API_TOKEN: "${APPFOLLOW_API_TOKEN}"
-      PSM_OPS_APPFOLLOW_STATE_PATH: "${PSM_OPS_APPFOLLOW_STATE_PATH}"
-      PSM_OPS_APPFOLLOW_APP_EXT_IDS: "${PSM_OPS_APPFOLLOW_APP_EXT_IDS}"
-      PSM_OPS_APPFOLLOW_REPLY_PUBLISH_ENABLED: "${PSM_OPS_APPFOLLOW_REPLY_PUBLISH_ENABLED}"
+      PSM_OPS_GOOGLE_PLAY_PACKAGE_NAME: "${PSM_OPS_GOOGLE_PLAY_PACKAGE_NAME}"
+      GOOGLE_PLAY_SERVICE_ACCOUNT_FILE: "${GOOGLE_PLAY_SERVICE_ACCOUNT_FILE}"
+      GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: "${GOOGLE_PLAY_SERVICE_ACCOUNT_JSON}"
+      PSM_OPS_APP_STORE_APP_ID: "${PSM_OPS_APP_STORE_APP_ID}"
+      APP_STORE_CONNECT_CONFIG_FILE: "${APP_STORE_CONNECT_CONFIG_FILE}"
+      APP_STORE_CONNECT_CONFIG_JSON: "${APP_STORE_CONNECT_CONFIG_JSON}"
+      APP_STORE_CONNECT_ISSUER_ID: "${APP_STORE_CONNECT_ISSUER_ID}"
+      APP_STORE_CONNECT_KEY_ID: "${APP_STORE_CONNECT_KEY_ID}"
+      APP_STORE_CONNECT_PRIVATE_KEY_FILE: "${APP_STORE_CONNECT_PRIVATE_KEY_FILE}"
+      APP_STORE_CONNECT_PRIVATE_KEY: "${APP_STORE_CONNECT_PRIVATE_KEY}"
+      PSM_OPS_STORE_REVIEWS_STATE_PATH: "${PSM_OPS_STORE_REVIEWS_STATE_PATH}"
       CUSTOMER360_BASE_URL: "${CUSTOMER360_BASE_URL}"
       CUSTOMER360_INTERNAL_API_TOKEN: "${CUSTOMER360_INTERNAL_API_TOKEN}"
     tool_allowlist:
-      - "list_appfollow_apps"
-      - "get_appfollow_review"
-      - "tag_appfollow_review"
-      - "draft_appfollow_reply"
-      - "suggest_appfollow_review_identity_candidates"
-      - "confirm_appfollow_review_identity"
-      - "publish_appfollow_reply_after_approval"
+      - "list_store_review_apps"
+      - "list_store_reviews"
+      - "get_store_review"
+      - "draft_store_review_reply"
+      - "suggest_store_review_identity_candidates"
+      - "confirm_store_review_identity"
 
 gateway:
   slack:
