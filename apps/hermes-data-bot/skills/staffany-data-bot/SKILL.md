@@ -109,6 +109,29 @@ For AA marketing-banner questions, the final answer must bucket C360 current-cus
 
 If the banner enabled flag, banner content, or AA-target source cannot be discovered or owner-verified, return `Confidence: needs-check` or `blocked`; do not provide broad city/org counts as the answer.
 
+## ATS JD And Redacted Candidate Sample Rules
+
+Use this path when the user asks for ATS, applicant, candidate, resume, CV, application, hiring status, hired/rejected examples, job opening, or JD data for a StaffAny org.
+
+- First Slack mentions still stay plan-first when BigQuery or other app data is needed.
+- A clear same-thread follow-up after an ATS result, such as asking for a JD and two hired / two rejected examples for the same org, is continuation work. Do not require another `run` if the org, role, statuses, and sample count are clear.
+- JD / job-opening description text is org/job-level data. It can be returned when the org and role are clear. If multiple matching openings exist, ask one focused clarification or return a small candidate list of matching openings before exposing a long JD.
+- Candidate resume/application details are allowed only as redacted sample summaries. Do not return raw resumes, full CV text, attachment URLs, candidate/applicant IDs, names, emails, phone numbers, addresses, NRIC/FIN, date of birth, bank details, or other direct identity/contact fields.
+- Query only the minimum fields needed to identify the matching org, role, status, and sample rows. Do not use `SELECT *`. Inspect schema first when table names, status fields, resume fields, or job-opening joins are unclear.
+- Use deterministic sample selection, such as latest application/update date, unless the user specifies another criterion. Keep the default sample small: up to 2 candidates per requested status and no more than 10 candidates total without a revised plan.
+- Summarize useful non-contact evidence only: application status, relevant work experience, education/certifications when non-identifying, availability, screening answers, role-fit notes, and resume-derived skills. Paraphrase resume details instead of quoting long raw resume text.
+- Use neutral labels such as `Hired candidate A` and `Rejected candidate B`. If exact dates or rare background details could re-identify the candidate, bucket or omit them.
+- If the user asks for raw resumes, exact attachments, contact info, or unredacted candidate data, return `Confidence: blocked` for that raw portion while offering the redacted ATS sample pack.
+- If the user asks for Google Sheets output for the sample pack, create only redacted rows and include the same source, scope, confidence, and caveat.
+
+Final ATS sample result format:
+
+Answer: <JD summary/text plus redacted candidate sample pack, or blocked raw portion>
+Source: <BigQuery table/tool used>
+Scope: <org, role, statuses, sample count, time/status filters, redaction policy>
+Confidence: <verified | needs-check | blocked>
+Caveat: <only the material caveat, including schema/status ambiguity or redaction limits>
+
 ## Slack Plan-First Workflow
 
 For first Slack mentions that need app data, Slack context, BigQuery, schema inspection, GitHub, or any slow tool-backed work, do not call tools yet. This is true even if the prompt is being replayed in a CLI/eval harness but explicitly says it is a Slack first mention. In that case, return the plan-first template rather than answering `blocked` because BigQuery/tools are unavailable in the harness.
@@ -168,7 +191,7 @@ Store only confirmed reusable learning:
 - Preferred output formats.
 - Repeated feedback patterns.
 
-Never store secrets, connector tokens, raw Slack transcripts/images, raw query results, PII, bank details, NRIC/FIN, phone numbers, employee-level payroll detail, or one-off customer data. If a user asks to export or reveal these, refuse before querying tools, offer a safe aggregate/redacted alternative, and use `Confidence: blocked` (not `verified`) because the requested output is intentionally blocked by policy.
+Never store secrets, connector tokens, raw Slack transcripts/images, raw query results, PII, bank details, NRIC/FIN, phone numbers, employee-level payroll detail, or one-off customer data. If a user asks to export or reveal raw sensitive data, refuse before querying tools, offer a safe aggregate/redacted alternative, and use `Confidence: blocked` (not `verified`) for the raw portion because that output is intentionally blocked by policy. Redacted ATS candidate sample summaries are allowed only under the ATS JD And Redacted Candidate Sample Rules.
 
 Ask before storing ambiguous feedback.
 
@@ -183,7 +206,8 @@ If Honcho memory conflicts with local registry references, BigQuery schema evide
 5. Returning candidate metrics without `needs-check`.
 6. Repeating a stale Slack answer instead of re-parsing the latest reply.
 7. Revealing SQL, IDs, raw employee-level details, or secrets by default.
-8. Treating Jira releases as usage evidence. Jira only says what shipped and how it was prioritized; BigQuery must verify usage.
+8. Blocking an ATS project entirely when the safe answer is a JD plus redacted candidate sample summaries.
+9. Treating Jira releases as usage evidence. Jira only says what shipped and how it was prioritized; BigQuery must verify usage.
 
 ## Skill Update and Sync Workflow
 
