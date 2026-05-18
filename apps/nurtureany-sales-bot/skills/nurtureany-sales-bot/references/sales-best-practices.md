@@ -234,6 +234,26 @@ Show the few workflows that match the prospect's pain. Use before/after contrast
 
 Negotiation should tie back to quantified value, give-and-take, and a timeline backward from onboarding, signing, and decision dates. Do not invent pricing.
 
+## Demo Grading Rubric
+
+For selected Loom/demo transcript evidence, grade from captions/timing only. Use `extract_demo_transcript_evidence` to get bounded redacted evidence, then apply this rubric internally; do not add a separate public `demo_review_nurtureany` primitive.
+
+Score each dimension `0/1/2`: `0` missed, `1` partial, `2` strong.
+
+- Control and conversational opening
+- Discovery and I-C-BANT
+- Consultative/contextual demo
+- Before/after value framing
+- Benefits over features
+- Product knowledge accuracy
+- Objection and negotiation handling
+- Customer engagement and interaction cues
+- Next step and post-demo follow-up quality
+
+Output demo grading as `Answer`, `Overall grade`, `Scorecard`, `Coachable moments`, `Better talk tracks`, `Manager coaching note`, `Next practice`, `Source`, `Scope`, `Confidence`, and `Caveat`.
+
+Do not paste raw transcript blocks, signed Loom media URLs, video/audio bytes, phone numbers, full emails, or private demo content into Slack or Sheets. If captions are unavailable, return `Confidence: blocked` and ask for captions or transcript input.
+
 ## Post-Demo Follow-Up
 
 Follow-up earns a decision; it is not a reminder sequence.

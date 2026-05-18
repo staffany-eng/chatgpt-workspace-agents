@@ -36,6 +36,8 @@
     "hubspot_mcp": "runtime/mcp/hubspot_nurtureany_server.py",
     "aircall_runtime": "runtime/aircall.md",
     "aircall_mcp": "runtime/mcp/aircall_nurtureany_server.py",
+    "demo_sources_runtime": "runtime/demo-sources.md",
+    "demo_sources_mcp": "runtime/mcp/demo_sources_nurtureany_server.py",
     "case_study_catalog": "runtime/data/case-studies.json",
     "access_policy_template": "runtime/access-policy.template.json",
     "bigquery_runtime": "runtime/bigquery.md",
@@ -579,6 +581,7 @@
       "resolve_aircall_call_for_coaching",
       "transcribe_aircall_recording",
       "analyze_aircall_call_coaching",
+      "extract_demo_transcript_evidence",
       "get_account_context",
       "build_pre_demo_game_plans",
       "find_sales_case_studies",
@@ -761,7 +764,56 @@
     "raw_recording_urls_returned": false,
     "raw_audio_retained": false,
     "bulk_transcript_exports": false,
-    "hubspot_source_of_truth": true
+    "hubspot_source_of_truth": true,
+    "demo_call_type_supported": true,
+    "demo_score_dimensions": [
+      "Control and conversational opening",
+      "Discovery and I-C-BANT",
+      "Consultative/contextual demo",
+      "Before/after value framing",
+      "Benefits over features",
+      "Product knowledge accuracy",
+      "Objection and negotiation handling",
+      "Customer engagement and interaction cues",
+      "Next step and post-demo follow-up quality"
+    ]
+  },
+  "demo_sources": {
+    "provider": "Loom share page captions/VTT selected demo source",
+    "read_only": true,
+    "caption_first": true,
+    "supported_source_types": [
+      "auto",
+      "loom"
+    ],
+    "allowed_tools": [
+      "extract_demo_transcript_evidence"
+    ],
+    "max_fetch_bytes": 1000000,
+    "max_safe_segments": 24,
+    "raw_transcript_returned": false,
+    "signed_loom_media_urls_returned": false,
+    "video_audio_bytes_returned": false,
+    "phone_numbers_returned": false,
+    "full_emails_returned": false,
+    "media_downloads": false,
+    "hubspot_source_of_truth": true,
+    "demo_grading_public_primitive": false,
+    "sheet_export_tools": [
+      "preview_analysis_sheet_export",
+      "apply_analysis_sheet_export"
+    ],
+    "demo_score_dimensions": [
+      "Control and conversational opening",
+      "Discovery and I-C-BANT",
+      "Consultative/contextual demo",
+      "Before/after value framing",
+      "Benefits over features",
+      "Product knowledge accuracy",
+      "Objection and negotiation handling",
+      "Customer engagement and interaction cues",
+      "Next step and post-demo follow-up quality"
+    ]
   },
   "exa": {
     "auth_env_var": "EXA_API_KEY",

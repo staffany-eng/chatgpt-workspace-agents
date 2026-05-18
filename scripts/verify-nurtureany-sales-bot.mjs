@@ -331,6 +331,7 @@ if (!existsSync(manifestPath)) {
       "resolve_aircall_call_for_coaching",
       "transcribe_aircall_recording",
       "analyze_aircall_call_coaching",
+      "extract_demo_transcript_evidence",
       "get_account_context",
       "build_pre_demo_game_plans",
       "find_sales_case_studies",
@@ -458,6 +459,7 @@ if (!existsSync(manifestPath)) {
       "runtime/mcp/slack_nurtureany_server.py",
       "runtime/mcp/hubspot_nurtureany_server.py",
       "runtime/mcp/aircall_nurtureany_server.py",
+      "runtime/mcp/demo_sources_nurtureany_server.py",
       "runtime/mcp/google_calendar_nurtureany_server.py",
       "runtime/mcp/google_drive_nurtureany_server.py",
       "runtime/mcp/google_sheets_nurtureany_server.py",
@@ -511,6 +513,46 @@ if (!existsSync(manifestPath)) {
     if (manifest.aircall?.bulk_transcript_exports !== false) fail("Manifest Aircall must block bulk transcript exports");
     for (const tool of ["find_aircall_calls", "resolve_aircall_call_for_coaching", "transcribe_aircall_recording", "analyze_aircall_call_coaching"]) {
       if (!manifest.aircall?.allowed_tools?.includes(tool)) fail(`Manifest Aircall missing allowed tool: ${tool}`);
+    }
+    if (manifest.aircall?.demo_call_type_supported !== true) fail("Manifest Aircall must support demo call_type");
+    for (const dimension of [
+      "Control and conversational opening",
+      "Discovery and I-C-BANT",
+      "Consultative/contextual demo",
+      "Before/after value framing",
+      "Benefits over features",
+      "Product knowledge accuracy",
+      "Objection and negotiation handling",
+      "Customer engagement and interaction cues",
+      "Next step and post-demo follow-up quality"
+    ]) {
+      if (!manifest.aircall?.demo_score_dimensions?.includes(dimension)) {
+        fail(`Manifest Aircall missing demo score dimension: ${dimension}`);
+      }
+    }
+    if (manifest.demo_sources?.provider !== "Loom share page captions/VTT selected demo source") {
+      fail("Manifest demo_sources provider must be Loom captions/VTT");
+    }
+    if (manifest.demo_sources?.read_only !== true) fail("Manifest demo_sources read_only must be true");
+    if (manifest.demo_sources?.caption_first !== true) fail("Manifest demo_sources caption_first must be true");
+    if (!manifest.demo_sources?.allowed_tools?.includes("extract_demo_transcript_evidence")) {
+      fail("Manifest demo_sources missing extract_demo_transcript_evidence");
+    }
+    if (manifest.demo_sources?.max_fetch_bytes !== 1000000) fail("Manifest demo_sources max_fetch_bytes must be 1000000");
+    if (manifest.demo_sources?.max_safe_segments !== 24) fail("Manifest demo_sources max_safe_segments must be 24");
+    if (manifest.demo_sources?.raw_transcript_returned !== false) fail("Manifest demo_sources must not return raw transcripts");
+    if (manifest.demo_sources?.signed_loom_media_urls_returned !== false) fail("Manifest demo_sources must not return signed Loom media URLs");
+    if (manifest.demo_sources?.video_audio_bytes_returned !== false) fail("Manifest demo_sources must not return media bytes");
+    if (manifest.demo_sources?.phone_numbers_returned !== false) fail("Manifest demo_sources must not return phone numbers");
+    if (manifest.demo_sources?.full_emails_returned !== false) fail("Manifest demo_sources must not return full emails");
+    if (manifest.demo_sources?.media_downloads !== false) fail("Manifest demo_sources must disable media downloads");
+    if (manifest.demo_sources?.demo_grading_public_primitive !== false) {
+      fail("Manifest demo_sources must keep demo grading internal, not a public primitive");
+    }
+    for (const tool of ["preview_analysis_sheet_export", "apply_analysis_sheet_export"]) {
+      if (!manifest.demo_sources?.sheet_export_tools?.includes(tool)) {
+        fail(`Manifest demo_sources missing Sheet export tool: ${tool}`);
+      }
     }
     if (manifest.exa?.auth_env_var !== "EXA_API_KEY") fail("Manifest missing EXA_API_KEY auth env var");
     if (manifest.exa?.max_search_companies !== 5) fail("Manifest Exa max_search_companies must be 5");
@@ -833,6 +875,9 @@ const filesToScan = [
   "runtime/aircall.md",
   "runtime/mcp/aircall_nurtureany_server.py",
   "runtime/mcp/test_aircall_nurtureany_server.py",
+  "runtime/demo-sources.md",
+  "runtime/mcp/demo_sources_nurtureany_server.py",
+  "runtime/mcp/test_demo_sources_nurtureany_server.py",
   "runtime/mcp/nurtureany_common/responses.py",
   "runtime/mcp/nurtureany_common/text.py",
   "runtime/mcp/nurtureany_common/scoped_company.py",
@@ -1230,6 +1275,12 @@ for (const text of [
   "AI/data-readiness",
   "event attribution",
   "pre-demo game plans",
+  "selected demo grading",
+  "demo_source",
+  "extract_demo_transcript_evidence",
+  "demo_review_nurtureany",
+  "signed Loom media URLs",
+  "Better talk tracks",
   "NURTUREANY_ACCESS_POLICY_PATH",
   "Unclassified HubSpot owners are blocked",
   "Managers cannot create HubSpot write-back previews",
@@ -1313,6 +1364,10 @@ for (const text of [
   "references/sales-best-practices.md",
   "references/sop-tool-coverage.md",
   "references/pre-demo-game-plans.md",
+  "extract_demo_transcript_evidence",
+  "Overall grade",
+  "Better talk tracks",
+  "demo_review_nurtureany",
   "Nurture-ready enriched",
   "verified decision maker",
   "missing-decision-maker counts",
@@ -1436,6 +1491,12 @@ for (const text of [
   "build_sales_metric_actuals_query",
   "build_friday_sales_review",
   "build_pre_demo_game_plans",
+  "Demo Grading Rubric",
+  "extract_demo_transcript_evidence",
+  "Control and conversational opening",
+  "Overall grade",
+  "Better talk tracks",
+  "signed Loom media URLs",
   "manual-review only",
   "Terminology aliases",
   "KNS`, `K/N/S`, and `K N S` all mean Knowledge, Network, Support",
@@ -1468,6 +1529,9 @@ for (const text of [
   "Cost/credit reporting",
   "Mutation policy",
   "build_sales_whatsapp_window_report",
+  "extract_demo_transcript_evidence",
+  "Demo review",
+  "signed Loom media URLs",
   "explicit Indonesia support",
   "NURTUREANY_REPORT_DELIVERY_CHANNEL_IDS",
   "Sales-best-practices usage",
@@ -1495,6 +1559,7 @@ for (const text of [
 for (const tool of [
   "runtime/mcp/slack_nurtureany_server.py",
   "runtime/mcp/hubspot_nurtureany_server.py",
+  "runtime/mcp/demo_sources_nurtureany_server.py",
   "runtime/mcp/google_calendar_nurtureany_server.py",
   "runtime/mcp/google_drive_nurtureany_server.py",
   "runtime/mcp/eazybe_nurtureany_server.py",
@@ -1536,7 +1601,12 @@ for (const text of [
   "Mutation Disabled In V1",
   "create_hubspot_task",
   "append_hubspot_note",
-  "update_nurture_fields"
+  "update_nurture_fields",
+  "Selected Loom Demo Review Scorecard",
+  "extract_demo_transcript_evidence",
+  "Overall grade:",
+  "Better talk tracks:",
+  "signed Loom media URLs"
 ]) {
   if (!combinedRegressionText.includes(text)) fail(`regression cases missing SOP scenario text: ${text}`);
 }
@@ -2043,6 +2113,9 @@ for (const text of [
   "marketing attribution smoke check",
   "Indonesia event-registration fallback smoke check",
   "Google Slides deck-access smoke check",
+  "Demo Sources MCP lists only `extract_demo_transcript_evidence`",
+  "Demo Sources smoke check",
+  "signed Loom media URLs",
   "read_google_slides_deck",
   "Anyone with the link",
   "read_indonesia_event_registration_attendance",
@@ -2196,6 +2269,7 @@ for (const text of [
   "EXPECT_SLACK_INTENT_TOOLS=\"${EXPECT_SLACK_INTENT_TOOLS:-5}\"",
   "EXPECT_HUBSPOT_TOOLS=\"${EXPECT_HUBSPOT_TOOLS:-60}\"",
   "EXPECT_AIRCALL_TOOLS=\"${EXPECT_AIRCALL_TOOLS:-4}\"",
+  "EXPECT_DEMO_SOURCES_TOOLS=\"${EXPECT_DEMO_SOURCES_TOOLS:-1}\"",
   "NURTUREANY_GATEWAY_SERVICE_NAME",
   "systemctl --user is-active --quiet \"$GATEWAY_SERVICE_NAME\"",
   "GATEWAY_LAUNCHD_LABEL",
@@ -2250,6 +2324,7 @@ for (const text of [
   "mcp_test prospeo_nurtureany",
   "mcp_test slack_nurtureany",
   "mcp_test aircall_nurtureany",
+  "mcp_test demo_sources_nurtureany",
   "mcp:$name-test-timeout",
   "mcp_test eazybe_nurtureany",
   "mcp_test near_me_nurtureany"
@@ -2267,6 +2342,7 @@ for (const text of [
   "nurtureanysalesbot local cloud heartbeat",
   "EXPECT_ENABLED_CRON_COUNT=\"${EXPECT_ENABLED_CRON_COUNT:-10}\"",
   "EXPECT_HUBSPOT_TOOLS=\"${EXPECT_HUBSPOT_TOOLS:-60}\"",
+  "EXPECT_DEMO_SOURCES_TOOLS=\"${EXPECT_DEMO_SOURCES_TOOLS:-1}\"",
   "EXPECTED_TASK_REMINDER_CRON_NAME",
   "EXPECTED_TASK_REMINDER_EOD_CRON_NAME",
   "EXPECTED_INBOUND_MONITOR_CRON_NAME",
@@ -2289,6 +2365,7 @@ for (const text of [
   "cloud-doctor:cron-unhealthy",
   "enabled_recurring=$EXPECT_ENABLED_CRON_COUNT",
   "mcp:hubspot_nurtureany:tools=$EXPECT_HUBSPOT_TOOLS",
+  "mcp:demo_sources_nurtureany:tools=$EXPECT_DEMO_SOURCES_TOOLS",
   "mcp:google_sheets_nurtureany:tools=2",
   "mcp:public_research_nurtureany:tools=$EXPECT_PUBLIC_RESEARCH_TOOLS",
   "mcp:prospeo_nurtureany:tools=$EXPECT_PROSPEO_TOOLS"
@@ -2638,6 +2715,20 @@ if (hubspotCompileCheck.status !== 0) {
   fail(`Python compile failed for HubSpot MCP: ${(hubspotCompileCheck.stderr || hubspotCompileCheck.stdout).trim()}`);
 }
 
+const aircallCompileCheck = spawnSync("python3", ["-m", "py_compile", join(appRoot, "runtime/mcp/aircall_nurtureany_server.py")], {
+  encoding: "utf8"
+});
+if (aircallCompileCheck.status !== 0) {
+  fail(`Python compile failed for Aircall MCP: ${(aircallCompileCheck.stderr || aircallCompileCheck.stdout).trim()}`);
+}
+
+const demoSourcesCompileCheck = spawnSync("python3", ["-m", "py_compile", join(appRoot, "runtime/mcp/demo_sources_nurtureany_server.py")], {
+  encoding: "utf8"
+});
+if (demoSourcesCompileCheck.status !== 0) {
+  fail(`Python compile failed for Demo Sources MCP: ${(demoSourcesCompileCheck.stderr || demoSourcesCompileCheck.stdout).trim()}`);
+}
+
 const exaCompileCheck = spawnSync("python3", ["-m", "py_compile", join(appRoot, "runtime/mcp/exa_nurtureany_server.py")], {
   encoding: "utf8"
 });
@@ -2693,6 +2784,22 @@ const hubspotUnitCheck = spawnSync("python3", ["-m", "unittest", "apps/nurturean
 });
 if (hubspotUnitCheck.status !== 0) {
   fail(`Python unit tests failed for HubSpot MCP: ${(hubspotUnitCheck.stderr || hubspotUnitCheck.stdout).trim()}`);
+}
+
+const aircallUnitCheck = spawnSync("python3", ["-m", "unittest", "apps/nurtureany-sales-bot/runtime/mcp/test_aircall_nurtureany_server.py"], {
+  cwd: repoRoot,
+  encoding: "utf8"
+});
+if (aircallUnitCheck.status !== 0) {
+  fail(`Python unit tests failed for Aircall MCP: ${(aircallUnitCheck.stderr || aircallUnitCheck.stdout).trim()}`);
+}
+
+const demoSourcesUnitCheck = spawnSync("python3", ["-m", "unittest", "apps/nurtureany-sales-bot/runtime/mcp/test_demo_sources_nurtureany_server.py"], {
+  cwd: repoRoot,
+  encoding: "utf8"
+});
+if (demoSourcesUnitCheck.status !== 0) {
+  fail(`Python unit tests failed for Demo Sources MCP: ${(demoSourcesUnitCheck.stderr || demoSourcesUnitCheck.stdout).trim()}`);
 }
 
 const exaUnitCheck = spawnSync("python3", ["-m", "unittest", "apps/nurtureany-sales-bot/runtime/mcp/test_exa_nurtureany_server.py"], {

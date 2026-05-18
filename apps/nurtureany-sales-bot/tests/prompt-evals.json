@@ -561,6 +561,86 @@
       }
     },
     {
+      "id": "nurtureany-tooltrace-loom-demo-grade",
+      "bot": "NurtureAny Sales Bot",
+      "surface": "slack",
+      "lane": "tool-trace",
+      "input": "@NurtureAny https://www.loom.com/share/e63d65ea325b4408abd9a756564e36f6 analyze and grade this meeting",
+      "setup": {
+        "after_run": true,
+        "stub_tools": true
+      },
+      "expected_tool_trace": {
+        "must_call": [
+          "extract_demo_transcript_evidence"
+        ],
+        "allowed_tools": [
+          "get_selected_slack_thread_context",
+          "preview_analysis_sheet_export",
+          "apply_analysis_sheet_export"
+        ],
+        "forbidden_tools": [
+          "demo_review_nurtureany",
+          "loom_media_download",
+          "manual_raw_transcript_dump"
+        ],
+        "argument_shape": {
+          "source_type": "auto_or_loom",
+          "raw_transcript": "forbidden",
+          "signed_loom_media_url": "forbidden"
+        }
+      },
+      "expected_answer_contract": {
+        "must_include": [
+          "Answer:",
+          "Overall grade:",
+          "Scorecard:",
+          "Coachable moments:",
+          "Better talk tracks:",
+          "Manager coaching note:",
+          "Next practice:",
+          "Source:",
+          "Scope:",
+          "Confidence:",
+          "Caveat:"
+        ],
+        "must_not_include": [
+          "raw transcript",
+          ".vtt?",
+          "Signature="
+        ]
+      },
+      "forbidden_behavior": [
+        "separate demo-review MCP",
+        "Loom MP4/HLS download",
+        "signed Loom media URL leak",
+        "raw transcript dump",
+        "phone-number export",
+        "full email export"
+      ],
+      "grade_notes": "Loom/demo review should reuse the shared demo rubric and the narrow caption evidence primitive.",
+      "assertions": {
+        "source_files": [
+          {
+            "path": "skills/nurtureany-sales-bot/SKILL.md",
+            "must_contain": [
+              "extract_demo_transcript_evidence",
+              "Overall grade",
+              "Better talk tracks"
+            ]
+          },
+          {
+            "path": "runtime/demo-sources.md",
+            "must_contain": [
+              "V1 supports Loom share pages only when captions/VTT are available",
+              "raw_transcript_returned=false",
+              "signed_loom_media_urls_returned=false"
+            ]
+          }
+        ]
+      }
+    },
+    {
       "id": "nurtureany-live-smoke-compact-sg-enrichment",
       "bot": "NurtureAny Sales Bot",
       "surface": "slack:#nurtureany-testing",

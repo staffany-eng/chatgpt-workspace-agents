@@ -13,6 +13,7 @@ EXPECT_SLACK_INTENT_TOOLS="${EXPECT_SLACK_INTENT_TOOLS:-5}"
 EXPECT_STAFFANY_BIGQUERY_TOOLS="${EXPECT_STAFFANY_BIGQUERY_TOOLS:-4}"
 EXPECT_HUBSPOT_TOOLS="${EXPECT_HUBSPOT_TOOLS:-60}"
 EXPECT_AIRCALL_TOOLS="${EXPECT_AIRCALL_TOOLS:-4}"
+EXPECT_DEMO_SOURCES_TOOLS="${EXPECT_DEMO_SOURCES_TOOLS:-1}"
 EXPECT_GOOGLE_CALENDAR_TOOLS="${EXPECT_GOOGLE_CALENDAR_TOOLS:-2}"
 EXPECT_GOOGLE_DRIVE_TOOLS="${EXPECT_GOOGLE_DRIVE_TOOLS:-5}"
 EXPECT_GOOGLE_SHEETS_TOOLS="${EXPECT_GOOGLE_SHEETS_TOOLS:-2}"
@@ -310,6 +311,7 @@ expected_servers = {
         "plan_hubspot_writeback",
     ],
     "aircall_nurtureany": ["find_aircall_calls", "resolve_aircall_call_for_coaching", "transcribe_aircall_recording", "analyze_aircall_call_coaching"],
+    "demo_sources_nurtureany": ["extract_demo_transcript_evidence"],
     "google_calendar_nurtureany": ["list_google_calendar_events", "audit_google_calendar_meeting_quality"],
     "google_drive_nurtureany": [
         "list_drive_folder_images",
@@ -777,6 +779,7 @@ mcp_test slack_nurtureany "$EXPECT_SLACK_INTENT_TOOLS"
 mcp_test staffany_bigquery "$EXPECT_STAFFANY_BIGQUERY_TOOLS"
 mcp_test hubspot_nurtureany "$EXPECT_HUBSPOT_TOOLS"
 mcp_test aircall_nurtureany "$EXPECT_AIRCALL_TOOLS"
+mcp_test demo_sources_nurtureany "$EXPECT_DEMO_SOURCES_TOOLS"
 mcp_test google_calendar_nurtureany "$EXPECT_GOOGLE_CALENDAR_TOOLS"
 mcp_test google_drive_nurtureany "$EXPECT_GOOGLE_DRIVE_TOOLS"
 mcp_test google_sheets_nurtureany "$EXPECT_GOOGLE_SHEETS_TOOLS"

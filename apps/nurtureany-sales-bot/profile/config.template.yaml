@@ -304,6 +304,33 @@ nurtureany:
     raw_recording_urls_returned: false
     raw_audio_retained: false
     bulk_transcript_exports: false
+    demo_call_type_supported: true
+    demo_score_dimensions:
+    - Control and conversational opening
+    - Discovery and I-C-BANT
+    - Consultative/contextual demo
+    - Before/after value framing
+    - Benefits over features
+    - Product knowledge accuracy
+    - Objection and negotiation handling
+    - Customer engagement and interaction cues
+    - Next step and post-demo follow-up quality
+  demo_sources:
+    source_role: selected_demo_transcript_evidence_only
+    source_of_truth: HubSpot remains account, owner, task, note, deal, contact, and nurture-field truth
+    extractor_tool: extract_demo_transcript_evidence
+    supported_sources:
+    - loom_captions_vtt
+    caption_first: true
+    media_downloads: false
+    max_fetch_bytes: 1000000
+    max_safe_segments: 24
+    raw_transcript_returned: false
+    signed_loom_media_urls_returned: false
+    video_audio_bytes_returned: false
+    phone_numbers_returned: false
+    full_emails_returned: false
+    demo_grading_public_primitive: false
   daily_nurture:
     status: disabled_pending_refinement
     approved_runtime_workflow: false
@@ -501,6 +528,30 @@ mcp_servers:
     - resolve_aircall_call_for_coaching
     - transcribe_aircall_recording
     - analyze_aircall_call_coaching
+  demo_sources_nurtureany:
+    description: Read-only selected demo transcript evidence adapter for Loom captions/VTT.
+    command: /Users/leekaiyi/.hermes/hermes-agent/venv/bin/python
+    args:
+    - /Users/leekaiyi/workspace/agent builder/apps/nurtureany-sales-bot/runtime/mcp/demo_sources_nurtureany_server.py
+    auth_metadata:
+      type: no_secret_public_caption_fetch
+      provider: Loom share page captions/VTT
+    access_policy:
+      mode: read_only
+      selected_source_only: true
+      caption_first: true
+      media_downloads: false
+      max_fetch_bytes: 1000000
+      max_safe_segments: 24
+      raw_transcript_returned: false
+      signed_loom_media_urls_returned: false
+      video_audio_bytes_returned: false
+      phone_numbers_returned: false
+      full_emails_returned: false
+      transcript_output: redacted_bounded_timing_evidence_only
+      hubspot_source_of_truth: true
+    tool_allowlist:
+    - extract_demo_transcript_evidence
   public_research_nurtureany:
     description: Read-only Tavily public company research for scoped HubSpot companies, plus brand-parent identity lookup before HubSpot re-query.
     command: /Users/leekaiyi/.hermes/hermes-agent/venv/bin/python

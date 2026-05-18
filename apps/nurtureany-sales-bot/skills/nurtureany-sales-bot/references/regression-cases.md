@@ -185,6 +185,24 @@ Expected behavior:
 - Uses local transcript/timing metrics for talk ratio, longest monologue, turn count, question count, objections, next-step clarity, and customer reaction moments.
 - If transcript/timing-only evidence is available, says `Interaction cues checked from transcript/timing` and `Tone/audio cues: audio-native tone not checked`; if approved audio-native analysis exists later, says `Tone/audio cues checked from recording` and describes only observable cues.
 
+## Selected Loom Demo Review Scorecard
+
+Prompt:
+
+```text
+@NurtureAny https://www.loom.com/share/e63d65ea325b4408abd9a756564e36f6 analyze and grade this meeting
+```
+
+Expected behavior:
+
+- First response is plan-only unless quick-autorun is fully satisfied.
+- Route after `run`: `get_selected_slack_thread_context` only if needed to identify the selected source/context -> `extract_demo_transcript_evidence` -> internal demo grading -> optional `preview_analysis_sheet_export` / `apply_analysis_sheet_export` only if the user asked for history/trend export.
+- Uses the demo rubric from `sales-best-practices.md`, with 9 scorecard dimensions scored 0/1/2: Control and conversational opening; Discovery and I-C-BANT; Consultative/contextual demo; Before/after value framing; Benefits over features; Product knowledge accuracy; Objection and negotiation handling; Customer engagement and interaction cues; Next step and post-demo follow-up quality.
+- Final answer uses `Answer:`, `Overall grade:`, `Scorecard:`, `Coachable moments:`, `Better talk tracks:`, `Manager coaching note:`, `Next practice:`, `Source:`, `Scope:`, `Confidence:`, and `Caveat:`.
+- Does not create or call a separate `demo_review_nurtureany` MCP.
+- Does not return raw transcript dumps, signed Loom media URLs, Loom MP4/HLS/audio/video bytes, phone numbers, full emails, or private demo content in Sheets.
+- If captions are unavailable, private, blocked, or malformed, returns `Confidence: blocked` and asks for captions or transcript input.
+
 Prompt:
 
 ```text
