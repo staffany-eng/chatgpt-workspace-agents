@@ -69,6 +69,22 @@ Mutation/send/reveal expected behavior:
 - Requires explicit preview approval, `approval_marker`, or approved reveal selection depending on the workflow.
 - Does not send WhatsApp, mutate HubSpot, reveal Lusha/Prospeo, or use paid/public deep research on the first mention.
 
+Single-company enrichment prompt:
+
+```text
+@NurtureAny enrich Tung Lok for Singapore
+```
+
+Expected behavior:
+
+- Resolves scoped HubSpot companies first with `resolve_company_enrichment_target`.
+- Creates an artifact with `create_company_enrichment_artifact` only after exactly one SG/MY/ID scoped company is selected.
+- Ambiguous matches ask for exact `company_id`; no-match cases can use `find_brand_parent_candidates` only for identity resolution before re-querying HubSpot.
+- Artifact updates append Tavily, standalone public search, Exa, Lusha, and Prospeo outputs into the same artifact, default reads redact raw email/phone/mobile, and summaries return HubSpot contact-format preview rows with `will_mutate_hubspot=false` plus `waterfall_state`.
+- Tavily public results are read through with extract where supported; standalone public people/contact search runs before Exa across official pages, public directory/event/speaker evidence, careers pages, public social/company pages where allowed, and public job boards such as Indeed, JobStreet, Glints, MyCareersFuture, Maukerja, Ricebowl, Kalibrr, and Dealls where relevant by country.
+- Exa people URLs are used after public search as fallback or corroboration and read through only via safe public snippets/pages, never gated LinkedIn or social scraping.
+- The bot must not claim a full waterfall unless `waterfall_state.can_claim_full_waterfall=true`; Lusha/Prospeo reveal requires manual approval.
+
 ## AE Queue
 
 Prompt:

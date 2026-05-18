@@ -1,0 +1,12 @@
+interface:
+  display_name: "Apify Facebook Scraper"
+  short_description: "Scrape public Facebook data via Apify"
+  default_prompt: "Use $apify-facebook-scraper to collect public Facebook data with Apify and summarize the dataset output."
+
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "apify_nurtureany"
+      description: "Apify MCP server for Actor discovery, Actor calls, and dataset retrieval"
+      transport: "streamable_http"
+      url: "https://mcp.apify.com?tools=actors,docs"

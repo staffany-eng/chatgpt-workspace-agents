@@ -67,8 +67,11 @@
           {
             "path": "profile/SOUL.md",
             "must_contain": [
+              "Singapore batch/planner lead-enrichment",
               "MUST plan and run `build_singapore_lead_enrichment_plan`",
-              "Do not route these prompts through `find_contact_gaps`, `score_nurture_accounts`, `generate_free_search_tasks`, Exa, or Lusha directly",
+              "one-company enrichment requests",
+              "The internal router intent should be `single_company_lead_enrichment`, not `sg_single_company_lead_enrichment`",
+              "Do not route these batch/planner prompts through `find_contact_gaps`, `score_nurture_accounts`, `generate_free_search_tasks`, Exa, or Lusha directly",
               "output_mode=\"compact\""
             ]
           },

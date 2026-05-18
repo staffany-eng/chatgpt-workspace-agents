@@ -20,7 +20,7 @@ import urllib.parse
 import urllib.request
 from datetime import date, datetime, time as datetime_time, timedelta, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from mcp.server.fastmcp import FastMCP
@@ -495,6 +495,97 @@ SINGAPORE_LEAD_ENRICHMENT_PILOT_METRICS = (
     "ae_validation_valid_wrong_person_left_company_no_response",
     "activities_to_qo_follow_through",
 )
+COMPANY_ENRICHMENT_SUPPORTED_COUNTRIES = SUPPORTED_COUNTRIES
+COMPANY_ENRICHMENT_PII_TTL_DAYS = 14
+COMPANY_ENRICHMENT_MAX_REVEAL_RECOMMENDATIONS = 2
+COMPANY_ENRICHMENT_LEVELS = (
+    "level_0_hubspot",
+    "level_1_public_search_strategy",
+    "level_2_tavily_public_discovery",
+    "level_3_public_people_job_board_search",
+    "level_4_exa_people_search",
+    "level_5_lusha_search",
+    "level_6_prospeo_fallback_search",
+    "level_7_hubspot_contact_preview",
+)
+COMPANY_ENRICHMENT_FULL_WATERFALL_LEVELS = (
+    "level_0_hubspot",
+    "level_1_public_search_strategy",
+    "level_2_tavily_public_discovery",
+    "level_3_public_people_job_board_search",
+    "level_4_exa_people_search",
+    "level_5_lusha_search",
+    "level_6_prospeo_fallback_search",
+)
+COMPANY_ENRICHMENT_NEXT_TOOL_BY_LEVEL = {
+    "level_2_tavily_public_discovery": "research_public_company_signals",
+    "level_3_public_people_job_board_search": "standalone public search/read-through across official pages, directories, events, country job boards, and public social/company pages",
+    "level_4_exa_people_search": "search_exa_people_candidates only after public search, as fallback or corroboration for missing decision-maker paths",
+    "level_5_lusha_search": "search_lusha_decision_maker_candidates",
+    "level_6_prospeo_fallback_search": "search_prospeo_decision_maker_candidates",
+}
+COMPANY_ENRICHMENT_PROVIDER_LEVELS = {
+    "hubspot": "level_0_hubspot",
+    "public_search_strategy": "level_1_public_search_strategy",
+    "tavily": "level_2_tavily_public_discovery",
+    "tavily_search": "level_2_tavily_public_discovery",
+    "tavily_extract": "level_2_tavily_public_discovery",
+    "public_extract": "level_2_tavily_public_discovery",
+    "public_company_signals": "level_2_tavily_public_discovery",
+    "public_people_search": "level_3_public_people_job_board_search",
+    "job_board_search": "level_3_public_people_job_board_search",
+    "standalone_public_search": "level_3_public_people_job_board_search",
+    "apify_linkedin": "level_3_public_people_job_board_search",
+    "apify_instagram": "level_3_public_people_job_board_search",
+    "apify_facebook": "level_3_public_people_job_board_search",
+    "exa": "level_4_exa_people_search",
+    "exa_people": "level_4_exa_people_search",
+    "exa_public_extract": "level_4_exa_people_search",
+    "linkedin_public_extract": "level_4_exa_people_search",
+    "lusha": "level_5_lusha_search",
+    "lusha_linkedin_url_search": "level_5_lusha_search",
+    "prospeo": "level_6_prospeo_fallback_search",
+    "prospeo_linkedin_url_search": "level_6_prospeo_fallback_search",
+    "lusha_reveal": "reveal_gate",
+    "prospeo_reveal": "reveal_gate",
+    "hubspot_contact_preview": "level_7_hubspot_contact_preview",
+}
+COMPANY_ENRICHMENT_ICP_ROLE_MARKERS = (
+    "owner",
+    "founder",
+    "ceo",
+    "chief",
+    "managing director",
+    "director",
+    "general manager",
+    "gm",
+    "hr",
+    "human resource",
+    "people",
+    "operations",
+    "ops",
+    "finance",
+    "payroll",
+    "admin",
+)
+COMPANY_ENRICHMENT_COMPANY_NAME_STOPWORDS = {
+    "and",
+    "bar",
+    "cafe",
+    "co",
+    "company",
+    "group",
+    "holding",
+    "holdings",
+    "limited",
+    "ltd",
+    "pte",
+    "restaurant",
+    "restaurants",
+    "sg",
+    "singapore",
+    "the",
+}
 HUBSPOT_SEARCH_PAGE_LIMIT = 100
 HUBSPOT_SEARCH_RESULT_LIMIT = 1000
 HUBSPOT_SEARCH_TOTAL_LIMIT = 10_000
@@ -779,6 +870,7 @@ DAILY_NURTURE_RUNS_DIR_ENV = "NURTUREANY_DAILY_RUNS_DIR"
 OPERATION_LEDGER_DIR_ENV = "NURTUREANY_OPERATION_LEDGER_DIR"
 OPERATION_LEDGER_DEFAULT_PROFILE = "nurtureanysalesbot"
 LESSON_CANDIDATES_DIR_ENV = "NURTUREANY_LESSON_CANDIDATES_DIR"
+LEAD_ENRICHMENT_ARTIFACTS_DIR_ENV = "NURTUREANY_LEAD_ENRICHMENT_ARTIFACTS_DIR"
 SALES_WHATSAPP_REPORT_SCHEDULE_DIR_ENV = "NURTUREANY_REPORT_SCHEDULE_DIR"
 SALES_WHATSAPP_REPORT_DELIVERY_CHANNEL_IDS_ENV = "NURTUREANY_REPORT_DELIVERY_CHANNEL_IDS"
 SALES_WHATSAPP_REPORT_SUPPORTED_COUNTRIES = SUPPORTED_COUNTRIES
@@ -8234,6 +8326,1056 @@ def _assert_company_access(company_id: str, scope: dict[str, Any]) -> dict[str, 
     return company
 
 
+def _company_enrichment_artifact_id(company_id: str, source_thread: str = "") -> str:
+    seed = f"{company_id}:{source_thread or datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}"
+    return f"company-enrichment:{company_id}:{hashlib.sha1(seed.encode('utf-8')).hexdigest()[:12]}"
+
+
+def _company_enrichment_scope(scope: dict[str, Any], company: dict[str, Any]) -> dict[str, Any]:
+    summary = _summarize_company(company)
+    return {
+        "caller_email": scope.get("email") or "",
+        "scope_kind": scope.get("kind") or "",
+        "company_id": summary.get("company_id"),
+        "company_name": summary.get("name"),
+        "country": summary.get("country"),
+        "owner_id": summary.get("owner_id"),
+        "owner_email": summary.get("owner_email"),
+    }
+
+
+def _company_enrichment_resolution_response(
+    status: str,
+    scope: dict[str, Any],
+    message: str,
+    candidates: list[dict[str, Any]] | None = None,
+    evidence: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    return {
+        "answer": {
+            "status": status,
+            "message": message,
+            "candidates": candidates or [],
+            "resolution_evidence": evidence or [],
+        },
+        "source": "HubSpot scoped company resolution",
+        "scope": {
+            "caller_email": scope.get("email") or "",
+            "scope_kind": scope.get("kind") or "",
+            "countries": list(scope.get("countries", ())),
+        },
+        "confidence": "blocked" if status != "resolved" else "verified",
+        "caveat": message,
+    }
+
+
+def _resolve_company_enrichment_company(
+    slack_user_email: str,
+    company_id: Any = "",
+    company_name: Any = "",
+    country: Any = "",
+    domain: Any = "",
+    brand_parent_candidates: list[str] | None = None,
+) -> dict[str, Any]:
+    scope = _caller_scope(slack_user_email)
+    if scope["kind"] == "blocked":
+        return {"status": "blocked", "scope": scope, "message": "Caller identity is not mapped to an allowed scope."}
+    raw_country = str(country or "").strip()
+    requested_country = _canonical_country(raw_country) or raw_country
+    if requested_country and requested_country not in scope.get("countries", ()):
+        return {"status": "blocked", "scope": scope, "message": "Requested country is outside caller scope."}
+
+    normalized_company_id = _company_id_from_ref(company_id)
+    if normalized_company_id:
+        try:
+            company = _assert_company_access(normalized_company_id, scope)
+        except ScopeError as error:
+            return {"status": "blocked", "scope": scope, "message": str(error)}
+        summary = _summarize_company(company)
+        if requested_country and summary.get("country") != requested_country:
+            return {"status": "blocked", "scope": scope, "message": "Selected company country does not match requested country."}
+        return {
+            "status": "resolved",
+            "scope": scope,
+            "company": company,
+            "resolution_evidence": [{"source": "hubspot_company_id", "match_type": "exact_id"}],
+        }
+
+    name = _company_name_ref(company_name)
+    if not name:
+        return {"status": "not_found", "scope": scope, "message": "Provide a scoped HubSpot company_id or company_name."}
+
+    search_scope = dict(scope)
+    if requested_country:
+        search_scope["countries"] = (requested_country,)
+    resolved = _resolve_scoped_company_name(name, search_scope, limit=5)
+    if resolved.get("status") == "resolved" and resolved.get("company_id"):
+        company = _assert_company_access(str(resolved["company_id"]), scope)
+        return {
+            "status": "resolved",
+            "scope": scope,
+            "company": company,
+            "resolution_evidence": [
+                {"source": "hubspot_company_name", "input": name, "match_type": resolved.get("match_type") or "name"}
+            ],
+        }
+    if resolved.get("status") == "ambiguous":
+        tie_breaker_domain = _clean_domain(str(domain or ""))
+        if tie_breaker_domain:
+            domain_matches = [
+                candidate
+                for candidate in resolved.get("candidates", [])
+                if _clean_domain(str(candidate.get("domain") or "")) == tie_breaker_domain
+            ]
+            if len(domain_matches) == 1 and domain_matches[0].get("company_id"):
+                company = _assert_company_access(str(domain_matches[0]["company_id"]), scope)
+                return {
+                    "status": "resolved",
+                    "scope": scope,
+                    "company": company,
+                    "resolution_evidence": [
+                        {"source": "hubspot_company_name", "input": name, "match_type": "ambiguous_name"},
+                        {
+                            "source": "domain_tie_breaker",
+                            "domain": tie_breaker_domain,
+                            "match_type": "single_scoped_candidate_domain_match",
+                        },
+                    ],
+                }
+        return {
+            "status": "ambiguous",
+            "scope": scope,
+            "message": "Company name is ambiguous; confirm the exact scoped HubSpot company_id.",
+            "candidates": resolved.get("candidates", []),
+        }
+
+    parent_evidence = []
+    parent_matches = []
+    for candidate in brand_parent_candidates or []:
+        parent_name = _company_name_ref(candidate)
+        if not parent_name:
+            continue
+        parent_evidence.append({"source": "brand_parent_lookup", "input": name, "suggested_hubspot_query": parent_name})
+        parent_resolved = _resolve_scoped_company_name(parent_name, search_scope, limit=5)
+        if parent_resolved.get("status") == "resolved" and parent_resolved.get("company_id"):
+            parent_matches.append((parent_resolved, parent_name))
+        elif parent_resolved.get("status") == "ambiguous":
+            return {
+                "status": "ambiguous",
+                "scope": scope,
+                "message": "Brand-parent lookup returned ambiguous scoped HubSpot matches; confirm the exact company_id.",
+                "candidates": parent_resolved.get("candidates", []),
+                "resolution_evidence": parent_evidence,
+            }
+    unique_parent_ids = sorted({str(match[0].get("company_id") or "") for match in parent_matches if match[0].get("company_id")})
+    if len(unique_parent_ids) == 1:
+        company = _assert_company_access(unique_parent_ids[0], scope)
+        parent_name = next(name for match, name in parent_matches if str(match.get("company_id") or "") == unique_parent_ids[0])
+        return {
+            "status": "resolved",
+            "scope": scope,
+            "company": company,
+            "resolution_evidence": [
+                *parent_evidence,
+                {"source": "hubspot_brand_parent_requery", "input": parent_name, "match_type": "brand_parent_single_match"},
+            ],
+        }
+    if len(unique_parent_ids) > 1:
+        candidates = [_company_match_candidate(_assert_company_access(candidate_id, scope)) for candidate_id in unique_parent_ids]
+        return {
+            "status": "ambiguous",
+            "scope": scope,
+            "message": "Brand-parent lookup matched multiple scoped HubSpot companies; confirm the exact company_id.",
+            "candidates": candidates,
+            "resolution_evidence": parent_evidence,
+        }
+    return {
+        "status": "not_found",
+        "scope": scope,
+        "message": "No scoped HubSpot company matched. Run brand-parent lookup or provide the exact HubSpot company_id.",
+        "resolution_evidence": parent_evidence,
+    }
+
+
+def _company_enrichment_level(source: str, explicit_level: str = "") -> str:
+    requested = str(explicit_level or "").strip()
+    if requested:
+        return requested
+    return COMPANY_ENRICHMENT_PROVIDER_LEVELS.get(str(source or "").strip().lower(), "external_evidence")
+
+
+def _company_enrichment_safe_level_update(source: str, level: str, status: str = "completed") -> dict[str, Any]:
+    return {
+        "source": str(source or "").strip()[:80],
+        "level": str(level or "").strip()[:80],
+        "status": str(status or "completed").strip()[:40],
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+def _company_enrichment_text(value: Any, max_chars: int = 180) -> str:
+    return _short_text(str(value or "").strip(), max_chars)
+
+
+def _company_enrichment_profile_url(candidate: dict[str, Any]) -> str:
+    for key in ("profile_url", "linkedin_url", "linkedinUrl", "url", "source_url"):
+        value = str(candidate.get(key) or "").strip()
+        if value.startswith("https://"):
+            return value[:500]
+    return ""
+
+
+def _company_enrichment_manual_social_url(url: str) -> bool:
+    lowered = str(url or "").lower()
+    return any(host in lowered for host in ("linkedin.com", "facebook.com", "instagram.com", "tiktok.com"))
+
+
+def _company_enrichment_provider_ids(candidate: dict[str, Any]) -> dict[str, str]:
+    keys = (
+        "contact_id",
+        "contactId",
+        "lusha_contact_id",
+        "prospeo_person_id",
+        "person_id",
+        "request_id",
+        "requestId",
+        "provider_candidate_id",
+    )
+    return {key: str(candidate.get(key) or "").strip()[:120] for key in keys if str(candidate.get(key) or "").strip()}
+
+
+def _company_enrichment_tool_result_items(value: Any) -> Iterable[dict[str, Any]]:
+    if isinstance(value, dict):
+        yield value
+        for nested in value.values():
+            if isinstance(nested, (dict, list)):
+                yield from _company_enrichment_tool_result_items(nested)
+    elif isinstance(value, list):
+        for item in value:
+            if isinstance(item, (dict, list)):
+                yield from _company_enrichment_tool_result_items(item)
+
+
+def _company_enrichment_candidate_like(item: dict[str, Any]) -> bool:
+    name = any(str(item.get(key) or "").strip() for key in ("name", "full_name", "fullName", "display_name", "person_name", "inferred_name"))
+    title = any(str(item.get(key) or "").strip() for key in ("title", "jobtitle", "job_title", "jobTitle", "persona", "inferred_title"))
+    url = _company_enrichment_profile_url(item)
+    provider_id = bool(_company_enrichment_provider_ids(item))
+    return bool(name or provider_id or (url and title))
+
+
+def _company_enrichment_tool_result_candidates(tool_result: Any) -> list[dict[str, Any]]:
+    seen: set[str] = set()
+    candidates: list[dict[str, Any]] = []
+    for item in _company_enrichment_tool_result_items(tool_result):
+        if not _company_enrichment_candidate_like(item):
+            continue
+        key = json.dumps(item, sort_keys=True, default=str)[:1000]
+        if key in seen:
+            continue
+        seen.add(key)
+        candidates.append(item)
+        if len(candidates) >= 100:
+            break
+    return candidates
+
+
+def _company_enrichment_evidence_like(item: dict[str, Any]) -> bool:
+    if _company_enrichment_candidate_like(item):
+        return False
+    if any(str(item.get(key) or "").strip() for key in ("url", "source_url", "link", "source", "source_type", "title", "snippet", "summary")):
+        return True
+    return any(key in item for key in ("company_signals", "manual_check_items", "missing_evidence", "cost_report"))
+
+
+def _company_enrichment_safe_evidence_item(item: dict[str, Any]) -> dict[str, Any]:
+    safe: dict[str, Any] = {}
+    for key, value in item.items():
+        if key in {"email", "emails", "phone", "phones", "mobile", "mobiles"}:
+            safe[f"{key}_redacted"] = bool(value)
+            continue
+        if isinstance(value, (str, int, float, bool)) or value is None:
+            safe[key] = _company_enrichment_text(value, 500) if isinstance(value, str) else value
+        elif isinstance(value, list):
+            safe[key] = [
+                _company_enrichment_text(entry, 300) if isinstance(entry, str) else entry
+                for entry in value[:10]
+                if isinstance(entry, (str, int, float, bool, dict))
+            ]
+        elif isinstance(value, dict):
+            safe[key] = {
+                str(nested_key)[:80]: _company_enrichment_text(nested_value, 300)
+                if isinstance(nested_value, str)
+                else nested_value
+                for nested_key, nested_value in list(value.items())[:20]
+                if isinstance(nested_value, (str, int, float, bool)) or nested_value is None
+            }
+    source_url = str(safe.get("source_url") or safe.get("url") or "").strip()
+    source_type = str(safe.get("source_type") or safe.get("source") or "").lower()
+    if _company_enrichment_manual_social_url(source_url) or any(marker in source_type for marker in ("linkedin", "facebook", "instagram", "tiktok")):
+        safe["requires_manual_review"] = True
+        safe["verification_status"] = "manual_review_required"
+        safe["confidence"] = "needs-check"
+        if isinstance(safe.get("signals_found"), list):
+            safe["signals_found"] = [
+                str(signal).replace("confirmed", "public_signal_needs_check")[:120]
+                for signal in safe["signals_found"]
+            ][:10]
+    return safe
+
+
+def _company_enrichment_tool_result_evidence(tool_result: Any) -> list[dict[str, Any]]:
+    seen: set[str] = set()
+    evidence: list[dict[str, Any]] = []
+    for item in _company_enrichment_tool_result_items(tool_result):
+        if not _company_enrichment_evidence_like(item):
+            continue
+        safe = _company_enrichment_safe_evidence_item(item)
+        key = json.dumps(safe, sort_keys=True, default=str)[:1000]
+        if key in seen:
+            continue
+        seen.add(key)
+        evidence.append(safe)
+        if len(evidence) >= 50:
+            break
+    return evidence
+
+
+def _company_enrichment_existing_name_keys(artifact: dict[str, Any]) -> set[str]:
+    keys = set()
+    for contact in artifact.get("hubspot", {}).get("contacts", []):
+        key = _normalized_words(contact.get("display_name") or "")
+        if key:
+            keys.add(key)
+    return keys
+
+
+def _company_enrichment_has_role_match(title: str) -> bool:
+    text = _normalized_words(title)
+    return bool(text and (_role_is_decision_maker(text) or any(marker in text for marker in COMPANY_ENRICHMENT_ICP_ROLE_MARKERS)))
+
+
+def _company_enrichment_text_mentions_company(value: str, company: dict[str, Any]) -> bool:
+    terms = [
+        term
+        for term in _normalized_words(company.get("name") or "").split()
+        if term not in COMPANY_ENRICHMENT_COMPANY_NAME_STOPWORDS and len(term) > 2
+    ]
+    if not terms:
+        return False
+    haystack = set(_normalized_words(value).split())
+    return bool(haystack and any(term in haystack for term in terms))
+
+
+def _company_enrichment_company_match(candidate: dict[str, Any], company: dict[str, Any]) -> str:
+    raw = str(candidate.get("company_match") or candidate.get("companyMatch") or candidate.get("company_match_status") or "").strip().lower()
+    if raw in {"exact", "current", "scoped", "true", "verified", "matched"}:
+        return "exact"
+    if raw in {"exact_brand", "public_snippet_needs_check", "needs-check"}:
+        return raw
+    candidate_company = str(candidate.get("company") or candidate.get("company_name") or candidate.get("companyName") or "").strip()
+    company_name = str(company.get("name") or "").strip()
+    if candidate_company and company_name and _company_name_match_strength(candidate_company, {"properties": {"name": company_name}}) in {
+        "exact",
+        "compact_exact",
+        "token",
+        "contains",
+        "compact_contains",
+    }:
+        return "exact"
+    return raw or "needs-check"
+
+
+def _company_enrichment_channel_status(candidate: dict[str, Any], revealed_details: dict[str, Any]) -> dict[str, Any]:
+    email_available = bool(candidate.get("email_available") or candidate.get("emailAvailable") or candidate.get("has_email"))
+    phone_available = bool(
+        candidate.get("phone_available")
+        or candidate.get("phoneAvailable")
+        or candidate.get("mobile_available")
+        or candidate.get("has_phone")
+        or candidate.get("has_mobile")
+    )
+    has_revealed_email = bool(revealed_details.get("email") or revealed_details.get("emails"))
+    has_revealed_phone = bool(revealed_details.get("phone") or revealed_details.get("mobile") or revealed_details.get("phones"))
+    return {
+        "email_available": email_available or has_revealed_email,
+        "phone_available": phone_available or has_revealed_phone,
+        "has_revealed_email": has_revealed_email,
+        "has_revealed_phone": has_revealed_phone,
+        "usable_channel_path": bool(email_available or phone_available or has_revealed_email or has_revealed_phone),
+    }
+
+
+def _company_enrichment_confidence(
+    candidate: dict[str, Any],
+    company: dict[str, Any],
+    duplicate_status: str,
+    channel_status: dict[str, Any],
+) -> str:
+    title = str(candidate.get("title") or "")
+    provider_confidence = str(
+        candidate.get("provider_confidence")
+        or candidate.get("confidence")
+        or candidate.get("confidence_band")
+        or candidate.get("confidenceBand")
+        or ""
+    ).lower()
+    evidence_refs = candidate.get("evidence_refs") if isinstance(candidate.get("evidence_refs"), list) else []
+    has_evidence = bool(evidence_refs or candidate.get("profile_url") or candidate.get("linkedin_url") or candidate.get("source_url") or _company_enrichment_provider_ids(candidate))
+    company_match = _company_enrichment_company_match(candidate, company)
+    role_match = _company_enrichment_has_role_match(title)
+    if (
+        company_match == "exact"
+        and role_match
+        and duplicate_status == "new_candidate"
+        and has_evidence
+        and channel_status.get("usable_channel_path")
+        and provider_confidence not in {"low", "weak"}
+    ):
+        return "high"
+    if company_match in {"exact", "needs-check", "possible", "public_snippet_needs_check", "exact_brand"} and (role_match or has_evidence):
+        return "medium"
+    return "low"
+
+
+def _company_enrichment_revealed_details(candidate: dict[str, Any], approval_marker: str) -> dict[str, Any]:
+    if not str(approval_marker or "").strip():
+        return {}
+    details: dict[str, Any] = {}
+    for key in ("email", "phone", "mobile", "phones", "emails"):
+        value = candidate.get(key)
+        if value:
+            details[key] = value
+    if not details:
+        return {}
+    expires_at = datetime.now(timezone.utc) + timedelta(days=COMPANY_ENRICHMENT_PII_TTL_DAYS)
+    return {
+        **details,
+        "revealed_at": datetime.now(timezone.utc).isoformat(),
+        "expires_at": expires_at.isoformat(),
+        "ttl_days": COMPANY_ENRICHMENT_PII_TTL_DAYS,
+    }
+
+
+def _company_enrichment_pii_expired(revealed_details: dict[str, Any]) -> bool:
+    expires_at = _datetime_value(revealed_details.get("expires_at") or "")
+    return bool(expires_at and expires_at <= datetime.now(timezone.utc))
+
+
+def _company_enrichment_redacted_candidate(candidate: dict[str, Any], include_revealed_details: bool = False) -> dict[str, Any]:
+    redacted = dict(candidate)
+    details = redacted.get("revealed_details") if isinstance(redacted.get("revealed_details"), dict) else {}
+    if details and (not include_revealed_details or _company_enrichment_pii_expired(details)):
+        redacted["revealed_details"] = {
+            "redacted": True,
+            "has_email": bool(details.get("email") or details.get("emails")),
+            "has_phone": bool(details.get("phone") or details.get("mobile") or details.get("phones")),
+            "expires_at": details.get("expires_at") or "",
+            "expired": _company_enrichment_pii_expired(details),
+        }
+    return redacted
+
+
+def _company_enrichment_candidate_key(candidate: dict[str, Any]) -> str:
+    provider_ids = candidate.get("provider_ids") if isinstance(candidate.get("provider_ids"), dict) else {}
+    provider_id = next((str(value) for value in provider_ids.values() if str(value or "").strip()), "")
+    source = str(candidate.get("source") or "").replace("_reveal", "")
+    basis = "|".join(
+        [
+            source,
+            provider_id,
+            _normalized_words(candidate.get("name") or ""),
+            _normalized_words(candidate.get("title") or ""),
+            str(candidate.get("profile_url") or ""),
+        ]
+    )
+    return hashlib.sha1(basis.encode("utf-8")).hexdigest()[:16]
+
+
+def _company_enrichment_normalize_candidate(
+    raw_candidate: dict[str, Any],
+    artifact: dict[str, Any],
+    source: str,
+    level: str,
+    approval_marker: str = "",
+) -> dict[str, Any]:
+    company = artifact.get("company", {})
+    name = _company_enrichment_text(
+        raw_candidate.get("name")
+        or raw_candidate.get("full_name")
+        or raw_candidate.get("fullName")
+        or raw_candidate.get("display_name")
+        or raw_candidate.get("person_name")
+        or raw_candidate.get("inferred_name"),
+        160,
+    )
+    title = _company_enrichment_text(
+        raw_candidate.get("title")
+        or raw_candidate.get("jobtitle")
+        or raw_candidate.get("job_title")
+        or raw_candidate.get("jobTitle")
+        or raw_candidate.get("persona")
+        or raw_candidate.get("inferred_title"),
+        180,
+    )
+    existing_name_keys = _company_enrichment_existing_name_keys(artifact)
+    duplicate_status = "duplicate_existing_hubspot" if _normalized_words(name) in existing_name_keys and name else "new_candidate"
+    revealed_details = _company_enrichment_revealed_details(raw_candidate, approval_marker)
+    channel_status = _company_enrichment_channel_status(raw_candidate, revealed_details)
+    company_match = _company_enrichment_company_match(raw_candidate, company)
+    role_match = "decision_maker_or_icp_role" if _company_enrichment_has_role_match(title) else "needs-check"
+    evidence_refs = raw_candidate.get("evidence_refs") if isinstance(raw_candidate.get("evidence_refs"), list) else []
+    profile_url = _company_enrichment_profile_url(raw_candidate)
+    manual_social_candidate = _company_enrichment_manual_social_url(profile_url) and str(source or "").strip().lower() in {
+        "exa",
+        "exa_people",
+        "exa_public_extract",
+        "linkedin_public_extract",
+        "standalone_public_search",
+        "public_people_search",
+        "job_board_search",
+    }
+    if manual_social_candidate and company_match in {"exact", "current", "scoped", "verified", "matched", "exact_brand"}:
+        company_match = "public_snippet_needs_check"
+    exa_source = str(source or "").strip().lower() in {"exa", "exa_people", "exa_public_extract", "linkedin_public_extract"}
+    exa_company_mention = _company_enrichment_text_mentions_company(
+        " ".join(
+            str(raw_candidate.get(key) or "")
+            for key in ("title", "inferred_title", "company", "company_name", "snippet", "summary")
+        ),
+        company,
+    )
+    if not evidence_refs and profile_url:
+        evidence_refs = [{"source": source, "url": profile_url}]
+    provider_confidence = _company_enrichment_text(
+        raw_candidate.get("confidence_band")
+        or raw_candidate.get("confidenceBand")
+        or raw_candidate.get("provider_confidence")
+        or raw_candidate.get("confidence"),
+        80,
+    )
+    warnings = raw_candidate.get("warnings") if isinstance(raw_candidate.get("warnings"), list) else []
+    if manual_social_candidate:
+        provider_confidence = "needs-check"
+        warnings = [
+            *warnings,
+            "LinkedIn/social public result is candidate evidence only; verify current company and role manually before claiming confirmation.",
+        ]
+    suppress_from_preview = bool(exa_source and not exa_company_mention and company_match not in {"exact", "exact_brand"})
+    if suppress_from_preview:
+        warnings = [
+            *warnings,
+            "Uncorroborated Exa people result: result did not mention the scoped company name/domain. Store as audit evidence only; do not include as an AE contact preview row.",
+        ]
+    normalized = {
+        "candidate_id": "",
+        "source": str(source or "").strip()[:80],
+        "source_level": level,
+        "name": name,
+        "title": title,
+        "company_match": company_match,
+        "role_match": role_match,
+        "profile_url": profile_url,
+        "provider_ids": _company_enrichment_provider_ids(raw_candidate),
+        "provider_confidence": provider_confidence,
+        "decision_maker_match": bool(raw_candidate.get("decision_maker_match") or raw_candidate.get("decisionMakerMatch")),
+        "quality_signals": raw_candidate.get("quality_signals") if isinstance(raw_candidate.get("quality_signals"), list) else [],
+        "warnings": warnings,
+        "verification_status": "manual_review_required" if manual_social_candidate else "provider_or_public_evidence",
+        "candidate_status": "uncorroborated_exa_evidence_only" if suppress_from_preview else "active_candidate",
+        "suppress_from_contact_preview": suppress_from_preview,
+        "source_type": _company_enrichment_text(raw_candidate.get("source_type") or raw_candidate.get("sourceType"), 80),
+        "duplicate_status": duplicate_status,
+        "channel_status": channel_status,
+        "evidence_refs": evidence_refs,
+        "safe_contact_preview": {
+            "name": name,
+            "title": title,
+            "company": company.get("name") or "",
+            "country": company.get("country") or "",
+            "email_available": channel_status["email_available"],
+            "phone_available": channel_status["phone_available"],
+            "raw_pii_returned": False,
+        },
+        "revealed_details": revealed_details,
+        "confidence": "low",
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    normalized["confidence"] = _company_enrichment_confidence(normalized, company, duplicate_status, channel_status)
+    normalized["candidate_id"] = _company_enrichment_candidate_key(normalized)
+    return normalized
+
+
+def _company_enrichment_contact_candidate(contact: dict[str, Any], artifact: dict[str, Any]) -> dict[str, Any]:
+    company = artifact.get("company", {})
+    name = str(contact.get("display_name") or "").strip()
+    title = str(contact.get("persona") or "").strip()
+    channel_status = {
+        "email_available": bool(contact.get("channel_fit")),
+        "phone_available": bool(contact.get("phone_available") or contact.get("is_phone_verified")),
+        "has_revealed_email": False,
+        "has_revealed_phone": False,
+        "usable_channel_path": bool(contact.get("channel_fit") or contact.get("phone_available") or contact.get("is_phone_verified")),
+    }
+    confidence = "high" if contact.get("is_verified_decision_maker") and channel_status["usable_channel_path"] else "medium" if contact.get("is_decision_maker") else "low"
+    candidate = {
+        "candidate_id": f"hubspot-contact-{contact.get('contact_id')}",
+        "source": "hubspot",
+        "source_level": "level_0_hubspot",
+        "name": name,
+        "title": title,
+        "company_match": "exact",
+        "role_match": "verified_decision_maker" if contact.get("is_verified_decision_maker") else "candidate_role" if contact.get("is_decision_maker") else "needs-check",
+        "profile_url": "",
+        "provider_ids": {"hubspot_contact_id": str(contact.get("contact_id") or "")},
+        "duplicate_status": "existing_hubspot_contact",
+        "channel_status": channel_status,
+        "evidence_refs": [{"source": "hubspot_contact_association", "contact_id": str(contact.get("contact_id") or "")}],
+        "safe_contact_preview": {
+            "name": name,
+            "title": title,
+            "company": company.get("name") or "",
+            "country": company.get("country") or "",
+            "email_available": channel_status["email_available"],
+            "phone_available": channel_status["phone_available"],
+            "raw_pii_returned": False,
+        },
+        "revealed_details": {},
+        "confidence": confidence,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    return candidate
+
+
+def _company_enrichment_merge_candidates(artifact: dict[str, Any], candidates: list[dict[str, Any]]) -> None:
+    existing = {str(candidate.get("candidate_id") or ""): candidate for candidate in artifact.setdefault("candidates", []) if candidate.get("candidate_id")}
+    for candidate in candidates:
+        candidate_id = str(candidate.get("candidate_id") or "")
+        if not candidate_id:
+            continue
+        current = existing.get(candidate_id, {})
+        merged = {**current, **candidate}
+        if current.get("revealed_details") and not candidate.get("revealed_details"):
+            merged["revealed_details"] = current["revealed_details"]
+        existing[candidate_id] = merged
+    artifact["candidates"] = sorted(existing.values(), key=lambda item: ({"high": 0, "medium": 1, "low": 2}.get(item.get("confidence"), 3), str(item.get("name") or "")))
+
+
+def _company_enrichment_safe_activity_summary(context: dict[str, Any]) -> dict[str, Any]:
+    company = context.get("company", {})
+    tasks = context.get("sales_followup_tasks", []) if isinstance(context.get("sales_followup_tasks"), list) else []
+    return {
+        "last_activity_at": company.get("last_activity_at") or "",
+        "open_sales_followup_task_count": len(tasks),
+        "next_sales_followup_due_at": company.get("next_sales_followup_due_at") or "",
+        "raw_note_bodies_stored": False,
+        "raw_task_bodies_stored": False,
+    }
+
+
+def _company_enrichment_public_search_strategy(company: dict[str, Any]) -> list[dict[str, str]]:
+    name = company.get("name") or ""
+    domain = company.get("domain") or company.get("website") or ""
+    country = company.get("country") or ""
+    local_job_boards = {
+        "Singapore": ("MyCareersFuture", "JobStreet Singapore", "Indeed Singapore", "Glints Singapore"),
+        "Malaysia": ("JobStreet Malaysia", "Indeed Malaysia", "Maukerja", "Ricebowl"),
+        "Indonesia": ("JobStreet Indonesia", "Glints Indonesia", "Kalibrr", "Dealls"),
+    }.get(country, ("Indeed", "JobStreet", "Glints"))
+    queries = [
+        ("official_company_site", f"{name} official website {country}".strip()),
+        ("careers_jobs", f"{name} careers jobs hiring {country}".strip()),
+        ("news", f"{name} news expansion hiring partnership {country}".strip()),
+        ("official_linkedin_company_page", f"{name} LinkedIn company official".strip()),
+        ("official_social_pages", f"{name} Instagram Facebook official {country}".strip()),
+        ("public_people_search", f"{name} HR Director People Operations Finance Payroll Admin {country}".strip()),
+        ("public_linkedin_people_results", f"{name} site:linkedin.com/in HR Director People Operations {country}".strip()),
+    ]
+    for board in local_job_boards:
+        queries.append(("job_board_people_signal", f"{name} {board} HR operations finance payroll admin".strip()))
+    if domain:
+        queries.insert(0, ("hubspot_domain", f"site:{domain} {name}".strip()))
+    return [{"source_type": source_type, "query": query, "official_public_only": "true"} for source_type, query in queries if query]
+
+
+def _company_enrichment_new_artifact(
+    artifact_id: str,
+    scope: dict[str, Any],
+    company: dict[str, Any],
+    context: dict[str, Any],
+    resolution_evidence: list[dict[str, Any]],
+    source_thread: str = "",
+) -> dict[str, Any]:
+    company_summary = context.get("company", {})
+    now = datetime.now(timezone.utc).isoformat()
+    artifact = {
+        "artifact_id": artifact_id,
+        "schema_version": "company_enrichment_artifact.v1",
+        "created_at": now,
+        "updated_at": now,
+        "source_thread": str(source_thread or "").strip()[:300],
+        "scope": _company_enrichment_scope(scope, company),
+        "company": {
+            "company_id": company_summary.get("company_id"),
+            "name": company_summary.get("name"),
+            "domain": company_summary.get("domain"),
+            "domain_source": company_summary.get("domain_source"),
+            "website": company_summary.get("website"),
+            "country": company_summary.get("country"),
+            "owner_id": company_summary.get("owner_id"),
+            "owner_email": company_summary.get("owner_email"),
+            "owner_name": company_summary.get("owner_name"),
+            "industry": company_summary.get("industry"),
+            "headcount": company_summary.get("headcount"),
+            "current_tools": company_summary.get("current_tools"),
+            "account_status": company_summary.get("account_status"),
+        },
+        "resolution": {
+            "status": "resolved",
+            "evidence": resolution_evidence,
+            "domain_used_as_tie_breaker_only": True,
+        },
+        "levels": {
+            "level_0_hubspot": _company_enrichment_safe_level_update("hubspot", "level_0_hubspot"),
+            "level_1_public_search_strategy": {
+                **_company_enrichment_safe_level_update("public_search_strategy", "level_1_public_search_strategy"),
+                "search_strategy": _company_enrichment_public_search_strategy(company_summary),
+            },
+        },
+        "hubspot": {
+            "contacts": context.get("contacts", []),
+            "deals": context.get("deals", []),
+            "coverage": context.get("coverage", {}),
+            "safe_activity_summary": _company_enrichment_safe_activity_summary(context),
+            "raw_note_bodies_stored": False,
+            "raw_task_bodies_stored": False,
+        },
+        "candidates": [],
+        "reveal_policy": {
+            "manual_reveal_required": True,
+            "recommended_provider_order": ["lusha", "prospeo"],
+            "max_recommended_reveals": COMPANY_ENRICHMENT_MAX_REVEAL_RECOMMENDATIONS,
+            "revealed_pii_ttl_days": COMPANY_ENRICHMENT_PII_TTL_DAYS,
+        },
+        "will_mutate_hubspot": False,
+        "will_send_external_message": False,
+    }
+    artifact["candidates"] = [_company_enrichment_contact_candidate(contact, artifact) for contact in context.get("contacts", [])]
+    artifact["waterfall_state"] = _company_enrichment_waterfall_state(artifact)
+    return artifact
+
+
+def _company_enrichment_readable_artifact(
+    artifact: dict[str, Any],
+    include_revealed_details: bool = False,
+    approval_marker: str = "",
+) -> dict[str, Any]:
+    include_details = bool(include_revealed_details and str(approval_marker or "").strip())
+    readable = json.loads(json.dumps(artifact))
+    readable["candidates"] = [
+        _company_enrichment_redacted_candidate(candidate, include_details)
+        for candidate in readable.get("candidates", [])
+    ]
+    readable["waterfall_state"] = _company_enrichment_waterfall_state(readable)
+    readable["revealed_details_included"] = include_details
+    return readable
+
+
+def _company_enrichment_has_decision_maker_path(artifact: dict[str, Any]) -> bool:
+    for candidate in artifact.get("candidates", []):
+        if candidate.get("suppress_from_contact_preview"):
+            continue
+        if candidate.get("duplicate_status") == "existing_hubspot_contact" and candidate.get("role_match") in {"verified_decision_maker", "candidate_role"}:
+            return True
+        if candidate.get("confidence") in {"high", "medium"} and candidate.get("role_match") == "decision_maker_or_icp_role":
+            return True
+    return False
+
+
+def _company_enrichment_has_channel_path(artifact: dict[str, Any]) -> bool:
+    return any(
+        (candidate.get("channel_status") or {}).get("usable_channel_path")
+        for candidate in artifact.get("candidates", [])
+        if not candidate.get("suppress_from_contact_preview")
+    )
+
+
+def _company_enrichment_ready_status(artifact: dict[str, Any]) -> dict[str, Any]:
+    has_decision_maker = _company_enrichment_has_decision_maker_path(artifact)
+    has_channel = _company_enrichment_has_channel_path(artifact)
+    return {
+        "minimum_ready": bool(has_decision_maker and has_channel),
+        "has_decision_maker_path": has_decision_maker,
+        "has_usable_channel_path": has_channel,
+        "pilot_ready": bool(has_decision_maker and has_channel and len([c for c in artifact.get("candidates", []) if c.get("confidence") in {"high", "medium"}]) >= 2),
+    }
+
+
+def _company_enrichment_next_level(artifact: dict[str, Any]) -> str:
+    ready = _company_enrichment_ready_status(artifact)
+    if ready["minimum_ready"]:
+        return "level_7_hubspot_contact_preview"
+    levels = artifact.get("levels", {})
+    for level in (
+        "level_2_tavily_public_discovery",
+        "level_3_public_people_job_board_search",
+        "level_4_exa_people_search",
+        "level_5_lusha_search",
+        "level_6_prospeo_fallback_search",
+    ):
+        if level not in levels:
+            return level
+    return "reveal_gate_or_safe_summary"
+
+
+def _company_enrichment_level_is_complete(level: str, record: dict[str, Any]) -> tuple[bool, str]:
+    status = str(record.get("status") or "").strip().lower()
+    if status not in {"completed", "complete", "succeeded", "success", "no_results"}:
+        return False, f"status={status or 'missing'}"
+    if level in {"level_0_hubspot", "level_1_public_search_strategy"}:
+        return True, ""
+    candidate_count = int(record.get("candidate_count_ingested") or 0)
+    evidence_count = int(record.get("evidence_count_ingested") or 0)
+    stored_evidence_count = len(record.get("evidence") or []) if isinstance(record.get("evidence"), list) else 0
+    if level in {"level_5_lusha_search", "level_6_prospeo_fallback_search"}:
+        if record.get("tool_result_ingested") or "candidate_count_ingested" in record or "evidence_count_ingested" in record:
+            return True, ""
+        return False, "paid-provider search result was not ingested"
+    if candidate_count or evidence_count or stored_evidence_count:
+        return True, ""
+    return False, "no candidates or evidence ingested"
+
+
+def _company_enrichment_linkedin_urls_available(artifact: dict[str, Any]) -> bool:
+    for candidate in artifact.get("candidates", []):
+        url = str(candidate.get("profile_url") or "").lower()
+        if "linkedin.com/in/" in url:
+            return True
+    return False
+
+
+def _company_enrichment_paid_url_lookup_done(record: dict[str, Any]) -> bool:
+    source = str(record.get("source") or "").lower()
+    notes = str(record.get("notes") or "").lower()
+    return "linkedin_url" in source or "linkedin url" in notes or "linkedin-url" in notes
+
+
+def _company_enrichment_waterfall_state(artifact: dict[str, Any]) -> dict[str, Any]:
+    levels = artifact.get("levels", {}) if isinstance(artifact.get("levels"), dict) else {}
+    linkedin_urls_available = _company_enrichment_linkedin_urls_available(artifact)
+    completed = []
+    incomplete_reasons: dict[str, str] = {}
+    for level in COMPANY_ENRICHMENT_FULL_WATERFALL_LEVELS:
+        record = levels.get(level) if isinstance(levels.get(level), dict) else {}
+        if not record:
+            incomplete_reasons[level] = "level not appended"
+            continue
+        is_complete, reason = _company_enrichment_level_is_complete(level, record)
+        if (
+            is_complete
+            and linkedin_urls_available
+            and level in {"level_5_lusha_search", "level_6_prospeo_fallback_search"}
+            and int(record.get("candidate_count_ingested") or 0) == 0
+            and not _company_enrichment_paid_url_lookup_done(record)
+        ):
+            is_complete = False
+            reason = "domain search returned no candidates; run LinkedIn URL provider lookup for available public LinkedIn candidates"
+        if is_complete:
+            completed.append(level)
+        else:
+            incomplete_reasons[level] = reason
+    missing = [level for level in COMPANY_ENRICHMENT_FULL_WATERFALL_LEVELS if level not in completed]
+    next_required = missing[0] if missing else ""
+    return {
+        "mode": "full_read_through_waterfall",
+        "required_levels": list(COMPANY_ENRICHMENT_FULL_WATERFALL_LEVELS),
+        "completed_levels": completed,
+        "missing_levels": missing,
+        "incomplete_reasons": incomplete_reasons,
+        "next_required_level": next_required,
+        "next_required_tool": COMPANY_ENRICHMENT_NEXT_TOOL_BY_LEVEL.get(next_required, ""),
+        "can_claim_full_waterfall": not missing,
+        "summary_status": "complete" if not missing else "partial",
+        "contract": "Only call the enrichment complete/full-waterfall when can_claim_full_waterfall=true. Otherwise return a partial summary and run the next_required_tool first.",
+    }
+
+
+def _company_enrichment_reveal_recommendations(artifact: dict[str, Any]) -> list[dict[str, Any]]:
+    rows = []
+    for candidate in artifact.get("candidates", []):
+        if candidate.get("source") not in {"lusha", "prospeo"}:
+            continue
+        if candidate.get("confidence") != "high":
+            continue
+        if candidate.get("revealed_details"):
+            continue
+        rows.append(
+            {
+                "candidate_id": candidate.get("candidate_id"),
+                "source": candidate.get("source"),
+                "name": candidate.get("name"),
+                "title": candidate.get("title"),
+                "company_match": candidate.get("company_match"),
+                "role_match": candidate.get("role_match"),
+                "channel_status": candidate.get("channel_status"),
+                "approval_instruction": "Approve reveal for this candidate_id before Lusha/Prospeo detail reveal.",
+            }
+        )
+    return rows[:COMPANY_ENRICHMENT_MAX_REVEAL_RECOMMENDATIONS]
+
+
+def _company_enrichment_public_company_channels(artifact: dict[str, Any]) -> list[dict[str, Any]]:
+    channels: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    levels = artifact.get("levels", {}) if isinstance(artifact.get("levels"), dict) else {}
+    for record in levels.values():
+        if not isinstance(record, dict):
+            continue
+        for evidence in record.get("evidence") or []:
+            if not isinstance(evidence, dict):
+                continue
+            nested_items = []
+            if evidence.get("channel_type") and evidence.get("value"):
+                nested_items.append(evidence)
+            if isinstance(evidence.get("public_contact_channels"), list):
+                nested_items.extend(item for item in evidence["public_contact_channels"] if isinstance(item, dict))
+            for item in nested_items:
+                channel_type = str(item.get("channel_type") or "").strip()
+                value = str(item.get("value") or "").strip()
+                if channel_type not in {"public_company_email", "public_company_phone"} or not value:
+                    continue
+                key = _normalized_words(f"{channel_type} {value}")
+                if key in seen:
+                    continue
+                seen.add(key)
+                channels.append(
+                    {
+                        "channel_type": channel_type,
+                        "value": value,
+                        "source_url": item.get("source_url") or item.get("url") or "",
+                        "title": item.get("title") or "",
+                        "confidence": item.get("confidence") or "needs-check",
+                        "usage": item.get("usage") or "public company channel only; not a personal provider reveal",
+                    }
+                )
+    return channels[:20]
+
+
+def _company_enrichment_contact_preview_rows(
+    artifact: dict[str, Any],
+    include_revealed_details: bool = False,
+    approval_marker: str = "",
+) -> list[dict[str, Any]]:
+    include_details = bool(include_revealed_details and str(approval_marker or "").strip())
+    company = artifact.get("company", {})
+    rows = []
+    for candidate in artifact.get("candidates", []):
+        if candidate.get("suppress_from_contact_preview"):
+            continue
+        details = candidate.get("revealed_details") if isinstance(candidate.get("revealed_details"), dict) else {}
+        expired = _company_enrichment_pii_expired(details) if details else False
+        row = {
+            "company_id": company.get("company_id"),
+            "associated_company_name": company.get("name"),
+            "country": company.get("country"),
+            "candidate_id": candidate.get("candidate_id"),
+            "source": candidate.get("source"),
+            "firstname": "",
+            "lastname": "",
+            "full_name": candidate.get("name"),
+            "jobtitle": candidate.get("title"),
+            "hs_buying_role": "DECISION_MAKER" if candidate.get("role_match") in {"verified_decision_maker", "decision_maker_or_icp_role"} else "",
+            "nurtureany_persona": candidate.get("title"),
+            "nurtureany_channel_fit": candidate.get("source"),
+            "nurtureany_contact_confidence": candidate.get("confidence"),
+            "nurtureany_last_verified_at": candidate.get("updated_at"),
+            "duplicate_status": candidate.get("duplicate_status"),
+            "will_mutate_hubspot": False,
+        }
+        if include_details and details and not expired:
+            emails = details.get("emails")
+            row["email"] = (
+                str(details.get("email") or "")
+                or (str(emails[0] or "") if isinstance(emails, list) and emails else "")
+            )
+            phones = details.get("phones")
+            row["phone"] = (
+                str(details.get("phone") or "")
+                or str(details.get("mobile") or "")
+                or (str(phones[0] or "") if isinstance(phones, list) and phones else "")
+            )
+            row["revealed_details_expires_at"] = details.get("expires_at") or ""
+        else:
+            row["email_status"] = "revealed_redacted" if details else "not_revealed"
+            row["phone_status"] = "revealed_redacted" if details and (details.get("phone") or details.get("mobile") or details.get("phones")) else "not_revealed"
+        rows.append(row)
+    return rows
+
+
+def _company_enrichment_summary(
+    artifact: dict[str, Any],
+    include_revealed_details: bool = False,
+    approval_marker: str = "",
+) -> dict[str, Any]:
+    ready = _company_enrichment_ready_status(artifact)
+    waterfall_state = _company_enrichment_waterfall_state(artifact)
+    return {
+        "artifact_id": artifact.get("artifact_id") or "",
+        "schema_version": artifact.get("schema_version") or "",
+        "company": artifact.get("company") or {},
+        "resolution": artifact.get("resolution") or {},
+        "ready_state": ready,
+        "stop_when_ready": ready["minimum_ready"],
+        "next_recommended_level": _company_enrichment_next_level(artifact),
+        "waterfall_state": waterfall_state,
+        "completed_levels": sorted((artifact.get("levels") or {}).keys()),
+        "candidate_counts": {
+            "total": len(artifact.get("candidates", [])),
+            "active_preview": len([candidate for candidate in artifact.get("candidates", []) if not candidate.get("suppress_from_contact_preview")]),
+            "suppressed_uncorroborated_exa": len([candidate for candidate in artifact.get("candidates", []) if candidate.get("suppress_from_contact_preview")]),
+            "high": len([candidate for candidate in artifact.get("candidates", []) if candidate.get("confidence") == "high" and not candidate.get("suppress_from_contact_preview")]),
+            "medium": len([candidate for candidate in artifact.get("candidates", []) if candidate.get("confidence") == "medium" and not candidate.get("suppress_from_contact_preview")]),
+            "low": len([candidate for candidate in artifact.get("candidates", []) if candidate.get("confidence") == "low" and not candidate.get("suppress_from_contact_preview")]),
+            "existing_hubspot": len(
+                [
+                    candidate
+                    for candidate in artifact.get("candidates", [])
+                    if candidate.get("duplicate_status") == "existing_hubspot_contact"
+                ]
+            ),
+        },
+        "top_candidates": [
+            _company_enrichment_redacted_candidate(candidate, bool(include_revealed_details and str(approval_marker or "").strip()))
+            for candidate in [candidate for candidate in artifact.get("candidates", []) if not candidate.get("suppress_from_contact_preview")][:10]
+        ],
+        "suppressed_candidates": [
+            {
+                "name": candidate.get("name"),
+                "title": candidate.get("title"),
+                "source": candidate.get("source"),
+                "reason": "uncorroborated_exa_evidence_only",
+                "profile_url": candidate.get("profile_url"),
+            }
+            for candidate in [candidate for candidate in artifact.get("candidates", []) if candidate.get("suppress_from_contact_preview")][:10]
+        ],
+        "public_company_channels": _company_enrichment_public_company_channels(artifact),
+        "reveal_gate": {
+            "manual_reveal_required": True,
+            "reveal_approved": bool(include_revealed_details and str(approval_marker or "").strip()),
+            "recommendations": _company_enrichment_reveal_recommendations(artifact),
+            "policy": artifact.get("reveal_policy") or {},
+        },
+        "hubspot_contact_preview_rows": _company_enrichment_contact_preview_rows(
+            artifact,
+            include_revealed_details=include_revealed_details,
+            approval_marker=approval_marker,
+        ),
+        "will_mutate_hubspot": False,
+        "will_send_external_message": False,
+        "raw_pii_in_default_output": False,
+    }
+
+
 def _task_marker(value: Any) -> str:
     return re.sub(r"\s+", " ", str(value or "").strip().lower())
 
@@ -9954,6 +11096,13 @@ def _lesson_candidates_dir() -> Path:
     return _profile_runtime_dir() / "lesson-candidates"
 
 
+def _lead_enrichment_artifacts_dir() -> Path:
+    raw = os.environ.get(LEAD_ENRICHMENT_ARTIFACTS_DIR_ENV, "").strip()
+    if raw:
+        return Path(raw).expanduser()
+    return _profile_runtime_dir() / "lead-enrichment-artifacts"
+
+
 def _safe_file_stem(value: str) -> str:
     safe_name = re.sub(r"[^A-Za-z0-9_.:-]+", "_", value or "").strip("._")
     if safe_name:
@@ -9971,6 +11120,10 @@ def _sales_whatsapp_report_schedule_path(schedule_id: str) -> Path:
 
 def _lesson_candidate_path(lesson_id: str) -> Path:
     return _lesson_candidates_dir() / f"{_safe_file_stem(lesson_id)}.json"
+
+
+def _lead_enrichment_artifact_path(artifact_id: str) -> Path:
+    return _lead_enrichment_artifacts_dir() / f"{_safe_file_stem(artifact_id)}.json"
 
 
 def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -10000,6 +11153,15 @@ def _load_sales_whatsapp_report_schedule(schedule_id: str) -> dict[str, Any]:
 
 def _load_lesson_candidate(lesson_id: str) -> dict[str, Any]:
     path = _lesson_candidate_path(lesson_id)
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _load_lead_enrichment_artifact(artifact_id: str) -> dict[str, Any]:
+    path = _lead_enrichment_artifact_path(artifact_id)
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (FileNotFoundError, json.JSONDecodeError, OSError):
@@ -17736,6 +18898,261 @@ def build_singapore_lead_enrichment_plan(
         return _blocked(str(error), {"caller_email": slack_user_email, "owner_email": owner_email})
     except HubSpotError as error:
         return _blocked(str(error), {"caller_email": slack_user_email, "owner_email": owner_email, "company_ids": company_ids or []})
+
+
+@mcp.tool()
+def resolve_company_enrichment_target(
+    slack_user_email: str,
+    company_id: str = "",
+    company_name: str = "",
+    country: str = "",
+    domain: str = "",
+    brand_parent_candidates: list[str] | None = None,
+) -> dict[str, Any]:
+    """Resolve exactly one scoped HubSpot company for single-company enrichment."""
+
+    try:
+        resolved = _resolve_company_enrichment_company(
+            slack_user_email,
+            company_id=company_id,
+            company_name=company_name,
+            country=country,
+            domain=domain,
+            brand_parent_candidates=brand_parent_candidates,
+        )
+        scope = resolved.get("scope") or {}
+        if resolved.get("status") != "resolved":
+            return _company_enrichment_resolution_response(
+                str(resolved.get("status") or "blocked"),
+                scope,
+                str(resolved.get("message") or "Company enrichment target was not resolved."),
+                candidates=resolved.get("candidates") if isinstance(resolved.get("candidates"), list) else [],
+                evidence=resolved.get("resolution_evidence") if isinstance(resolved.get("resolution_evidence"), list) else [],
+            )
+        company = resolved["company"]
+        summary = _summarize_company(company)
+        return {
+            "answer": {
+                "status": "resolved",
+                "company": summary,
+                "resolution_evidence": resolved.get("resolution_evidence") or [],
+                "domain_used_as_tie_breaker_only": True,
+                "next_step": "create_company_enrichment_artifact",
+            },
+            "source": "HubSpot scoped target-account company resolution",
+            "scope": _company_enrichment_scope(scope, company),
+            "confidence": "verified",
+            "caveat": "Exactly one scoped HubSpot company is required before enrichment starts.",
+        }
+    except ScopeError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email, "company_id": company_id, "company_name": company_name})
+    except HubSpotError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email, "company_id": company_id, "company_name": company_name})
+
+
+@mcp.tool()
+def create_company_enrichment_artifact(
+    slack_user_email: str,
+    company_id: str = "",
+    company_name: str = "",
+    country: str = "",
+    domain: str = "",
+    source_thread: str = "",
+    brand_parent_candidates: list[str] | None = None,
+    artifact_id: str = "",
+) -> dict[str, Any]:
+    """Create a single-company lead-enrichment artifact after scoped HubSpot resolution."""
+
+    try:
+        resolved = _resolve_company_enrichment_company(
+            slack_user_email,
+            company_id=company_id,
+            company_name=company_name,
+            country=country,
+            domain=domain,
+            brand_parent_candidates=brand_parent_candidates,
+        )
+        scope = resolved.get("scope") or {}
+        if resolved.get("status") != "resolved":
+            return _company_enrichment_resolution_response(
+                str(resolved.get("status") or "blocked"),
+                scope,
+                str(resolved.get("message") or "Company enrichment target was not resolved."),
+                candidates=resolved.get("candidates") if isinstance(resolved.get("candidates"), list) else [],
+                evidence=resolved.get("resolution_evidence") if isinstance(resolved.get("resolution_evidence"), list) else [],
+            )
+        company = resolved["company"]
+        summary = _summarize_company(company)
+        company_country = str(summary.get("country") or "")
+        if company_country not in COMPANY_ENRICHMENT_SUPPORTED_COUNTRIES:
+            return _blocked(
+                "Company enrichment supports Singapore, Malaysia, and Indonesia scoped HubSpot companies only.",
+                {"company_id": summary.get("company_id"), "country": company_country},
+            )
+        context = _company_context(str(summary.get("company_id") or ""), scope, task_limit=10)
+        if not context:
+            return _blocked(
+                "Company is outside caller scope or is not a HubSpot target account.",
+                {"company_id": summary.get("company_id"), "caller_email": slack_user_email},
+            )
+        safe_artifact_id = _safe_file_stem(str(artifact_id or "").strip()) or _company_enrichment_artifact_id(
+            str(summary.get("company_id") or ""),
+            source_thread=source_thread,
+        )
+        artifact = _company_enrichment_new_artifact(
+            safe_artifact_id,
+            scope,
+            company,
+            context,
+            resolution_evidence=resolved.get("resolution_evidence") or [],
+            source_thread=source_thread,
+        )
+        _atomic_write_json(_lead_enrichment_artifact_path(safe_artifact_id), artifact)
+        return {
+            "answer": _company_enrichment_summary(artifact),
+            "source": "HubSpot scoped company context plus NurtureAny lead-enrichment runtime artifact",
+            "scope": _company_enrichment_scope(scope, company),
+            "confidence": "verified",
+            "caveat": "Artifact only. No HubSpot mutation, WhatsApp send, or paid reveal has occurred.",
+        }
+    except ScopeError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email, "company_id": company_id, "company_name": company_name})
+    except (HubSpotError, OSError) as error:
+        return _blocked(str(error), {"caller_email": slack_user_email, "company_id": company_id, "company_name": company_name})
+
+
+@mcp.tool()
+def update_company_enrichment_artifact(
+    artifact_id: str,
+    source: str,
+    source_level: str = "",
+    candidates: list[dict[str, Any]] | None = None,
+    evidence: list[dict[str, Any]] | None = None,
+    tool_result: dict[str, Any] | list[Any] | None = None,
+    revealed_contacts: list[dict[str, Any]] | None = None,
+    approval_marker: str = "",
+    status: str = "completed",
+    notes: str = "",
+) -> dict[str, Any]:
+    """Append normalized evidence or candidates to one company-enrichment artifact."""
+
+    safe_artifact_id = _safe_file_stem(str(artifact_id or "").strip())
+    if not safe_artifact_id:
+        return _blocked("artifact_id is required.", {"artifact_id": artifact_id})
+    artifact = _load_lead_enrichment_artifact(safe_artifact_id)
+    if not artifact:
+        return _blocked("No company-enrichment artifact found for this artifact_id.", {"artifact_id": safe_artifact_id})
+    safe_source = str(source or "").strip().lower()
+    if not safe_source:
+        return _blocked("source is required for artifact updates.", {"artifact_id": safe_artifact_id})
+    level = _company_enrichment_level(safe_source, source_level)
+    incoming_candidates = list(candidates or [])
+    if tool_result is not None:
+        incoming_candidates.extend(_company_enrichment_tool_result_candidates(tool_result))
+    incoming_evidence = [_company_enrichment_safe_evidence_item(item) for item in list(evidence or []) if isinstance(item, dict)]
+    if tool_result is not None:
+        incoming_evidence.extend(_company_enrichment_tool_result_evidence(tool_result))
+    reveal_candidates = list(revealed_contacts or [])
+    reveal_source = safe_source.replace("_reveal", "")
+    normalized = [
+        _company_enrichment_normalize_candidate(candidate, artifact, safe_source, level)
+        for candidate in incoming_candidates
+        if isinstance(candidate, dict)
+    ]
+    if reveal_candidates and not str(approval_marker or "").strip():
+        return _blocked(
+            "approval_marker is required before storing revealed email/phone/mobile details.",
+            {"artifact_id": safe_artifact_id, "source": safe_source},
+        )
+    normalized.extend(
+        _company_enrichment_normalize_candidate(candidate, artifact, reveal_source, "reveal_gate", approval_marker=approval_marker)
+        for candidate in reveal_candidates
+        if isinstance(candidate, dict)
+    )
+    _company_enrichment_merge_candidates(artifact, normalized)
+    level_record = _company_enrichment_safe_level_update(safe_source, level, status=status)
+    if incoming_evidence:
+        level_record["evidence"] = incoming_evidence[:50]
+    if tool_result is not None or candidates is not None or evidence is not None:
+        level_record["tool_result_ingested"] = True
+        level_record["candidate_count_ingested"] = len(incoming_candidates)
+        level_record["evidence_count_ingested"] = len(incoming_evidence)
+    if notes:
+        level_record["notes"] = _company_enrichment_text(notes, 500)
+    if reveal_candidates:
+        level_record["revealed_candidate_count"] = len(reveal_candidates)
+        level_record["approval_marker_present"] = bool(str(approval_marker or "").strip())
+    artifact.setdefault("levels", {})[level] = level_record
+    artifact["updated_at"] = datetime.now(timezone.utc).isoformat()
+    artifact["waterfall_state"] = _company_enrichment_waterfall_state(artifact)
+    try:
+        _atomic_write_json(_lead_enrichment_artifact_path(safe_artifact_id), artifact)
+    except OSError as error:
+        return _blocked(f"Company-enrichment artifact write failed: {error.__class__.__name__}", {"artifact_id": safe_artifact_id})
+    return {
+        "answer": _company_enrichment_summary(artifact),
+        "source": "NurtureAny company-enrichment runtime artifact",
+        "scope": {"artifact_id": safe_artifact_id, "level": level, "source": safe_source},
+        "confidence": "verified",
+        "caveat": "Artifact update only. No HubSpot mutation, WhatsApp send, or provider reveal call is performed by this tool.",
+    }
+
+
+@mcp.tool()
+def read_company_enrichment_artifact(
+    artifact_id: str,
+    include_revealed_details: bool = False,
+    approval_marker: str = "",
+) -> dict[str, Any]:
+    """Read one company-enrichment artifact with PII redacted by default."""
+
+    safe_artifact_id = _safe_file_stem(str(artifact_id or "").strip())
+    if not safe_artifact_id:
+        return _blocked("artifact_id is required.", {"artifact_id": artifact_id})
+    artifact = _load_lead_enrichment_artifact(safe_artifact_id)
+    if not artifact:
+        return _blocked("No company-enrichment artifact found for this artifact_id.", {"artifact_id": safe_artifact_id})
+    readable = _company_enrichment_readable_artifact(
+        artifact,
+        include_revealed_details=include_revealed_details,
+        approval_marker=approval_marker,
+    )
+    return {
+        "answer": readable,
+        "source": "NurtureAny lead-enrichment runtime artifact",
+        "scope": {"artifact_id": safe_artifact_id, "artifact_dir": str(_lead_enrichment_artifacts_dir())},
+        "confidence": "verified",
+        "caveat": "Default read redacts email, phone, and mobile. Revealed PII requires include_revealed_details=true plus approval_marker and expires after 14 days.",
+    }
+
+
+@mcp.tool()
+def summarize_company_enrichment_artifact(
+    artifact_id: str,
+    include_revealed_details: bool = False,
+    approval_marker: str = "",
+) -> dict[str, Any]:
+    """Summarize one company-enrichment artifact into HubSpot contact-format preview rows."""
+
+    safe_artifact_id = _safe_file_stem(str(artifact_id or "").strip())
+    if not safe_artifact_id:
+        return _blocked("artifact_id is required.", {"artifact_id": artifact_id})
+    artifact = _load_lead_enrichment_artifact(safe_artifact_id)
+    if not artifact:
+        return _blocked("No company-enrichment artifact found for this artifact_id.", {"artifact_id": safe_artifact_id})
+    summary = _company_enrichment_summary(
+        artifact,
+        include_revealed_details=include_revealed_details,
+        approval_marker=approval_marker,
+    )
+    waterfall_state = summary.get("waterfall_state") if isinstance(summary.get("waterfall_state"), dict) else {}
+    return {
+        "answer": summary,
+        "source": "NurtureAny lead-enrichment runtime artifact",
+        "scope": {"artifact_id": safe_artifact_id},
+        "confidence": "verified" if waterfall_state.get("can_claim_full_waterfall") else "needs-check",
+        "caveat": "Preview only: will_mutate_hubspot=false, no WhatsApp send, and raw PII is redacted unless explicitly included after reveal approval. If waterfall_state.can_claim_full_waterfall=false, this is a partial summary and must not be described as a full waterfall run.",
+    }
 
 
 @mcp.tool()

@@ -162,7 +162,7 @@ class PublicResearchNurtureAnyServerTest(unittest.TestCase):
         search_calls = [body for endpoint, body in calls if endpoint == "/search"]
         extract_calls = [body for endpoint, body in calls if endpoint == "/extract"]
         self.assertEqual(len(result["answer"]), self.module.MAX_RESEARCH_COMPANIES)
-        self.assertEqual(len(search_calls), self.module.MAX_RESEARCH_COMPANIES * 3)
+        self.assertEqual(len(search_calls), self.module.MAX_RESEARCH_COMPANIES * 5)
         self.assertEqual(len(extract_calls), self.module.MAX_RESEARCH_COMPANIES)
         self.assertTrue(result["truncated"])
         self.assertIn("cost_report", result)
@@ -171,10 +171,10 @@ class PublicResearchNurtureAnyServerTest(unittest.TestCase):
             self.assertEqual(body["max_results"], 5)
             self.assertFalse(body["include_raw_content"])
         for body in extract_calls:
-            self.assertLessEqual(len(body["urls"]), 2)
+            self.assertLessEqual(len(body["urls"]), 4)
         for cost in result["cost_report"]["by_company"]:
             self.assertLessEqual(cost["estimated_credits"], cost["credit_cap_for_mode"])
-            self.assertEqual(cost["credit_cap_for_mode"], 5)
+            self.assertEqual(cost["credit_cap_for_mode"], 9)
 
     def test_social_and_gated_urls_become_manual_check_and_are_not_extracted(self):
         extract_urls = []
@@ -268,6 +268,69 @@ class PublicResearchNurtureAnyServerTest(unittest.TestCase):
         signal_types = {signal["signal_type"] for signal in signals}
         self.assertNotIn("hiring_signal", signal_types)
         self.assertNotIn("growth_signal", signal_types)
+
+    def test_public_extract_promotes_named_founder_candidate_from_general_web_article(self):
+        signals = self.research_module.extract_company_signals(
+            {
+                "title": "Acme Cafe opens a new outlet",
+                "snippet": "Acme Cafe opened a new outlet in Singapore.",
+            },
+            "general_web",
+            "https://news.example/acme-cafe-opening",
+            "The journey is led by founder, Meisin Tan, who wants to bring local dining memories to the CBD.",
+        )
+        candidates = self.research_module.extract_public_people_candidates(
+            {
+                "title": "Acme Cafe opens a new outlet",
+                "snippet": "Acme Cafe opened a new outlet in Singapore.",
+            },
+            "general_web",
+            "https://news.example/acme-cafe-opening",
+            "The journey is led by founder, Meisin Tan, who wants to bring local dining memories to the CBD.",
+        )
+
+        self.assertIn("decision_maker_hint", {signal["signal_type"] for signal in signals})
+        self.assertEqual(candidates[0]["name"], "Meisin Tan")
+        self.assertEqual(candidates[0]["title"], "Founder")
+        self.assertEqual(candidates[0]["source_url"], "https://news.example/acme-cafe-opening")
+
+    def test_public_extract_returns_public_company_email_and_phone_channels(self):
+        channels = self.research_module.extract_public_contact_channels(
+            {
+                "title": "Acme Cafe contact page",
+                "snippet": "Contact us for bookings.",
+            },
+            "company_website",
+            "https://acme.example/contact",
+            "For reservations WhatsApp +65 8123 4567 or email info@acme.example.",
+        )
+
+        values = {channel["value"] for channel in channels}
+        self.assertIn("info@acme.example", values)
+        self.assertIn("+6581234567", values)
+        self.assertTrue(all(channel["usage"].startswith("public company channel") for channel in channels))
+
+    def test_standard_queries_include_contact_channels_and_country_job_boards(self):
+        queries = self.research_module.company_queries(self.scoped_company(), "standard")
+
+        joined = "\n".join(queries)
+        self.assertEqual(len(queries), 5)
+        self.assertIn("contact phone email WhatsApp booking", joined)
+        self.assertIn("site:acme.example contact phone email WhatsApp booking careers hiring", joined)
+        self.assertIn("JobStreet OR Indeed OR Glints OR MyCareersFuture", joined)
+
+    def test_extract_priority_prefers_official_contact_and_job_board_pages(self):
+        urls = [
+            "https://news.example/acme-opening",
+            "https://sg.jobstreet.com/job/123",
+            "https://acme.example/about",
+            "https://acme.example/contact-us",
+        ]
+        ordered = sorted(urls, key=lambda url: self.research_module._extract_priority(url, "acme.example"))
+
+        self.assertEqual(ordered[0], "https://acme.example/contact-us")
+        self.assertEqual(ordered[1], "https://acme.example/about")
+        self.assertEqual(ordered[2], "https://sg.jobstreet.com/job/123")
 
     def test_unrelated_tavily_results_are_filtered_before_signals(self):
         def fake_request(endpoint, token, body):
