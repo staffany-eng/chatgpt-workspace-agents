@@ -386,6 +386,7 @@ CALL_PROPERTIES = [
     "hubspot_owner_id",
     "hs_call_title",
     "hs_call_status",
+    "hs_call_direction",
     "hs_call_duration",
     "hs_call_external_id",
     "hs_call_unique_external_id",
@@ -585,6 +586,11 @@ MESSAGE_TEXT_LIMIT = 4000
 PRIORITY_ACCOUNT_RETURN_LIMIT = 1000
 PRIORITY_ACCOUNT_LOCKED_POOL_BASELINE = 150
 PRIORITY_ACCOUNT_WEEKLY_WORKED_TARGET = 120
+PRIORITY_ACCOUNT_HEADCOUNT_MIN_ENV_VAR = "NURTUREANY_PRIORITY_ACCOUNT_HEADCOUNT_MIN"
+PRIORITY_ACCOUNT_HEADCOUNT_MAX_ENV_VAR = "NURTUREANY_PRIORITY_ACCOUNT_HEADCOUNT_MAX"
+PRIORITY_ACCOUNT_PIPELINE_IDS_ENV_VAR = "NURTUREANY_PRIORITY_ACCOUNT_PIPELINE_IDS"
+PRIORITY_ACCOUNT_DEAL_STAGE_IDS_ENV_VAR = "NURTUREANY_PRIORITY_ACCOUNT_DEAL_STAGE_IDS"
+PRIORITY_ACCOUNT_BULK_ACTIVITY_INDEX_THRESHOLD = 50
 MANAGER_CHASE_RETURN_LIMIT = 20
 MANAGER_CHASE_COVERAGE_LIMIT = 150
 ACTIVE_DEAL_HYGIENE_RETURN_LIMIT = 100
@@ -2034,13 +2040,22 @@ def _task_search_filters(owner_id: str | None = None, due_start: str = "", due_e
     return filters
 
 
-def _target_filters(countries: list[str], owner_id: str | None = None) -> list[dict[str, Any]]:
+def _target_filters(
+    countries: list[str],
+    owner_id: str | None = None,
+    headcount_min: int = 0,
+    headcount_max: int = 0,
+) -> list[dict[str, Any]]:
     filters: list[dict[str, Any]] = [
         {"propertyName": "hs_is_target_account", "operator": "EQ", "value": "true"},
         {"propertyName": "company_country", "operator": "IN", "values": countries},
     ]
     if owner_id:
         filters.append({"propertyName": "hubspot_owner_id", "operator": "EQ", "value": owner_id})
+    if headcount_min > 0:
+        filters.append({"propertyName": "numberofemployees", "operator": "GTE", "value": str(headcount_min)})
+    if headcount_max > 0:
+        filters.append({"propertyName": "numberofemployees", "operator": "LTE", "value": str(headcount_max)})
     return filters
 
 
@@ -5577,6 +5592,198 @@ def _friday_review_stage_config() -> dict[str, Any]:
     }
 
 
+def _configured_or_requested_ids(values: list[str] | None, env_var: str) -> list[str]:
+    requested = _string_list(values)
+    if requested:
+        return _unique_text(requested)
+    return sorted(_env_csv(env_var))
+
+
+def _priority_account_pool_options(
+    headcount_min: int = 0,
+    headcount_max: int = 0,
+    pipeline_ids: list[str] | None = None,
+    dealstage_ids: list[str] | None = None,
+) -> dict[str, Any]:
+    configured_headcount_min = _int_value(os.environ.get(PRIORITY_ACCOUNT_HEADCOUNT_MIN_ENV_VAR))
+    configured_headcount_max = _int_value(os.environ.get(PRIORITY_ACCOUNT_HEADCOUNT_MAX_ENV_VAR))
+    return {
+        "headcount_min": _bounded_int(headcount_min or configured_headcount_min, default=0, minimum=0, maximum=1_000_000),
+        "headcount_max": _bounded_int(headcount_max or configured_headcount_max, default=0, minimum=0, maximum=1_000_000),
+        "pipeline_ids": _configured_or_requested_ids(pipeline_ids, PRIORITY_ACCOUNT_PIPELINE_IDS_ENV_VAR),
+        "dealstage_ids": _configured_or_requested_ids(dealstage_ids, PRIORITY_ACCOUNT_DEAL_STAGE_IDS_ENV_VAR),
+    }
+
+
+def _priority_account_company_sort_key(company: dict[str, Any]) -> tuple[float, float, float, str, str]:
+    props = company.get("properties", {})
+    priority_score = _number_value(props.get("nurtureany_priority_score"))
+    last_nurtured = _datetime_value(props.get("nurtureany_last_nurtured_at"))
+    last_reviewed = _datetime_value(props.get("nurtureany_last_reviewed_at"))
+    last_nurtured_ts = last_nurtured.timestamp() if last_nurtured else 0.0
+    last_reviewed_ts = last_reviewed.timestamp() if last_reviewed else 0.0
+    return (
+        -priority_score,
+        last_nurtured_ts,
+        last_reviewed_ts,
+        str(props.get("name") or "").casefold(),
+        str(company.get("id") or ""),
+    )
+
+
+def _priority_account_deal_company_ids(
+    owner_id: str | None,
+    pipeline_ids: list[str],
+    dealstage_ids: list[str],
+    deadline: float | None,
+) -> tuple[set[str], dict[str, Any]]:
+    if not pipeline_ids and not dealstage_ids:
+        return set(), {"applied": False, "truncated": False, "deal_count": 0, "company_count": 0}
+    if _deadline_exceeded(deadline):
+        return set(), {"applied": True, "truncated": True, "deal_count": 0, "company_count": 0}
+
+    filters: list[dict[str, Any]] = []
+    if owner_id:
+        filters.append({"propertyName": "hubspot_owner_id", "operator": "EQ", "value": owner_id})
+    if pipeline_ids:
+        filters.append({"propertyName": "pipeline", "operator": "IN", "values": pipeline_ids})
+    if dealstage_ids:
+        filters.append({"propertyName": "dealstage", "operator": "IN", "values": dealstage_ids})
+
+    deal_data = _deal_search(
+        filters,
+        PRIORITY_ACCOUNT_RETURN_LIMIT,
+        maximum=PRIORITY_ACCOUNT_RETURN_LIMIT,
+        properties=DEAL_PROPERTIES,
+        sorts=[{"propertyName": "hs_lastmodifieddate", "direction": "DESCENDING"}],
+    )
+    deal_ids = [str(deal.get("id") or "").strip() for deal in deal_data.get("results", []) if str(deal.get("id") or "").strip()]
+    deal_company_ids = {} if _deadline_exceeded(deadline) else _batch_association_ids_until("deals", "companies", deal_ids, deadline)
+    company_ids = {
+        str(company_id)
+        for ids in deal_company_ids.values()
+        for company_id in ids
+        if str(company_id).strip()
+    }
+    truncated = bool(deal_data.get("truncated") or _deadline_exceeded(deadline))
+    return company_ids, {
+        "applied": True,
+        "truncated": truncated,
+        "deal_count": len(deal_ids),
+        "company_count": len(company_ids),
+        "pipeline_ids": pipeline_ids,
+        "dealstage_ids": dealstage_ids,
+    }
+
+
+def _priority_account_owner_ids_for_scope(
+    scope: dict[str, Any],
+    countries: list[str],
+    target_owner_id: str | None,
+) -> list[str | None]:
+    if target_owner_id:
+        return [target_owner_id]
+    if scope.get("kind") == "ae" and scope.get("owner_id"):
+        return [str(scope.get("owner_id") or "")]
+    try:
+        owner_rows, _unresolved = _sales_owner_rows_for_scope(
+            scope,
+            countries,
+            classified_sales_reps_only=True,
+            limit=HUBSPOT_SEARCH_TOTAL_LIMIT,
+        )
+    except (AccessPolicyError, ScopeError):
+        owner_rows = []
+    owner_ids = [str(row.get("owner_id") or "").strip() for row in owner_rows if str(row.get("owner_id") or "").strip()]
+    return owner_ids or [None]
+
+
+def _priority_account_pool(
+    scope: dict[str, Any],
+    countries: list[str],
+    target_owner_id: str | None,
+    pool_limit: int,
+    options: dict[str, Any],
+    deadline: float | None,
+) -> dict[str, Any]:
+    selected_companies: list[dict[str, Any]] = []
+    total = 0
+    source_returned_count = 0
+    truncated = False
+    owner_metadata: dict[str, dict[str, Any]] = {}
+    owner_ids = _priority_account_owner_ids_for_scope(scope, countries, target_owner_id)
+    per_owner_limit = _bounded_int(pool_limit, default=PRIORITY_ACCOUNT_LOCKED_POOL_BASELINE, maximum=PRIORITY_ACCOUNT_LOCKED_POOL_BASELINE)
+    scan_limit = PRIORITY_ACCOUNT_RETURN_LIMIT
+
+    for owner_id in owner_ids:
+        owner_key = str(owner_id or "unassigned")
+        data = _company_search(
+            _target_filters(countries, owner_id, options["headcount_min"], options["headcount_max"]),
+            scan_limit,
+            maximum=PRIORITY_ACCOUNT_RETURN_LIMIT,
+            sorts=[{"propertyName": "hubspot_owner_id", "direction": "ASCENDING"}],
+        )
+        candidates = data.get("results", [])
+        total += _int_value(data.get("total")) or len(candidates)
+        source_returned_count += len(candidates)
+        truncated = bool(truncated or data.get("truncated"))
+
+        deal_company_ids, deal_metadata = _priority_account_deal_company_ids(
+            owner_id,
+            options["pipeline_ids"],
+            options["dealstage_ids"],
+            deadline,
+        )
+        if deal_metadata.get("applied"):
+            candidates = [
+                company
+                for company in candidates
+                if str(company.get("id") or "").strip() in deal_company_ids
+            ]
+            truncated = bool(truncated or deal_metadata.get("truncated"))
+
+        candidates = sorted(candidates, key=_priority_account_company_sort_key)
+        owner_selected = candidates[:per_owner_limit]
+        selected_companies.extend(owner_selected)
+        owner_metadata[owner_key] = {
+            "source_total": data.get("total"),
+            "source_returned_count": len(data.get("results", [])),
+            "candidate_count_after_filters": len(candidates),
+            "selected_count": len(owner_selected),
+            "has_more_after_selection": len(candidates) > per_owner_limit,
+            "source_truncated": bool(data.get("truncated")),
+            "deal_filter": deal_metadata,
+        }
+
+    return {
+        "results": selected_companies,
+        "total": total,
+        "requested_limit": per_owner_limit,
+        "returned_count": len(selected_companies),
+        "source_returned_count": source_returned_count,
+        "has_more": truncated,
+        "truncated": truncated,
+        "pool_selection": {
+            "mode": "top_per_owner",
+            "per_owner_limit": per_owner_limit,
+            "scan_limit_per_owner": scan_limit,
+            "owner_ids": [str(owner_id or "") for owner_id in owner_ids],
+            "headcount_min": options["headcount_min"],
+            "headcount_max": options["headcount_max"],
+            "pipeline_ids": options["pipeline_ids"],
+            "dealstage_ids": options["dealstage_ids"],
+            "sort": [
+                "nurtureany_priority_score DESC",
+                "nurtureany_last_nurtured_at ASC",
+                "nurtureany_last_reviewed_at ASC",
+                "name ASC",
+                "company_id ASC",
+            ],
+            "owners": owner_metadata,
+        },
+    }
+
+
 def _week_window(week_start: str = "", week_end: str = "") -> dict[str, Any]:
     local_now = datetime.now(timezone.utc).astimezone(SINGAPORE_TIMEZONE)
     default_start = local_now.date() - timedelta(days=local_now.weekday())
@@ -5624,6 +5831,21 @@ def _is_completed_call(activity: dict[str, Any]) -> bool:
 
 def _is_connected_call(activity: dict[str, Any]) -> bool:
     return _is_completed_call(activity) and _call_duration_ms(activity) >= CONNECTED_CALL_MIN_DURATION_MS
+
+
+def _is_outbound_call(activity: dict[str, Any]) -> bool:
+    direction = str(activity.get("properties", {}).get("hs_call_direction") or "").strip().upper()
+    return direction in {"OUTBOUND", "OUTGOING", "SENT"}
+
+
+def _is_follow_up_call(activity: dict[str, Any]) -> bool:
+    props = activity.get("properties", {})
+    title = str(props.get("hs_call_title") or "").strip().lower()
+    return any(term in title for term in ("follow up", "follow-up", "followup"))
+
+
+def _is_meaningful_call_touch(activity: dict[str, Any]) -> bool:
+    return _is_completed_call(activity) and _is_outbound_call(activity) and not _is_follow_up_call(activity)
 
 
 def _aircall_call_id_from_hubspot_call(activity: dict[str, Any]) -> str:
@@ -5686,8 +5908,10 @@ def _safe_friday_activity_evidence(
     elif evidence_type == "call":
         evidence["title"] = _safe_activity_label(props.get("hs_call_title"))
         evidence["status"] = props.get("hs_call_status") or ""
+        evidence["direction"] = props.get("hs_call_direction") or ""
         evidence["duration_seconds"] = round(_call_duration_ms(activity) / 1000)
         evidence["connected_call"] = _is_connected_call(activity)
+        evidence["meaningful_touch"] = _is_meaningful_call_touch(activity)
         aircall_call_id = _aircall_call_id_from_hubspot_call(activity)
         if aircall_call_id:
             evidence["aircall_call_id"] = aircall_call_id
@@ -5753,7 +5977,6 @@ def _account_week_activity(
                 evidence.append(safe_evidence)
             elif evidence_type == "note":
                 counts["notes"] += 1
-                counts["touches"] += 1
                 evidence.append(safe_evidence)
             elif evidence_type == "task":
                 if _is_incomplete_task(activity):
@@ -5761,13 +5984,13 @@ def _account_week_activity(
                     evidence.append(safe_evidence)
                 else:
                     counts["completed_tasks"] += 1
-                    counts["touches"] += 1
                     evidence.append(safe_evidence)
             elif evidence_type == "call":
                 if not _is_completed_call(activity):
                     continue
                 counts["completed_calls"] += 1
-                counts["touches"] += 1
+                if _is_meaningful_call_touch(activity):
+                    counts["touches"] += 1
                 if _is_connected_call(activity):
                     counts["connected_calls"] += 1
                 evidence.append(safe_evidence)
@@ -5853,7 +6076,6 @@ def _count_indexed_activity(
         account_activity["evidence"].append(safe_evidence)
     elif evidence_type == "note":
         counts["notes"] += 1
-        counts["touches"] += 1
         account_activity["evidence"].append(safe_evidence)
     elif evidence_type == "task":
         if _is_incomplete_task(activity):
@@ -5861,13 +6083,13 @@ def _count_indexed_activity(
             account_activity["evidence"].append(safe_evidence)
         else:
             counts["completed_tasks"] += 1
-            counts["touches"] += 1
             account_activity["evidence"].append(safe_evidence)
     elif evidence_type == "call":
         if not _is_completed_call(activity):
             return
         counts["completed_calls"] += 1
-        counts["touches"] += 1
+        if _is_meaningful_call_touch(activity):
+            counts["touches"] += 1
         if _is_connected_call(activity):
             counts["connected_calls"] += 1
         account_activity["evidence"].append(safe_evidence)
@@ -5881,6 +6103,144 @@ def _count_indexed_activity(
         account_activity["evidence"].append(safe_evidence)
 
 
+def _mark_activity_index_truncated(activity_by_company: dict[str, dict[str, Any]], company_ids: list[str] | set[str]) -> None:
+    for company_id in company_ids:
+        if company_id in activity_by_company:
+            activity_by_company[company_id]["truncated"] = True
+            activity_by_company[company_id]["confidence"] = "needs-check"
+
+
+def _finalize_week_activity_index(activity_by_company: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    for account_activity in activity_by_company.values():
+        sorted_evidence = _sort_followup_evidence(account_activity["evidence"])
+        account_activity["latest_activity_at"] = sorted_evidence[0]["timestamp"] if sorted_evidence else ""
+        account_activity["evidence"] = sorted_evidence[:10]
+        account_activity["confidence"] = "needs-check" if account_activity.get("weak_evidence") or account_activity.get("truncated") else "verified"
+    return activity_by_company
+
+
+def _bulk_activity_sources_for_companies(
+    hubspot_type: str,
+    activity_ids: list[str],
+    selected_company_ids: set[str],
+    contact_to_companies: dict[str, list[str]],
+    deal_to_companies: dict[str, list[str]],
+    deadline: float | None,
+) -> dict[str, dict[str, list[dict[str, str]]]]:
+    company_activity_sources: dict[str, dict[str, list[dict[str, str]]]] = {}
+    direct_company_ids = _batch_association_ids_until(hubspot_type, "companies", activity_ids, deadline)
+    activity_contact_ids = _batch_association_ids_until(hubspot_type, "contacts", activity_ids, deadline)
+    activity_deal_ids = _batch_association_ids_until(hubspot_type, "deals", activity_ids, deadline)
+
+    for activity_id in activity_ids:
+        for company_id in direct_company_ids.get(activity_id, []):
+            if company_id in selected_company_ids:
+                _add_indexed_activity_source(company_activity_sources, company_id, activity_id, "company", company_id)
+        for contact_id in activity_contact_ids.get(activity_id, []):
+            for company_id in contact_to_companies.get(str(contact_id), []):
+                if company_id in selected_company_ids:
+                    _add_indexed_activity_source(company_activity_sources, company_id, activity_id, "contact", contact_id)
+        for deal_id in activity_deal_ids.get(activity_id, []):
+            for company_id in deal_to_companies.get(str(deal_id), []):
+                if company_id in selected_company_ids:
+                    _add_indexed_activity_source(company_activity_sources, company_id, activity_id, "deal", deal_id)
+    return company_activity_sources
+
+
+def _week_activity_index_for_companies_bulk(
+    companies: list[dict[str, Any]],
+    contact_index: dict[str, list[str]],
+    deal_index: dict[str, list[str]],
+    since_dt: datetime,
+    until_dt: datetime,
+    deadline: float | None = None,
+) -> dict[str, dict[str, Any]]:
+    company_ids = [str(company.get("id") or "") for company in companies if company.get("id")]
+    if not company_ids:
+        return {}
+
+    activity_by_company = {company_id: _empty_week_activity() for company_id in company_ids}
+    selected_company_ids = set(company_ids)
+    contact_to_companies = _reverse_company_association_index(contact_index)
+    deal_to_companies = _reverse_company_association_index(deal_index)
+    companies_by_owner: dict[str, list[str]] = {}
+    for company in companies:
+        owner_id = str(company.get("properties", {}).get("hubspot_owner_id") or "")
+        company_id = str(company.get("id") or "")
+        if owner_id and company_id:
+            companies_by_owner.setdefault(owner_id, []).append(company_id)
+
+    activity_specs = [
+        ("communications", "communication", COMMUNICATION_PROPERTIES),
+        ("calls", "call", CALL_PROPERTIES),
+        ("meetings", "meeting", MEETING_PROPERTIES),
+    ]
+    start_utc = _utc_iso(since_dt)
+    end_utc = _utc_iso(until_dt)
+
+    for owner_id, owner_company_ids in companies_by_owner.items():
+        for hubspot_type, evidence_type, properties in activity_specs:
+            if _deadline_exceeded(deadline):
+                _mark_activity_index_truncated(activity_by_company, owner_company_ids)
+                continue
+            filters = [
+                {"propertyName": "hubspot_owner_id", "operator": "EQ", "value": owner_id},
+                {"propertyName": "hs_timestamp", "operator": "GTE", "value": start_utc},
+                {"propertyName": "hs_timestamp", "operator": "LTE", "value": end_utc},
+            ]
+            data = _object_search(
+                hubspot_type,
+                filters,
+                properties,
+                limit=HUBSPOT_SEARCH_TOTAL_LIMIT,
+                maximum=HUBSPOT_SEARCH_TOTAL_LIMIT,
+                sorts=[{"propertyName": "hs_timestamp", "direction": "ASCENDING"}],
+            )
+            if data.get("truncated"):
+                _mark_activity_index_truncated(activity_by_company, owner_company_ids)
+            activities = data.get("results", [])
+            activity_ids = [str(activity.get("id") or "") for activity in activities if str(activity.get("id") or "")]
+            if not activity_ids:
+                continue
+            company_activity_sources = _bulk_activity_sources_for_companies(
+                hubspot_type,
+                activity_ids,
+                selected_company_ids,
+                contact_to_companies,
+                deal_to_companies,
+                deadline,
+            )
+            if _deadline_exceeded(deadline):
+                _mark_activity_index_truncated(activity_by_company, owner_company_ids)
+                continue
+            for activity in activities:
+                activity_id = str(activity.get("id") or "")
+                if not activity_id:
+                    continue
+                associated_companies = [
+                    company_id
+                    for company_id, activity_sources in company_activity_sources.items()
+                    if activity_id in activity_sources
+                ]
+                if not associated_companies:
+                    continue
+                if not _activity_timestamp(activity):
+                    for company_id in associated_companies:
+                        activity_by_company[company_id]["weak_evidence"] = True
+                    continue
+                if not _is_activity_in_window(activity, since_dt, until_dt):
+                    continue
+                for company_id in associated_companies:
+                    _count_indexed_activity(
+                        activity_by_company[company_id],
+                        evidence_type,
+                        activity,
+                        company_activity_sources[company_id][activity_id],
+                    )
+
+    return _finalize_week_activity_index(activity_by_company)
+
+
 def _week_activity_index_for_companies(
     companies: list[dict[str, Any]],
     contact_index: dict[str, list[str]],
@@ -5892,6 +6252,8 @@ def _week_activity_index_for_companies(
     company_ids = [str(company.get("id") or "") for company in companies if company.get("id")]
     if not company_ids:
         return {}
+    if len(company_ids) >= PRIORITY_ACCOUNT_BULK_ACTIVITY_INDEX_THRESHOLD:
+        return _week_activity_index_for_companies_bulk(companies, contact_index, deal_index, since_dt, until_dt, deadline)
 
     activity_by_company = {company_id: _empty_week_activity() for company_id in company_ids}
     contact_to_companies = _reverse_company_association_index(contact_index)
@@ -5973,12 +6335,7 @@ def _week_activity_index_for_companies(
                     company_activity_sources[company_id][activity_id],
                 )
 
-    for account_activity in activity_by_company.values():
-        sorted_evidence = _sort_followup_evidence(account_activity["evidence"])
-        account_activity["latest_activity_at"] = sorted_evidence[0]["timestamp"] if sorted_evidence else ""
-        account_activity["evidence"] = sorted_evidence[:10]
-        account_activity["confidence"] = "needs-check" if account_activity.get("weak_evidence") else "verified"
-    return activity_by_company
+    return _finalize_week_activity_index(activity_by_company)
 
 
 def _safe_contact_index(contact_index: dict[str, list[str]]) -> dict[str, list[dict[str, Any]]]:
@@ -6350,10 +6707,16 @@ def _safe_sales_call_event(
         "owner_email": display.get("owner_email") or "",
         "owner_name": display.get("owner_name") or "",
         "status": str(props.get("hs_call_status") or "").strip(),
+        "direction": str(props.get("hs_call_direction") or "").strip(),
         "duration_seconds": round(duration_ms / 1000, 3),
         "completed": _is_completed_call(call),
+        "outbound_call": _is_outbound_call(call),
+        "follow_up_call": _is_follow_up_call(call),
         "completed_gt_60s": _is_completed_call(call) and duration_ms > AE_COACHING_LONG_CALL_MIN_DURATION_MS,
         "connected_call_120s_guardrail": _is_connected_call(call),
+        "outbound_connected_call_120s_guardrail": _is_connected_call(call)
+        and _is_outbound_call(call)
+        and not _is_follow_up_call(call),
         "channel": str(props.get("hs_call_source") or props.get("hs_object_source_label") or "").strip(),
         "association_mode": association_mode,
         "associated_company_ids": details.get("associated_company_ids") or associations or [],
@@ -6460,6 +6823,8 @@ def _empty_call_metrics() -> dict[str, int]:
         "completed_calls": 0,
         "completed_calls_gt_60s": 0,
         "connected_calls_120s_guardrail": 0,
+        "outbound_connected_calls_120s_guardrail": 0,
+        "follow_up_calls_excluded_from_outbound_connected": 0,
         "completed_calls_exactly_60s_excluded_from_gt_60s": 0,
     }
 
@@ -6475,6 +6840,10 @@ def _add_call_metrics(metrics: dict[str, int], event: dict[str, Any]) -> None:
             metrics["completed_calls_exactly_60s_excluded_from_gt_60s"] += 1
     if event.get("connected_call_120s_guardrail"):
         metrics["connected_calls_120s_guardrail"] += 1
+    if event.get("outbound_connected_call_120s_guardrail"):
+        metrics["outbound_connected_calls_120s_guardrail"] += 1
+    if event.get("connected_call_120s_guardrail") and event.get("follow_up_call"):
+        metrics["follow_up_calls_excluded_from_outbound_connected"] += 1
 
 
 def _summarize_sales_call_events(events: list[dict[str, Any]], owner_rows: list[dict[str, Any]]) -> dict[str, Any]:
@@ -6804,8 +7173,8 @@ def _detail_account_row(
 
 
 def _main_priority_issue(row: dict[str, Any]) -> str:
-    if row["worked_account_count"] < row["weekly_account_target"]:
-        return "weak account coverage against 120/150 weekly baseline"
+    if row["meaningful_2_touch_account_count"] < row["weekly_account_target"]:
+        return "weak 2-touch coverage against 120/150 weekly baseline"
     if row["connected_call_count"] < CONNECTED_CALL_WEEKLY_TARGET:
         return "connected calls below 40-call guardrail"
     if row["single_touch_account_count"]:
@@ -6903,15 +7272,21 @@ def _priority_owner_row(
     locked_pool_count = len(companies)
     weekly_target = min(PRIORITY_ACCOUNT_WEEKLY_WORKED_TARGET, locked_pool_count)
     worked_account_count = len(worked_accounts)
+    meaningful_2_touch_account_count = len(double_tapped_accounts)
+    meaningful_2_touch_pct = round((meaningful_2_touch_account_count / locked_pool_count) * 100, 1) if locked_pool_count else 0.0
     owner_data = _owner_display(owner_id, owner_lookup)
     row: dict[str, Any] = {
         **owner_data,
         "locked_pool_count": locked_pool_count,
         "weekly_account_target": weekly_target,
         "worked_account_count": worked_account_count,
-        "120_150_accounts_worked": f"{worked_account_count}/{locked_pool_count} worked; target {weekly_target}/{PRIORITY_ACCOUNT_LOCKED_POOL_BASELINE}",
-        "coverage_hit_miss": "hit" if worked_account_count >= weekly_target else "miss",
-        "double_tapped_account_count": len(double_tapped_accounts),
+        "meaningful_2_touch_account_count": meaningful_2_touch_account_count,
+        "meaningful_2_touch_account_pct": meaningful_2_touch_pct,
+        "meaningful_2_touch_150": f"{meaningful_2_touch_account_count}/{locked_pool_count} ({meaningful_2_touch_pct}%) 2-touched; target {weekly_target}/{PRIORITY_ACCOUNT_LOCKED_POOL_BASELINE}",
+        "120_150_accounts_worked": f"{meaningful_2_touch_account_count}/{locked_pool_count} 2-touched; target {weekly_target}/{PRIORITY_ACCOUNT_LOCKED_POOL_BASELINE}",
+        "coverage_hit_miss": "hit" if meaningful_2_touch_account_count >= weekly_target else "miss",
+        "meaningful_2_touch_hit_miss": "hit" if meaningful_2_touch_account_count >= weekly_target else "miss",
+        "double_tapped_account_count": meaningful_2_touch_account_count,
         "single_touch_account_count": max(worked_account_count - len(double_tapped_accounts), 0),
         "untouched_account_count": len(untouched_accounts),
         "stale_account_count": len(stale_accounts),
@@ -6951,11 +7326,15 @@ def _priority_account_coverage(
     owner_email: str | None = None,
     week_start: str = "",
     week_end: str = "",
-    limit: int = PRIORITY_ACCOUNT_RETURN_LIMIT,
+    limit: int = PRIORITY_ACCOUNT_LOCKED_POOL_BASELINE,
     manager_only: bool = False,
     include_internal: bool = False,
     soft_timeout_seconds: int = 0,
     deadline: float | None = None,
+    headcount_min: int = 0,
+    headcount_max: int = 0,
+    pipeline_ids: list[str] | None = None,
+    dealstage_ids: list[str] | None = None,
 ) -> dict[str, Any]:
     deadline = deadline or _hubspot_soft_deadline(soft_timeout_seconds)
     scope = _caller_scope(slack_user_email)
@@ -6974,14 +7353,15 @@ def _priority_account_coverage(
         return _blocked("Requested countries are outside caller scope.", _scope_response(scope, []))
 
     target_owner_id, target_owner_email = _target_owner_id_for_scope(scope, owner_email)
-    requested_limit = _bounded_int(limit, default=PRIORITY_ACCOUNT_RETURN_LIMIT, maximum=PRIORITY_ACCOUNT_RETURN_LIMIT)
+    requested_limit = _bounded_int(limit, default=PRIORITY_ACCOUNT_LOCKED_POOL_BASELINE, maximum=PRIORITY_ACCOUNT_LOCKED_POOL_BASELINE)
     week = _week_window(week_start, week_end)
-    data = _company_search(
-        _target_filters(selected, target_owner_id),
-        requested_limit,
-        maximum=PRIORITY_ACCOUNT_RETURN_LIMIT,
-        sorts=[{"propertyName": "hubspot_owner_id", "direction": "ASCENDING"}],
+    pool_options = _priority_account_pool_options(
+        headcount_min=headcount_min,
+        headcount_max=headcount_max,
+        pipeline_ids=pipeline_ids,
+        dealstage_ids=dealstage_ids,
     )
+    data = _priority_account_pool(scope, selected, target_owner_id, requested_limit, pool_options, deadline)
     companies = data.get("results", [])
     company_ids = [str(company.get("id") or "") for company in companies if company.get("id")]
     contact_index = _batch_association_ids_until("companies", "contacts", company_ids, deadline)
@@ -7039,7 +7419,6 @@ def _priority_account_coverage(
     for owner_id, owner_companies in by_owner.items():
         if _deadline_exceeded(deadline):
             partial_due_to_soft_timeout = True
-            break
         owner_task_index = {
             str(company.get("id") or ""): task_index.get(str(company.get("id") or ""), [])
             for company in owner_companies
@@ -7073,6 +7452,7 @@ def _priority_account_coverage(
             "week_start": week["week_start"],
             "week_end": week["week_end"],
             "timezone": week["timezone"],
+            "target_pool_selection": data.get("pool_selection", {}),
         }
     )
     response: dict[str, Any] = {
@@ -7082,6 +7462,7 @@ def _priority_account_coverage(
                 "owner_count": len(owner_rows),
                 "locked_pool_count": sum(row.get("locked_pool_count", 0) for row in owner_rows),
                 "worked_account_count": sum(row.get("worked_account_count", 0) for row in owner_rows),
+                "meaningful_2_touch_account_count": sum(row.get("meaningful_2_touch_account_count", 0) for row in owner_rows),
                 "untouched_account_count": sum(row.get("untouched_account_count", 0) for row in owner_rows),
                 "stale_account_count": sum(row.get("stale_account_count", 0) for row in owner_rows),
                 "dirty_account_count": sum(row.get("dirty_account_count", 0) for row in owner_rows),
@@ -14345,10 +14726,14 @@ def audit_priority_account_coverage(
     owner_email: str | None = None,
     week_start: str = "",
     week_end: str = "",
-    limit: int = PRIORITY_ACCOUNT_RETURN_LIMIT,
+    limit: int = PRIORITY_ACCOUNT_LOCKED_POOL_BASELINE,
     soft_timeout_seconds: int = 0,
+    headcount_min: int = 0,
+    headcount_max: int = 0,
+    pipeline_ids: list[str] | None = None,
+    dealstage_ids: list[str] | None = None,
 ) -> dict[str, Any]:
-    """Audit locked target-account coverage, double tap, stale/dirty accounts, and open follow-up tasks."""
+    """Audit locked target-account 2-touch coverage, optional target-pool filters, and open follow-up tasks."""
 
     try:
         return _priority_account_coverage(
@@ -14359,6 +14744,10 @@ def audit_priority_account_coverage(
             week_end=week_end,
             limit=limit,
             soft_timeout_seconds=soft_timeout_seconds,
+            headcount_min=headcount_min,
+            headcount_max=headcount_max,
+            pipeline_ids=pipeline_ids,
+            dealstage_ids=dealstage_ids,
         )
     except ScopeError as error:
         return _blocked(str(error), {"caller_email": slack_user_email, "owner_email": owner_email})
@@ -14478,7 +14867,7 @@ def build_friday_sales_review(
     owner_email: str | None = None,
     week_start: str = "",
     week_end: str = "",
-    limit: int = PRIORITY_ACCOUNT_RETURN_LIMIT,
+    limit: int = PRIORITY_ACCOUNT_LOCKED_POOL_BASELINE,
     soft_timeout_seconds: int = 0,
 ) -> dict[str, Any]:
     """Build the manager Friday sales review for the tactical pause operating rhythm."""
