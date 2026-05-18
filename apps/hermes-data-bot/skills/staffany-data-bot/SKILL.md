@@ -67,6 +67,20 @@ Use BigQuery Standard SQL against `staffany-warehouse.analytics`.
 
 If the MCP server, auth, schema access, or required context fails, return `Confidence: blocked` and state the connector/source issue plainly.
 
+## ATS Applicant Leaderboard Rules
+
+Use the `ats_applicant_leaderboard` metric registry row for StaffAny ATS leaderboard, applicant-count, job-opening-count, JD, resume, or hiring-application requests.
+
+- Aggregate ATS facts at StaffAny `organisationid` grain before any HubSpot, company, industry, or display-name joins.
+- Count applicants from `staffany-warehouse.kraken_rds.JobApplication` with `COUNT(DISTINCT id)`.
+- Count job openings from `staffany-warehouse.kraken_rds.JobOpening` with `COUNT(DISTINCT id)`.
+- Use HubSpot/company joins only for display names, country/segment labels, and candidate F&B filtering. Do not use those joins as the measure grain.
+- For F&B leaderboards, build a deduped org set first, for example `fnb_org_ids AS SELECT DISTINCT organisation_id ...`, then join that set to org-grain ATS facts.
+- Do not `SUM(total_applicants)` or `SUM(total_job_openings)` after joining raw `dim_org_company` or `stg_hubspot__companies`; repeated bridge rows can multiply the same org.
+- Add a fan-out guard before answering: compare joined bridge rows with distinct org IDs. If bridge rows exceed distinct org IDs, dedupe to one row per org before returning results and include a `Confidence: needs-check` caveat that the company/industry bridge fanned out.
+- Use Stripes Australia as the sanity check for this class of query: `-LgO1Np3HFBryRmdDrXQ` should not appear as 2,048 applicants across 64 openings from the F&B leaderboard path. The reviewed sanity result is 32 applicants across 1 job opening.
+- When a user asks for a JD plus candidate resumes or application details, execute the safe job-opening/JD slice when the job/org scope is clear. Block raw candidate resumes, application details, contact fields, attachment URLs, and direct identity fields as PII; only redacted sample summaries are allowed under the ATS JD And Redacted Candidate Sample Rules.
+
 ## Google Sheets Output Rules
 
 Use `staffany_google_sheets.create_spreadsheet_from_rows` when the user explicitly asks for `spreadsheet`, `Google Sheet`, or `sheet summary` for an already-confirmed bounded table result.
@@ -208,6 +222,7 @@ If Honcho memory conflicts with local registry references, BigQuery schema evide
 7. Revealing SQL, IDs, raw employee-level details, or secrets by default.
 8. Blocking an ATS project entirely when the safe answer is a JD plus redacted candidate sample summaries.
 9. Treating Jira releases as usage evidence. Jira only says what shipped and how it was prioritized; BigQuery must verify usage.
+10. Summing ATS applicant/opening counts after joining raw company bridges such as `dim_org_company`; aggregate by `organisationid` first, then join deduped display/filter dimensions.
 
 ## Skill Update and Sync Workflow
 
