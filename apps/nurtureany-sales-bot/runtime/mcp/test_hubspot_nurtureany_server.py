@@ -5615,6 +5615,163 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         self.assertNotIn("+6599999999", payload)
         self.assertNotIn("company-out", payload)
 
+    def test_luma_match_keys_builds_event_action_pack_from_attendee_records(self):
+        target_company = {
+            "id": "company-contact",
+            "properties": {
+                "name": "Exact Cafe",
+                "domain": "exact.example",
+                "hs_is_target_account": "true",
+                "company_country": "Singapore",
+                "hubspot_owner_id": "owner-sales",
+                "type": "CUSTOMER",
+            },
+        }
+        name_candidate_company = {
+            "id": "company-name",
+            "properties": {
+                "name": "Candidate Cafe",
+                "domain": "candidate.example",
+                "hs_is_target_account": "true",
+                "company_country": "Singapore",
+                "hubspot_owner_id": "owner-sales",
+                "lifecyclestage": "opportunity",
+            },
+        }
+        outside_company = {
+            "id": "company-out",
+            "properties": {
+                "name": "Outside Cafe",
+                "domain": "out.example",
+                "hs_is_target_account": "false",
+                "company_country": "Singapore",
+                "hubspot_owner_id": "owner-sales",
+            },
+        }
+        known_domain_company = {
+            "id": "company-known",
+            "properties": {
+                "name": "Known Domain Existing Company",
+                "domain": "known.example",
+                "hs_is_target_account": "false",
+                "company_country": "Singapore",
+                "hubspot_owner_id": "owner-sales",
+            },
+        }
+        contacts = {
+            "owner@exact.example": [{"id": "contact-1", "properties": {"email": "owner@exact.example"}}],
+            "outside@out.example": [{"id": "contact-out", "properties": {"email": "outside@out.example"}}],
+            "pending@exact.example": [{"id": "contact-pending", "properties": {"email": "pending@exact.example"}}],
+        }
+
+        def fake_contact_search(email, limit=10):
+            return contacts.get(email, [])
+
+        def fake_association_ids(from_type, object_id, to_type, limit=20):
+            return {
+                "contact-1": ["company-contact"],
+                "contact-out": ["company-out"],
+                "contact-pending": ["company-contact"],
+            }.get(object_id, [])
+
+        def fake_get_company(company_id):
+            return {
+                "company-contact": target_company,
+                "company-out": outside_company,
+                "company-known": known_domain_company,
+            }[company_id]
+
+        def fake_company_search(filters, limit=5, after=None, maximum=None, sorts=None, query=None):
+            if any(item.get("propertyName") == "hs_is_target_account" for item in filters):
+                return {
+                    "results": [target_company, name_candidate_company],
+                    "total": 2,
+                    "requested_limit": limit,
+                    "returned_count": 2,
+                    "has_more": False,
+                    "truncated": False,
+                }
+            if {"propertyName": "domain", "operator": "EQ", "value": "known.example"} in filters:
+                return {
+                    "results": [known_domain_company],
+                    "total": 1,
+                    "requested_limit": limit,
+                    "returned_count": 1,
+                    "has_more": False,
+                    "truncated": False,
+                }
+            return {"results": [], "total": 0, "requested_limit": limit, "returned_count": 0, "has_more": False, "truncated": False}
+
+        attendee_records = [
+            {"contact_email_match_key": "owner@exact.example", "email_domain": "exact.example", "rsvp_status": "approved"},
+            {"contact_email_match_key": "outside@out.example", "email_domain": "out.example", "rsvp_status": "approved"},
+            {"email_domain": "known.example", "rsvp_status": "approved"},
+            {
+                "contact_email_match_key": "person@gmail.com",
+                "email_domain": "gmail.com",
+                "email_domain_type": "personal_or_free_email",
+                "company_name_candidates": ["No Match Cafe"],
+                "rsvp_status": "approved",
+            },
+            {"company_name_candidates": ["Candidate Cafe"], "rsvp_status": "approved"},
+            {"contact_email_match_key": "pending@exact.example", "email_domain": "exact.example", "rsvp_status": "pending_approval"},
+        ]
+
+        with patch.object(self.module, "_caller_scope", return_value=EVENT_OPERATOR_SCOPE), patch.object(
+            self.module, "_contact_search_by_email", side_effect=fake_contact_search
+        ), patch.object(
+            self.module, "_association_ids", side_effect=fake_association_ids
+        ), patch.object(
+            self.module, "_get_company", side_effect=fake_get_company
+        ), patch.object(
+            self.module, "_company_search", side_effect=fake_company_search
+        ), patch.object(
+            self.module,
+            "_owner_by_id",
+            return_value={"id": "owner-sales", "email": "sales.owner@staffany.com", "firstName": "Sales", "lastName": "Owner"},
+        ):
+            result = self.module.find_target_accounts_by_luma_match_keys(
+                "jan-e@staffany.com",
+                attendee_records=attendee_records,
+                event={"event_id": "evt-1", "name": "AI Workshop", "end_at": "2030-05-19T13:30:00Z"},
+                countries=["Singapore"],
+                source_run_link="https://staffany.slack.com/archives/C0B2UGK4DB6/p1779057689264659",
+                due_by="2026-05-20",
+            )
+
+        action_pack = result["event_action_pack"]
+        self.assertEqual(action_pack["summary"]["rsvp_truth"]["total"], 6)
+        self.assertEqual(
+            action_pack["summary"]["action_buckets"],
+            {
+                "Follow up now": 1,
+                "CRM cleanup": 1,
+                "Target-account review": 1,
+                "Net-new enrichment": 1,
+                "Defer/exclude": 2,
+            },
+        )
+        self.assertEqual(action_pack["summary"]["match_truth"]["attendee_level_verified_matched_count"], 1)
+        self.assertEqual(action_pack["summary"]["match_truth"]["approved_unmatched_or_needs_action_count"], 4)
+        self.assertIn("not matched-account count subtraction", action_pack["summary"]["match_truth"]["method"])
+        sheet_payload = action_pack["sheet_export_payload"]
+        self.assertEqual(sheet_payload["sheet_tab_name"], "Event Match Action Queue")
+        self.assertEqual(sheet_payload["columns"], self.module.EVENT_MATCH_ACTION_COLUMNS)
+        self.assertEqual(len(sheet_payload["rows"]), 6)
+        exact_row = sheet_payload["rows"][0]
+        self.assertEqual(exact_row["match_level"], "exact_contact_email")
+        self.assertEqual(exact_row["confidence"], "verified")
+        self.assertIn("/record/0-2/company-contact", exact_row["hubspot_company_link"])
+        self.assertIn("/record/0-1/contact-1", exact_row["hubspot_contact_link_if_exact_match"])
+        candidate_row = next(row for row in sheet_payload["rows"] if row["match_level"] == "company_name_candidate")
+        self.assertEqual(candidate_row["confidence"], "needs-check")
+        self.assertEqual(candidate_row["action_owner"], "event operator")
+        serialized_sheet = json.dumps(sheet_payload)
+        self.assertNotIn("owner@exact.example", serialized_sheet)
+        self.assertNotIn("outside@out.example", serialized_sheet)
+        self.assertNotIn("person@gmail.com", serialized_sheet)
+        self.assertNotIn("+65", serialized_sheet)
+
     def test_event_operator_luma_owner_filter_requires_classified_in_country_ae(self):
         captured = {}
 
