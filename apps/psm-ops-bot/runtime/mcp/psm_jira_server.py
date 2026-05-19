@@ -1773,7 +1773,14 @@ def _description_from_draft(draft: dict[str, Any]) -> str:
 
 
 def _staffany_orgs_array(draft: dict[str, Any]) -> list[str]:
-    return [str(org).strip() for org in (draft.get("staffany_orgs") or []) if str(org).strip()]
+    raw = draft.get("staffany_orgs")
+    if isinstance(raw, str):
+        candidates = [part.strip() for part in raw.split(",")]
+    elif isinstance(raw, list):
+        candidates = [str(org).strip() for org in raw]
+    else:
+        candidates = []
+    return [org for org in candidates if org]
 
 
 def _request_field_values(draft: dict[str, Any]) -> dict[str, Any]:
