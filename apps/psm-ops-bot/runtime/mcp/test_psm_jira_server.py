@@ -572,6 +572,37 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertEqual(self.module._resolve_assets_object_key("Acme HQ"), "HC-99")
         self.assertTrue(any(q.startswith("Name like") for q in queries))
 
+    def test_resolve_assets_object_key_does_not_cache_transient_failures(self):
+        """A transient Assets/AQL outage must not turn into a process-lifetime false negative.
+        After the first call sees only JiraError responses, a follow-up call once Jira
+        recovers should re-hit the API and return the real answer."""
+        state = {"jira_up": False}
+        aql_calls = {"n": 0}
+
+        def fake_request(method, path, body=None):
+            if method == "GET" and path == "/rest/servicedeskapi/assets/workspace":
+                if not state["jira_up"]:
+                    raise self.module.JiraError("Jira API unavailable: timed out")
+                return {"values": [{"workspaceId": "ws-1"}]}
+            if method == "POST" and "/v1/object/aql" in path:
+                aql_calls["n"] += 1
+                if not state["jira_up"]:
+                    raise self.module.JiraError("Jira API unavailable: timed out")
+                return {"values": [{"objectKey": "HC-7", "label": "Recovered Co"}]}
+            return {}
+
+        self.module._request_json = fake_request
+
+        # First call during the outage: every strategy hits JiraError → no resolution,
+        # and no cache write because all queries failed transiently.
+        self.assertIsNone(self.module._resolve_assets_object_key("Recovered Co"))
+
+        # Jira recovers. The next call must re-hit AQL rather than returning a cached None.
+        state["jira_up"] = True
+        aql_before = aql_calls["n"]
+        self.assertEqual(self.module._resolve_assets_object_key("Recovered Co"), "HC-7")
+        self.assertGreater(aql_calls["n"], aql_before, "transient failure must not be cached")
+
     def test_resolve_assets_object_key_rejects_ambiguous_like_match(self):
         """A substring `like` query that returns more than one Assets object should be
         treated as ambiguous and resolve to None — better to omit than guess wrong."""

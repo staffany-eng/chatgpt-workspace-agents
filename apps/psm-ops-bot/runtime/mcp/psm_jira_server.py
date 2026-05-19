@@ -1862,22 +1862,19 @@ def _aql_escape(value: str) -> str:
 
 
 def _aql_search_object_key(query: str) -> str | None:
-    """Run an AQL query; return the unique result's objectKey, or None on 0/many."""
+    """Run an AQL query; return the unique result's objectKey, or None on 0/many.
 
-    try:
-        workspace_id = _assets_workspace_id()
-    except JiraError:
-        return None
-    try:
-        payload = _request_json(
-            "POST",
-            f"/gateway/api/jsm/assets/workspace/{urllib.parse.quote(workspace_id)}/v1/object/aql",
-            {"qlQuery": query},
-        )
-    except JiraError:
-        # Transient / network errors aren't cached upstream; the caller re-tries on the
-        # next resolution attempt.
-        return None
+    Raises ``JiraError`` on transient / network failures so the caller can distinguish
+    "definitely no match" from "couldn't ask Jira this time" and avoid caching the
+    latter as a permanent miss.
+    """
+
+    workspace_id = _assets_workspace_id()
+    payload = _request_json(
+        "POST",
+        f"/gateway/api/jsm/assets/workspace/{urllib.parse.quote(workspace_id)}/v1/object/aql",
+        {"qlQuery": query},
+    )
     values = payload.get("values") if isinstance(payload, dict) else None
     if not isinstance(values, list) or len(values) != 1:
         return None
@@ -1920,12 +1917,21 @@ def _resolve_assets_object_key(name: str) -> str | None:
         queries.append(f'Name like "{_aql_escape(stripped)}"')
 
     resolved: str | None = None
+    had_transient_error = False
     for query in queries:
-        resolved = _aql_search_object_key(query)
+        try:
+            resolved = _aql_search_object_key(query)
+        except JiraError:
+            had_transient_error = True
+            continue
         if resolved:
             break
 
-    _ASSETS_OBJECT_KEY_CACHE[clean] = resolved
+    # Cache positive resolutions always. Cache the negative only when we got a
+    # definitive answer from Jira — if all queries hit transient errors we leave the
+    # cache untouched so the next call retries instead of returning a stale miss.
+    if resolved or not had_transient_error:
+        _ASSETS_OBJECT_KEY_CACHE[clean] = resolved
     return resolved
 
 
