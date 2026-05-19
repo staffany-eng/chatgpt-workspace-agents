@@ -370,7 +370,7 @@ run_post_deploy_check() {
   done
 }
 
-run_post_deploy_check audit sudo -H -u "$runtime_owner" HERMES_PROFILE="$profile_name" HERMES_PROFILE_DIR="$profile" HERMES_HOME="$profile" XDG_RUNTIME_DIR="/run/user/$uid" "$profile/scripts/productopsbot-audit-live-profile.sh"
+run_post_deploy_check audit sudo -H -u "$runtime_owner" PRODUCT_OPS_APP_ROOT="$profile/source/product-ops-bot" HERMES_APP_ROOT="$profile/source/product-ops-bot" HERMES_PROFILE="$profile_name" HERMES_PROFILE_DIR="$profile" HERMES_HOME="$profile" XDG_RUNTIME_DIR="/run/user/$uid" "$profile/scripts/productopsbot-audit-live-profile.sh"
 run_post_deploy_check health sudo -H -u "$runtime_owner" HERMES_PROFILE="$profile_name" HERMES_PROFILE_DIR="$profile" HERMES_HOME="$profile" XDG_RUNTIME_DIR="/run/user/$uid" "$profile/scripts/productopsbot-check-health.sh"
 sudo -H -u "$runtime_owner" XDG_RUNTIME_DIR="/run/user/$uid" systemctl --user status "$service" --no-pager
 

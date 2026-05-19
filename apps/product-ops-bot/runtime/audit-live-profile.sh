@@ -2,7 +2,12 @@
 set -euo pipefail
 
 PROFILE="${HERMES_PROFILE:-productopsbot}"
-BASE_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+APP_ROOT="${PRODUCT_OPS_APP_ROOT:-${HERMES_APP_ROOT:-}}"
+if [ -n "$APP_ROOT" ]; then
+  BASE_DIR="$APP_ROOT"
+else
+  BASE_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+fi
 
 PROFILE_DIR="$HOME/.hermes/profiles/$PROFILE"
 
