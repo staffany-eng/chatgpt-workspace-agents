@@ -475,16 +475,15 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertEqual(captured_queries, ['Name = "21 Supermarket"'])
 
     def test_resolve_assets_object_key_returns_none_on_zero_or_ambiguous_matches(self):
-        responses = iter([
-            {"values": []},
-            {"values": [{"objectKey": "A-1"}, {"objectKey": "A-2"}]},
-        ])
-
         def fake_request(method, path, body=None):
             if method == "GET" and path == "/rest/servicedeskapi/assets/workspace":
                 return {"values": [{"workspaceId": "ws-1"}]}
             if method == "POST" and "/v1/object/aql" in path:
-                return next(responses)
+                # Every strategy returns no usable match: empty for the first lookup,
+                # ambiguous (>1) for the second.
+                if "Bistro" in body["qlQuery"]:
+                    return {"values": []}
+                return {"values": [{"objectKey": "A-1"}, {"objectKey": "A-2"}]}
             return {}
 
         self.module._request_json = fake_request
@@ -503,9 +502,13 @@ class PsmJiraServerTest(unittest.TestCase):
             return {}
 
         self.module._request_json = fake_request
-        self.assertIsNone(self.module._resolve_assets_object_key("Unknown Co"))
-        self.assertIsNone(self.module._resolve_assets_object_key("Unknown Co"))
-        self.assertEqual(call_count["aql"], 1, "negative result should be cached")
+        # First call fires multiple AQL queries (exact, then like fallback) because none match.
+        self.assertIsNone(self.module._resolve_assets_object_key("Totally Unknown"))
+        first_call_count = call_count["aql"]
+        self.assertGreater(first_call_count, 0)
+        # Second call must be served from cache — no additional AQL.
+        self.assertIsNone(self.module._resolve_assets_object_key("Totally Unknown"))
+        self.assertEqual(call_count["aql"], first_call_count, "negative result should be cached")
 
     def test_resolve_assets_object_key_escapes_embedded_quotes(self):
         captured = []
@@ -520,8 +523,70 @@ class PsmJiraServerTest(unittest.TestCase):
 
         self.module._request_json = fake_request
         self.module._resolve_assets_object_key('A "Tricky" Co')
-        # The embedded " must be escaped so the AQL string literal stays well-formed.
-        self.assertEqual(captured, ['Name = "A \\"Tricky\\" Co"'])
+        # First strategy is exact match; embedded " must be escaped to keep the AQL literal well-formed.
+        self.assertEqual(captured[0], 'Name = "A \\"Tricky\\" Co"')
+
+    def test_resolve_assets_object_key_falls_back_to_legal_suffix_stripped_form(self):
+        """C360-canonicalised names ("21 Supermarket Pte Ltd") rarely match the Assets
+        display name verbatim ("21 Supermarket"). Stripping the legal suffix and retrying
+        the exact match should resolve cleanly."""
+        queries: list[str] = []
+
+        def fake_request(method, path, body=None):
+            if method == "GET" and path == "/rest/servicedeskapi/assets/workspace":
+                return {"values": [{"workspaceId": "ws-1"}]}
+            if method == "POST" and "/v1/object/aql" in path:
+                q = body["qlQuery"]
+                queries.append(q)
+                if q == 'Name = "21 Supermarket"':
+                    return {"values": [{"objectKey": "HC-566", "label": "21 Supermarket"}]}
+                return {"values": []}
+            return {}
+
+        self.module._request_json = fake_request
+        self.assertEqual(
+            self.module._resolve_assets_object_key("21 Supermarket Pte Ltd"),
+            "HC-566",
+        )
+        # Strategy order: exact (miss) -> legal-suffix-stripped exact (hit).
+        self.assertEqual(queries[0], 'Name = "21 Supermarket Pte Ltd"')
+        self.assertEqual(queries[1], 'Name = "21 Supermarket"')
+        self.assertEqual(len(queries), 2, "should stop after the first successful strategy")
+
+    def test_resolve_assets_object_key_falls_back_to_like_substring_match(self):
+        """If exact and legal-stripped exact miss, a single substring match should resolve."""
+        queries: list[str] = []
+
+        def fake_request(method, path, body=None):
+            if method == "GET" and path == "/rest/servicedeskapi/assets/workspace":
+                return {"values": [{"workspaceId": "ws-1"}]}
+            if method == "POST" and "/v1/object/aql" in path:
+                q = body["qlQuery"]
+                queries.append(q)
+                if q.startswith("Name like"):
+                    return {"values": [{"objectKey": "HC-99", "label": "Acme HQ"}]}
+                return {"values": []}
+            return {}
+
+        self.module._request_json = fake_request
+        self.assertEqual(self.module._resolve_assets_object_key("Acme HQ"), "HC-99")
+        self.assertTrue(any(q.startswith("Name like") for q in queries))
+
+    def test_resolve_assets_object_key_rejects_ambiguous_like_match(self):
+        """A substring `like` query that returns more than one Assets object should be
+        treated as ambiguous and resolve to None — better to omit than guess wrong."""
+        def fake_request(method, path, body=None):
+            if method == "GET" and path == "/rest/servicedeskapi/assets/workspace":
+                return {"values": [{"workspaceId": "ws-1"}]}
+            if method == "POST" and "/v1/object/aql" in path:
+                q = body["qlQuery"]
+                if q.startswith("Name like"):
+                    return {"values": [{"objectKey": "HC-1"}, {"objectKey": "HC-2"}]}
+                return {"values": []}
+            return {}
+
+        self.module._request_json = fake_request
+        self.assertIsNone(self.module._resolve_assets_object_key("Generic"))
 
     def test_create_pco_task_warns_when_staffany_org_does_not_resolve(self):
         calls = []

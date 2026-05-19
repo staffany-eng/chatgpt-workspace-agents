@@ -1833,12 +1833,73 @@ def _assets_workspace_id() -> str:
     return workspace_id
 
 
-def _resolve_assets_object_key(name: str) -> str | None:
-    """Resolve a StaffAny Organization name to its Jira Assets objectKey via exact-name AQL.
+# Common trailing legal-entity tokens we strip before matching. Covers SG/MY/ID-heavy
+# customer base + generic global forms. Match is case-insensitive, anchored to end.
+_LEGAL_SUFFIX_PATTERN = re.compile(
+    r"[\s,]+("
+    r"pte\.?\s*ltd\.?|sdn\.?\s*bhd\.?|pty\.?\s*ltd\.?|"
+    r"p\.?\s*t\.?|tbk|persero|"
+    r"llc|inc\.?|corp\.?|llp|lp|"
+    r"co\.?|company|limited|ltd\.?"
+    r")\s*$",
+    re.IGNORECASE,
+)
 
-    Returns the objectKey (e.g. "HC-566") on a single exact match, or None when there
-    is no match, multiple matches, or the Assets API is unreachable. Results are cached
-    in-process to avoid repeating AQL searches for the same name.
+
+def _strip_legal_suffix(name: str) -> str:
+    """Strip trailing legal-entity tokens (e.g. ``Pte Ltd``, ``Sdn Bhd``, ``Inc``)."""
+
+    cleaned = name
+    while True:
+        stripped = _LEGAL_SUFFIX_PATTERN.sub("", cleaned).rstrip(" ,.\t")
+        if stripped == cleaned:
+            return cleaned
+        cleaned = stripped
+
+
+def _aql_escape(value: str) -> str:
+    return value.replace("\\", "\\\\").replace('"', '\\"')
+
+
+def _aql_search_object_key(query: str) -> str | None:
+    """Run an AQL query; return the unique result's objectKey, or None on 0/many."""
+
+    try:
+        workspace_id = _assets_workspace_id()
+    except JiraError:
+        return None
+    try:
+        payload = _request_json(
+            "POST",
+            f"/gateway/api/jsm/assets/workspace/{urllib.parse.quote(workspace_id)}/v1/object/aql",
+            {"qlQuery": query},
+        )
+    except JiraError:
+        # Transient / network errors aren't cached upstream; the caller re-tries on the
+        # next resolution attempt.
+        return None
+    values = payload.get("values") if isinstance(payload, dict) else None
+    if not isinstance(values, list) or len(values) != 1:
+        return None
+    return str(values[0].get("objectKey") or "").strip() or None
+
+
+def _resolve_assets_object_key(name: str) -> str | None:
+    """Resolve a StaffAny Organization name to its Jira Assets objectKey.
+
+    Tries progressively more permissive AQL queries and returns the objectKey of the
+    unique match. Returns None when nothing matches uniquely (zero or ambiguous).
+    Strategies attempted in order:
+
+    1. Exact ``Name = "<name>"`` against the supplied name.
+    2. If the name carries a trailing legal-entity token (``Pte Ltd``, ``Sdn Bhd``,
+       etc.), exact match on the stripped form. Handles the common C360 case where
+       enrichment appends the legal name to a shorter Assets-side label.
+    3. ``Name like "..."`` (substring) — first on the supplied name, then on the
+       stripped form. Accepted only when exactly one Assets object matches, to avoid
+       silently picking the wrong customer.
+
+    Results are cached in-process keyed by the original input.
     """
 
     clean = (name or "").strip()
@@ -1846,31 +1907,24 @@ def _resolve_assets_object_key(name: str) -> str | None:
         return None
     if clean in _ASSETS_OBJECT_KEY_CACHE:
         return _ASSETS_OBJECT_KEY_CACHE[clean]
-    try:
-        workspace_id = _assets_workspace_id()
-    except JiraError:
-        _ASSETS_OBJECT_KEY_CACHE[clean] = None
-        return None
-    # AQL string literals use double-quotes; escape any embedded quotes in the name.
-    escaped = clean.replace("\\", "\\\\").replace('"', '\\"')
-    try:
-        payload = _request_json(
-            "POST",
-            f"/gateway/api/jsm/assets/workspace/{urllib.parse.quote(workspace_id)}/v1/object/aql",
-            {"qlQuery": f'Name = "{escaped}"'},
-        )
-    except JiraError:
-        # Don't cache failures — could be transient (5xx, network). A 404 here is treated
-        # as "no match" by exception, so we re-resolve on the next call.
-        return None
-    values = payload.get("values") if isinstance(payload, dict) else None
-    if not isinstance(values, list) or len(values) != 1:
-        # Zero or ambiguous matches are both "do not resolve" — cache the negative to avoid
-        # re-hitting AQL for the same name within this process.
-        _ASSETS_OBJECT_KEY_CACHE[clean] = None
-        return None
-    object_key = str(values[0].get("objectKey") or "").strip()
-    resolved = object_key or None
+
+    stripped = _strip_legal_suffix(clean)
+    stripped = stripped if stripped and stripped != clean else ""
+
+    escaped_clean = _aql_escape(clean)
+    queries: list[str] = [f'Name = "{escaped_clean}"']
+    if stripped:
+        queries.append(f'Name = "{_aql_escape(stripped)}"')
+    queries.append(f'Name like "{escaped_clean}"')
+    if stripped:
+        queries.append(f'Name like "{_aql_escape(stripped)}"')
+
+    resolved: str | None = None
+    for query in queries:
+        resolved = _aql_search_object_key(query)
+        if resolved:
+            break
+
     _ASSETS_OBJECT_KEY_CACHE[clean] = resolved
     return resolved
 
