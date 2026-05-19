@@ -120,7 +120,7 @@ psm_ops:
     event_aa:
       channel_id_env: "PSM_OPS_AA_CHANNEL_ID"
       default_request_type_key: "feedback"
-      label: "AA SG 2026"
+      label: "AA-SG-2026"
       allowed_request_type_keys:
         - "ps_follow_up"
         - "cs_follow_up"

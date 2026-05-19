@@ -73,7 +73,7 @@ EVENT_AA_REQUEST_TYPE_KEYS = {
     "feedback",
 }
 EVENT_AA_DEFAULT_REQUEST_TYPE_KEY = "feedback"
-EVENT_AA_LABEL = "AA SG 2026"
+EVENT_AA_LABEL = "AA-SG-2026"
 EVENT_AA_PS_TEAM_BY_CATEGORY = {
     "cs_follow_up": "Ega",
     "adhoc_ops": "PS Ops",
@@ -293,7 +293,9 @@ SLACK_USER_CACHE: list[dict[str, Any]] | None = None
 
 
 class JiraError(RuntimeError):
-    pass
+    def __init__(self, message: str, status_code: int | None = None) -> None:
+        super().__init__(message)
+        self.status_code = status_code
 
 
 @mcp.resource(
@@ -1133,7 +1135,7 @@ def _request_json(method: str, path: str, body: dict[str, Any] | None = None) ->
             return json.loads(payload) if payload else {}
     except urllib.error.HTTPError as error:
         detail = error.read().decode("utf-8", errors="replace")[:400]
-        raise JiraError(f"Jira API failed: HTTP {error.code} {detail}") from error
+        raise JiraError(f"Jira API failed: HTTP {error.code} {detail}", status_code=error.code) from error
     except urllib.error.URLError as error:
         raise JiraError(f"Jira API unavailable: {error.reason}") from error
 
@@ -2442,12 +2444,35 @@ def _create_pco_task_from_draft(draft: dict[str, Any], scope: dict[str, Any]) ->
         try:
             response = _request_json("POST", "/rest/servicedeskapi/request", payload)
             warnings: list[str] = []
-        except JiraError:
-            if not _is_thin_poc() or set(request_values) == {"summary"}:
+        except JiraError as error:
+            # Only retry on deterministic validation failures. Network errors, 5xx,
+            # or auth failures might mean the original create already landed — retrying
+            # could duplicate.
+            if (
+                not _is_thin_poc()
+                or set(request_values) == {"summary"}
+                or error.status_code != 400
+            ):
                 raise
-            payload["requestFieldValues"] = {"summary": draft["summary"]}
-            response = _request_json("POST", "/rest/servicedeskapi/request", payload)
-            warnings = ["Optional PCO request fields were skipped because Jira rejected their values."]
+            response = None
+            warnings = []
+            # Assets-backed StaffAny Organization is the most common rejection cause.
+            # Drop just that field first so PS Team, Creator, Customer, etc. still land.
+            orgs_field_id = _field_id("staffany_orgs")
+            if orgs_field_id and orgs_field_id in request_values:
+                retry_values = {k: v for k, v in request_values.items() if k != orgs_field_id}
+                try:
+                    payload["requestFieldValues"] = retry_values
+                    response = _request_json("POST", "/rest/servicedeskapi/request", payload)
+                    warnings = ["StaffAny Organization was skipped because Jira rejected the value."]
+                except JiraError as retry_error:
+                    if retry_error.status_code != 400:
+                        raise
+                    response = None
+            if response is None:
+                payload["requestFieldValues"] = {"summary": draft["summary"]}
+                response = _request_json("POST", "/rest/servicedeskapi/request", payload)
+                warnings = ["Optional PCO request fields were skipped because Jira rejected their values."]
     except JiraError as error:
         return _blocked(str(error), scope)
 
@@ -2945,7 +2970,7 @@ def create_ps_wee_intake_ticket(
     Event AA intakes (Slack thread in the configured AA channel) additionally:
     - Require a `creator` single-select option that matches the Slack tagger.
     - Auto-route `ps_team` per category for CS Follow Up (Ega) and Adhoc Ops (PS Ops).
-    - Add the `AA SG 2026` label on every ticket.
+    - Add the `AA-SG-2026` label on every ticket.
     - Upload any selfies on the trigger Slack message to the configured Drive
       folder as `{company}_{pic}.{ext}` instead of attaching to the Jira ticket.
     - Allow multiple tickets per Slack thread when they have different request types.

@@ -89,16 +89,16 @@ For ROI urgency fields, match the field's configured options exactly. If the req
 
 - The Event AA Slack channel is configured by `PSM_OPS_AA_CHANNEL_ID`. The live channel ID is `C0B5H2YE5T2`.
 - Allowed request type keys for Event AA intake tickets: `ps_follow_up`, `cs_follow_up`, `adhoc_ops`, `rev_cross_sell`, `pdt_discovery`, `mkt_clubany`, `feedback`. The old `cross_sell` and `churn_revival` keys are no longer wired through the bot.
-- The Event AA Jira queue filters by Request Type in (PS Follow Up, CS Follow Up, Adhoc Ops, REV Cross Sell, PDT Discovery, MKT ClubAny Interest, Feedback) and by label `AA SG 2026`.
+- The Event AA Jira queue filters by Request Type in (PS Follow Up, CS Follow Up, Adhoc Ops, REV Cross Sell, PDT Discovery, MKT ClubAny Interest, Feedback) and by label `AA-SG-2026`.
 - When `create_ps_wee_intake_ticket` is called with a `slack_thread_url` whose channel matches `PSM_OPS_AA_CHANNEL_ID`:
   - If `request_type_key` is one of the 7 allowed keys, use it as-is.
   - Otherwise, default `request_type_key` to `feedback` so the ticket still lands in the Event AA queue. Triage can retag.
-  - The literal label `AA SG 2026` is added to every AA ticket via Jira's standard `labels` field (best-effort post-create; failure surfaces as a warning, not a block).
+  - The literal label `AA-SG-2026` is added to every AA ticket via Jira's standard `labels` field (best-effort post-create; failure surfaces as a warning, not a block).
   - The `Creator` single-select field (`PSM_OPS_JIRA_FIELD_CREATOR`; thin POC default `customfield_10914`) is best-effort. The matcher resolves the Slack tagger (or the optional `creator_slack_user_email` override) and normalizes the display name against the field's options (substring tolerant, case-insensitive). When no option matches, the field is omitted and the ticket still creates — never blocked on creator resolution.
   - `pic` is the person-in-charge name the PSM met. The MCP stores it in the internal metadata comment and uses it in the selfie filename.
   - Multiple categories in one Slack message: the agent calls `create_ps_wee_intake_ticket` once per category. Idempotency is scoped to `(slack_thread_url, request_type)` so different categories in the same thread do not collide.
   - Link-to-existing: when the PSM mentions an issue the customer has likely raised before, the agent calls `search_pco_tickets` for that customer to look for an open PCO ticket on the same topic. The per-category AA ticket is still created (event-trace record), then linked to the prior issue via `link_pco_to_pco_issue(source_issue_key=<new AA key>, target_issue_key=<existing PCO key>)`. The link is always `Relates`. No linking when no clear match exists.
-- Outside the AA channel, the 7 Event AA request types stay available for explicit asks; do not auto-route to them and do not enforce the creator field or the `AA SG 2026` label.
+- Outside the AA channel, the 7 Event AA request types stay available for explicit asks; do not auto-route to them and do not enforce the creator field or the `AA-SG-2026` label.
 - Routing cues from the PSM's Slack message:
   - `deep dive`, `advanced`, `PS follow up` → `ps_follow_up`
   - `troubleshooting`, `bug`, `lag`, `negative feedback`, `CS follow up` → `cs_follow_up`
