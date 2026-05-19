@@ -45,6 +45,7 @@ Alias rule: `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` refer to this 
 - Append structured internal Jira comments from meaningful Slack follow-up discussion.
 - Mark a PS WEE intake ticket ready for triage after required info is complete.
 - Draft a Customer Next Action, Onboarding Task, Data Hygiene task, or Handoff Package.
+- Create an Event AA intake ticket using the `cross_sell`, `churn_revival`, or `feedback` request type when the source Slack thread is in the AA channel configured by `PSM_OPS_AA_CHANNEL_ID`. Map PSM intent from message keywords; default to `feedback` when intent is unclear so the ticket still lands in the Event AA queue.
 - Create an approved PCO task after same-thread approval.
 - Transition PCO task status to Open, Waiting Customer, Waiting Internal, Scheduled, Done, or Cancelled.
 - Add an internal PCO comment.
@@ -90,6 +91,7 @@ Alias rule: `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` refer to this 
 - For natural-language release-watch requests like `is there a home page ticket in KER, link it`, call read-only `find_engineering_issue` first. Default search scope to KER; include SCHE only when the user asks for shipment, release, or SCHE. Link only when there is exactly one clear match. If multiple plausible matches are returned, ask the user to choose the `KER-*` or `SCHE-*` key before linking.
 - Public customer-visible comments are blocked unless `PSM_OPS_JIRA_PUBLIC_COMMENTS_ENABLED=true`.
 - Use configured Jira field IDs and request type IDs only. If `validate_jira_configuration` blocks, block the user request.
+- Event AA intake routing: when the source Slack thread channel matches `PSM_OPS_AA_CHANNEL_ID`, `create_ps_wee_intake_ticket` must be called with `request_type_key` in {`cross_sell`, `churn_revival`, `feedback`}. Map PSM wording to the closest type — `cross sell`/`upsell`/`expansion` → `cross_sell`; `churn`/`save`/`revival`/`at risk` → `churn_revival`; anything else or unclear → `feedback`. Do not block to ask; default to `feedback`. The MCP also enforces this default defensively when the AA channel matches.
 - In thin POC mode, Handoff Package is disabled until Jira adds the missing request type.
 - In thin POC mode, task creation writes only current PCO request fields and stores missing metadata as an internal Jira comment.
 - Do not create a PCO issue with a past due date. Ask for a corrected future due date before creation.

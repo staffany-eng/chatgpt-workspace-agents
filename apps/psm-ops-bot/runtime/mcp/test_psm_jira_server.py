@@ -97,6 +97,10 @@ class PsmJiraServerTest(unittest.TestCase):
                 "PSM_OPS_JIRA_REQUEST_TYPE_ONBOARDING_TASK": "102",
                 "PSM_OPS_JIRA_REQUEST_TYPE_DATA_HYGIENE": "103",
                 "PSM_OPS_JIRA_REQUEST_TYPE_HANDOFF_PACKAGE": "104",
+                "PSM_OPS_JIRA_REQUEST_TYPE_CROSS_SELL": "120",
+                "PSM_OPS_JIRA_REQUEST_TYPE_CHURN_REVIVAL": "121",
+                "PSM_OPS_JIRA_REQUEST_TYPE_FEEDBACK": "122",
+                "PSM_OPS_AA_CHANNEL_ID": "C0B5H2YE5T2",
                 "PSM_OPS_JIRA_FIELD_CUSTOMER": "customfield_10101",
                 "PSM_OPS_JIRA_FIELD_STAFFANY_ORGS": "customfield_10102",
                 "PSM_OPS_JIRA_FIELD_OWNER_PSM": "customfield_10103",
@@ -876,6 +880,94 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertEqual(audit_calls[0][0], "ticket_created")
         self.assertEqual(audit_calls[0][1]["source_thread_url"], "https://staffany.slack.com/archives/C0B2VT50YT1/p1778205303989579")
         self.assertEqual(audit_calls[0][1]["issue_key"], "PCO-789")
+
+    def test_ps_wee_intake_in_aa_channel_defaults_to_feedback_request_type(self):
+        calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
+                return {"issues": []}
+            if path == "/rest/servicedeskapi/request":
+                return {"issueKey": "PCO-901", "requestTypeId": "122"}
+            if path.endswith("/comment"):
+                return {"id": "comment-901"}
+            return {}
+
+        self.module._request_json = fake_request
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: {"ok": True}
+
+        result = self.module.create_ps_wee_intake_ticket(
+            slack_user_email="psm@staffany.com",
+            slack_thread_url="https://staffany.slack.com/archives/C0B5H2YE5T2/p1779100000000000",
+            customer="Kopi Janji",
+            issue_summary="PSM came back from AA event with selfie",
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        create_call = next(c for c in calls if c[1] == "/rest/servicedeskapi/request")
+        self.assertEqual(create_call[2]["requestTypeId"], "122")
+        self.assertEqual(result["scope"]["request_type_key"], "feedback")
+        self.assertEqual(result["scope"]["event"], "AA")
+
+    def test_ps_wee_intake_in_aa_channel_honors_explicit_churn_revival_request_type(self):
+        calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
+                return {"issues": []}
+            if path == "/rest/servicedeskapi/request":
+                return {"issueKey": "PCO-902", "requestTypeId": "121"}
+            if path.endswith("/comment"):
+                return {"id": "comment-902"}
+            return {}
+
+        self.module._request_json = fake_request
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: {"ok": True}
+
+        result = self.module.create_ps_wee_intake_ticket(
+            slack_user_email="psm@staffany.com",
+            slack_thread_url="https://staffany.slack.com/archives/C0B5H2YE5T2/p1779100000000001",
+            customer="Janji Kopi",
+            issue_summary="Customer flagged churn risk at AA",
+            request_type_key="churn_revival",
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        create_call = next(c for c in calls if c[1] == "/rest/servicedeskapi/request")
+        self.assertEqual(create_call[2]["requestTypeId"], "121")
+        self.assertEqual(result["scope"]["request_type_key"], "churn_revival")
+        self.assertEqual(result["scope"]["event"], "AA")
+
+    def test_ps_wee_intake_outside_aa_channel_does_not_force_event_aa_request_type(self):
+        calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
+                return {"issues": []}
+            if path == "/rest/servicedeskapi/request":
+                return {"issueKey": "PCO-903", "requestTypeId": "101"}
+            if path.endswith("/comment"):
+                return {"id": "comment-903"}
+            return {}
+
+        self.module._request_json = fake_request
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: {"ok": True}
+
+        result = self.module.create_ps_wee_intake_ticket(
+            slack_user_email="psm@staffany.com",
+            slack_thread_url="https://staffany.slack.com/archives/C0B2VT50YT1/p1779100000000002",
+            customer="Some Customer",
+            issue_summary="Regular non-event request",
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        create_call = next(c for c in calls if c[1] == "/rest/servicedeskapi/request")
+        self.assertEqual(create_call[2]["requestTypeId"], "101")
+        self.assertEqual(result["scope"]["request_type_key"], "customer_next_action")
+        self.assertEqual(result["scope"]["event"], "")
 
     def test_ps_wee_intake_prunes_known_fields_and_caps_slack_missing_info(self):
         calls = []

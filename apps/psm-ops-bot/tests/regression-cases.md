@@ -43,6 +43,20 @@ Thread:
 - Does not add a numbered questionnaire after the tool reply.
 - Slack-facing missing info is capped at two fields; full needs-info metadata may stay in Jira/audit.
 
+## PS WEE Event AA Intake
+
+Thread in Slack channel `C0B5H2YE5T2` (configured by `PSM_OPS_AA_CHANNEL_ID`):
+
+`@PS WEE Kopi Janji - met Andre at AA, he wants to upsell payroll module to their KL branches, selfie attached`
+
+- Creates the PCO intake ticket with `create_ps_wee_intake_ticket` using `request_type_key="cross_sell"` (PCO request type `120`).
+- Maps PSM wording to request type: `cross sell`/`upsell`/`expansion` → `cross_sell` (`120`); `churn`/`save`/`revival`/`at risk` → `churn_revival` (`121`); anything else or unclear → `feedback` (`122`).
+- When the PSM's intent is unclear, defaults to `feedback` so the ticket still lands in the Event AA queue. Does not block to ask.
+- MCP enforces the same `feedback` default defensively when the source Slack thread is in the AA channel but the caller passes a non-Event-AA `request_type_key`.
+- Outside the AA channel, generic PS WEE intakes still default to `customer_next_action`; the 3 Event AA request types are only used when the PSM explicitly asks.
+- Posts the returned ticket link in-thread and asks only the tool-returned missing fields.
+- Posts a `PSM Ops automation:` central audit copy with `event: AA` in the extra payload.
+
 ## PS WEE Customer Channel Auto-Tag
 
 Expected:

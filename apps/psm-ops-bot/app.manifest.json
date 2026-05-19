@@ -110,6 +110,16 @@
     "field_config_required": true,
     "public_comments_default": false,
     "assignment_hygiene_cron": "15 1 * * 1-5",
+    "event_aa": {
+      "channel_id_env_var": "PSM_OPS_AA_CHANNEL_ID",
+      "default_request_type_key": "feedback",
+      "allowed_request_type_keys": ["cross_sell", "churn_revival", "feedback"],
+      "request_type_id_env_vars": {
+        "cross_sell": "PSM_OPS_JIRA_REQUEST_TYPE_CROSS_SELL",
+        "churn_revival": "PSM_OPS_JIRA_REQUEST_TYPE_CHURN_REVIVAL",
+        "feedback": "PSM_OPS_JIRA_REQUEST_TYPE_FEEDBACK"
+      }
+    },
     "roi_direct": {
       "source_of_truth": true,
       "project_key_env_var": "PSM_OPS_ROI_JIRA_PROJECT_KEY",

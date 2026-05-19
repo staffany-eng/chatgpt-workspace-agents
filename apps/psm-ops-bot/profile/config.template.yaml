@@ -93,6 +93,9 @@ psm_ops:
       customer_next_action_request_type: "81"
       onboarding_task_request_type: "82"
       data_hygiene_request_type: "83"
+      cross_sell_request_type: "120"
+      churn_revival_request_type: "121"
+      feedback_request_type: "122"
       staffany_orgs_field: "customfield_10667"
       ps_team_field: "customfield_10876"
       handoff_package: "disabled_until_request_type_exists"
@@ -102,6 +105,16 @@ psm_ops:
       onboarding_task: "PSM_OPS_JIRA_REQUEST_TYPE_ONBOARDING_TASK"
       data_hygiene: "PSM_OPS_JIRA_REQUEST_TYPE_DATA_HYGIENE"
       handoff_package: "PSM_OPS_JIRA_REQUEST_TYPE_HANDOFF_PACKAGE"
+      cross_sell: "PSM_OPS_JIRA_REQUEST_TYPE_CROSS_SELL"
+      churn_revival: "PSM_OPS_JIRA_REQUEST_TYPE_CHURN_REVIVAL"
+      feedback: "PSM_OPS_JIRA_REQUEST_TYPE_FEEDBACK"
+    event_aa:
+      channel_id_env: "PSM_OPS_AA_CHANNEL_ID"
+      default_request_type_key: "feedback"
+      allowed_request_type_keys:
+        - "cross_sell"
+        - "churn_revival"
+        - "feedback"
     fields:
       customer: "PSM_OPS_JIRA_FIELD_CUSTOMER"
       staffany_orgs: "PSM_OPS_JIRA_FIELD_STAFFANY_ORGS"

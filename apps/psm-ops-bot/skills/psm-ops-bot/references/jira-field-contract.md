@@ -31,6 +31,10 @@ The live profile must configure these environment variables before the gateway i
 | Onboarding Task request type | `PSM_OPS_JIRA_REQUEST_TYPE_ONBOARDING_TASK` |
 | Data Hygiene request type | `PSM_OPS_JIRA_REQUEST_TYPE_DATA_HYGIENE` |
 | Handoff Package request type | `PSM_OPS_JIRA_REQUEST_TYPE_HANDOFF_PACKAGE` |
+| Cross Sell request type (Event AA) | `PSM_OPS_JIRA_REQUEST_TYPE_CROSS_SELL` (live PCO ID `120`) |
+| Churn Revival request type (Event AA) | `PSM_OPS_JIRA_REQUEST_TYPE_CHURN_REVIVAL` (live PCO ID `121`) |
+| Feedback request type (Event AA) | `PSM_OPS_JIRA_REQUEST_TYPE_FEEDBACK` (live PCO ID `122`) |
+| Event AA Slack channel ID | `PSM_OPS_AA_CHANNEL_ID` (live channel `C0B5H2YE5T2`) |
 | Customer field | `PSM_OPS_JIRA_FIELD_CUSTOMER` |
 | StaffAny Org(s) field | `PSM_OPS_JIRA_FIELD_STAFFANY_ORGS` |
 | Owner PSM field | `PSM_OPS_JIRA_FIELD_OWNER_PSM` |
@@ -72,6 +76,17 @@ For ROI urgency fields, match the field's configured options exactly. If the req
 - `CS duty`, `cs duty`, and equivalent spelling variants mean Jira `PS Team = CS Duty`.
 - `Eng duty` means Jira `PS Team = Eng Duty`.
 - These are PS Team values, not Jira person assignees. Do not ask who is on duty when the user asked for `CS duty`.
+
+## Event AA Intake Routing
+
+- The Event AA Slack channel is configured by `PSM_OPS_AA_CHANNEL_ID`. The live channel ID is `C0B5H2YE5T2`.
+- Allowed request type keys for Event AA intake tickets: `cross_sell`, `churn_revival`, `feedback`.
+- The Event AA Jira queue filters by Request Type in (Cross Sell, Churn Revival, Feedback). No label or custom field is required.
+- When `create_ps_wee_intake_ticket` is called with a `slack_thread_url` whose channel matches `PSM_OPS_AA_CHANNEL_ID`:
+  - If `request_type_key` is one of `cross_sell` / `churn_revival` / `feedback`, use it as-is.
+  - Otherwise, default `request_type_key` to `feedback` so the ticket still lands in the Event AA queue. Triage can retag.
+- Outside the AA channel, the 3 Event AA request types stay available for explicit asks; do not auto-route to them.
+- The PSM's Slack message is the only source for cross-sell vs churn-revival vs feedback intent. Map cues like `cross sell`/`upsell`/`expansion` to `cross_sell`, `churn`/`save`/`revival`/`at risk` to `churn_revival`, anything else (or unclear) to `feedback`.
 
 ## Customer Channel Routing
 
