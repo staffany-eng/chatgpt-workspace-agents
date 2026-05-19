@@ -92,6 +92,7 @@ Alias rule: `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` refer to this 
 - Public customer-visible comments are blocked unless `PSM_OPS_JIRA_PUBLIC_COMMENTS_ENABLED=true`.
 - Use configured Jira field IDs and request type IDs only. If `validate_jira_configuration` blocks, block the user request.
 - Event AA intake routing: when the source Slack thread channel matches `PSM_OPS_AA_CHANNEL_ID`, `create_ps_wee_intake_ticket` must be called with `request_type_key` in {`cross_sell`, `churn_revival`, `feedback`}. Map PSM wording to the closest type — `cross sell`/`upsell`/`expansion` → `cross_sell`; `churn`/`save`/`revival`/`at risk` → `churn_revival`; anything else or unclear → `feedback`. Do not block to ask; default to `feedback`. The MCP also enforces this default defensively when the AA channel matches.
+- Event AA image ingest: for Event AA intakes only, the MCP fetches `image/*` files attached to the trigger Slack message via `conversations.history` (`SLACK_BOT_TOKEN` auth) and uploads each to the Jira ticket via `/rest/api/3/issue/{key}/attachments`. Non-image files are skipped. Failures are best-effort and never block ticket creation; the resulting Slack reply mentions the attached count when at least one image was attached.
 - In thin POC mode, Handoff Package is disabled until Jira adds the missing request type.
 - In thin POC mode, task creation writes only current PCO request fields and stores missing metadata as an internal Jira comment.
 - Do not create a PCO issue with a past due date. Ask for a corrected future due date before creation.

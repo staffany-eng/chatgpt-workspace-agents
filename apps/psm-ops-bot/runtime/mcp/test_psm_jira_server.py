@@ -910,6 +910,146 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertEqual(result["scope"]["request_type_key"], "feedback")
         self.assertEqual(result["scope"]["event"], "AA")
 
+    def test_ps_wee_intake_in_aa_channel_attaches_image_files_only(self):
+        calls = []
+        attachment_calls = []
+        downloaded = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
+                return {"issues": []}
+            if path == "/rest/servicedeskapi/request":
+                return {"issueKey": "PCO-905", "requestTypeId": "122"}
+            if path.endswith("/comment"):
+                return {"id": "comment-905"}
+            return {}
+
+        def fake_slack_json(method, params):
+            if method == "conversations.history":
+                return {
+                    "messages": [
+                        {
+                            "ts": params["oldest"],
+                            "files": [
+                                {
+                                    "id": "F-img",
+                                    "name": "selfie.jpg",
+                                    "mimetype": "image/jpeg",
+                                    "url_private": "https://files.slack.com/selfie.jpg",
+                                },
+                                {
+                                    "id": "F-pdf",
+                                    "name": "deck.pdf",
+                                    "mimetype": "application/pdf",
+                                    "url_private": "https://files.slack.com/deck.pdf",
+                                },
+                            ],
+                        }
+                    ]
+                }
+            return {"members": []}
+
+        def fake_download(url):
+            downloaded.append(url)
+            return b"binary-image-data"
+
+        def fake_attach(issue_key, files):
+            attachment_calls.append((issue_key, deepcopy(files)))
+            return [{"id": "att-1", "filename": files[0]["name"]}]
+
+        self.module._request_json = fake_request
+        self.module._request_slack_json = fake_slack_json
+        self.module._download_slack_file = fake_download
+        self.module._attach_image_files_to_issue = fake_attach
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: {"ok": True}
+
+        result = self.module.create_ps_wee_intake_ticket(
+            slack_user_email="psm@staffany.com",
+            slack_thread_url="https://staffany.slack.com/archives/C0B5H2YE5T2/p1779160186779359",
+            customer="Kopi Janji",
+            issue_summary="met Andre at AA",
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(len(attachment_calls), 1)
+        attached_issue_key, attached_files = attachment_calls[0]
+        self.assertEqual(attached_issue_key, "PCO-905")
+        self.assertEqual([f["name"] for f in attached_files], ["selfie.jpg"])
+        self.assertEqual(result["answer"]["attached_images"], [{"id": "att-1", "filename": "selfie.jpg"}])
+        self.assertIn("Attached 1 image(s) from Slack.", result["answer"]["slack_reply"])
+
+    def test_ps_wee_intake_outside_aa_channel_does_not_fetch_images(self):
+        calls = []
+        slack_calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
+                return {"issues": []}
+            if path == "/rest/servicedeskapi/request":
+                return {"issueKey": "PCO-906", "requestTypeId": "101"}
+            if path.endswith("/comment"):
+                return {"id": "comment-906"}
+            return {}
+
+        def fake_slack_json(method, params):
+            slack_calls.append((method, params))
+            return {"members": []}
+
+        self.module._request_json = fake_request
+        self.module._request_slack_json = fake_slack_json
+        self.module._attach_image_files_to_issue = lambda issue_key, files: (_ for _ in ()).throw(AssertionError("must not be called outside AA channel"))
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: {"ok": True}
+
+        result = self.module.create_ps_wee_intake_ticket(
+            slack_user_email="psm@staffany.com",
+            slack_thread_url="https://staffany.slack.com/archives/C0B2VT50YT1/p1779160186779359",
+            customer="Some Customer",
+            issue_summary="regular intake",
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["answer"]["attached_images"], [])
+        self.assertNotIn("Attached", result["answer"]["slack_reply"])
+        self.assertFalse(
+            any(method == "conversations.history" for method, _ in slack_calls),
+            "conversations.history should not be called outside the AA channel",
+        )
+
+    def test_ps_wee_intake_in_aa_channel_handles_slack_fetch_failure_without_blocking(self):
+        calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
+                return {"issues": []}
+            if path == "/rest/servicedeskapi/request":
+                return {"issueKey": "PCO-907", "requestTypeId": "122"}
+            if path.endswith("/comment"):
+                return {"id": "comment-907"}
+            return {}
+
+        def fake_slack_json(method, params):
+            if method == "conversations.history":
+                raise self.module.JiraError("Slack API failed: ratelimited")
+            return {"members": []}
+
+        self.module._request_json = fake_request
+        self.module._request_slack_json = fake_slack_json
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: {"ok": True}
+
+        result = self.module.create_ps_wee_intake_ticket(
+            slack_user_email="psm@staffany.com",
+            slack_thread_url="https://staffany.slack.com/archives/C0B5H2YE5T2/p1779160186779359",
+            customer="Kopi Janji",
+            issue_summary="met Andre at AA",
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["answer"]["attached_images"], [])
+        self.assertNotIn("Attached", result["answer"]["slack_reply"])
+
     def test_ps_wee_intake_in_aa_channel_honors_explicit_churn_revival_request_type(self):
         calls = []
 
