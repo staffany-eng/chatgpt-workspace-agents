@@ -541,21 +541,56 @@ def _ps_team_valid_values(request_type_id: str = "") -> list[dict[str, Any]]:
     return []
 
 
+def _match_option_label(target_label: str, options: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """Find the best-ranked option matching by exact label, multi-word substring, or single-token equality.
+
+    Resolves a Slack display name like "Jane Doe" to the corresponding option label.
+    Single-token labels (e.g. "Jane") match via the token-equality branch.
+    Multi-word labels (e.g. "Kai Yi", "CS Duty") need the substring branch to match
+    longer display names like "Kai Yi Lee".
+
+    Among multiple matches, rank wins (exact > multi-word substring > token), then longer
+    label wins, so a more specific option like "Kai Yi" is preferred over "Kai" regardless
+    of the order Jira returns them.
+    """
+
+    target = _normalize_label(target_label)
+    if not target:
+        return None
+    tokens = [token for token in target.split() if token]
+    best: tuple[int, int, dict[str, Any]] | None = None
+    for option in options:
+        label = _normalize_label(str(option.get("label") or option.get("value") or ""))
+        if not label:
+            continue
+        if label == target:
+            rank = 3
+        elif " " in label and label in target:
+            rank = 2
+        elif label in tokens:
+            rank = 1
+        else:
+            continue
+        score = (rank, len(label))
+        if best is None or score > (best[0], best[1]):
+            best = (rank, len(label), option)
+    return best[2] if best else None
+
+
 def _ps_team_request_value(label: str, request_type_id: str = "") -> Any:
     """Return the Jira-shaped single-select value for PS Team on a JSM request, or None when no option matches."""
 
     normalized = _normalize_ps_team(label)
     if not normalized:
         return None
-    normalized_key = _normalize_label(normalized)
-    for option in _ps_team_valid_values(request_type_id):
-        if _normalize_label(str(option.get("label") or "")) == normalized_key:
-            option_id = str(option.get("value") or option.get("id") or "").strip()
-            if option_id:
-                return {"id": option_id}
-            option_label = str(option.get("label") or "").strip()
-            if option_label:
-                return {"value": option_label}
+    option = _match_option_label(normalized, _ps_team_valid_values(request_type_id))
+    if option:
+        option_id = str(option.get("value") or option.get("id") or "").strip()
+        if option_id:
+            return {"id": option_id}
+        option_label = str(option.get("label") or "").strip()
+        if option_label:
+            return {"value": option_label}
     return None
 
 
@@ -563,12 +598,14 @@ def _ps_team_issue_value(label: str) -> Any:
     normalized = _normalize_ps_team(label)
     if not normalized:
         return ""
-    normalized_key = _normalize_label(normalized)
-    for option in _ps_team_valid_values():
-        if _normalize_label(str(option.get("label") or "")) == normalized_key:
-            option_id = str(option.get("value") or option.get("id") or "").strip()
-            if option_id:
-                return {"id": option_id}
+    option = _match_option_label(normalized, _ps_team_valid_values())
+    if option:
+        option_id = str(option.get("value") or option.get("id") or "").strip()
+        if option_id:
+            return {"id": option_id}
+        option_label = str(option.get("label") or "").strip()
+        if option_label:
+            return {"value": option_label}
     return {"value": normalized}
 
 
