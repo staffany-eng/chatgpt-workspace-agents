@@ -542,29 +542,39 @@ def _ps_team_valid_values(request_type_id: str = "") -> list[dict[str, Any]]:
 
 
 def _match_option_label(target_label: str, options: list[dict[str, Any]]) -> dict[str, Any] | None:
-    """Find an option dict matching by exact label, single-token equality, or multi-word substring.
+    """Find the best-ranked option matching by exact label, multi-word substring, or single-token equality.
 
     Resolves a Slack display name like "Jane Doe" to the corresponding option label.
     Single-token labels (e.g. "Jane") match via the token-equality branch.
     Multi-word labels (e.g. "Kai Yi", "CS Duty") need the substring branch to match
     longer display names like "Kai Yi Lee".
+
+    Among multiple matches, rank wins (exact > multi-word substring > token), then longer
+    label wins, so a more specific option like "Kai Yi" is preferred over "Kai" regardless
+    of the order Jira returns them.
     """
 
     target = _normalize_label(target_label)
     if not target:
         return None
     tokens = [token for token in target.split() if token]
+    best: tuple[int, int, dict[str, Any]] | None = None
     for option in options:
         label = _normalize_label(str(option.get("label") or option.get("value") or ""))
         if not label:
             continue
-        if (
-            label == target
-            or any(label == token for token in tokens)
-            or (" " in label and label in target)
-        ):
-            return option
-    return None
+        if label == target:
+            rank = 3
+        elif " " in label and label in target:
+            rank = 2
+        elif label in tokens:
+            rank = 1
+        else:
+            continue
+        score = (rank, len(label))
+        if best is None or score > (best[0], best[1]):
+            best = (rank, len(label), option)
+    return best[2] if best else None
 
 
 def _ps_team_request_value(label: str, request_type_id: str = "") -> Any:
@@ -593,6 +603,9 @@ def _ps_team_issue_value(label: str) -> Any:
         option_id = str(option.get("value") or option.get("id") or "").strip()
         if option_id:
             return {"id": option_id}
+        option_label = str(option.get("label") or "").strip()
+        if option_label:
+            return {"value": option_label}
     return {"value": normalized}
 
 

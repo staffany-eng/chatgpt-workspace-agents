@@ -447,6 +447,29 @@ class PsmJiraServerTest(unittest.TestCase):
         # Unknown name still returns None so the field is omitted, not sent as garbage.
         self.assertIsNone(self.module._ps_team_request_value("Totally Unknown", "123"))
 
+    def test_ps_team_request_value_prefers_more_specific_match_regardless_of_option_order(self):
+        """If both a single-token `Kai` and a multi-word `Kai Yi` exist, target `Kai Yi Lee`
+        must resolve to `Kai Yi` even when Jira returns `Kai` first."""
+        self.module._ps_team_valid_values = lambda request_type_id="": [
+            {"value": "12100", "label": "Kai"},
+            {"value": "12017", "label": "Kai Yi"},
+        ]
+        self.assertEqual(
+            self.module._ps_team_request_value("Kai Yi Lee", "123"),
+            {"id": "12017"},
+        )
+
+    def test_ps_team_issue_value_uses_matched_option_label_when_id_missing(self):
+        """When the Jira option carries only `label` (no `value`/`id`), the issue value must
+        be the **matched** label, not the raw input the caller passed in."""
+        self.module._ps_team_valid_values = lambda request_type_id="": [
+            {"label": "Jason"},
+        ]
+        self.assertEqual(
+            self.module._ps_team_issue_value("Jason Kanggara"),
+            {"value": "Jason"},
+        )
+
     def test_set_pco_ps_team_maps_cs_duty_to_jira_option(self):
         calls = []
 
