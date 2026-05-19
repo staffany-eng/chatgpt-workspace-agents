@@ -76,6 +76,7 @@ if (!existsSync(manifestPath)) {
       "set_pco_assignee",
       "set_pco_ps_team",
       "link_pco_to_engineering_issue",
+      "link_pco_to_pco_issue",
       "set_pco_reminder",
       "list_due_pco_reminders"
     ];
@@ -488,7 +489,7 @@ if (!psmOpsProfileBlock) {
     "systemd_unit: hermes-gateway-psmopsbot.service",
     "bot_name: ps_wee_manager",
     "open_channel_mode: true",
-    "psm_jira: 24",
+    "psm_jira: 25",
     "psm_c360: 3",
     "psmopsbot due-date reminders",
     "psmopsbot assignment hygiene",
