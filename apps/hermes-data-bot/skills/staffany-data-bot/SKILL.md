@@ -24,6 +24,7 @@ Use this skill for StaffAny internal data-bot work. It ports the ChatGPT Da Ta B
 - Slack threads where the user asks what metric or app-data question is being discussed.
 - Google Sheets output requests for an already-confirmed bounded table result.
 - Feedback that might become a confirmed metric definition, terminology mapping, or output preference.
+- Explicit reusable learning requests such as `learn this`, `remember this for next time`, or corrections that should become reviewed lesson candidates.
 
 Do not use this skill for generic coding, broad web research, or non-StaffAny personal tasks.
 
@@ -32,12 +33,13 @@ Do not use this skill for generic coding, broad web research, or non-StaffAny pe
 1. Release-feature usage tracking: `references/staffany-release-feature-registry.md`.
 2. Product and package lookups: `references/staffany-product-lookup-registry.md`.
 3. Known POC metrics: `references/staffany-data-bot-metric-registry.md`.
-4. Regression and safety expectations: `references/regression-cases.md`.
-5. Selected Slack thread context through the read-only `staffany_slack_context` MCP when the user gives an explicit configured Slack permalink.
-6. Customer 360 current-customer universe through the read-only `staffany_c360` MCP when the request asks for current customers, C360 definition, or a C360 correction.
-7. BigQuery schema inspection through the `staffany_bigquery` MCP server.
-8. Google Sheets output through the creation-only `staffany_google_sheets` MCP only after the underlying result table is already approved or delivered.
-9. GitHub/Pantheon evidence only when registry evidence is missing, explicitly requires code verification, or the user asks for code evidence.
+4. Reviewed runtime learning: `references/reviewed-lessons.md`.
+5. Regression and safety expectations: `references/regression-cases.md`.
+6. Selected Slack thread context through the read-only `staffany_slack_context` MCP when the user gives an explicit configured Slack permalink.
+7. Customer 360 current-customer universe through the read-only `staffany_c360` MCP when the request asks for current customers, C360 definition, or a C360 correction.
+8. BigQuery schema inspection through the `staffany_bigquery` MCP server.
+9. Google Sheets output through the creation-only `staffany_google_sheets` MCP only after the underlying result table is already approved or delivered.
+10. GitHub/Pantheon evidence only when registry evidence is missing, explicitly requires code verification, or the user asks for code evidence.
 
 Registry rows are guidance, not automatic truth. Product Corrections prevent known wrong answers, but they do not become metric definitions.
 
@@ -198,7 +200,11 @@ If the local registry is missing and no approved live registry source is availab
 
 Use Honcho memory when available, but only as a recall layer. Do not treat Honcho as a source of truth for current counts, customer/org facts, product registry truth, or metric registry truth.
 
-Store only confirmed reusable learning:
+Use reviewed lesson candidates for explicit reusable learning requests from Slack. `record_staffany_data_lesson_candidate` captures safe `pending_review` candidates only; it does not change active behavior. Durable behavior still requires repo promotion, prompt evals, verifier, deploy, and live smoke.
+
+Human review decisions use `update_staffany_data_lesson_candidate_status` with `approval_marker="human reviewed lesson"`. The bot must not self-approve, reject as itself, or mark a candidate `promoted`; `promoted` requires repo commit and live verification evidence.
+
+Honcho memory may store only confirmed safe recall:
 
 - Metric definitions.
 - StaffAny terminology mappings.
@@ -209,7 +215,18 @@ Never store secrets, connector tokens, raw Slack transcripts/images, raw query r
 
 Ask before storing ambiguous feedback.
 
-If Honcho memory conflicts with local registry references, BigQuery schema evidence, or explicit user context in the current thread, prefer the stronger source and state the conflict briefly. If a Honcho memory becomes durable StaffAny product or metric truth, promote it into the relevant repo registry after review.
+If Honcho memory conflicts with local registry references, BigQuery schema evidence, Customer 360, or explicit user context in the current thread, prefer the stronger source and state the conflict briefly. If a Honcho memory becomes durable StaffAny product or metric truth, promote it into the relevant repo registry after review.
+
+Same-session caveat: after a candidate or memory write, rely on the returned candidate ID and explicit current-thread context. Do not claim current behavior has already changed mid-thread.
+
+## Reviewed Learning Tools
+
+- `record_staffany_data_lesson_candidate`: record a reusable behavior correction as a safe `pending_review` runtime candidate only. It must not contain raw Slack transcripts, raw BigQuery rows, Customer 360 rows, phone numbers, secrets, tokens, PII, bank details, NRIC/FIN, or employee-level payroll detail.
+- `list_staffany_data_lesson_candidates`: list compact reviewed-learning candidates by status. Runtime candidates do not change behavior by themselves.
+- `read_staffany_data_lesson_candidate`: read one safe reviewed-learning candidate. Approved or promoted behavior must still be checked in the repo packet, verified, deployed, and live-checked before use.
+- `update_staffany_data_lesson_candidate_status`: record explicit human review status only. It requires `approval_marker="human reviewed lesson"`, a human reviewer, review notes, and repo/live evidence before `promoted`; it does not mutate BigQuery, Slack, Honcho, repo files, GitHub, Kanban, persistent goals, or self-evolution state.
+
+When the user says `learn this`, `remember this for next time`, or gives a reusable correction, record a candidate only if the lesson can be summarized safely at behavior level. Reply that the candidate was recorded for review and is not active behavior yet. For one-off customer/org facts, raw outputs, or sensitive content, refuse candidate recording and point to the correct source boundary.
 
 ## Common Pitfalls
 
@@ -223,6 +240,7 @@ If Honcho memory conflicts with local registry references, BigQuery schema evide
 8. Blocking an ATS project entirely when the safe answer is a JD plus redacted candidate sample summaries.
 9. Treating Jira releases as usage evidence. Jira only says what shipped and how it was prioritized; BigQuery must verify usage.
 10. Summing ATS applicant/opening counts after joining raw company bridges such as `dim_org_company`; aggregate by `organisationid` first, then join deduped display/filter dimensions.
+11. Treating a `pending_review` lesson candidate, Honcho recall, runtime-created skill, or Curator patch as active product behavior.
 
 ## Skill Update and Sync Workflow
 
@@ -257,4 +275,6 @@ Sync timing policy for this bot:
 - Slack first mention returns a plan only.
 - `run` and same-thread approval nudges execute the confirmed plan.
 - Secret and sensitive-data prompts are refused.
+- Reviewed learning tools are available, create only `pending_review` candidates, and require human-marker status updates before approved/promoted states.
+- Treat runtime-created or Curator-patched skills as review artifacts until promoted into the source packet.
 - Skill update workflow uses repo-first edit, full verify, and profile sync.

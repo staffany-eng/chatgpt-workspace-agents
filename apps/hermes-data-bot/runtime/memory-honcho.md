@@ -10,9 +10,11 @@ Hermes Data Bot uses Honcho as an external memory provider for confirmed reusabl
 - AI peer: `staffanydatabot`
 - User peer: `kaiyi`
 - Recall mode: `tools`
+- Save messages: `false`
 - Session strategy: `per-session`
+- Context: bounded by `contextTokens` or equivalent profile policy when auto context is enabled
 
-Honcho is not a source of truth for StaffAny data. It is a recall layer for reusable preferences, metric clarifications, terminology corrections, and repeated feedback patterns.
+Honcho is not a source of truth for StaffAny data. It is a recall layer for reusable preferences, metric clarifications, terminology corrections, and repeated feedback patterns. It must not auto-inject broad raw Slack or data context into future Slack answers.
 
 ## What Belongs In Honcho
 
@@ -57,6 +59,7 @@ Expected non-secret shape:
       "aiPeer": "staffanydatabot",
       "recallMode": "tools",
       "saveMessages": false,
+      "contextTokens": 2000,
       "writeFrequency": "session",
       "sessionStrategy": "per-session"
     }
@@ -92,6 +95,8 @@ Search Honcho for "Honcho smoke test for staffanydatabot".
 ```
 
 Do not use customer data, Slack transcripts, query rows, or sensitive employee details in memory smoke tests.
+
+Live audit and health checks must block or warn if Honcho drifts away from `recallMode=tools`, `saveMessages=false`, `sessionStrategy=per-session`, or bounded context. Same-session behavior is not guaranteed: after a memory or candidate write, rely on current-thread context and returned candidate IDs rather than assuming active behavior has already changed.
 
 ## Review
 

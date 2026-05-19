@@ -12,6 +12,7 @@ EXPECT_DIGEST_CRON="${EXPECT_DIGEST_CRON:-0}"
 EXPECTED_MCP_TOOLS="${EXPECTED_MCP_TOOLS:-4}"
 EXPECTED_SLACK_CONTEXT_MCP_TOOLS="${EXPECTED_SLACK_CONTEXT_MCP_TOOLS:-2}"
 EXPECTED_C360_MCP_TOOLS="${EXPECTED_C360_MCP_TOOLS:-1}"
+EXPECTED_DATA_LEARNING_MCP_TOOLS="${EXPECTED_DATA_LEARNING_MCP_TOOLS:-4}"
 EXPECTED_GOOGLE_SHEETS_MCP_TOOLS="${EXPECTED_GOOGLE_SHEETS_MCP_TOOLS:-2}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -52,6 +53,7 @@ cmp -s "$APP_ROOT/runtime/check-cloud-heartbeat.sh" "$PROFILE_DIR/scripts/staffa
 cmp -s "$APP_ROOT/runtime/staffanydatabot-cloud-doctor.sh" "$PROFILE_DIR/scripts/staffanydatabot-cloud-doctor.sh" || fail "profile-drift:cloud-doctor-script"
 cmp -s "$APP_ROOT/runtime/mcp/staffany_slack_context_server.py" "$PROFILE_DIR/runtime/mcp/staffany_slack_context_server.py" || fail "profile-drift:staffany-slack-context-mcp"
 cmp -s "$APP_ROOT/runtime/mcp/staffany_c360_server.py" "$PROFILE_DIR/runtime/mcp/staffany_c360_server.py" || fail "profile-drift:staffany-c360-mcp"
+cmp -s "$APP_ROOT/runtime/mcp/staffany_data_learning_server.py" "$PROFILE_DIR/runtime/mcp/staffany_data_learning_server.py" || fail "profile-drift:staffany-data-learning-mcp"
 cmp -s "$APP_ROOT/runtime/mcp/profile_env.py" "$PROFILE_DIR/runtime/mcp/profile_env.py" || fail "profile-drift:staffany-slack-context-profile-env"
 cmp -s "$APP_ROOT/../hermes-shared/google-sheets-output/runtime/mcp/staffany_google_sheets_server.py" "$PROFILE_DIR/source/hermes-shared/google-sheets-output/runtime/mcp/staffany_google_sheets_server.py" || fail "profile-drift:staffany-google-sheets-mcp"
 cmp -s "$APP_ROOT/../hermes-shared/google-sheets-output/runtime/mcp/google_oauth.py" "$PROFILE_DIR/source/hermes-shared/google-sheets-output/runtime/mcp/google_oauth.py" || fail "profile-drift:staffany-google-sheets-oauth-helper"
@@ -189,9 +191,87 @@ if (
 ):
     print("mcp:staffany_google_sheets-unsafe-access-policy")
     raise SystemExit(1)
+
+data_learning = ((config.get("mcp_servers") or {}).get("staffany_data_learning") or {})
+data_learning_tools = data_learning.get("tools") or {}
+data_learning_allowlist = data_learning_tools.get("include") or data_learning.get("tool_allowlist") or []
+expected_data_learning_tools = [
+    "record_staffany_data_lesson_candidate",
+    "list_staffany_data_lesson_candidates",
+    "read_staffany_data_lesson_candidate",
+    "update_staffany_data_lesson_candidate_status",
+]
+if data_learning_allowlist != expected_data_learning_tools:
+    print("mcp:staffany_data_learning-tool-allowlist-drift")
+    raise SystemExit(1)
+data_learning_policy = data_learning.get("access_policy") or {}
+expected_learning_statuses = [
+    "pending_review",
+    "needs_more_evidence",
+    "approved_for_repo_promotion",
+    "rejected",
+    "promoted",
+]
+if (
+    data_learning_policy.get("record_status") != "pending_review"
+    or data_learning_policy.get("valid_statuses") != expected_learning_statuses
+    or data_learning_policy.get("review_status_tool") != "update_staffany_data_lesson_candidate_status"
+    or data_learning_policy.get("review_approval_marker") != "human reviewed lesson"
+    or data_learning_policy.get("auto_behavior_change") is not False
+    or data_learning_policy.get("self_approval") is not False
+    or data_learning_policy.get("honcho_used_as_source_of_truth") is not False
+    or data_learning_policy.get("raw_slack_transcript_persistence") is not False
+    or data_learning_policy.get("raw_query_row_persistence") is not False
+    or data_learning_policy.get("sensitive_data_persistence") is not False
+    or data_learning_policy.get("kanban_dispatch") is not False
+    or data_learning_policy.get("persistent_goal_continuation") is not False
+    or data_learning_policy.get("self_evolution_gepa") is not False
+):
+    print("mcp:staffany_data_learning-unsafe-access-policy")
+    raise SystemExit(1)
 PY
 then
   fail "$(cat "$config_check_out")"
+fi
+
+cmp -s "$APP_ROOT/runtime/report-staffany-data-learning.py" "$PROFILE_DIR/scripts/staffanydatabot-report-data-learning.py" || fail "profile-drift:data-learning-report-script"
+
+honcho_config="$PROFILE_DIR/honcho.json"
+[ -r "$honcho_config" ] || fail "honcho:config-missing"
+honcho_check_out="$(mktemp)"
+trap 'rm -f "$config_check_out" "$honcho_check_out"' EXIT
+if ! "$hermes_python" - "$honcho_config" >"$honcho_check_out" 2>&1 <<'PY'
+import json
+import sys
+
+path = sys.argv[1]
+try:
+    config = json.load(open(path, "r", encoding="utf-8"))
+except Exception as exc:
+    print(f"honcho:config-unreadable:{exc.__class__.__name__}")
+    raise SystemExit(1)
+hosts = (config.get("hosts") or {}) if isinstance(config, dict) else {}
+enabled_hosts = [host for host in hosts.values() if isinstance(host, dict) and host.get("enabled") is True]
+if not enabled_hosts:
+    print("honcho:config-no-enabled-host")
+    raise SystemExit(1)
+for host in enabled_hosts:
+    if host.get("recallMode") != "tools":
+        print("honcho:recall-mode-not-tools")
+        raise SystemExit(1)
+    if host.get("saveMessages") is not False:
+        print("honcho:save-messages-not-false")
+        raise SystemExit(1)
+    if host.get("sessionStrategy") != "per-session":
+        print("honcho:session-strategy-not-per-session")
+        raise SystemExit(1)
+    context_tokens = host.get("contextTokens")
+    if context_tokens is not None and int(context_tokens) > 4000:
+        print("honcho:context-tokens-unbounded")
+        raise SystemExit(1)
+PY
+then
+  fail "$(cat "$honcho_check_out")"
 fi
 
 cron_out="$(hermes -p "$PROFILE" cron list 2>&1)" || fail "cron:list-failed"
@@ -209,5 +289,11 @@ c360_mcp_out="$(hermes -p "$PROFILE" mcp test staffany_c360 2>&1)" || fail "mcp:
 printf '%s\n' "$c360_mcp_out" | grep -q "Tools discovered: $EXPECTED_C360_MCP_TOOLS" || fail "mcp:staffany_c360-tool-count-unexpected"
 google_sheets_mcp_out="$(hermes -p "$PROFILE" mcp test staffany_google_sheets 2>&1)" || fail "mcp:staffany_google_sheets-test-failed"
 printf '%s\n' "$google_sheets_mcp_out" | grep -q "Tools discovered: $EXPECTED_GOOGLE_SHEETS_MCP_TOOLS" || fail "mcp:staffany_google_sheets-tool-count-unexpected"
+data_learning_mcp_out="$(hermes -p "$PROFILE" mcp test staffany_data_learning 2>&1)" || fail "mcp:staffany_data_learning-test-failed"
+printf '%s\n' "$data_learning_mcp_out" | grep -q "Tools discovered: $EXPECTED_DATA_LEARNING_MCP_TOOLS" || fail "mcp:staffany_data_learning-tool-count-unexpected"
+
+report_out="$("$PROFILE_DIR/scripts/staffanydatabot-report-data-learning.py" --stale-days 14 2>&1)" || fail "reviewed-learning:report-failed"
+printf '%s\n' "$report_out" | grep -q "staffany_data_learning_review_report:ok" || fail "reviewed-learning:report-missing-ok"
+printf '%s\n' "$report_out" | grep -q "lesson_candidates_content:omitted" || fail "reviewed-learning:report-may-print-content"
 
 printf 'live-profile:audit-ok\n'

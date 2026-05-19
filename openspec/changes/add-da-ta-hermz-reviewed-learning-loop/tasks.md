@@ -1,0 +1,25 @@
+# Tasks
+
+- [x] 1. Create OpenSpec proposal, design, tasks, and spec files.
+- [x] 2. Add `skills/staffany-data-bot/references/reviewed-lessons.md`.
+- [x] 3. Add `runtime/mcp/staffany_data_learning_server.py`.
+- [x] 4. Add `runtime/mcp/test_staffany_data_learning_server.py`.
+- [x] 5. Wire `staffany_data_learning` into `profile/config.template.yaml` and `app.manifest.json`.
+- [x] 6. Update `profile/SOUL.md` and `skills/staffany-data-bot/SKILL.md` to use reviewed lesson candidates.
+- [x] 7. Update `runtime/memory-honcho.md`, `runtime/health-checks.md`, and deploy runbook with the reviewed-learning boundary.
+- [x] 8. Add a Hermes learning-primitives matrix to the durable reviewed-lessons docs so memory, skills, Curator, cron, Kanban, persistent goals, and self-evolution have explicit roles.
+- [x] 9. Add Honcho config/audit expectations for `recallMode=tools`, `saveMessages=false`, `sessionStrategy=per-session`, bounded context, and safe memory smoke tests.
+- [x] 10. Add runtime skill and Curator boundary docs: runtime-created or Curator-patched skills are review artifacts only until repo promotion.
+- [x] 11. Add a no-agent lesson-candidate review report script or cron-compatible check that prints safe counts/staleness only.
+- [x] 12. Update `runtime/audit-live-profile.sh`, `runtime/staffanydatabot-cloud-doctor.sh`, and `runtime/check-health.sh` for MCP tool-count, Honcho config, and review-report checks.
+- [x] 13. Add regression cases and prompt evals for explicit learning, safe refusal, non-active candidate behavior, same-session memory caveat, runtime skill drift, Honcho config drift, and stale candidate review reporting.
+- [x] 14. Update `scripts/verify-hermes-data-bot.mjs`.
+- [x] 15. Add `update_staffany_data_lesson_candidate_status` with human marker, self-approval block, `needs_more_evidence`, and promoted evidence gates.
+- [x] 16. Update docs, config, health/audit/cloud-doctor, deploy, verifier, regression cases, and prompt evals for the fourth reviewed-learning tool.
+- [x] 17. Run `python3 -m unittest apps/hermes-data-bot/runtime/mcp/test_staffany_data_learning_server.py`.
+- [x] 18. Run `node scripts/run-prompt-evals.mjs --app hermes-data-bot --mode all`.
+- [x] 19. Run `npm run hermes-data-bot:verify`.
+- [x] 20. Run `openspec validate add-da-ta-hermz-reviewed-learning-loop --strict`.
+- [x] 21. Run `npm run slack-automation-identity:verify`.
+- [ ] 22. Deploy and verify live MCP, audit, health, review-report, and Slack smoke.
+- [ ] 23. Backfill only safe reusable candidates from recent `#da-ta-hermz-testing` threads after deploy.

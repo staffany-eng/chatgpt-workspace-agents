@@ -18,6 +18,7 @@
       "skills/staffany-data-bot/references/staffany-product-lookup-registry.md",
       "skills/staffany-data-bot/references/staffany-release-feature-registry.md",
       "skills/staffany-data-bot/references/rbac-access-levels.md",
+      "skills/staffany-data-bot/references/reviewed-lessons.md",
       "skills/staffany-data-bot/references/regression-cases.md"
     ],
     "bigquery_mcp": "runtime/mcp/staffany-bigquery.md",
@@ -30,6 +31,8 @@
     "slack_allowlist_update_script": "runtime/update-slack-allowlist.sh",
     "slack_context_mcp": "runtime/mcp/staffany_slack_context_server.py",
     "c360_mcp": "runtime/mcp/staffany_c360_server.py",
+    "data_learning_mcp": "runtime/mcp/staffany_data_learning_server.py",
+    "data_learning_report_script": "runtime/report-staffany-data-learning.py",
     "google_sheets_output_runtime": "../hermes-shared/google-sheets-output/runtime/google-sheets-output.md",
     "google_sheets_output_mcp": "../hermes-shared/google-sheets-output/runtime/mcp/staffany_google_sheets_server.py",
     "google_sheets_output_oauth_helper": "../hermes-shared/google-sheets-output/runtime/mcp/google_oauth.py",
@@ -81,6 +84,40 @@
     "read_only": true,
     "uses_browser_cookie": false,
     "uses_personal_customer360_session": false
+  },
+  "data_learning_mcp": {
+    "server_name": "staffany_data_learning",
+    "candidates_dir_env": "STAFFANY_DATA_LEARNING_CANDIDATES_DIR",
+    "default_candidates_dir": "~/.hermes/profiles/staffanydatabot/runtime/lesson-candidates",
+    "expected_tools": [
+      "record_staffany_data_lesson_candidate",
+      "list_staffany_data_lesson_candidates",
+      "read_staffany_data_lesson_candidate",
+      "update_staffany_data_lesson_candidate_status"
+    ],
+    "review_status_tool": "update_staffany_data_lesson_candidate_status",
+    "review_approval_marker": "human reviewed lesson",
+    "valid_statuses": [
+      "pending_review",
+      "needs_more_evidence",
+      "approved_for_repo_promotion",
+      "rejected",
+      "promoted"
+    ],
+    "writes_runtime_candidates_only": true,
+    "active_behavior_change": false,
+    "self_approval": false,
+    "honcho_source_of_truth": false,
+    "stores_raw_slack_transcripts": false,
+    "stores_raw_query_rows": false,
+    "stores_sensitive_data": false
+  },
+  "data_learning_review_report": {
+    "script": "runtime/report-staffany-data-learning.py",
+    "mode": "no_agent_script",
+    "prints_safe_counts_only": true,
+    "prints_raw_lesson_content": false,
+    "stale_threshold_days_default": 14
   },
   "google_sheets_output_mcp": {
     "server_name": "staffany_google_sheets",
