@@ -1063,6 +1063,7 @@ def _download_slack_images_for_drive(files: list[dict[str, Any]]) -> list[dict[s
                 "content": content,
                 "name": str(entry.get("name") or "selfie"),
                 "mimetype": str(entry.get("mimetype") or "image/jpeg"),
+                "slack_file_id": str(entry.get("id") or ""),
             }
         )
     return downloads
@@ -3581,15 +3582,29 @@ def attach_aa_selfie_to_thread(
             scope,
             "Drive upload returned no records; check Drive OAuth token validity and folder permissions.",
         )
+    newly_uploaded = [record for record in drive_uploads if not record.get("already_present")]
+    already_present = [record for record in drive_uploads if record.get("already_present")]
+    if newly_uploaded and already_present:
+        caveat = (
+            f"Saved {len(newly_uploaded)} new selfie(s) to Drive; "
+            f"{len(already_present)} was/were already there."
+        )
+    elif newly_uploaded:
+        caveat = f"Saved {len(newly_uploaded)} selfie(s) to Drive."
+    else:
+        caveat = (
+            f"All {len(already_present)} selfie(s) were already on Drive — nothing new to upload."
+        )
     return _verified(
         {
             "drive_selfies": drive_uploads,
             "image_count": len(images),
-            "saved_count": len(drive_uploads),
+            "saved_count": len(newly_uploaded),
+            "already_present_count": len(already_present),
             "drive_status": "ok",
         },
         scope,
-        f"Saved {len(drive_uploads)} selfie(s) to Drive.",
+        caveat,
     )
 
 

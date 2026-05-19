@@ -1579,6 +1579,7 @@ class PsmJiraServerTest(unittest.TestCase):
                     "drive_file_id": "drive-1",
                     "name": "kopi-janji_andre.jpg",
                     "web_view_link": "https://drive/x",
+                    "already_present": False,
                 }
             ]
 
@@ -1596,6 +1597,7 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertEqual(result["confidence"], "verified")
         self.assertEqual(result["answer"]["image_count"], 1)
         self.assertEqual(result["answer"]["saved_count"], 1)
+        self.assertEqual(result["answer"]["already_present_count"], 0)
         self.assertEqual(result["answer"]["drive_status"], "ok")
         self.assertEqual(len(result["answer"]["drive_selfies"]), 1)
         self.assertIn("Saved 1 selfie(s) to Drive.", result["caveat"])
@@ -1604,9 +1606,63 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertEqual(drive_calls[0]["pic"], "Andre")
         self.assertEqual([entry["name"] for entry in drive_calls[0]["images"]], ["selfie.jpg"])
         self.assertEqual(
+            [entry["slack_file_id"] for entry in drive_calls[0]["images"]], ["F-img"]
+        )
+        self.assertEqual(
             [call[0] for call in slack_calls],
             ["conversations.history", "conversations.replies"],
         )
+
+    def test_attach_aa_selfie_to_thread_skips_already_present_selfies(self):
+        def fake_slack_json(method, params):
+            if method == "conversations.history":
+                return {"messages": [{"ts": params["oldest"], "thread_ts": params["oldest"]}]}
+            if method == "conversations.replies":
+                return {
+                    "messages": [
+                        {"ts": params["ts"], "thread_ts": params["ts"]},
+                        {
+                            "ts": "1779217695.397149",
+                            "thread_ts": params["ts"],
+                            "files": [
+                                {
+                                    "id": "F-existing",
+                                    "name": "selfie.jpg",
+                                    "mimetype": "image/jpeg",
+                                    "url_private": "https://files.slack.com/selfie.jpg",
+                                }
+                            ],
+                        },
+                    ]
+                }
+            return {"members": []}
+
+        def fake_drive_upload(images, company, pic):
+            return [
+                {
+                    "drive_file_id": "drive-existing",
+                    "name": "kopi-janji_andre.jpg",
+                    "web_view_link": "https://drive/existing",
+                    "already_present": True,
+                }
+            ]
+
+        self.module._request_slack_json = fake_slack_json
+        self.module._download_slack_file = lambda url: b"binary-image-data"
+        self.module.upload_aa_selfies = fake_drive_upload
+        self.module.aa_drive_configuration_status = lambda: ("ok", "")
+
+        result = self.module.attach_aa_selfie_to_thread(
+            slack_thread_url="https://staffany.slack.com/archives/C0B5H2YE5T2/p1779213672422819",
+            customer="Kopi Janji",
+            pic="Andre",
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["answer"]["saved_count"], 0)
+        self.assertEqual(result["answer"]["already_present_count"], 1)
+        self.assertEqual(result["answer"]["drive_selfies"][0]["already_present"], True)
+        self.assertIn("already on Drive", result["caveat"])
 
     def test_attach_aa_selfie_to_thread_blocks_outside_aa_channel(self):
         self.module._request_slack_json = lambda *_args, **_kwargs: self.fail(
