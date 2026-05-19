@@ -1,7 +1,0 @@
-interface:
-  display_name: "Gryphon Storybook Handoff"
-  short_description: "Prototype in master; hand off clean PRs."
-  default_prompt: "Use $gryphon-storybook-prototype-handoff to manage Gryphon Storybook prototype updates, clean engineering handover branches, and syncing accepted changes back to master."
-
-policy:
-  allow_implicit_invocation: true
