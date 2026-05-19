@@ -541,21 +541,44 @@ def _ps_team_valid_values(request_type_id: str = "") -> list[dict[str, Any]]:
     return []
 
 
+def _match_option_label(target_label: str, options: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """Find an option dict matching by exact label, token equality, or substring (label length >= 4).
+
+    Mirrors `_match_creator_option` so callers like PS Team can accept Slack display names
+    ("Jason Kanggara") and still match short option labels ("Jason").
+    """
+
+    target = _normalize_label(target_label)
+    if not target:
+        return None
+    tokens = [token for token in target.split() if token]
+    for option in options:
+        label = _normalize_label(str(option.get("label") or option.get("value") or ""))
+        if not label:
+            continue
+        if (
+            label == target
+            or any(label == token for token in tokens)
+            or (len(label) >= 4 and label in target)
+        ):
+            return option
+    return None
+
+
 def _ps_team_request_value(label: str, request_type_id: str = "") -> Any:
     """Return the Jira-shaped single-select value for PS Team on a JSM request, or None when no option matches."""
 
     normalized = _normalize_ps_team(label)
     if not normalized:
         return None
-    normalized_key = _normalize_label(normalized)
-    for option in _ps_team_valid_values(request_type_id):
-        if _normalize_label(str(option.get("label") or "")) == normalized_key:
-            option_id = str(option.get("value") or option.get("id") or "").strip()
-            if option_id:
-                return {"id": option_id}
-            option_label = str(option.get("label") or "").strip()
-            if option_label:
-                return {"value": option_label}
+    option = _match_option_label(normalized, _ps_team_valid_values(request_type_id))
+    if option:
+        option_id = str(option.get("value") or option.get("id") or "").strip()
+        if option_id:
+            return {"id": option_id}
+        option_label = str(option.get("label") or "").strip()
+        if option_label:
+            return {"value": option_label}
     return None
 
 
@@ -563,12 +586,11 @@ def _ps_team_issue_value(label: str) -> Any:
     normalized = _normalize_ps_team(label)
     if not normalized:
         return ""
-    normalized_key = _normalize_label(normalized)
-    for option in _ps_team_valid_values():
-        if _normalize_label(str(option.get("label") or "")) == normalized_key:
-            option_id = str(option.get("value") or option.get("id") or "").strip()
-            if option_id:
-                return {"id": option_id}
+    option = _match_option_label(normalized, _ps_team_valid_values())
+    if option:
+        option_id = str(option.get("value") or option.get("id") or "").strip()
+        if option_id:
+            return {"id": option_id}
     return {"value": normalized}
 
 

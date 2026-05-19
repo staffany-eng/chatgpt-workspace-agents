@@ -428,6 +428,25 @@ class PsmJiraServerTest(unittest.TestCase):
 
         self.assertEqual(values["customfield_10876"], {"id": "12025"})
 
+    def test_ps_team_request_value_matches_full_display_name_to_first_name_option(self):
+        """`ps_team="Jason Kanggara"` must still match the `Jason` option (token match)."""
+        self.module._ps_team_valid_values = lambda request_type_id="": [
+            {"value": "12005", "label": "Ega"},
+            {"value": "12016", "label": "Jason"},
+            {"value": "12017", "label": "Kai Yi"},
+        ]
+        self.assertEqual(
+            self.module._ps_team_request_value("Jason Kanggara", "123"),
+            {"id": "12016"},
+        )
+        # Two-word option should also match a longer display name (substring match).
+        self.assertEqual(
+            self.module._ps_team_request_value("Kai Yi Lee", "123"),
+            {"id": "12017"},
+        )
+        # Unknown name still returns None so the field is omitted, not sent as garbage.
+        self.assertIsNone(self.module._ps_team_request_value("Totally Unknown", "123"))
+
     def test_set_pco_ps_team_maps_cs_duty_to_jira_option(self):
         calls = []
 
