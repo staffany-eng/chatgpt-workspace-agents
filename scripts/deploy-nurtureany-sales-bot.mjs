@@ -382,6 +382,10 @@ sudo chown "$runtime_owner:$runtime_owner" "$profile/scripts" "$profile/source" 
 copy_dir "$deploy_dir/apps/nurtureany-sales-bot" "$profile/source/nurtureany-sales-bot"
 sudo install -o "$runtime_owner" -g "$runtime_owner" -m 0644 "$deploy_dir/apps/nurtureany-sales-bot/profile/SOUL.md" "$profile/SOUL.md"
 copy_dir "$deploy_dir/apps/nurtureany-sales-bot/skills/nurtureany-sales-bot" "$profile/skills/nurtureany-sales-bot"
+copy_dir "$deploy_dir/apps/nurtureany-sales-bot/skills/company-enrichment" "$profile/skills/company-enrichment"
+copy_dir "$deploy_dir/apps/nurtureany-sales-bot/skills/apify-linkedin-scraper" "$profile/skills/apify-linkedin-scraper"
+copy_dir "$deploy_dir/apps/nurtureany-sales-bot/skills/apify-instagram-scraper" "$profile/skills/apify-instagram-scraper"
+copy_dir "$deploy_dir/apps/nurtureany-sales-bot/skills/apify-facebook-scraper" "$profile/skills/apify-facebook-scraper"
 copy_dir "$deploy_dir/apps/nurtureany-sales-bot/skills/target-account-news-scout" "$profile/skills/target-account-news-scout"
 copy_dir "$deploy_dir/apps/nurtureany-sales-bot/skills/publish-analysis-to-sheets" "$profile/skills/publish-analysis-to-sheets"
 copy_dir "$deploy_dir/apps/nurtureany-sales-bot/runtime/mcp" "$profile/runtime/mcp"
@@ -467,7 +471,7 @@ for server_name, template_server in template_servers.items():
         if key in template_tools and config_tools.get(key) != template_tools[key]:
             config_tools[key] = template_tools[key]
             changed = True
-    for key in ("auth_metadata", "access_policy", "env"):
+    for key in ("auth_metadata", "access_policy", "env", "headers"):
         expected_mapping = template_server.get(key)
         if isinstance(expected_mapping, dict):
             current_mapping = config_server.setdefault(key, {})

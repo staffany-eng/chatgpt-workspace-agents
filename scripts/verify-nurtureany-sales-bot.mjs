@@ -336,6 +336,11 @@ if (!existsSync(manifestPath)) {
       "build_pre_demo_game_plans",
       "find_sales_case_studies",
       "build_singapore_lead_enrichment_plan",
+      "resolve_company_enrichment_target",
+      "create_company_enrichment_artifact",
+      "update_company_enrichment_artifact",
+      "read_company_enrichment_artifact",
+      "summarize_company_enrichment_artifact",
       "list_active_deals_missing_next_meeting",
       "list_sales_followup_tasks",
       "list_due_hubspot_sales_task_reminders",
@@ -382,6 +387,7 @@ if (!existsSync(manifestPath)) {
       "search_exa_people_candidates",
       "search_lusha_decision_maker_candidates",
       "search_lusha_candidates_by_linkedin_urls",
+      "search_lusha_candidates_by_names",
       "get_lusha_credit_usage",
       "search_prospeo_decision_maker_candidates",
       "search_prospeo_candidates_by_linkedin_urls",
@@ -479,9 +485,15 @@ if (!existsSync(manifestPath)) {
     if (manifest.lusha?.auth_env_var !== "LUSHA_API_KEY") fail("Manifest missing LUSHA_API_KEY auth env var");
     if (manifest.lusha?.max_search_companies !== 5) fail("Manifest Lusha max_search_companies must be 5");
     if (manifest.lusha?.max_candidates_per_company !== 5) fail("Manifest Lusha max_candidates_per_company must be 5");
+    if (manifest.lusha?.max_linkedin_urls !== 10) fail("Manifest Lusha max_linkedin_urls must be 10");
+    if (manifest.lusha?.max_candidates_per_linkedin_url !== 5) fail("Manifest Lusha max_candidates_per_linkedin_url must be 5");
+    if (manifest.lusha?.max_name_lookups !== 10) fail("Manifest Lusha max_name_lookups must be 10");
     if (manifest.lusha?.max_reveal_contacts !== 3) fail("Manifest Lusha max_reveal_contacts must be 3");
     if (manifest.lusha?.selected_pii_in_slack !== true) fail("Manifest Lusha selected_pii_in_slack must be true");
     if (manifest.lusha?.bulk_contact_exports !== false) fail("Manifest Lusha bulk_contact_exports must be false");
+    for (const endpoint of ["POST /prospecting/contact/search", "POST /v2/contacts/search", "GET /v2/person"]) {
+      if (!manifest.lusha?.allowed_search_endpoints?.includes(endpoint)) fail(`Manifest Lusha missing endpoint: ${endpoint}`);
+    }
     if (manifest.prospeo?.auth_env_var !== "PROSPEO_API_KEY") fail("Manifest missing PROSPEO_API_KEY auth env var");
     if (manifest.prospeo?.max_search_companies !== 5) fail("Manifest Prospeo max_search_companies must be 5");
     if (manifest.prospeo?.max_candidates_per_company !== 5) fail("Manifest Prospeo max_candidates_per_company must be 5");
@@ -856,6 +868,13 @@ const filesToScan = [
   "profile/config.template.yaml",
   "runtime/access-policy.template.json",
   "skills/nurtureany-sales-bot/SKILL.md",
+  "skills/company-enrichment/SKILL.md",
+  "skills/apify-linkedin-scraper/SKILL.md",
+  "skills/apify-linkedin-scraper/agents/openai.yaml",
+  "skills/apify-instagram-scraper/SKILL.md",
+  "skills/apify-instagram-scraper/agents/openai.yaml",
+  "skills/apify-facebook-scraper/SKILL.md",
+  "skills/apify-facebook-scraper/agents/openai.yaml",
   "skills/target-account-news-scout/SKILL.md",
   "skills/target-account-news-scout/references/search-playbook.md",
   "skills/target-account-news-scout/references/output-contract.md",
@@ -907,6 +926,7 @@ const filesToScan = [
   "runtime/mcp/nurtureany_common/public_research.py",
   "runtime/mcp/public_research_nurtureany_server.py",
   "runtime/mcp/test_public_research_nurtureany_server.py",
+  "runtime/apify.md",
   "runtime/exa.md",
   "runtime/mcp/exa_nurtureany_server.py",
   "runtime/mcp/test_exa_nurtureany_server.py",
@@ -980,6 +1000,10 @@ for (const text of [
   "copy_dir",
   "source/nurtureany-sales-bot",
   "skills/nurtureany-sales-bot",
+  "skills/company-enrichment",
+  "skills/apify-linkedin-scraper",
+  "skills/apify-instagram-scraper",
+  "skills/apify-facebook-scraper",
   "skills/target-account-news-scout",
   "skills/publish-analysis-to-sheets",
   "runtime/mcp",
@@ -1009,7 +1033,7 @@ for (const text of [
   "apply-live-config-overrides.py",
   "copy.deepcopy(template_server)",
   "deploy:config-added-mcp-server:",
-  "for key in (\"auth_metadata\", \"access_policy\", \"env\"):",
+  "for key in (\"auth_metadata\", \"access_policy\", \"env\", \"headers\"):",
   "current_mapping = config_server.setdefault(key, {})",
   "gcloud secrets versions access latest",
   "deploy:secrets=preserved",
@@ -1204,6 +1228,17 @@ for (const text of [
   "research_public_company_signals",
   "find_brand_parent_candidates",
   "tavily_research_api: false",
+  "apify_nurtureany",
+  "APIFY_TOKEN",
+  "https://mcp.apify.com?tools=actors,docs",
+  "Authorization: Bearer ${APIFY_TOKEN}",
+  "search-actors",
+  "fetch-actor-details",
+  "call-actor",
+  "get-actor-run",
+  "get-actor-output",
+  "search-apify-docs",
+  "fetch-apify-docs",
   "exa_nurtureany",
   "EXA_API_KEY",
   "search_exa_people_candidates",
@@ -1211,6 +1246,7 @@ for (const text of [
   "LUSHA_API_KEY",
   "search_lusha_decision_maker_candidates",
   "search_lusha_candidates_by_linkedin_urls",
+  "search_lusha_candidates_by_names",
   "reveal_lusha_contact_details",
   "get_lusha_credit_usage",
   "prospeo_nurtureany",
@@ -1455,6 +1491,7 @@ for (const text of [
   "search_exa_people_candidates",
   "search_lusha_decision_maker_candidates",
   "search_lusha_candidates_by_linkedin_urls",
+  "search_lusha_candidates_by_names",
   "reveal_lusha_contact_details",
   "get_lusha_credit_usage",
   "search_prospeo_decision_maker_candidates",
@@ -2267,7 +2304,7 @@ for (const text of [
   "PROFILE=\"${HERMES_PROFILE:-nurtureanysalesbot}\"",
   "export HERMES_HOME=\"$HOME/.hermes/profiles/$PROFILE\"",
   "EXPECT_SLACK_INTENT_TOOLS=\"${EXPECT_SLACK_INTENT_TOOLS:-5}\"",
-  "EXPECT_HUBSPOT_TOOLS=\"${EXPECT_HUBSPOT_TOOLS:-60}\"",
+  "EXPECT_HUBSPOT_TOOLS=\"${EXPECT_HUBSPOT_TOOLS:-65}\"",
   "EXPECT_AIRCALL_TOOLS=\"${EXPECT_AIRCALL_TOOLS:-4}\"",
   "EXPECT_DEMO_SOURCES_TOOLS=\"${EXPECT_DEMO_SOURCES_TOOLS:-1}\"",
   "NURTUREANY_GATEWAY_SERVICE_NAME",
@@ -2322,6 +2359,7 @@ for (const text of [
   "find_event_sourcing_target_accounts",
   "mcp_test public_research_nurtureany",
   "mcp_test prospeo_nurtureany",
+  "mcp_test apify_nurtureany",
   "mcp_test slack_nurtureany",
   "mcp_test aircall_nurtureany",
   "mcp_test demo_sources_nurtureany",
@@ -2341,7 +2379,7 @@ for (const text of [
   "EXPECTED_CLOUD_HEARTBEAT_CRON_NAME",
   "nurtureanysalesbot local cloud heartbeat",
   "EXPECT_ENABLED_CRON_COUNT=\"${EXPECT_ENABLED_CRON_COUNT:-10}\"",
-  "EXPECT_HUBSPOT_TOOLS=\"${EXPECT_HUBSPOT_TOOLS:-60}\"",
+  "EXPECT_HUBSPOT_TOOLS=\"${EXPECT_HUBSPOT_TOOLS:-65}\"",
   "EXPECT_DEMO_SOURCES_TOOLS=\"${EXPECT_DEMO_SOURCES_TOOLS:-1}\"",
   "EXPECTED_TASK_REMINDER_CRON_NAME",
   "EXPECTED_TASK_REMINDER_EOD_CRON_NAME",
@@ -2357,6 +2395,7 @@ for (const text of [
   "ID WhatsApp Morning Blitz Report",
   "EXPECT_PUBLIC_RESEARCH_TOOLS=\"${EXPECT_PUBLIC_RESEARCH_TOOLS:-2}\"",
   "EXPECT_PROSPEO_TOOLS=\"${EXPECT_PROSPEO_TOOLS:-4}\"",
+  "EXPECT_APIFY_TOOLS=\"${EXPECT_APIFY_TOOLS:-7}\"",
   "nurtureanysalesbot-check-cloud-heartbeat.sh",
   "cron:enabled-recurring-count-unexpected",
   "event-roi-enabled",
@@ -2368,7 +2407,8 @@ for (const text of [
   "mcp:demo_sources_nurtureany:tools=$EXPECT_DEMO_SOURCES_TOOLS",
   "mcp:google_sheets_nurtureany:tools=2",
   "mcp:public_research_nurtureany:tools=$EXPECT_PUBLIC_RESEARCH_TOOLS",
-  "mcp:prospeo_nurtureany:tools=$EXPECT_PROSPEO_TOOLS"
+  "mcp:prospeo_nurtureany:tools=$EXPECT_PROSPEO_TOOLS",
+  "mcp:apify_nurtureany:tools=$EXPECT_APIFY_TOOLS"
 ]) {
   if (!cloudHeartbeatScriptText.includes(text)) fail(`runtime/check-cloud-heartbeat.sh missing required text: ${text}`);
 }
@@ -2645,7 +2685,9 @@ for (const text of [
   "MAX_CANDIDATES_PER_COMPANY = 5",
   "MAX_REVEAL_CONTACTS = 3",
   "MAX_LINKEDIN_URLS = 10",
+  "MAX_NAME_LOOKUPS = 10",
   "POST\", \"/v2/contacts/search\"",
+  "GET\", path",
   "revealEmails",
   "revealPhones",
   "credit_report",

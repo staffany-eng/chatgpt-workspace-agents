@@ -34,6 +34,8 @@ PUBLIC_FETCH_TIMEOUT_SECONDS = 5
 PUBLIC_FETCH_MAX_BYTES = 30_000
 SNIPPET_CHAR_LIMIT = 420
 SIGNAL_EVIDENCE_CHAR_LIMIT = 240
+PUBLIC_PEOPLE_CANDIDATE_LIMIT = 20
+PUBLIC_CONTACT_CHANNEL_LIMIT = 20
 PAYG_CREDIT_PRICE_USD = 0.008
 
 FREE_SEARCH_SOURCE_TYPES = (
@@ -68,6 +70,11 @@ JOB_BOARD_HOST_MARKERS = (
 )
 REVIEW_HOST_MARKERS = ("glassdoor.", "tripadvisor.", "burpple.", "hungrygowhere.", "google.")
 NEWS_HOST_MARKERS = ("news", "straitstimes.com", "channelnewsasia.com", "businesstimes.com.sg", "techinasia.com")
+COUNTRY_JOB_BOARD_QUERIES = {
+    "Singapore": "JobStreet OR Indeed OR Glints OR MyCareersFuture",
+    "Malaysia": "JobStreet OR Indeed OR Maukerja OR Ricebowl OR MyFutureJobs",
+    "Indonesia": "JobStreet OR Glints OR Kalibrr OR Dealls",
+}
 COMPANY_NAME_STOPWORDS = {
     "and",
     "cafe",
@@ -85,6 +92,21 @@ COMPANY_NAME_STOPWORDS = {
     "singapore",
     "the",
 }
+PUBLIC_PEOPLE_ROLE_RE = (
+    r"founder|co-founder|owner|business owner|ceo|chief executive officer|managing director|"
+    r"general manager|operations director|operation director|hr director|people director|"
+    r"finance director|admin(?:istrative)? manager"
+)
+PUBLIC_PERSON_NAME_RE = r"[A-Z][A-Za-z.'-]+(?:\s+[A-Z][A-Za-z.'-]+){0,3}"
+PUBLIC_PERSON_NAME_STOPWORDS = {
+    "Ameising Group",
+    "Acme Cafe",
+    "Nanyang Style",
+    "Grand Opening",
+    "Singapore",
+}
+PUBLIC_EMAIL_RE = r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b"
+PUBLIC_PHONE_RE = r"(?:\+?65|\+?60|\+?62)?[\s().-]*(?:\d[\s().-]*){7,12}\d"
 
 MODE_CONFIGS = {
     "light": {
@@ -98,10 +120,10 @@ MODE_CONFIGS = {
     },
     "standard": {
         "search_depth": "basic",
-        "query_count": 3,
+        "query_count": 5,
         "max_results": 5,
         "extract_depth": "basic",
-        "extract_url_cap": 2,
+        "extract_url_cap": 4,
         "search_credit": 1,
         "extract_credit": 1,
     },
@@ -253,13 +275,17 @@ def company_queries(company: dict[str, str], mode: str) -> list[str]:
     label = company.get("name") or company.get("domain")
     country = company.get("country", "")
     domain = company.get("domain", "")
+    job_boards = COUNTRY_JOB_BOARD_QUERIES.get(country, "JobStreet OR Indeed OR Glints")
     base = [
-        f'"{label}" {country} official website news opening expansion',
+        f'"{label}" {country} official website contact phone email WhatsApp booking',
+        f'"{label}" {country} outlet phone email reservation booking',
         f'"{label}" careers hiring jobs HR {country}',
+        f'"{label}" {country} {job_boards} HR operations admin jobs',
         f'"{label}" payroll scheduling manpower HR owner founder operations {country}',
+        f'"{label}" {country} news opening expansion founder owner',
     ]
     if domain:
-        base.insert(1, f'site:{domain} careers hiring HR payroll scheduling')
+        base.insert(1, f'site:{domain} contact phone email WhatsApp booking careers hiring')
     return [re.sub(r"\s+", " ", query).strip() for query in base if query.strip()][: MODE_CONFIGS[_research_mode(mode)]["query_count"]]
 
 
@@ -401,6 +427,8 @@ def research_public_company_signals(
     company_outputs: list[dict[str, Any]] = []
     source_evidence: list[dict[str, Any]] = []
     company_signals: list[dict[str, Any]] = []
+    public_people_candidates: list[dict[str, Any]] = []
+    public_contact_channels: list[dict[str, Any]] = []
     game_plan_inputs: list[dict[str, Any]] = []
     manual_check_items: list[dict[str, Any]] = []
     missing_evidence: list[str] = []
@@ -424,6 +452,8 @@ def research_public_company_signals(
 
         company_evidence: list[dict[str, Any]] = []
         company_signal_rows: list[dict[str, Any]] = []
+        company_people_candidates: list[dict[str, Any]] = []
+        company_contact_channels: list[dict[str, Any]] = []
         company_manual_checks: list[dict[str, Any]] = []
 
         for result in unique_results:
@@ -432,9 +462,18 @@ def research_public_company_signals(
             extract_text = extracted_text_by_url.get(source_url, "")
             fetch_status = "manual_check_only" if result["requires_manual_review"] else ("tavily_extracted" if extract_text else "tavily_search_only")
             signals = extract_company_signals(result, source_type, source_url, extract_text)
+            people_candidates = extract_public_people_candidates(result, source_type, source_url, extract_text)
+            contact_channels = extract_public_contact_channels(result, source_type, source_url, extract_text)
             for signal in signals:
                 signal["company_id"] = company["company_id"]
                 signal["company_name"] = company["name"]
+            for candidate in people_candidates:
+                candidate["company_id"] = company["company_id"]
+                candidate["company"] = company["name"]
+                candidate["company_name"] = company["name"]
+            for channel in contact_channels:
+                channel["company_id"] = company["company_id"]
+                channel["company_name"] = company["name"]
             evidence = {
                 "company_id": company["company_id"],
                 "company_name": company["name"],
@@ -452,6 +491,8 @@ def research_public_company_signals(
             }
             company_evidence.append(evidence)
             company_signal_rows.extend(signals)
+            company_people_candidates.extend(people_candidates)
+            company_contact_channels.extend(contact_channels)
             if result["requires_manual_review"]:
                 company_manual_checks.append(
                     manual_check_item(company, source_url, result["title"], source_type, "social_gated_or_manual_source")
@@ -463,6 +504,8 @@ def research_public_company_signals(
 
         source_evidence.extend(company_evidence[:PUBLIC_EVIDENCE_ITEM_LIMIT])
         company_signals.extend(company_signal_rows[:20])
+        public_people_candidates.extend(company_people_candidates[:PUBLIC_PEOPLE_CANDIDATE_LIMIT])
+        public_contact_channels.extend(company_contact_channels[:PUBLIC_CONTACT_CHANNEL_LIMIT])
         manual_check_items.extend(company_manual_checks[:10])
         missing_evidence.extend(company_missing)
         game_plan_inputs.append(game_inputs)
@@ -470,6 +513,8 @@ def research_public_company_signals(
             {
                 "input_company": company,
                 "company_signals": company_signal_rows[:20],
+                "public_people_candidates": company_people_candidates[:PUBLIC_PEOPLE_CANDIDATE_LIMIT],
+                "public_contact_channels": company_contact_channels[:PUBLIC_CONTACT_CHANNEL_LIMIT],
                 "source_evidence": company_evidence[:PUBLIC_EVIDENCE_ITEM_LIMIT],
                 "game_plan_inputs": game_inputs,
                 "manual_check_items": company_manual_checks[:10],
@@ -493,6 +538,8 @@ def research_public_company_signals(
     return {
         "answer": company_outputs,
         "company_signals": company_signals[:60],
+        "public_people_candidates": public_people_candidates[: MAX_RESEARCH_COMPANIES * PUBLIC_PEOPLE_CANDIDATE_LIMIT],
+        "public_contact_channels": public_contact_channels[: MAX_RESEARCH_COMPANIES * PUBLIC_CONTACT_CHANNEL_LIMIT],
         "source_evidence": source_evidence[: MAX_RESEARCH_COMPANIES * PUBLIC_EVIDENCE_ITEM_LIMIT],
         "game_plan_inputs": game_plan_inputs,
         "manual_check_items": manual_check_items[:50],
@@ -751,8 +798,26 @@ def _extractable_urls(results: list[dict[str, Any]], company: dict[str, str], mo
             continue
         urls.append(url)
     company_domain = company.get("domain", "")
-    urls.sort(key=lambda url: 0 if company_domain and _host(url).endswith(company_domain) else 1)
+    urls.sort(key=lambda url: _extract_priority(url, company_domain))
     return urls[: MODE_CONFIGS[_research_mode(mode)]["extract_url_cap"]]
+
+
+def _extract_priority(url: str, company_domain: str) -> tuple[int, str]:
+    parsed = urllib.parse.urlparse(url)
+    host = _host(url)
+    path = parsed.path.lower()
+    full = f"{host}{path}".lower()
+    if company_domain and host.endswith(company_domain) and any(part in full for part in ("contact", "reservation", "booking", "whatsapp")):
+        return (0, url)
+    if company_domain and host.endswith(company_domain):
+        return (1, url)
+    if any(marker in host for marker in JOB_BOARD_HOST_MARKERS):
+        return (2, url)
+    if any(marker in full for marker in ("contact", "reservation", "booking", "whatsapp", "phone")):
+        return (3, url)
+    if any(marker in host for marker in NEWS_HOST_MARKERS):
+        return (4, url)
+    return (5, url)
 
 
 def _extract_text(token: str, urls: list[str], mode: str) -> dict[str, str]:
@@ -941,8 +1006,7 @@ def extract_company_signals(item: dict[str, Any], source_type: str, source_url: 
     # Generic directories often contain unrelated footer/navigation words like
     # "job opening" or "new outlet". Use extracted page text only for sources
     # whose type is already meaningfully tied to the company or market event.
-    signal_text = search_text if source_type == "general_web" else text
-    lowered = signal_text.lower()
+    default_signal_text = search_text if source_type == "general_web" else text
     signal_keywords = {
         "hiring_signal": ("hiring", "vacancy", "recruit", "join our team", "open role", "job opening", "jobs available"),
         "growth_signal": ("new outlet", "opening soon", "grand opening", "new branch", "expanding", "expansion", "launch", "coming soon"),
@@ -952,6 +1016,8 @@ def extract_company_signals(item: dict[str, Any], source_type: str, source_url: 
     }
     signals = []
     for signal_type, keywords in signal_keywords.items():
+        signal_text = text if signal_type == "decision_maker_hint" else default_signal_text
+        lowered = signal_text.lower()
         if signal_type == "news_signal" and re.search(r"\bno\s+(recent\s+)?news\b|\bno\s+news\s+articles\b", lowered):
             continue
         matched = [keyword for keyword in keywords if keyword in lowered]
@@ -963,13 +1029,168 @@ def extract_company_signals(item: dict[str, Any], source_type: str, source_url: 
                     "source_type": source_type,
                     "source_url": source_url,
                     "evidence": _short_text(
-                        str(item.get("snippet") or (fetched_text if source_type != "general_web" else "") or item.get("title") or ""),
+                        str(item.get("snippet") or fetched_text or item.get("title") or ""),
                         SIGNAL_EVIDENCE_CHAR_LIMIT,
                     ),
                     "confidence": "needs-check",
                 }
             )
     return signals
+
+
+def extract_public_people_candidates(
+    item: dict[str, Any],
+    source_type: str,
+    source_url: str,
+    fetched_text: str,
+) -> list[dict[str, Any]]:
+    if source_type not in FETCHABLE_PUBLIC_SOURCE_TYPES or _is_manual_only_host(source_url):
+        return []
+    text = html.unescape(
+        " ".join(
+            str(part or "")
+            for part in [
+                item.get("title"),
+                item.get("snippet"),
+                fetched_text,
+            ]
+        )
+    )
+    if not text:
+        return []
+    candidates: list[dict[str, Any]] = []
+    patterns = (
+        rf"\b(?P<title>{PUBLIC_PEOPLE_ROLE_RE})\b[^.\n]{{0,80}}?,\s*(?P<name>{PUBLIC_PERSON_NAME_RE})",
+        rf"\b(?P<title>{PUBLIC_PEOPLE_ROLE_RE})\b\s*(?:,|:|-|–|by|is|as)?\s+(?P<name>{PUBLIC_PERSON_NAME_RE})",
+        rf"(?P<name>{PUBLIC_PERSON_NAME_RE})\s*(?:,|-|–|\()\s*(?P<title>{PUBLIC_PEOPLE_ROLE_RE})\b",
+    )
+    for pattern in patterns:
+        for match in re.finditer(pattern, text, flags=re.I):
+            title = _clean_public_person_title(match.group("title"))
+            name = _clean_public_person_name(match.group("name"))
+            if not name or not title:
+                continue
+            key = _normalize_relevance_text(f"{name} {title}")
+            if any(_normalize_relevance_text(f"{candidate.get('name')} {candidate.get('title')}") == key for candidate in candidates):
+                continue
+            candidates.append(
+                {
+                    "name": name,
+                    "title": title,
+                    "source_type": source_type,
+                    "source_url": source_url,
+                    "company_match": "needs-check",
+                    "confidence_band": "medium",
+                    "evidence_refs": [
+                        {
+                            "source": "public_extract",
+                            "url": source_url,
+                            "title": _short_text(str(item.get("title") or ""), 180),
+                        }
+                    ],
+                    "warnings": ["public extract candidate; verify current role before HubSpot writeback"],
+                }
+            )
+            if len(candidates) >= PUBLIC_PEOPLE_CANDIDATE_LIMIT:
+                return candidates
+    return candidates
+
+
+def extract_public_contact_channels(
+    item: dict[str, Any],
+    source_type: str,
+    source_url: str,
+    fetched_text: str,
+) -> list[dict[str, Any]]:
+    if source_type not in FETCHABLE_PUBLIC_SOURCE_TYPES or _is_manual_only_host(source_url):
+        return []
+    text = html.unescape(
+        " ".join(
+            str(part or "")
+            for part in [
+                item.get("title"),
+                item.get("snippet"),
+                fetched_text,
+            ]
+        )
+    )
+    if not text:
+        return []
+    channels: list[dict[str, Any]] = []
+    for email in re.findall(PUBLIC_EMAIL_RE, text, flags=re.I):
+        normalized = email.lower()
+        if normalized.endswith((".png", ".jpg", ".jpeg", ".gif")):
+            continue
+        _append_public_channel(channels, "public_company_email", normalized, source_type, source_url, item)
+    for raw_phone in re.findall(PUBLIC_PHONE_RE, text):
+        normalized = _clean_public_phone(raw_phone)
+        if not normalized:
+            continue
+        _append_public_channel(channels, "public_company_phone", normalized, source_type, source_url, item)
+    return channels[:PUBLIC_CONTACT_CHANNEL_LIMIT]
+
+
+def _append_public_channel(
+    channels: list[dict[str, Any]],
+    channel_type: str,
+    value: str,
+    source_type: str,
+    source_url: str,
+    item: dict[str, Any],
+) -> None:
+    key = _normalize_relevance_text(f"{channel_type} {value}")
+    if any(_normalize_relevance_text(f"{channel.get('channel_type')} {channel.get('value')}") == key for channel in channels):
+        return
+    channels.append(
+        {
+            "channel_type": channel_type,
+            "value": value,
+            "source_type": source_type,
+            "source_url": source_url,
+            "title": _short_text(str(item.get("title") or ""), 180),
+            "confidence": "needs-check",
+            "usage": "public company channel only; not a personal provider reveal",
+        }
+    )
+
+
+def _clean_public_phone(value: str) -> str:
+    text = re.sub(r"[^\d+]", "", str(value or ""))
+    if not text:
+        return ""
+    digits = re.sub(r"\D", "", text)
+    if len(digits) < 8 or len(digits) > 14:
+        return ""
+    if len(set(digits)) <= 2:
+        return ""
+    if text.startswith("+"):
+        return text
+    if digits.startswith(("65", "60", "62")):
+        return f"+{digits}"
+    return digits
+
+
+def _clean_public_person_title(value: str) -> str:
+    text = re.sub(r"\s+", " ", str(value or "")).strip(" -:,.()")
+    words = []
+    for word in text.split():
+        lowered = word.lower()
+        words.append(lowered.upper() if lowered in {"ceo", "hr"} else lowered.capitalize())
+    return _short_text(" ".join(words), 120)
+
+
+def _clean_public_person_name(value: str) -> str:
+    text = re.sub(r"\s+", " ", str(value or "")).strip(" -:,.()")
+    text = re.sub(r"\b(?:of|at|for|the|a|an|is|as|by)\b.*$", "", text, flags=re.I).strip(" -:,.()")
+    if not text or len(text) < 3:
+        return ""
+    if any(_normalize_relevance_text(text) == _normalize_relevance_text(stop) for stop in PUBLIC_PERSON_NAME_STOPWORDS):
+        return ""
+    if any(token.lower() in COMPANY_NAME_STOPWORDS for token in text.split()):
+        return ""
+    if len(text.split()) > 4:
+        return ""
+    return _short_text(text, 120)
 
 
 def outreach_angles(signals: list[dict[str, Any]], candidates: list[dict[str, Any]]) -> list[str]:

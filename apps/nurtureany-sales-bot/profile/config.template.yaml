@@ -470,6 +470,11 @@ mcp_servers:
     - build_pre_demo_game_plans
     - find_sales_case_studies
     - build_singapore_lead_enrichment_plan
+    - resolve_company_enrichment_target
+    - create_company_enrichment_artifact
+    - update_company_enrichment_artifact
+    - read_company_enrichment_artifact
+    - summarize_company_enrichment_artifact
     - list_active_deals_missing_next_meeting
     - list_sales_followup_tasks
     - list_due_hubspot_sales_task_reminders
@@ -616,6 +621,7 @@ mcp_servers:
       max_candidates_per_company: 5
       max_linkedin_urls: 10
       max_candidates_per_linkedin_url: 5
+      max_name_lookups: 10
       max_reveal_contacts: 3
       require_credit_report: true
       recommend_low_monthly_dashboard_limit: true
@@ -626,6 +632,7 @@ mcp_servers:
     tool_allowlist:
     - search_lusha_decision_maker_candidates
     - search_lusha_candidates_by_linkedin_urls
+    - search_lusha_candidates_by_names
     - reveal_lusha_contact_details
     - get_lusha_credit_usage
   prospeo_nurtureany:
@@ -680,6 +687,54 @@ mcp_servers:
       linkedin_urls_are_manual_check_only: true
     tool_allowlist:
     - search_exa_people_candidates
+  apify_nurtureany:
+    description: Approval-gated Apify MCP for explicit public social scraping and
+      Actor discovery in NurtureAny enrichment workflows.
+    url: https://mcp.apify.com?tools=actors,docs
+    headers:
+      Authorization: Bearer ${APIFY_TOKEN}
+    env:
+      APIFY_TOKEN: ${APIFY_TOKEN}
+    auth_metadata:
+      type: bearer_env
+      env: APIFY_TOKEN
+    cost_policy:
+      require_budget_confirmation: true
+      explicit_user_approval_before_actor_run: true
+      default_result_cap: 10
+      actor_selection_requires_schema_check: true
+      prefer_apify_maintained_actors: true
+    pii_policy:
+      selected_pii_in_internal_slack: false
+      bulk_contact_exports: false
+      raw_dataset_exports: false
+      private_session_cookies: false
+      public_pages_only_by_default: true
+      social_results_are_manual_review_only: true
+    access_policy:
+      mode: approval_gated_public_social_scrape
+      requires_scoped_hubspot_company_for_enrichment: true
+      explicit_run_only: true
+      default_waterfall_source: false
+      allowed_social_sources:
+      - linkedin_public
+      - instagram_public
+      - facebook_public
+      blocked_sources:
+      - private_profiles
+      - private_groups
+      - authenticated_sessions
+      - sales_navigator
+      - login_cookies
+      hubspot_writeback: none
+    tool_allowlist:
+    - search-actors
+    - fetch-actor-details
+    - call-actor
+    - get-actor-run
+    - get-actor-output
+    - search-apify-docs
+    - fetch-apify-docs
   staffany_bigquery:
     description: Read-only C360 enrichment source for MRR, renewal timing, account
       owner, and PSM context.

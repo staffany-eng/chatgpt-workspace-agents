@@ -15,7 +15,7 @@ Field-level durable sources:
 - Phone verification: contact `nurtureany_phone_verification_status`, `nurtureany_phone_verified_at`, `nurtureany_phone_verified_by`, `nurtureany_phone_verification_source`, and `nurtureany_phone_verification_notes`. Valid phone verification requires `called_connected`; `truecaller_manual_lookup` is manual candidate evidence only unless paired with a connected-call outcome.
 - Task queue and recurring reminder truth: HubSpot Task `hs_timestamp`; completed tasks are excluded by `hs_task_status=COMPLETED`. `hs_task_reminders` may be set as a native due-minus-one-day HubSpot UI nudge, but no Slack reminder loop should treat it as the recurring source of truth.
 
-`current_tool_renewal_date` is secondary context only. C360, Google Calendar, Luma, the Indonesia event registration Sheet fallback, Tavily public research, Exa, Lusha, Prospeo, Slack, and public evidence enrich the answer but do not override the durable HubSpot fields above. Prospeo is an active paid-provider pilot adapter when `PROSPEO_API_KEY` is configured; it follows Lusha-style approval, selected-contact, credit-reporting, and no-write guardrails.
+`current_tool_renewal_date` is secondary context only. C360, Google Calendar, Luma, the Indonesia event registration Sheet fallback, Tavily public research, Exa, Lusha, Prospeo, Slack, and public evidence enrich the answer but do not override the durable HubSpot fields above. Single-company enrichment stores runtime-only JSON artifacts under `lead-enrichment-artifacts/`; artifact rows are preview-only and do not mutate HubSpot. Prospeo is an active paid-provider pilot adapter when `PROSPEO_API_KEY` is configured; it follows Lusha-style approval, selected-contact, credit-reporting, and no-write guardrails.
 
 Do not call contract timing a StaffAny renewal unless customer status is verified. For prospects or unknowns, use incumbent-tool contract timing or migration/procurement timing.
 
@@ -84,6 +84,11 @@ It exposes these tools:
 - `build_pre_demo_game_plans`
 - `find_sales_case_studies`
 - `build_singapore_lead_enrichment_plan`
+- `resolve_company_enrichment_target`
+- `create_company_enrichment_artifact`
+- `update_company_enrichment_artifact`
+- `read_company_enrichment_artifact`
+- `summarize_company_enrichment_artifact`
 - `list_sales_followup_tasks`
 - `preview_hubspot_sales_task`
 - `create_approved_hubspot_sales_task`
@@ -115,6 +120,12 @@ It exposes these tools:
 - `plan_hubspot_writeback`
 
 It intentionally does not expose generic HubSpot mutation tools in V1. The only HubSpot write path here is the narrow, preview-first, exact-approval Task primitive set; `create_hubspot_task`, `append_hubspot_note`, and `update_nurture_fields` remain disabled planned tools.
+
+The single-company enrichment artifact tools are runtime state tools only. `resolve_company_enrichment_target` and `create_company_enrichment_artifact` must resolve exactly one scoped HubSpot target account before any Tavily, standalone public search, Exa, Lusha, or Prospeo work. `update_company_enrichment_artifact` appends normalized public/provider evidence or a raw `tool_result`, including Tavily public extract/read-through, standalone public people/contact searches across official team pages, public directories/events, careers pages, public social/company pages where allowed, Indeed, JobStreet, Glints, MyCareersFuture, Maukerja, Ricebowl, Kalibrr, and Dealls where relevant by country, then Exa people candidates plus safe public read-through evidence as fallback/corroboration, then Lusha and Prospeo search results. Uncorroborated Exa LinkedIn names remain audit evidence only and must not appear as AE-ready contact preview rows. If domain search returns zero and public LinkedIn person URLs exist, the LinkedIn-URL provider lookup path must run before the paid-provider level counts as complete. If a public/provider level found full candidate names but no LinkedIn URL, the Lusha name fallback can run against the scoped company name/domain before reveal recommendations. It can store revealed personal PII only with an approval marker and a 14-day TTL; public company channels from official/public pages can be returned separately as company-level contact channels. Default reads redact personal email, phone, and mobile. `summarize_company_enrichment_artifact` returns HubSpot contact-format preview rows with `will_mutate_hubspot=false` and a `waterfall_state`; final answers must not claim a full waterfall unless `waterfall_state.can_claim_full_waterfall=true`.
+
+LinkedIn, Facebook, Instagram, TikTok, and Slack unfurls are not verification sources by themselves. They may create candidate evidence and manual-review items, but the bot must not call a current role/company "confirmed" from those sources alone.
+
+Public company-channel extraction should be broad on non-gated sources: official contact pages, website/careers pages, public job posts, directories, review pages, and articles may be extracted for outlet phone, booking WhatsApp, public company email, hiring signals, and public role/name hints. Social pages stay manual-review even when discovered.
 
 The near-me stdio MCP adapter lives separately at `runtime/mcp/near_me_nurtureany_server.py`. It builds BigQuery outlet-match and C360 SQL, refreshes Google Places, and never mutates HubSpot.
 

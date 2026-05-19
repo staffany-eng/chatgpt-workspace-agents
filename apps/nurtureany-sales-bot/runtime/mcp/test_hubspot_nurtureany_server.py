@@ -421,6 +421,606 @@ class OperationLedgerTest(unittest.TestCase):
         self.assertEqual(loaded["confidence"], "verified")
 
 
+class CompanyEnrichmentArtifactTest(unittest.TestCase):
+    def setUp(self):
+        self.module = load_hubspot_module()
+
+    def _company(self, company_id="123", country="Singapore", name="Noci Bakehouse"):
+        return {
+            "id": company_id,
+            "properties": {
+                "name": name,
+                "domain": "noci.example",
+                "website": "https://noci.example",
+                "hs_is_target_account": "true",
+                "company_country": country,
+                "hubspot_owner_id": "owner-1",
+                "numberofemployees": "80",
+                "industry": "Food & Beverage",
+            },
+        }
+
+    def _context(self, company_id="123", country="Singapore", name="Noci Bakehouse", contacts=None):
+        context = company_context(company_id)
+        context["company"].update(
+            {
+                "company_id": company_id,
+                "name": name,
+                "domain": "noci.example",
+                "website": "https://noci.example",
+                "country": country,
+                "owner_id": "owner-1",
+                "owner_email": "owner@example.com",
+                "owner_name": "Owner Example",
+                "industry": "Food & Beverage",
+                "headcount": "80",
+            }
+        )
+        context["contacts"] = contacts or []
+        context["sales_followup_tasks"] = []
+        return context
+
+    def test_company_artifact_create_read_summary_redacts_revealed_pii_by_default(self):
+        company = self._company()
+        with tempfile.TemporaryDirectory() as artifact_dir, patch.dict(
+            os.environ, {"NURTUREANY_LEAD_ENRICHMENT_ARTIFACTS_DIR": artifact_dir}
+        ), patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
+            self.module, "_get_company", return_value=company
+        ), patch.object(
+            self.module, "_owner_email_by_id", return_value="owner@example.com"
+        ), patch.object(
+            self.module, "_owner_name_by_id", return_value="Owner Example"
+        ), patch.object(
+            self.module, "_company_context", return_value=self._context()
+        ):
+            created = self.module.create_company_enrichment_artifact(
+                "kerren.fong@staffany.com",
+                company_id="123",
+                artifact_id="artifact-1",
+            )
+            updated = self.module.update_company_enrichment_artifact(
+                "artifact-1",
+                source="lusha",
+                candidates=[
+                    {
+                        "name": "Ada Tan",
+                        "title": "HR Director",
+                        "company": "Noci Bakehouse",
+                        "email_available": True,
+                        "lusha_contact_id": "lusha-1",
+                    }
+                ],
+                revealed_contacts=[
+                    {
+                        "name": "Ada Tan",
+                        "title": "HR Director",
+                        "company": "Noci Bakehouse",
+                        "email": "ada@example.com",
+                        "phone": "+6512345678",
+                        "lusha_contact_id": "lusha-1",
+                    }
+                ],
+                approval_marker="approve reveal ada",
+            )
+            redacted = self.module.read_company_enrichment_artifact("artifact-1")
+            included = self.module.read_company_enrichment_artifact(
+                "artifact-1",
+                include_revealed_details=True,
+                approval_marker="approve reveal ada",
+            )
+            summary = self.module.summarize_company_enrichment_artifact("artifact-1")
+
+        self.assertEqual(created["confidence"], "verified")
+        self.assertEqual(updated["confidence"], "verified")
+        self.assertFalse(summary["answer"]["will_mutate_hubspot"])
+        self.assertNotIn("ada@example.com", json.dumps(redacted))
+        self.assertNotIn("+6512345678", json.dumps(redacted))
+        self.assertIn("ada@example.com", json.dumps(included))
+        self.assertEqual(summary["answer"]["hubspot_contact_preview_rows"][0]["will_mutate_hubspot"], False)
+
+    def test_name_resolution_blocks_ambiguous_and_brand_parent_can_resolve(self):
+        company = self._company(name="Tung Lok Group")
+
+        def fake_resolve(name, scope, limit=10):
+            if name == "Tung Lok":
+                return {
+                    "status": "ambiguous",
+                    "candidates": [
+                        {"company_id": "123", "name": "Tung Lok Group"},
+                        {"company_id": "456", "name": "Tung Lok Seafood"},
+                    ],
+                }
+            if name == "Tung Lok Group":
+                return {"status": "resolved", "company_id": "123", "match_type": "exact"}
+            return {"status": "not_found", "candidates": []}
+
+        with tempfile.TemporaryDirectory() as artifact_dir, patch.dict(
+            os.environ, {"NURTUREANY_LEAD_ENRICHMENT_ARTIFACTS_DIR": artifact_dir}
+        ), patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
+            self.module, "_resolve_scoped_company_name", side_effect=fake_resolve
+        ), patch.object(
+            self.module, "_get_company", return_value=company
+        ), patch.object(
+            self.module, "_owner_email_by_id", return_value="owner@example.com"
+        ), patch.object(
+            self.module, "_owner_name_by_id", return_value="Owner Example"
+        ), patch.object(
+            self.module, "_company_context", return_value=self._context(name="Tung Lok Group")
+        ):
+            ambiguous = self.module.resolve_company_enrichment_target(
+                "kerren.fong@staffany.com",
+                company_name="Tung Lok",
+                country="Singapore",
+            )
+            resolved = self.module.create_company_enrichment_artifact(
+                "kerren.fong@staffany.com",
+                company_name="Unknown Brand",
+                country="Singapore",
+                brand_parent_candidates=["Tung Lok Group"],
+                artifact_id="tung-lok",
+            )
+
+        self.assertEqual(ambiguous["confidence"], "blocked")
+        self.assertEqual(ambiguous["answer"]["status"], "ambiguous")
+        self.assertEqual(resolved["confidence"], "verified")
+        self.assertIn("brand_parent", json.dumps(resolved["answer"]["resolution"]))
+
+    def test_out_of_scope_country_blocks_before_artifact_create(self):
+        malaysia_company = self._company(country="Malaysia")
+        with patch.object(self.module, "_caller_scope", return_value={**SCOPE, "countries": ("Singapore",)}), patch.object(
+            self.module, "_get_company", return_value=malaysia_company
+        ), patch.object(
+            self.module, "_owner_email_by_id", return_value="owner@example.com"
+        ), patch.object(
+            self.module, "_owner_name_by_id", return_value="Owner Example"
+        ):
+            result = self.module.create_company_enrichment_artifact(
+                "kerren.fong@staffany.com",
+                company_id="123",
+                country="Singapore",
+            )
+
+        self.assertEqual(result["confidence"], "blocked")
+
+    def test_stop_when_ready_from_existing_hubspot_contact(self):
+        contact = {
+            "contact_id": "contact-1",
+            "display_name": "Ada T.",
+            "persona": "HR Director",
+            "buying_role": "DECISION_MAKER",
+            "is_verified_decision_maker": True,
+            "is_decision_maker": True,
+            "phone_available": True,
+            "is_phone_verified": True,
+            "channel_fit": "whatsapp",
+        }
+        company = self._company()
+        with tempfile.TemporaryDirectory() as artifact_dir, patch.dict(
+            os.environ, {"NURTUREANY_LEAD_ENRICHMENT_ARTIFACTS_DIR": artifact_dir}
+        ), patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
+            self.module, "_get_company", return_value=company
+        ), patch.object(
+            self.module, "_owner_email_by_id", return_value="owner@example.com"
+        ), patch.object(
+            self.module, "_owner_name_by_id", return_value="Owner Example"
+        ), patch.object(
+            self.module, "_company_context", return_value=self._context(contacts=[contact])
+        ):
+            created = self.module.create_company_enrichment_artifact(
+                "kerren.fong@staffany.com",
+                company_id="123",
+                artifact_id="ready-artifact",
+            )
+
+        self.assertTrue(created["answer"]["ready_state"]["minimum_ready"])
+        self.assertEqual(created["answer"]["next_recommended_level"], "level_7_hubspot_contact_preview")
+
+    def test_public_job_board_search_runs_before_exa_lusha_and_prospeo_fallback(self):
+        company = self._company()
+        with tempfile.TemporaryDirectory() as artifact_dir, patch.dict(
+            os.environ, {"NURTUREANY_LEAD_ENRICHMENT_ARTIFACTS_DIR": artifact_dir}
+        ), patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
+            self.module, "_get_company", return_value=company
+        ), patch.object(
+            self.module, "_owner_email_by_id", return_value="owner@example.com"
+        ), patch.object(
+            self.module, "_owner_name_by_id", return_value="Owner Example"
+        ), patch.object(
+            self.module, "_company_context", return_value=self._context()
+        ):
+            self.module.create_company_enrichment_artifact(
+                "kerren.fong@staffany.com",
+                company_id="123",
+                artifact_id="provider-artifact",
+            )
+            self.module.update_company_enrichment_artifact(
+                "provider-artifact",
+                source="tavily",
+                evidence=[{"url": "https://noci.example/careers"}],
+            )
+            after_tavily = self.module.summarize_company_enrichment_artifact("provider-artifact")
+            self.module.update_company_enrichment_artifact(
+                "provider-artifact",
+                source="job_board_search",
+                evidence=[{"source": "JobStreet Singapore", "url": "https://example.test/jobs"}],
+            )
+            after_public = self.module.summarize_company_enrichment_artifact("provider-artifact")
+            self.module.update_company_enrichment_artifact(
+                "provider-artifact",
+                source="exa",
+                candidates=[{"name": "Ben Lee", "title": "Marketing Executive", "company": "Noci Bakehouse"}],
+            )
+            after_exa = self.module.summarize_company_enrichment_artifact("provider-artifact")
+            self.module.update_company_enrichment_artifact(
+                "provider-artifact",
+                source="lusha",
+                candidates=[],
+            )
+            after_lusha = self.module.summarize_company_enrichment_artifact("provider-artifact")
+
+        self.assertEqual(after_tavily["answer"]["next_recommended_level"], "level_3_public_people_job_board_search")
+        self.assertEqual(after_public["answer"]["next_recommended_level"], "level_4_exa_people_search")
+        self.assertEqual(after_exa["answer"]["next_recommended_level"], "level_5_lusha_search")
+        self.assertEqual(after_lusha["answer"]["next_recommended_level"], "level_6_prospeo_fallback_search")
+
+    def test_summary_marks_full_waterfall_incomplete_until_required_levels_are_appended(self):
+        company = self._company()
+        with tempfile.TemporaryDirectory() as artifact_dir, patch.dict(
+            os.environ, {"NURTUREANY_LEAD_ENRICHMENT_ARTIFACTS_DIR": artifact_dir}
+        ), patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
+            self.module, "_get_company", return_value=company
+        ), patch.object(
+            self.module, "_owner_email_by_id", return_value="owner@example.com"
+        ), patch.object(
+            self.module, "_owner_name_by_id", return_value="Owner Example"
+        ), patch.object(
+            self.module, "_company_context", return_value=self._context()
+        ):
+            self.module.create_company_enrichment_artifact(
+                "kerren.fong@staffany.com",
+                company_id="123",
+                artifact_id="waterfall-artifact",
+            )
+            partial = self.module.summarize_company_enrichment_artifact("waterfall-artifact")
+            self.module.update_company_enrichment_artifact(
+                "waterfall-artifact",
+                source="tavily",
+                tool_result={"answer": {"source_evidence": [{"url": "https://noci.example/news", "snippet": "Founder mentioned."}]}},
+            )
+            self.module.update_company_enrichment_artifact(
+                "waterfall-artifact",
+                source="exa",
+                tool_result={
+                    "answer": [
+                        {
+                            "candidates": [
+                                {
+                                    "inferred_name": "Ada Tan",
+                                    "inferred_title": "HR Director",
+                                    "url": "https://linkedin.com/in/ada-tan",
+                                    "company": "Noci Bakehouse",
+                                    "confidence_band": "medium",
+                                    "quality_signals": ["title_match"],
+                                }
+                            ]
+                        }
+                    ]
+                },
+            )
+            self.module.update_company_enrichment_artifact(
+                "waterfall-artifact",
+                source="standalone_public_search",
+                evidence=[{"source": "official team page", "url": "https://noci.example/team"}],
+            )
+            self.module.update_company_enrichment_artifact(
+                "waterfall-artifact",
+                source="lusha_linkedin_url_search",
+                tool_result={"answer": {"candidates": []}},
+            )
+            self.module.update_company_enrichment_artifact(
+                "waterfall-artifact",
+                source="prospeo_linkedin_url_search",
+                tool_result={"answer": {"candidates": []}},
+            )
+            complete = self.module.summarize_company_enrichment_artifact("waterfall-artifact")
+
+        self.assertEqual(partial["confidence"], "needs-check")
+        self.assertFalse(partial["answer"]["waterfall_state"]["can_claim_full_waterfall"])
+        self.assertEqual(partial["answer"]["waterfall_state"]["next_required_level"], "level_2_tavily_public_discovery")
+        self.assertEqual(complete["confidence"], "verified")
+        self.assertTrue(complete["answer"]["waterfall_state"]["can_claim_full_waterfall"])
+        self.assertIn("Ada Tan", json.dumps(complete["answer"]))
+        self.assertIn("HR Director", json.dumps(complete["answer"]))
+
+    def test_waterfall_does_not_count_in_progress_or_empty_public_levels_as_complete(self):
+        company = self._company()
+        with tempfile.TemporaryDirectory() as artifact_dir, patch.dict(
+            os.environ, {"NURTUREANY_LEAD_ENRICHMENT_ARTIFACTS_DIR": artifact_dir}
+        ), patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
+            self.module, "_get_company", return_value=company
+        ), patch.object(
+            self.module, "_owner_email_by_id", return_value="owner@example.com"
+        ), patch.object(
+            self.module, "_owner_name_by_id", return_value="Owner Example"
+        ), patch.object(
+            self.module, "_company_context", return_value=self._context()
+        ):
+            self.module.create_company_enrichment_artifact(
+                "kerren.fong@staffany.com",
+                company_id="123",
+                artifact_id="weak-waterfall",
+            )
+            self.module.update_company_enrichment_artifact(
+                "weak-waterfall",
+                source="tavily",
+                tool_result={"answer": {"source_evidence": [{"url": "https://noci.example/news"}]}},
+                status="in_progress",
+            )
+            self.module.update_company_enrichment_artifact(
+                "weak-waterfall",
+                source="standalone_public_search",
+                tool_result={"answer": {}},
+                notes="No public candidates found.",
+            )
+            summary = self.module.summarize_company_enrichment_artifact("weak-waterfall")
+
+        state = summary["answer"]["waterfall_state"]
+        self.assertFalse(state["can_claim_full_waterfall"])
+        self.assertIn("level_2_tavily_public_discovery", state["missing_levels"])
+        self.assertIn("level_3_public_people_job_board_search", state["missing_levels"])
+        self.assertEqual(state["incomplete_reasons"]["level_2_tavily_public_discovery"], "status=in_progress")
+        self.assertEqual(state["incomplete_reasons"]["level_3_public_people_job_board_search"], "no candidates or evidence ingested")
+
+    def test_uncorroborated_exa_linkedin_candidates_are_suppressed_from_preview(self):
+        company = self._company()
+        with tempfile.TemporaryDirectory() as artifact_dir, patch.dict(
+            os.environ, {"NURTUREANY_LEAD_ENRICHMENT_ARTIFACTS_DIR": artifact_dir}
+        ), patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
+            self.module, "_get_company", return_value=company
+        ), patch.object(
+            self.module, "_owner_email_by_id", return_value="owner@example.com"
+        ), patch.object(
+            self.module, "_owner_name_by_id", return_value="Owner Example"
+        ), patch.object(
+            self.module, "_company_context", return_value=self._context()
+        ):
+            self.module.create_company_enrichment_artifact(
+                "kerren.fong@staffany.com",
+                company_id="123",
+                artifact_id="exa-noise",
+            )
+            self.module.update_company_enrichment_artifact(
+                "exa-noise",
+                source="tavily",
+                evidence=[{"url": "https://noci.example/news"}],
+            )
+            self.module.update_company_enrichment_artifact(
+                "exa-noise",
+                source="standalone_public_search",
+                candidates=[
+                    {
+                        "name": "Mei Tan",
+                        "title": "Founder",
+                        "company": "Noci Bakehouse",
+                        "source_url": "https://example.test/noci-founder",
+                    }
+                ],
+            )
+            self.module.update_company_enrichment_artifact(
+                "exa-noise",
+                source="exa",
+                candidates=[
+                    {
+                        "inferred_name": "Unrelated Person",
+                        "inferred_title": "Founder",
+                        "url": "https://linkedin.com/in/unrelated-person",
+                        "company": "Different Company",
+                    }
+                ],
+            )
+            summary = self.module.summarize_company_enrichment_artifact("exa-noise")
+
+        preview_names = [row.get("full_name") for row in summary["answer"]["hubspot_contact_preview_rows"]]
+        top_names = [candidate.get("name") for candidate in summary["answer"]["top_candidates"]]
+        self.assertIn("Mei Tan", preview_names)
+        self.assertNotIn("Unrelated Person", preview_names)
+        self.assertNotIn("Unrelated Person", top_names)
+        self.assertEqual(summary["answer"]["candidate_counts"]["suppressed_uncorroborated_exa"], 1)
+        self.assertEqual(summary["answer"]["suppressed_candidates"][0]["name"], "Unrelated Person")
+
+    def test_paid_domain_zero_requires_linkedin_url_lookup_when_public_linkedin_candidates_exist(self):
+        company = self._company()
+        with tempfile.TemporaryDirectory() as artifact_dir, patch.dict(
+            os.environ, {"NURTUREANY_LEAD_ENRICHMENT_ARTIFACTS_DIR": artifact_dir}
+        ), patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
+            self.module, "_get_company", return_value=company
+        ), patch.object(
+            self.module, "_owner_email_by_id", return_value="owner@example.com"
+        ), patch.object(
+            self.module, "_owner_name_by_id", return_value="Owner Example"
+        ), patch.object(
+            self.module, "_company_context", return_value=self._context()
+        ):
+            self.module.create_company_enrichment_artifact(
+                "kerren.fong@staffany.com",
+                company_id="123",
+                artifact_id="paid-url-waterfall",
+            )
+            self.module.update_company_enrichment_artifact(
+                "paid-url-waterfall",
+                source="tavily",
+                evidence=[{"url": "https://noci.example/news"}],
+            )
+            self.module.update_company_enrichment_artifact(
+                "paid-url-waterfall",
+                source="exa",
+                candidates=[{"name": "Ben Lee", "title": "Owner", "profile_url": "https://linkedin.com/in/ben-lee"}],
+            )
+            self.module.update_company_enrichment_artifact(
+                "paid-url-waterfall",
+                source="standalone_public_search",
+                evidence=[{"source": "LinkedIn public result", "url": "https://linkedin.com/in/ben-lee"}],
+            )
+            self.module.update_company_enrichment_artifact(
+                "paid-url-waterfall",
+                source="lusha",
+                tool_result={"answer": {"candidates": []}},
+            )
+            self.module.update_company_enrichment_artifact(
+                "paid-url-waterfall",
+                source="prospeo",
+                tool_result={"answer": {"candidates": []}},
+            )
+            domain_only = self.module.summarize_company_enrichment_artifact("paid-url-waterfall")
+            self.module.update_company_enrichment_artifact(
+                "paid-url-waterfall",
+                source="lusha_linkedin_url_search",
+                tool_result={"answer": {"candidates": []}},
+            )
+            self.module.update_company_enrichment_artifact(
+                "paid-url-waterfall",
+                source="prospeo_linkedin_url_search",
+                tool_result={"answer": {"candidates": []}},
+            )
+            url_done = self.module.summarize_company_enrichment_artifact("paid-url-waterfall")
+
+        self.assertFalse(domain_only["answer"]["waterfall_state"]["can_claim_full_waterfall"])
+        self.assertIn("level_5_lusha_search", domain_only["answer"]["waterfall_state"]["missing_levels"])
+        self.assertIn("LinkedIn URL provider lookup", domain_only["answer"]["waterfall_state"]["incomplete_reasons"]["level_5_lusha_search"])
+        self.assertTrue(url_done["answer"]["waterfall_state"]["can_claim_full_waterfall"])
+
+    def test_summary_includes_public_company_channels_from_evidence(self):
+        company = self._company()
+        with tempfile.TemporaryDirectory() as artifact_dir, patch.dict(
+            os.environ, {"NURTUREANY_LEAD_ENRICHMENT_ARTIFACTS_DIR": artifact_dir}
+        ), patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
+            self.module, "_get_company", return_value=company
+        ), patch.object(
+            self.module, "_owner_email_by_id", return_value="owner@example.com"
+        ), patch.object(
+            self.module, "_owner_name_by_id", return_value="Owner Example"
+        ), patch.object(
+            self.module, "_company_context", return_value=self._context()
+        ):
+            self.module.create_company_enrichment_artifact(
+                "kerren.fong@staffany.com",
+                company_id="123",
+                artifact_id="public-channels",
+            )
+            result = self.module.update_company_enrichment_artifact(
+                "public-channels",
+                source="tavily",
+                tool_result={
+                    "public_contact_channels": [
+                        {
+                            "channel_type": "public_company_email",
+                            "value": "info@noci.example",
+                            "source_url": "https://noci.example/contact",
+                        },
+                        {
+                            "channel_type": "public_company_phone",
+                            "value": "+6581234567",
+                            "source_url": "https://noci.example/contact",
+                        },
+                    ]
+                },
+            )
+
+        values = {channel["value"] for channel in result["answer"]["public_company_channels"]}
+        self.assertIn("info@noci.example", values)
+        self.assertIn("+6581234567", values)
+
+    def test_linkedin_public_candidates_are_manual_review_not_confirmed(self):
+        company = self._company()
+        with tempfile.TemporaryDirectory() as artifact_dir, patch.dict(
+            os.environ, {"NURTUREANY_LEAD_ENRICHMENT_ARTIFACTS_DIR": artifact_dir}
+        ), patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
+            self.module, "_get_company", return_value=company
+        ), patch.object(
+            self.module, "_owner_email_by_id", return_value="owner@example.com"
+        ), patch.object(
+            self.module, "_owner_name_by_id", return_value="Owner Example"
+        ), patch.object(
+            self.module, "_company_context", return_value=self._context()
+        ):
+            self.module.create_company_enrichment_artifact(
+                "kerren.fong@staffany.com",
+                company_id="123",
+                artifact_id="linkedin-manual",
+            )
+            updated = self.module.update_company_enrichment_artifact(
+                "linkedin-manual",
+                source="standalone_public_search",
+                candidates=[
+                    {
+                        "name": "Meisin Tan",
+                        "title": "Founder",
+                        "company_match": "exact",
+                        "profile_url": "https://sg.linkedin.com/in/meisin-tan",
+                        "confidence_band": "high",
+                    }
+                ],
+                evidence=[
+                    {
+                        "signals_found": ["founder_confirmed", "decision_maker_confirmed"],
+                        "source_type": "linkedin_public",
+                        "source_url": "https://sg.linkedin.com/in/meisin-tan",
+                    }
+                ],
+            )
+
+        payload = json.dumps(updated["answer"])
+        candidate = next(candidate for candidate in updated["answer"]["top_candidates"] if candidate["name"] == "Meisin Tan")
+        self.assertEqual(candidate["company_match"], "public_snippet_needs_check")
+        self.assertEqual(candidate["provider_confidence"], "needs-check")
+        self.assertEqual(candidate["verification_status"], "manual_review_required")
+        self.assertIn("manual_review_required", payload)
+        self.assertNotIn("founder_confirmed", payload)
+
+    def test_tool_result_ingestion_preserves_exa_inferred_title_and_provider_confidence(self):
+        company = self._company()
+        with tempfile.TemporaryDirectory() as artifact_dir, patch.dict(
+            os.environ, {"NURTUREANY_LEAD_ENRICHMENT_ARTIFACTS_DIR": artifact_dir}
+        ), patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
+            self.module, "_get_company", return_value=company
+        ), patch.object(
+            self.module, "_owner_email_by_id", return_value="owner@example.com"
+        ), patch.object(
+            self.module, "_owner_name_by_id", return_value="Owner Example"
+        ), patch.object(
+            self.module, "_company_context", return_value=self._context()
+        ):
+            self.module.create_company_enrichment_artifact(
+                "kerren.fong@staffany.com",
+                company_id="123",
+                artifact_id="exa-tool-result",
+            )
+            updated = self.module.update_company_enrichment_artifact(
+                "exa-tool-result",
+                source="exa",
+                tool_result={
+                    "answer": {
+                        "candidates": [
+                            {
+                                "inferred_name": "Ben Lee",
+                                "inferred_title": "Operations Director",
+                                "url": "https://linkedin.com/in/ben-lee",
+                                "company": "Noci Bakehouse",
+                                "confidence_band": "medium",
+                                "warnings": ["public snippet only"],
+                            }
+                        ]
+                    }
+                },
+            )
+
+        payload = json.dumps(updated["answer"])
+        self.assertIn("Ben Lee", payload)
+        self.assertIn("Operations Director", payload)
+        self.assertIn("provider_confidence", payload)
+        self.assertIn("public snippet only", payload)
+
+
 class ReviewedLessonCandidateTest(unittest.TestCase):
     def setUp(self):
         self.module = load_hubspot_module()

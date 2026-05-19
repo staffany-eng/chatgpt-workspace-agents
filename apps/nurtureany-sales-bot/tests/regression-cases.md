@@ -121,6 +121,31 @@ Prompt:
 @NurtureAny send approved Eazybe messages for selected approved preview payloads
 ```
 
+## Single-Company Country Enrichment
+
+Prompt:
+
+```text
+@NurtureAny enrich Tung Lok for Singapore
+```
+
+Expected behavior:
+
+- First response is plan-only unless the quick-autorun gate is fully satisfied.
+- After `run`, resolves scoped HubSpot companies first with `resolve_company_enrichment_target`.
+- If exactly one scoped HubSpot company is found, creates one artifact with `create_company_enrichment_artifact`.
+- If multiple scoped matches are found, returns choices and asks for the exact `company_id`.
+- If no scoped match is found, uses `find_brand_parent_candidates` only for identity resolution, then re-runs HubSpot resolution with `brand_parent_candidates`.
+- If still none or ambiguous, stops and asks for a HubSpot company ID or exact scoped account.
+- Domain is used only as a tie-breaker, not as the source of truth.
+- Artifact reads redact email, phone, and mobile by default.
+- `summarize_company_enrichment_artifact` returns HubSpot contact-format preview rows with `will_mutate_hubspot=false` and `waterfall_state`.
+- Tavily, standalone public people/job-board search, Exa, Lusha, and Prospeo outputs are appended back into the same artifact before final summary.
+- Tavily results are read through with public extract where supported, then standalone public people/contact search runs before Exa across official pages, public directory/event/speaker evidence, careers pages, public social/company pages where allowed, and public job boards such as Indeed, JobStreet, Glints, MyCareersFuture, Maukerja, Ricebowl, Kalibrr, and Dealls where relevant by country.
+- Exa people URLs are used after public search as fallback or corroboration and are read through only through safe public snippets/pages; gated LinkedIn or social scraping is forbidden.
+- Lusha and Prospeo searches may add candidates, but reveal requires manual approval before revealed details are stored.
+- The bot must not claim enrichment is complete or that a full waterfall ran unless `waterfall_state.can_claim_full_waterfall=true`; otherwise it reports the next required tool.
+
 Expected behavior:
 
 - Does not auto-run from quick intent.
