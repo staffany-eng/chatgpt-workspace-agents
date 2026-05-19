@@ -3579,6 +3579,77 @@ def _set_issue_due_date(issue_key: str, due_date: str) -> None:
 
 
 @mcp.tool()
+def link_pco_to_pco_issue(
+    source_issue_key: str,
+    target_issue_key: str,
+) -> dict[str, Any]:
+    """Link two PCO issues with a `Relates` link (used by AA link-to-existing flow)."""
+
+    source_key = _normalize_issue_key(source_issue_key)
+    target_key = _normalize_issue_key(target_issue_key)
+    link_type = "Relates"
+    scope = {
+        "source_issue_key": source_key,
+        "target_issue_key": target_key,
+        "link_type": link_type,
+    }
+    if not PCO_ISSUE_RE.fullmatch(source_key):
+        return _blocked("source_issue_key must look like PCO-123.", scope)
+    if not PCO_ISSUE_RE.fullmatch(target_key):
+        return _blocked("target_issue_key must look like PCO-123.", scope)
+    if source_key == target_key:
+        return _blocked("source_issue_key and target_issue_key must differ.", scope)
+
+    body = {
+        "type": {"name": link_type},
+        "outwardIssue": {"key": source_key},
+        "inwardIssue": {"key": target_key},
+    }
+    relationship = f"{source_key} relates to {target_key}"
+
+    try:
+        if _issue_link_exists_between(source_key, target_key, link_type):
+            return _verified(
+                {
+                    "source_issue_key": source_key,
+                    "target_issue_key": target_key,
+                    "link_type": link_type,
+                    "relationship": relationship,
+                    "already_exists": True,
+                },
+                scope,
+                "Issue link already existed; checked issue links only, without reading Jira comments or descriptions.",
+            )
+        _request_json("POST", "/rest/api/3/issueLink", body)
+    except JiraError as error:
+        if _looks_like_existing_issue_link_error(error):
+            return _verified(
+                {
+                    "source_issue_key": source_key,
+                    "target_issue_key": target_key,
+                    "link_type": link_type,
+                    "relationship": relationship,
+                    "already_exists": True,
+                },
+                scope,
+                "Jira reported the issue link already exists; no raw Jira comments or descriptions were exposed.",
+            )
+        return _blocked(str(error), scope)
+
+    return _verified(
+        {
+            "source_issue_key": source_key,
+            "target_issue_key": target_key,
+            "link_type": link_type,
+            "relationship": relationship,
+            "already_exists": False,
+        },
+        scope,
+        "Issue link created only between two PCO issues; no raw Jira issue content was read or exposed.",
+    )
+
+
+@mcp.tool()
 def transition_pco_task(
     issue_key: str,
     target_status: str,

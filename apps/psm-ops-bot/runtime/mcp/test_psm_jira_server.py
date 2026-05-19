@@ -560,6 +560,90 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertEqual(result["confidence"], "blocked")
         self.assertIn("KER-123 or SCHE-123", result["caveat"])
 
+    def test_link_pco_to_pco_issue_creates_relates_link(self):
+        calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            return {}
+
+        self.module._request_json = fake_request
+
+        result = self.module.link_pco_to_pco_issue("PCO-200", "PCO-150")
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(calls[0][0], "GET")
+        self.assertEqual(calls[0][1], "/rest/api/3/issue/PCO-200?fields=issuelinks")
+        self.assertEqual(calls[1][0], "POST")
+        self.assertEqual(calls[1][1], "/rest/api/3/issueLink")
+        self.assertEqual(calls[1][2]["type"], {"name": "Relates"})
+        self.assertEqual(calls[1][2]["outwardIssue"], {"key": "PCO-200"})
+        self.assertEqual(calls[1][2]["inwardIssue"], {"key": "PCO-150"})
+        self.assertEqual(result["answer"]["link_type"], "Relates")
+        self.assertEqual(result["answer"]["relationship"], "PCO-200 relates to PCO-150")
+        self.assertFalse(result["answer"]["already_exists"])
+
+    def test_link_pco_to_pco_issue_short_circuits_when_link_already_exists(self):
+        calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if method == "GET":
+                return {
+                    "fields": {
+                        "issuelinks": [
+                            {
+                                "type": {"name": "Relates"},
+                                "outwardIssue": {"key": "PCO-150"},
+                            }
+                        ]
+                    }
+                }
+            return {}
+
+        self.module._request_json = fake_request
+
+        result = self.module.link_pco_to_pco_issue("PCO-200", "PCO-150")
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertTrue(result["answer"]["already_exists"])
+        self.assertEqual(len(calls), 1)
+        self.assertIn("already existed", result["caveat"])
+
+    def test_link_pco_to_pco_issue_treats_jira_duplicate_error_as_existing(self):
+        calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if method == "POST":
+                raise self.module.JiraError("Jira API failed: HTTP 400 issue link already exists")
+            return {}
+
+        self.module._request_json = fake_request
+
+        result = self.module.link_pco_to_pco_issue("PCO-200", "PCO-150")
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertTrue(result["answer"]["already_exists"])
+
+    def test_link_pco_to_pco_issue_rejects_non_pco_source(self):
+        result = self.module.link_pco_to_pco_issue("KER-2109", "PCO-150")
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("source_issue_key", result["caveat"])
+
+    def test_link_pco_to_pco_issue_rejects_non_pco_target(self):
+        result = self.module.link_pco_to_pco_issue("PCO-200", "SCHE-19631")
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("target_issue_key", result["caveat"])
+
+    def test_link_pco_to_pco_issue_rejects_self_link(self):
+        result = self.module.link_pco_to_pco_issue("PCO-200", "PCO-200")
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("must differ", result["caveat"])
+
     def test_find_engineering_issue_searches_ker_with_safe_fields_and_compact_variant(self):
         calls = []
 

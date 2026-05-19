@@ -97,6 +97,7 @@ For ROI urgency fields, match the field's configured options exactly. If the req
   - The `Creator` single-select field (`customfield_10914`) must match a configured option. The matcher resolves the Slack tagger (or the optional `creator_slack_user_email` override) and normalizes the display name against the field's options (substring tolerant, case-insensitive). Fails closed when no option matches.
   - `pic` is the person-in-charge name the PSM met. The MCP stores it in the internal metadata comment and uses it in the selfie filename.
   - Multiple categories in one Slack message: the agent calls `create_ps_wee_intake_ticket` once per category. Idempotency is scoped to `(slack_thread_url, request_type)` so different categories in the same thread do not collide.
+  - Link-to-existing: when the PSM mentions an issue the customer has likely raised before, the agent calls `search_pco_tickets` for that customer to look for an open PCO ticket on the same topic. The per-category AA ticket is still created (event-trace record), then linked to the prior issue via `link_pco_to_pco_issue(source_issue_key=<new AA key>, target_issue_key=<existing PCO key>)`. The link is always `Relates`. No linking when no clear match exists.
 - Outside the AA channel, the 7 Event AA request types stay available for explicit asks; do not auto-route to them and do not enforce the creator field or the `AA SG 2026` label.
 - Routing cues from the PSM's Slack message:
   - `deep dive`, `advanced`, `PS follow up` → `ps_follow_up`
@@ -134,6 +135,13 @@ For ROI urgency fields, match the field's configured options exactly. If the req
 - `Relates` is allowed as a fallback only when Jira does not support the standard Blocks link type.
 - Reject non-PCO source issues and non-KER/non-SCHE targets.
 - Do not expose raw engineering issue descriptions, comments, attachments, or Jira bulk exports.
+
+## PCO-to-PCO Issue Links
+
+- Use `link_pco_to_pco_issue(source_issue_key, target_issue_key)` when an AA event ticket should reference a previously-tracked PCO ticket for the same customer issue. The link type is always `Relates`.
+- Both keys must match `PCO-\d+`; mismatched or identical keys are blocked.
+- The link is idempotent: re-running the tool returns `already_exists=true` instead of duplicating the link or surfacing the raw Jira error.
+- Use this primarily for the AA link-to-existing flow; do not link speculatively.
 
 ## ROI Customer-Loop Tracker Links
 
