@@ -293,7 +293,9 @@ SLACK_USER_CACHE: list[dict[str, Any]] | None = None
 
 
 class JiraError(RuntimeError):
-    pass
+    def __init__(self, message: str, status_code: int | None = None) -> None:
+        super().__init__(message)
+        self.status_code = status_code
 
 
 @mcp.resource(
@@ -1133,7 +1135,7 @@ def _request_json(method: str, path: str, body: dict[str, Any] | None = None) ->
             return json.loads(payload) if payload else {}
     except urllib.error.HTTPError as error:
         detail = error.read().decode("utf-8", errors="replace")[:400]
-        raise JiraError(f"Jira API failed: HTTP {error.code} {detail}") from error
+        raise JiraError(f"Jira API failed: HTTP {error.code} {detail}", status_code=error.code) from error
     except urllib.error.URLError as error:
         raise JiraError(f"Jira API unavailable: {error.reason}") from error
 
@@ -2442,8 +2444,15 @@ def _create_pco_task_from_draft(draft: dict[str, Any], scope: dict[str, Any]) ->
         try:
             response = _request_json("POST", "/rest/servicedeskapi/request", payload)
             warnings: list[str] = []
-        except JiraError:
-            if not _is_thin_poc() or set(request_values) == {"summary"}:
+        except JiraError as error:
+            # Only retry on deterministic validation failures. Network errors, 5xx,
+            # or auth failures might mean the original create already landed — retrying
+            # could duplicate.
+            if (
+                not _is_thin_poc()
+                or set(request_values) == {"summary"}
+                or error.status_code != 400
+            ):
                 raise
             response = None
             warnings = []
@@ -2456,7 +2465,9 @@ def _create_pco_task_from_draft(draft: dict[str, Any], scope: dict[str, Any]) ->
                     payload["requestFieldValues"] = retry_values
                     response = _request_json("POST", "/rest/servicedeskapi/request", payload)
                     warnings = ["StaffAny Organization was skipped because Jira rejected the value."]
-                except JiraError:
+                except JiraError as retry_error:
+                    if retry_error.status_code != 400:
+                        raise
                     response = None
             if response is None:
                 payload["requestFieldValues"] = {"summary": draft["summary"]}

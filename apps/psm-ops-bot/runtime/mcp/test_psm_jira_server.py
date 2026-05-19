@@ -2448,7 +2448,7 @@ class PsmJiraServerTest(unittest.TestCase):
             def fake_request(method, path, body=None):
                 calls.append((method, path, deepcopy(body)))
                 if path == "/rest/servicedeskapi/request" and "customfield_10667" in body["requestFieldValues"]:
-                    raise self.module.JiraError("Jira rejected optional field value")
+                    raise self.module.JiraError("Jira rejected optional field value", status_code=400)
                 if path == "/rest/servicedeskapi/request":
                     return {"issueKey": "PCO-456", "requestTypeId": "81"}
                 if path.endswith("/comment"):
@@ -2502,7 +2502,7 @@ class PsmJiraServerTest(unittest.TestCase):
             def fake_request(method, path, body=None):
                 calls.append((method, path, deepcopy(body)))
                 if path == "/rest/servicedeskapi/request" and set(body["requestFieldValues"]) != {"summary"}:
-                    raise self.module.JiraError("Jira rejected optional field value")
+                    raise self.module.JiraError("Jira rejected optional field value", status_code=400)
                 if path == "/rest/servicedeskapi/request":
                     return {"issueKey": "PCO-789", "requestTypeId": "81"}
                 if path.endswith("/comment"):
@@ -2541,6 +2541,49 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertGreater(len(create_calls[1][2]["requestFieldValues"]), 1)
         self.assertEqual(create_calls[2][2]["requestFieldValues"], {"summary": "Confirm payroll readiness"})
         self.assertIn("Optional PCO request fields were skipped", result["answer"]["warnings"][0])
+
+    def test_thin_poc_create_does_not_retry_on_non_400_error(self):
+        """Network errors / 5xx must not retry — the original create may have landed."""
+        calls = []
+        with patch.dict(
+            os.environ,
+            {
+                "PSM_OPS_JIRA_MODE": "thin_poc",
+                "PSM_OPS_ACCESS_POLICY_PATH": "",
+                "PSM_OPS_JIRA_SERVICE_DESK_ID": "",
+                "PSM_OPS_JIRA_FIELD_STAFFANY_ORGS": "",
+                "PSM_OPS_JIRA_FIELD_REMINDER_AT": "",
+            },
+            clear=False,
+        ):
+            def fake_request(method, path, body=None):
+                calls.append((method, path, deepcopy(body)))
+                if path == "/rest/servicedeskapi/request":
+                    raise self.module.JiraError("Jira API unavailable: timed out")
+                return {}
+
+            self.module._request_json = fake_request
+
+            result = self.module.create_approved_pco_task(
+                {
+                    "customer": "Fei Siong",
+                    "summary": "Confirm payroll readiness",
+                    "due_date": "2026-05-15",
+                    "priority": "High",
+                    "action_type": "Customer success",
+                    "request_type_id": "81",
+                    "source_links": ["https://c360/fei"],
+                    "staffany_orgs": ["FS-001"],
+                    "owner_psm": "Ada PSM",
+                    "owner_jira_account_id": "acct-123",
+                    "mode": "thin_poc",
+                },
+                "create",
+            )
+
+        create_calls = [c for c in calls if c[1] == "/rest/servicedeskapi/request"]
+        self.assertEqual(len(create_calls), 1, "transient errors must not retry the create")
+        self.assertEqual(result["confidence"], "blocked")
 
     def test_create_blocks_past_due_date_before_jira_write(self):
         calls = []
