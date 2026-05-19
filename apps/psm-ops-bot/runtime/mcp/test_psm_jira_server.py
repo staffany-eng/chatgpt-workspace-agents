@@ -426,7 +426,7 @@ class PsmJiraServerTest(unittest.TestCase):
             }
         )
 
-        self.assertEqual(values["customfield_10876"], "12025")
+        self.assertEqual(values["customfield_10876"], {"id": "12025"})
 
     def test_set_pco_ps_team_maps_cs_duty_to_jira_option(self):
         calls = []
@@ -1035,6 +1035,10 @@ class PsmJiraServerTest(unittest.TestCase):
 
                 self.module._request_json = fake_request
                 self.module._creator_valid_values = self._mock_creator_options
+                self.module._ps_team_valid_values = lambda request_type_id="", _name=creator_name, _team=expected_team: [
+                    {"value": f"opt-{_team.lower().replace(' ', '-')}", "label": _team},
+                    {"value": f"opt-{_name.lower()}", "label": _name},
+                ]
                 self.module._update_issue_labels = lambda *args, **kwargs: None
                 self.module.post_ps_wee_audit = lambda event_type, **kwargs: {"ok": True}
                 self.module._caller = lambda email, require_jira_account=True, require_ps_team=False, _name=creator_name: {
@@ -1058,9 +1062,10 @@ class PsmJiraServerTest(unittest.TestCase):
                 self.assertEqual(result["confidence"], "verified", msg=result)
                 create_call = next(c for c in calls if c[1] == "/rest/servicedeskapi/request")
                 self.assertEqual(create_call[2]["requestTypeId"], expected_id)
+                expected_team_value = f"opt-{expected_team.lower().replace(' ', '-')}"
                 self.assertEqual(
                     create_call[2]["requestFieldValues"].get("customfield_10876"),
-                    expected_team,
+                    {"id": expected_team_value},
                     msg=f"PS Team auto-route failed for {request_type_key}",
                 )
 
@@ -1270,14 +1275,22 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertNotIn("Attached", result["answer"]["slack_reply"])
         self.assertNotIn("Drive", result["answer"]["slack_reply"])
 
-    def test_ps_wee_intake_in_aa_channel_blocks_when_creator_no_match(self):
+    def test_ps_wee_intake_in_aa_channel_creates_ticket_even_when_creator_no_match(self):
+        calls = []
+
         def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
             if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
                 return {"issues": []}
+            if path == "/rest/servicedeskapi/request":
+                return {"issueKey": "PCO-999", "requestTypeId": "123"}
+            if path.endswith("/comment"):
+                return {"id": "comment-999"}
             return {}
 
         self.module._request_json = fake_request
         self.module._creator_valid_values = self._mock_creator_options
+        self.module._update_issue_labels = lambda *args, **kwargs: None
         self.module.post_ps_wee_audit = lambda event_type, **kwargs: {"ok": True}
 
         result = self.module.create_ps_wee_intake_ticket(
@@ -1288,8 +1301,9 @@ class PsmJiraServerTest(unittest.TestCase):
             request_type_key="ps_follow_up",
         )
 
-        self.assertEqual(result["confidence"], "blocked")
-        self.assertIn("Creator dropdown", result["answer"]["message"])
+        self.assertEqual(result["confidence"], "verified")
+        create_call = next(c for c in calls if c[1] == "/rest/servicedeskapi/request")
+        self.assertNotIn("customfield_10914", create_call[2]["requestFieldValues"], "Creator field should be omitted when no option matches")
 
     def test_ps_wee_intake_in_aa_channel_allows_multi_ticket_per_thread(self):
         calls = []
@@ -1496,7 +1510,7 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertEqual(result["confidence"], "verified")
         request_values = calls[1][2]["requestFieldValues"]
         self.assertEqual(request_values["customfield_10101"], "Fei Siong Group")
-        self.assertEqual(request_values["customfield_10102"], "FS-001, FS-002")
+        self.assertEqual(request_values["customfield_10102"], ["FS-001", "FS-002"])
         self.assertEqual(request_values["summary"], "[Needs info] Fei Siong Group - Payroll readiness unclear")
         self.assertNotIn("customer/org", result["answer"]["missing_info"])
         self.assertIn("Customer channel: C08SDJR03N1", calls[2][2]["body"])
@@ -1538,7 +1552,7 @@ class PsmJiraServerTest(unittest.TestCase):
             )
 
         self.assertEqual(result["confidence"], "verified")
-        self.assertEqual(calls[1][2]["requestFieldValues"]["customfield_10102"], "FS-001")
+        self.assertEqual(calls[1][2]["requestFieldValues"]["customfield_10102"], ["FS-001"])
 
     def test_ps_wee_intake_blocks_conflicting_customer_channel_mapping(self):
         map_path = self._customer_channel_map(
@@ -2461,7 +2475,7 @@ class PsmJiraServerTest(unittest.TestCase):
             )
 
         self.assertEqual(result["confidence"], "verified")
-        self.assertEqual(calls[0][2]["requestFieldValues"]["customfield_10667"], "FS-001")
+        self.assertEqual(calls[0][2]["requestFieldValues"]["customfield_10667"], ["FS-001"])
         self.assertEqual(calls[1][2]["requestFieldValues"], {"summary": "Confirm payroll readiness"})
         self.assertEqual(calls[2][1], "/rest/api/3/issue/PCO-456")
         self.assertEqual(calls[2][2]["fields"], {"duedate": "2026-05-15"})

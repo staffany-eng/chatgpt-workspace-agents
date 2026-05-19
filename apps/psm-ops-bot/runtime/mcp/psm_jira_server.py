@@ -540,14 +540,21 @@ def _ps_team_valid_values(request_type_id: str = "") -> list[dict[str, Any]]:
 
 
 def _ps_team_request_value(label: str, request_type_id: str = "") -> Any:
+    """Return the Jira-shaped single-select value for PS Team on a JSM request, or None when no option matches."""
+
     normalized = _normalize_ps_team(label)
     if not normalized:
-        return ""
+        return None
     normalized_key = _normalize_label(normalized)
     for option in _ps_team_valid_values(request_type_id):
         if _normalize_label(str(option.get("label") or "")) == normalized_key:
-            return option.get("value") or option.get("id") or normalized
-    return normalized
+            option_id = str(option.get("value") or option.get("id") or "").strip()
+            if option_id:
+                return {"id": option_id}
+            option_label = str(option.get("label") or "").strip()
+            if option_label:
+                return {"value": option_label}
+    return None
 
 
 def _ps_team_issue_value(label: str) -> Any:
@@ -1765,13 +1772,27 @@ def _description_from_draft(draft: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _staffany_orgs_array(draft: dict[str, Any]) -> list[str]:
+    raw = draft.get("staffany_orgs")
+    if isinstance(raw, str):
+        candidates = [part.strip() for part in raw.split(",")]
+    elif isinstance(raw, list):
+        candidates = [str(org).strip() for org in raw]
+    else:
+        candidates = []
+    return [org for org in candidates if org]
+
+
 def _request_field_values(draft: dict[str, Any]) -> dict[str, Any]:
     if _is_thin_poc():
         values: dict[str, Any] = {"summary": draft["summary"]}
-        if draft.get("staffany_orgs"):
-            values[_field_id("staffany_orgs")] = ", ".join(draft.get("staffany_orgs") or [])
+        orgs = _staffany_orgs_array(draft)
+        if orgs:
+            values[_field_id("staffany_orgs")] = orgs
         if draft.get("ps_team"):
-            values[_ps_team_field_id()] = _ps_team_request_value(str(draft["ps_team"]), str(draft.get("request_type_id") or ""))
+            ps_team_value = _ps_team_request_value(str(draft["ps_team"]), str(draft.get("request_type_id") or ""))
+            if ps_team_value:
+                values[_ps_team_field_id()] = ps_team_value
         if draft.get("creator_field_value"):
             values[_field_id("creator")] = draft["creator_field_value"]
         return values
@@ -1781,19 +1802,23 @@ def _request_field_values(draft: dict[str, Any]) -> dict[str, Any]:
         "summary": draft["summary"],
         "description": _description_from_draft(draft),
     }
-    mappings = {
+    orgs = _staffany_orgs_array(draft)
+    mappings: dict[str, Any] = {
         fields["customer"]: draft.get("customer"),
-        fields["staffany_orgs"]: ", ".join(draft.get("staffany_orgs") or []),
         fields["owner_psm"]: draft.get("owner_psm"),
         fields["contributor_cse"]: draft.get("contributor_cse"),
         fields["action_type"]: draft.get("action_type"),
         fields["risk_reason"]: draft.get("risk_reason"),
         fields["source_links"]: "\n".join(draft.get("source_links") or []),
     }
+    if orgs:
+        values[fields["staffany_orgs"]] = orgs
     if draft.get("priority"):
         values["priority"] = {"name": draft["priority"]}
     if draft.get("ps_team"):
-        values[_ps_team_field_id()] = _ps_team_request_value(str(draft["ps_team"]), str(draft.get("request_type_id") or ""))
+        ps_team_value = _ps_team_request_value(str(draft["ps_team"]), str(draft.get("request_type_id") or ""))
+        if ps_team_value:
+            values[_ps_team_field_id()] = ps_team_value
     if draft.get("creator_field_value"):
         values[_field_id("creator")] = draft["creator_field_value"]
     for field_id, value in mappings.items():
@@ -2418,7 +2443,7 @@ def _create_pco_task_from_draft(draft: dict[str, Any], scope: dict[str, Any]) ->
             response = _request_json("POST", "/rest/servicedeskapi/request", payload)
             warnings: list[str] = []
         except JiraError:
-            if not _is_thin_poc() or set(request_values) == {"summary"} or draft.get("event") == "AA":
+            if not _is_thin_poc() or set(request_values) == {"summary"}:
                 raise
             payload["requestFieldValues"] = {"summary": draft["summary"]}
             response = _request_json("POST", "/rest/servicedeskapi/request", payload)
@@ -2997,12 +3022,9 @@ def create_ps_wee_intake_ticket(
         creator_display = str(creator_identity.get("display_name") or "").strip()
         creator_field_value: Any = None
         if is_event_aa:
+            # Best-effort: if the tagger doesn't match a Creator dropdown option, leave the field
+            # unset rather than blocking. The ticket still creates; triage can assign Creator later.
             creator_field_value = _creator_request_value(creator_display, request_type_id)
-            if creator_field_value is None:
-                return _blocked(
-                    f"Creator dropdown has no option matching '{creator_display}'. Ask PCO admin to add it before retrying.",
-                    scope,
-                )
         customer_channel_mapping: dict[str, Any] = {}
         try:
             customer_channel_mapping = _reviewed_customer_channel_mapping(source, supplied_customer)
@@ -3052,6 +3074,9 @@ def create_ps_wee_intake_ticket(
         and supplied_customer
         and normalized_customer != "Unknown customer"
     ):
+        # Best-effort: try the customer name against Jira Assets. If the field rejects
+        # (name doesn't match an asset), the thin_poc summary-only retry below will still
+        # create the ticket — we never block AA on org resolution.
         staffany_orgs_value = [normalized_customer]
     labels_extra: list[str] = []
     if is_event_aa:
