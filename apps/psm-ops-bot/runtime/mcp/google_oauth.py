@@ -7,11 +7,13 @@ import socket
 import urllib.error
 import urllib.parse
 import urllib.request
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable
 
 GOOGLE_OAUTH_TOKEN_URL = "https://oauth2.googleapis.com/token"
 DEFAULT_PROFILE_NAME = "psmopsbot"
+TOKEN_EXPIRY_BUFFER_SECONDS = 60
 
 
 def safe_detail(value: str, limit: int = 400) -> str:
@@ -140,8 +142,38 @@ def refresh_access_token(
     merged["refresh_token"] = refresh_token
     if not merged.get("type"):
         merged["type"] = "authorized_user"
+    expires_in = refreshed.get("expires_in")
+    try:
+        expires_in_int = int(expires_in) if expires_in is not None else 0
+    except (TypeError, ValueError):
+        expires_in_int = 0
+    if expires_in_int > 0:
+        new_expiry = datetime.now(timezone.utc) + timedelta(seconds=expires_in_int)
+        merged["expiry"] = new_expiry.isoformat().replace("+00:00", "Z")
+    else:
+        # Refresh did not give us a fresh expiry — wipe the stale one so the
+        # next call refreshes again instead of trusting the old value.
+        merged.pop("expiry", None)
     write_json(token_path, merged)
     return access_token
+
+
+def _token_expired(payload: dict[str, Any]) -> bool:
+    raw = payload.get("expiry") or payload.get("expires_at")
+    if not raw:
+        # No expiry info recorded — treat as expired so the caller refreshes
+        # rather than handing the API a possibly-stale token.
+        return True
+    text = str(raw).strip()
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        expires_at = datetime.fromisoformat(text)
+    except ValueError:
+        return True
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    return datetime.now(timezone.utc) >= expires_at - timedelta(seconds=TOKEN_EXPIRY_BUFFER_SECONDS)
 
 
 def access_token(
@@ -156,7 +188,7 @@ def access_token(
     payload = load_json(token_path, source_label, error_cls)
     validate_scope(payload, allowed_scopes, source_label, error_cls)
     token = str(payload.get("token") or payload.get("access_token") or "").strip()
-    if token:
+    if token and not _token_expired(payload):
         return token
     return refresh_access_token(payload, token_path, client_secret_path, user_agent, timeout_seconds, source_label, error_cls)
 

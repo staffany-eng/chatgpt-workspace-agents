@@ -90,7 +90,7 @@ class PsmGoogleCalendarServerTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             token_file = Path(tmpdir) / "token.json"
             token_file.write_text(
-                '{"token":"access-token","scopes":["https://www.googleapis.com/auth/calendar.readonly"]}'
+                '{"token":"access-token","scopes":["https://www.googleapis.com/auth/calendar.readonly"],"expiry":"9999-01-01T00:00:00Z"}'
             )
             with patch.dict(
                 os.environ,
@@ -139,7 +139,7 @@ class PsmGoogleCalendarServerTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             token_file = Path(tmpdir) / "token.json"
             token_file.write_text(
-                '{"token":"access-token","scopes":["https://www.googleapis.com/auth/calendar.readonly"]}'
+                '{"token":"access-token","scopes":["https://www.googleapis.com/auth/calendar.readonly"],"expiry":"9999-01-01T00:00:00Z"}'
             )
             with patch.dict(
                 os.environ,
@@ -195,7 +195,7 @@ class PsmGoogleCalendarServerTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             token_file = Path(tmpdir) / "token.json"
             token_file.write_text(
-                '{"token":"access-token","scopes":["https://www.googleapis.com/auth/calendar.readonly"]}'
+                '{"token":"access-token","scopes":["https://www.googleapis.com/auth/calendar.readonly"],"expiry":"9999-01-01T00:00:00Z"}'
             )
             with patch.dict(
                 os.environ,
@@ -266,7 +266,7 @@ class PsmGoogleCalendarServerTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             token_file = Path(tmpdir) / "token.json"
             token_file.write_text(
-                '{"token":"access-token","scopes":["https://www.googleapis.com/auth/calendar.readonly"]}'
+                '{"token":"access-token","scopes":["https://www.googleapis.com/auth/calendar.readonly"],"expiry":"9999-01-01T00:00:00Z"}'
             )
             with patch.dict(
                 os.environ,
@@ -311,7 +311,7 @@ class PsmGoogleCalendarServerTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             token_file = Path(tmpdir) / "token.json"
             token_file.write_text(
-                '{"token":"access-token","scopes":["https://www.googleapis.com/auth/calendar.readonly"]}'
+                '{"token":"access-token","scopes":["https://www.googleapis.com/auth/calendar.readonly"],"expiry":"9999-01-01T00:00:00Z"}'
             )
             with patch.dict(
                 os.environ,
