@@ -459,6 +459,215 @@ class PsmJiraServerTest(unittest.TestCase):
             {"id": "12017"},
         )
 
+    def test_resolve_assets_object_key_returns_object_key_on_exact_match(self):
+        captured_queries = []
+
+        def fake_request(method, path, body=None):
+            if method == "GET" and path == "/rest/servicedeskapi/assets/workspace":
+                return {"values": [{"workspaceId": "ws-1"}]}
+            if method == "POST" and "/v1/object/aql" in path:
+                captured_queries.append(body.get("qlQuery"))
+                return {"values": [{"objectKey": "HC-566", "label": "21 Supermarket"}]}
+            return {}
+
+        self.module._request_json = fake_request
+        self.assertEqual(self.module._resolve_assets_object_key("21 Supermarket"), "HC-566")
+        self.assertEqual(captured_queries, ['Name = "21 Supermarket"'])
+
+    def test_resolve_assets_object_key_returns_none_on_zero_or_ambiguous_matches(self):
+        def fake_request(method, path, body=None):
+            if method == "GET" and path == "/rest/servicedeskapi/assets/workspace":
+                return {"values": [{"workspaceId": "ws-1"}]}
+            if method == "POST" and "/v1/object/aql" in path:
+                # Every strategy returns no usable match: empty for the first lookup,
+                # ambiguous (>1) for the second.
+                if "Bistro" in body["qlQuery"]:
+                    return {"values": []}
+                return {"values": [{"objectKey": "A-1"}, {"objectKey": "A-2"}]}
+            return {}
+
+        self.module._request_json = fake_request
+        self.assertIsNone(self.module._resolve_assets_object_key("Bistro Bamboo"))
+        self.assertIsNone(self.module._resolve_assets_object_key("Ambiguous Co"))
+
+    def test_resolve_assets_object_key_caches_negative_lookups(self):
+        call_count = {"aql": 0}
+
+        def fake_request(method, path, body=None):
+            if method == "GET" and path == "/rest/servicedeskapi/assets/workspace":
+                return {"values": [{"workspaceId": "ws-1"}]}
+            if method == "POST" and "/v1/object/aql" in path:
+                call_count["aql"] += 1
+                return {"values": []}
+            return {}
+
+        self.module._request_json = fake_request
+        # First call fires multiple AQL queries (exact, then like fallback) because none match.
+        self.assertIsNone(self.module._resolve_assets_object_key("Totally Unknown"))
+        first_call_count = call_count["aql"]
+        self.assertGreater(first_call_count, 0)
+        # Second call must be served from cache — no additional AQL.
+        self.assertIsNone(self.module._resolve_assets_object_key("Totally Unknown"))
+        self.assertEqual(call_count["aql"], first_call_count, "negative result should be cached")
+
+    def test_resolve_assets_object_key_escapes_embedded_quotes(self):
+        captured = []
+
+        def fake_request(method, path, body=None):
+            if method == "GET" and path == "/rest/servicedeskapi/assets/workspace":
+                return {"values": [{"workspaceId": "ws-1"}]}
+            if method == "POST" and "/v1/object/aql" in path:
+                captured.append(body.get("qlQuery"))
+                return {"values": []}
+            return {}
+
+        self.module._request_json = fake_request
+        self.module._resolve_assets_object_key('A "Tricky" Co')
+        # First strategy is exact match; embedded " must be escaped to keep the AQL literal well-formed.
+        self.assertEqual(captured[0], 'Name = "A \\"Tricky\\" Co"')
+
+    def test_resolve_assets_object_key_falls_back_to_legal_suffix_stripped_form(self):
+        """C360-canonicalised names ("21 Supermarket Pte Ltd") rarely match the Assets
+        display name verbatim ("21 Supermarket"). Stripping the legal suffix and retrying
+        the exact match should resolve cleanly."""
+        queries: list[str] = []
+
+        def fake_request(method, path, body=None):
+            if method == "GET" and path == "/rest/servicedeskapi/assets/workspace":
+                return {"values": [{"workspaceId": "ws-1"}]}
+            if method == "POST" and "/v1/object/aql" in path:
+                q = body["qlQuery"]
+                queries.append(q)
+                if q == 'Name = "21 Supermarket"':
+                    return {"values": [{"objectKey": "HC-566", "label": "21 Supermarket"}]}
+                return {"values": []}
+            return {}
+
+        self.module._request_json = fake_request
+        self.assertEqual(
+            self.module._resolve_assets_object_key("21 Supermarket Pte Ltd"),
+            "HC-566",
+        )
+        # Strategy order: exact (miss) -> legal-suffix-stripped exact (hit).
+        self.assertEqual(queries[0], 'Name = "21 Supermarket Pte Ltd"')
+        self.assertEqual(queries[1], 'Name = "21 Supermarket"')
+        self.assertEqual(len(queries), 2, "should stop after the first successful strategy")
+
+    def test_resolve_assets_object_key_falls_back_to_like_substring_match(self):
+        """If exact and legal-stripped exact miss, a single substring match should resolve."""
+        queries: list[str] = []
+
+        def fake_request(method, path, body=None):
+            if method == "GET" and path == "/rest/servicedeskapi/assets/workspace":
+                return {"values": [{"workspaceId": "ws-1"}]}
+            if method == "POST" and "/v1/object/aql" in path:
+                q = body["qlQuery"]
+                queries.append(q)
+                if q.startswith("Name like"):
+                    return {"values": [{"objectKey": "HC-99", "label": "Acme HQ"}]}
+                return {"values": []}
+            return {}
+
+        self.module._request_json = fake_request
+        self.assertEqual(self.module._resolve_assets_object_key("Acme HQ"), "HC-99")
+        self.assertTrue(any(q.startswith("Name like") for q in queries))
+
+    def test_resolve_assets_object_key_does_not_cache_transient_failures(self):
+        """A transient Assets/AQL outage must not turn into a process-lifetime false negative.
+        After the first call sees only JiraError responses, a follow-up call once Jira
+        recovers should re-hit the API and return the real answer."""
+        state = {"jira_up": False}
+        aql_calls = {"n": 0}
+
+        def fake_request(method, path, body=None):
+            if method == "GET" and path == "/rest/servicedeskapi/assets/workspace":
+                if not state["jira_up"]:
+                    raise self.module.JiraError("Jira API unavailable: timed out")
+                return {"values": [{"workspaceId": "ws-1"}]}
+            if method == "POST" and "/v1/object/aql" in path:
+                aql_calls["n"] += 1
+                if not state["jira_up"]:
+                    raise self.module.JiraError("Jira API unavailable: timed out")
+                return {"values": [{"objectKey": "HC-7", "label": "Recovered Co"}]}
+            return {}
+
+        self.module._request_json = fake_request
+
+        # First call during the outage: every strategy hits JiraError → no resolution,
+        # and no cache write because all queries failed transiently.
+        self.assertIsNone(self.module._resolve_assets_object_key("Recovered Co"))
+
+        # Jira recovers. The next call must re-hit AQL rather than returning a cached None.
+        state["jira_up"] = True
+        aql_before = aql_calls["n"]
+        self.assertEqual(self.module._resolve_assets_object_key("Recovered Co"), "HC-7")
+        self.assertGreater(aql_calls["n"], aql_before, "transient failure must not be cached")
+
+    def test_resolve_assets_object_key_rejects_ambiguous_like_match(self):
+        """A substring `like` query that returns more than one Assets object should be
+        treated as ambiguous and resolve to None — better to omit than guess wrong."""
+        def fake_request(method, path, body=None):
+            if method == "GET" and path == "/rest/servicedeskapi/assets/workspace":
+                return {"values": [{"workspaceId": "ws-1"}]}
+            if method == "POST" and "/v1/object/aql" in path:
+                q = body["qlQuery"]
+                if q.startswith("Name like"):
+                    return {"values": [{"objectKey": "HC-1"}, {"objectKey": "HC-2"}]}
+                return {"values": []}
+            return {}
+
+        self.module._request_json = fake_request
+        self.assertIsNone(self.module._resolve_assets_object_key("Generic"))
+
+    def test_create_pco_task_warns_when_staffany_org_does_not_resolve(self):
+        calls = []
+        with patch.dict(
+            os.environ,
+            {
+                "PSM_OPS_JIRA_MODE": "thin_poc",
+                "PSM_OPS_ACCESS_POLICY_PATH": "",
+                "PSM_OPS_JIRA_SERVICE_DESK_ID": "",
+                "PSM_OPS_JIRA_FIELD_STAFFANY_ORGS": "",
+                "PSM_OPS_JIRA_FIELD_REMINDER_AT": "",
+            },
+            clear=False,
+        ):
+            def fake_request(method, path, body=None):
+                calls.append((method, path, deepcopy(body)))
+                if path == "/rest/servicedeskapi/request":
+                    return {"issueKey": "PCO-901", "requestTypeId": "81"}
+                if path.endswith("/comment"):
+                    return {"id": "c-901"}
+                return {}
+
+            self.module._request_json = fake_request
+            self.module._resolve_assets_object_key = lambda name: None  # nothing resolves
+
+            result = self.module.create_approved_pco_task(
+                {
+                    "customer": "Bistro Bamboo",
+                    "summary": "Confirm payroll readiness",
+                    "due_date": "2026-05-15",
+                    "priority": "High",
+                    "action_type": "Customer success",
+                    "request_type_id": "81",
+                    "source_links": [],
+                    "staffany_orgs": ["Bistro Bamboo"],
+                    "owner_psm": "Ada PSM",
+                    "owner_jira_account_id": "acct-123",
+                    "mode": "thin_poc",
+                },
+                "create",
+            )
+
+        self.assertEqual(result["confidence"], "verified")
+        # The org field must not be sent at all when nothing resolved — no retry needed.
+        request_values = calls[0][2]["requestFieldValues"]
+        self.assertNotIn("customfield_10667", request_values)
+        # Warning must name the unresolved org so triage knows which one to assign manually.
+        warnings = result["answer"]["warnings"]
+        self.assertTrue(any("Bistro Bamboo" in w and "no Jira Assets object matched" in w for w in warnings))
+
     def test_ps_team_issue_value_uses_matched_option_label_when_id_missing(self):
         """When the Jira option carries only `label` (no `value`/`id`), the issue value must
         be the **matched** label, not the raw input the caller passed in."""
@@ -1541,6 +1750,8 @@ class PsmJiraServerTest(unittest.TestCase):
             return {}
 
         self.module._request_json = fake_request
+        # Identity stub: pretend every supplied StaffAny org name resolves to itself as an Assets objectKey.
+        self.module._resolve_assets_object_key = lambda name: name
 
         with patch.dict(os.environ, {"PSM_OPS_CUSTOMER_CHANNEL_MAP_PATH": map_path}, clear=False):
             result = self.module.create_ps_wee_intake_ticket(
@@ -1552,7 +1763,7 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertEqual(result["confidence"], "verified")
         request_values = calls[1][2]["requestFieldValues"]
         self.assertEqual(request_values["customfield_10101"], "Fei Siong Group")
-        self.assertEqual(request_values["customfield_10102"], ["FS-001", "FS-002"])
+        self.assertEqual(request_values["customfield_10102"], [{"key": "FS-001"}, {"key": "FS-002"}])
         self.assertEqual(request_values["summary"], "[Needs info] Fei Siong Group - Payroll readiness unclear")
         self.assertNotIn("customer/org", result["answer"]["missing_info"])
         self.assertIn("Customer channel: C08SDJR03N1", calls[2][2]["body"])
@@ -1584,6 +1795,7 @@ class PsmJiraServerTest(unittest.TestCase):
             return {}
 
         self.module._request_json = fake_request
+        self.module._resolve_assets_object_key = lambda name: name
 
         with patch.dict(os.environ, {"PSM_OPS_CUSTOMER_CHANNEL_MAP_PATH": map_path}, clear=False):
             result = self.module.create_ps_wee_intake_ticket(
@@ -1594,7 +1806,7 @@ class PsmJiraServerTest(unittest.TestCase):
             )
 
         self.assertEqual(result["confidence"], "verified")
-        self.assertEqual(calls[1][2]["requestFieldValues"]["customfield_10102"], ["FS-001"])
+        self.assertEqual(calls[1][2]["requestFieldValues"]["customfield_10102"], [{"key": "FS-001"}])
 
     def test_ps_wee_intake_blocks_conflicting_customer_channel_mapping(self):
         map_path = self._customer_channel_map(
@@ -2498,6 +2710,7 @@ class PsmJiraServerTest(unittest.TestCase):
                 return {}
 
             self.module._request_json = fake_request
+            self.module._resolve_assets_object_key = lambda name: name
 
             result = self.module.create_approved_pco_task(
                 {
@@ -2517,7 +2730,7 @@ class PsmJiraServerTest(unittest.TestCase):
             )
 
         self.assertEqual(result["confidence"], "verified")
-        self.assertEqual(calls[0][2]["requestFieldValues"]["customfield_10667"], ["FS-001"])
+        self.assertEqual(calls[0][2]["requestFieldValues"]["customfield_10667"], [{"key": "FS-001"}])
         retry_values = calls[1][2]["requestFieldValues"]
         self.assertNotIn("customfield_10667", retry_values)
         self.assertEqual(retry_values["summary"], "Confirm payroll readiness")
@@ -2552,6 +2765,7 @@ class PsmJiraServerTest(unittest.TestCase):
                 return {}
 
             self.module._request_json = fake_request
+            self.module._resolve_assets_object_key = lambda name: name
             self.module._ps_team_request_value = lambda label, request_type_id="": {"id": "ps-team-id"}
 
             try:
