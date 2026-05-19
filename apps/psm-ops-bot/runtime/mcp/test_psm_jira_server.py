@@ -1176,12 +1176,10 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertEqual(len(result["answer"]["drive_selfies"]), 1)
         self.assertIn("Saved 1 selfie(s) to Drive.", result["answer"]["slack_reply"])
 
-    def test_ps_wee_intake_outside_aa_channel_does_not_fetch_images(self):
-        calls = []
-        slack_calls = []
+    def test_ps_wee_intake_outside_aa_channel_attaches_images_to_jira_not_drive(self):
+        attachment_calls = []
 
         def fake_request(method, path, body=None):
-            calls.append((method, path, deepcopy(body)))
             if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
                 return {"issues": []}
             if path == "/rest/servicedeskapi/request":
@@ -1191,13 +1189,32 @@ class PsmJiraServerTest(unittest.TestCase):
             return {}
 
         def fake_slack_json(method, params):
-            slack_calls.append((method, params))
+            if method == "conversations.history":
+                return {
+                    "messages": [
+                        {
+                            "ts": params["oldest"],
+                            "files": [
+                                {
+                                    "id": "F-img",
+                                    "name": "evidence.jpg",
+                                    "mimetype": "image/jpeg",
+                                    "url_private": "https://files.slack.com/evidence.jpg",
+                                }
+                            ],
+                        }
+                    ]
+                }
             return {"members": []}
+
+        def fake_attach(issue_key, files):
+            attachment_calls.append((issue_key, deepcopy(files)))
+            return [{"id": "att-1", "filename": files[0]["name"]}]
 
         self.module._request_json = fake_request
         self.module._request_slack_json = fake_slack_json
-        self.module._attach_image_files_to_issue = lambda issue_key, files: (_ for _ in ()).throw(AssertionError("must not be called outside AA channel"))
-        self.module.upload_aa_selfies = lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("must not be called outside AA channel"))
+        self.module._attach_image_files_to_issue = fake_attach
+        self.module.upload_aa_selfies = lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("upload_aa_selfies must not be called outside AA channel"))
         self.module.post_ps_wee_audit = lambda event_type, **kwargs: {"ok": True}
 
         result = self.module.create_ps_wee_intake_ticket(
@@ -1208,13 +1225,12 @@ class PsmJiraServerTest(unittest.TestCase):
         )
 
         self.assertEqual(result["confidence"], "verified")
-        self.assertEqual(result["answer"]["attached_images"], [])
-        self.assertNotIn("Attached", result["answer"]["slack_reply"])
+        self.assertEqual(len(attachment_calls), 1)
+        self.assertEqual(attachment_calls[0][0], "PCO-906")
+        self.assertEqual(len(result["answer"]["attached_images"]), 1)
+        self.assertEqual(result["answer"]["drive_selfies"], [])
+        self.assertIn("Attached 1 image(s) from Slack.", result["answer"]["slack_reply"])
         self.assertNotIn("Drive", result["answer"]["slack_reply"])
-        self.assertFalse(
-            any(method == "conversations.history" for method, _ in slack_calls),
-            "conversations.history should not be called outside the AA channel",
-        )
 
     def test_ps_wee_intake_in_aa_channel_handles_slack_fetch_failure_without_blocking(self):
         calls = []

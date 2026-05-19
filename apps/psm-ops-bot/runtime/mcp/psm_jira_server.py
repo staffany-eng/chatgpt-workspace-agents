@@ -564,16 +564,11 @@ def _ps_team_issue_value(label: str) -> Any:
 
 
 def _creator_field_id() -> str:
-    try:
-        return _field_id("creator")
-    except JiraError:
-        return ""
+    return _field_id("creator")
 
 
 def _creator_valid_values(request_type_id: str = "") -> list[dict[str, Any]]:
     creator_field = _creator_field_id()
-    if not creator_field and not request_type_id:
-        return []
     try:
         rid = request_type_id or _request_type_id("feedback")
         payload = _request_json(
@@ -1786,9 +1781,7 @@ def _request_field_values(draft: dict[str, Any]) -> dict[str, Any]:
         if draft.get("ps_team"):
             values[_ps_team_field_id()] = _ps_team_request_value(str(draft["ps_team"]), str(draft.get("request_type_id") or ""))
         if draft.get("creator_field_value"):
-            creator_field = _creator_field_id()
-            if creator_field:
-                values[creator_field] = draft["creator_field_value"]
+            values[_creator_field_id()] = draft["creator_field_value"]
         return values
 
     fields = _field_ids()
@@ -1810,9 +1803,7 @@ def _request_field_values(draft: dict[str, Any]) -> dict[str, Any]:
     if draft.get("ps_team"):
         values[_ps_team_field_id()] = _ps_team_request_value(str(draft["ps_team"]), str(draft.get("request_type_id") or ""))
     if draft.get("creator_field_value"):
-        creator_field = _creator_field_id()
-        if creator_field:
-            values[creator_field] = draft["creator_field_value"]
+        values[_creator_field_id()] = draft["creator_field_value"]
     for field_id, value in mappings.items():
         if value:
             values[field_id] = value
@@ -2435,7 +2426,7 @@ def _create_pco_task_from_draft(draft: dict[str, Any], scope: dict[str, Any]) ->
             response = _request_json("POST", "/rest/servicedeskapi/request", payload)
             warnings: list[str] = []
         except JiraError:
-            if not _is_thin_poc() or set(request_values) == {"summary"}:
+            if not _is_thin_poc() or set(request_values) == {"summary"} or draft.get("event") == "AA":
                 raise
             payload["requestFieldValues"] = {"summary": draft["summary"]}
             response = _request_json("POST", "/rest/servicedeskapi/request", payload)
@@ -3058,8 +3049,11 @@ def create_ps_wee_intake_ticket(
         auto_ps_team = EVENT_AA_PS_TEAM_BY_CATEGORY.get(request_type_key, "")
         if auto_ps_team and not _normalize_ps_team(ps_team):
             normalized_ps_team = auto_ps_team
-        if not normalized_ps_team and creator_display:
-            normalized_ps_team = creator_display
+        if not normalized_ps_team:
+            creator_label = ""
+            if isinstance(creator_field_value, dict):
+                creator_label = str(creator_field_value.get("value") or "").strip()
+            normalized_ps_team = creator_label or creator_display
     staffany_orgs_value = list(customer_channel_mapping.get("staffany_orgs", []) or [])
     if (
         is_event_aa
@@ -3102,6 +3096,7 @@ def create_ps_wee_intake_ticket(
         "creator_display": creator_display,
         "pic": (pic or "").strip(),
         "labels_extra": labels_extra,
+        "event": "AA" if is_event_aa else "",
     }
     result = _create_pco_task_from_draft(draft, scope)
     if result.get("confidence") != "verified":
@@ -3113,22 +3108,25 @@ def create_ps_wee_intake_ticket(
     ticket_ref = f"<{issue_url}|{issue_key}>" if issue_key and issue_url else issue_key or issue_url or "the ticket"
     attached_images: list[dict[str, Any]] = []
     drive_uploads: list[dict[str, Any]] = []
-    if is_event_aa and issue_key:
+    images: list[dict[str, Any]] = []
+    if issue_key:
         try:
             images = _slack_trigger_message_image_files(source)
         except Exception:
             images = []
-        if images:
-            payloads = _download_slack_images_for_drive(images)
-            if payloads:
-                try:
-                    drive_uploads = upload_aa_selfies(
-                        payloads,
-                        company=normalized_customer,
-                        pic=(pic or "").strip() or creator_display or "unknown",
-                    )
-                except Exception:
-                    drive_uploads = []
+    if is_event_aa and images:
+        payloads = _download_slack_images_for_drive(images)
+        if payloads:
+            try:
+                drive_uploads = upload_aa_selfies(
+                    payloads,
+                    company=normalized_customer,
+                    pic=(pic or "").strip() or creator_display or "unknown",
+                )
+            except Exception:
+                drive_uploads = []
+    elif issue_key and images:
+        attached_images = _attach_image_files_to_issue(issue_key, images)
     answer["attached_images"] = attached_images
     answer["drive_selfies"] = drive_uploads
     if is_event_aa:
