@@ -53,7 +53,13 @@ REQUEST_TYPE_ENVS = {
     "onboarding_task": "PSM_OPS_JIRA_REQUEST_TYPE_ONBOARDING_TASK",
     "data_hygiene": "PSM_OPS_JIRA_REQUEST_TYPE_DATA_HYGIENE",
     "handoff_package": "PSM_OPS_JIRA_REQUEST_TYPE_HANDOFF_PACKAGE",
+    "cross_sell": "PSM_OPS_JIRA_REQUEST_TYPE_CROSS_SELL",
+    "churn_revival": "PSM_OPS_JIRA_REQUEST_TYPE_CHURN_REVIVAL",
+    "feedback": "PSM_OPS_JIRA_REQUEST_TYPE_FEEDBACK",
 }
+
+EVENT_AA_REQUEST_TYPE_KEYS = {"cross_sell", "churn_revival", "feedback"}
+EVENT_AA_DEFAULT_REQUEST_TYPE_KEY = "feedback"
 
 THIN_POC_MODE = "thin_poc"
 THIN_POC_SERVICE_DESK_ID = "70"
@@ -62,7 +68,11 @@ THIN_POC_REQUEST_TYPES = {
     "onboarding_task": "82",
     "data_hygiene": "83",
     "handoff_package": "",
+    "cross_sell": "120",
+    "churn_revival": "121",
+    "feedback": "122",
 }
+THIN_POC_AA_CHANNEL_ID = "C0B5H2YE5T2"
 THIN_POC_FIELD_IDS = {
     "staffany_orgs": "customfield_10667",
     "ps_team": "customfield_10876",
@@ -708,6 +718,20 @@ def _verified(answer: Any, scope: dict[str, Any], caveat: str = "None.", source:
 def _slack_channel_id_from_permalink(slack_thread_url: str) -> str:
     match = re.search(r"/archives/([A-Z0-9]+)/", slack_thread_url or "")
     return match.group(1) if match else ""
+
+
+def _event_aa_channel_id() -> str:
+    value = (os.environ.get("PSM_OPS_AA_CHANNEL_ID") or "").strip()
+    if not value and _is_thin_poc():
+        return THIN_POC_AA_CHANNEL_ID
+    return value
+
+
+def _is_event_aa_thread(slack_thread_url: str) -> bool:
+    expected = _event_aa_channel_id()
+    if not expected:
+        return False
+    return _slack_channel_id_from_permalink(slack_thread_url) == expected
 
 
 def _customer_channel_map_path() -> str:
@@ -2608,11 +2632,15 @@ def create_ps_wee_intake_ticket(
     supplied_customer = (customer or "").strip()
     normalized_customer = supplied_customer or "Unknown customer"
     normalized_issue = (issue_summary or "").strip() or "PS request from Slack"
+    is_event_aa = _is_event_aa_thread(source)
+    if is_event_aa and request_type_key not in EVENT_AA_REQUEST_TYPE_KEYS:
+        request_type_key = EVENT_AA_DEFAULT_REQUEST_TYPE_KEY
     scope = {
         "caller": (slack_user_email or "").strip().lower(),
         "slack_thread_url": source,
         "customer": normalized_customer,
         "request_type_key": request_type_key,
+        "event": "AA" if is_event_aa else "",
     }
     if not source:
         return _blocked("Slack thread URL is required before creating a traceable PS WEE ticket.", scope)
@@ -2631,7 +2659,7 @@ def create_ps_wee_intake_ticket(
                 summary=str(existing[0].get("summary") or normalized_issue),
                 status=str(existing[0].get("status") or ""),
                 jira_payload=answer,
-                extra={"request_type_key": request_type_key},
+                extra={"request_type_key": request_type_key, "event": "AA" if is_event_aa else ""},
             )
             return _verified(
                 answer,
