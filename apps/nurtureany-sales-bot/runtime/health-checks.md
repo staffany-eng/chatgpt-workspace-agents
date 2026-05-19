@@ -61,7 +61,8 @@ NurtureAny needs deterministic runtime checks because prompt correctness does no
 - HubSpot inbound monitor automation is optional and disabled unless `NURTUREANY_INBOUND_MONITOR_ENABLED` is truthy. It reads HubSpot Conversations through `audit_inbound_sla`, emits only exception rows starting with `NurtureAny automation:`, stores runtime-only cursor/dedupe state, and never mutates HubSpot or sends external messages.
 - Operation ledger tools `record_nurtureany_operation_checkpoint` and `read_nurtureany_operation_ledger` are available for restart-safe Slack workflow continuation.
 - Sales WhatsApp report primitives `build_sales_whatsapp_window_report`, `save_sales_whatsapp_window_report_schedule`, `run_sales_whatsapp_window_report_schedule`, and `post_generated_sales_report` are available for Singapore, Malaysia, and Indonesia. Delivery requires `NURTUREANY_REPORT_DELIVERY_CHANNEL_IDS`, generated report markdown, approval marker, idempotency key, and operation-ledger checkpoints; ad hoc reruns must not update the saved weekday schedule. The ID manager cron must run `nurtureany_sales_whatsapp_report_runner.py` as a no-agent local-delivery job; the runner posts through `post_generated_sales_report` with the `NurtureAny automation:` report prefix instead of relying on a free-form agent prompt.
-- Reviewed lesson tools `record_nurtureany_lesson_candidate`, `list_nurtureany_lesson_candidates`, and `read_nurtureany_lesson_candidate` are available. They write/read runtime-only candidates, keep Honcho disabled, and do not change behavior before repo promotion.
+- Reviewed lesson tools `record_nurtureany_lesson_candidate`, `list_nurtureany_lesson_candidates`, `read_nurtureany_lesson_candidate`, and `update_nurtureany_lesson_candidate_status` are available. They write/read/review runtime-only candidates, keep Honcho disabled, and do not change behavior before repo promotion.
+- Reviewed lesson digest automation is installed as no-agent cron `nurtureanysalesbot learning review digest`. It reads `lesson-candidates/*.json`, prints nothing when no `pending_review` candidate exists, posts only safe summaries with `NurtureAny automation:` when candidates exist, and never uses Honcho, Curator, Kanban-first approval, GitHub push, raw Slack transcripts, raw HubSpot rows, phone numbers, secrets, or contact exports.
 - Eazybe approval-gated smoke check confirms `preview_eazybe_template_messages`, `send_approved_eazybe_messages`, and `check_eazybe_send_status` are available; sends require `approval_marker`, `templateName`, ordered `templateParams`, and phone-number redaction.
 - HubSpot photo scan smoke check accepts Luma event candidates, correlates Drive photo timestamps to Luma event dates, auto-tags `nurture_event` only for one clear event-date match, and keeps HubSpot person/contact association blocked until uploader confirmation.
 - A tiny target-account count query succeeds for each supported country.
@@ -178,9 +179,11 @@ cp apps/nurtureany-sales-bot/runtime/scripts/nurtureany_slack_access_repair.py ~
 cp apps/nurtureany-sales-bot/runtime/scripts/nurtureany_sales_task_reminders.py ~/.hermes/profiles/nurtureanysalesbot/scripts/nurtureany_sales_task_reminders.py
 cp apps/nurtureany-sales-bot/runtime/scripts/nurtureany_sales_task_reminders_eod.py ~/.hermes/profiles/nurtureanysalesbot/scripts/nurtureany_sales_task_reminders_eod.py
 cp apps/nurtureany-sales-bot/runtime/scripts/nurtureany_inbound_monitor.py ~/.hermes/profiles/nurtureanysalesbot/scripts/nurtureany_inbound_monitor.py
+cp apps/nurtureany-sales-bot/runtime/scripts/nurtureany_lesson_review_digest.py ~/.hermes/profiles/nurtureanysalesbot/scripts/nurtureany_lesson_review_digest.py
 cp apps/nurtureany-sales-bot/runtime/scripts/nurtureany_sales_whatsapp_report_runner.py ~/.hermes/profiles/nurtureanysalesbot/scripts/nurtureany_sales_whatsapp_report_runner.py
 chmod +x ~/.hermes/profiles/nurtureanysalesbot/scripts/nurtureany_slack_access_repair.py
 chmod +x ~/.hermes/profiles/nurtureanysalesbot/scripts/nurtureany_inbound_monitor.py
+chmod +x ~/.hermes/profiles/nurtureanysalesbot/scripts/nurtureany_lesson_review_digest.py
 chmod +x ~/.hermes/profiles/nurtureanysalesbot/scripts/nurtureany_sales_whatsapp_report_runner.py
 hermes -p nurtureanysalesbot cron create "0 1 * * 1-5" \
   --name "nurtureanysalesbot health check" \
@@ -213,9 +216,14 @@ hermes -p nurtureanysalesbot cron create "*/2 * * * *" \
   --script nurtureany_inbound_monitor.py \
   --deliver slack:#nurtureany-testing \
   --no-agent
+hermes -p nurtureanysalesbot cron create "30 1 * * 1-5" \
+  --name "nurtureanysalesbot learning review digest" \
+  --script nurtureany_lesson_review_digest.py \
+  --deliver slack:#nurtureany-testing \
+  --no-agent
 ```
 
-Daily nurture is available as an on-demand workflow, not a required production cron. Eugene-owned WhatsApp Blitz is separate and intended. The runtime audit expects ten enabled recurring operational crons: health check, live profile audit, local cloud heartbeat, Slack socket watchdog, HubSpot task reminders, HubSpot task EOD catch-up, HubSpot inbound monitor, SG MY WhatsApp Morning Blitz Report, ID Morning WhatsApp Blitz Report, and ID WhatsApp Morning Blitz Report. The ID WhatsApp Morning Blitz Report cron is a no-agent local-delivery script job using `nurtureany_sales_whatsapp_report_runner.py`; the report delivery itself is bot-owned Slack posting through the saved schedule and operation ledger. Safe enabled one-shot report jobs are allowed and must not change the recurring cron count. The HubSpot inbound monitor is a read-only internal exception report to `#nurtureany-testing`; it must use `audit_inbound_sla`, never mutate HubSpot, and never send external messages. The saved WhatsApp report schedule lives in profile-runtime JSON and is called by deterministic primitives; it supports SG/MY defaults and explicit Indonesia report args, and does not remove or rename the existing WhatsApp Blitz cron records.
+Daily nurture is available as an on-demand workflow, not a required production cron. Eugene-owned WhatsApp Blitz is separate and intended. The runtime audit expects eleven enabled recurring operational crons: health check, live profile audit, local cloud heartbeat, Slack socket watchdog, HubSpot task reminders, HubSpot task EOD catch-up, HubSpot inbound monitor, learning review digest, SG MY WhatsApp Morning Blitz Report, ID Morning WhatsApp Blitz Report, and ID WhatsApp Morning Blitz Report. The ID WhatsApp Morning Blitz Report cron is a no-agent local-delivery script job using `nurtureany_sales_whatsapp_report_runner.py`; the report delivery itself is bot-owned Slack posting through the saved schedule and operation ledger. Safe enabled one-shot report jobs are allowed and must not change the recurring cron count. The HubSpot inbound monitor is a read-only internal exception report to `#nurtureany-testing`; it must use `audit_inbound_sla`, never mutate HubSpot, and never send external messages. The learning review digest is a review-only internal report to `#nurtureany-testing`; it must never mutate HubSpot or approve lessons. The saved WhatsApp report schedule lives in profile-runtime JSON and is called by deterministic primitives; it supports SG/MY defaults and explicit Indonesia report args, and does not remove or rename the existing WhatsApp Blitz cron records.
 
 To enable the optional HubSpot-source inbound monitor after a prod dry run,
 set `NURTUREANY_INBOUND_MONITOR_ENABLED=true`,

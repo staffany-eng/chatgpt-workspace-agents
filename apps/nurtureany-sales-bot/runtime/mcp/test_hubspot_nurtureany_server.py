@@ -447,6 +447,139 @@ class ReviewedLessonCandidateTest(unittest.TestCase):
         self.assertEqual(loaded["answer"]["lesson_id"], "thread-123-learning")
         self.assertEqual(loaded["answer"]["target_repo_surface"], "skill_reference")
 
+    def test_lesson_candidate_status_update_requires_human_marker_and_notes(self):
+        with tempfile.TemporaryDirectory() as lesson_dir, patch.dict(os.environ, {"NURTUREANY_LESSON_CANDIDATES_DIR": lesson_dir}):
+            self.module.record_nurtureany_lesson_candidate(
+                lesson_id="thread-123-learning",
+                source_thread_permalink="https://staffany.slack.com/archives/C123/p1710000000000100",
+                source_summary="User corrected that KNS means Knowledge, Network, Support in NurtureAny nurture copy.",
+                proposed_rule="When a user writes KNS, expand it as Knowledge, Network, Support.",
+                applies_to="nurture drafting",
+                target_repo_surface="skill_reference",
+                risk_class="low",
+            )
+            missing_marker = self.module.update_nurtureany_lesson_candidate_status(
+                lesson_id="thread-123-learning",
+                status="approved_for_repo_promotion",
+                reviewer="kaiyi@staffany.com",
+                review_notes="Approved for repo reference update.",
+                approval_marker="approve",
+            )
+            updated = self.module.update_nurtureany_lesson_candidate_status(
+                lesson_id="thread-123-learning",
+                status="approved_for_repo_promotion",
+                reviewer="kaiyi@staffany.com",
+                review_notes="Approved for repo reference update.",
+                approval_marker="human reviewed lesson",
+            )
+            loaded = self.module.read_nurtureany_lesson_candidate("thread-123-learning")
+
+        self.assertEqual(missing_marker["confidence"], "blocked")
+        self.assertEqual(updated["confidence"], "verified")
+        self.assertEqual(updated["answer"]["previous_status"], "pending_review")
+        self.assertEqual(updated["answer"]["status"], "approved_for_repo_promotion")
+        self.assertEqual(loaded["answer"]["reviewer"], "kaiyi@staffany.com")
+
+    def test_lesson_candidate_status_update_blocks_automation_reviewer(self):
+        with tempfile.TemporaryDirectory() as lesson_dir, patch.dict(os.environ, {"NURTUREANY_LESSON_CANDIDATES_DIR": lesson_dir}):
+            self.module.record_nurtureany_lesson_candidate(
+                lesson_id="thread-123-learning",
+                source_thread_permalink="https://staffany.slack.com/archives/C123/p1710000000000100",
+                source_summary="Reusable behavior correction.",
+                proposed_rule="Change future behavior after review.",
+                applies_to="NurtureAny",
+                target_repo_surface="skill_reference",
+                risk_class="low",
+            )
+            result = self.module.update_nurtureany_lesson_candidate_status(
+                lesson_id="thread-123-learning",
+                status="rejected",
+                reviewer="nurtureanysalesbot automation",
+                review_notes="Rejecting my own candidate.",
+                approval_marker="human reviewed lesson",
+            )
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("cannot approve", result["caveat"])
+
+    def test_lesson_candidate_needs_more_evidence_status(self):
+        with tempfile.TemporaryDirectory() as lesson_dir, patch.dict(os.environ, {"NURTUREANY_LESSON_CANDIDATES_DIR": lesson_dir}):
+            self.module.record_nurtureany_lesson_candidate(
+                lesson_id="thread-123-learning",
+                source_thread_permalink="https://staffany.slack.com/archives/C123/p1710000000000100",
+                source_summary="Reusable behavior correction.",
+                proposed_rule="Change future behavior after review.",
+                applies_to="NurtureAny",
+                target_repo_surface="mcp_contract",
+                risk_class="medium",
+            )
+            updated = self.module.update_nurtureany_lesson_candidate_status(
+                lesson_id="thread-123-learning",
+                status="needs_more_evidence",
+                reviewer="eugene@staffany.com",
+                review_notes="Needs a second live example before repo promotion.",
+                approval_marker="human reviewed lesson",
+            )
+            listed = self.module.list_nurtureany_lesson_candidates(status="needs_more_evidence")
+
+        self.assertEqual(updated["confidence"], "verified")
+        self.assertEqual(updated["answer"]["status"], "needs_more_evidence")
+        self.assertEqual(listed["answer"]["returned_count"], 1)
+
+    def test_lesson_candidate_promoted_requires_approval_and_live_evidence(self):
+        with tempfile.TemporaryDirectory() as lesson_dir, patch.dict(os.environ, {"NURTUREANY_LESSON_CANDIDATES_DIR": lesson_dir}):
+            self.module.record_nurtureany_lesson_candidate(
+                lesson_id="thread-123-learning",
+                source_thread_permalink="https://staffany.slack.com/archives/C123/p1710000000000100",
+                source_summary="Reusable behavior correction.",
+                proposed_rule="Change future behavior after review.",
+                applies_to="NurtureAny",
+                target_repo_surface="mcp_contract",
+                risk_class="medium",
+            )
+            early_promote = self.module.update_nurtureany_lesson_candidate_status(
+                lesson_id="thread-123-learning",
+                status="promoted",
+                reviewer="kaiyi@staffany.com",
+                review_notes="Trying to promote before repo approval.",
+                approval_marker="human reviewed lesson",
+                repo_commit_sha="abcdef1",
+                live_verified_at="2026-05-19T01:00:00Z",
+                live_verification_summary="Verified live.",
+            )
+            self.module.update_nurtureany_lesson_candidate_status(
+                lesson_id="thread-123-learning",
+                status="approved_for_repo_promotion",
+                reviewer="kaiyi@staffany.com",
+                review_notes="Approved for MCP contract change.",
+                approval_marker="human reviewed lesson",
+            )
+            missing_evidence = self.module.update_nurtureany_lesson_candidate_status(
+                lesson_id="thread-123-learning",
+                status="promoted",
+                reviewer="kaiyi@staffany.com",
+                review_notes="Repo change merged.",
+                approval_marker="human reviewed lesson",
+                repo_commit_sha="abcdef1",
+            )
+            promoted = self.module.update_nurtureany_lesson_candidate_status(
+                lesson_id="thread-123-learning",
+                status="promoted",
+                reviewer="kaiyi@staffany.com",
+                review_notes="Repo change verified, deployed, and live-checked.",
+                approval_marker="human reviewed lesson",
+                repo_commit_sha="abcdef1",
+                live_verified_at="2026-05-19T01:00:00Z",
+                live_verification_summary="NurtureAny verify passed; cloud doctor reported active gateway and lesson tools.",
+            )
+
+        self.assertEqual(early_promote["confidence"], "blocked")
+        self.assertIn("approved_for_repo_promotion", early_promote["caveat"])
+        self.assertEqual(missing_evidence["confidence"], "blocked")
+        self.assertEqual(promoted["confidence"], "verified")
+        self.assertEqual(promoted["answer"]["status"], "promoted")
+        self.assertEqual(promoted["answer"]["repo_commit_sha"], "abcdef1")
+
     def test_lesson_candidate_rejects_unsafe_secret_payload(self):
         with tempfile.TemporaryDirectory() as lesson_dir, patch.dict(os.environ, {"NURTUREANY_LESSON_CANDIDATES_DIR": lesson_dir}):
             result = self.module.record_nurtureany_lesson_candidate(

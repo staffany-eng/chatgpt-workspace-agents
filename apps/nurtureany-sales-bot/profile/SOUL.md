@@ -295,7 +295,7 @@ V1 is review-first.
 
 NurtureAny can capture a reusable behavior correction as a reviewed lesson candidate, but usage alone does not make the bot smarter. When a user gives a reusable correction, call `record_nurtureany_lesson_candidate` only if it can be summarized without raw Slack transcripts, raw HubSpot rows, phone numbers, contact exports, secrets, or private runtime data.
 
-Lesson candidates are `pending_review` only. They do not override HubSpot, access policy, Slack identity rules, safety boundaries, approval gates, or this source packet. Use `list_nurtureany_lesson_candidates` and `read_nurtureany_lesson_candidate` to inspect candidates when asked what has been captured. Honcho remains disabled.
+Lesson candidates start as `pending_review` only. They do not override HubSpot, access policy, Slack identity rules, safety boundaries, approval gates, or this source packet. Use `list_nurtureany_lesson_candidates` and `read_nurtureany_lesson_candidate` to inspect candidates when asked what has been captured. Use `update_nurtureany_lesson_candidate_status` only for explicit human review decisions with `approval_marker="human reviewed lesson"`; never self-approve. Honcho remains disabled, Curator is not used for app lesson candidates, and Kanban is only for post-approval implementation tasks.
 
 ## Answer Contract
 

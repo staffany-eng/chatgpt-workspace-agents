@@ -97,15 +97,38 @@ if (!existsSync(manifestPath)) {
     if (manifest.reviewed_lessons?.source_of_truth_overrides !== false) {
       fail("Manifest reviewed_lessons must not override source-of-truth rules");
     }
-    for (const status of ["pending_review", "approved_for_repo_promotion", "rejected", "promoted"]) {
+    for (const status of ["pending_review", "needs_more_evidence", "approved_for_repo_promotion", "rejected", "promoted"]) {
       if (!manifest.reviewed_lessons?.valid_statuses?.includes(status)) {
         fail(`Manifest reviewed_lessons missing status: ${status}`);
       }
     }
-    for (const tool of ["record_nurtureany_lesson_candidate", "list_nurtureany_lesson_candidates", "read_nurtureany_lesson_candidate"]) {
+    for (const tool of [
+      "record_nurtureany_lesson_candidate",
+      "list_nurtureany_lesson_candidates",
+      "read_nurtureany_lesson_candidate",
+      "update_nurtureany_lesson_candidate_status"
+    ]) {
       if (!manifest.reviewed_lessons?.candidate_tools?.includes(tool)) {
         fail(`Manifest reviewed_lessons missing tool: ${tool}`);
       }
+    }
+    if (manifest.reviewed_lessons?.review_digest_script !== "runtime/scripts/nurtureany_lesson_review_digest.py") {
+      fail("Manifest reviewed_lessons must include the lesson review digest script");
+    }
+    if (manifest.reviewed_lessons?.review_digest_cron_name !== "nurtureanysalesbot learning review digest") {
+      fail("Manifest reviewed_lessons must include the learning review digest cron name");
+    }
+    if (manifest.reviewed_lessons?.review_digest_cron_expression !== "30 1 * * 1-5") {
+      fail("Manifest reviewed_lessons must include the production learning review digest cron expression");
+    }
+    if (manifest.reviewed_lessons?.review_approval_marker !== "human reviewed lesson") {
+      fail("Manifest reviewed_lessons must include the human review approval marker");
+    }
+    if (manifest.reviewed_lessons?.kanban_first_review !== false) {
+      fail("Manifest reviewed_lessons must not use Kanban for first review");
+    }
+    if (manifest.reviewed_lessons?.curator_used !== false) {
+      fail("Manifest reviewed_lessons must keep Curator unused for app lesson candidates");
     }
 
     const countries = manifest.scope?.countries || [];
@@ -364,6 +387,7 @@ if (!existsSync(manifestPath)) {
       "record_nurtureany_lesson_candidate",
       "list_nurtureany_lesson_candidates",
       "read_nurtureany_lesson_candidate",
+      "update_nurtureany_lesson_candidate_status",
       "draft_nurture_message",
       "list_google_calendar_events",
       "audit_google_calendar_meeting_quality",
@@ -929,6 +953,8 @@ const filesToScan = [
   "runtime/scripts/nurtureany_sales_task_reminders_eod.py",
   "runtime/scripts/nurtureany_inbound_monitor.py",
   "runtime/scripts/test_nurtureany_inbound_monitor.py",
+  "runtime/scripts/nurtureany_lesson_review_digest.py",
+  "runtime/scripts/test_nurtureany_lesson_review_digest.py",
   "runtime/scripts/nurtureany_sales_whatsapp_report_runner.py",
   "runtime/scripts/test_nurtureany_sales_whatsapp_report_runner.py",
   "runtime/scripts/fixtures/nurtureany_inbound_monitor_fixture.json",
@@ -996,7 +1022,10 @@ for (const text of [
   "nurtureany_sales_task_reminders.py",
   "nurtureany_sales_task_reminders_eod.py",
   "nurtureany_inbound_monitor.py",
+  "nurtureany_lesson_review_digest.py",
   "nurtureany_sales_whatsapp_report_runner.py",
+  "nurtureanysalesbot learning review digest",
+  "deploy:cron-created:nurtureanysalesbot learning review digest",
   "deploy:cron-timezone-repaired",
   "profile/config.template.yaml",
   "config.yaml",
@@ -1547,8 +1576,14 @@ for (const text of [
   "Reviewed lessons",
   "record_nurtureany_lesson_candidate",
   "pending_review",
+  "needs_more_evidence",
   "approved_for_repo_promotion",
   "promoted",
+  "update_nurtureany_lesson_candidate_status",
+  "human reviewed lesson",
+  "nurtureany_lesson_review_digest.py",
+  "Kanban",
+  "Curator",
   "Honcho remains disabled",
   "never override HubSpot",
   "raw Slack transcripts",
@@ -2122,8 +2157,9 @@ for (const text of [
   "Daily nurture automation is disabled pending refinement",
   "Eugene-owned WhatsApp Morning Blitz report crons are intended production crons",
   "available for Singapore, Malaysia, and Indonesia",
-  "ten enabled recurring operational crons",
+  "eleven enabled recurring operational crons",
   "HubSpot inbound monitor",
+  "learning review digest",
   "read-only internal exception report",
   "Safe enabled one-shot report jobs are allowed",
   "read_nurture_material_registry",
@@ -2244,7 +2280,8 @@ for (const text of [
   "nurtureanysalesbot HubSpot task reminders",
   "nurtureanysalesbot HubSpot task EOD catch-up",
   "nurtureanysalesbot HubSpot inbound monitor",
-  "ten enabled recurring operational crons",
+  "nurtureanysalesbot learning review digest",
+  "eleven enabled recurring operational crons",
   "build_sales_whatsapp_window_report",
   "post_generated_sales_report",
   "NURTUREANY_REPORT_DELIVERY_CHANNEL_IDS",
@@ -2253,6 +2290,7 @@ for (const text of [
   "nurtureany_sales_task_reminders.py",
   "nurtureany_sales_task_reminders_eod.py",
   "nurtureany_inbound_monitor.py",
+  "nurtureany_lesson_review_digest.py",
   "nurtureany_sales_whatsapp_report_runner.py",
   "nurtureany-cloud-doctor.sh",
   "Prospeo MCP lists only",
@@ -2267,7 +2305,7 @@ for (const text of [
   "PROFILE=\"${HERMES_PROFILE:-nurtureanysalesbot}\"",
   "export HERMES_HOME=\"$HOME/.hermes/profiles/$PROFILE\"",
   "EXPECT_SLACK_INTENT_TOOLS=\"${EXPECT_SLACK_INTENT_TOOLS:-5}\"",
-  "EXPECT_HUBSPOT_TOOLS=\"${EXPECT_HUBSPOT_TOOLS:-60}\"",
+  "EXPECT_HUBSPOT_TOOLS=\"${EXPECT_HUBSPOT_TOOLS:-61}\"",
   "EXPECT_AIRCALL_TOOLS=\"${EXPECT_AIRCALL_TOOLS:-4}\"",
   "EXPECT_DEMO_SOURCES_TOOLS=\"${EXPECT_DEMO_SOURCES_TOOLS:-1}\"",
   "NURTUREANY_GATEWAY_SERVICE_NAME",
@@ -2340,18 +2378,20 @@ for (const text of [
   "systemctl --user is-enabled \"$GATEWAY_SERVICE_NAME\"",
   "EXPECTED_CLOUD_HEARTBEAT_CRON_NAME",
   "nurtureanysalesbot local cloud heartbeat",
-  "EXPECT_ENABLED_CRON_COUNT=\"${EXPECT_ENABLED_CRON_COUNT:-10}\"",
-  "EXPECT_HUBSPOT_TOOLS=\"${EXPECT_HUBSPOT_TOOLS:-60}\"",
+  "EXPECT_ENABLED_CRON_COUNT=\"${EXPECT_ENABLED_CRON_COUNT:-11}\"",
+  "EXPECT_HUBSPOT_TOOLS=\"${EXPECT_HUBSPOT_TOOLS:-61}\"",
   "EXPECT_DEMO_SOURCES_TOOLS=\"${EXPECT_DEMO_SOURCES_TOOLS:-1}\"",
   "EXPECTED_TASK_REMINDER_CRON_NAME",
   "EXPECTED_TASK_REMINDER_EOD_CRON_NAME",
   "EXPECTED_INBOUND_MONITOR_CRON_NAME",
+  "EXPECTED_LESSON_REVIEW_DIGEST_CRON_NAME",
   "EXPECTED_SG_MY_WHATSAPP_BLITZ_CRON_NAME",
   "EXPECTED_ID_MORNING_WHATSAPP_BLITZ_CRON_NAME",
   "EXPECTED_ID_WHATSAPP_BLITZ_CRON_NAME",
   "nurtureany_sales_task_reminders.py",
   "nurtureany_sales_task_reminders_eod.py",
   "nurtureany_inbound_monitor.py",
+  "nurtureany_lesson_review_digest.py",
   "SG MY WhatsApp Morning Blitz Report",
   "ID Morning WhatsApp Blitz Report",
   "ID WhatsApp Morning Blitz Report",
@@ -2398,11 +2438,13 @@ for (const text of [
   "cron:hs-reminder-missing",
   "cron:hs-reminder-eod-missing",
   "cron:inbound-monitor-missing",
+  "cron:lesson-review-digest-missing",
   "cron:sg-my-whatsapp-blitz-missing",
   "cron:id-morning-whatsapp-blitz-missing",
   "cron:id-whatsapp-blitz-missing",
   "SG MY WhatsApp Morning Blitz Report",
   "nurtureanysalesbot HubSpot inbound monitor",
+  "nurtureanysalesbot learning review digest",
   "ID Morning WhatsApp Blitz Report",
   "ID WhatsApp Morning Blitz Report",
   "live-profile:audit-ok"
@@ -2426,6 +2468,8 @@ for (const text of [
   "enabled_once=",
   "operation_ledger:",
   "lesson_candidates:",
+  "pending_review=",
+  "approved_for_repo_promotion=",
   "slack_allowlist:"
 ]) {
   if (!cloudDoctorScriptText.includes(text)) fail(`runtime/nurtureany-cloud-doctor.sh missing required text: ${text}`);
@@ -2434,14 +2478,16 @@ for (const text of [
 const hermesProfilesText = repoTextOf("ops/hermes/profiles.yaml");
 for (const text of [
   "slack_nurtureany: 5",
-  "hubspot_nurtureany: 60",
+  "hubspot_nurtureany: 61",
   "nurtureanysalesbot HubSpot task reminders",
   "nurtureanysalesbot HubSpot task EOD catch-up",
+  "nurtureanysalesbot learning review digest",
   "SG MY WhatsApp Morning Blitz Report",
   "ID Morning WhatsApp Blitz Report",
   "ID WhatsApp Morning Blitz Report",
   "nurtureany_sales_task_reminders.py",
   "nurtureany_sales_task_reminders_eod.py",
+  "nurtureany_lesson_review_digest.py",
   "nurtureany_sales_whatsapp_report_runner.py",
   "NurtureAny automation:",
 ]) {
@@ -2464,6 +2510,7 @@ for (const relPath of [
   "runtime/scripts/nurtureany_sales_task_reminders.py",
   "runtime/scripts/nurtureany_sales_task_reminders_eod.py",
   "runtime/scripts/nurtureany_inbound_monitor.py",
+  "runtime/scripts/nurtureany_lesson_review_digest.py",
   "runtime/scripts/nurtureany_sales_whatsapp_report_runner.py",
 ]) {
   const scriptText = textOf(relPath);
@@ -2482,6 +2529,16 @@ for (const relPath of [
         "NURTUREANY_INBOUND_MONITOR_ENABLED",
         "will_mutate_hubspot",
         "external_message_sending",
+      ]
+    : relPath.includes("lesson_review_digest")
+    ? [
+        "NurtureAny automation:",
+        "lesson-candidates",
+        "pending_review",
+        "no behavior change",
+        "Honcho",
+        "Kanban dispatch",
+        "GitHub push",
       ]
     : [
         "NurtureAny automation:",
@@ -2512,6 +2569,14 @@ const salesReportRunnerUnitCheck = spawnSync("python3", ["-m", "unittest", "apps
 });
 if (salesReportRunnerUnitCheck.status !== 0) {
   fail(`Python unit tests failed for sales WhatsApp report runner: ${(salesReportRunnerUnitCheck.stderr || salesReportRunnerUnitCheck.stdout).trim()}`);
+}
+
+const lessonReviewDigestUnitCheck = spawnSync("python3", ["-m", "unittest", "apps/nurtureany-sales-bot/runtime/scripts/test_nurtureany_lesson_review_digest.py"], {
+  cwd: repoRoot,
+  encoding: "utf8"
+});
+if (lessonReviewDigestUnitCheck.status !== 0) {
+  fail(`Python unit tests failed for lesson review digest: ${(lessonReviewDigestUnitCheck.stderr || lessonReviewDigestUnitCheck.stdout).trim()}`);
 }
 
 const slackSocketScriptPath = join(appRoot, "runtime/check-slack-socket-health.sh");

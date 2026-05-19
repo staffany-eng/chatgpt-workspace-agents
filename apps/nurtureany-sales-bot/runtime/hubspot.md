@@ -110,6 +110,7 @@ It exposes these tools:
 - `record_nurtureany_lesson_candidate`
 - `list_nurtureany_lesson_candidates`
 - `read_nurtureany_lesson_candidate`
+- `update_nurtureany_lesson_candidate_status`
 - `draft_nurture_message`
 - `plan_event_photo_followup`
 - `plan_hubspot_writeback`
@@ -511,6 +512,7 @@ Reviewed lesson tools:
 - `record_nurtureany_lesson_candidate` input: safe behavior-level correction summary, proposed rule, applicable workflow, target repo surface, risk class, and optional Slack permalink.
 - `record_nurtureany_lesson_candidate` output: a `pending_review` profile-runtime candidate only. It rejects raw Slack transcripts, raw HubSpot rows, phone numbers, contact exports, secrets, and tokens.
 - `list_nurtureany_lesson_candidates` and `read_nurtureany_lesson_candidate` are read-only review helpers. Candidate lessons do not change behavior until manually promoted into the repo packet, tested, merged, deployed, and live-checked.
+- `update_nurtureany_lesson_candidate_status` changes only the profile-runtime candidate JSON status. It requires `approval_marker="human reviewed lesson"`, human reviewer, and review notes; blocks automation reviewers; and requires repo commit SHA, live verification timestamp, and live verification summary before `promoted`.
 - These tools never mutate HubSpot, never use Honcho, and never override HubSpot truth, access policy, Slack identity rules, safety rules, or approved repo references.
 
 `draft_nurture_message`:

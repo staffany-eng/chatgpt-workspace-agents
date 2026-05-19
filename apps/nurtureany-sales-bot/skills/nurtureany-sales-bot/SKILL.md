@@ -333,6 +333,7 @@ Preview tool:
 - `record_nurtureany_lesson_candidate`: record a reusable behavior correction as a safe `pending_review` runtime candidate only. It must not contain raw Slack transcripts, raw HubSpot rows, phone numbers, contact exports, secrets, tokens, or one-off HubSpot truth.
 - `list_nurtureany_lesson_candidates`: list compact reviewed-learning candidates by status. Runtime candidates do not change behavior by themselves.
 - `read_nurtureany_lesson_candidate`: read one safe reviewed-learning candidate. Approved or promoted behavior must still be checked in the repo packet and deployed before use.
+- `update_nurtureany_lesson_candidate_status`: update runtime review status only after an explicit human review decision with `approval_marker="human reviewed lesson"`. Allowed review states are `rejected`, `needs_more_evidence`, `approved_for_repo_promotion`, and `promoted`; `promoted` requires repo commit and live-verification evidence.
 
 Mutation tools, planned but disabled in V1 until the write phase and always approval-gated:
 

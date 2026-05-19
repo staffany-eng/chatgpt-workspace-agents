@@ -1346,6 +1346,25 @@ Expected behavior:
 - Rejects lesson payloads that contain raw HubSpot rows, phone numbers, contact exports, secrets, or tokens.
 - Explains that durable behavior requires review, repo promotion, verification, deploy, and live check.
 
+### Reviewed Lesson Review Digest
+
+Prompt:
+
+```text
+@NurtureAny what learning is pending review?
+```
+
+Expected behavior:
+
+- Uses `list_nurtureany_lesson_candidates` / `read_nurtureany_lesson_candidate` for an explicit user ask, or relies on the no-agent weekday digest for scheduled surfacing.
+- The scheduled digest starts with `NurtureAny automation:` only when pending safe candidates exist.
+- Empty pending queue is silent; no "all clear" Slack noise.
+- Pending digest rows include lesson id, created date, source permalink, proposed rule, target repo surface, risk, and recommended reviewer action.
+- Human review status updates use `update_nurtureany_lesson_candidate_status` with `approval_marker="human reviewed lesson"`.
+- The bot cannot self-approve. Human choices are `rejected`, `needs_more_evidence`, or `approved_for_repo_promotion`.
+- `promoted` requires repo commit SHA plus live verification timestamp/summary after verify, deploy, and live check.
+- Does not use Honcho, Curator, Kanban-first approval, memory, raw Slack transcripts, raw HubSpot rows, phone numbers, contact exports, secrets, or GitHub push from the runtime bot.
+
 ### SG/MY WhatsApp Morning Report Primitive
 
 Prompt:
