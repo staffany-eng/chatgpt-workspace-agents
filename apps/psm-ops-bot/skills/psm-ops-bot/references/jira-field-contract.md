@@ -31,13 +31,13 @@ The live profile must configure these environment variables before the gateway i
 | Onboarding Task request type | `PSM_OPS_JIRA_REQUEST_TYPE_ONBOARDING_TASK` |
 | Data Hygiene request type | `PSM_OPS_JIRA_REQUEST_TYPE_DATA_HYGIENE` |
 | Handoff Package request type | `PSM_OPS_JIRA_REQUEST_TYPE_HANDOFF_PACKAGE` |
-| PS Follow Up request type (Event AA) | `PSM_OPS_JIRA_REQUEST_TYPE_PS_FOLLOW_UP` (live PCO ID `123`) |
-| CS Follow Up request type (Event AA) | `PSM_OPS_JIRA_REQUEST_TYPE_CS_FOLLOW_UP` (live PCO ID `124`) |
 | Adhoc Ops request type (Event AA) | `PSM_OPS_JIRA_REQUEST_TYPE_ADHOC_OPS` (live PCO ID `118`) |
 | REV Cross Sell request type (Event AA) | `PSM_OPS_JIRA_REQUEST_TYPE_REV_CROSS_SELL` (live PCO ID `120`) |
+| Feedback request type (Event AA) | `PSM_OPS_JIRA_REQUEST_TYPE_FEEDBACK` (live PCO ID `122`) |
+| PS Follow Up request type (Event AA) | `PSM_OPS_JIRA_REQUEST_TYPE_PS_FOLLOW_UP` (live PCO ID `123`) |
+| CS Follow Up request type (Event AA) | `PSM_OPS_JIRA_REQUEST_TYPE_CS_FOLLOW_UP` (live PCO ID `124`) |
 | PDT Discovery request type (Event AA) | `PSM_OPS_JIRA_REQUEST_TYPE_PDT_DISCOVERY` (live PCO ID `125`) |
 | MKT ClubAny Interest request type (Event AA) | `PSM_OPS_JIRA_REQUEST_TYPE_MKT_CLUBANY` (live PCO ID `126`) |
-| Feedback request type (Event AA) | `PSM_OPS_JIRA_REQUEST_TYPE_FEEDBACK` (live PCO ID `122`) |
 | Event AA Slack channel ID | `PSM_OPS_AA_CHANNEL_ID` (live channel `C0B5H2YE5T2`) |
 | Event AA selfie Drive folder | `PSM_OPS_AA_SELFIE_DRIVE_FOLDER_ID` (defaults to live folder `1hxeLDkyLLoVwuKCBPTjLK7ypnZTB9xHc`) |
 | Event AA Drive OAuth token file | `PSM_OPS_DRIVE_TOKEN_FILE` (path to the OAuth refresh-token JSON minted via `InstalledAppFlow`; user-account credential with the `https://www.googleapis.com/auth/drive.file` scope; defaults to `~/.hermes/profiles/psmopsbot/drive-token.json`) |

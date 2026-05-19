@@ -563,12 +563,8 @@ def _ps_team_issue_value(label: str) -> Any:
     return {"value": normalized}
 
 
-def _creator_field_id() -> str:
-    return _field_id("creator")
-
-
 def _creator_valid_values(request_type_id: str = "") -> list[dict[str, Any]]:
-    creator_field = _creator_field_id()
+    creator_field = _field_id("creator")
     try:
         rid = request_type_id or _request_type_id("feedback")
         payload = _request_json(
@@ -643,10 +639,6 @@ def _creator_request_value(display_name: str, request_type_id: str = "") -> Any:
     if thin_match:
         return {"value": thin_match}
     return None
-
-
-def _creator_issue_value(display_name: str) -> Any:
-    return _creator_request_value(display_name)
 
 
 def _configured_roi_field_ids() -> dict[str, str]:
@@ -1781,7 +1773,7 @@ def _request_field_values(draft: dict[str, Any]) -> dict[str, Any]:
         if draft.get("ps_team"):
             values[_ps_team_field_id()] = _ps_team_request_value(str(draft["ps_team"]), str(draft.get("request_type_id") or ""))
         if draft.get("creator_field_value"):
-            values[_creator_field_id()] = draft["creator_field_value"]
+            values[_field_id("creator")] = draft["creator_field_value"]
         return values
 
     fields = _field_ids()
@@ -1803,7 +1795,7 @@ def _request_field_values(draft: dict[str, Any]) -> dict[str, Any]:
     if draft.get("ps_team"):
         values[_ps_team_field_id()] = _ps_team_request_value(str(draft["ps_team"]), str(draft.get("request_type_id") or ""))
     if draft.get("creator_field_value"):
-        values[_creator_field_id()] = draft["creator_field_value"]
+        values[_field_id("creator")] = draft["creator_field_value"]
     for field_id, value in mappings.items():
         if value:
             values[field_id] = value
@@ -3045,15 +3037,14 @@ def create_ps_wee_intake_ticket(
         expected_outcome,
         normalized_customer,
     )
-    if is_event_aa:
-        auto_ps_team = EVENT_AA_PS_TEAM_BY_CATEGORY.get(request_type_key, "")
-        if auto_ps_team and not _normalize_ps_team(ps_team):
-            normalized_ps_team = auto_ps_team
-        if not normalized_ps_team:
-            creator_label = ""
-            if isinstance(creator_field_value, dict):
-                creator_label = str(creator_field_value.get("value") or "").strip()
-            normalized_ps_team = creator_label or creator_display
+    if is_event_aa and not _normalize_ps_team(ps_team):
+        # Non-fixed AA categories route to the Slack tagger, which is also the matched Creator.
+        creator_label = creator_field_value.get("value") if isinstance(creator_field_value, dict) else ""
+        normalized_ps_team = (
+            EVENT_AA_PS_TEAM_BY_CATEGORY.get(request_type_key)
+            or str(creator_label or "").strip()
+            or creator_display
+        )
     staffany_orgs_value = list(customer_channel_mapping.get("staffany_orgs", []) or [])
     if (
         is_event_aa
