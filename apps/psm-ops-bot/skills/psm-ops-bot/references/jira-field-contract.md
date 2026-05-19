@@ -31,10 +31,18 @@ The live profile must configure these environment variables before the gateway i
 | Onboarding Task request type | `PSM_OPS_JIRA_REQUEST_TYPE_ONBOARDING_TASK` |
 | Data Hygiene request type | `PSM_OPS_JIRA_REQUEST_TYPE_DATA_HYGIENE` |
 | Handoff Package request type | `PSM_OPS_JIRA_REQUEST_TYPE_HANDOFF_PACKAGE` |
-| Cross Sell request type (Event AA) | `PSM_OPS_JIRA_REQUEST_TYPE_CROSS_SELL` (live PCO ID `120`) |
-| Churn Revival request type (Event AA) | `PSM_OPS_JIRA_REQUEST_TYPE_CHURN_REVIVAL` (live PCO ID `121`) |
+| PS Follow Up request type (Event AA) | `PSM_OPS_JIRA_REQUEST_TYPE_PS_FOLLOW_UP` (live PCO ID `123`) |
+| CS Follow Up request type (Event AA) | `PSM_OPS_JIRA_REQUEST_TYPE_CS_FOLLOW_UP` (live PCO ID `124`) |
+| Adhoc Ops request type (Event AA) | `PSM_OPS_JIRA_REQUEST_TYPE_ADHOC_OPS` (live PCO ID `118`) |
+| REV Cross Sell request type (Event AA) | `PSM_OPS_JIRA_REQUEST_TYPE_REV_CROSS_SELL` (live PCO ID `120`) |
+| PDT Discovery request type (Event AA) | `PSM_OPS_JIRA_REQUEST_TYPE_PDT_DISCOVERY` (live PCO ID `125`) |
+| MKT ClubAny Interest request type (Event AA) | `PSM_OPS_JIRA_REQUEST_TYPE_MKT_CLUBANY` (live PCO ID `126`) |
 | Feedback request type (Event AA) | `PSM_OPS_JIRA_REQUEST_TYPE_FEEDBACK` (live PCO ID `122`) |
 | Event AA Slack channel ID | `PSM_OPS_AA_CHANNEL_ID` (live channel `C0B5H2YE5T2`) |
+| Event AA selfie Drive folder | `PSM_OPS_AA_SELFIE_DRIVE_FOLDER_ID` |
+| Event AA Drive OAuth token file | `PSM_OPS_DRIVE_TOKEN_FILE` |
+| Event AA Drive OAuth client secret file | `PSM_OPS_DRIVE_CLIENT_SECRET_FILE` |
+| Creator field | `PSM_OPS_JIRA_FIELD_CREATOR`; in thin POC this defaults to `customfield_10914` |
 | Customer field | `PSM_OPS_JIRA_FIELD_CUSTOMER` |
 | StaffAny Org(s) field | `PSM_OPS_JIRA_FIELD_STAFFANY_ORGS` |
 | Owner PSM field | `PSM_OPS_JIRA_FIELD_OWNER_PSM` |
@@ -80,14 +88,27 @@ For ROI urgency fields, match the field's configured options exactly. If the req
 ## Event AA Intake Routing
 
 - The Event AA Slack channel is configured by `PSM_OPS_AA_CHANNEL_ID`. The live channel ID is `C0B5H2YE5T2`.
-- Allowed request type keys for Event AA intake tickets: `cross_sell`, `churn_revival`, `feedback`.
-- The Event AA Jira queue filters by Request Type in (Cross Sell, Churn Revival, Feedback). No label or custom field is required.
+- Allowed request type keys for Event AA intake tickets: `ps_follow_up`, `cs_follow_up`, `adhoc_ops`, `rev_cross_sell`, `pdt_discovery`, `mkt_clubany`, `feedback`. The old `cross_sell` and `churn_revival` keys are no longer wired through the bot.
+- The Event AA Jira queue filters by Request Type in (PS Follow Up, CS Follow Up, Adhoc Ops, REV Cross Sell, PDT Discovery, MKT ClubAny Interest, Feedback) and by label `AA SG 2026`.
 - When `create_ps_wee_intake_ticket` is called with a `slack_thread_url` whose channel matches `PSM_OPS_AA_CHANNEL_ID`:
-  - If `request_type_key` is one of `cross_sell` / `churn_revival` / `feedback`, use it as-is.
+  - If `request_type_key` is one of the 7 allowed keys, use it as-is.
   - Otherwise, default `request_type_key` to `feedback` so the ticket still lands in the Event AA queue. Triage can retag.
-- Outside the AA channel, the 3 Event AA request types stay available for explicit asks; do not auto-route to them.
-- The PSM's Slack message is the only source for cross-sell vs churn-revival vs feedback intent. Map cues like `cross sell`/`upsell`/`expansion` to `cross_sell`, `churn`/`save`/`revival`/`at risk` to `churn_revival`, anything else (or unclear) to `feedback`.
-- For Event AA intakes only, the MCP also fetches `image/*` files attached to the trigger Slack message and uploads them to the Jira ticket as attachments. Non-image files are intentionally skipped. The fetch+upload is best-effort and must never block ticket creation; failures are silently dropped, the ticket is still posted, and the Slack reply mentions the successfully attached count when at least one image succeeded. Implemented by `_slack_trigger_message_image_files` + `_attach_image_files_to_issue` in `psm_jira_server.py`.
+  - The literal label `AA SG 2026` is added to every AA ticket via Jira's standard `labels` field (best-effort post-create; failure surfaces as a warning, not a block).
+  - The `Creator` single-select field (`customfield_10914`) must match a configured option. The matcher resolves the Slack tagger (or the optional `creator_slack_user_email` override) and normalizes the display name against the field's options (substring tolerant, case-insensitive). Fails closed when no option matches.
+  - `pic` is the person-in-charge name the PSM met. The MCP stores it in the internal metadata comment and uses it in the selfie filename.
+  - Multiple categories in one Slack message: the agent calls `create_ps_wee_intake_ticket` once per category. Idempotency is scoped to `(slack_thread_url, request_type)` so different categories in the same thread do not collide.
+- Outside the AA channel, the 7 Event AA request types stay available for explicit asks; do not auto-route to them and do not enforce the creator field or the `AA SG 2026` label.
+- Routing cues from the PSM's Slack message:
+  - `deep dive`, `advanced`, `PS follow up` → `ps_follow_up`
+  - `troubleshooting`, `bug`, `lag`, `negative feedback`, `CS follow up` → `cs_follow_up`
+  - `re-training`, `retraining`, `webinar`, `basic training`, `adhoc ops` → `adhoc_ops`
+  - `cross sell`, `upsell`, `expansion`, `PayrollAny`, `EngageAny`, `HRAny` → `rev_cross_sell`
+  - `ATS`, `AI agents`, `PDT`, `discovery` → `pdt_discovery`
+  - `ClubAny`, `club any`, `MKT` → `mkt_clubany`
+  - anything else (or unclear) → `feedback`
+- PS Team auto-route by category (AA only): `cs_follow_up` → `Ega`; `adhoc_ops` → `PS Ops`; all other categories → the Slack tagger. Explicit `ps_team` overrides the auto-route.
+- Company name lands in **both** the text customer field and the StaffAny Organisation object field (`customfield_10667`) when the company resolves through the reviewed customer-channel map; when it doesn't resolve, the supplied customer name still populates the StaffAny Organisation slot as a best-effort starting point that triage can correct.
+- For Event AA intakes only, the MCP fetches `image/*` files attached to the trigger Slack message and uploads them to the configured Google Drive folder (`PSM_OPS_AA_SELFIE_DRIVE_FOLDER_ID`) with filename `{company}_{pic}.{ext}`. Selfies are **not** attached to the Jira ticket. Non-image files are skipped. The download+upload is best-effort: per-file errors are silently dropped, and the Slack reply mentions the saved count when at least one selfie was uploaded. When the Drive folder or OAuth files are not configured, the upload is a silent no-op. Implemented by `_download_slack_images_for_drive` + `upload_aa_selfies` (`aa_selfie_drive.py`).
 - Bahasa-to-English translation applies only to Event AA intakes. When the trigger Slack message is fully or partially in Indonesian, the agent (not the MCP) writes the Jira `summary` and `description` in clear English before calling `create_ps_wee_intake_ticket`. Customer names, outlet names, dates, numbers, and product terms are preserved verbatim. The untranslated original is appended to the description under an `**Original (Bahasa):**` heading so the team can verify the translation. Mixed-language messages translate Indonesian portions only and leave English/product terms as-is. Outside the AA channel, both the Jira `summary` and `description` remain in the language the PSM used (no auto-translation).
 
 ## Customer Channel Routing

@@ -97,10 +97,15 @@ class PsmJiraServerTest(unittest.TestCase):
                 "PSM_OPS_JIRA_REQUEST_TYPE_ONBOARDING_TASK": "102",
                 "PSM_OPS_JIRA_REQUEST_TYPE_DATA_HYGIENE": "103",
                 "PSM_OPS_JIRA_REQUEST_TYPE_HANDOFF_PACKAGE": "104",
-                "PSM_OPS_JIRA_REQUEST_TYPE_CROSS_SELL": "120",
-                "PSM_OPS_JIRA_REQUEST_TYPE_CHURN_REVIVAL": "121",
+                "PSM_OPS_JIRA_REQUEST_TYPE_PS_FOLLOW_UP": "123",
+                "PSM_OPS_JIRA_REQUEST_TYPE_CS_FOLLOW_UP": "124",
+                "PSM_OPS_JIRA_REQUEST_TYPE_ADHOC_OPS": "118",
+                "PSM_OPS_JIRA_REQUEST_TYPE_REV_CROSS_SELL": "120",
+                "PSM_OPS_JIRA_REQUEST_TYPE_PDT_DISCOVERY": "125",
+                "PSM_OPS_JIRA_REQUEST_TYPE_MKT_CLUBANY": "126",
                 "PSM_OPS_JIRA_REQUEST_TYPE_FEEDBACK": "122",
                 "PSM_OPS_AA_CHANNEL_ID": "C0B5H2YE5T2",
+                "PSM_OPS_JIRA_FIELD_CREATOR": "customfield_10914",
                 "PSM_OPS_JIRA_FIELD_CUSTOMER": "customfield_10101",
                 "PSM_OPS_JIRA_FIELD_STAFFANY_ORGS": "customfield_10102",
                 "PSM_OPS_JIRA_FIELD_OWNER_PSM": "customfield_10103",
@@ -881,6 +886,14 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertEqual(audit_calls[0][1]["source_thread_url"], "https://staffany.slack.com/archives/C0B2VT50YT1/p1778205303989579")
         self.assertEqual(audit_calls[0][1]["issue_key"], "PCO-789")
 
+    def _mock_creator_options(self, request_type_id=""):
+        return [
+            {"value": "creator-josica", "label": "Josica"},
+            {"value": "creator-jason", "label": "Jason"},
+            {"value": "creator-ega", "label": "Ega"},
+            {"value": "creator-may", "label": "May"},
+        ]
+
     def test_ps_wee_intake_in_aa_channel_defaults_to_feedback_request_type(self):
         calls = []
 
@@ -895,6 +908,8 @@ class PsmJiraServerTest(unittest.TestCase):
             return {}
 
         self.module._request_json = fake_request
+        self.module._creator_valid_values = self._mock_creator_options
+        self.module._update_issue_labels = lambda *args, **kwargs: None
         self.module.post_ps_wee_audit = lambda event_type, **kwargs: {"ok": True}
 
         result = self.module.create_ps_wee_intake_ticket(
@@ -902,6 +917,7 @@ class PsmJiraServerTest(unittest.TestCase):
             slack_thread_url="https://staffany.slack.com/archives/C0B5H2YE5T2/p1779100000000000",
             customer="Kopi Janji",
             issue_summary="PSM came back from AA event with selfie",
+            creator_slack_user_email="josica@staffany.com",
         )
 
         self.assertEqual(result["confidence"], "verified")
@@ -910,13 +926,85 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertEqual(result["scope"]["request_type_key"], "feedback")
         self.assertEqual(result["scope"]["event"], "AA")
 
-    def test_ps_wee_intake_in_aa_channel_attaches_image_files_only(self):
-        calls = []
-        attachment_calls = []
-        downloaded = []
+    def test_ps_wee_intake_in_aa_channel_routes_each_new_request_type(self):
+        cases = [
+            ("ps_follow_up", "123", "Josica", "Josica"),
+            ("cs_follow_up", "124", "Ega", "Ega"),
+            ("adhoc_ops", "118", "Josica", "PS Ops"),
+            ("rev_cross_sell", "120", "Jason", "Jason"),
+            ("pdt_discovery", "125", "May", "May"),
+            ("mkt_clubany", "126", "Ega", "Ega"),
+        ]
+        for request_type_key, expected_id, creator_name, expected_team in cases:
+            with self.subTest(request_type_key=request_type_key):
+                calls = []
+
+                def fake_request(method, path, body=None, _expected_id=expected_id):
+                    calls.append((method, path, deepcopy(body)))
+                    if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
+                        return {"issues": []}
+                    if path == "/rest/servicedeskapi/request":
+                        return {"issueKey": f"PCO-{_expected_id}", "requestTypeId": _expected_id}
+                    if path.endswith("/comment"):
+                        return {"id": "comment-x"}
+                    return {}
+
+                self.module._request_json = fake_request
+                self.module._creator_valid_values = self._mock_creator_options
+                self.module._update_issue_labels = lambda *args, **kwargs: None
+                self.module.post_ps_wee_audit = lambda event_type, **kwargs: {"ok": True}
+
+                result = self.module.create_ps_wee_intake_ticket(
+                    slack_user_email=f"{creator_name.lower()}@staffany.com",
+                    slack_thread_url=f"https://staffany.slack.com/archives/C0B5H2YE5T2/p177910{expected_id}000000",
+                    customer="Kopi Janji",
+                    issue_summary=f"event AA {request_type_key} follow-up",
+                    request_type_key=request_type_key,
+                    creator_slack_user_email=f"{creator_name.lower()}@staffany.com",
+                )
+
+                self.assertEqual(result["confidence"], "verified", msg=result)
+                create_call = next(c for c in calls if c[1] == "/rest/servicedeskapi/request")
+                self.assertEqual(create_call[2]["requestTypeId"], expected_id)
+
+    def test_ps_wee_intake_in_aa_channel_adds_label(self):
+        label_calls = []
 
         def fake_request(method, path, body=None):
-            calls.append((method, path, deepcopy(body)))
+            if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
+                return {"issues": []}
+            if path == "/rest/servicedeskapi/request":
+                return {"issueKey": "PCO-960", "requestTypeId": "123"}
+            if path.endswith("/comment"):
+                return {"id": "comment-960"}
+            return {}
+
+        def fake_labels(issue_key, add=None, remove=None):
+            label_calls.append((issue_key, list(add or []), list(remove or [])))
+
+        self.module._request_json = fake_request
+        self.module._creator_valid_values = self._mock_creator_options
+        self.module._update_issue_labels = fake_labels
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: {"ok": True}
+
+        result = self.module.create_ps_wee_intake_ticket(
+            slack_user_email="psm@staffany.com",
+            slack_thread_url="https://staffany.slack.com/archives/C0B5H2YE5T2/p1779100000000010",
+            customer="Kopi Janji",
+            issue_summary="follow up deep dive",
+            request_type_key="ps_follow_up",
+            creator_slack_user_email="josica@staffany.com",
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        labels_added = [labels for _, labels, _ in label_calls]
+        self.assertTrue(any("AA SG 2026" in batch for batch in labels_added))
+
+    def test_ps_wee_intake_in_aa_channel_uploads_selfies_to_drive_only(self):
+        attachment_calls = []
+        drive_calls = []
+
+        def fake_request(method, path, body=None):
             if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
                 return {"issues": []}
             if path == "/rest/servicedeskapi/request":
@@ -951,17 +1039,23 @@ class PsmJiraServerTest(unittest.TestCase):
             return {"members": []}
 
         def fake_download(url):
-            downloaded.append(url)
             return b"binary-image-data"
 
         def fake_attach(issue_key, files):
             attachment_calls.append((issue_key, deepcopy(files)))
             return [{"id": "att-1", "filename": files[0]["name"]}]
 
+        def fake_drive_upload(images, company, pic):
+            drive_calls.append({"images": list(images), "company": company, "pic": pic})
+            return [{"drive_file_id": "drive-1", "name": "kopi-janji_andre.jpg", "web_view_link": "https://drive/x"}]
+
         self.module._request_json = fake_request
         self.module._request_slack_json = fake_slack_json
         self.module._download_slack_file = fake_download
         self.module._attach_image_files_to_issue = fake_attach
+        self.module.upload_aa_selfies = fake_drive_upload
+        self.module._creator_valid_values = self._mock_creator_options
+        self.module._update_issue_labels = lambda *args, **kwargs: None
         self.module.post_ps_wee_audit = lambda event_type, **kwargs: {"ok": True}
 
         result = self.module.create_ps_wee_intake_ticket(
@@ -969,15 +1063,21 @@ class PsmJiraServerTest(unittest.TestCase):
             slack_thread_url="https://staffany.slack.com/archives/C0B5H2YE5T2/p1779160186779359",
             customer="Kopi Janji",
             issue_summary="met Andre at AA",
+            request_type_key="ps_follow_up",
+            creator_slack_user_email="josica@staffany.com",
+            pic="Andre",
         )
 
         self.assertEqual(result["confidence"], "verified")
-        self.assertEqual(len(attachment_calls), 1)
-        attached_issue_key, attached_files = attachment_calls[0]
-        self.assertEqual(attached_issue_key, "PCO-905")
-        self.assertEqual([f["name"] for f in attached_files], ["selfie.jpg"])
-        self.assertEqual(result["answer"]["attached_images"], [{"id": "att-1", "filename": "selfie.jpg"}])
-        self.assertIn("Attached 1 image(s) from Slack.", result["answer"]["slack_reply"])
+        self.assertEqual(attachment_calls, [])
+        self.assertEqual(len(drive_calls), 1)
+        only_payload = drive_calls[0]
+        self.assertEqual(only_payload["company"], "Kopi Janji")
+        self.assertEqual(only_payload["pic"], "Andre")
+        self.assertEqual([entry["name"] for entry in only_payload["images"]], ["selfie.jpg"])
+        self.assertEqual(result["answer"]["attached_images"], [])
+        self.assertEqual(len(result["answer"]["drive_selfies"]), 1)
+        self.assertIn("Saved 1 selfie(s) to Drive.", result["answer"]["slack_reply"])
 
     def test_ps_wee_intake_outside_aa_channel_does_not_fetch_images(self):
         calls = []
@@ -1000,6 +1100,7 @@ class PsmJiraServerTest(unittest.TestCase):
         self.module._request_json = fake_request
         self.module._request_slack_json = fake_slack_json
         self.module._attach_image_files_to_issue = lambda issue_key, files: (_ for _ in ()).throw(AssertionError("must not be called outside AA channel"))
+        self.module.upload_aa_selfies = lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("must not be called outside AA channel"))
         self.module.post_ps_wee_audit = lambda event_type, **kwargs: {"ok": True}
 
         result = self.module.create_ps_wee_intake_ticket(
@@ -1012,6 +1113,7 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertEqual(result["confidence"], "verified")
         self.assertEqual(result["answer"]["attached_images"], [])
         self.assertNotIn("Attached", result["answer"]["slack_reply"])
+        self.assertNotIn("Drive", result["answer"]["slack_reply"])
         self.assertFalse(
             any(method == "conversations.history" for method, _ in slack_calls),
             "conversations.history should not be called outside the AA channel",
@@ -1037,6 +1139,8 @@ class PsmJiraServerTest(unittest.TestCase):
 
         self.module._request_json = fake_request
         self.module._request_slack_json = fake_slack_json
+        self.module._creator_valid_values = self._mock_creator_options
+        self.module._update_issue_labels = lambda *args, **kwargs: None
         self.module.post_ps_wee_audit = lambda event_type, **kwargs: {"ok": True}
 
         result = self.module.create_ps_wee_intake_ticket(
@@ -1044,41 +1148,87 @@ class PsmJiraServerTest(unittest.TestCase):
             slack_thread_url="https://staffany.slack.com/archives/C0B5H2YE5T2/p1779160186779359",
             customer="Kopi Janji",
             issue_summary="met Andre at AA",
+            creator_slack_user_email="josica@staffany.com",
         )
 
         self.assertEqual(result["confidence"], "verified")
         self.assertEqual(result["answer"]["attached_images"], [])
+        self.assertEqual(result["answer"]["drive_selfies"], [])
         self.assertNotIn("Attached", result["answer"]["slack_reply"])
+        self.assertNotIn("Drive", result["answer"]["slack_reply"])
 
-    def test_ps_wee_intake_in_aa_channel_honors_explicit_churn_revival_request_type(self):
+    def test_ps_wee_intake_in_aa_channel_blocks_when_creator_no_match(self):
+        def fake_request(method, path, body=None):
+            if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
+                return {"issues": []}
+            return {}
+
+        self.module._request_json = fake_request
+        self.module._creator_valid_values = self._mock_creator_options
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: {"ok": True}
+
+        result = self.module.create_ps_wee_intake_ticket(
+            slack_user_email="strangerwhowasnotinvited@staffany.com",
+            slack_thread_url="https://staffany.slack.com/archives/C0B5H2YE5T2/p1779100000000099",
+            customer="Kopi Janji",
+            issue_summary="follow up",
+            request_type_key="ps_follow_up",
+        )
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("Creator dropdown", result["answer"]["message"])
+
+    def test_ps_wee_intake_in_aa_channel_allows_multi_ticket_per_thread(self):
         calls = []
 
         def fake_request(method, path, body=None):
             calls.append((method, path, deepcopy(body)))
             if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
+                if "PS+Follow+Up" in path or "PS%20Follow%20Up" in path:
+                    return {"issues": []}
+                if "CS+Follow+Up" in path or "CS%20Follow%20Up" in path:
+                    return {"issues": []}
                 return {"issues": []}
             if path == "/rest/servicedeskapi/request":
-                return {"issueKey": "PCO-902", "requestTypeId": "121"}
+                rtype = (body or {}).get("requestTypeId")
+                key = "PCO-PS" if rtype == "123" else "PCO-CS"
+                return {"issueKey": key, "requestTypeId": rtype}
             if path.endswith("/comment"):
-                return {"id": "comment-902"}
+                return {"id": "comment-x"}
             return {}
 
         self.module._request_json = fake_request
+        self.module._creator_valid_values = self._mock_creator_options
+        self.module._update_issue_labels = lambda *args, **kwargs: None
         self.module.post_ps_wee_audit = lambda event_type, **kwargs: {"ok": True}
 
-        result = self.module.create_ps_wee_intake_ticket(
-            slack_user_email="psm@staffany.com",
-            slack_thread_url="https://staffany.slack.com/archives/C0B5H2YE5T2/p1779100000000001",
-            customer="Janji Kopi",
-            issue_summary="Customer flagged churn risk at AA",
-            request_type_key="churn_revival",
+        thread = "https://staffany.slack.com/archives/C0B5H2YE5T2/p1779100000000050"
+
+        first = self.module.create_ps_wee_intake_ticket(
+            slack_user_email="josica@staffany.com",
+            slack_thread_url=thread,
+            customer="Kopi Janji",
+            issue_summary="deep dive",
+            request_type_key="ps_follow_up",
+            creator_slack_user_email="josica@staffany.com",
+        )
+        second = self.module.create_ps_wee_intake_ticket(
+            slack_user_email="josica@staffany.com",
+            slack_thread_url=thread,
+            customer="Kopi Janji",
+            issue_summary="troubleshooting",
+            request_type_key="cs_follow_up",
+            creator_slack_user_email="josica@staffany.com",
         )
 
-        self.assertEqual(result["confidence"], "verified")
-        create_call = next(c for c in calls if c[1] == "/rest/servicedeskapi/request")
-        self.assertEqual(create_call[2]["requestTypeId"], "121")
-        self.assertEqual(result["scope"]["request_type_key"], "churn_revival")
-        self.assertEqual(result["scope"]["event"], "AA")
+        self.assertEqual(first["confidence"], "verified")
+        self.assertEqual(second["confidence"], "verified")
+        create_calls = [c for c in calls if c[1] == "/rest/servicedeskapi/request"]
+        self.assertEqual(len(create_calls), 2)
+        self.assertEqual(create_calls[0][2]["requestTypeId"], "123")
+        self.assertEqual(create_calls[1][2]["requestTypeId"], "124")
+        search_calls = [c[1] for c in calls if c[1].startswith("/rest/api/3/search/jql?")]
+        self.assertTrue(any("Request+Type" in path or "Request%20Type" in path for path in search_calls))
 
     def test_ps_wee_intake_outside_aa_channel_does_not_force_event_aa_request_type(self):
         calls = []
