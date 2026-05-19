@@ -134,6 +134,7 @@ psm_ops:
         adhoc_ops: "PS Ops"
       selfie_drive:
         folder_id_env: "PSM_OPS_AA_SELFIE_DRIVE_FOLDER_ID"
+        default_folder_id: "1hxeLDkyLLoVwuKCBPTjLK7ypnZTB9xHc"
         token_file_env: "PSM_OPS_DRIVE_TOKEN_FILE"
         client_secret_file_env: "PSM_OPS_DRIVE_CLIENT_SECRET_FILE"
         filename_pattern: "{company}_{pic}.{ext}"

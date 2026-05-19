@@ -30,6 +30,7 @@ DRIVE_BROAD_SCOPE = "https://www.googleapis.com/auth/drive"
 DRIVE_ALLOWED_SCOPES = {DRIVE_FILE_SCOPE, DRIVE_BROAD_SCOPE}
 DRIVE_USER_AGENT = "StaffAny-PSMOps-AA/1.0 (+https://staffany.com)"
 DRIVE_TIMEOUT_SECONDS = 30
+DEFAULT_AA_SELFIE_DRIVE_FOLDER_ID = "1hxeLDkyLLoVwuKCBPTjLK7ypnZTB9xHc"
 
 
 class AaSelfieDriveError(RuntimeError):
@@ -39,7 +40,7 @@ class AaSelfieDriveError(RuntimeError):
 
 
 def _drive_folder_id() -> str:
-    return os.environ.get("PSM_OPS_AA_SELFIE_DRIVE_FOLDER_ID", "").strip()
+    return os.environ.get("PSM_OPS_AA_SELFIE_DRIVE_FOLDER_ID", "").strip() or DEFAULT_AA_SELFIE_DRIVE_FOLDER_ID
 
 
 def _drive_token_path() -> Path:

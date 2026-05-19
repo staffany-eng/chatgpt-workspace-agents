@@ -39,7 +39,7 @@ The live profile must configure these environment variables before the gateway i
 | MKT ClubAny Interest request type (Event AA) | `PSM_OPS_JIRA_REQUEST_TYPE_MKT_CLUBANY` (live PCO ID `126`) |
 | Feedback request type (Event AA) | `PSM_OPS_JIRA_REQUEST_TYPE_FEEDBACK` (live PCO ID `122`) |
 | Event AA Slack channel ID | `PSM_OPS_AA_CHANNEL_ID` (live channel `C0B5H2YE5T2`) |
-| Event AA selfie Drive folder | `PSM_OPS_AA_SELFIE_DRIVE_FOLDER_ID` |
+| Event AA selfie Drive folder | `PSM_OPS_AA_SELFIE_DRIVE_FOLDER_ID` (defaults to live folder `1hxeLDkyLLoVwuKCBPTjLK7ypnZTB9xHc`) |
 | Event AA Drive OAuth token file | `PSM_OPS_DRIVE_TOKEN_FILE` |
 | Event AA Drive OAuth client secret file | `PSM_OPS_DRIVE_CLIENT_SECRET_FILE` |
 | Creator field | `PSM_OPS_JIRA_FIELD_CREATOR`; in thin POC this defaults to `customfield_10914` |
