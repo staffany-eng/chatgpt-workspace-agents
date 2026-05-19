@@ -106,9 +106,18 @@ def _extension_for(name: str, mimetype: str) -> str:
     return mapping.get((mimetype or "").lower(), fallback)
 
 
-def _build_filename(company: str, pic: str, mimetype: str, original_name: str, sequence: int) -> str:
+def _build_filename(
+    company: str,
+    pic: str,
+    mimetype: str,
+    original_name: str,
+    sequence: int,
+    slack_file_id: str = "",
+) -> str:
     ext = _extension_for(original_name, mimetype)
     base = f"{_slugify(company)}_{_slugify(pic)}"
+    if slack_file_id:
+        return f"{base}__{slack_file_id}{ext}"
     if sequence > 1:
         base = f"{base}-{sequence}"
     return f"{base}{ext}"
@@ -269,7 +278,14 @@ def upload_aa_selfies(
         if existing and existing.get("drive_file_id"):
             uploaded.append({**existing, "already_present": True})
             continue
-        filename = _build_filename(company, pic, mimetype, original_name, sequence)
+        filename = _build_filename(
+            company,
+            pic,
+            mimetype,
+            original_name,
+            sequence,
+            slack_file_id=slack_file_id,
+        )
         try:
             record = _upload_one(bytes(content), filename, mimetype, token, slack_file_id=slack_file_id)
         except AaSelfieDriveError:

@@ -138,9 +138,29 @@ class AaSelfieDriveTest(unittest.TestCase):
         post_body = captured[1]["data"].decode("utf-8", errors="replace")
         self.assertIn("\"slack_file_id\": \"F-new\"", post_body)
         self.assertIn("\"appProperties\"", post_body)
+        # Filename suffixes the Slack file id so distinct selfies for the same
+        # (company, pic) never share a Drive filename.
+        self.assertIn("\"name\": \"kopi-janji_andre__F-new.jpg\"", post_body)
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0]["already_present"], False)
         self.assertEqual(result[0]["drive_file_id"], "drive-new")
+
+    def test_build_filename_uses_slack_file_id_suffix_when_present(self):
+        name = self.module._build_filename(
+            "Kopi Janji",
+            "Andre",
+            "image/jpeg",
+            "selfie.jpg",
+            1,
+            slack_file_id="F0B4XL0RL8Z",
+        )
+        self.assertEqual(name, "kopi-janji_andre__F0B4XL0RL8Z.jpg")
+
+    def test_build_filename_falls_back_to_sequence_when_slack_file_id_missing(self):
+        first = self.module._build_filename("Kopi Janji", "Andre", "image/jpeg", "selfie.jpg", 1)
+        second = self.module._build_filename("Kopi Janji", "Andre", "image/jpeg", "selfie.jpg", 2)
+        self.assertEqual(first, "kopi-janji_andre.jpg")
+        self.assertEqual(second, "kopi-janji_andre-2.jpg")
 
     def test_configuration_status_reports_missing_token(self):
         token_path = (
