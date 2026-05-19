@@ -1037,6 +1037,14 @@ class PsmJiraServerTest(unittest.TestCase):
                 self.module._creator_valid_values = self._mock_creator_options
                 self.module._update_issue_labels = lambda *args, **kwargs: None
                 self.module.post_ps_wee_audit = lambda event_type, **kwargs: {"ok": True}
+                self.module._caller = lambda email, require_jira_account=True, require_ps_team=False, _name=creator_name: {
+                    "slack_email": email,
+                    "jira_email": email,
+                    "jira_account_id": "",
+                    "display_name": _name,
+                    "ps_team": "",
+                    "ps_team_option_id": "",
+                }
 
                 result = self.module.create_ps_wee_intake_ticket(
                     slack_user_email=f"{creator_name.lower()}@staffany.com",
@@ -1050,6 +1058,11 @@ class PsmJiraServerTest(unittest.TestCase):
                 self.assertEqual(result["confidence"], "verified", msg=result)
                 create_call = next(c for c in calls if c[1] == "/rest/servicedeskapi/request")
                 self.assertEqual(create_call[2]["requestTypeId"], expected_id)
+                self.assertEqual(
+                    create_call[2]["requestFieldValues"].get("customfield_10876"),
+                    expected_team,
+                    msg=f"PS Team auto-route failed for {request_type_key}",
+                )
 
     def test_ps_wee_intake_in_aa_channel_adds_label(self):
         label_calls = []
@@ -1312,7 +1325,14 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertEqual(create_calls[0][2]["requestTypeId"], "123")
         self.assertEqual(create_calls[1][2]["requestTypeId"], "124")
         search_calls = [c[1] for c in calls if c[1].startswith("/rest/api/3/search/jql?")]
-        self.assertTrue(any("Request+Type" in path or "Request%20Type" in path for path in search_calls))
+        self.assertTrue(
+            any("PS+Follow+Up" in path or "PS%20Follow%20Up" in path for path in search_calls),
+            msg=f"PS Follow Up filter missing from dedupe queries: {search_calls}",
+        )
+        self.assertTrue(
+            any("CS+Follow+Up" in path or "CS%20Follow%20Up" in path for path in search_calls),
+            msg=f"CS Follow Up filter missing from dedupe queries: {search_calls}",
+        )
 
     def test_ps_wee_intake_outside_aa_channel_does_not_force_event_aa_request_type(self):
         calls = []
