@@ -51,11 +51,24 @@ def _drive_client_secret_path() -> Path:
     return _google_profile_file("PSM_OPS_DRIVE_CLIENT_SECRET_FILE", "drive-client-secret.json")
 
 
-def _is_configured() -> bool:
+def configuration_status() -> tuple[str, str]:
+    """Return a structured Drive configuration status: (code, human-readable reason).
+
+    Codes: ``ok`` (ready to upload), ``missing_folder_id`` (no folder configured
+    and no default), ``missing_token`` (folder fine but the OAuth token file is
+    absent). The reason string is safe to surface in Slack replies.
+    """
+
     if not _drive_folder_id():
-        return False
+        return "missing_folder_id", "Drive folder ID is not configured."
     token_path = _drive_token_path()
-    return token_path.exists()
+    if not token_path.exists():
+        return "missing_token", f"Drive OAuth token file missing at {token_path}."
+    return "ok", ""
+
+
+def _is_configured() -> bool:
+    return configuration_status()[0] == "ok"
 
 
 def _drive_access_token() -> str:

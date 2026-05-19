@@ -17,7 +17,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from mcp.server.fastmcp import FastMCP
 
-from aa_selfie_drive import upload_aa_selfies
+from aa_selfie_drive import configuration_status as aa_drive_configuration_status, upload_aa_selfies
 from profile_env import load_profile_env
 from psm_slack_notifier import post_ps_wee_audit
 
@@ -960,6 +960,72 @@ def _slack_trigger_message_image_files(slack_thread_url: str) -> list[dict[str, 
                 "url_private": url_private,
             }
         )
+    return images
+
+
+def _slack_thread_image_files(slack_thread_url: str) -> list[dict[str, Any]]:
+    """Return image-only file metadata across every message in the Slack thread.
+
+    Unlike :func:`_slack_trigger_message_image_files` (which only looks at the
+    permalink's single message), this scans the full thread via
+    ``conversations.replies`` so follow-up selfies posted as replies are
+    captured. The supplied permalink may point at either the parent message or
+    any reply; the parent ``thread_ts`` is resolved on the fly. Best-effort:
+    returns an empty list on any error.
+    """
+
+    channel_id = _slack_channel_id_from_permalink(slack_thread_url)
+    message_ts = _slack_message_ts_from_permalink(slack_thread_url)
+    if not channel_id or not message_ts:
+        return []
+    try:
+        history = _request_slack_json(
+            "conversations.history",
+            {
+                "channel": channel_id,
+                "oldest": message_ts,
+                "inclusive": "true",
+                "limit": "1",
+            },
+        )
+    except JiraError:
+        return []
+    parent_ts = message_ts
+    history_messages = history.get("messages") or []
+    if history_messages:
+        candidate = str(history_messages[0].get("thread_ts") or history_messages[0].get("ts") or "")
+        if candidate:
+            parent_ts = candidate
+    try:
+        replies = _request_slack_json(
+            "conversations.replies",
+            {
+                "channel": channel_id,
+                "ts": parent_ts,
+                "limit": "200",
+            },
+        )
+    except JiraError:
+        return []
+    images: list[dict[str, Any]] = []
+    for message in replies.get("messages") or []:
+        if not isinstance(message, dict):
+            continue
+        for entry in message.get("files") or []:
+            if not isinstance(entry, dict):
+                continue
+            mimetype = str(entry.get("mimetype") or "").lower()
+            url_private = str(entry.get("url_private") or entry.get("url_private_download") or "")
+            if not mimetype.startswith("image/") or not url_private:
+                continue
+            images.append(
+                {
+                    "id": str(entry.get("id") or ""),
+                    "name": str(entry.get("name") or entry.get("title") or "image"),
+                    "mimetype": mimetype,
+                    "url_private": url_private,
+                }
+            )
     return images
 
 
@@ -3437,6 +3503,94 @@ def create_ps_wee_intake_ticket(
         },
     )
     return result
+
+
+@mcp.tool()
+def attach_aa_selfie_to_thread(
+    slack_thread_url: str,
+    customer: str,
+    pic: str = "",
+    slack_user_email: str = "",
+) -> dict[str, Any]:
+    """Upload follow-up selfies posted in an existing Event AA thread to Drive.
+
+    Use this when a selfie is added as a reply *after* `create_ps_wee_intake_ticket`
+    has already run for the thread. Scans every message in the Slack thread for
+    image attachments and uploads each to the configured AA Drive folder using
+    the same `{slugified_company}_{slugified_pic}{ext}` filename convention.
+    Returns a structured Drive status (``ok`` / ``missing_folder_id`` /
+    ``missing_token``) so the bot does not have to guess the cause when the
+    upload is skipped.
+    """
+
+    source = (slack_thread_url or "").strip()
+    company = (customer or "").strip()
+    operator = (pic or "").strip() or "unknown"
+    scope = {
+        "caller": (slack_user_email or "").strip().lower(),
+        "slack_thread_url": source,
+        "customer": company or "Unknown customer",
+        "pic": operator,
+        "event": "AA",
+    }
+    if not source:
+        return _blocked("Slack thread URL is required.", scope)
+    if not _is_event_aa_thread(source):
+        return _blocked(
+            "Slack thread is not in the Event AA channel; selfie ingest is AA-only.",
+            scope,
+        )
+    if not company:
+        return _blocked(
+            "Customer is required so the Drive filename can be {company}_{pic}.",
+            scope,
+        )
+
+    drive_status, drive_reason = aa_drive_configuration_status()
+    if drive_status != "ok":
+        return _needs_check(
+            {"drive_selfies": [], "image_count": 0, "drive_status": drive_status},
+            scope,
+            f"Drive upload skipped: {drive_reason}",
+        )
+
+    try:
+        images = _slack_thread_image_files(source)
+    except Exception:
+        images = []
+    if not images:
+        return _verified(
+            {"drive_selfies": [], "image_count": 0, "drive_status": "ok"},
+            scope,
+            "No image attachments were found in this AA thread.",
+        )
+    payloads = _download_slack_images_for_drive(images)
+    if not payloads:
+        return _needs_check(
+            {"drive_selfies": [], "image_count": len(images), "drive_status": "ok"},
+            scope,
+            "Image files were found but Slack download failed; selfies were not uploaded.",
+        )
+    try:
+        drive_uploads = upload_aa_selfies(payloads, company=company, pic=operator)
+    except Exception:
+        drive_uploads = []
+    if not drive_uploads:
+        return _needs_check(
+            {"drive_selfies": [], "image_count": len(images), "drive_status": "ok"},
+            scope,
+            "Drive upload returned no records; check Drive OAuth token validity and folder permissions.",
+        )
+    return _verified(
+        {
+            "drive_selfies": drive_uploads,
+            "image_count": len(images),
+            "saved_count": len(drive_uploads),
+            "drive_status": "ok",
+        },
+        scope,
+        f"Saved {len(drive_uploads)} selfie(s) to Drive.",
+    )
 
 
 def _metadata_comment_from_draft(draft: dict[str, Any]) -> str:
