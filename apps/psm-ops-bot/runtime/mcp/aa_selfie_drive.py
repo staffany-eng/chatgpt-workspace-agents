@@ -51,11 +51,24 @@ def _drive_client_secret_path() -> Path:
     return _google_profile_file("PSM_OPS_DRIVE_CLIENT_SECRET_FILE", "drive-client-secret.json")
 
 
-def _is_configured() -> bool:
+def configuration_status() -> tuple[str, str]:
+    """Return a structured Drive configuration status: (code, human-readable reason).
+
+    Codes: ``ok`` (ready to upload), ``missing_folder_id`` (no folder configured
+    and no default), ``missing_token`` (folder fine but the OAuth token file is
+    absent). The reason string is safe to surface in Slack replies.
+    """
+
     if not _drive_folder_id():
-        return False
+        return "missing_folder_id", "Drive folder ID is not configured."
     token_path = _drive_token_path()
-    return token_path.exists()
+    if not token_path.exists():
+        return "missing_token", f"Drive OAuth token file missing at {token_path}."
+    return "ok", ""
+
+
+def _is_configured() -> bool:
+    return configuration_status()[0] == "ok"
 
 
 def _drive_access_token() -> str:
@@ -93,9 +106,18 @@ def _extension_for(name: str, mimetype: str) -> str:
     return mapping.get((mimetype or "").lower(), fallback)
 
 
-def _build_filename(company: str, pic: str, mimetype: str, original_name: str, sequence: int) -> str:
+def _build_filename(
+    company: str,
+    pic: str,
+    mimetype: str,
+    original_name: str,
+    sequence: int,
+    slack_file_id: str = "",
+) -> str:
     ext = _extension_for(original_name, mimetype)
     base = f"{_slugify(company)}_{_slugify(pic)}"
+    if slack_file_id:
+        return f"{base}__{slack_file_id}{ext}"
     if sequence > 1:
         base = f"{base}-{sequence}"
     return f"{base}{ext}"
@@ -121,7 +143,7 @@ def _upload_one(content: bytes, filename: str, mimetype: str, token: str) -> dic
     import json as _json
 
     boundary = f"----PsmOpsAaSelfieBoundary{uuid.uuid4().hex}"
-    metadata = {
+    metadata: dict[str, Any] = {
         "name": filename,
         "parents": [_drive_folder_id()],
     }
@@ -166,10 +188,14 @@ def upload_aa_selfies(
 ) -> list[dict[str, Any]]:
     """Upload selfie images to the configured Drive folder.
 
-    Each ``images`` entry must include ``content`` (bytes), ``name`` (original
-    filename), and ``mimetype``. Returns the per-file Drive metadata on success.
+    Each ``images`` entry should include ``content`` (bytes), ``name`` (original
+    filename), ``mimetype``, and optionally ``slack_file_id`` (suffixed into
+    the Drive filename so distinct selfies for the same ``(company, pic)``
+    never collide). Returns the per-file Drive metadata on success. Re-uploads
+    of the same Slack file are allowed — Drive accepts duplicate filenames as
+    separate objects, and "duplicate selfie" is preferable to "missing selfie".
     Returns an empty list when Drive is not configured or no images are given.
-    Silently swallows per-file errors so AA intake creation is never blocked.
+    Per-file errors are silently dropped so callers never block on Drive.
     """
 
     if not images or not _is_configured():
@@ -187,7 +213,15 @@ def upload_aa_selfies(
             continue
         mimetype = str(entry.get("mimetype") or "image/jpeg")
         original_name = str(entry.get("name") or "selfie")
-        filename = _build_filename(company, pic, mimetype, original_name, sequence)
+        slack_file_id = str(entry.get("slack_file_id") or "")
+        filename = _build_filename(
+            company,
+            pic,
+            mimetype,
+            original_name,
+            sequence,
+            slack_file_id=slack_file_id,
+        )
         try:
             uploaded.append(_upload_one(bytes(content), filename, mimetype, token))
         except AaSelfieDriveError:

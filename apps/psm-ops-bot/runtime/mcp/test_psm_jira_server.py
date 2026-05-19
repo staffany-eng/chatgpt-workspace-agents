@@ -1528,6 +1528,223 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertNotIn("Attached", result["answer"]["slack_reply"])
         self.assertNotIn("Drive", result["answer"]["slack_reply"])
 
+    def test_attach_aa_selfie_to_thread_uploads_trigger_message_images_to_drive(self):
+        slack_calls = []
+        drive_calls = []
+
+        def fake_slack_json(method, params):
+            slack_calls.append((method, dict(params)))
+            if method == "conversations.history":
+                return {
+                    "messages": [
+                        {
+                            "ts": params["oldest"],
+                            "files": [
+                                {
+                                    "id": "F-img",
+                                    "name": "selfie.jpg",
+                                    "mimetype": "image/jpeg",
+                                    "url_private": "https://files.slack.com/selfie.jpg",
+                                },
+                                {
+                                    "id": "F-pdf",
+                                    "name": "deck.pdf",
+                                    "mimetype": "application/pdf",
+                                    "url_private": "https://files.slack.com/deck.pdf",
+                                },
+                            ],
+                        }
+                    ]
+                }
+            return {"members": []}
+
+        def fake_download(url):
+            return b"binary-image-data"
+
+        def fake_drive_upload(images, company, pic):
+            drive_calls.append({"images": list(images), "company": company, "pic": pic})
+            return [
+                {
+                    "drive_file_id": "drive-1",
+                    "name": "kopi-janji_andre__F-img.jpg",
+                    "web_view_link": "https://drive/x",
+                }
+            ]
+
+        self.module._request_slack_json = fake_slack_json
+        self.module._download_slack_file = fake_download
+        self.module.upload_aa_selfies = fake_drive_upload
+        self.module.aa_drive_configuration_status = lambda: ("ok", "")
+
+        result = self.module.attach_aa_selfie_to_thread(
+            slack_thread_url="https://staffany.slack.com/archives/C0B5H2YE5T2/p1779217695397149",
+            customer="Kopi Janji",
+            pic="Andre",
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["answer"]["image_count"], 1)
+        self.assertEqual(result["answer"]["saved_count"], 1)
+        self.assertEqual(result["answer"]["drive_status"], "ok")
+        self.assertEqual(len(result["answer"]["drive_selfies"]), 1)
+        self.assertIn("Saved 1 selfie(s) to Drive.", result["caveat"])
+        self.assertEqual(len(drive_calls), 1)
+        self.assertEqual(drive_calls[0]["company"], "Kopi Janji")
+        self.assertEqual(drive_calls[0]["pic"], "Andre")
+        self.assertEqual([entry["name"] for entry in drive_calls[0]["images"]], ["selfie.jpg"])
+        self.assertEqual(
+            [entry["slack_file_id"] for entry in drive_calls[0]["images"]], ["F-img"]
+        )
+        self.assertEqual([call[0] for call in slack_calls], ["conversations.history"])
+
+    def test_attach_aa_selfie_to_thread_returns_needs_check_when_slack_call_fails(self):
+        def fake_slack_json(method, params):
+            if method == "conversations.history":
+                raise self.module.JiraError("Slack API failed: ratelimited")
+            self.fail("Slack should not be called again after history failure")
+
+        self.module._request_slack_json = fake_slack_json
+        self.module.upload_aa_selfies = lambda *args, **kwargs: self.fail(
+            "Drive upload should not run when the Slack read failed"
+        )
+        self.module.aa_drive_configuration_status = lambda: ("ok", "")
+
+        result = self.module.attach_aa_selfie_to_thread(
+            slack_thread_url="https://staffany.slack.com/archives/C0B5H2YE5T2/p1779217695397149",
+            customer="Kopi Janji",
+            pic="Andre",
+        )
+
+        self.assertEqual(result["confidence"], "needs-check")
+        self.assertEqual(result["answer"]["image_count"], 0)
+        self.assertEqual(result["answer"]["drive_selfies"], [])
+        self.assertIn("Could not read the AA Slack message", result["caveat"])
+        self.assertIn("ratelimited", result["caveat"])
+
+    def test_attach_aa_selfie_to_thread_returns_needs_check_on_partial_ingest(self):
+        def fake_slack_json(method, params):
+            if method == "conversations.history":
+                return {
+                    "messages": [
+                        {
+                            "ts": params["oldest"],
+                            "files": [
+                                {
+                                    "id": "F-ok",
+                                    "name": "first.jpg",
+                                    "mimetype": "image/jpeg",
+                                    "url_private": "https://files.slack.com/first.jpg",
+                                },
+                                {
+                                    "id": "F-flaky",
+                                    "name": "second.jpg",
+                                    "mimetype": "image/jpeg",
+                                    "url_private": "https://files.slack.com/flaky.jpg",
+                                },
+                            ],
+                        }
+                    ]
+                }
+            return {"members": []}
+
+        def fake_download(url):
+            if "flaky" in url:
+                raise RuntimeError("transient Slack download failure")
+            return b"binary-image-data"
+
+        def fake_drive_upload(images, company, pic):
+            return [
+                {
+                    "drive_file_id": f"drive-{entry['slack_file_id']}",
+                    "name": entry["name"],
+                    "web_view_link": "https://drive/x",
+                }
+                for entry in images
+            ]
+
+        self.module._request_slack_json = fake_slack_json
+        self.module._download_slack_file = fake_download
+        self.module.upload_aa_selfies = fake_drive_upload
+        self.module.aa_drive_configuration_status = lambda: ("ok", "")
+
+        result = self.module.attach_aa_selfie_to_thread(
+            slack_thread_url="https://staffany.slack.com/archives/C0B5H2YE5T2/p1779217695397149",
+            customer="Kopi Janji",
+            pic="Andre",
+        )
+
+        self.assertEqual(result["confidence"], "needs-check")
+        self.assertEqual(result["answer"]["image_count"], 2)
+        self.assertEqual(result["answer"]["downloaded_count"], 1)
+        self.assertEqual(result["answer"]["saved_count"], 1)
+        self.assertEqual(result["answer"]["download_failure_count"], 1)
+        self.assertEqual(result["answer"]["drive_failure_count"], 0)
+        self.assertIn("Partial AA selfie ingest", result["caveat"])
+
+    def test_attach_aa_selfie_to_thread_blocks_outside_aa_channel(self):
+        self.module._request_slack_json = lambda *_args, **_kwargs: self.fail(
+            "Slack should not be called when blocking outside AA channel"
+        )
+        self.module.aa_drive_configuration_status = lambda: ("ok", "")
+        self.module.upload_aa_selfies = lambda *args, **kwargs: self.fail(
+            "Drive upload should not run outside AA channel"
+        )
+
+        result = self.module.attach_aa_selfie_to_thread(
+            slack_thread_url="https://staffany.slack.com/archives/C0B2VT50YT1/p1779213672422819",
+            customer="Kopi Janji",
+            pic="Andre",
+        )
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("Event AA channel", result["caveat"])
+
+    def test_attach_aa_selfie_to_thread_reports_missing_token_status(self):
+        self.module._request_slack_json = lambda *_args, **_kwargs: self.fail(
+            "Slack should not be called when Drive is not configured"
+        )
+        self.module.upload_aa_selfies = lambda *args, **kwargs: self.fail(
+            "Drive upload should not run when token is missing"
+        )
+        self.module.aa_drive_configuration_status = lambda: (
+            "missing_token",
+            "Drive OAuth token file missing at /nope/drive-token.json.",
+        )
+
+        result = self.module.attach_aa_selfie_to_thread(
+            slack_thread_url="https://staffany.slack.com/archives/C0B5H2YE5T2/p1779213672422819",
+            customer="Kopi Janji",
+            pic="Andre",
+        )
+
+        self.assertEqual(result["confidence"], "needs-check")
+        self.assertEqual(result["answer"]["drive_status"], "missing_token")
+        self.assertEqual(result["answer"]["drive_selfies"], [])
+        self.assertIn("Drive OAuth token file missing", result["caveat"])
+
+    def test_attach_aa_selfie_to_thread_returns_verified_when_message_has_no_images(self):
+        def fake_slack_json(method, params):
+            if method == "conversations.history":
+                return {"messages": [{"ts": params["oldest"], "text": "no images here"}]}
+            return {"members": []}
+
+        self.module._request_slack_json = fake_slack_json
+        self.module.upload_aa_selfies = lambda *args, **kwargs: self.fail(
+            "Drive upload should not run when there are no images"
+        )
+        self.module.aa_drive_configuration_status = lambda: ("ok", "")
+
+        result = self.module.attach_aa_selfie_to_thread(
+            slack_thread_url="https://staffany.slack.com/archives/C0B5H2YE5T2/p1779217695397149",
+            customer="Kopi Janji",
+            pic="Andre",
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["answer"]["image_count"], 0)
+        self.assertEqual(result["answer"]["drive_selfies"], [])
+        self.assertIn("No image attachments", result["caveat"])
+
     def test_ps_wee_intake_in_aa_channel_creates_ticket_even_when_creator_no_match(self):
         calls = []
 

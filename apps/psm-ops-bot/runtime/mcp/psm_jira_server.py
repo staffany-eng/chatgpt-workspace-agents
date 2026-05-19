@@ -17,7 +17,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from mcp.server.fastmcp import FastMCP
 
-from aa_selfie_drive import upload_aa_selfies
+from aa_selfie_drive import configuration_status as aa_drive_configuration_status, upload_aa_selfies
 from profile_env import load_profile_env
 from psm_slack_notifier import post_ps_wee_audit
 
@@ -922,24 +922,28 @@ def _slack_message_ts_from_permalink(slack_thread_url: str) -> str:
 def _slack_trigger_message_image_files(slack_thread_url: str) -> list[dict[str, Any]]:
     """Return image-only file metadata attached to the message referenced by the permalink.
 
-    Best-effort: returns an empty list on any error so the caller never fails attachment-fetch.
+    Returns an empty list when the permalink itself does not parse or the
+    message has no image attachments. Slack auth / network / API errors
+    propagate as :class:`JiraError` so callers can distinguish "no images on
+    this message" from "Slack was unreachable". The existing
+    ``create_ps_wee_intake_ticket`` caller wraps this in ``try/except Exception``
+    to preserve its best-effort intake semantics; new callers may catch
+    ``JiraError`` to surface a ``needs-check`` outcome instead.
     """
+
     channel_id = _slack_channel_id_from_permalink(slack_thread_url)
     message_ts = _slack_message_ts_from_permalink(slack_thread_url)
     if not channel_id or not message_ts:
         return []
-    try:
-        payload = _request_slack_json(
-            "conversations.history",
-            {
-                "channel": channel_id,
-                "oldest": message_ts,
-                "inclusive": "true",
-                "limit": "1",
-            },
-        )
-    except JiraError:
-        return []
+    payload = _request_slack_json(
+        "conversations.history",
+        {
+            "channel": channel_id,
+            "oldest": message_ts,
+            "inclusive": "true",
+            "limit": "1",
+        },
+    )
     messages = payload.get("messages") or []
     if not messages:
         return []
@@ -997,6 +1001,7 @@ def _download_slack_images_for_drive(files: list[dict[str, Any]]) -> list[dict[s
                 "content": content,
                 "name": str(entry.get("name") or "selfie"),
                 "mimetype": str(entry.get("mimetype") or "image/jpeg"),
+                "slack_file_id": str(entry.get("id") or ""),
             }
         )
     return downloads
@@ -3437,6 +3442,130 @@ def create_ps_wee_intake_ticket(
         },
     )
     return result
+
+
+@mcp.tool()
+def attach_aa_selfie_to_thread(
+    slack_thread_url: str,
+    customer: str,
+    pic: str = "",
+    slack_user_email: str = "",
+) -> dict[str, Any]:
+    """Upload selfies attached to a follow-up message in an existing Event AA thread.
+
+    Use this when a selfie is added as a reply *after* `create_ps_wee_intake_ticket`
+    has already run for the thread. ``slack_thread_url`` must be the permalink
+    of the specific message that has the new image(s) attached — the tool only
+    looks at that one message, it does not scan the rest of the thread.
+    Filename convention matches the intake path:
+    ``{slugified_company}_{slugified_pic}__{slack_file_id}{ext}``. Re-uploads
+    of the same Slack file are allowed; Drive accepts duplicate filenames and
+    "duplicate selfie" is preferred over "missing selfie". Returns a
+    structured Drive status (``ok`` / ``missing_folder_id`` / ``missing_token``)
+    so the bot does not have to guess the cause when the upload is skipped.
+    """
+
+    source = (slack_thread_url or "").strip()
+    company = (customer or "").strip()
+    operator = (pic or "").strip() or "unknown"
+    scope = {
+        "caller": (slack_user_email or "").strip().lower(),
+        "slack_thread_url": source,
+        "customer": company or "Unknown customer",
+        "pic": operator,
+        "event": "AA",
+    }
+    if not source:
+        return _blocked("Slack thread URL is required.", scope)
+    if not _is_event_aa_thread(source):
+        return _blocked(
+            "Slack thread is not in the Event AA channel; selfie ingest is AA-only.",
+            scope,
+        )
+    if not company:
+        return _blocked(
+            "Customer is required so the Drive filename can be {company}_{pic}.",
+            scope,
+        )
+
+    drive_status, drive_reason = aa_drive_configuration_status()
+    if drive_status != "ok":
+        return _needs_check(
+            {"drive_selfies": [], "image_count": 0, "drive_status": drive_status},
+            scope,
+            f"Drive upload skipped: {drive_reason}",
+        )
+
+    try:
+        images = _slack_trigger_message_image_files(source)
+    except JiraError as error:
+        return _needs_check(
+            {"drive_selfies": [], "image_count": 0, "drive_status": "ok"},
+            scope,
+            f"Could not read the AA Slack message: {error}.",
+        )
+    if not images:
+        return _verified(
+            {"drive_selfies": [], "image_count": 0, "drive_status": "ok"},
+            scope,
+            "No image attachments were found on this Slack message.",
+        )
+    payloads = _download_slack_images_for_drive(images)
+    download_failures = len(images) - len(payloads)
+    if not payloads:
+        return _needs_check(
+            {
+                "drive_selfies": [],
+                "image_count": len(images),
+                "download_failure_count": download_failures,
+                "drive_status": "ok",
+            },
+            scope,
+            "Image files were found but every Slack download failed; selfies were not uploaded.",
+        )
+    drive_uploads = upload_aa_selfies(payloads, company=company, pic=operator)
+    drive_failures = len(payloads) - len(drive_uploads)
+    if not drive_uploads:
+        return _needs_check(
+            {
+                "drive_selfies": [],
+                "image_count": len(images),
+                "download_failure_count": download_failures,
+                "drive_failure_count": drive_failures,
+                "drive_status": "ok",
+            },
+            scope,
+            "Drive upload returned no records; check Drive OAuth token validity and folder permissions.",
+        )
+    if download_failures or drive_failures:
+        return _needs_check(
+            {
+                "drive_selfies": drive_uploads,
+                "image_count": len(images),
+                "downloaded_count": len(payloads),
+                "saved_count": len(drive_uploads),
+                "download_failure_count": download_failures,
+                "drive_failure_count": drive_failures,
+                "drive_status": "ok",
+            },
+            scope,
+            (
+                f"Partial AA selfie ingest: {len(images)} image(s) seen, "
+                f"{download_failures} Slack download failure(s), "
+                f"{drive_failures} Drive upload failure(s); "
+                f"{len(drive_uploads)} saved."
+            ),
+        )
+    return _verified(
+        {
+            "drive_selfies": drive_uploads,
+            "image_count": len(images),
+            "saved_count": len(drive_uploads),
+            "drive_status": "ok",
+        },
+        scope,
+        f"Saved {len(drive_uploads)} selfie(s) to Drive.",
+    )
 
 
 def _metadata_comment_from_draft(draft: dict[str, Any]) -> str:
