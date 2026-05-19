@@ -544,8 +544,8 @@ def _ps_team_valid_values(request_type_id: str = "") -> list[dict[str, Any]]:
 def _match_option_label(target_label: str, options: list[dict[str, Any]]) -> dict[str, Any] | None:
     """Find an option dict matching by exact label, token equality, or substring (label length >= 4).
 
-    Mirrors `_match_creator_option` so callers like PS Team can accept Slack display names
-    ("Jason Kanggara") and still match short option labels ("Jason").
+    Mirrors `_match_creator_option` so callers like PS Team can accept a Slack display name
+    (multi-token) and still resolve to a short single-token option label.
     """
 
     target = _normalize_label(target_label)
