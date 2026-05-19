@@ -56,6 +56,9 @@ Thread in Slack channel `C0B5H2YE5T2` (configured by `PSM_OPS_AA_CHANNEL_ID`):
 - Outside the AA channel, generic PS WEE intakes still default to `customer_next_action`; the 3 Event AA request types are only used when the PSM explicitly asks.
 - Posts the returned ticket link in-thread and asks only the tool-returned missing fields.
 - Posts a `PSM Ops automation:` central audit copy with `event: AA` in the extra payload.
+- For Event AA intakes only, pulls `image/*` files attached to the trigger Slack message via `conversations.history` (bot-token auth) and uploads them to the Jira ticket via `/rest/api/3/issue/{key}/attachments`. Non-image attachments (PDFs, voice memos, etc.) are intentionally skipped.
+- Attachment fetch and upload are best-effort: Slack API failures, file-download failures, and Jira upload failures must not block ticket creation. The ticket is still created and the Slack reply still posts; the missing image is silently dropped.
+- When one or more images attach successfully, the Slack reply ends with `Attached N image(s) from Slack.` Non-AA intakes do not call Slack `conversations.history` and never append the attachment suffix.
 
 ## PS WEE Customer Channel Auto-Tag
 

@@ -87,6 +87,7 @@ For ROI urgency fields, match the field's configured options exactly. If the req
   - Otherwise, default `request_type_key` to `feedback` so the ticket still lands in the Event AA queue. Triage can retag.
 - Outside the AA channel, the 3 Event AA request types stay available for explicit asks; do not auto-route to them.
 - The PSM's Slack message is the only source for cross-sell vs churn-revival vs feedback intent. Map cues like `cross sell`/`upsell`/`expansion` to `cross_sell`, `churn`/`save`/`revival`/`at risk` to `churn_revival`, anything else (or unclear) to `feedback`.
+- For Event AA intakes only, the MCP also fetches `image/*` files attached to the trigger Slack message and uploads them to the Jira ticket as attachments. Non-image files are intentionally skipped. The fetch+upload is best-effort and must never block ticket creation; failures are silently dropped, the ticket is still posted, and the Slack reply mentions the successfully attached count when at least one image succeeded. Implemented by `_slack_trigger_message_image_files` + `_attach_image_files_to_issue` in `psm_jira_server.py`.
 
 ## Customer Channel Routing
 

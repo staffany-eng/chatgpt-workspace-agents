@@ -734,6 +734,123 @@ def _is_event_aa_thread(slack_thread_url: str) -> bool:
     return _slack_channel_id_from_permalink(slack_thread_url) == expected
 
 
+def _slack_message_ts_from_permalink(slack_thread_url: str) -> str:
+    match = re.search(r"/archives/[A-Z0-9]+/p(\d+)", slack_thread_url or "")
+    if not match:
+        return ""
+    compact = match.group(1)
+    if len(compact) <= 6:
+        return ""
+    return f"{compact[:-6]}.{compact[-6:]}"
+
+
+def _slack_trigger_message_image_files(slack_thread_url: str) -> list[dict[str, Any]]:
+    """Return image-only file metadata attached to the message referenced by the permalink.
+
+    Best-effort: returns an empty list on any error so the caller never fails attachment-fetch.
+    """
+    channel_id = _slack_channel_id_from_permalink(slack_thread_url)
+    message_ts = _slack_message_ts_from_permalink(slack_thread_url)
+    if not channel_id or not message_ts:
+        return []
+    try:
+        payload = _request_slack_json(
+            "conversations.history",
+            {
+                "channel": channel_id,
+                "oldest": message_ts,
+                "inclusive": "true",
+                "limit": "1",
+            },
+        )
+    except JiraError:
+        return []
+    messages = payload.get("messages") or []
+    if not messages:
+        return []
+    files = messages[0].get("files") or []
+    images: list[dict[str, Any]] = []
+    for entry in files:
+        if not isinstance(entry, dict):
+            continue
+        mimetype = str(entry.get("mimetype") or "").lower()
+        url_private = str(entry.get("url_private") or entry.get("url_private_download") or "")
+        if not mimetype.startswith("image/") or not url_private:
+            continue
+        images.append(
+            {
+                "id": str(entry.get("id") or ""),
+                "name": str(entry.get("name") or entry.get("title") or "image"),
+                "mimetype": mimetype,
+                "url_private": url_private,
+            }
+        )
+    return images
+
+
+def _download_slack_file(url_private: str) -> bytes:
+    token = _slack_token()
+    if not token:
+        raise JiraError("SLACK_BOT_TOKEN is not configured for Slack file download.")
+    request = urllib.request.Request(
+        url_private,
+        headers={"Authorization": f"Bearer {token}"},
+        method="GET",
+    )
+    with urllib.request.urlopen(request, timeout=30) as response:
+        return response.read()
+
+
+def _attach_image_files_to_issue(issue_key: str, files: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Upload image files to a Jira issue. Best-effort: continues past per-file errors."""
+    if not files or not issue_key:
+        return []
+    base = _env("JIRA_BASE_URL").rstrip("/")
+    email = _env("JIRA_EMAIL")
+    token = _env("JIRA_API_TOKEN")
+    if not base or not email or not token:
+        return []
+    basic = base64.b64encode(f"{email}:{token}".encode("utf-8")).decode("ascii")
+    attached: list[dict[str, Any]] = []
+    for entry in files:
+        try:
+            content = _download_slack_file(entry["url_private"])
+        except Exception:
+            continue
+        boundary = "----PsmOpsAttachmentBoundary"
+        body = (
+            f"--{boundary}\r\n"
+            f'Content-Disposition: form-data; name="file"; filename="{entry["name"]}"\r\n'
+            f'Content-Type: {entry["mimetype"]}\r\n\r\n'
+        ).encode("utf-8") + content + f"\r\n--{boundary}--\r\n".encode("utf-8")
+        url = f"{base}/rest/api/3/issue/{urllib.parse.quote(issue_key)}/attachments"
+        request = urllib.request.Request(
+            url,
+            data=body,
+            headers={
+                "Authorization": f"Basic {basic}",
+                "X-Atlassian-Token": "no-check",
+                "Content-Type": f"multipart/form-data; boundary={boundary}",
+            },
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=60) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+        except Exception:
+            continue
+        if isinstance(payload, list):
+            for record in payload:
+                if isinstance(record, dict):
+                    attached.append(
+                        {
+                            "id": str(record.get("id") or ""),
+                            "filename": str(record.get("filename") or entry["name"]),
+                        }
+                    )
+    return attached
+
+
 def _customer_channel_map_path() -> str:
     return _env("PSM_OPS_CUSTOMER_CHANNEL_MAP_PATH")
 
@@ -2744,13 +2861,28 @@ def create_ps_wee_intake_ticket(
     issue_key = str(answer.get("issue_key") or "").strip()
     issue_url = str(answer.get("url") or "").strip()
     ticket_ref = f"<{issue_url}|{issue_key}>" if issue_key and issue_url else issue_key or issue_url or "the ticket"
+    attached_images: list[dict[str, Any]] = []
+    if is_event_aa and issue_key:
+        try:
+            images = _slack_trigger_message_image_files(source)
+        except Exception:
+            images = []
+        if images:
+            attached_images = _attach_image_files_to_issue(issue_key, images)
+    answer["attached_images"] = attached_images
+    attachment_suffix = (
+        f" Attached {len(attached_images)} image(s) from Slack." if attached_images else ""
+    )
     if slack_missing:
         answer["slack_reply"] = (
             f"Created first so this won't be missed: {ticket_ref}. "
-            f"I still need: {', '.join(slack_missing)}."
+            f"I still need: {', '.join(slack_missing)}.{attachment_suffix}"
         )
     else:
-        answer["slack_reply"] = f"Created first so this won't be missed: {ticket_ref}. No extra info needed from Slack right now."
+        answer["slack_reply"] = (
+            f"Created first so this won't be missed: {ticket_ref}. "
+            f"No extra info needed from Slack right now.{attachment_suffix}"
+        )
     answer["central_copy"] = post_ps_wee_audit(
         "ticket_created",
         source_thread_url=source,
@@ -2762,7 +2894,11 @@ def create_ps_wee_intake_ticket(
         status="created",
         missing_info=full_missing,
         jira_payload={"draft": draft, "answer": answer},
-        extra={"request_type_key": request_type_key},
+        extra={
+            "request_type_key": request_type_key,
+            "event": "AA" if is_event_aa else "",
+            "attached_images": [item["filename"] for item in attached_images],
+        },
     )
     return result
 
