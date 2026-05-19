@@ -996,36 +996,43 @@ def _slack_thread_image_files(slack_thread_url: str) -> list[dict[str, Any]]:
         candidate = str(history_messages[0].get("thread_ts") or history_messages[0].get("ts") or "")
         if candidate:
             parent_ts = candidate
-    try:
-        replies = _request_slack_json(
-            "conversations.replies",
-            {
-                "channel": channel_id,
-                "ts": parent_ts,
-                "limit": "200",
-            },
-        )
-    except JiraError:
-        return []
     images: list[dict[str, Any]] = []
-    for message in replies.get("messages") or []:
-        if not isinstance(message, dict):
-            continue
-        for entry in message.get("files") or []:
-            if not isinstance(entry, dict):
+    cursor = ""
+    page_safety_limit = 20
+    for _ in range(page_safety_limit):
+        params = {
+            "channel": channel_id,
+            "ts": parent_ts,
+            "limit": "200",
+        }
+        if cursor:
+            params["cursor"] = cursor
+        try:
+            replies = _request_slack_json("conversations.replies", params)
+        except JiraError:
+            return images
+        for message in replies.get("messages") or []:
+            if not isinstance(message, dict):
                 continue
-            mimetype = str(entry.get("mimetype") or "").lower()
-            url_private = str(entry.get("url_private") or entry.get("url_private_download") or "")
-            if not mimetype.startswith("image/") or not url_private:
-                continue
-            images.append(
-                {
-                    "id": str(entry.get("id") or ""),
-                    "name": str(entry.get("name") or entry.get("title") or "image"),
-                    "mimetype": mimetype,
-                    "url_private": url_private,
-                }
-            )
+            for entry in message.get("files") or []:
+                if not isinstance(entry, dict):
+                    continue
+                mimetype = str(entry.get("mimetype") or "").lower()
+                url_private = str(entry.get("url_private") or entry.get("url_private_download") or "")
+                if not mimetype.startswith("image/") or not url_private:
+                    continue
+                images.append(
+                    {
+                        "id": str(entry.get("id") or ""),
+                        "name": str(entry.get("name") or entry.get("title") or "image"),
+                        "mimetype": mimetype,
+                        "url_private": url_private,
+                    }
+                )
+        next_cursor = str((replies.get("response_metadata") or {}).get("next_cursor") or "")
+        if not next_cursor or not replies.get("has_more"):
+            break
+        cursor = next_cursor
     return images
 
 
@@ -3555,10 +3562,7 @@ def attach_aa_selfie_to_thread(
             f"Drive upload skipped: {drive_reason}",
         )
 
-    try:
-        images = _slack_thread_image_files(source)
-    except Exception:
-        images = []
+    images = _slack_thread_image_files(source)
     if not images:
         return _verified(
             {"drive_selfies": [], "image_count": 0, "drive_status": "ok"},
@@ -3572,10 +3576,7 @@ def attach_aa_selfie_to_thread(
             scope,
             "Image files were found but Slack download failed; selfies were not uploaded.",
         )
-    try:
-        drive_uploads = upload_aa_selfies(payloads, company=company, pic=operator)
-    except Exception:
-        drive_uploads = []
+    drive_uploads = upload_aa_selfies(payloads, company=company, pic=operator)
     if not drive_uploads:
         return _needs_check(
             {"drive_selfies": [], "image_count": len(images), "drive_status": "ok"},

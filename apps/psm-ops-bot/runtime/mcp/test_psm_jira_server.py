@@ -1613,6 +1613,88 @@ class PsmJiraServerTest(unittest.TestCase):
             ["conversations.history", "conversations.replies"],
         )
 
+    def test_attach_aa_selfie_to_thread_paginates_conversations_replies(self):
+        slack_calls = []
+        upload_inputs = []
+
+        def fake_slack_json(method, params):
+            slack_calls.append((method, dict(params)))
+            if method == "conversations.history":
+                return {"messages": [{"ts": params["oldest"], "thread_ts": params["oldest"]}]}
+            if method == "conversations.replies":
+                if not params.get("cursor"):
+                    return {
+                        "messages": [
+                            {"ts": params["ts"], "thread_ts": params["ts"]},
+                            {
+                                "ts": "1779213700.000100",
+                                "thread_ts": params["ts"],
+                                "files": [
+                                    {
+                                        "id": "F-page1",
+                                        "name": "first.jpg",
+                                        "mimetype": "image/jpeg",
+                                        "url_private": "https://files.slack.com/first.jpg",
+                                    }
+                                ],
+                            },
+                        ],
+                        "has_more": True,
+                        "response_metadata": {"next_cursor": "cursor-2"},
+                    }
+                if params["cursor"] == "cursor-2":
+                    return {
+                        "messages": [
+                            {
+                                "ts": "1779213800.000100",
+                                "thread_ts": params["ts"],
+                                "files": [
+                                    {
+                                        "id": "F-page2",
+                                        "name": "second.png",
+                                        "mimetype": "image/png",
+                                        "url_private": "https://files.slack.com/second.png",
+                                    }
+                                ],
+                            }
+                        ],
+                        "has_more": False,
+                        "response_metadata": {"next_cursor": ""},
+                    }
+            return {"members": []}
+
+        def fake_drive_upload(images, company, pic):
+            upload_inputs.append([entry["slack_file_id"] for entry in images])
+            return [
+                {
+                    "drive_file_id": f"drive-{entry['slack_file_id']}",
+                    "name": entry["name"],
+                    "web_view_link": "https://drive/x",
+                    "already_present": False,
+                }
+                for entry in images
+            ]
+
+        self.module._request_slack_json = fake_slack_json
+        self.module._download_slack_file = lambda url: b"binary-image-data"
+        self.module.upload_aa_selfies = fake_drive_upload
+        self.module.aa_drive_configuration_status = lambda: ("ok", "")
+
+        result = self.module.attach_aa_selfie_to_thread(
+            slack_thread_url="https://staffany.slack.com/archives/C0B5H2YE5T2/p1779213672422819",
+            customer="Kopi Janji",
+            pic="Andre",
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["answer"]["image_count"], 2)
+        self.assertEqual(result["answer"]["saved_count"], 2)
+        self.assertEqual(upload_inputs, [["F-page1", "F-page2"]])
+        replies_cursors = [
+            call[1].get("cursor", "") for call in slack_calls if call[0] == "conversations.replies"
+        ]
+        self.assertEqual(replies_cursors, ["", "cursor-2"])
+
     def test_attach_aa_selfie_to_thread_skips_already_present_selfies(self):
         def fake_slack_json(method, params):
             if method == "conversations.history":
