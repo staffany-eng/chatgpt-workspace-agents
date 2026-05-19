@@ -139,64 +139,7 @@ def _multipart_body(metadata: dict[str, Any], content: bytes, mimetype: str, bou
     return metadata_part + media_part_header + content + closing
 
 
-def _find_existing_by_slack_file_id(slack_file_id: str, token: str) -> dict[str, Any] | None:
-    """Find an existing AA-folder Drive file tagged with the given Slack file id.
-
-    Returns ``None`` when no match is found, when the lookup fails, or when the
-    inputs are empty. Uses ``appProperties.slack_file_id`` (written by uploads
-    routed through :func:`_upload_one`) so the lookup is scoped to files this
-    app itself created — compatible with the narrow ``drive.file`` OAuth scope.
-    """
-
-    import json as _json
-
-    folder_id = _drive_folder_id()
-    if not slack_file_id or not folder_id:
-        return None
-    safe_id = slack_file_id.replace("\\", "\\\\").replace("'", "\\'")
-    safe_folder = folder_id.replace("\\", "\\\\").replace("'", "\\'")
-    query = (
-        f"appProperties has {{ key='slack_file_id' and value='{safe_id}' }} "
-        f"and '{safe_folder}' in parents and trashed=false"
-    )
-    url = (
-        f"{DRIVE_API_BASE_URL}/files?"
-        f"q={urllib.parse.quote(query)}"
-        "&fields=files(id%2Cname%2CwebViewLink)"
-        "&pageSize=1"
-        "&spaces=drive"
-    )
-    request = urllib.request.Request(
-        url,
-        headers={
-            "authorization": f"Bearer {token}",
-            "user-agent": DRIVE_USER_AGENT,
-        },
-        method="GET",
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=DRIVE_TIMEOUT_SECONDS) as response:
-            payload = _json.loads(response.read().decode("utf-8") or "{}")
-    except (urllib.error.HTTPError, urllib.error.URLError, socket.timeout, TimeoutError):
-        return None
-    files = payload.get("files") or []
-    if not files:
-        return None
-    first = files[0] if isinstance(files[0], dict) else {}
-    return {
-        "drive_file_id": str(first.get("id") or ""),
-        "name": str(first.get("name") or ""),
-        "web_view_link": str(first.get("webViewLink") or ""),
-    }
-
-
-def _upload_one(
-    content: bytes,
-    filename: str,
-    mimetype: str,
-    token: str,
-    slack_file_id: str = "",
-) -> dict[str, Any]:
+def _upload_one(content: bytes, filename: str, mimetype: str, token: str) -> dict[str, Any]:
     import json as _json
 
     boundary = f"----PsmOpsAaSelfieBoundary{uuid.uuid4().hex}"
@@ -204,8 +147,6 @@ def _upload_one(
         "name": filename,
         "parents": [_drive_folder_id()],
     }
-    if slack_file_id:
-        metadata["appProperties"] = {"slack_file_id": slack_file_id}
     body = _multipart_body(metadata, content, mimetype, boundary)
     url = (
         f"{DRIVE_UPLOAD_BASE_URL}/files?uploadType=multipart"
@@ -245,17 +186,16 @@ def upload_aa_selfies(
     company: str,
     pic: str,
 ) -> list[dict[str, Any]]:
-    """Upload selfie images to the configured Drive folder, idempotently.
+    """Upload selfie images to the configured Drive folder.
 
     Each ``images`` entry should include ``content`` (bytes), ``name`` (original
-    filename), ``mimetype``, and ``slack_file_id`` (the Slack file id; used as
-    the idempotency key). When ``slack_file_id`` matches an existing file in the
-    AA folder that was previously uploaded by this app (tagged via
-    ``appProperties.slack_file_id``), the existing record is returned with
-    ``already_present=True`` and no new upload is performed. New uploads return
-    ``already_present=False``. Returns an empty list when Drive is not
-    configured or no images are given. Per-file errors are silently dropped so
-    AA intake creation is never blocked.
+    filename), ``mimetype``, and optionally ``slack_file_id`` (suffixed into
+    the Drive filename so distinct selfies for the same ``(company, pic)``
+    never collide). Returns the per-file Drive metadata on success. Re-uploads
+    of the same Slack file are allowed — Drive accepts duplicate filenames as
+    separate objects, and "duplicate selfie" is preferable to "missing selfie".
+    Returns an empty list when Drive is not configured or no images are given.
+    Per-file errors are silently dropped so callers never block on Drive.
     """
 
     if not images or not _is_configured():
@@ -274,10 +214,6 @@ def upload_aa_selfies(
         mimetype = str(entry.get("mimetype") or "image/jpeg")
         original_name = str(entry.get("name") or "selfie")
         slack_file_id = str(entry.get("slack_file_id") or "")
-        existing = _find_existing_by_slack_file_id(slack_file_id, token) if slack_file_id else None
-        if existing and existing.get("drive_file_id"):
-            uploaded.append({**existing, "already_present": True})
-            continue
         filename = _build_filename(
             company,
             pic,
@@ -287,9 +223,7 @@ def upload_aa_selfies(
             slack_file_id=slack_file_id,
         )
         try:
-            record = _upload_one(bytes(content), filename, mimetype, token, slack_file_id=slack_file_id)
+            uploaded.append(_upload_one(bytes(content), filename, mimetype, token))
         except AaSelfieDriveError:
             continue
-        record["already_present"] = False
-        uploaded.append(record)
     return uploaded
