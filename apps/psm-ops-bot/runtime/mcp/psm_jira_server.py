@@ -919,63 +919,9 @@ def _slack_message_ts_from_permalink(slack_thread_url: str) -> str:
     return f"{compact[:-6]}.{compact[-6:]}"
 
 
-def _slack_trigger_message_image_files(slack_thread_url: str) -> list[dict[str, Any]]:
-    """Return image-only file metadata attached to the message referenced by the permalink.
-
-    Resolves the message via two Slack APIs because ``conversations.history``
-    only returns *top-level* channel messages — thread replies (e.g. a
-    follow-up selfie posted as a reply in an AA thread) never appear there.
-    The function first tries ``conversations.history`` for the top-level
-    case; when that does not yield a message whose ``ts`` matches the
-    permalink, it falls back to ``conversations.replies(channel, ts)`` which
-    accepts any thread ts (parent or reply) and returns the full thread.
-
-    Returns an empty list when the permalink itself does not parse or the
-    message has no image attachments. Slack auth / network / API errors
-    propagate as :class:`JiraError` so callers can distinguish "no images on
-    this message" from "Slack was unreachable". The existing
-    ``create_ps_wee_intake_ticket`` caller wraps this in ``try/except Exception``
-    to preserve its best-effort intake semantics; new callers may catch
-    ``JiraError`` to surface a ``needs-check`` outcome instead.
-    """
-
-    channel_id = _slack_channel_id_from_permalink(slack_thread_url)
-    message_ts = _slack_message_ts_from_permalink(slack_thread_url)
-    if not channel_id or not message_ts:
-        return []
-    history = _request_slack_json(
-        "conversations.history",
-        {
-            "channel": channel_id,
-            "oldest": message_ts,
-            "inclusive": "true",
-            "limit": "1",
-        },
-    )
-    matched: dict[str, Any] | None = None
-    for entry in history.get("messages") or []:
-        if isinstance(entry, dict) and str(entry.get("ts") or "") == message_ts:
-            matched = entry
-            break
-    if matched is None:
-        replies = _request_slack_json(
-            "conversations.replies",
-            {
-                "channel": channel_id,
-                "ts": message_ts,
-                "inclusive": "true",
-                "limit": "200",
-            },
-        )
-        for entry in replies.get("messages") or []:
-            if isinstance(entry, dict) and str(entry.get("ts") or "") == message_ts:
-                matched = entry
-                break
-    if matched is None:
-        return []
-    files = matched.get("files") or []
+def _extract_image_files(files: list[Any]) -> list[dict[str, Any]]:
     images: list[dict[str, Any]] = []
-    for entry in files:
+    for entry in files or []:
         if not isinstance(entry, dict):
             continue
         mimetype = str(entry.get("mimetype") or "").lower()
@@ -991,6 +937,90 @@ def _slack_trigger_message_image_files(slack_thread_url: str) -> list[dict[str, 
             }
         )
     return images
+
+
+def _slack_trigger_message_image_files(slack_thread_url: str) -> list[dict[str, Any]]:
+    """Return image-only file metadata for the "new selfie" the agent wants to upload.
+
+    Resolution order is robust to the agent passing either the reply
+    permalink (the message that actually carries the file) or the thread
+    parent permalink (what the Hermes gateway exposes by default, since the
+    raw reply ts is not surfaced to the agent):
+
+    1. ``conversations.history`` with the supplied ``message_ts``. If the
+       returned message both matches by ``ts`` *and* carries image files,
+       use those.
+    2. ``conversations.replies(channel, ts=<message_ts>)``. Slack accepts
+       any thread ts (parent or reply) and returns the full thread. If a
+       reply matches by ``ts`` and has files, use those.
+    3. As a last resort, pick the **most recent thread message that has any
+       image attachment** and use its files. This is the "agent passed the
+       parent permalink but the new selfie is on a reply" case — finding
+       the newest image is equivalent to "the new selfie", since the agent
+       only invokes the tool when a new one has just arrived.
+
+    Returns an empty list when the permalink does not parse or the thread
+    has no image attachments anywhere. Slack auth / network / API errors
+    propagate as :class:`JiraError` so callers can distinguish "no images
+    in this thread" from "Slack was unreachable". The existing
+    ``create_ps_wee_intake_ticket`` caller wraps this in
+    ``try/except Exception`` to preserve its best-effort intake semantics;
+    new callers may catch ``JiraError`` to surface a ``needs-check``
+    outcome instead.
+    """
+
+    channel_id = _slack_channel_id_from_permalink(slack_thread_url)
+    message_ts = _slack_message_ts_from_permalink(slack_thread_url)
+    if not channel_id or not message_ts:
+        return []
+
+    history = _request_slack_json(
+        "conversations.history",
+        {
+            "channel": channel_id,
+            "oldest": message_ts,
+            "inclusive": "true",
+            "limit": "1",
+        },
+    )
+    for entry in history.get("messages") or []:
+        if isinstance(entry, dict) and str(entry.get("ts") or "") == message_ts:
+            images = _extract_image_files(entry.get("files") or [])
+            if images:
+                return images
+            break  # matched but empty — fall through to thread scan
+
+    replies = _request_slack_json(
+        "conversations.replies",
+        {
+            "channel": channel_id,
+            "ts": message_ts,
+            "inclusive": "true",
+            "limit": "200",
+        },
+    )
+    thread_messages = replies.get("messages") or []
+    # Prefer the exact ts match if it has files — that is the message the
+    # agent intended to target (the reply-permalink case).
+    for entry in thread_messages:
+        if isinstance(entry, dict) and str(entry.get("ts") or "") == message_ts:
+            images = _extract_image_files(entry.get("files") or [])
+            if images:
+                return images
+            break
+    # Fallback: newest message in the thread that carries an image. Honors
+    # the "just upload new images" intent — duplicates from older replies
+    # are not picked up because we stop at the most recent image.
+    sorted_messages = sorted(
+        (m for m in thread_messages if isinstance(m, dict)),
+        key=lambda m: float(m.get("ts") or 0.0),
+        reverse=True,
+    )
+    for entry in sorted_messages:
+        images = _extract_image_files(entry.get("files") or [])
+        if images:
+            return images
+    return []
 
 
 def _download_slack_file(url_private: str) -> bytes:

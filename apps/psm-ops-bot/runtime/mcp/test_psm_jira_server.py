@@ -1597,6 +1597,77 @@ class PsmJiraServerTest(unittest.TestCase):
         )
         self.assertEqual([call[0] for call in slack_calls], ["conversations.history"])
 
+    def test_attach_aa_selfie_to_thread_uses_newest_thread_image_when_parent_permalink_passed(self):
+        # Real-world: the Hermes gateway exposes the parent thread permalink
+        # to the agent, not the reply's. When the agent forwards that parent
+        # URL, the tool must still locate the new selfie by scanning the
+        # thread for the most recent image attachment.
+        parent_ts = "1779222669.095949"
+        reply_ts = "1779222835.114159"
+        slack_calls = []
+        upload_inputs = []
+
+        def fake_slack_json(method, params):
+            slack_calls.append((method, dict(params)))
+            if method == "conversations.history":
+                # Parent message exists, ts matches request, but has no files.
+                return {
+                    "messages": [
+                        {"ts": parent_ts, "text": "smoke test parent", "files": []}
+                    ]
+                }
+            if method == "conversations.replies":
+                return {
+                    "messages": [
+                        {"ts": parent_ts, "text": "smoke test parent"},
+                        {
+                            "ts": reply_ts,
+                            "thread_ts": parent_ts,
+                            "files": [
+                                {
+                                    "id": "F0B4F0WAVST",
+                                    "name": "image.png",
+                                    "mimetype": "image/png",
+                                    "url_private": "https://files.slack.com/files-pri/T6BS929EZ-F0B4F0WAVST/image.png",
+                                }
+                            ],
+                        },
+                    ]
+                }
+            return {"members": []}
+
+        def fake_drive_upload(images, company, pic):
+            upload_inputs.append([entry["slack_file_id"] for entry in images])
+            return [
+                {
+                    "drive_file_id": "drive-newest",
+                    "name": "arabica-coffee_khairul__F0B4F0WAVST.png",
+                    "web_view_link": "https://drive/x",
+                }
+            ]
+
+        self.module._request_slack_json = fake_slack_json
+        self.module._download_slack_file = lambda url: b"binary-image-data"
+        self.module.upload_aa_selfies = fake_drive_upload
+        self.module.aa_drive_configuration_status = lambda: ("ok", "")
+
+        result = self.module.attach_aa_selfie_to_thread(
+            slack_thread_url=f"https://staffany.slack.com/archives/C0B5H2YE5T2/p{parent_ts.replace('.', '')}",
+            customer="Arabica Coffee",
+            pic="Khairul",
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["answer"]["image_count"], 1)
+        self.assertEqual(result["answer"]["saved_count"], 1)
+        self.assertEqual(upload_inputs, [["F0B4F0WAVST"]])
+        # Calls both APIs: history to try the supplied ts, then replies to
+        # scan the thread when the parent has no files.
+        self.assertEqual(
+            [call[0] for call in slack_calls],
+            ["conversations.history", "conversations.replies"],
+        )
+
     def test_attach_aa_selfie_to_thread_falls_back_to_replies_for_thread_reply(self):
         slack_calls = []
         drive_calls = []
