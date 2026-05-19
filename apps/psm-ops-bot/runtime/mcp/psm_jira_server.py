@@ -73,7 +73,7 @@ EVENT_AA_REQUEST_TYPE_KEYS = {
     "feedback",
 }
 EVENT_AA_DEFAULT_REQUEST_TYPE_KEY = "feedback"
-EVENT_AA_LABEL = "AA SG 2026"
+EVENT_AA_LABEL = "AA-SG-2026"
 EVENT_AA_PS_TEAM_BY_CATEGORY = {
     "cs_follow_up": "Ega",
     "adhoc_ops": "PS Ops",
@@ -2445,9 +2445,23 @@ def _create_pco_task_from_draft(draft: dict[str, Any], scope: dict[str, Any]) ->
         except JiraError:
             if not _is_thin_poc() or set(request_values) == {"summary"}:
                 raise
-            payload["requestFieldValues"] = {"summary": draft["summary"]}
-            response = _request_json("POST", "/rest/servicedeskapi/request", payload)
-            warnings = ["Optional PCO request fields were skipped because Jira rejected their values."]
+            response = None
+            warnings = []
+            # Assets-backed StaffAny Organization is the most common rejection cause.
+            # Drop just that field first so PS Team, Creator, Customer, etc. still land.
+            orgs_field_id = _field_id("staffany_orgs")
+            if orgs_field_id and orgs_field_id in request_values:
+                retry_values = {k: v for k, v in request_values.items() if k != orgs_field_id}
+                try:
+                    payload["requestFieldValues"] = retry_values
+                    response = _request_json("POST", "/rest/servicedeskapi/request", payload)
+                    warnings = ["StaffAny Organization was skipped because Jira rejected the value."]
+                except JiraError:
+                    response = None
+            if response is None:
+                payload["requestFieldValues"] = {"summary": draft["summary"]}
+                response = _request_json("POST", "/rest/servicedeskapi/request", payload)
+                warnings = ["Optional PCO request fields were skipped because Jira rejected their values."]
     except JiraError as error:
         return _blocked(str(error), scope)
 
@@ -2945,7 +2959,7 @@ def create_ps_wee_intake_ticket(
     Event AA intakes (Slack thread in the configured AA channel) additionally:
     - Require a `creator` single-select option that matches the Slack tagger.
     - Auto-route `ps_team` per category for CS Follow Up (Ega) and Adhoc Ops (PS Ops).
-    - Add the `AA SG 2026` label on every ticket.
+    - Add the `AA-SG-2026` label on every ticket.
     - Upload any selfies on the trigger Slack message to the configured Drive
       folder as `{company}_{pic}.{ext}` instead of attaching to the Jira ticket.
     - Allow multiple tickets per Slack thread when they have different request types.
