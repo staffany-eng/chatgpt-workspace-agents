@@ -294,7 +294,7 @@ SLACK_USER_CACHE: list[dict[str, Any]] | None = None
 # Caches for Jira Assets (CMDB) lookups used to resolve StaffAny Organization names
 # to actual Assets object references. Both are cleared on process restart.
 _ASSETS_WORKSPACE_ID_CACHE: str | None = None
-_ASSETS_OBJECT_KEY_CACHE: dict[str, str | None] = {}
+_ASSETS_OBJECT_ID_CACHE: dict[str, str | None] = {}
 
 
 class JiraError(RuntimeError):
@@ -1861,12 +1861,16 @@ def _aql_escape(value: str) -> str:
     return value.replace("\\", "\\\\").replace('"', '\\"')
 
 
-def _aql_search_object_key(query: str) -> str | None:
-    """Run an AQL query; return the unique result's objectKey, or None on 0/many.
+def _aql_search_object_id(query: str) -> str | None:
+    """Run an AQL query; return the unique result's numeric ``id``, or None on 0/many.
 
     Raises ``JiraError`` on transient / network failures so the caller can distinguish
     "definitely no match" from "couldn't ask Jira this time" and avoid caching the
     latter as a permanent miss.
+
+    Returns the numeric object id (e.g. ``"61"``), not the human-readable ``objectKey``
+    (e.g. ``"HC-61"``). The CMDB field reference uses a composite ``<workspaceId>:<id>``
+    written under the ``id`` key — see :func:`_staffany_orgs_assets_payload`.
     """
 
     workspace_id = _assets_workspace_id()
@@ -1878,13 +1882,13 @@ def _aql_search_object_key(query: str) -> str | None:
     values = payload.get("values") if isinstance(payload, dict) else None
     if not isinstance(values, list) or len(values) != 1:
         return None
-    return str(values[0].get("objectKey") or "").strip() or None
+    return str(values[0].get("id") or "").strip() or None
 
 
-def _resolve_assets_object_key(name: str) -> str | None:
-    """Resolve a StaffAny Organization name to its Jira Assets objectKey.
+def _resolve_assets_object_id(name: str) -> str | None:
+    """Resolve a StaffAny Organization name to its Jira Assets numeric object ``id``.
 
-    Tries progressively more permissive AQL queries and returns the objectKey of the
+    Tries progressively more permissive AQL queries and returns the numeric id of the
     unique match. Returns None when nothing matches uniquely (zero or ambiguous).
     Strategies attempted in order:
 
@@ -1902,8 +1906,8 @@ def _resolve_assets_object_key(name: str) -> str | None:
     clean = (name or "").strip()
     if not clean:
         return None
-    if clean in _ASSETS_OBJECT_KEY_CACHE:
-        return _ASSETS_OBJECT_KEY_CACHE[clean]
+    if clean in _ASSETS_OBJECT_ID_CACHE:
+        return _ASSETS_OBJECT_ID_CACHE[clean]
 
     stripped = _strip_legal_suffix(clean)
     stripped = stripped if stripped and stripped != clean else ""
@@ -1920,7 +1924,7 @@ def _resolve_assets_object_key(name: str) -> str | None:
     had_transient_error = False
     for query in queries:
         try:
-            resolved = _aql_search_object_key(query)
+            resolved = _aql_search_object_id(query)
         except JiraError:
             had_transient_error = True
             continue
@@ -1931,7 +1935,7 @@ def _resolve_assets_object_key(name: str) -> str | None:
     # definitive answer from Jira — if all queries hit transient errors we leave the
     # cache untouched so the next call retries instead of returning a stale miss.
     if resolved or not had_transient_error:
-        _ASSETS_OBJECT_KEY_CACHE[clean] = resolved
+        _ASSETS_OBJECT_ID_CACHE[clean] = resolved
     return resolved
 
 
@@ -1949,23 +1953,35 @@ def _staffany_orgs_input_names(draft: dict[str, Any]) -> list[str]:
 
 
 def _staffany_orgs_assets_payload(draft: dict[str, Any]) -> tuple[list[dict[str, str]], list[str]]:
-    """Resolve each StaffAny Organization name to its Jira Assets objectKey.
+    """Resolve each StaffAny Organization name to its Jira Assets object reference.
 
     Returns a tuple of (payload, unresolved_names), where payload is the wire-shape
-    array suitable for the CMDB object field (e.g. ``[{"key": "HC-566"}]``) containing
-    only successfully resolved entries, and unresolved_names is the list of input
-    names that did not resolve to a single Assets object.
+    array suitable for the CMDB object field — a list of
+    ``{"id": "<workspaceId>:<numericId>"}`` entries (Jira silently drops other shapes
+    like ``{"objectId": ...}`` or ``{"key": ...}`` from the create payload without
+    erroring, so this composite globalId is the only reliable write format).
+
+    ``unresolved_names`` is the list of input names that did not resolve to a single
+    Assets object so the caller can surface a precise warning.
     """
 
     names = _staffany_orgs_input_names(draft)
     payload: list[dict[str, str]] = []
     unresolved: list[str] = []
+    workspace_id: str | None = None
     for name in names:
-        key = _resolve_assets_object_key(name)
-        if key:
-            payload.append({"key": key})
-        else:
+        object_id = _resolve_assets_object_id(name)
+        if not object_id:
             unresolved.append(name)
+            continue
+        if workspace_id is None:
+            try:
+                workspace_id = _assets_workspace_id()
+            except JiraError:
+                # Should not happen — the resolver already fetched it — but stay safe.
+                unresolved.append(name)
+                continue
+        payload.append({"id": f"{workspace_id}:{object_id}"})
     return payload, unresolved
 
 
