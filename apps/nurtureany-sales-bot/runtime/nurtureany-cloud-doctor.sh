@@ -196,8 +196,43 @@ else
 fi
 
 if [ -r "$PROFILE_DIR/lesson-candidates" ] || [ -d "$PROFILE_DIR/lesson-candidates" ]; then
-  count="$(find "$PROFILE_DIR/lesson-candidates" -type f -name '*.json' 2>/dev/null | wc -l | tr -d ' ')"
-  line "lesson_candidates:files=$count"
+  if command -v python3 >/dev/null 2>&1; then
+    python3 - "$PROFILE_DIR/lesson-candidates" <<'PY'
+import json
+import sys
+from collections import Counter
+from pathlib import Path
+
+directory = Path(sys.argv[1])
+statuses = Counter()
+files = 0
+for path in sorted(directory.glob("*.json")):
+    files += 1
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        statuses["invalid_json"] += 1
+        continue
+    if isinstance(payload, dict):
+        statuses[str(payload.get("status") or "pending_review")] += 1
+    else:
+        statuses["invalid_shape"] += 1
+print(
+    "lesson_candidates:files={}:pending_review={}:needs_more_evidence={}:approved_for_repo_promotion={}:rejected={}:promoted={}:invalid={}".format(
+        files,
+        statuses["pending_review"],
+        statuses["needs_more_evidence"],
+        statuses["approved_for_repo_promotion"],
+        statuses["rejected"],
+        statuses["promoted"],
+        statuses["invalid_json"] + statuses["invalid_shape"],
+    )
+)
+PY
+  else
+    count="$(find "$PROFILE_DIR/lesson-candidates" -type f -name '*.json' 2>/dev/null | wc -l | tr -d ' ')"
+    line "lesson_candidates:files=$count"
+  fi
 else
   line "lesson_candidates:not-found"
 fi

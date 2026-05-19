@@ -798,7 +798,8 @@ SALES_WHATSAPP_REPORT_ALLOWED_PRODUCTION_CRONS = (
     "35 3 * * 1-5",
 )
 SALES_WHATSAPP_REPORT_DEFAULT_IDEMPOTENCY_PATTERN = "{schedule_id}:{for_date}:{window_start_local}-{window_end_local}"
-LESSON_CANDIDATE_STATUSES = {"pending_review", "approved_for_repo_promotion", "rejected", "promoted"}
+LESSON_CANDIDATE_STATUSES = {"pending_review", "needs_more_evidence", "approved_for_repo_promotion", "rejected", "promoted"}
+LESSON_CANDIDATE_REVIEW_MARKER = "human reviewed lesson"
 LESSON_CANDIDATE_RISK_CLASSES = {"low", "medium", "high"}
 LESSON_CANDIDATE_TARGET_SURFACES = {
     "skill_reference",
@@ -10202,6 +10203,10 @@ def _compact_lesson_candidate(record: dict[str, Any]) -> dict[str, Any]:
         "status": record.get("status") or "pending_review",
         "reviewer": record.get("reviewer") or "",
         "review_notes": record.get("review_notes") or "",
+        "reviewed_at": record.get("reviewed_at") or "",
+        "repo_commit_sha": record.get("repo_commit_sha") or "",
+        "live_verified_at": record.get("live_verified_at") or "",
+        "live_verification_summary": record.get("live_verification_summary") or "",
     }
 
 
@@ -10233,6 +10238,34 @@ def _lesson_payload_unsafe(*values: str) -> str:
         rf"(?<!\w)\+\d[\d\s().-]{{7,}}", pii_text
     ):
         return "unsafe_payload:phone_number_like_text"
+    return ""
+
+
+def _lesson_reviewer_is_automation(reviewer: str) -> bool:
+    lowered = str(reviewer or "").strip().lower()
+    if not lowered:
+        return True
+    automation_markers = (
+        "nurtureanysalesbot",
+        "nurtureany bot",
+        "nurtureany automation",
+        "hermes automation",
+        "automation",
+        "bot",
+        "agent",
+        "system",
+    )
+    return any(marker in lowered for marker in automation_markers)
+
+
+def _lesson_status_transition_allowed(current_status: str, next_status: str) -> str:
+    current = current_status or "pending_review"
+    if current == "promoted" and next_status != "promoted":
+        return "promoted candidates are immutable except idempotent promoted confirmation."
+    if next_status == "promoted" and current != "approved_for_repo_promotion":
+        return "promoted requires current status approved_for_repo_promotion."
+    if current == "rejected" and next_status not in {"rejected", "needs_more_evidence"}:
+        return "rejected candidates cannot be approved or promoted without first recording more evidence."
     return ""
 
 
@@ -18868,7 +18901,10 @@ def list_nurtureany_lesson_candidates(status: str = "", limit: int = 20) -> dict
 
     status = str(status or "").strip()
     if status and status not in LESSON_CANDIDATE_STATUSES:
-        return _blocked("status must be one of pending_review, approved_for_repo_promotion, rejected, or promoted.", {"status": status})
+        return _blocked(
+            "status must be one of pending_review, needs_more_evidence, approved_for_repo_promotion, rejected, or promoted.",
+            {"status": status},
+        )
     try:
         safe_limit = max(1, min(int(limit), 100))
     except (TypeError, ValueError):
@@ -18941,6 +18977,122 @@ def read_nurtureany_lesson_candidate(lesson_id: str) -> dict[str, Any]:
         "scope": {"lesson_id": lesson_id, "lesson_candidates_dir": str(_lesson_candidates_dir())},
         "confidence": "verified",
         "caveat": "Read-only candidate. It does not change bot behavior until promoted into the repo packet and deployed.",
+    }
+
+
+@mcp.tool()
+def update_nurtureany_lesson_candidate_status(
+    lesson_id: str,
+    status: str,
+    reviewer: str,
+    review_notes: str,
+    approval_marker: str,
+    repo_commit_sha: str = "",
+    live_verified_at: str = "",
+    live_verification_summary: str = "",
+) -> dict[str, Any]:
+    """Update a reviewed lesson candidate's human review status in the profile runtime store."""
+
+    lesson_id = _safe_file_stem(str(lesson_id or "").strip())
+    status = _clean_lesson_text(status, max_length=80)
+    reviewer = _clean_lesson_text(reviewer, max_length=200)
+    review_notes = _clean_lesson_text(review_notes, max_length=1000)
+    approval_marker = _clean_lesson_text(approval_marker, max_length=80).lower()
+    repo_commit_sha = _clean_lesson_text(repo_commit_sha, max_length=80)
+    live_verified_at = _clean_lesson_text(live_verified_at, max_length=120)
+    live_verification_summary = _clean_lesson_text(live_verification_summary, max_length=1000)
+    if not lesson_id:
+        return _blocked("lesson_id is required to update a lesson candidate.", {"lesson_candidates": "required-id"})
+    if status not in LESSON_CANDIDATE_STATUSES:
+        return _blocked(
+            "status must be one of pending_review, needs_more_evidence, approved_for_repo_promotion, rejected, or promoted.",
+            {"status": status},
+        )
+    if not reviewer or not review_notes:
+        return _blocked("reviewer and review_notes are required for lesson candidate status updates.", {"lesson_id": lesson_id})
+    if approval_marker != LESSON_CANDIDATE_REVIEW_MARKER:
+        return _blocked(
+            f'approval_marker must be exactly "{LESSON_CANDIDATE_REVIEW_MARKER}".',
+            {"lesson_id": lesson_id, "approval_marker_present": bool(approval_marker)},
+        )
+    if _lesson_reviewer_is_automation(reviewer):
+        return _blocked("NurtureAny or automation identities cannot approve, reject, or promote lesson candidates.", {"reviewer": reviewer})
+    unsafe_reason = _lesson_payload_unsafe("", review_notes, live_verification_summary)
+    if unsafe_reason:
+        return _blocked(
+            "Review notes and live verification summary must not contain raw Slack transcripts, raw HubSpot rows, phone numbers, secrets, tokens, or contact exports.",
+            {"reason": unsafe_reason},
+        )
+
+    record = _load_lesson_candidate(lesson_id)
+    if not record:
+        return _blocked("No lesson candidate found for this lesson_id.", {"lesson_id": lesson_id})
+    current_status = str(record.get("status") or "pending_review").strip() or "pending_review"
+    blocked_transition = _lesson_status_transition_allowed(current_status, status)
+    if blocked_transition:
+        return _blocked(blocked_transition, {"lesson_id": lesson_id, "current_status": current_status, "requested_status": status})
+    if status == "promoted":
+        if not repo_commit_sha or not re.fullmatch(r"[0-9a-fA-F]{7,64}", repo_commit_sha):
+            return _blocked("promoted requires a repo_commit_sha of 7-64 hex characters.", {"lesson_id": lesson_id})
+        if not live_verified_at or not live_verification_summary:
+            return _blocked(
+                "promoted requires live_verified_at and live_verification_summary after deploy/live checks.",
+                {"lesson_id": lesson_id},
+            )
+
+    now = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    history = record.get("review_history") if isinstance(record.get("review_history"), list) else []
+    event = {
+        "at": now,
+        "from_status": current_status,
+        "to_status": status,
+        "reviewer": reviewer,
+        "review_notes": review_notes,
+    }
+    if status == "promoted":
+        event.update(
+            {
+                "repo_commit_sha": repo_commit_sha,
+                "live_verified_at": live_verified_at,
+                "live_verification_summary": live_verification_summary,
+            }
+        )
+    history.append(event)
+    record.update(
+        {
+            "status": status,
+            "reviewer": reviewer,
+            "review_notes": review_notes,
+            "reviewed_at": now,
+            "review_history": history[-50:],
+            "honcho_used": False,
+            "will_mutate_hubspot": False,
+            "auto_behavior_change": False,
+        }
+    )
+    if status == "promoted":
+        record["repo_commit_sha"] = repo_commit_sha
+        record["live_verified_at"] = live_verified_at
+        record["live_verification_summary"] = live_verification_summary
+
+    try:
+        _atomic_write_json(_lesson_candidate_path(lesson_id), record)
+    except OSError as error:
+        return _blocked(f"Lesson candidate status update failed: {error.__class__.__name__}", {"lesson_id": lesson_id})
+
+    return {
+        "answer": {
+            **_compact_lesson_candidate(record),
+            "previous_status": current_status,
+            "approval_marker_used": approval_marker,
+            "will_mutate_hubspot": False,
+            "honcho_used": False,
+            "auto_behavior_change": False,
+        },
+        "source": "NurtureAny profile-runtime reviewed lesson candidates",
+        "scope": {"lesson_id": lesson_id, "lesson_candidates_dir": str(_lesson_candidates_dir()), "status": status},
+        "confidence": "verified",
+        "caveat": "Runtime status only. Approved lessons still require repo promotion; promoted requires deploy and live verification evidence.",
     }
 
 

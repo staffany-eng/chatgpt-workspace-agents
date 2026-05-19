@@ -11,7 +11,7 @@ EXPECT_MODEL_PROVIDER="${EXPECT_MODEL_PROVIDER:-anthropic}"
 EXPECT_MODEL_DEFAULT="${EXPECT_MODEL_DEFAULT:-claude-sonnet-4-6}"
 EXPECT_SLACK_INTENT_TOOLS="${EXPECT_SLACK_INTENT_TOOLS:-5}"
 EXPECT_STAFFANY_BIGQUERY_TOOLS="${EXPECT_STAFFANY_BIGQUERY_TOOLS:-4}"
-EXPECT_HUBSPOT_TOOLS="${EXPECT_HUBSPOT_TOOLS:-60}"
+EXPECT_HUBSPOT_TOOLS="${EXPECT_HUBSPOT_TOOLS:-61}"
 EXPECT_AIRCALL_TOOLS="${EXPECT_AIRCALL_TOOLS:-4}"
 EXPECT_DEMO_SOURCES_TOOLS="${EXPECT_DEMO_SOURCES_TOOLS:-1}"
 EXPECT_GOOGLE_CALENDAR_TOOLS="${EXPECT_GOOGLE_CALENDAR_TOOLS:-2}"
@@ -307,6 +307,7 @@ expected_servers = {
         "record_nurtureany_lesson_candidate",
         "list_nurtureany_lesson_candidates",
         "read_nurtureany_lesson_candidate",
+        "update_nurtureany_lesson_candidate_status",
         "draft_nurture_message",
         "plan_hubspot_writeback",
     ],

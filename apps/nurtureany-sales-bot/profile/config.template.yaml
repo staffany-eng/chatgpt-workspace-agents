@@ -358,6 +358,23 @@ nurtureany:
     runtime_candidates_env: NURTUREANY_LESSON_CANDIDATES_DIR
     default_profile_dir: lesson-candidates
     record_status: pending_review
+    valid_statuses:
+    - pending_review
+    - needs_more_evidence
+    - approved_for_repo_promotion
+    - rejected
+    - promoted
+    review_status_tool: update_nurtureany_lesson_candidate_status
+    review_approval_marker: human reviewed lesson
+    review_digest:
+      script: nurtureany_lesson_review_digest.py
+      cron_name: nurtureanysalesbot learning review digest
+      cron_expression: "30 1 * * 1-5"
+      timezone: Asia/Singapore
+      pilot_delivery: slack:#nurtureany-testing
+      empty_queue_stdout: silent
+    kanban_first_review: false
+    curator_used: false
     auto_behavior_change: false
     honcho_used: false
     source_of_truth_overrides: false
@@ -498,6 +515,7 @@ mcp_servers:
     - record_nurtureany_lesson_candidate
     - list_nurtureany_lesson_candidates
     - read_nurtureany_lesson_candidate
+    - update_nurtureany_lesson_candidate_status
     - draft_nurture_message
     - plan_hubspot_writeback
     mutation_tools_disabled_until_write_phase:

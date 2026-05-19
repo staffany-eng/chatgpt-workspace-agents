@@ -70,6 +70,7 @@
     "hubspot_task_reminder_script": "runtime/scripts/nurtureany_sales_task_reminders.py",
     "hubspot_task_reminder_eod_script": "runtime/scripts/nurtureany_sales_task_reminders_eod.py",
     "hubspot_inbound_monitor_script": "runtime/scripts/nurtureany_inbound_monitor.py",
+    "lesson_review_digest_script": "runtime/scripts/nurtureany_lesson_review_digest.py",
     "sales_whatsapp_report_runner_script": "runtime/scripts/nurtureany_sales_whatsapp_report_runner.py",
     "live_profile_audit": "runtime/audit-live-profile.sh",
     "cloud_doctor": "runtime/nurtureany-cloud-doctor.sh",
@@ -626,6 +627,7 @@
       "record_nurtureany_lesson_candidate",
       "list_nurtureany_lesson_candidates",
       "read_nurtureany_lesson_candidate",
+      "update_nurtureany_lesson_candidate_status",
       "draft_nurture_message",
       "list_google_calendar_events",
       "audit_google_calendar_meeting_quality",
@@ -1104,11 +1106,22 @@
     "candidate_tools": [
       "record_nurtureany_lesson_candidate",
       "list_nurtureany_lesson_candidates",
-      "read_nurtureany_lesson_candidate"
+      "read_nurtureany_lesson_candidate",
+      "update_nurtureany_lesson_candidate_status"
     ],
+    "review_digest_script": "runtime/scripts/nurtureany_lesson_review_digest.py",
+    "review_digest_cron_name": "nurtureanysalesbot learning review digest",
+    "review_digest_cron_expression": "30 1 * * 1-5",
+    "review_digest_timezone": "Asia/Singapore",
+    "review_digest_pilot_delivery": "slack:#nurtureany-testing",
+    "review_status_tool": "update_nurtureany_lesson_candidate_status",
+    "review_approval_marker": "human reviewed lesson",
+    "kanban_first_review": false,
+    "curator_used": false,
     "record_status": "pending_review",
     "valid_statuses": [
       "pending_review",
+      "needs_more_evidence",
       "approved_for_repo_promotion",
       "rejected",
       "promoted"

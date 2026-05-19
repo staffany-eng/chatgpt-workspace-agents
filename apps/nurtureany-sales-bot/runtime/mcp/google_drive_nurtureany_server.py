@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import html
 import io
 import json
 import os
@@ -466,6 +467,24 @@ def _slide_sort_key(path: str) -> tuple[int, str]:
     return 10**9, path
 
 
+def _extract_pptx_slide_texts(slide_xml: bytes) -> list[str]:
+    try:
+        root = ET.fromstring(slide_xml)
+        return [
+            str(node.text or "").strip()
+            for node in root.iter()
+            if node.tag.endswith("}t") and str(node.text or "").strip()
+        ]
+    except (ET.ParseError, ImportError):
+        xml_text = slide_xml.decode("utf-8", errors="ignore")
+        texts = []
+        for match in re.finditer(r"<(?:[A-Za-z0-9_]+:)?t(?:\s[^>]*)?>(.*?)</(?:[A-Za-z0-9_]+:)?t>", xml_text, flags=re.DOTALL):
+            text = html.unescape(re.sub(r"<[^>]+>", "", match.group(1))).strip()
+            if text:
+                texts.append(text)
+        return texts
+
+
 def _extract_pptx_text(pptx_bytes: bytes, max_chars: int) -> tuple[str, bool, int]:
     try:
         archive = zipfile.ZipFile(io.BytesIO(pptx_bytes))
@@ -482,15 +501,7 @@ def _extract_pptx_text(pptx_bytes: bytes, max_chars: int) -> tuple[str, bool, in
         )
         chunks: list[str] = []
         for index, slide_path in enumerate(slide_paths, start=1):
-            try:
-                root = ET.fromstring(archive.read(slide_path))
-            except ET.ParseError:
-                continue
-            texts = [
-                str(node.text or "").strip()
-                for node in root.iter()
-                if node.tag.endswith("}t") and str(node.text or "").strip()
-            ]
+            texts = _extract_pptx_slide_texts(archive.read(slide_path))
             if texts:
                 chunks.append(f"Slide {index}\n" + "\n".join(texts))
     return _normalize_slides_text("\n\n".join(chunks), max_chars)

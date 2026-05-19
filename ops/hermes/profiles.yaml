@@ -65,7 +65,7 @@ profiles:
     required_mcp:
       slack_nurtureany: 5
       staffany_bigquery: 4
-      hubspot_nurtureany: 60
+      hubspot_nurtureany: 61
       google_calendar_nurtureany: 2
       google_drive_nurtureany: 5
       eazybe_nurtureany: 4
@@ -93,6 +93,11 @@ profiles:
         schedule: "0 9 * * 1-5"
         mode: no-agent
         script: nurtureany_sales_task_reminders_eod.py
+        deliver: slack:#nurtureany-testing
+      - name: nurtureanysalesbot learning review digest
+        schedule: "30 1 * * 1-5"
+        mode: no-agent
+        script: nurtureany_lesson_review_digest.py
         deliver: slack:#nurtureany-testing
       - name: SG MY WhatsApp Morning Blitz Report
         schedule: "35 2 * * 1-5"

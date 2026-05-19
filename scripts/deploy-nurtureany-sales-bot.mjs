@@ -500,7 +500,10 @@ sudo install -o "$runtime_owner" -g "$runtime_owner" -m 0755 "$deploy_dir/apps/n
 sudo install -o "$runtime_owner" -g "$runtime_owner" -m 0755 "$deploy_dir/apps/nurtureany-sales-bot/runtime/scripts/nurtureany_sales_task_reminders.py" "$profile/scripts/nurtureany_sales_task_reminders.py"
 sudo install -o "$runtime_owner" -g "$runtime_owner" -m 0755 "$deploy_dir/apps/nurtureany-sales-bot/runtime/scripts/nurtureany_sales_task_reminders_eod.py" "$profile/scripts/nurtureany_sales_task_reminders_eod.py"
 sudo install -o "$runtime_owner" -g "$runtime_owner" -m 0755 "$deploy_dir/apps/nurtureany-sales-bot/runtime/scripts/nurtureany_inbound_monitor.py" "$profile/scripts/nurtureany_inbound_monitor.py"
+sudo install -o "$runtime_owner" -g "$runtime_owner" -m 0755 "$deploy_dir/apps/nurtureany-sales-bot/runtime/scripts/nurtureany_lesson_review_digest.py" "$profile/scripts/nurtureany_lesson_review_digest.py"
 sudo install -o "$runtime_owner" -g "$runtime_owner" -m 0755 "$deploy_dir/apps/nurtureany-sales-bot/runtime/scripts/nurtureany_sales_whatsapp_report_runner.py" "$profile/scripts/nurtureany_sales_whatsapp_report_runner.py"
+
+sudo -H -u "$runtime_owner" PROFILE_NAME="$profile_name" bash -lc 'set -euo pipefail; PATH="$HOME/.local/bin:$HOME/.hermes/hermes-agent:$PATH"; if ! hermes -p "$PROFILE_NAME" cron list 2>/dev/null | grep -Fq "nurtureanysalesbot learning review digest"; then hermes -p "$PROFILE_NAME" cron create "30 1 * * 1-5" --name "nurtureanysalesbot learning review digest" --script nurtureany_lesson_review_digest.py --deliver slack:#nurtureany-testing --no-agent; echo "deploy:cron-created:nurtureanysalesbot learning review digest"; else echo "deploy:cron-present:nurtureanysalesbot learning review digest"; fi'
 
 sudo -H -u "$runtime_owner" python3 - "$profile/cron/jobs.json" <<'PY'
 import json
@@ -516,6 +519,7 @@ expected_names = {
     "nurtureanysalesbot HubSpot task reminders",
     "nurtureanysalesbot HubSpot task EOD catch-up",
     "nurtureanysalesbot HubSpot inbound monitor",
+    "nurtureanysalesbot learning review digest",
     "SG MY WhatsApp Morning Blitz Report",
     "ID Morning WhatsApp Blitz Report",
     "ID WhatsApp Morning Blitz Report",

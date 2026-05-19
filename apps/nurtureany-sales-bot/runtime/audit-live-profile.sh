@@ -12,6 +12,7 @@ EXPECTED_CLOUD_HEARTBEAT_CRON_NAME="${EXPECTED_CLOUD_HEARTBEAT_CRON_NAME:-nurtur
 EXPECTED_TASK_REMINDER_CRON_NAME="${EXPECTED_TASK_REMINDER_CRON_NAME:-nurtureanysalesbot HubSpot task reminders}"
 EXPECTED_TASK_REMINDER_EOD_CRON_NAME="${EXPECTED_TASK_REMINDER_EOD_CRON_NAME:-nurtureanysalesbot HubSpot task EOD catch-up}"
 EXPECTED_INBOUND_MONITOR_CRON_NAME="${EXPECTED_INBOUND_MONITOR_CRON_NAME:-nurtureanysalesbot HubSpot inbound monitor}"
+EXPECTED_LESSON_REVIEW_DIGEST_CRON_NAME="${EXPECTED_LESSON_REVIEW_DIGEST_CRON_NAME:-nurtureanysalesbot learning review digest}"
 EXPECTED_SG_MY_WHATSAPP_BLITZ_CRON_NAME="${EXPECTED_SG_MY_WHATSAPP_BLITZ_CRON_NAME:-SG MY WhatsApp Morning Blitz Report}"
 EXPECTED_ID_MORNING_WHATSAPP_BLITZ_CRON_NAME="${EXPECTED_ID_MORNING_WHATSAPP_BLITZ_CRON_NAME:-ID Morning WhatsApp Blitz Report}"
 EXPECTED_ID_WHATSAPP_BLITZ_CRON_NAME="${EXPECTED_ID_WHATSAPP_BLITZ_CRON_NAME:-ID WhatsApp Morning Blitz Report}"
@@ -91,10 +92,12 @@ cmp -s "$APP_ROOT/runtime/check-slack-socket-health.sh" "$PROFILE_DIR/scripts/nu
 [ -f "$PROFILE_DIR/scripts/nurtureany_sales_task_reminders.py" ] || fail "profile-drift:hs-reminder-file-missing"
 [ -f "$PROFILE_DIR/scripts/nurtureany_sales_task_reminders_eod.py" ] || fail "profile-drift:hs-reminder-eod-file-missing"
 [ -f "$PROFILE_DIR/scripts/nurtureany_inbound_monitor.py" ] || fail "profile-drift:inbound-monitor-file-missing"
+[ -f "$PROFILE_DIR/scripts/nurtureany_lesson_review_digest.py" ] || fail "profile-drift:lesson-review-digest-file-missing"
 [ -f "$PROFILE_DIR/scripts/nurtureany_sales_whatsapp_report_runner.py" ] || fail "profile-drift:sales-whatsapp-report-runner-file-missing"
 cmp -s "$APP_ROOT/runtime/scripts/nurtureany_sales_task_reminders.py" "$PROFILE_DIR/scripts/nurtureany_sales_task_reminders.py" || fail "profile-drift:hs-reminder-file"
 cmp -s "$APP_ROOT/runtime/scripts/nurtureany_sales_task_reminders_eod.py" "$PROFILE_DIR/scripts/nurtureany_sales_task_reminders_eod.py" || fail "profile-drift:hs-reminder-eod-file"
 cmp -s "$APP_ROOT/runtime/scripts/nurtureany_inbound_monitor.py" "$PROFILE_DIR/scripts/nurtureany_inbound_monitor.py" || fail "profile-drift:inbound-monitor-file"
+cmp -s "$APP_ROOT/runtime/scripts/nurtureany_lesson_review_digest.py" "$PROFILE_DIR/scripts/nurtureany_lesson_review_digest.py" || fail "profile-drift:lesson-review-digest-file"
 cmp -s "$APP_ROOT/runtime/scripts/nurtureany_sales_whatsapp_report_runner.py" "$PROFILE_DIR/scripts/nurtureany_sales_whatsapp_report_runner.py" || fail "profile-drift:sales-whatsapp-report-runner-file"
 if [ -e "$PROFILE_DIR/scripts/nurtureanysalesbot-cloud-doctor.sh" ]; then
   cmp -s "$APP_ROOT/runtime/nurtureany-cloud-doctor.sh" "$PROFILE_DIR/scripts/nurtureanysalesbot-cloud-doctor.sh" || fail "profile-drift:cloud-doctor-script"
@@ -114,17 +117,18 @@ printf '%s\n' "$cron_out" | grep -Fq "$EXPECTED_SLACK_SOCKET_WATCHDOG_CRON_NAME"
 printf '%s\n' "$cron_out" | grep -Fq "$EXPECTED_TASK_REMINDER_CRON_NAME" || fail "cron:hs-reminder-missing"
 printf '%s\n' "$cron_out" | grep -Fq "$EXPECTED_TASK_REMINDER_EOD_CRON_NAME" || fail "cron:hs-reminder-eod-missing"
 printf '%s\n' "$cron_out" | grep -Fq "$EXPECTED_INBOUND_MONITOR_CRON_NAME" || fail "cron:inbound-monitor-missing"
+printf '%s\n' "$cron_out" | grep -Fq "$EXPECTED_LESSON_REVIEW_DIGEST_CRON_NAME" || fail "cron:lesson-review-digest-missing"
 printf '%s\n' "$cron_out" | grep -Fq "$EXPECTED_SG_MY_WHATSAPP_BLITZ_CRON_NAME" || fail "cron:sg-my-whatsapp-blitz-missing"
 printf '%s\n' "$cron_out" | grep -Fq "$EXPECTED_ID_MORNING_WHATSAPP_BLITZ_CRON_NAME" || fail "cron:id-morning-whatsapp-blitz-missing"
 printf '%s\n' "$cron_out" | grep -Fq "$EXPECTED_ID_WHATSAPP_BLITZ_CRON_NAME" || fail "cron:id-whatsapp-blitz-missing"
 
 cron_jobs_path="$PROFILE_DIR/cron/jobs.json"
 [ -r "$cron_jobs_path" ] || fail "cron:jobs-json-unreadable"
-python3 - "$cron_jobs_path" "$EXPECTED_HEALTH_CRON_NAME" "$EXPECTED_AUDIT_CRON_NAME" "$EXPECTED_SLACK_SOCKET_WATCHDOG_CRON_NAME" "$EXPECTED_CLOUD_HEARTBEAT_CRON_NAME" "$EXPECTED_TASK_REMINDER_CRON_NAME" "$EXPECTED_TASK_REMINDER_EOD_CRON_NAME" "$EXPECTED_INBOUND_MONITOR_CRON_NAME" "$EXPECTED_SG_MY_WHATSAPP_BLITZ_CRON_NAME" "$EXPECTED_ID_MORNING_WHATSAPP_BLITZ_CRON_NAME" "$EXPECTED_ID_WHATSAPP_BLITZ_CRON_NAME" "$EXPECTED_CRON_TIMEZONE" > /dev/null <<'PY' || fail "cron:records-invalid"
+python3 - "$cron_jobs_path" "$EXPECTED_HEALTH_CRON_NAME" "$EXPECTED_AUDIT_CRON_NAME" "$EXPECTED_SLACK_SOCKET_WATCHDOG_CRON_NAME" "$EXPECTED_CLOUD_HEARTBEAT_CRON_NAME" "$EXPECTED_TASK_REMINDER_CRON_NAME" "$EXPECTED_TASK_REMINDER_EOD_CRON_NAME" "$EXPECTED_INBOUND_MONITOR_CRON_NAME" "$EXPECTED_LESSON_REVIEW_DIGEST_CRON_NAME" "$EXPECTED_SG_MY_WHATSAPP_BLITZ_CRON_NAME" "$EXPECTED_ID_MORNING_WHATSAPP_BLITZ_CRON_NAME" "$EXPECTED_ID_WHATSAPP_BLITZ_CRON_NAME" "$EXPECTED_CRON_TIMEZONE" > /dev/null <<'PY' || fail "cron:records-invalid"
 import json
 import sys
 
-jobs_path, health_name, audit_name, watchdog_name, heartbeat_name, task_reminder_name, task_reminder_eod_name, inbound_monitor_name, sg_my_blitz_name, id_morning_blitz_name, id_blitz_name, timezone = sys.argv[1:13]
+jobs_path, health_name, audit_name, watchdog_name, heartbeat_name, task_reminder_name, task_reminder_eod_name, inbound_monitor_name, lesson_review_digest_name, sg_my_blitz_name, id_morning_blitz_name, id_blitz_name, timezone = sys.argv[1:14]
 payload = json.loads(open(jobs_path, "r", encoding="utf-8").read())
 jobs = payload.get("jobs") if isinstance(payload, dict) else payload
 if not isinstance(jobs, list):
@@ -176,6 +180,7 @@ require_job(heartbeat_name, expr="*/15 * * * *", script="nurtureanysalesbot-chec
 require_job(task_reminder_name, expr="0 1 * * 1-5", script="nurtureany_sales_task_reminders.py", deliver="slack:#nurtureany-testing", no_agent=True)
 require_job(task_reminder_eod_name, expr="0 9 * * 1-5", script="nurtureany_sales_task_reminders_eod.py", deliver="slack:#nurtureany-testing", no_agent=True)
 require_job(inbound_monitor_name, expr="*/2 * * * *", script="nurtureany_inbound_monitor.py", deliver="slack:#nurtureany-testing", no_agent=True)
+require_job(lesson_review_digest_name, expr="30 1 * * 1-5", script="nurtureany_lesson_review_digest.py", deliver="slack:#nurtureany-testing", no_agent=True)
 require_job(sg_my_blitz_name, expr="35 2 * * 1-5", prompt_contains=["eugene@staffany.com"], deliver="slack:C04HYF0NM8A", no_agent=False)
 require_job(id_morning_blitz_name, expr="45 3 * * 1-5", prompt_contains=["eugene@staffany.com"], deliver="slack:C0B2UGK4DB6", no_agent=False)
 require_job(id_blitz_name, expr="35 3 * * 1-5", script="nurtureany_sales_whatsapp_report_runner.py", deliver="local", no_agent=True)
