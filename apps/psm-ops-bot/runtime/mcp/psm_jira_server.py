@@ -922,6 +922,14 @@ def _slack_message_ts_from_permalink(slack_thread_url: str) -> str:
 def _slack_trigger_message_image_files(slack_thread_url: str) -> list[dict[str, Any]]:
     """Return image-only file metadata attached to the message referenced by the permalink.
 
+    Resolves the message via two Slack APIs because ``conversations.history``
+    only returns *top-level* channel messages — thread replies (e.g. a
+    follow-up selfie posted as a reply in an AA thread) never appear there.
+    The function first tries ``conversations.history`` for the top-level
+    case; when that does not yield a message whose ``ts`` matches the
+    permalink, it falls back to ``conversations.replies(channel, ts)`` which
+    accepts any thread ts (parent or reply) and returns the full thread.
+
     Returns an empty list when the permalink itself does not parse or the
     message has no image attachments. Slack auth / network / API errors
     propagate as :class:`JiraError` so callers can distinguish "no images on
@@ -935,7 +943,7 @@ def _slack_trigger_message_image_files(slack_thread_url: str) -> list[dict[str, 
     message_ts = _slack_message_ts_from_permalink(slack_thread_url)
     if not channel_id or not message_ts:
         return []
-    payload = _request_slack_json(
+    history = _request_slack_json(
         "conversations.history",
         {
             "channel": channel_id,
@@ -944,10 +952,28 @@ def _slack_trigger_message_image_files(slack_thread_url: str) -> list[dict[str, 
             "limit": "1",
         },
     )
-    messages = payload.get("messages") or []
-    if not messages:
+    matched: dict[str, Any] | None = None
+    for entry in history.get("messages") or []:
+        if isinstance(entry, dict) and str(entry.get("ts") or "") == message_ts:
+            matched = entry
+            break
+    if matched is None:
+        replies = _request_slack_json(
+            "conversations.replies",
+            {
+                "channel": channel_id,
+                "ts": message_ts,
+                "inclusive": "true",
+                "limit": "200",
+            },
+        )
+        for entry in replies.get("messages") or []:
+            if isinstance(entry, dict) and str(entry.get("ts") or "") == message_ts:
+                matched = entry
+                break
+    if matched is None:
         return []
-    files = messages[0].get("files") or []
+    files = matched.get("files") or []
     images: list[dict[str, Any]] = []
     for entry in files:
         if not isinstance(entry, dict):

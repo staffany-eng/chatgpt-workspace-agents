@@ -1597,6 +1597,82 @@ class PsmJiraServerTest(unittest.TestCase):
         )
         self.assertEqual([call[0] for call in slack_calls], ["conversations.history"])
 
+    def test_attach_aa_selfie_to_thread_falls_back_to_replies_for_thread_reply(self):
+        slack_calls = []
+        drive_calls = []
+        reply_ts = "1779221847.895889"
+        parent_ts = "1779221716.687319"
+
+        def fake_slack_json(method, params):
+            slack_calls.append((method, dict(params)))
+            if method == "conversations.history":
+                # Slack's conversations.history does not return thread replies;
+                # it returns the next top-level message at or after `oldest`.
+                # That message's ts will not match the reply permalink, which
+                # is exactly the case that requires the conversations.replies
+                # fallback.
+                return {
+                    "messages": [
+                        {"ts": "1779225000.000100", "text": "some unrelated top-level message"}
+                    ]
+                }
+            if method == "conversations.replies":
+                return {
+                    "messages": [
+                        {"ts": parent_ts, "text": "thread parent"},
+                        {
+                            "ts": reply_ts,
+                            "thread_ts": parent_ts,
+                            "files": [
+                                {
+                                    "id": "F-reply-img",
+                                    "name": "selfie.jpg",
+                                    "mimetype": "image/jpeg",
+                                    "url_private": "https://files.slack.com/selfie.jpg",
+                                }
+                            ],
+                        },
+                        {"ts": "1779222000.000100", "text": "later reply, no files"},
+                    ]
+                }
+            return {"members": []}
+
+        def fake_drive_upload(images, company, pic):
+            drive_calls.append({"images": list(images), "company": company, "pic": pic})
+            return [
+                {
+                    "drive_file_id": "drive-reply",
+                    "name": "andsoforth_bayu__F-reply-img.jpg",
+                    "web_view_link": "https://drive/reply",
+                }
+            ]
+
+        self.module._request_slack_json = fake_slack_json
+        self.module._download_slack_file = lambda url: b"binary-image-data"
+        self.module.upload_aa_selfies = fake_drive_upload
+        self.module.aa_drive_configuration_status = lambda: ("ok", "")
+
+        result = self.module.attach_aa_selfie_to_thread(
+            slack_thread_url=f"https://staffany.slack.com/archives/C0B5H2YE5T2/p{reply_ts.replace('.', '')}",
+            customer="Andsoforth",
+            pic="Bayu",
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["answer"]["image_count"], 1)
+        self.assertEqual(result["answer"]["saved_count"], 1)
+        self.assertEqual(
+            [entry["slack_file_id"] for entry in drive_calls[0]["images"]],
+            ["F-reply-img"],
+        )
+        # First tries conversations.history, then falls back to
+        # conversations.replies when the returned ts does not match.
+        self.assertEqual(
+            [call[0] for call in slack_calls],
+            ["conversations.history", "conversations.replies"],
+        )
+        self.assertEqual(slack_calls[1][1]["ts"], reply_ts)
+
     def test_attach_aa_selfie_to_thread_returns_needs_check_when_slack_call_fails(self):
         def fake_slack_json(method, params):
             if method == "conversations.history":
