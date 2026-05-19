@@ -291,6 +291,11 @@ SAFE_FIELDS = [
 
 SLACK_USER_CACHE: list[dict[str, Any]] | None = None
 
+# Caches for Jira Assets (CMDB) lookups used to resolve StaffAny Organization names
+# to actual Assets object references. Both are cleared on process restart.
+_ASSETS_WORKSPACE_ID_CACHE: str | None = None
+_ASSETS_OBJECT_KEY_CACHE: dict[str, str | None] = {}
+
 
 class JiraError(RuntimeError):
     def __init__(self, message: str, status_code: int | None = None) -> None:
@@ -1811,7 +1816,68 @@ def _description_from_draft(draft: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def _staffany_orgs_array(draft: dict[str, Any]) -> list[str]:
+def _assets_workspace_id() -> str:
+    """Return the Jira Assets workspace ID, fetching once and caching for the process lifetime."""
+
+    global _ASSETS_WORKSPACE_ID_CACHE
+    if _ASSETS_WORKSPACE_ID_CACHE is not None:
+        return _ASSETS_WORKSPACE_ID_CACHE
+    payload = _request_json("GET", "/rest/servicedeskapi/assets/workspace")
+    workspaces = payload.get("values") if isinstance(payload, dict) else None
+    if not workspaces:
+        raise JiraError("Jira Assets workspace is not configured for this site.")
+    workspace_id = str(workspaces[0].get("workspaceId") or "").strip()
+    if not workspace_id:
+        raise JiraError("Jira Assets workspace response did not include a workspaceId.")
+    _ASSETS_WORKSPACE_ID_CACHE = workspace_id
+    return workspace_id
+
+
+def _resolve_assets_object_key(name: str) -> str | None:
+    """Resolve a StaffAny Organization name to its Jira Assets objectKey via exact-name AQL.
+
+    Returns the objectKey (e.g. "HC-566") on a single exact match, or None when there
+    is no match, multiple matches, or the Assets API is unreachable. Results are cached
+    in-process to avoid repeating AQL searches for the same name.
+    """
+
+    clean = (name or "").strip()
+    if not clean:
+        return None
+    if clean in _ASSETS_OBJECT_KEY_CACHE:
+        return _ASSETS_OBJECT_KEY_CACHE[clean]
+    try:
+        workspace_id = _assets_workspace_id()
+    except JiraError:
+        _ASSETS_OBJECT_KEY_CACHE[clean] = None
+        return None
+    # AQL string literals use double-quotes; escape any embedded quotes in the name.
+    escaped = clean.replace("\\", "\\\\").replace('"', '\\"')
+    try:
+        payload = _request_json(
+            "POST",
+            f"/gateway/api/jsm/assets/workspace/{urllib.parse.quote(workspace_id)}/v1/object/aql",
+            {"qlQuery": f'Name = "{escaped}"'},
+        )
+    except JiraError:
+        # Don't cache failures — could be transient (5xx, network). A 404 here is treated
+        # as "no match" by exception, so we re-resolve on the next call.
+        return None
+    values = payload.get("values") if isinstance(payload, dict) else None
+    if not isinstance(values, list) or len(values) != 1:
+        # Zero or ambiguous matches are both "do not resolve" — cache the negative to avoid
+        # re-hitting AQL for the same name within this process.
+        _ASSETS_OBJECT_KEY_CACHE[clean] = None
+        return None
+    object_key = str(values[0].get("objectKey") or "").strip()
+    resolved = object_key or None
+    _ASSETS_OBJECT_KEY_CACHE[clean] = resolved
+    return resolved
+
+
+def _staffany_orgs_input_names(draft: dict[str, Any]) -> list[str]:
+    """Return the raw StaffAny Organization names from the draft as a normalized string list."""
+
     raw = draft.get("staffany_orgs")
     if isinstance(raw, str):
         candidates = [part.strip() for part in raw.split(",")]
@@ -1822,12 +1888,49 @@ def _staffany_orgs_array(draft: dict[str, Any]) -> list[str]:
     return [org for org in candidates if org]
 
 
+def _staffany_orgs_assets_payload(draft: dict[str, Any]) -> tuple[list[dict[str, str]], list[str]]:
+    """Resolve each StaffAny Organization name to its Jira Assets objectKey.
+
+    Returns a tuple of (payload, unresolved_names), where payload is the wire-shape
+    array suitable for the CMDB object field (e.g. ``[{"key": "HC-566"}]``) containing
+    only successfully resolved entries, and unresolved_names is the list of input
+    names that did not resolve to a single Assets object.
+    """
+
+    names = _staffany_orgs_input_names(draft)
+    payload: list[dict[str, str]] = []
+    unresolved: list[str] = []
+    for name in names:
+        key = _resolve_assets_object_key(name)
+        if key:
+            payload.append({"key": key})
+        else:
+            unresolved.append(name)
+    return payload, unresolved
+
+
+def _staffany_orgs_array(draft: dict[str, Any]) -> list[str]:
+    """Backwards-compatible helper retained for legacy callers (tests, ROI flow).
+
+    New code should prefer :func:`_staffany_orgs_assets_payload`, which returns the
+    Jira-shaped CMDB payload and the list of unresolved names.
+    """
+
+    return _staffany_orgs_input_names(draft)
+
+
 def _request_field_values(draft: dict[str, Any]) -> dict[str, Any]:
+    # Prefer the pre-resolved payload stashed by _create_pco_task_from_draft so we don't
+    # repeat the AQL lookup. Tests/legacy callers without the stash fall back to live
+    # resolution here.
+    orgs_payload = draft.get("_staffany_orgs_payload")
+    if orgs_payload is None:
+        orgs_payload, _ = _staffany_orgs_assets_payload(draft)
+
     if _is_thin_poc():
         values: dict[str, Any] = {"summary": draft["summary"]}
-        orgs = _staffany_orgs_array(draft)
-        if orgs:
-            values[_field_id("staffany_orgs")] = orgs
+        if orgs_payload:
+            values[_field_id("staffany_orgs")] = orgs_payload
         if draft.get("ps_team"):
             ps_team_value = _ps_team_request_value(str(draft["ps_team"]), str(draft.get("request_type_id") or ""))
             if ps_team_value:
@@ -1841,7 +1944,6 @@ def _request_field_values(draft: dict[str, Any]) -> dict[str, Any]:
         "summary": draft["summary"],
         "description": _description_from_draft(draft),
     }
-    orgs = _staffany_orgs_array(draft)
     mappings: dict[str, Any] = {
         fields["customer"]: draft.get("customer"),
         fields["owner_psm"]: draft.get("owner_psm"),
@@ -1850,8 +1952,8 @@ def _request_field_values(draft: dict[str, Any]) -> dict[str, Any]:
         fields["risk_reason"]: draft.get("risk_reason"),
         fields["source_links"]: "\n".join(draft.get("source_links") or []),
     }
-    if orgs:
-        values[fields["staffany_orgs"]] = orgs
+    if orgs_payload:
+        values[fields["staffany_orgs"]] = orgs_payload
     if draft.get("priority"):
         values["priority"] = {"name": draft["priority"]}
     if draft.get("ps_team"):
@@ -2469,6 +2571,10 @@ def _create_pco_task_from_draft(draft: dict[str, Any], scope: dict[str, Any]) ->
     try:
         _validate_due_date_for_write(str(draft.get("due_date") or ""))
         request_type_id = str(draft.get("request_type_id") or _request_type_id(str(draft.get("request_type_key") or "customer_next_action")))
+        # Resolve StaffAny Organization names to Assets object keys before building the
+        # request payload so we can surface a precise "unresolved" warning to triage.
+        orgs_payload, unresolved_orgs = _staffany_orgs_assets_payload(draft)
+        draft["_staffany_orgs_payload"] = orgs_payload
         request_values = _request_field_values(draft)
         payload = {
             "serviceDeskId": _service_desk_id(),
@@ -2512,6 +2618,14 @@ def _create_pco_task_from_draft(draft: dict[str, Any], scope: dict[str, Any]) ->
                 warnings = ["Optional PCO request fields were skipped because Jira rejected their values."]
     except JiraError as error:
         return _blocked(str(error), scope)
+
+    if unresolved_orgs:
+        warnings.append(
+            "StaffAny Organization not assigned automatically — "
+            "no Jira Assets object matched: "
+            + ", ".join(unresolved_orgs)
+            + ". Triage can assign manually."
+        )
 
     issue_key = response.get("issueKey") or response.get("issueId") or response.get("key")
     if issue_key and draft.get("due_date"):
