@@ -654,6 +654,7 @@
       "search_exa_people_candidates",
       "search_lusha_decision_maker_candidates",
       "search_lusha_candidates_by_linkedin_urls",
+      "search_lusha_candidates_by_names",
       "get_lusha_credit_usage",
       "search_prospeo_decision_maker_candidates",
       "search_prospeo_candidates_by_linkedin_urls",
@@ -725,17 +726,20 @@
     "max_candidates_per_company": 5,
     "max_linkedin_urls": 10,
     "max_candidates_per_linkedin_url": 5,
+    "max_name_lookups": 10,
     "max_reveal_contacts": 3,
     "selected_pii_in_slack": true,
     "bulk_contact_exports": false,
     "hubspot_writeback": "preview_only",
     "allowed_search_endpoints": [
       "POST /prospecting/contact/search",
-      "POST /v2/contacts/search"
+      "POST /v2/contacts/search",
+      "GET /v2/person"
     ],
     "allowed_tools": [
       "search_lusha_decision_maker_candidates",
       "search_lusha_candidates_by_linkedin_urls",
+      "search_lusha_candidates_by_names",
       "reveal_lusha_contact_details",
       "get_lusha_credit_usage"
     ]

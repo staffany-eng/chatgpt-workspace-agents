@@ -621,6 +621,7 @@ mcp_servers:
       max_candidates_per_company: 5
       max_linkedin_urls: 10
       max_candidates_per_linkedin_url: 5
+      max_name_lookups: 10
       max_reveal_contacts: 3
       require_credit_report: true
       recommend_low_monthly_dashboard_limit: true
@@ -631,6 +632,7 @@ mcp_servers:
     tool_allowlist:
     - search_lusha_decision_maker_candidates
     - search_lusha_candidates_by_linkedin_urls
+    - search_lusha_candidates_by_names
     - reveal_lusha_contact_details
     - get_lusha_credit_usage
   prospeo_nurtureany:

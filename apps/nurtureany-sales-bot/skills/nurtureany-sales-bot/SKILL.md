@@ -296,6 +296,7 @@ Read tools:
 - `search_exa_people_candidates`: search Exa People Search for public decision-maker candidates. It returns source URLs, inferred names/titles, decision-maker match signals, `confidence_band`, quality signals/warnings, and `cost_report`; it never fetches profile contents or reveals email/phone. Use curated StaffAny ICP title targets including owner/founder/CEO and HR/Ops leaders, not generic `manager` or broad `director`, unless the user explicitly requests a wider search.
 - `search_lusha_decision_maker_candidates`: search Lusha for selected company decision-maker candidates without revealing email or phone.
 - `search_lusha_candidates_by_linkedin_urls`: search Lusha for selected public LinkedIn profile URLs after scoped HubSpot company IDs are validated; no email or phone reveal.
+- `search_lusha_candidates_by_names`: search Lusha for selected candidate names against one scoped HubSpot company name/domain; no email or phone reveal.
 - `get_lusha_credit_usage`: summarize Lusha credit usage and return a `credit_report`.
 - `search_prospeo_decision_maker_candidates`: search Prospeo for selected company decision-maker candidates without revealing email or phone.
 - `search_prospeo_candidates_by_linkedin_urls`: search Prospeo for selected public LinkedIn profile URLs after scoped HubSpot company IDs are validated; no email or phone reveal.

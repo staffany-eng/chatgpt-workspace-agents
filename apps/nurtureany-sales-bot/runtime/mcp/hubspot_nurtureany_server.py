@@ -521,7 +521,7 @@ COMPANY_ENRICHMENT_NEXT_TOOL_BY_LEVEL = {
     "level_2_tavily_public_discovery": "research_public_company_signals",
     "level_3_public_people_job_board_search": "standalone public search/read-through across official pages, directories, events, country job boards, and public social/company pages",
     "level_4_exa_people_search": "search_exa_people_candidates only after public search, as fallback or corroboration for missing decision-maker paths",
-    "level_5_lusha_search": "search_lusha_decision_maker_candidates",
+    "level_5_lusha_search": "search_lusha_decision_maker_candidates, then search_lusha_candidates_by_linkedin_urls or search_lusha_candidates_by_names when public candidates need fallback lookup",
     "level_6_prospeo_fallback_search": "search_prospeo_decision_maker_candidates",
 }
 COMPANY_ENRICHMENT_PROVIDER_LEVELS = {
@@ -544,6 +544,7 @@ COMPANY_ENRICHMENT_PROVIDER_LEVELS = {
     "linkedin_public_extract": "level_4_exa_people_search",
     "lusha": "level_5_lusha_search",
     "lusha_linkedin_url_search": "level_5_lusha_search",
+    "lusha_name_search": "level_5_lusha_search",
     "prospeo": "level_6_prospeo_fallback_search",
     "prospeo_linkedin_url_search": "level_6_prospeo_fallback_search",
     "lusha_reveal": "reveal_gate",

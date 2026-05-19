@@ -387,6 +387,7 @@ if (!existsSync(manifestPath)) {
       "search_exa_people_candidates",
       "search_lusha_decision_maker_candidates",
       "search_lusha_candidates_by_linkedin_urls",
+      "search_lusha_candidates_by_names",
       "get_lusha_credit_usage",
       "search_prospeo_decision_maker_candidates",
       "search_prospeo_candidates_by_linkedin_urls",
@@ -484,9 +485,15 @@ if (!existsSync(manifestPath)) {
     if (manifest.lusha?.auth_env_var !== "LUSHA_API_KEY") fail("Manifest missing LUSHA_API_KEY auth env var");
     if (manifest.lusha?.max_search_companies !== 5) fail("Manifest Lusha max_search_companies must be 5");
     if (manifest.lusha?.max_candidates_per_company !== 5) fail("Manifest Lusha max_candidates_per_company must be 5");
+    if (manifest.lusha?.max_linkedin_urls !== 10) fail("Manifest Lusha max_linkedin_urls must be 10");
+    if (manifest.lusha?.max_candidates_per_linkedin_url !== 5) fail("Manifest Lusha max_candidates_per_linkedin_url must be 5");
+    if (manifest.lusha?.max_name_lookups !== 10) fail("Manifest Lusha max_name_lookups must be 10");
     if (manifest.lusha?.max_reveal_contacts !== 3) fail("Manifest Lusha max_reveal_contacts must be 3");
     if (manifest.lusha?.selected_pii_in_slack !== true) fail("Manifest Lusha selected_pii_in_slack must be true");
     if (manifest.lusha?.bulk_contact_exports !== false) fail("Manifest Lusha bulk_contact_exports must be false");
+    for (const endpoint of ["POST /prospecting/contact/search", "POST /v2/contacts/search", "GET /v2/person"]) {
+      if (!manifest.lusha?.allowed_search_endpoints?.includes(endpoint)) fail(`Manifest Lusha missing endpoint: ${endpoint}`);
+    }
     if (manifest.prospeo?.auth_env_var !== "PROSPEO_API_KEY") fail("Manifest missing PROSPEO_API_KEY auth env var");
     if (manifest.prospeo?.max_search_companies !== 5) fail("Manifest Prospeo max_search_companies must be 5");
     if (manifest.prospeo?.max_candidates_per_company !== 5) fail("Manifest Prospeo max_candidates_per_company must be 5");
@@ -1239,6 +1246,7 @@ for (const text of [
   "LUSHA_API_KEY",
   "search_lusha_decision_maker_candidates",
   "search_lusha_candidates_by_linkedin_urls",
+  "search_lusha_candidates_by_names",
   "reveal_lusha_contact_details",
   "get_lusha_credit_usage",
   "prospeo_nurtureany",
@@ -1483,6 +1491,7 @@ for (const text of [
   "search_exa_people_candidates",
   "search_lusha_decision_maker_candidates",
   "search_lusha_candidates_by_linkedin_urls",
+  "search_lusha_candidates_by_names",
   "reveal_lusha_contact_details",
   "get_lusha_credit_usage",
   "search_prospeo_decision_maker_candidates",
@@ -2676,7 +2685,9 @@ for (const text of [
   "MAX_CANDIDATES_PER_COMPANY = 5",
   "MAX_REVEAL_CONTACTS = 3",
   "MAX_LINKEDIN_URLS = 10",
+  "MAX_NAME_LOOKUPS = 10",
   "POST\", \"/v2/contacts/search\"",
+  "GET\", path",
   "revealEmails",
   "revealPhones",
   "credit_report",
