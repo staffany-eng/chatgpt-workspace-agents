@@ -3447,17 +3447,28 @@ def create_ps_wee_intake_ticket(
                 "jira_account_id": "",
                 "display_name": (slack_user_email or "").strip() or "Unresolved Slack requester",
             }
-        creator_caller_email = (creator_slack_user_email or slack_user_email or "").strip()
-        if creator_caller_email and creator_caller_email != (slack_user_email or "").strip():
-            try:
-                creator_identity = _caller(creator_caller_email)
-            except JiraError:
-                creator_identity = {
-                    "display_name": creator_caller_email,
-                    "jira_account_id": "",
-                }
-        else:
+        # AA always-ticket-first: the Slack tagger IS the Creator. Ignore any
+        # supplied `creator_slack_user_email` on AA — agents have hallucinated
+        # invalid Slack IDs here (e.g. `U07UTFE8U3X` for the Super Loco
+        # threads), which silently dropped Creator + PS Team because neither
+        # value resolved against the access policy or the Creator dropdown.
+        # The bot is always tagged from inside Slack, so the tagger is the
+        # only meaningful creator identity. Outside AA, the supplied override
+        # is honored (e.g. when one PSM logs a teammate's meeting).
+        if is_event_aa:
             creator_identity = caller
+        else:
+            creator_caller_email = (creator_slack_user_email or slack_user_email or "").strip()
+            if creator_caller_email and creator_caller_email != (slack_user_email or "").strip():
+                try:
+                    creator_identity = _caller(creator_caller_email)
+                except JiraError:
+                    creator_identity = {
+                        "display_name": creator_caller_email,
+                        "jira_account_id": "",
+                    }
+            else:
+                creator_identity = caller
         creator_display = str(creator_identity.get("display_name") or "").strip()
         creator_field_value: Any = None
         if is_event_aa:

@@ -2285,6 +2285,68 @@ class PsmJiraServerTest(unittest.TestCase):
         create_call = next(c for c in calls if c[1] == "/rest/servicedeskapi/request")
         self.assertNotIn("customfield_10914", create_call[2]["requestFieldValues"], "Creator field should be omitted when no option matches")
 
+    def test_ps_wee_intake_in_aa_channel_ignores_hallucinated_creator_override(self):
+        calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
+                return {"issues": []}
+            if path == "/rest/servicedeskapi/request":
+                return {"issueKey": "PCO-888", "requestTypeId": "123"}
+            if path.endswith("/comment"):
+                return {"id": "comment-888"}
+            return {}
+
+        # Mock includes "Ada PSM" so the verified Slack tagger has a real
+        # Creator + PS Team option to match — otherwise we'd only be testing
+        # the silent-omit path, not the override-ignore path.
+        def creator_options(request_type_id=""):
+            return [
+                {"value": "creator-ada", "label": "Ada PSM"},
+                {"value": "creator-josica", "label": "Josica"},
+            ]
+        def ps_team_options(request_type_id=""):
+            return [
+                {"value": "team-ada", "label": "Ada PSM"},
+                {"value": "team-josica", "label": "Josica"},
+            ]
+
+        self.module._request_json = fake_request
+        self.module._creator_valid_values = creator_options
+        self.module._ps_team_valid_values = ps_team_options
+        self.module._update_issue_labels = lambda *args, **kwargs: None
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: {"ok": True}
+
+        # slack_user_email maps to Ada PSM via the access policy. The
+        # creator_slack_user_email is a hallucinated Slack ID (the same one
+        # that broke PCO-291/293 in prod) — the MCP must ignore it and use
+        # the verified tagger identity for both Creator and PS Team fallback.
+        result = self.module.create_ps_wee_intake_ticket(
+            slack_user_email="psm@staffany.com",
+            slack_thread_url="https://staffany.slack.com/archives/C0B5H2YE5T2/p1779257813193379",
+            customer="Super Loco Group",
+            issue_summary="Follow up API access for wall",
+            request_type_key="ps_follow_up",
+            creator_slack_user_email="U07UTFE8U3X",
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        create_call = next(c for c in calls if c[1] == "/rest/servicedeskapi/request")
+        values = create_call[2]["requestFieldValues"]
+        self.assertEqual(
+            values.get("customfield_10914"), {"id": "creator-ada"},
+            msg=f"AA Creator must come from the verified Slack tagger, not the hallucinated override: {values}",
+        )
+        # PS Team fallback (ps_follow_up isn't in EVENT_AA_PS_TEAM_BY_CATEGORY,
+        # so the fallback resolves through the matched creator label /
+        # tagger display name → Ada PSM in the policy).
+        self.assertEqual(
+            values.get("customfield_10876"), {"id": "team-ada"},
+            msg=f"AA PS Team must come from the verified Slack tagger: {values}",
+        )
+        self.assertNotIn("U07UTFE8U3X", json.dumps(values), "hallucinated creator ID must never reach Jira")
+
     def test_ps_wee_intake_in_aa_channel_strips_any_supplied_due_date(self):
         calls = []
 
