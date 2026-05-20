@@ -2285,6 +2285,80 @@ class PsmJiraServerTest(unittest.TestCase):
         create_call = next(c for c in calls if c[1] == "/rest/servicedeskapi/request")
         self.assertNotIn("customfield_10914", create_call[2]["requestFieldValues"], "Creator field should be omitted when no option matches")
 
+    def test_ps_wee_intake_in_aa_channel_strips_any_supplied_due_date(self):
+        calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
+                return {"issues": []}
+            if path == "/rest/servicedeskapi/request":
+                return {"issueKey": "PCO-777", "requestTypeId": "122"}
+            if path.endswith("/comment"):
+                return {"id": "comment-777"}
+            return {}
+
+        self.module._request_json = fake_request
+        self.module._creator_valid_values = self._mock_creator_options
+        self.module._update_issue_labels = lambda *args, **kwargs: None
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: {"ok": True}
+
+        # Past date (would have triggered the validator) and a future date
+        # both must be stripped on AA intakes — triage owns deadlines.
+        for supplied_due in ("2025-06-02", "2026-06-02"):
+            calls.clear()
+            result = self.module.create_ps_wee_intake_ticket(
+                slack_user_email="josica@staffany.com",
+                slack_thread_url="https://staffany.slack.com/archives/C0B5H2YE5T2/p1779257501716939",
+                customer="Playmade",
+                issue_summary="HR PIC change Agnes to Roxanne, handover required",
+                request_type_key="feedback",
+                due_date=supplied_due,
+                creator_slack_user_email="josica@staffany.com",
+            )
+
+            self.assertEqual(
+                result["confidence"], "verified",
+                msg=f"AA intake must not block on any supplied due_date ({supplied_due}): {result}",
+            )
+            create_calls = [c for c in calls if c[1] == "/rest/servicedeskapi/request"]
+            self.assertEqual(len(create_calls), 1, "ticket must still be created")
+            duedate_writes = [c for c in calls if c[0] == "PUT" and "duedate" in json.dumps(c[2] or {})]
+            self.assertEqual(
+                duedate_writes, [],
+                msg=f"AA intake must not write due_date to Jira (supplied={supplied_due})",
+            )
+            slack_reply = result["answer"]["slack_reply"]
+            self.assertIn("Created first", slack_reply)
+            self.assertNotIn(supplied_due, slack_reply, "AA reply must not echo a stripped date")
+
+    def test_ps_wee_intake_outside_aa_channel_still_blocks_past_due_date(self):
+        calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
+                return {"issues": []}
+            if path == "/rest/servicedeskapi/request":
+                return {"issueKey": "PCO-778", "requestTypeId": "101"}
+            return {}
+
+        self.module._request_json = fake_request
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: {"ok": True}
+
+        result = self.module.create_ps_wee_intake_ticket(
+            slack_user_email="psm@staffany.com",
+            slack_thread_url="https://staffany.slack.com/archives/C9999AAAA00/p1779100000000777",
+            customer="Acme",
+            issue_summary="non-AA flow",
+            due_date="2025-06-02",
+        )
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("before today", result["answer"]["message"])
+        create_calls = [c for c in calls if c[1] == "/rest/servicedeskapi/request"]
+        self.assertEqual(create_calls, [], "non-AA flows must still block past dates before write")
+
     def test_ps_wee_intake_in_aa_channel_allows_multi_ticket_per_thread(self):
         calls = []
 

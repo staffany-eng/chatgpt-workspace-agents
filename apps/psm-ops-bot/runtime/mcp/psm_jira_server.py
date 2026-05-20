@@ -3528,10 +3528,17 @@ def create_ps_wee_intake_ticket(
     labels_extra: list[str] = []
     if is_event_aa:
         labels_extra.append(EVENT_AA_LABEL)
+    # AA intakes never carry a Jira `duedate`. Date phrases in the trigger
+    # message (e.g. `2 June`) are descriptive context, not deadlines, and
+    # triage owns any real deadline. Strip any supplied due_date defensively
+    # so the agent can't accidentally write speculative deadlines or trigger
+    # the past-date validator. Outside AA, the supplied date is preserved
+    # and the original strict validator still gates writes.
+    sanitized_due_date = "" if is_event_aa else (due_date or "").strip()
     draft = {
         "customer": normalized_customer,
         "summary": f"[Needs info] {normalized_customer} - {normalized_issue}",
-        "due_date": due_date.strip(),
+        "due_date": sanitized_due_date,
         "action_type": "PS WEE ticket intake",
         "priority": (priority or "Medium").strip(),
         "risk_reason": "Needs info from Slack thread",
