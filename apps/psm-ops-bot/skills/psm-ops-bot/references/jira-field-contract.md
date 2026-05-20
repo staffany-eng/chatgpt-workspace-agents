@@ -105,7 +105,7 @@ For ROI urgency fields, match the field's configured options exactly. If the req
   - `troubleshooting`, `bug`, `lag`, `negative feedback`, `CS follow up` → `cs_follow_up`
   - `re-training`, `retraining`, `webinar`, `basic training`, `adhoc ops` → `adhoc_ops`
   - `cross sell`, `upsell`, `expansion`, `PayrollAny`, `EngageAny`, `HRAny` → `rev_cross_sell`
-  - `ATS`, `AI agents`, `PDT`, `discovery` → `pdt_discovery`
+  - `ATS`, `AI agents`, `PDT`, `discovery`, `feature`, `features` → `pdt_discovery`
   - `ClubAny`, `club any`, `MKT` → `mkt_clubany`
   - anything else (or unclear) → `feedback`
 - PS Team auto-route by category (AA only): `cs_follow_up` → `Ega`; `adhoc_ops` → `PS Ops`; all other categories → the Slack tagger. Explicit `ps_team` overrides the auto-route.

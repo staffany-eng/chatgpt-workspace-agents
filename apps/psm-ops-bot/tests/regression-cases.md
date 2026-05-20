@@ -49,16 +49,17 @@ Thread in Slack channel `C0B5H2YE5T2` (configured by `PSM_OPS_AA_CHANNEL_ID`):
 
 `@PS WEE Kopi Janji - met Andre at AA, he wants to upsell payroll module to their KL branches, selfie attached`
 
-- Creates the PCO intake ticket with `create_ps_wee_intake_ticket` using `request_type_key="cross_sell"` (PCO request type `120`).
-- Maps PSM wording to request type: `cross sell`/`upsell`/`expansion` → `cross_sell` (`120`); `churn`/`save`/`revival`/`at risk` → `churn_revival` (`121`); anything else or unclear → `feedback` (`122`).
+- Creates the PCO intake ticket with `create_ps_wee_intake_ticket` using `request_type_key="rev_cross_sell"` (PCO request type `120`).
+- Maps PSM wording to request type: `deep dive`/`advanced` → `ps_follow_up` (`123`); `troubleshooting`/`bug`/`lag`/`negative feedback` → `cs_follow_up` (`124`); `re-training`/`webinar`/`basic training` → `adhoc_ops` (`118`); `cross sell`/`upsell`/`expansion`/`PayrollAny`/`EngageAny`/`HRAny` → `rev_cross_sell` (`120`); `ATS`/`AI agents`/`PDT`/`discovery`/`feature`/`features` → `pdt_discovery` (`125`); `ClubAny`/`MKT` → `mkt_clubany` (`126`); anything else or unclear → `feedback` (`122`).
 - When the PSM's intent is unclear, defaults to `feedback` so the ticket still lands in the Event AA queue. Does not block to ask.
 - MCP enforces the same `feedback` default defensively when the source Slack thread is in the AA channel but the caller passes a non-Event-AA `request_type_key`.
-- Outside the AA channel, generic PS WEE intakes still default to `customer_next_action`; the 3 Event AA request types are only used when the PSM explicitly asks.
+- Inside the AA channel, creates first and never replies with `Reply "create ticket"` or pre-create clarifying questions.
+- Outside the AA channel, generic PS WEE intakes still default to `customer_next_action`; the 7 Event AA request types are only used when the PSM explicitly asks.
 - Posts the returned ticket link in-thread and asks only the tool-returned missing fields.
 - Posts a `PSM Ops automation:` central audit copy with `event: AA` in the extra payload.
-- For Event AA intakes only, pulls `image/*` files attached to the trigger Slack message via `conversations.history` (bot-token auth) and uploads them to the Jira ticket via `/rest/api/3/issue/{key}/attachments`. Non-image attachments (PDFs, voice memos, etc.) are intentionally skipped.
+- For Event AA intakes only, pulls `image/*` files attached to the trigger Slack message via `conversations.history` (bot-token auth), uploads them to the configured Drive folder, and also uploads them to the Jira ticket via `/rest/api/3/issue/{key}/attachments`. Non-image attachments (PDFs, voice memos, etc.) are intentionally skipped.
 - Attachment fetch and upload are best-effort: Slack API failures, file-download failures, and Jira upload failures must not block ticket creation. The ticket is still created and the Slack reply still posts; the missing image is silently dropped.
-- When one or more images attach successfully, the Slack reply ends with `Attached N image(s) from Slack.` Non-AA intakes do not call Slack `conversations.history` and never append the attachment suffix.
+- When one or more images are processed successfully, the Slack reply reports Drive saved count and Jira attached count separately. Non-AA intakes do not call Slack `conversations.history` and never append the AA attachment suffix.
 - Bahasa-to-English translation (AA channel only): when the PSM's trigger message is fully or partially in Indonesian, e.g. `@PS WEE Warung Sambal Bu Tini di AA mau pindah ke kompetitor karena fitur payroll lambat, tolong follow up`, the Jira `summary` and `description` are written in clear English (`Warung Sambal Bu Tini considering switching to a competitor due to slow payroll feature; needs PSM follow-up`). Customer names, outlet names, dates, numbers, and product terms stay verbatim. The untranslated original is appended at the end of the description under an `**Original (Bahasa):**` heading. Mixed-language messages translate only the Indonesian portions. Outside the AA channel, descriptions stay in whatever language the PSM used.
 
 ## PS WEE Event AA Shorthand Header
@@ -102,6 +103,16 @@ Thread in Slack channel `C0B5H2YE5T2`:
 - Does not reply with "Got it … A few quick questions to help route this …".
 - Does not ask `Reply 'create ticket' to open the PS WEE intake ticket.` in the AA channel.
 - Adds the `AA-SG-2026` label.
+
+## PS WEE Event AA Feature Request Maps To PDT
+
+Thread in Slack channel `C0B5H2YE5T2`:
+
+`@PS Wee Manager customer asked for features around approval workflows and reporting`
+
+- Calls `create_ps_wee_intake_ticket` immediately.
+- Maps `features` / product-related asks to `request_type_key="pdt_discovery"`.
+- Does not fall through to `feedback` when the message is clearly about product features.
 
 ## PS WEE Customer Channel Auto-Tag
 

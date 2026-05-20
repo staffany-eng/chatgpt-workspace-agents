@@ -116,10 +116,14 @@
     "event_aa": {
       "channel_id_env_var": "PSM_OPS_AA_CHANNEL_ID",
       "default_request_type_key": "feedback",
-      "allowed_request_type_keys": ["cross_sell", "churn_revival", "feedback"],
+      "allowed_request_type_keys": ["ps_follow_up", "cs_follow_up", "adhoc_ops", "rev_cross_sell", "pdt_discovery", "mkt_clubany", "feedback"],
       "request_type_id_env_vars": {
-        "cross_sell": "PSM_OPS_JIRA_REQUEST_TYPE_CROSS_SELL",
-        "churn_revival": "PSM_OPS_JIRA_REQUEST_TYPE_CHURN_REVIVAL",
+        "ps_follow_up": "PSM_OPS_JIRA_REQUEST_TYPE_PS_FOLLOW_UP",
+        "cs_follow_up": "PSM_OPS_JIRA_REQUEST_TYPE_CS_FOLLOW_UP",
+        "adhoc_ops": "PSM_OPS_JIRA_REQUEST_TYPE_ADHOC_OPS",
+        "rev_cross_sell": "PSM_OPS_JIRA_REQUEST_TYPE_REV_CROSS_SELL",
+        "pdt_discovery": "PSM_OPS_JIRA_REQUEST_TYPE_PDT_DISCOVERY",
+        "mkt_clubany": "PSM_OPS_JIRA_REQUEST_TYPE_MKT_CLUBANY",
         "feedback": "PSM_OPS_JIRA_REQUEST_TYPE_FEEDBACK"
       }
     },
