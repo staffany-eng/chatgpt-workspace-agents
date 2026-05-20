@@ -2285,6 +2285,134 @@ class PsmJiraServerTest(unittest.TestCase):
         create_call = next(c for c in calls if c[1] == "/rest/servicedeskapi/request")
         self.assertNotIn("customfield_10914", create_call[2]["requestFieldValues"], "Creator field should be omitted when no option matches")
 
+    def test_ps_wee_intake_in_aa_channel_overrides_hallucinated_slack_user_email(self):
+        calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
+                return {"issues": []}
+            if path == "/rest/servicedeskapi/request":
+                return {"issueKey": "PCO-901", "requestTypeId": "123"}
+            if path.endswith("/comment"):
+                return {"id": "comment-901"}
+            return {}
+
+        # Slack conversations.history returns the verified Slack tagger
+        # (Ada PSM's real Slack ID) for the trigger message — this is the
+        # source of truth the MCP must trust over whatever the agent passes.
+        def fake_slack_json(method, params):
+            if method == "conversations.history":
+                return {
+                    "messages": [
+                        {"ts": params.get("oldest", ""), "user": "UADAREAL"},
+                    ]
+                }
+            if method == "users.list":
+                return {
+                    "members": [
+                        {
+                            "id": "UADAREAL",
+                            "real_name": "Ada PSM",
+                            "profile": {
+                                "email": "psm@staffany.com",
+                                "real_name": "Ada PSM",
+                            },
+                        }
+                    ]
+                }
+            return {}
+
+        def creator_options(request_type_id=""):
+            return [
+                {"value": "creator-ada", "label": "Ada PSM"},
+                {"value": "creator-josica", "label": "Josica"},
+            ]
+        def ps_team_options(request_type_id=""):
+            return [
+                {"value": "team-ada", "label": "Ada PSM"},
+                {"value": "team-josica", "label": "Josica"},
+            ]
+
+        self.module._request_json = fake_request
+        self.module._request_slack_json = fake_slack_json
+        self.module._creator_valid_values = creator_options
+        self.module._ps_team_valid_values = ps_team_options
+        self.module._update_issue_labels = lambda *args, **kwargs: None
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: {"ok": True}
+
+        # Agent hallucinates a Slack ID that does not exist (matches the
+        # real-prod failure pattern from PCO-291/293 and PCO-298-300). The
+        # MCP must re-derive the tagger from the thread permalink and use
+        # Ada PSM's verified identity for Creator + PS Team.
+        result = self.module.create_ps_wee_intake_ticket(
+            slack_user_email="U07HALLUC1NAT",
+            slack_thread_url="https://staffany.slack.com/archives/C0B5H2YE5T2/p1779259580035789",
+            customer="Rock Productions",
+            issue_summary="Follow up on proper changelog",
+            request_type_key="ps_follow_up",
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        create_call = next(c for c in calls if c[1] == "/rest/servicedeskapi/request")
+        values = create_call[2]["requestFieldValues"]
+        self.assertEqual(
+            values.get("customfield_10914"), {"id": "creator-ada"},
+            msg=f"AA Creator must come from the verified Slack tagger, not the hallucinated slack_user_email: {values}",
+        )
+        self.assertEqual(
+            values.get("customfield_10876"), {"id": "team-ada"},
+            msg=f"AA PS Team must come from the verified Slack tagger: {values}",
+        )
+        self.assertNotIn("U07HALLUC1NAT", json.dumps(values), "hallucinated Slack ID must never reach Jira")
+
+    def test_ps_wee_intake_in_aa_channel_falls_back_to_supplied_email_when_slack_unreachable(self):
+        calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
+                return {"issues": []}
+            if path == "/rest/servicedeskapi/request":
+                return {"issueKey": "PCO-902", "requestTypeId": "123"}
+            if path.endswith("/comment"):
+                return {"id": "comment-902"}
+            return {}
+
+        # Slack is unreachable for both conversations.history and the
+        # subsequent users.list lookup — the MCP must not block.
+        def fake_slack_json(method, params):
+            raise self.module.JiraError("slack unreachable")
+
+        def creator_options(request_type_id=""):
+            return [{"value": "creator-ada", "label": "Ada PSM"}]
+        def ps_team_options(request_type_id=""):
+            return [{"value": "team-ada", "label": "Ada PSM"}]
+
+        self.module._request_json = fake_request
+        self.module._request_slack_json = fake_slack_json
+        self.module._creator_valid_values = creator_options
+        self.module._ps_team_valid_values = ps_team_options
+        self.module._update_issue_labels = lambda *args, **kwargs: None
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: {"ok": True}
+
+        # Agent supplies a real, policy-mapped email — Slack lookup failures
+        # must not regress this path: the agent-supplied email is honored
+        # when verification is impossible.
+        result = self.module.create_ps_wee_intake_ticket(
+            slack_user_email="psm@staffany.com",
+            slack_thread_url="https://staffany.slack.com/archives/C0B5H2YE5T2/p1779259580035789",
+            customer="Rock Productions",
+            issue_summary="Follow up on proper changelog",
+            request_type_key="ps_follow_up",
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        create_call = next(c for c in calls if c[1] == "/rest/servicedeskapi/request")
+        values = create_call[2]["requestFieldValues"]
+        self.assertEqual(values.get("customfield_10914"), {"id": "creator-ada"})
+        self.assertEqual(values.get("customfield_10876"), {"id": "team-ada"})
+
     def test_ps_wee_intake_in_aa_channel_ignores_hallucinated_creator_override(self):
         calls = []
 

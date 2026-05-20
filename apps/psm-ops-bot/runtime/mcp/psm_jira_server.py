@@ -1048,6 +1048,64 @@ def _slack_trigger_message_image_files(slack_thread_url: str) -> list[dict[str, 
     return []
 
 
+def _slack_trigger_message_sender(slack_thread_url: str) -> str:
+    """Return the Slack user ID of the trigger message at ``slack_thread_url``.
+
+    Uses ``conversations.history`` for the parent permalink (the shape the
+    Hermes gateway exposes for AA intakes), falling back to
+    ``conversations.replies`` for reply permalinks. Returns ``""`` on any
+    failure — callers must treat the empty result as "unknown" and fall back
+    to whatever identity was supplied by the agent. This is the verified
+    source of truth for "who tagged the bot", and is used to override the
+    agent's ``slack_user_email`` on AA intakes because agents have
+    hallucinated invalid Slack IDs in that field (e.g. ``U07UTFE8U3X`` on
+    PCO-291/293, ``U07N3TH1CJK`` on PCO-298-300), which silently dropped
+    Creator and PS Team because nothing matched the policy or dropdowns.
+    """
+
+    channel_id = _slack_channel_id_from_permalink(slack_thread_url)
+    message_ts = _slack_message_ts_from_permalink(slack_thread_url)
+    if not channel_id or not message_ts:
+        return ""
+    try:
+        history = _request_slack_json(
+            "conversations.history",
+            {
+                "channel": channel_id,
+                "oldest": message_ts,
+                "inclusive": "true",
+                "limit": "1",
+            },
+        )
+    except Exception:  # noqa: BLE001 — verified-tagger lookup must never block intake.
+        history = {}
+    for entry in history.get("messages") or []:
+        if isinstance(entry, dict) and str(entry.get("ts") or "") == message_ts:
+            user = str(entry.get("user") or "").strip()
+            if user:
+                return user
+            break
+    try:
+        replies = _request_slack_json(
+            "conversations.replies",
+            {
+                "channel": channel_id,
+                "ts": message_ts,
+                "inclusive": "true",
+                "limit": "1",
+            },
+        )
+    except Exception:  # noqa: BLE001
+        return ""
+    for entry in replies.get("messages") or []:
+        if isinstance(entry, dict) and str(entry.get("ts") or "") == message_ts:
+            user = str(entry.get("user") or "").strip()
+            if user:
+                return user
+            break
+    return ""
+
+
 def _download_slack_file(url_private: str) -> bytes:
     token = _slack_token()
     if not token:
@@ -3374,6 +3432,17 @@ def create_ps_wee_intake_ticket(
     is_event_aa = _is_event_aa_thread(source)
     if is_event_aa and request_type_key not in EVENT_AA_REQUEST_TYPE_KEYS:
         request_type_key = EVENT_AA_DEFAULT_REQUEST_TYPE_KEY
+    # AA always-ticket-first: the thread permalink IS the source of truth for
+    # who tagged the bot. Agents have hallucinated invalid Slack IDs in
+    # slack_user_email (e.g. `U07UTFE8U3X` on PCO-291/293, `U07N3TH1CJK` on
+    # PCO-298-300), which then silently dropped Creator and PS Team because
+    # nothing matched the access policy or dropdowns. Re-derive the tagger
+    # from conversations.history before resolving caller. If Slack is
+    # unreachable, fall back to the agent-supplied value rather than blocking.
+    if is_event_aa and source:
+        verified_sender = _slack_trigger_message_sender(source)
+        if verified_sender:
+            slack_user_email = verified_sender
     scope = {
         "caller": (slack_user_email or "").strip().lower(),
         "slack_thread_url": source,
