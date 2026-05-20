@@ -104,6 +104,7 @@ class PsmJiraServerTest(unittest.TestCase):
                 "PSM_OPS_JIRA_REQUEST_TYPE_PDT_DISCOVERY": "125",
                 "PSM_OPS_JIRA_REQUEST_TYPE_MKT_CLUBANY": "126",
                 "PSM_OPS_JIRA_REQUEST_TYPE_FEEDBACK": "122",
+                "PSM_OPS_JIRA_REQUEST_TYPE_PHOTO_FOLLOW_UP": "127",
                 "PSM_OPS_AA_CHANNEL_ID": "C0B5H2YE5T2",
                 "PSM_OPS_JIRA_FIELD_CREATOR": "customfield_10914",
                 "PSM_OPS_JIRA_FIELD_CUSTOMER": "customfield_10101",
@@ -1271,6 +1272,7 @@ class PsmJiraServerTest(unittest.TestCase):
             ("rev_cross_sell", "120", "Jason", "Jason"),
             ("pdt_discovery", "125", "May", "May"),
             ("mkt_clubany", "126", "Ega", "Ega"),
+            ("photo_follow_up", "127", "Jason", "Jason"),
         ]
         for request_type_key, expected_id, creator_name, expected_team in cases:
             with self.subTest(request_type_key=request_type_key):

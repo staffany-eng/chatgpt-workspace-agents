@@ -100,6 +100,7 @@ psm_ops:
       pdt_discovery_request_type: "125"
       mkt_clubany_request_type: "126"
       feedback_request_type: "122"
+      photo_follow_up_request_type: "127"
       staffany_orgs_field: "customfield_10667"
       ps_team_field: "customfield_10876"
       creator_field: "customfield_10914"
@@ -117,6 +118,7 @@ psm_ops:
       pdt_discovery: "PSM_OPS_JIRA_REQUEST_TYPE_PDT_DISCOVERY"
       mkt_clubany: "PSM_OPS_JIRA_REQUEST_TYPE_MKT_CLUBANY"
       feedback: "PSM_OPS_JIRA_REQUEST_TYPE_FEEDBACK"
+      photo_follow_up: "PSM_OPS_JIRA_REQUEST_TYPE_PHOTO_FOLLOW_UP"
     event_aa:
       channel_id_env: "PSM_OPS_AA_CHANNEL_ID"
       default_request_type_key: "feedback"
@@ -129,6 +131,8 @@ psm_ops:
         - "pdt_discovery"
         - "mkt_clubany"
         - "feedback"
+        - "photo_follow_up"
+      image_trigger_request_type_key: "photo_follow_up"
       ps_team_by_category:
         cs_follow_up: "Ega"
         adhoc_ops: "PS Ops"

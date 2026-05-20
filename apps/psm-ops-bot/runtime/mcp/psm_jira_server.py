@@ -67,6 +67,7 @@ REQUEST_TYPE_ENVS = {
     "pdt_discovery": "PSM_OPS_JIRA_REQUEST_TYPE_PDT_DISCOVERY",
     "mkt_clubany": "PSM_OPS_JIRA_REQUEST_TYPE_MKT_CLUBANY",
     "feedback": "PSM_OPS_JIRA_REQUEST_TYPE_FEEDBACK",
+    "photo_follow_up": "PSM_OPS_JIRA_REQUEST_TYPE_PHOTO_FOLLOW_UP",
 }
 
 EVENT_AA_REQUEST_TYPE_KEYS = {
@@ -77,8 +78,10 @@ EVENT_AA_REQUEST_TYPE_KEYS = {
     "pdt_discovery",
     "mkt_clubany",
     "feedback",
+    "photo_follow_up",
 }
 EVENT_AA_DEFAULT_REQUEST_TYPE_KEY = "feedback"
+EVENT_AA_PHOTO_REQUEST_TYPE_KEY = "photo_follow_up"
 EVENT_AA_LABEL = "AA-SG-2026"
 EVENT_AA_PS_TEAM_BY_CATEGORY = {
     "cs_follow_up": "Ega",
@@ -92,6 +95,7 @@ EVENT_AA_REQUEST_TYPE_NAMES = {
     "pdt_discovery": "PDT Discovery",
     "mkt_clubany": "MKT ClubAny Interest",
     "feedback": "Feedback",
+    "photo_follow_up": "Photo Follow Up",
 }
 
 THIN_POC_MODE = "thin_poc"
@@ -108,6 +112,7 @@ THIN_POC_REQUEST_TYPES = {
     "pdt_discovery": "125",
     "mkt_clubany": "126",
     "feedback": "122",
+    "photo_follow_up": "127",
 }
 THIN_POC_AA_CHANNEL_ID = "C0B5H2YE5T2"
 THIN_POC_FIELD_IDS = {
