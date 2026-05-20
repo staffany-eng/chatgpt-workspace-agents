@@ -1355,7 +1355,7 @@ class PsmJiraServerTest(unittest.TestCase):
         labels_added = [labels for _, labels, _ in label_calls]
         self.assertTrue(any("AA-SG-2026" in batch for batch in labels_added))
 
-    def test_ps_wee_intake_in_aa_channel_uploads_selfies_to_drive_only(self):
+    def test_ps_wee_intake_in_aa_channel_uploads_selfies_to_drive_and_jira(self):
         attachment_calls = []
         drive_calls = []
 
@@ -1400,15 +1400,27 @@ class PsmJiraServerTest(unittest.TestCase):
             attachment_calls.append((issue_key, deepcopy(files)))
             return [{"id": "att-1", "filename": files[0]["name"]}]
 
-        def fake_drive_upload(images, company, pic):
+        def fake_drive_upload_detailed(images, company, pic):
             drive_calls.append({"images": list(images), "company": company, "pic": pic})
-            return [{"drive_file_id": "drive-1", "name": "kopi-janji_andre.jpg", "web_view_link": "https://drive/x"}]
+            return {
+                "uploaded": [
+                    {
+                        "drive_file_id": "drive-1",
+                        "name": "kopi-janji_andre.jpg",
+                        "web_view_link": "https://drive/x",
+                    }
+                ],
+                "drive_status": "ok",
+                "drive_reason": "",
+                "failure_count": 0,
+                "last_error": "",
+            }
 
         self.module._request_json = fake_request
         self.module._request_slack_json = fake_slack_json
         self.module._download_slack_file = fake_download
         self.module._attach_image_files_to_issue = fake_attach
-        self.module.upload_aa_selfies = fake_drive_upload
+        self.module.upload_aa_selfies_detailed = fake_drive_upload_detailed
         self.module._creator_valid_values = self._mock_creator_options
         self.module._update_issue_labels = lambda *args, **kwargs: None
         self.module.post_ps_wee_audit = lambda event_type, **kwargs: {"ok": True}
@@ -1424,15 +1436,96 @@ class PsmJiraServerTest(unittest.TestCase):
         )
 
         self.assertEqual(result["confidence"], "verified")
-        self.assertEqual(attachment_calls, [])
+        self.assertEqual(len(attachment_calls), 1)
+        self.assertEqual(attachment_calls[0][0], "PCO-905")
+        self.assertEqual([f["name"] for f in attachment_calls[0][1]], ["selfie.jpg"])
         self.assertEqual(len(drive_calls), 1)
         only_payload = drive_calls[0]
         self.assertEqual(only_payload["company"], "Kopi Janji")
         self.assertEqual(only_payload["pic"], "Andre")
         self.assertEqual([entry["name"] for entry in only_payload["images"]], ["selfie.jpg"])
-        self.assertEqual(result["answer"]["attached_images"], [])
+        self.assertEqual(len(result["answer"]["attached_images"]), 1)
         self.assertEqual(len(result["answer"]["drive_selfies"]), 1)
+        self.assertEqual(result["answer"]["drive_status"], "ok")
         self.assertIn("Saved 1 selfie(s) to Drive.", result["answer"]["slack_reply"])
+        self.assertIn("Attached 1 image(s) to Jira.", result["answer"]["slack_reply"])
+
+    def test_ps_wee_intake_in_aa_channel_surfaces_drive_failure_without_blocking(self):
+        attachment_calls = []
+
+        def fake_request(method, path, body=None):
+            if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
+                return {"issues": []}
+            if path == "/rest/servicedeskapi/request":
+                return {"issueKey": "PCO-918", "requestTypeId": "122"}
+            if path.endswith("/comment"):
+                return {"id": "comment-918"}
+            return {}
+
+        def fake_slack_json(method, params):
+            if method == "conversations.history":
+                return {
+                    "messages": [
+                        {
+                            "ts": params["oldest"],
+                            "files": [
+                                {
+                                    "id": "F-img",
+                                    "name": "selfie.jpg",
+                                    "mimetype": "image/jpeg",
+                                    "url_private": "https://files.slack.com/selfie.jpg",
+                                }
+                            ],
+                        }
+                    ]
+                }
+            return {"members": []}
+
+        def fake_attach(issue_key, files):
+            attachment_calls.append((issue_key, deepcopy(files)))
+            return [{"id": "att-9", "filename": files[0]["name"]}]
+
+        def fake_drive_upload_detailed(images, company, pic):
+            return {
+                "uploaded": [],
+                "drive_status": "upload_failed",
+                "drive_reason": "Drive upload failed: 401 Invalid Credentials",
+                "failure_count": 1,
+                "last_error": "Drive upload failed: 401 Invalid Credentials",
+            }
+
+        self.module._request_json = fake_request
+        self.module._request_slack_json = fake_slack_json
+        self.module._download_slack_file = lambda url: b"binary-image-data"
+        self.module._attach_image_files_to_issue = fake_attach
+        self.module.upload_aa_selfies_detailed = fake_drive_upload_detailed
+        self.module._creator_valid_values = self._mock_creator_options
+        self.module._update_issue_labels = lambda *args, **kwargs: None
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: {"ok": True}
+
+        result = self.module.create_ps_wee_intake_ticket(
+            slack_user_email="psm@staffany.com",
+            slack_thread_url="https://staffany.slack.com/archives/C0B5H2YE5T2/p1779160186779359",
+            customer="Kopi Janji",
+            issue_summary="met Andre at AA",
+            request_type_key="ps_follow_up",
+            creator_slack_user_email="josica@staffany.com",
+            pic="Andre",
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["answer"]["drive_selfies"], [])
+        self.assertEqual(result["answer"]["drive_status"], "upload_failed")
+        self.assertEqual(
+            result["answer"]["drive_reason"],
+            "Drive upload failed: 401 Invalid Credentials",
+        )
+        self.assertEqual(len(result["answer"]["attached_images"]), 1)
+        self.assertIn(
+            "Drive selfie upload skipped: Drive upload failed: 401 Invalid Credentials",
+            result["answer"]["slack_reply"],
+        )
+        self.assertIn("Attached 1 image(s) to Jira.", result["answer"]["slack_reply"])
 
     def test_ps_wee_intake_outside_aa_channel_attaches_images_to_jira_not_drive(self):
         attachment_calls = []
@@ -1472,7 +1565,10 @@ class PsmJiraServerTest(unittest.TestCase):
         self.module._request_json = fake_request
         self.module._request_slack_json = fake_slack_json
         self.module._attach_image_files_to_issue = fake_attach
-        self.module.upload_aa_selfies = lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("upload_aa_selfies must not be called outside AA channel"))
+        def _fail_drive_outside_aa(*_args, **_kwargs):
+            raise AssertionError("Drive upload must not be called outside AA channel")
+        self.module.upload_aa_selfies = _fail_drive_outside_aa
+        self.module.upload_aa_selfies_detailed = _fail_drive_outside_aa
         self.module.post_ps_wee_audit = lambda event_type, **kwargs: {"ok": True}
 
         result = self.module.create_ps_wee_intake_ticket(
@@ -1573,8 +1669,15 @@ class PsmJiraServerTest(unittest.TestCase):
 
         self.module._request_slack_json = fake_slack_json
         self.module._download_slack_file = fake_download
-        self.module.upload_aa_selfies = fake_drive_upload
+        self.module.upload_aa_selfies_detailed = lambda images, company, pic: {
+            "uploaded": fake_drive_upload(images, company, pic),
+            "drive_status": "ok",
+            "drive_reason": "",
+            "failure_count": 0,
+            "last_error": "",
+        }
         self.module.aa_drive_configuration_status = lambda: ("ok", "")
+        self.module._ticket_by_slack_thread = lambda *args, **kwargs: []
 
         result = self.module.attach_aa_selfie_to_thread(
             slack_thread_url="https://staffany.slack.com/archives/C0B5H2YE5T2/p1779217695397149",
@@ -1648,8 +1751,15 @@ class PsmJiraServerTest(unittest.TestCase):
 
         self.module._request_slack_json = fake_slack_json
         self.module._download_slack_file = lambda url: b"binary-image-data"
-        self.module.upload_aa_selfies = fake_drive_upload
+        self.module.upload_aa_selfies_detailed = lambda images, company, pic: {
+            "uploaded": fake_drive_upload(images, company, pic),
+            "drive_status": "ok",
+            "drive_reason": "",
+            "failure_count": 0,
+            "last_error": "",
+        }
         self.module.aa_drive_configuration_status = lambda: ("ok", "")
+        self.module._ticket_by_slack_thread = lambda *args, **kwargs: []
 
         result = self.module.attach_aa_selfie_to_thread(
             slack_thread_url=f"https://staffany.slack.com/archives/C0B5H2YE5T2/p{parent_ts.replace('.', '')}",
@@ -1720,8 +1830,15 @@ class PsmJiraServerTest(unittest.TestCase):
 
         self.module._request_slack_json = fake_slack_json
         self.module._download_slack_file = lambda url: b"binary-image-data"
-        self.module.upload_aa_selfies = fake_drive_upload
+        self.module.upload_aa_selfies_detailed = lambda images, company, pic: {
+            "uploaded": fake_drive_upload(images, company, pic),
+            "drive_status": "ok",
+            "drive_reason": "",
+            "failure_count": 0,
+            "last_error": "",
+        }
         self.module.aa_drive_configuration_status = lambda: ("ok", "")
+        self.module._ticket_by_slack_thread = lambda *args, **kwargs: []
 
         result = self.module.attach_aa_selfie_to_thread(
             slack_thread_url=f"https://staffany.slack.com/archives/C0B5H2YE5T2/p{reply_ts.replace('.', '')}",
@@ -1751,7 +1868,7 @@ class PsmJiraServerTest(unittest.TestCase):
             self.fail("Slack should not be called again after history failure")
 
         self.module._request_slack_json = fake_slack_json
-        self.module.upload_aa_selfies = lambda *args, **kwargs: self.fail(
+        self.module.upload_aa_selfies_detailed = lambda *args, **kwargs: self.fail(
             "Drive upload should not run when the Slack read failed"
         )
         self.module.aa_drive_configuration_status = lambda: ("ok", "")
@@ -1811,8 +1928,15 @@ class PsmJiraServerTest(unittest.TestCase):
 
         self.module._request_slack_json = fake_slack_json
         self.module._download_slack_file = fake_download
-        self.module.upload_aa_selfies = fake_drive_upload
+        self.module.upload_aa_selfies_detailed = lambda images, company, pic: {
+            "uploaded": fake_drive_upload(images, company, pic),
+            "drive_status": "ok",
+            "drive_reason": "",
+            "failure_count": 0,
+            "last_error": "",
+        }
         self.module.aa_drive_configuration_status = lambda: ("ok", "")
+        self.module._ticket_by_slack_thread = lambda *args, **kwargs: []
 
         result = self.module.attach_aa_selfie_to_thread(
             slack_thread_url="https://staffany.slack.com/archives/C0B5H2YE5T2/p1779217695397149",
@@ -1833,7 +1957,7 @@ class PsmJiraServerTest(unittest.TestCase):
             "Slack should not be called when blocking outside AA channel"
         )
         self.module.aa_drive_configuration_status = lambda: ("ok", "")
-        self.module.upload_aa_selfies = lambda *args, **kwargs: self.fail(
+        self.module.upload_aa_selfies_detailed = lambda *args, **kwargs: self.fail(
             "Drive upload should not run outside AA channel"
         )
 
@@ -1850,7 +1974,7 @@ class PsmJiraServerTest(unittest.TestCase):
         self.module._request_slack_json = lambda *_args, **_kwargs: self.fail(
             "Slack should not be called when Drive is not configured"
         )
-        self.module.upload_aa_selfies = lambda *args, **kwargs: self.fail(
+        self.module.upload_aa_selfies_detailed = lambda *args, **kwargs: self.fail(
             "Drive upload should not run when token is missing"
         )
         self.module.aa_drive_configuration_status = lambda: (
@@ -1876,7 +2000,7 @@ class PsmJiraServerTest(unittest.TestCase):
             return {"members": []}
 
         self.module._request_slack_json = fake_slack_json
-        self.module.upload_aa_selfies = lambda *args, **kwargs: self.fail(
+        self.module.upload_aa_selfies_detailed = lambda *args, **kwargs: self.fail(
             "Drive upload should not run when there are no images"
         )
         self.module.aa_drive_configuration_status = lambda: ("ok", "")
@@ -1891,6 +2015,243 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertEqual(result["answer"]["image_count"], 0)
         self.assertEqual(result["answer"]["drive_selfies"], [])
         self.assertIn("No image attachments", result["caveat"])
+
+    def test_attach_aa_selfie_to_thread_attaches_to_all_aa_tickets_in_thread(self):
+        attach_payload_calls = []
+
+        def fake_slack_json(method, params):
+            if method == "conversations.history":
+                return {
+                    "messages": [
+                        {
+                            "ts": params["oldest"],
+                            "files": [
+                                {
+                                    "id": "F-img",
+                                    "name": "selfie.jpg",
+                                    "mimetype": "image/jpeg",
+                                    "url_private": "https://files.slack.com/selfie.jpg",
+                                },
+                            ],
+                        }
+                    ]
+                }
+            return {"members": []}
+
+        def fake_drive_upload(images, company, pic):
+            return [
+                {
+                    "drive_file_id": "drive-1",
+                    "name": "dandy-collection_rohit__F-img.jpg",
+                    "web_view_link": "https://drive/x",
+                }
+            ]
+
+        def fake_attach_payloads(issue_keys, payloads):
+            attach_payload_calls.append((list(issue_keys), list(payloads)))
+            return {
+                key: {
+                    "attached": [{"id": f"att-{key}", "filename": "selfie.jpg"}],
+                    "errors": [],
+                }
+                for key in issue_keys
+            }
+
+        self.module._request_slack_json = fake_slack_json
+        self.module._download_slack_file = lambda url: b"binary-image-data"
+        self.module.upload_aa_selfies_detailed = lambda images, company, pic: {
+            "uploaded": fake_drive_upload(images, company, pic),
+            "drive_status": "ok",
+            "drive_reason": "",
+            "failure_count": 0,
+            "last_error": "",
+        }
+        self.module.aa_drive_configuration_status = lambda: ("ok", "")
+        self.module._ticket_by_slack_thread = lambda *args, **kwargs: [
+            {"issue_key": "PCO-247", "url": "https://staffany.atlassian.net/browse/PCO-247"},
+            {"issue_key": "PCO-248", "url": "https://staffany.atlassian.net/browse/PCO-248"},
+        ]
+        self.module._attach_payloads_to_issues = fake_attach_payloads
+
+        result = self.module.attach_aa_selfie_to_thread(
+            slack_thread_url="https://staffany.slack.com/archives/C0B5H2YE5T2/p1779217695397149",
+            customer="Dandy Collection",
+            pic="Rohit",
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["answer"]["saved_count"], 1)
+        self.assertEqual(result["answer"]["jira_ticket_count"], 2)
+        self.assertEqual(result["answer"]["jira_attached_count"], 2)
+        self.assertEqual(sorted(result["answer"]["jira_attachments"].keys()), ["PCO-247", "PCO-248"])
+        self.assertEqual(len(attach_payload_calls), 1)
+        self.assertEqual(attach_payload_calls[0][0], ["PCO-247", "PCO-248"])
+        self.assertIn("Saved 1 selfie(s) to Drive", result["caveat"])
+        self.assertIn("attached 2 image(s) across 2 Jira ticket(s)", result["caveat"])
+
+    def test_attach_aa_selfie_to_thread_searches_thread_permalink_variants(self):
+        ticket_lookup_args: list[str] = []
+
+        def fake_slack_json(method, params):
+            if method == "conversations.history":
+                return {
+                    "messages": [
+                        {
+                            "ts": params["oldest"],
+                            "files": [
+                                {
+                                    "id": "F-img",
+                                    "name": "selfie.jpg",
+                                    "mimetype": "image/jpeg",
+                                    "url_private": "https://files.slack.com/selfie.jpg",
+                                }
+                            ],
+                        }
+                    ]
+                }
+            return {"members": []}
+
+        def fake_ticket_lookup(url, _limit):
+            ticket_lookup_args.append(url)
+            # Only return a hit for the parent-thread variant — proves the
+            # tool didn't stop at the reply URL it was handed.
+            if url == "https://staffany.slack.com/archives/C0B5H2YE5T2/p1779243840262999":
+                return [{"issue_key": "PCO-247", "url": "https://staffany.atlassian.net/browse/PCO-247"}]
+            return []
+
+        self.module._request_slack_json = fake_slack_json
+        self.module._download_slack_file = lambda url: b"binary-image-data"
+        self.module.upload_aa_selfies_detailed = lambda *args, **kwargs: {
+            "uploaded": [{"drive_file_id": "drive-1", "name": "x.jpg", "web_view_link": "https://drive/x"}],
+            "drive_status": "ok",
+            "drive_reason": "",
+            "failure_count": 0,
+            "last_error": "",
+        }
+        self.module.aa_drive_configuration_status = lambda: ("ok", "")
+        self.module._ticket_by_slack_thread = fake_ticket_lookup
+        self.module._attach_payloads_to_issues = lambda keys, payloads: {
+            key: {"attached": [{"id": f"att-{key}", "filename": "x.jpg"}], "errors": []} for key in keys
+        }
+
+        # Reply permalink with thread_ts pointing at the parent — exactly the
+        # shape Slack hands the agent for a follow-up selfie reply.
+        result = self.module.attach_aa_selfie_to_thread(
+            slack_thread_url="https://staffany.slack.com/archives/C0B5H2YE5T2/p1779243903073209?thread_ts=1779243840.262999&cid=C0B5H2YE5T2",
+            customer="Dandy Collection",
+            pic="Rohit",
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["answer"]["jira_ticket_count"], 1)
+        self.assertEqual(result["answer"]["jira_attached_count"], 1)
+        # Confirms the parent-thread variant was tried, not just the reply URL.
+        self.assertIn(
+            "https://staffany.slack.com/archives/C0B5H2YE5T2/p1779243840262999",
+            ticket_lookup_args,
+        )
+
+    def test_attach_aa_selfie_to_thread_surfaces_jira_attach_errors(self):
+        def fake_slack_json(method, params):
+            if method == "conversations.history":
+                return {
+                    "messages": [
+                        {
+                            "ts": params["oldest"],
+                            "files": [
+                                {
+                                    "id": "F-img",
+                                    "name": "selfie.jpg",
+                                    "mimetype": "image/jpeg",
+                                    "url_private": "https://files.slack.com/selfie.jpg",
+                                }
+                            ],
+                        }
+                    ]
+                }
+            return {"members": []}
+
+        self.module._request_slack_json = fake_slack_json
+        self.module._download_slack_file = lambda url: b"binary-image-data"
+        self.module.upload_aa_selfies_detailed = lambda *args, **kwargs: {
+            "uploaded": [{"drive_file_id": "drive-1", "name": "x.jpg", "web_view_link": "https://drive/x"}],
+            "drive_status": "ok",
+            "drive_reason": "",
+            "failure_count": 0,
+            "last_error": "",
+        }
+        self.module.aa_drive_configuration_status = lambda: ("ok", "")
+        self.module._ticket_by_slack_thread = lambda *args, **kwargs: [
+            {"issue_key": "PCO-500", "url": "https://staffany.atlassian.net/browse/PCO-500"},
+        ]
+        self.module._attach_payloads_to_issues = lambda keys, payloads: {
+            "PCO-500": {
+                "attached": [],
+                "errors": ["Jira attachment POST failed: 401 Unauthorized"],
+            }
+        }
+
+        result = self.module.attach_aa_selfie_to_thread(
+            slack_thread_url="https://staffany.slack.com/archives/C0B5H2YE5T2/p1779217695397149",
+            customer="Dandy Collection",
+            pic="Rohit",
+        )
+
+        self.assertEqual(result["confidence"], "needs-check")
+        self.assertEqual(result["answer"]["jira_attached_count"], 0)
+        self.assertIn(
+            "PCO-500: Jira attachment POST failed: 401 Unauthorized",
+            result["answer"]["jira_attach_errors"],
+        )
+        self.assertIn("Jira errors", result["caveat"])
+
+    def test_attach_aa_selfie_to_thread_surfaces_drive_failure_reason(self):
+        def fake_slack_json(method, params):
+            if method == "conversations.history":
+                return {
+                    "messages": [
+                        {
+                            "ts": params["oldest"],
+                            "files": [
+                                {
+                                    "id": "F-img",
+                                    "name": "selfie.jpg",
+                                    "mimetype": "image/jpeg",
+                                    "url_private": "https://files.slack.com/selfie.jpg",
+                                }
+                            ],
+                        }
+                    ]
+                }
+            return {"members": []}
+
+        self.module._request_slack_json = fake_slack_json
+        self.module._download_slack_file = lambda url: b"binary-image-data"
+        self.module.upload_aa_selfies_detailed = lambda *args, **kwargs: {
+            "uploaded": [],
+            "drive_status": "upload_failed",
+            "drive_reason": "Drive upload failed: 401 Invalid Credentials",
+            "failure_count": 1,
+            "last_error": "Drive upload failed: 401 Invalid Credentials",
+        }
+        self.module.aa_drive_configuration_status = lambda: ("ok", "")
+        self.module._ticket_by_slack_thread = lambda *args, **kwargs: []
+
+        result = self.module.attach_aa_selfie_to_thread(
+            slack_thread_url="https://staffany.slack.com/archives/C0B5H2YE5T2/p1779217695397149",
+            customer="Dandy Collection",
+            pic="Rohit",
+        )
+
+        self.assertEqual(result["confidence"], "needs-check")
+        self.assertEqual(result["answer"]["drive_status"], "upload_failed")
+        self.assertEqual(
+            result["answer"]["drive_reason"],
+            "Drive upload failed: 401 Invalid Credentials",
+        )
+        # The caveat must include the verbatim Drive reason instead of the
+        # old invented "check OAuth token validity" message.
+        self.assertIn("Drive upload failed: 401 Invalid Credentials", result["caveat"])
 
     def test_ps_wee_intake_in_aa_channel_creates_ticket_even_when_creator_no_match(self):
         calls = []

@@ -7,6 +7,7 @@ import base64
 import json
 import os
 import re
+import sys
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -17,7 +18,12 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from mcp.server.fastmcp import FastMCP
 
-from aa_selfie_drive import configuration_status as aa_drive_configuration_status, upload_aa_selfies
+from aa_selfie_drive import (
+    configuration_status as aa_drive_configuration_status,
+    health_check as aa_drive_health_check,
+    upload_aa_selfies,
+    upload_aa_selfies_detailed,
+)
 from profile_env import load_profile_env
 from psm_slack_notifier import post_ps_wee_audit
 
@@ -1063,54 +1069,132 @@ def _download_slack_images_for_drive(files: list[dict[str, Any]]) -> list[dict[s
     return downloads
 
 
-def _attach_image_files_to_issue(issue_key: str, files: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Upload image files to a Jira issue. Best-effort: continues past per-file errors."""
-    if not files or not issue_key:
-        return []
+def _post_attachment_bytes_to_issue(
+    issue_key: str,
+    filename: str,
+    mimetype: str,
+    content: bytes,
+) -> tuple[list[dict[str, Any]], str]:
+    """POST a single in-memory file to the Jira issue attachments endpoint.
+
+    Returns ``(records, error_reason)``. ``records`` is the list Jira accepted;
+    ``error_reason`` is a short string describing the failure when the POST
+    raised (HTTP status + message, timeout, JSON parse). Empty string means
+    "no error" — callers can distinguish "no attachments returned" from
+    "attempt failed silently" by checking ``error_reason``.
+    """
+    if not issue_key or not content:
+        return [], ""
     base = _env("JIRA_BASE_URL").rstrip("/")
     email = _env("JIRA_EMAIL")
     token = _env("JIRA_API_TOKEN")
     if not base or not email or not token:
-        return []
+        return [], "Jira credentials are not configured."
     basic = base64.b64encode(f"{email}:{token}".encode("utf-8")).decode("ascii")
+    boundary = "----PsmOpsAttachmentBoundary"
+    body = (
+        f"--{boundary}\r\n"
+        f'Content-Disposition: form-data; name="file"; filename="{filename}"\r\n'
+        f"Content-Type: {mimetype or 'application/octet-stream'}\r\n\r\n"
+    ).encode("utf-8") + bytes(content) + f"\r\n--{boundary}--\r\n".encode("utf-8")
+    url = f"{base}/rest/api/3/issue/{urllib.parse.quote(issue_key)}/attachments"
+    request = urllib.request.Request(
+        url,
+        data=body,
+        headers={
+            "Authorization": f"Basic {basic}",
+            "X-Atlassian-Token": "no-check",
+            "Content-Type": f"multipart/form-data; boundary={boundary}",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=60) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as error:
+        try:
+            detail = error.read().decode("utf-8", errors="replace")
+        except Exception:
+            detail = ""
+        reason = f"Jira attachment POST failed: {error.code} {detail[:200]}"
+        print(f"[psm-ops-bot] {reason} (issue={issue_key}, filename={filename})", file=sys.stderr)
+        return [], reason
+    except (urllib.error.URLError, TimeoutError) as error:
+        reason = f"Jira attachment POST could not complete: {getattr(error, 'reason', error)}"
+        print(f"[psm-ops-bot] {reason} (issue={issue_key}, filename={filename})", file=sys.stderr)
+        return [], reason
+    except (json.JSONDecodeError, ValueError) as error:
+        reason = f"Jira attachment response was not JSON: {error}"
+        print(f"[psm-ops-bot] {reason} (issue={issue_key}, filename={filename})", file=sys.stderr)
+        return [], reason
+    out: list[dict[str, Any]] = []
+    if isinstance(payload, list):
+        for record in payload:
+            if isinstance(record, dict):
+                out.append(
+                    {
+                        "id": str(record.get("id") or ""),
+                        "filename": str(record.get("filename") or filename),
+                    }
+                )
+    return out, ""
+
+
+def _attach_image_files_to_issue(issue_key: str, files: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Upload image files to a Jira issue. Best-effort: continues past per-file errors."""
+    if not files or not issue_key:
+        return []
     attached: list[dict[str, Any]] = []
     for entry in files:
         try:
             content = _download_slack_file(entry["url_private"])
         except Exception:
             continue
-        boundary = "----PsmOpsAttachmentBoundary"
-        body = (
-            f"--{boundary}\r\n"
-            f'Content-Disposition: form-data; name="file"; filename="{entry["name"]}"\r\n'
-            f'Content-Type: {entry["mimetype"]}\r\n\r\n'
-        ).encode("utf-8") + content + f"\r\n--{boundary}--\r\n".encode("utf-8")
-        url = f"{base}/rest/api/3/issue/{urllib.parse.quote(issue_key)}/attachments"
-        request = urllib.request.Request(
-            url,
-            data=body,
-            headers={
-                "Authorization": f"Basic {basic}",
-                "X-Atlassian-Token": "no-check",
-                "Content-Type": f"multipart/form-data; boundary={boundary}",
-            },
-            method="POST",
+        records, _error = _post_attachment_bytes_to_issue(
+            issue_key,
+            str(entry.get("name") or "attachment"),
+            str(entry.get("mimetype") or "application/octet-stream"),
+            content,
         )
-        try:
-            with urllib.request.urlopen(request, timeout=60) as response:
-                payload = json.loads(response.read().decode("utf-8"))
-        except Exception:
-            continue
-        if isinstance(payload, list):
-            for record in payload:
-                if isinstance(record, dict):
-                    attached.append(
-                        {
-                            "id": str(record.get("id") or ""),
-                            "filename": str(record.get("filename") or entry["name"]),
-                        }
-                    )
+        attached.extend(records)
     return attached
+
+
+def _attach_payloads_to_issues(
+    issue_keys: list[str],
+    payloads: list[dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    """Attach pre-downloaded payloads to multiple Jira issues without re-downloading.
+
+    Each payload should carry ``content`` (bytes), ``name``, and ``mimetype``
+    (the shape returned by :func:`_download_slack_images_for_drive`). Returns a
+    map from issue_key to ``{"attached": list, "errors": list[str]}``. Callers
+    can distinguish "Jira accepted nothing" from "Jira rejected everything"
+    by checking the per-issue ``errors`` list.
+    """
+    if not issue_keys or not payloads:
+        return {}
+    result: dict[str, dict[str, Any]] = {}
+    for issue_key in issue_keys:
+        if not issue_key:
+            continue
+        attached: list[dict[str, Any]] = []
+        errors: list[str] = []
+        for entry in payloads:
+            content = entry.get("content") if isinstance(entry, dict) else None
+            if not isinstance(content, (bytes, bytearray)) or not content:
+                continue
+            records, error_reason = _post_attachment_bytes_to_issue(
+                issue_key,
+                str(entry.get("name") or "selfie"),
+                str(entry.get("mimetype") or "image/jpeg"),
+                content,
+            )
+            attached.extend(records)
+            if error_reason:
+                errors.append(error_reason)
+        result[issue_key] = {"attached": attached, "errors": errors}
+    return result
 
 
 def _customer_channel_map_path() -> str:
@@ -3343,6 +3427,14 @@ def create_ps_wee_intake_ticket(
             customer_channel_mapping = _reviewed_customer_channel_mapping(source, supplied_customer)
         except CustomerChannelMapMiss:
             customer_channel_mapping = {}
+        except JiraError:
+            # AA threads never live in a customer channel, so mapping errors
+            # (missing map file, conflict, unreviewed entry) must not block
+            # creation. Triage will sort the StaffAny Org later. For non-AA
+            # the original block is preserved by the outer try/except.
+            if not is_event_aa:
+                raise
+            customer_channel_mapping = {}
         if customer_channel_mapping:
             normalized_customer = customer_channel_mapping["customer_name"]
             scope["customer"] = normalized_customer
@@ -3437,36 +3529,51 @@ def create_ps_wee_intake_ticket(
     ticket_ref = f"<{issue_url}|{issue_key}>" if issue_key and issue_url else issue_key or issue_url or "the ticket"
     attached_images: list[dict[str, Any]] = []
     drive_uploads: list[dict[str, Any]] = []
+    drive_status = "ok"
+    drive_reason = ""
+    drive_failure_count = 0
     images: list[dict[str, Any]] = []
     if issue_key:
         try:
             images = _slack_trigger_message_image_files(source)
         except Exception:
             images = []
+    if issue_key and images:
+        # AA tickets get the same Jira attachment treatment as non-AA so the
+        # selfie lives on the ticket itself, not only in Drive.
+        attached_images = _attach_image_files_to_issue(issue_key, images)
     if is_event_aa and images:
         payloads = _download_slack_images_for_drive(images)
         if payloads:
-            try:
-                drive_uploads = upload_aa_selfies(
-                    payloads,
-                    company=normalized_customer,
-                    pic=(pic or "").strip() or creator_display or "unknown",
-                )
-            except Exception:
-                drive_uploads = []
-    elif issue_key and images:
-        attached_images = _attach_image_files_to_issue(issue_key, images)
+            drive_result = upload_aa_selfies_detailed(
+                payloads,
+                company=normalized_customer,
+                pic=(pic or "").strip() or creator_display or "unknown",
+            )
+            drive_uploads = drive_result.get("uploaded", [])
+            drive_status = str(drive_result.get("drive_status") or "ok")
+            drive_reason = str(drive_result.get("drive_reason") or "")
+            drive_failure_count = int(drive_result.get("failure_count") or 0)
+        elif images:
+            drive_status = "no_downloads"
+            drive_reason = "Image files were found but every Slack download failed."
     answer["attached_images"] = attached_images
     answer["drive_selfies"] = drive_uploads
+    answer["drive_status"] = drive_status if is_event_aa else "ok"
+    answer["drive_reason"] = drive_reason if is_event_aa else ""
+    answer["drive_failure_count"] = drive_failure_count
+    attachment_parts: list[str] = []
     if is_event_aa:
         if drive_uploads:
-            attachment_suffix = f" Saved {len(drive_uploads)} selfie(s) to Drive."
-        else:
-            attachment_suffix = ""
+            attachment_parts.append(f"Saved {len(drive_uploads)} selfie(s) to Drive.")
+        elif images:
+            attachment_parts.append(f"Drive selfie upload skipped: {drive_reason or 'unknown reason.'}")
+        if attached_images:
+            attachment_parts.append(f"Attached {len(attached_images)} image(s) to Jira.")
     else:
-        attachment_suffix = (
-            f" Attached {len(attached_images)} image(s) from Slack." if attached_images else ""
-        )
+        if attached_images:
+            attachment_parts.append(f"Attached {len(attached_images)} image(s) from Slack.")
+    attachment_suffix = (" " + " ".join(attachment_parts)) if attachment_parts else ""
     if slack_missing:
         answer["slack_reply"] = (
             f"Created first so this won't be missed: {ticket_ref}. "
@@ -3579,8 +3686,48 @@ def attach_aa_selfie_to_thread(
             scope,
             "Image files were found but every Slack download failed; selfies were not uploaded.",
         )
-    drive_uploads = upload_aa_selfies(payloads, company=company, pic=operator)
-    drive_failures = len(payloads) - len(drive_uploads)
+    drive_result = upload_aa_selfies_detailed(payloads, company=company, pic=operator)
+    drive_uploads = list(drive_result.get("uploaded") or [])
+    drive_failures = int(drive_result.get("failure_count") or 0)
+    drive_status_code = str(drive_result.get("drive_status") or "ok")
+    drive_reason_text = str(drive_result.get("drive_reason") or "")
+    # Attach to every AA ticket the thread already opened so the selfie reaches
+    # all of them, not just one. Tickets cite the parent-thread permalink, so
+    # search across permalink variants (parent ts, compact ts, etc.), not only
+    # the reply URL the caller forwarded. Best-effort: Jira attach failures
+    # never block.
+    thread_tickets: list[dict[str, Any]] = []
+    for variant in _slack_permalink_variants(source) or [source]:
+        try:
+            thread_tickets.extend(_ticket_by_slack_thread(variant, 20))
+        except JiraError:
+            continue
+    issue_keys = list(
+        dict.fromkeys(
+            str(ticket.get("issue_key") or "").strip()
+            for ticket in thread_tickets
+            if str(ticket.get("issue_key") or "").strip()
+        )
+    )
+    jira_attach_results: dict[str, dict[str, Any]] = {}
+    if issue_keys and payloads:
+        try:
+            jira_attach_results = _attach_payloads_to_issues(issue_keys, payloads)
+        except Exception as error:
+            print(
+                f"[psm-ops-bot] AA selfie Jira fan-out failed: {error}",
+                file=sys.stderr,
+            )
+            jira_attach_results = {}
+    jira_attachments = {
+        key: value.get("attached") or [] for key, value in jira_attach_results.items()
+    }
+    jira_attach_errors = [
+        f"{key}: {err}"
+        for key, value in jira_attach_results.items()
+        for err in (value.get("errors") or [])
+    ]
+    jira_attach_count = sum(len(v) for v in jira_attachments.values())
     if not drive_uploads:
         return _needs_check(
             {
@@ -3588,12 +3735,20 @@ def attach_aa_selfie_to_thread(
                 "image_count": len(images),
                 "download_failure_count": download_failures,
                 "drive_failure_count": drive_failures,
-                "drive_status": "ok",
+                "drive_status": drive_status_code,
+                "drive_reason": drive_reason_text,
+                "jira_attachments": jira_attachments,
+                "jira_attach_errors": jira_attach_errors,
+                "jira_attached_count": jira_attach_count,
+                "jira_ticket_count": len(issue_keys),
             },
             scope,
-            "Drive upload returned no records; check Drive OAuth token validity and folder permissions.",
+            (
+                drive_reason_text
+                or "Drive upload returned no records; run verify_drive_oauth to diagnose."
+            ),
         )
-    if download_failures or drive_failures:
+    if download_failures or drive_failures or jira_attach_errors:
         return _needs_check(
             {
                 "drive_selfies": drive_uploads,
@@ -3602,26 +3757,83 @@ def attach_aa_selfie_to_thread(
                 "saved_count": len(drive_uploads),
                 "download_failure_count": download_failures,
                 "drive_failure_count": drive_failures,
-                "drive_status": "ok",
+                "drive_status": drive_status_code,
+                "drive_reason": drive_reason_text,
+                "jira_attachments": jira_attachments,
+                "jira_attach_errors": jira_attach_errors,
+                "jira_attached_count": jira_attach_count,
+                "jira_ticket_count": len(issue_keys),
             },
             scope,
             (
                 f"Partial AA selfie ingest: {len(images)} image(s) seen, "
                 f"{download_failures} Slack download failure(s), "
                 f"{drive_failures} Drive upload failure(s); "
-                f"{len(drive_uploads)} saved."
+                f"{len(drive_uploads)} saved to Drive; "
+                f"{jira_attach_count} attached across {len(issue_keys)} Jira ticket(s)"
+                + (f"; Jira errors: {'; '.join(jira_attach_errors)}" if jira_attach_errors else "")
+                + "."
             ),
         )
+    if jira_attach_count and issue_keys:
+        verified_caveat = (
+            f"Saved {len(drive_uploads)} selfie(s) to Drive; "
+            f"attached {jira_attach_count} image(s) across {len(issue_keys)} Jira ticket(s)."
+        )
+    else:
+        verified_caveat = f"Saved {len(drive_uploads)} selfie(s) to Drive."
     return _verified(
         {
             "drive_selfies": drive_uploads,
             "image_count": len(images),
             "saved_count": len(drive_uploads),
             "drive_status": "ok",
+            "jira_attachments": jira_attachments,
+            "jira_attached_count": jira_attach_count,
+            "jira_ticket_count": len(issue_keys),
         },
         scope,
-        f"Saved {len(drive_uploads)} selfie(s) to Drive.",
+        verified_caveat,
     )
+
+
+@mcp.tool()
+def verify_drive_oauth() -> dict[str, Any]:
+    """Diagnose the AA selfie Drive OAuth without uploading anything.
+
+    Read-only. Runs configuration_status, attempts a token refresh, then calls
+    ``GET https://www.googleapis.com/drive/v3/about`` to confirm the
+    refreshed token works. Use this when an AA intake reports an upload skip
+    or when the Slack reply mentions Drive failures — the returned ``status``
+    + ``reason`` tells you whether the problem is configuration, refresh, or
+    upload-time, so you do not have to guess between OAuth / scope / folder
+    permission causes.
+    """
+
+    report = aa_drive_health_check()
+    answer = {
+        "drive_status": report.get("status"),
+        "drive_reason": report.get("reason"),
+        "folder_id": report.get("folder_id"),
+        "token_path": report.get("token_path"),
+        "user_email": report.get("user_email"),
+        "scopes": report.get("scopes"),
+        "last_error": report.get("last_error", ""),
+    }
+    scope = {"check": "drive_oauth"}
+    status = str(report.get("status") or "")
+    if status == "ok":
+        return _verified(
+            answer,
+            scope,
+            (
+                f"Drive OAuth healthy as {report.get('user_email') or 'unknown user'}; "
+                f"folder {report.get('folder_id') or 'unset'}."
+            ),
+        )
+    if status in {"missing_folder_id", "missing_token"}:
+        return _blocked(report.get("reason") or "Drive is not configured.", scope)
+    return _needs_check(answer, scope, report.get("reason") or "Drive health-check failed.")
 
 
 def _metadata_comment_from_draft(draft: dict[str, Any]) -> str:
