@@ -66,6 +66,7 @@
         "create_or_link_pco_roi_tracker",
         "create_ps_wee_intake_ticket",
         "attach_aa_selfie_to_thread",
+        "verify_drive_oauth",
         "append_ps_wee_ticket_update",
         "mark_ps_wee_ticket_ready",
         "draft_pco_task",
