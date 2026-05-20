@@ -113,6 +113,105 @@ class AaSelfieDriveTest(unittest.TestCase):
         self.assertEqual(first, "kopi-janji_andre.jpg")
         self.assertEqual(second, "kopi-janji_andre-2.jpg")
 
+    def test_health_check_reports_ok_when_about_call_succeeds(self):
+        def fake_urlopen(request, timeout=None):
+            self.assertIn("/about", request.full_url)
+            return self._make_response(
+                {"user": {"emailAddress": "drive-bot@staffany.com"}}
+            )
+
+        with patch.object(self.module.urllib.request, "urlopen", side_effect=fake_urlopen):
+            report = self.module.health_check()
+
+        self.assertEqual(report["status"], "ok")
+        self.assertEqual(report["user_email"], "drive-bot@staffany.com")
+        self.assertEqual(report["folder_id"], "test-folder-id")
+        self.assertIn("https://www.googleapis.com/auth/drive.file", report["scopes"])
+
+    def test_health_check_reports_refresh_failed_when_token_refresh_raises(self):
+        def fail_token():
+            raise self.module.AaSelfieDriveError("Google OAuth refresh failed: 400 invalid_grant")
+
+        self.module._drive_access_token = fail_token
+
+        report = self.module.health_check()
+        self.assertEqual(report["status"], "refresh_failed")
+        self.assertIn("invalid_grant", report["last_error"])
+
+    def test_health_check_reports_api_unauthorized_on_401(self):
+        def fake_urlopen(request, timeout=None):
+            raise self.module.urllib.error.HTTPError(
+                request.full_url,
+                401,
+                "Unauthorized",
+                {},
+                io.BytesIO(b'{"error": "Invalid Credentials"}'),
+            )
+
+        with patch.object(self.module.urllib.request, "urlopen", side_effect=fake_urlopen):
+            report = self.module.health_check()
+
+        self.assertEqual(report["status"], "api_unauthorized")
+        self.assertIn("401", report["reason"])
+
+    def test_upload_aa_selfies_detailed_reports_drive_status_when_upload_fails(self):
+        def fake_urlopen(request, timeout=None):
+            raise self.module.urllib.error.HTTPError(
+                request.full_url,
+                401,
+                "Unauthorized",
+                {},
+                io.BytesIO(b'{"error": "Invalid Credentials"}'),
+            )
+
+        with patch.object(self.module.urllib.request, "urlopen", side_effect=fake_urlopen):
+            result = self.module.upload_aa_selfies_detailed(
+                [
+                    {
+                        "content": b"binary",
+                        "name": "selfie.jpg",
+                        "mimetype": "image/jpeg",
+                        "slack_file_id": "F-fail",
+                    }
+                ],
+                company="Kopi Janji",
+                pic="Andre",
+            )
+
+        self.assertEqual(result["uploaded"], [])
+        self.assertEqual(result["drive_status"], "upload_failed")
+        self.assertEqual(result["failure_count"], 1)
+        self.assertIn("401", result["drive_reason"])
+        self.assertIn("Drive upload failed", result["last_error"])
+
+    def test_upload_aa_selfies_detailed_reports_missing_token_without_attempting_upload(self):
+        token_path = (
+            Path(self.tmpdir.name)
+            / ".hermes"
+            / "profiles"
+            / "psmopsbot"
+            / "drive-token.json"
+        )
+        token_path.unlink()
+
+        with patch.object(self.module.urllib.request, "urlopen", side_effect=AssertionError("upload must not be attempted")):
+            result = self.module.upload_aa_selfies_detailed(
+                [
+                    {
+                        "content": b"binary",
+                        "name": "selfie.jpg",
+                        "mimetype": "image/jpeg",
+                        "slack_file_id": "F-skip",
+                    }
+                ],
+                company="Kopi Janji",
+                pic="Andre",
+            )
+
+        self.assertEqual(result["uploaded"], [])
+        self.assertEqual(result["drive_status"], "missing_token")
+        self.assertIn("drive-token.json", result["drive_reason"])
+
     def test_configuration_status_reports_missing_token(self):
         token_path = (
             Path(self.tmpdir.name)
