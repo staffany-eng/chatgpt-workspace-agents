@@ -84,6 +84,7 @@ For ROI urgency fields, match the field's configured options exactly. If the req
 - `CS duty`, `cs duty`, and equivalent spelling variants mean Jira `PS Team = CS Duty`.
 - `Eng duty` means Jira `PS Team = Eng Duty`.
 - These are PS Team values, not Jira person assignees. Do not ask who is on duty when the user asked for `CS duty`.
+- Current PS Team person options (in addition to the queue values like `CS Duty`, `Eng Duty`, `PS Ops`): `Josica`, `Damba`, `Izzat`, `Priska`, `May`, `Alya`, `Ega`, `Lucky`, `Jason`, `Kai Yi`, `Abel`, `Vanessa`, `Barra`, `Davin`, `Anis`, `Eric`, `Albert`, `Jan-E`, `Jeffrey`, `Wong Man Zhong`, `Jolene`, `Siti`, `Jeremy`, `Edeline`, `Kerren`, `Will`, `Janson`, `Eugene`. The MCP reads the live dropdown from Jira at call time, so this list is informational — the canonical source of truth is the `PS Team` field metadata. When a Slack tagger's display name matches one of these options (substring-tolerant, case-insensitive), the agent should pass it directly into `ps_team`; otherwise fall back to `CS Duty` or omit and let triage assign.
 
 ## Event AA Intake Routing
 
@@ -96,7 +97,7 @@ For ROI urgency fields, match the field's configured options exactly. If the req
   - The literal label `AA-SG-2026` is added to every AA ticket via Jira's standard `labels` field (best-effort post-create; failure surfaces as a warning, not a block).
   - The `Creator` single-select field (`PSM_OPS_JIRA_FIELD_CREATOR`; thin POC default `customfield_10914`) is best-effort. The matcher resolves the Slack tagger (or the optional `creator_slack_user_email` override) and normalizes the display name against the field's options (substring tolerant, case-insensitive). When no option matches, the field is omitted and the ticket still creates — never blocked on creator resolution.
   - `pic` is the person-in-charge name the PSM met. The MCP stores it in the internal metadata comment and uses it in the selfie filename.
-  - Multiple categories in one Slack message: the agent calls `create_ps_wee_intake_ticket` once per category. Idempotency is scoped to `(slack_thread_url, request_type)` so different categories in the same thread do not collide.
+  - Multiple categories in one Slack message: the agent calls `create_ps_wee_intake_ticket` once per category. Idempotency is scoped to `(slack_thread_url, request_type, customer)` so different categories — and different customers in the same thread+category (e.g. two booth meetings logged in one message) — do not collide.
   - Link-to-existing: when the PSM mentions an issue the customer has likely raised before, the agent calls `search_pco_tickets` for that customer to look for an open PCO ticket on the same topic. The per-category AA ticket is still created (event-trace record), then linked to the prior issue via `link_pco_to_pco_issue(source_issue_key=<new AA key>, target_issue_key=<existing PCO key>)`. The link is always `Relates`. No linking when no clear match exists.
 - Outside the AA channel, the 7 Event AA request types stay available for explicit asks; do not auto-route to them and do not enforce the creator field or the `AA-SG-2026` label.
 - Routing cues from the PSM's Slack message:

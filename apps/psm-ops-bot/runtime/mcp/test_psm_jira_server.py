@@ -2342,6 +2342,89 @@ class PsmJiraServerTest(unittest.TestCase):
             msg=f"CS Follow Up filter missing from dedupe queries: {search_calls}",
         )
 
+    def test_ps_wee_intake_in_aa_channel_allows_multi_customer_same_request_type(self):
+        existing_issue = {
+            "key": "PCO-264",
+            "fields": {
+                "summary": "[Needs info] Qiqi - Want to expand more outlets",
+                "status": {"name": "Open"},
+                "priority": {"name": "Medium"},
+            },
+        }
+        calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
+                # Same Slack thread + same request_type returns the prior Qiqi ticket.
+                return {"issues": [existing_issue]}
+            if path == "/rest/servicedeskapi/request":
+                return {"issueKey": "PCO-265", "requestTypeId": "120"}
+            if path.endswith("/comment"):
+                return {"id": "comment-265"}
+            return {}
+
+        self.module._request_json = fake_request
+        self.module._creator_valid_values = self._mock_creator_options
+        self.module._update_issue_labels = lambda *args, **kwargs: None
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: {"ok": True}
+
+        result = self.module.create_ps_wee_intake_ticket(
+            slack_user_email="eugene@staffany.com",
+            slack_thread_url="https://staffany.slack.com/archives/C0B5H2YE5T2/p1779250051395009",
+            customer="Lo and Behold",
+            issue_summary="Want to expand more outlets",
+            request_type_key="rev_cross_sell",
+            creator_slack_user_email="eugene@staffany.com",
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        # New ticket must be created — dedupe should not collapse Lo and Behold into Qiqi.
+        create_calls = [c for c in calls if c[1] == "/rest/servicedeskapi/request"]
+        self.assertEqual(len(create_calls), 1)
+        self.assertNotIn("existing_ticket", result["answer"])
+
+    def test_ps_wee_intake_in_aa_channel_reuses_only_when_customer_matches(self):
+        existing_issue = {
+            "key": "PCO-300",
+            "fields": {
+                "summary": "[Needs info] Dapur Penyet - Follow up on HRany",
+                "status": {"name": "Open"},
+                "priority": {"name": "Medium"},
+            },
+        }
+        label_calls = []
+
+        def fake_request(method, path, body=None):
+            if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
+                return {"issues": [existing_issue]}
+            return {}
+
+        def fake_labels(issue_key, add=None, remove=None):
+            label_calls.append((issue_key, list(add or []), list(remove or [])))
+
+        self.module._request_json = fake_request
+        self.module._creator_valid_values = self._mock_creator_options
+        self.module._update_issue_labels = fake_labels
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: {"ok": True}
+
+        result = self.module.create_ps_wee_intake_ticket(
+            slack_user_email="siti@staffany.com",
+            slack_thread_url="https://staffany.slack.com/archives/C0B5H2YE5T2/p1779249926878009",
+            customer="Dapur Penyet",
+            issue_summary="Follow up on HRany",
+            request_type_key="rev_cross_sell",
+            creator_slack_user_email="siti@staffany.com",
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["answer"]["existing_ticket"]["issue_key"], "PCO-300")
+        # AA reuse path must defensively re-apply the AA-SG-2026 label on the existing ticket.
+        self.assertTrue(
+            any("PCO-300" == key and "AA-SG-2026" in labels for key, labels, _ in label_calls),
+            msg=f"AA-SG-2026 label was not re-applied on reuse: {label_calls}",
+        )
+
     def test_ps_wee_intake_outside_aa_channel_does_not_force_event_aa_request_type(self):
         calls = []
 

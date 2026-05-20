@@ -61,6 +61,48 @@ Thread in Slack channel `C0B5H2YE5T2` (configured by `PSM_OPS_AA_CHANNEL_ID`):
 - When one or more images attach successfully, the Slack reply ends with `Attached N image(s) from Slack.` Non-AA intakes do not call Slack `conversations.history` and never append the attachment suffix.
 - Bahasa-to-English translation (AA channel only): when the PSM's trigger message is fully or partially in Indonesian, e.g. `@PS WEE Warung Sambal Bu Tini di AA mau pindah ke kompetitor karena fitur payroll lambat, tolong follow up`, the Jira `summary` and `description` are written in clear English (`Warung Sambal Bu Tini considering switching to a competitor due to slow payroll feature; needs PSM follow-up`). Customer names, outlet names, dates, numbers, and product terms stay verbatim. The untranslated original is appended at the end of the description under an `**Original (Bahasa):**` heading. Mixed-language messages translate only the Indonesian portions. Outside the AA channel, descriptions stay in whatever language the PSM used.
 
+## PS WEE Event AA Shorthand Header
+
+Thread in Slack channel `C0B5H2YE5T2`:
+
+```text
+@PS Wee Manager
+• qiqi
+• Lo and Behold
+• Want to expand more outlets
+```
+
+- Parses the first two bullets as the header — company=`Lo and Behold`, pic=`qiqi`. Person-like vs. brand-like ordering is not load-bearing.
+- Treats `Want to expand more outlets` as the only ticket bullet and maps it to `request_type_key="rev_cross_sell"`.
+- Calls `create_ps_wee_intake_ticket` exactly once for customer=`Lo and Behold`.
+- Does not create a second ticket with customer=`qiqi`.
+- Adds the `AA-SG-2026` label.
+
+## PS WEE Event AA Multi-Customer Same Request Type
+
+Thread in Slack channel `C0B5H2YE5T2`:
+
+```text
+@PS Wee Manager
+• Met Qiqi at the booth — want to expand outlets
+• Lo and Behold also stopped by — keen to expand
+```
+
+- Calls `create_ps_wee_intake_ticket` twice with the same `request_type_key="rev_cross_sell"` but different `customer` values (`Qiqi` and `Lo and Behold`).
+- Both tickets create — MCP dedupe is keyed on `(slack_thread_url, request_type, customer)`, so the second call does not collapse into the first.
+- Each ticket carries the `AA-SG-2026` label.
+
+## PS WEE Event AA Warm Lead Still Tickets
+
+Thread in Slack channel `C0B5H2YE5T2`:
+
+`@PS Wee Manager Mr Bean Da Wei open to meet and explore StaffAny`
+
+- Calls `create_ps_wee_intake_ticket` immediately with `customer="Mr Bean Da Wei"` and `request_type_key="feedback"` (no follow-up category named).
+- Does not reply with "Got it … A few quick questions to help route this …".
+- Does not ask `Reply 'create ticket' to open the PS WEE intake ticket.` in the AA channel.
+- Adds the `AA-SG-2026` label.
+
 ## PS WEE Customer Channel Auto-Tag
 
 Expected:

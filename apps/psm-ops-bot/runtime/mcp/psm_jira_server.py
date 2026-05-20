@@ -125,6 +125,20 @@ THIN_POC_CREATOR_OPTIONS = (
     "Ega",
     "Alya",
     "Jason",
+    "Kai Yi",
+    "Albert",
+    "Jan-E",
+    "Jeffrey",
+    "Wong Man Zhong",
+    "Jolene",
+    "Siti",
+    "Jeremy",
+    "Edeline",
+    "Kerren",
+    "Will",
+    "Vanessa",
+    "Janson",
+    "Eugene",
 )
 REMINDER_NOT_CONFIGURED = "Reminder at field is not configured in PCO yet."
 ENGINEERING_LINK_TARGET_RE = re.compile(r"^(KER|SCHE)-\d+$", re.IGNORECASE)
@@ -3378,12 +3392,35 @@ def create_ps_wee_intake_ticket(
             5,
             request_type_name=dedupe_request_type_name,
         )
+        if existing and is_event_aa:
+            # AA channel allows multiple same-request-type tickets per thread when they
+            # cover different customers (e.g. one PSM logs Qiqi and Lo & Behold in the
+            # same booth-meeting message). Only treat an existing ticket as a duplicate
+            # when its summary references the same customer name.
+            customer_needle = normalized_customer.strip().lower()
+            if customer_needle and customer_needle != "unknown customer":
+                existing = [
+                    candidate
+                    for candidate in existing
+                    if customer_needle in str(candidate.get("summary") or "").lower()
+                ]
+            else:
+                existing = []
         if existing:
+            existing_key = str(existing[0].get("issue_key") or "").strip()
+            if is_event_aa and existing_key:
+                # Best-effort: ensure the reused ticket carries the AA-SG-2026 label even
+                # when the original create path predated the label rollout. Adding an
+                # existing label is a no-op in Jira, so this is safe to retry.
+                try:
+                    _update_issue_labels(existing_key, add=[EVENT_AA_LABEL])
+                except Exception:
+                    pass
             answer = {"existing_ticket": existing[0], "duplicate_candidates": existing}
             answer["central_copy"] = post_ps_wee_audit(
                 "ticket_reused",
                 source_thread_url=source,
-                issue_key=str(existing[0].get("issue_key") or ""),
+                issue_key=existing_key,
                 issue_url=str(existing[0].get("url") or ""),
                 requester=scope["caller"],
                 customer=normalized_customer,
@@ -3393,7 +3430,7 @@ def create_ps_wee_intake_ticket(
                 extra={"request_type_key": request_type_key, "event": "AA" if is_event_aa else ""},
             )
             caveat = (
-                "Existing PCO ticket found for the same Slack thread and request type; update it instead of creating a duplicate."
+                "Existing PCO ticket found for the same Slack thread, request type, and customer; update it instead of creating a duplicate."
                 if is_event_aa
                 else "Existing PCO ticket found for the same Slack thread; update it instead of creating a duplicate."
             )
