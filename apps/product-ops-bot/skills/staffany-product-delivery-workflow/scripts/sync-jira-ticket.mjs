@@ -11,6 +11,7 @@ const RICE_FIELD_REACH = process.env.JIRA_FIELD_REACH || "";
 const RICE_FIELD_IMPACT = process.env.JIRA_FIELD_IMPACT || "";
 const RICE_FIELD_CONFIDENCE = process.env.JIRA_FIELD_CONFIDENCE || "";
 const RICE_FIELD_EFFORT = process.env.JIRA_FIELD_EFFORT || "";
+const RICE_FIELD_SCORE = process.env.JIRA_FIELD_RICE_SCORE || "";
 const RICE_FIELD_RATIONALE = process.env.JIRA_FIELD_RICE_RATIONALE || "";
 
 function printUsage() {
@@ -38,6 +39,7 @@ Environment variables:
   JIRA_FIELD_IMPACT                Optional Jira field id for Impact
   JIRA_FIELD_CONFIDENCE            Optional Jira field id for Confidence
   JIRA_FIELD_EFFORT                Optional Jira field id for Effort
+  JIRA_FIELD_RICE_SCORE            Optional Jira field id for RICE Score
   JIRA_FIELD_RICE_RATIONALE        Optional Jira field id for short RICE rationale text
 
 Notes:
@@ -610,6 +612,10 @@ async function main() {
     const parsed = parseNumber(rice.effort);
     issueFields[RICE_FIELD_EFFORT] = parsed ?? rice.effort;
   }
+  if (RICE_FIELD_SCORE && rice.score && !isPlaceholder(rice.score)) {
+    const parsed = parseNumber(rice.score);
+    issueFields[RICE_FIELD_SCORE] = parsed ?? rice.score;
+  }
   if (RICE_FIELD_RATIONALE && rice.rationale) {
     issueFields[RICE_FIELD_RATIONALE] = rice.rationale;
   }
@@ -629,6 +635,7 @@ async function main() {
         impactField: RICE_FIELD_IMPACT || null,
         confidenceField: RICE_FIELD_CONFIDENCE || null,
         effortField: RICE_FIELD_EFFORT || null,
+        scoreField: RICE_FIELD_SCORE || null,
         rationaleField: RICE_FIELD_RATIONALE || null,
       },
       riceValidation: args.skipRiceCheck ? "skipped" : "passed",

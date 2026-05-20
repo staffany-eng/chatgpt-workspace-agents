@@ -63,6 +63,7 @@ Optional field sync behavior:
   - `JIRA_FIELD_IMPACT`
   - `JIRA_FIELD_CONFIDENCE`
   - `JIRA_FIELD_EFFORT`
+  - `JIRA_FIELD_RICE_SCORE`
   - `JIRA_FIELD_RICE_RATIONALE`
 
 ## Required Environment Variables

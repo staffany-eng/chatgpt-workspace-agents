@@ -122,7 +122,9 @@ for (const requiredText of [
   "Use Notion for PRD collaboration.",
   "for Jira grooming or PRD generation, use `staffany-product-delivery-workflow` as the default workflow",
   "Any option except `Stop` proceeds to create IFI ticket immediately",
-  "If best match is at least 85%, set organization field."
+  "If best match is at least 85%, set organization field.",
+  "Never require users to send a \"decision token\" or exact keyword.",
+  "Do not say \"reply with one of\", \"awaiting decision token\", or other rigid token-only wording."
 ]) {
   if (!intakeSkillText.includes(requiredText)) fail(`Intake skill missing required text: ${requiredText}`);
 }
