@@ -7,6 +7,7 @@ import base64
 import json
 import os
 import re
+import sys
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -1073,15 +1074,22 @@ def _post_attachment_bytes_to_issue(
     filename: str,
     mimetype: str,
     content: bytes,
-) -> list[dict[str, Any]]:
-    """POST a single in-memory file to the Jira issue attachments endpoint."""
+) -> tuple[list[dict[str, Any]], str]:
+    """POST a single in-memory file to the Jira issue attachments endpoint.
+
+    Returns ``(records, error_reason)``. ``records`` is the list Jira accepted;
+    ``error_reason`` is a short string describing the failure when the POST
+    raised (HTTP status + message, timeout, JSON parse). Empty string means
+    "no error" — callers can distinguish "no attachments returned" from
+    "attempt failed silently" by checking ``error_reason``.
+    """
     if not issue_key or not content:
-        return []
+        return [], ""
     base = _env("JIRA_BASE_URL").rstrip("/")
     email = _env("JIRA_EMAIL")
     token = _env("JIRA_API_TOKEN")
     if not base or not email or not token:
-        return []
+        return [], "Jira credentials are not configured."
     basic = base64.b64encode(f"{email}:{token}".encode("utf-8")).decode("ascii")
     boundary = "----PsmOpsAttachmentBoundary"
     body = (
@@ -1103,8 +1111,22 @@ def _post_attachment_bytes_to_issue(
     try:
         with urllib.request.urlopen(request, timeout=60) as response:
             payload = json.loads(response.read().decode("utf-8"))
-    except Exception:
-        return []
+    except urllib.error.HTTPError as error:
+        try:
+            detail = error.read().decode("utf-8", errors="replace")
+        except Exception:
+            detail = ""
+        reason = f"Jira attachment POST failed: {error.code} {detail[:200]}"
+        print(f"[psm-ops-bot] {reason} (issue={issue_key}, filename={filename})", file=sys.stderr)
+        return [], reason
+    except (urllib.error.URLError, TimeoutError) as error:
+        reason = f"Jira attachment POST could not complete: {getattr(error, 'reason', error)}"
+        print(f"[psm-ops-bot] {reason} (issue={issue_key}, filename={filename})", file=sys.stderr)
+        return [], reason
+    except (json.JSONDecodeError, ValueError) as error:
+        reason = f"Jira attachment response was not JSON: {error}"
+        print(f"[psm-ops-bot] {reason} (issue={issue_key}, filename={filename})", file=sys.stderr)
+        return [], reason
     out: list[dict[str, Any]] = []
     if isinstance(payload, list):
         for record in payload:
@@ -1115,7 +1137,7 @@ def _post_attachment_bytes_to_issue(
                         "filename": str(record.get("filename") or filename),
                     }
                 )
-    return out
+    return out, ""
 
 
 def _attach_image_files_to_issue(issue_key: str, files: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -1128,47 +1150,50 @@ def _attach_image_files_to_issue(issue_key: str, files: list[dict[str, Any]]) ->
             content = _download_slack_file(entry["url_private"])
         except Exception:
             continue
-        attached.extend(
-            _post_attachment_bytes_to_issue(
-                issue_key,
-                str(entry.get("name") or "attachment"),
-                str(entry.get("mimetype") or "application/octet-stream"),
-                content,
-            )
+        records, _error = _post_attachment_bytes_to_issue(
+            issue_key,
+            str(entry.get("name") or "attachment"),
+            str(entry.get("mimetype") or "application/octet-stream"),
+            content,
         )
+        attached.extend(records)
     return attached
 
 
 def _attach_payloads_to_issues(
     issue_keys: list[str],
     payloads: list[dict[str, Any]],
-) -> dict[str, list[dict[str, Any]]]:
+) -> dict[str, dict[str, Any]]:
     """Attach pre-downloaded payloads to multiple Jira issues without re-downloading.
 
     Each payload should carry ``content`` (bytes), ``name``, and ``mimetype``
     (the shape returned by :func:`_download_slack_images_for_drive`). Returns a
-    map from issue_key to the list of attachment records that Jira accepted.
+    map from issue_key to ``{"attached": list, "errors": list[str]}``. Callers
+    can distinguish "Jira accepted nothing" from "Jira rejected everything"
+    by checking the per-issue ``errors`` list.
     """
     if not issue_keys or not payloads:
         return {}
-    result: dict[str, list[dict[str, Any]]] = {}
+    result: dict[str, dict[str, Any]] = {}
     for issue_key in issue_keys:
         if not issue_key:
             continue
         attached: list[dict[str, Any]] = []
+        errors: list[str] = []
         for entry in payloads:
             content = entry.get("content") if isinstance(entry, dict) else None
             if not isinstance(content, (bytes, bytearray)) or not content:
                 continue
-            attached.extend(
-                _post_attachment_bytes_to_issue(
-                    issue_key,
-                    str(entry.get("name") or "selfie"),
-                    str(entry.get("mimetype") or "image/jpeg"),
-                    content,
-                )
+            records, error_reason = _post_attachment_bytes_to_issue(
+                issue_key,
+                str(entry.get("name") or "selfie"),
+                str(entry.get("mimetype") or "image/jpeg"),
+                content,
             )
-        result[issue_key] = attached
+            attached.extend(records)
+            if error_reason:
+                errors.append(error_reason)
+        result[issue_key] = {"attached": attached, "errors": errors}
     return result
 
 
@@ -3661,25 +3686,47 @@ def attach_aa_selfie_to_thread(
             scope,
             "Image files were found but every Slack download failed; selfies were not uploaded.",
         )
-    drive_uploads = upload_aa_selfies(payloads, company=company, pic=operator)
-    drive_failures = len(payloads) - len(drive_uploads)
+    drive_result = upload_aa_selfies_detailed(payloads, company=company, pic=operator)
+    drive_uploads = list(drive_result.get("uploaded") or [])
+    drive_failures = int(drive_result.get("failure_count") or 0)
+    drive_status_code = str(drive_result.get("drive_status") or "ok")
+    drive_reason_text = str(drive_result.get("drive_reason") or "")
     # Attach to every AA ticket the thread already opened so the selfie reaches
-    # all of them, not just one. Best-effort: Jira attach failures never block.
-    jira_attachments: dict[str, list[dict[str, Any]]] = {}
-    try:
-        thread_tickets = _ticket_by_slack_thread(source, 20)
-    except JiraError:
-        thread_tickets = []
-    issue_keys = [
-        str(ticket.get("issue_key") or "").strip()
-        for ticket in thread_tickets
-        if str(ticket.get("issue_key") or "").strip()
-    ]
+    # all of them, not just one. Tickets cite the parent-thread permalink, so
+    # search across permalink variants (parent ts, compact ts, etc.), not only
+    # the reply URL the caller forwarded. Best-effort: Jira attach failures
+    # never block.
+    thread_tickets: list[dict[str, Any]] = []
+    for variant in _slack_permalink_variants(source) or [source]:
+        try:
+            thread_tickets.extend(_ticket_by_slack_thread(variant, 20))
+        except JiraError:
+            continue
+    issue_keys = list(
+        dict.fromkeys(
+            str(ticket.get("issue_key") or "").strip()
+            for ticket in thread_tickets
+            if str(ticket.get("issue_key") or "").strip()
+        )
+    )
+    jira_attach_results: dict[str, dict[str, Any]] = {}
     if issue_keys and payloads:
         try:
-            jira_attachments = _attach_payloads_to_issues(issue_keys, payloads)
-        except Exception:
-            jira_attachments = {}
+            jira_attach_results = _attach_payloads_to_issues(issue_keys, payloads)
+        except Exception as error:
+            print(
+                f"[psm-ops-bot] AA selfie Jira fan-out failed: {error}",
+                file=sys.stderr,
+            )
+            jira_attach_results = {}
+    jira_attachments = {
+        key: value.get("attached") or [] for key, value in jira_attach_results.items()
+    }
+    jira_attach_errors = [
+        f"{key}: {err}"
+        for key, value in jira_attach_results.items()
+        for err in (value.get("errors") or [])
+    ]
     jira_attach_count = sum(len(v) for v in jira_attachments.values())
     if not drive_uploads:
         return _needs_check(
@@ -3688,15 +3735,20 @@ def attach_aa_selfie_to_thread(
                 "image_count": len(images),
                 "download_failure_count": download_failures,
                 "drive_failure_count": drive_failures,
-                "drive_status": "ok",
+                "drive_status": drive_status_code,
+                "drive_reason": drive_reason_text,
                 "jira_attachments": jira_attachments,
+                "jira_attach_errors": jira_attach_errors,
                 "jira_attached_count": jira_attach_count,
                 "jira_ticket_count": len(issue_keys),
             },
             scope,
-            "Drive upload returned no records; check Drive OAuth token validity and folder permissions.",
+            (
+                drive_reason_text
+                or "Drive upload returned no records; run verify_drive_oauth to diagnose."
+            ),
         )
-    if download_failures or drive_failures:
+    if download_failures or drive_failures or jira_attach_errors:
         return _needs_check(
             {
                 "drive_selfies": drive_uploads,
@@ -3705,8 +3757,10 @@ def attach_aa_selfie_to_thread(
                 "saved_count": len(drive_uploads),
                 "download_failure_count": download_failures,
                 "drive_failure_count": drive_failures,
-                "drive_status": "ok",
+                "drive_status": drive_status_code,
+                "drive_reason": drive_reason_text,
                 "jira_attachments": jira_attachments,
+                "jira_attach_errors": jira_attach_errors,
                 "jira_attached_count": jira_attach_count,
                 "jira_ticket_count": len(issue_keys),
             },
@@ -3716,7 +3770,9 @@ def attach_aa_selfie_to_thread(
                 f"{download_failures} Slack download failure(s), "
                 f"{drive_failures} Drive upload failure(s); "
                 f"{len(drive_uploads)} saved to Drive; "
-                f"{jira_attach_count} attached across {len(issue_keys)} Jira ticket(s)."
+                f"{jira_attach_count} attached across {len(issue_keys)} Jira ticket(s)"
+                + (f"; Jira errors: {'; '.join(jira_attach_errors)}" if jira_attach_errors else "")
+                + "."
             ),
         )
     if jira_attach_count and issue_keys:
