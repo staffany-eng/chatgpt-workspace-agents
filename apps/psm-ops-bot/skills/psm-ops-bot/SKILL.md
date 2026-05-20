@@ -18,6 +18,15 @@ Use this skill for StaffAny PSM operations in Slack. The bot manages PCO Jira Se
 
 Alias rule: `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` refer to this same PSM Ops Bot. Do not create or route to a separate bot/profile.
 
+## Known Slack channel IDs
+
+Hardcoded in the deployed config. Do NOT invent channel roles from training context, prior conversations, or substring guessing — only these IDs are bot-managed; everything else is a normal customer or ops thread.
+
+- `C0B5H2YE5T2` — **Event AA channel** (`PSM_OPS_AA_CHANNEL_ID`). Every trigger here is, by definition, a ticket ask: always-ticket-first applies, see line 103.
+- `C0B2VT50YT1` — **Central audit channel** `#ps-weeman-bot-test` (`PSM_OPS_CENTRAL_SLACK_CHANNEL_ID`). Bot-owned audit copies go here; do NOT ticket from this channel.
+
+Anti-example (do NOT do this): replying `"The current channel is C0B5H2YE5T2 which is the bot-test channel (not the AA channel)"`. `C0B5H2YE5T2` IS the AA channel; the bot-test/audit channel is `C0B2VT50YT1`. The Slack thread permalink's `/archives/<channel_id>/` segment is the channel ID — match it against the two IDs above before deciding flow, and never assert a channel-ID-to-role mapping from memory.
+
 ## Source Order
 
 1. `references/jira-field-contract.md` for configured Jira request types, field IDs, status names, and write boundaries.
