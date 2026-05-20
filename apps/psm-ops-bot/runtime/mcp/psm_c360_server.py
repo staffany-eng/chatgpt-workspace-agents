@@ -20,6 +20,7 @@ from psm_slack_notifier import post_ps_wee_audit
 load_profile_env()
 
 DEFAULT_C360_BASE_URL = "https://customer-360-qv4r5xkisq-as.a.run.app"
+THIN_POC_AA_CHANNEL_ID = "C0B5H2YE5T2"
 MAX_CUSTOMER_SEARCH_VARIANTS = 8
 CUSTOMER_QUERY_PREFIXES = {
     "proj",
@@ -114,6 +115,52 @@ def _post_c360_audit(
         blocked_reason=blocked_reason,
         extra={"subsystem": "customer360"},
     )
+
+
+def _slack_channel_id_from_permalink(slack_thread_url: str) -> str:
+    match = re.search(r"/archives/([A-Z0-9]+)/", slack_thread_url or "")
+    return match.group(1) if match else ""
+
+
+def _event_aa_channel_id() -> str:
+    value = (os.environ.get("PSM_OPS_AA_CHANNEL_ID") or "").strip()
+    if not value and os.environ.get("PSM_OPS_JIRA_MODE", "").strip().lower() == "thin_poc":
+        return THIN_POC_AA_CHANNEL_ID
+    return value
+
+
+def _is_event_aa_thread(slack_thread_url: str) -> bool:
+    expected = _event_aa_channel_id()
+    if not expected:
+        return False
+    return _slack_channel_id_from_permalink(slack_thread_url) == expected
+
+
+def _aa_channel_redirect(scope: dict[str, Any], source_label: str) -> dict[str, Any]:
+    """AA-channel turns are ticket-first; ask_c360_customer_context must not answer."""
+    reason = (
+        "AA-channel guard: ask_c360_customer_context is disabled inside the AA channel "
+        "because AA turns are always ticket-first. Call create_ps_wee_intake_ticket now; "
+        "any C360 wiki context can be added as a Slack reply or Jira comment after the "
+        "ticket exists. Even if C360 errors entirely, the AA intake must still create."
+    )
+    central_copy = _post_c360_audit(
+        "c360_aa_channel_redirect",
+        scope,
+        blocked_reason=reason,
+        source_label=source_label,
+    )
+    answer = {"status": "aa_channel_redirect", "message": reason}
+    if central_copy is not None:
+        answer["central_copy"] = central_copy
+    return {
+        "answer": answer,
+        "source": source_label,
+        "scope": scope,
+        "confidence": "blocked",
+        "caveat": reason,
+        "aa_channel_redirect": True,
+    }
 
 
 def _blocked(message: str, scope: dict[str, Any]) -> dict[str, Any]:
@@ -461,6 +508,11 @@ def ask_c360_customer_context(customer_key: str, question: str, slack_thread_url
         "question_chars": len(normalized_question),
         "slack_thread_url": (slack_thread_url or "").strip(),
     }
+    if _is_event_aa_thread(scope["slack_thread_url"]):
+        return _aa_channel_redirect(
+            scope,
+            source_label=f"Customer 360 /api/companies/{key}/ask",
+        )
     if not key:
         return _blocked("Customer key is required.", scope)
     if not normalized_question:
