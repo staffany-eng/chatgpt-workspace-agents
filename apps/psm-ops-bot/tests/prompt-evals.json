@@ -712,9 +712,9 @@
             ]
           },
           {
-            "path": "skills/psm-ops-bot/SKILL.md",
+            "path": "skills/psm-ops-bot/workflows/aa-intake.md",
             "must_contain": [
-              "Event AA photo follow-up skip signal",
+              "Photo follow-up — skip signal",
               "no_follow_up_signal_detected"
             ]
           }
@@ -778,9 +778,9 @@
             ]
           },
           {
-            "path": "skills/psm-ops-bot/SKILL.md",
+            "path": "skills/psm-ops-bot/workflows/aa-intake.md",
             "must_contain": [
-              "Event AA C360 redirect hint",
+              "C360 redirect hint",
               "aa_channel_redirect"
             ]
           }
@@ -844,7 +844,7 @@
             ]
           },
           {
-            "path": "skills/psm-ops-bot/SKILL.md",
+            "path": "skills/psm-ops-bot/workflows/aa-intake.md",
             "must_contain": [
               "multi-match",
               "triage handles disambiguation after the ticket exists"
@@ -911,9 +911,9 @@
             ]
           },
           {
-            "path": "skills/psm-ops-bot/SKILL.md",
+            "path": "skills/psm-ops-bot/workflows/aa-intake.md",
             "must_contain": [
-              "Do not call `ask_c360_customer_context` inside the AA channel"
+              "Do not call `ask_c360_customer_context` in AA flows"
             ]
           }
         ]
@@ -970,10 +970,10 @@
       "assertions": {
         "source_files": [
           {
-            "path": "skills/psm-ops-bot/SKILL.md",
+            "path": "skills/psm-ops-bot/workflows/aa-intake.md",
             "must_contain": [
-              "Perceived message intent is never a reason to block.",
-              "every AA-channel trigger message is, by definition, a ticket ask"
+              "Perceived message intent is never a reason to block",
+              "AA-channel trigger message is, by definition, a ticket ask"
             ]
           }
         ]
@@ -1024,9 +1024,9 @@
       "assertions": {
         "source_files": [
           {
-            "path": "skills/psm-ops-bot/SKILL.md",
+            "path": "skills/psm-ops-bot/workflows/aa-intake.md",
             "must_contain": [
-              "Perceived message intent is never a reason to block."
+              "Perceived message intent is never a reason to block"
             ]
           }
         ]
@@ -1079,9 +1079,9 @@
       "assertions": {
         "source_files": [
           {
-            "path": "skills/psm-ops-bot/SKILL.md",
+            "path": "skills/psm-ops-bot/workflows/aa-intake.md",
             "must_contain": [
-              "Never pass `due_date` on AA-channel intakes",
+              "AA intakes must never carry a Jira `duedate`",
               "MCP defensively strips any `due_date` supplied on AA creates"
             ]
           },
