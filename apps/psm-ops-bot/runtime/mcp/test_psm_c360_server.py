@@ -270,6 +270,108 @@ class PsmC360ServerTest(unittest.TestCase):
         self.assertFalse(result.get("aa_channel_redirect"))
         self.assertEqual(result["confidence"], "verified")
 
+    def test_search_customers_aa_channel_flags_redirect_on_zero_match(self):
+        self.module._http_json = lambda method, path, body=None: {"status": "ok", "search": {"groups": []}}
+        self.module.post_ps_wee_audit = lambda *args, **kwargs: {"ok": True}
+
+        with patch.dict(os.environ, {"PSM_OPS_AA_CHANNEL_ID": "C0B5H2YE5T2"}, clear=False):
+            result = self.module.search_c360_customers(
+                "angela seongong holdings",
+                slack_thread_url="https://staffany.slack.com/archives/C0B5H2YE5T2/p1779264188901099",
+            )
+
+        self.assertTrue(result["missing_mapping"])
+        self.assertTrue(result.get("aa_channel_redirect"))
+        self.assertEqual(result["next_action"], "create_ps_wee_intake_ticket")
+        self.assertEqual(result["confidence"], "needs-check")
+
+    def test_search_customers_aa_channel_flags_redirect_on_multi_match(self):
+        def fake_http(method, path, body=None):
+            return {
+                "status": "ok",
+                "search": {
+                    "groups": [
+                        {"customerKey": "nasty-cookie-1", "companyName": "Nasty Cookie"},
+                        {"customerKey": "nasty-cookie-2", "companyName": "Nasty Cookie Pte Ltd"},
+                    ]
+                },
+            }
+
+        self.module._http_json = fake_http
+        self.module.post_ps_wee_audit = lambda *args, **kwargs: {"ok": True}
+
+        with patch.dict(os.environ, {"PSM_OPS_AA_CHANNEL_ID": "C0B5H2YE5T2"}, clear=False):
+            result = self.module.search_c360_customers(
+                "nasty cookie",
+                slack_thread_url="https://staffany.slack.com/archives/C0B5H2YE5T2/p1779264188901099",
+            )
+
+        self.assertGreaterEqual(result["match_count"], 2)
+        self.assertTrue(result.get("aa_channel_redirect"))
+        self.assertEqual(result["next_action"], "create_ps_wee_intake_ticket")
+
+    def test_search_customers_aa_channel_flags_redirect_on_c360_error(self):
+        def fake_http(method, path, body=None):
+            raise self.module.C360Error("Customer 360 API failed: HTTP 503 upstream")
+
+        self.module._http_json = fake_http
+        self.module.post_ps_wee_audit = lambda *args, **kwargs: {"ok": True}
+
+        with patch.dict(os.environ, {"PSM_OPS_AA_CHANNEL_ID": "C0B5H2YE5T2"}, clear=False):
+            result = self.module.search_c360_customers(
+                "nasty cookie",
+                slack_thread_url="https://staffany.slack.com/archives/C0B5H2YE5T2/p1779264188901099",
+            )
+
+        self.assertTrue(result.get("aa_channel_redirect"))
+        self.assertEqual(result["confidence"], "needs-check")
+        self.assertEqual(result["answer"], [])
+        self.assertIn("create_ps_wee_intake_ticket", result["caveat"])
+
+    def test_search_customers_non_aa_zero_match_does_not_flag_redirect(self):
+        self.module._http_json = lambda method, path, body=None: {"status": "ok", "search": {"groups": []}}
+        self.module.post_ps_wee_audit = lambda *args, **kwargs: {"ok": True}
+
+        result = self.module.search_c360_customers(
+            "unknown company",
+            slack_thread_url="https://staffany.slack.com/archives/C0B2VT50YT1/p1779264188901099",
+        )
+
+        self.assertTrue(result["missing_mapping"])
+        self.assertFalse(result.get("aa_channel_redirect"))
+
+    def test_get_account_context_aa_channel_flags_redirect_on_error(self):
+        def fake_http(method, path, body=None):
+            raise self.module.C360Error("Customer 360 API failed: HTTP 500")
+
+        self.module._http_json = fake_http
+        self.module.post_ps_wee_audit = lambda *args, **kwargs: {"ok": True}
+
+        with patch.dict(os.environ, {"PSM_OPS_AA_CHANNEL_ID": "C0B5H2YE5T2"}, clear=False):
+            result = self.module.get_c360_account_context(
+                "tionghoe-group",
+                slack_thread_url="https://staffany.slack.com/archives/C0B5H2YE5T2/p1779264188901099",
+            )
+
+        self.assertTrue(result.get("aa_channel_redirect"))
+        self.assertEqual(result["confidence"], "needs-check")
+        self.assertEqual(result["next_action"], "create_ps_wee_intake_ticket")
+
+    def test_get_account_context_non_aa_error_returns_blocked_as_before(self):
+        def fake_http(method, path, body=None):
+            raise self.module.C360Error("Customer 360 API failed: HTTP 500")
+
+        self.module._http_json = fake_http
+        self.module.post_ps_wee_audit = lambda *args, **kwargs: {"ok": True}
+
+        result = self.module.get_c360_account_context(
+            "tionghoe-group",
+            slack_thread_url="https://staffany.slack.com/archives/C0B2VT50YT1/p1779264188901099",
+        )
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertFalse(result.get("aa_channel_redirect"))
+
 
 if __name__ == "__main__":
     unittest.main()

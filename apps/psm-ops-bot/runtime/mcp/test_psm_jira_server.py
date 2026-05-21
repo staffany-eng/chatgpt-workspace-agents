@@ -3962,6 +3962,337 @@ class PsmJiraServerTest(unittest.TestCase):
 
         self.assertIn("PSM_OPS_TIMEZONE", str(raised.exception))
 
+    def test_classify_no_follow_up_intent_returns_classifier_decision(self):
+        captured = []
+
+        def fake_call(model, system, user_text, tools, tool_name, max_tokens=256):
+            captured.append({
+                "model": model,
+                "system": system,
+                "user_text": user_text,
+                "tools": tools,
+                "tool_name": tool_name,
+            })
+            return {"skip_photo_follow_up": True, "reason": "Message explicitly says 'no follow up needed'."}
+
+        self.module._call_anthropic_messages = fake_call
+
+        skip, reason = self.module._classify_no_follow_up_intent(
+            "Met Andre. No follow up needed, just a photo for the record."
+        )
+
+        self.assertTrue(skip)
+        self.assertIn("no follow up", reason.lower())
+        self.assertEqual(len(captured), 1)
+        self.assertEqual(captured[0]["model"], self.module.NO_FOLLOW_UP_CLASSIFIER_MODEL)
+        self.assertEqual(captured[0]["tool_name"], "report_no_follow_up_intent")
+
+    def test_classify_no_follow_up_intent_returns_false_for_negative_decision(self):
+        self.module._call_anthropic_messages = lambda *a, **kw: {
+            "skip_photo_follow_up": False,
+            "reason": "Message has an actionable bullet about expansion.",
+        }
+
+        skip, reason = self.module._classify_no_follow_up_intent(
+            "Met Andre. Want to expand to more outlets, photo attached."
+        )
+
+        self.assertFalse(skip)
+        self.assertIn("actionable", reason.lower())
+
+    def test_classify_no_follow_up_intent_empty_text_returns_false_without_calling_api(self):
+        def boom(*args, **kwargs):
+            self.fail("API must not be called for empty trigger text")
+
+        self.module._call_anthropic_messages = boom
+
+        skip, reason = self.module._classify_no_follow_up_intent("")
+
+        self.assertFalse(skip)
+        self.assertEqual(reason, "empty trigger text")
+
+    def test_classify_no_follow_up_intent_defaults_to_false_on_api_failure(self):
+        def fail(*args, **kwargs):
+            raise self.module.JiraError("ANTHROPIC_API_KEY is not configured for the LLM classifier.")
+
+        self.module._call_anthropic_messages = fail
+
+        skip, reason = self.module._classify_no_follow_up_intent("anything goes here")
+
+        self.assertFalse(skip)
+        self.assertIn("classifier_unavailable", reason)
+
+    def test_classify_no_follow_up_intent_defaults_to_false_on_unexpected_error(self):
+        def boom(*args, **kwargs):
+            raise RuntimeError("network exploded")
+
+        self.module._call_anthropic_messages = boom
+
+        skip, reason = self.module._classify_no_follow_up_intent("anything")
+
+        self.assertFalse(skip)
+        self.assertIn("classifier_error", reason)
+
+    def test_ps_wee_intake_in_aa_channel_skips_photo_follow_up_when_classifier_says_skip(self):
+        request_calls = []
+        classifier_calls = []
+
+        def fake_request(method, path, body=None):
+            request_calls.append((method, path, deepcopy(body)))
+            if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
+                return {"issues": []}
+            if path == "/rest/servicedeskapi/request":
+                self.fail("photo_follow_up create must be skipped when classifier returns true")
+            return {}
+
+        def fake_slack_json(method, params):
+            if method == "conversations.history":
+                return {
+                    "messages": [
+                        {
+                            "ts": params["oldest"],
+                            "user": "U-PSM",
+                            "text": "Kindly disregard the photo, just for our archive.",
+                            "files": [
+                                {
+                                    "id": "F-img",
+                                    "name": "selfie.jpg",
+                                    "mimetype": "image/jpeg",
+                                    "url_private": "https://files.slack.com/selfie.jpg",
+                                }
+                            ],
+                        }
+                    ]
+                }
+            return {"members": []}
+
+        def fake_classifier(text):
+            classifier_calls.append(text)
+            return True, "Message tells the team to disregard the photo and keep it for archive only."
+
+        audit_calls = []
+
+        self.module._request_json = fake_request
+        self.module._request_slack_json = fake_slack_json
+        self.module._classify_no_follow_up_intent = fake_classifier
+        self.module._creator_valid_values = self._mock_creator_options
+        self.module._update_issue_labels = lambda *args, **kwargs: None
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: audit_calls.append((event_type, kwargs)) or {"ok": True}
+        self.module.upload_aa_selfies_detailed = lambda *args, **kwargs: self.fail(
+            "Drive upload must not run when photo_follow_up is skipped server-side."
+        )
+        self.module._attach_image_files_to_issue = lambda *args, **kwargs: self.fail(
+            "Jira attach must not run when no ticket was created."
+        )
+
+        result = self.module.create_ps_wee_intake_ticket(
+            slack_user_email="psm@staffany.com",
+            slack_thread_url="https://staffany.slack.com/archives/C0B5H2YE5T2/p1779264818954259",
+            customer="Andre Cafe",
+            issue_summary="photo follow up",
+            request_type_key="photo_follow_up",
+            pic="Andre",
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["answer"]["status"], "skipped")
+        self.assertEqual(result["answer"]["reason"], "no_follow_up_signal_detected")
+        self.assertEqual(result["answer"]["skipped_request_type"], "photo_follow_up")
+        self.assertIn("disregard", result["answer"]["classifier_reason"].lower())
+        # Classifier consulted with the trigger text (proves fuzzy detection drove the skip,
+        # not any hardcoded phrase — the message has no regex-friendly cue).
+        self.assertEqual(len(classifier_calls), 1)
+        self.assertIn("disregard", classifier_calls[0].lower())
+        # No Jira write — we returned before touching Jira.
+        self.assertEqual(request_calls, [])
+        self.assertTrue(any(event == "photo_follow_up_skipped" for event, _ in audit_calls))
+
+    def test_ps_wee_intake_in_aa_channel_creates_photo_follow_up_when_classifier_says_no_skip(self):
+        request_calls = []
+
+        def fake_request(method, path, body=None):
+            request_calls.append((method, path, deepcopy(body)))
+            if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
+                return {"issues": []}
+            if path == "/rest/servicedeskapi/request":
+                return {"issueKey": "PCO-127", "requestTypeId": "127"}
+            if path.endswith("/comment"):
+                return {"id": "comment-127"}
+            return {}
+
+        def fake_slack_json(method, params):
+            if method == "conversations.history":
+                return {
+                    "messages": [
+                        {
+                            "ts": params["oldest"],
+                            "user": "U-PSM",
+                            "text": "Met Andre at the AA. Looks promising, want to schedule a deep dive.",
+                            "files": [
+                                {
+                                    "id": "F-img",
+                                    "name": "selfie.jpg",
+                                    "mimetype": "image/jpeg",
+                                    "url_private": "https://files.slack.com/selfie.jpg",
+                                }
+                            ],
+                        }
+                    ]
+                }
+            return {"members": []}
+
+        self.module._request_json = fake_request
+        self.module._request_slack_json = fake_slack_json
+        self.module._classify_no_follow_up_intent = lambda text: (False, "Has an actionable follow-up bullet.")
+        self.module._creator_valid_values = self._mock_creator_options
+        self.module._update_issue_labels = lambda *args, **kwargs: None
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: {"ok": True}
+        self.module._download_slack_file = lambda url: b"binary-image-data"
+        self.module._attach_image_files_to_issue = lambda issue_key, files: [
+            {"id": "att-1", "filename": files[0]["name"]}
+        ]
+        self.module.upload_aa_selfies_detailed = lambda images, company, pic: {
+            "uploaded": [{"drive_file_id": "d-1", "name": "andre.jpg", "web_view_link": "https://drive/x"}],
+            "drive_status": "ok",
+            "drive_reason": "",
+            "failure_count": 0,
+            "last_error": "",
+        }
+
+        result = self.module.create_ps_wee_intake_ticket(
+            slack_user_email="psm@staffany.com",
+            slack_thread_url="https://staffany.slack.com/archives/C0B5H2YE5T2/p1779264818954260",
+            customer="Andre Cafe",
+            issue_summary="photo follow up",
+            request_type_key="photo_follow_up",
+            pic="Andre",
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        # Ticket was created (no skip payload).
+        self.assertNotEqual(result["answer"].get("status"), "skipped")
+        create_call = next(c for c in request_calls if c[1] == "/rest/servicedeskapi/request")
+        self.assertEqual(create_call[2]["requestTypeId"], "127")
+
+    def test_ps_wee_intake_in_aa_channel_creates_photo_follow_up_when_classifier_unavailable(self):
+        request_calls = []
+
+        def fake_request(method, path, body=None):
+            request_calls.append((method, path, deepcopy(body)))
+            if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
+                return {"issues": []}
+            if path == "/rest/servicedeskapi/request":
+                return {"issueKey": "PCO-127", "requestTypeId": "127"}
+            if path.endswith("/comment"):
+                return {"id": "comment-127"}
+            return {}
+
+        def fake_slack_json(method, params):
+            if method == "conversations.history":
+                return {
+                    "messages": [
+                        {
+                            "ts": params["oldest"],
+                            "user": "U-PSM",
+                            "text": "No follow up needed, just sending the photo for the record.",
+                            "files": [
+                                {
+                                    "id": "F-img",
+                                    "name": "selfie.jpg",
+                                    "mimetype": "image/jpeg",
+                                    "url_private": "https://files.slack.com/selfie.jpg",
+                                }
+                            ],
+                        }
+                    ]
+                }
+            return {"members": []}
+
+        # Simulate the classifier being unavailable (missing API key, network down, etc.).
+        def unavailable(*args, **kwargs):
+            raise self.module.JiraError("ANTHROPIC_API_KEY is not configured for the LLM classifier.")
+        self.module._call_anthropic_messages = unavailable
+        self.module._request_json = fake_request
+        self.module._request_slack_json = fake_slack_json
+        self.module._creator_valid_values = self._mock_creator_options
+        self.module._update_issue_labels = lambda *args, **kwargs: None
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: {"ok": True}
+        self.module._download_slack_file = lambda url: b"img"
+        self.module._attach_image_files_to_issue = lambda issue_key, files: [
+            {"id": "att-1", "filename": files[0]["name"]}
+        ]
+        self.module.upload_aa_selfies_detailed = lambda images, company, pic: {
+            "uploaded": [], "drive_status": "ok", "drive_reason": "", "failure_count": 0, "last_error": "",
+        }
+
+        result = self.module.create_ps_wee_intake_ticket(
+            slack_user_email="psm@staffany.com",
+            slack_thread_url="https://staffany.slack.com/archives/C0B5H2YE5T2/p1779264818954262",
+            customer="Andre Cafe",
+            issue_summary="photo follow up",
+            request_type_key="photo_follow_up",
+            pic="Andre",
+        )
+
+        # Classifier unavailable → default to NOT skip → ticket still creates.
+        # This is the load-bearing safety guarantee: LLM downtime cannot silently
+        # drop a real follow-up.
+        self.assertEqual(result["confidence"], "verified")
+        self.assertNotEqual(result["answer"].get("status"), "skipped")
+        create_call = next(c for c in request_calls if c[1] == "/rest/servicedeskapi/request")
+        self.assertEqual(create_call[2]["requestTypeId"], "127")
+
+    def test_ps_wee_intake_non_photo_request_type_in_aa_does_not_call_classifier(self):
+        request_calls = []
+
+        def fake_request(method, path, body=None):
+            request_calls.append((method, path, deepcopy(body)))
+            if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
+                return {"issues": []}
+            if path == "/rest/servicedeskapi/request":
+                return {"issueKey": "PCO-200", "requestTypeId": "120"}
+            if path.endswith("/comment"):
+                return {"id": "c-200"}
+            return {}
+
+        def fake_slack_json(method, params):
+            if method == "conversations.history":
+                return {
+                    "messages": [
+                        {
+                            "ts": params["oldest"],
+                            "user": "U-PSM",
+                            "text": "no follow up needed, just FYI — but want to expand to more outlets.",
+                            "files": [],
+                        }
+                    ]
+                }
+            return {"members": []}
+
+        # Classifier MUST NOT be called for non-photo request types — the skip rule
+        # is scoped to photo_follow_up only, so other types don't pay the LLM cost.
+        def boom(*args, **kwargs):
+            self.fail("Classifier must not be called for non-photo request types")
+        self.module._classify_no_follow_up_intent = boom
+        self.module._request_json = fake_request
+        self.module._request_slack_json = fake_slack_json
+        self.module._creator_valid_values = self._mock_creator_options
+        self.module._update_issue_labels = lambda *args, **kwargs: None
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: {"ok": True}
+
+        result = self.module.create_ps_wee_intake_ticket(
+            slack_user_email="psm@staffany.com",
+            slack_thread_url="https://staffany.slack.com/archives/C0B5H2YE5T2/p1779264818954261",
+            customer="Andre Cafe",
+            issue_summary="want to expand more outlets",
+            request_type_key="rev_cross_sell",
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertNotEqual(result["answer"].get("status"), "skipped")
+        create_call = next(c for c in request_calls if c[1] == "/rest/servicedeskapi/request")
+        self.assertEqual(create_call[2]["requestTypeId"], "120")
+
     def test_thin_poc_reminder_uses_due_date_without_custom_field(self):
         with patch.dict(
             os.environ,

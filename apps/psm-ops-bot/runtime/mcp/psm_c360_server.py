@@ -136,6 +136,29 @@ def _is_event_aa_thread(slack_thread_url: str) -> bool:
     return _slack_channel_id_from_permalink(slack_thread_url) == expected
 
 
+def _aa_channel_redirect_hint(scope: dict[str, Any]) -> dict[str, Any]:
+    """Structured hint embedded on read-only C360 responses inside the AA channel.
+
+    Used by ``search_c360_customers`` and ``get_c360_account_context`` to flag
+    misses or errors as "do not disambiguate in Slack; proceed to ticket create
+    with the bare customer name and omit staffany_orgs". Agents have leaked
+    non-AA disambiguation phrasing on these tools when the AA-channel rule said
+    to ticket first regardless.
+    """
+
+    return {
+        "aa_channel_redirect": True,
+        "next_action": "create_ps_wee_intake_ticket",
+        "guidance": (
+            "AA-channel guard: C360 lookup did not return a usable match. Proceed to "
+            "create_ps_wee_intake_ticket with the bare customer name as written in Slack "
+            "and omit staffany_orgs. Do not ask the user to confirm the company name; "
+            "triage owns disambiguation after the ticket exists."
+        ),
+        "slack_thread_url": scope.get("slack_thread_url", ""),
+    }
+
+
 def _aa_channel_redirect(scope: dict[str, Any], source_label: str) -> dict[str, Any]:
     """AA-channel turns are ticket-first; ask_c360_customer_context must not answer."""
     reason = (
@@ -421,8 +444,12 @@ def search_c360_customers(query: str, limit: int = 8, slack_thread_url: str = ""
         "searched_variants": searched_variants,
         "slack_thread_url": (slack_thread_url or "").strip(),
     }
+    is_aa = _is_event_aa_thread(scope["slack_thread_url"])
     if not normalized_query:
-        return _blocked("Customer search query is required.", scope)
+        result = _blocked("Customer search query is required.", scope)
+        if is_aa:
+            result.update(_aa_channel_redirect_hint(scope))
+        return result
 
     try:
         groups = []
@@ -431,6 +458,26 @@ def search_c360_customers(query: str, limit: int = 8, slack_thread_url: str = ""
             payload = _http_json("GET", f"/api/companies?{encoded}")
             groups.extend(_extract_c360_groups(payload))
     except C360Error as error:
+        if is_aa:
+            # AA-channel guard: a C360 error must not block the ticket flow.
+            # Downgrade blocked → needs-check and surface the redirect hint so
+            # the agent proceeds to create_ps_wee_intake_ticket with the bare
+            # customer name and no staffany_orgs.
+            redirect = _aa_channel_redirect_hint(scope)
+            return {
+                "answer": [],
+                "searched_variants": searched_variants,
+                "match_count": 0,
+                "missing_mapping": True,
+                "source": "Customer 360 /api/companies",
+                "scope": scope,
+                "confidence": "needs-check",
+                "caveat": (
+                    f"AA-channel guard: C360 search errored ({error}). Proceed to "
+                    "create_ps_wee_intake_ticket without staffany_orgs."
+                ),
+                **redirect,
+            }
         return _blocked(str(error), scope)
 
     groups = _dedupe_c360_groups(groups)
@@ -458,6 +505,11 @@ def search_c360_customers(query: str, limit: int = 8, slack_thread_url: str = ""
     }
     if central_copy is not None:
         result["central_copy"] = central_copy
+    # AA-channel guard: zero-match and multi-match are both "do not disambiguate
+    # in Slack; ticket first" inside AA. Multi-match is flagged when groups exceed
+    # one entity and there is no obvious tiebreaker (no exact-name single match).
+    if is_aa and (missing_mapping or len(groups) > 1):
+        result.update(_aa_channel_redirect_hint(scope))
     return result
 
 
@@ -468,14 +520,31 @@ def get_c360_account_context(customer_key: str, format: str = "markdown", slack_
     key = (customer_key or "").strip()
     output_format = "json" if str(format).lower() == "json" else "markdown"
     scope = {"customer_key": key, "format": output_format, "slack_thread_url": (slack_thread_url or "").strip()}
+    is_aa = _is_event_aa_thread(scope["slack_thread_url"])
     if not key:
-        return _blocked("Customer key is required.", scope)
+        result = _blocked("Customer key is required.", scope)
+        if is_aa:
+            result.update(_aa_channel_redirect_hint(scope))
+        return result
 
     try:
         encoded_key = urllib.parse.quote(key, safe="")
         query = "?format=markdown" if output_format == "markdown" else ""
         payload = _http_json("GET", f"/api/companies/{encoded_key}/context{query}")
     except C360Error as error:
+        if is_aa:
+            redirect = _aa_channel_redirect_hint(scope)
+            return {
+                "answer": {},
+                "source": f"Customer 360 /api/companies/{key}/context",
+                "scope": scope,
+                "confidence": "needs-check",
+                "caveat": (
+                    f"AA-channel guard: C360 account context errored ({error}). Proceed "
+                    "to create_ps_wee_intake_ticket without staffany_orgs."
+                ),
+                **redirect,
+            }
         return _blocked(str(error), scope)
 
     answer = payload.get("data", payload) if isinstance(payload, dict) else payload
