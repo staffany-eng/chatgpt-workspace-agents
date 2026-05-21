@@ -3684,8 +3684,16 @@ def create_ps_wee_intake_ticket(
                         "event": "AA",
                     },
                 )
-            except Exception:  # noqa: BLE001 — audit failures must not block skip.
-                pass
+            except Exception as error:  # noqa: BLE001 — audit failures must not block skip.
+                # Surface the failure so incident review can distinguish an
+                # intentional classifier skip from a lost central-audit copy.
+                print(
+                    f"[psm-ops-bot] photo_follow_up_skipped audit failed: {error} "
+                    f"(thread={source}, customer={skip_scope['customer']})",
+                    file=sys.stderr,
+                )
+                skip_answer["audit_error"] = str(error)
+                skip_scope["audit_error"] = str(error)
             return {
                 "answer": skip_answer,
                 "source": "Jira PCO",

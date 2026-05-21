@@ -906,7 +906,7 @@
           {
             "path": "runtime/mcp/psm_c360_server.py",
             "must_contain": [
-              "def _aa_channel_redirect",
+              "def _aa_channel_redirect_hint",
               "ask_c360_customer_context is disabled inside the AA channel"
             ]
           },
