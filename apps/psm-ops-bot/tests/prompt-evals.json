@@ -920,6 +920,181 @@
       }
     },
     {
+      "id": "psm-tooltrace-aa-q3-followup-note-still-creates",
+      "bot": "PSM Ops Hermes Bot",
+      "surface": "slack:#event-aa",
+      "lane": "tool-trace",
+      "input": "@PS Wee Manager Met laarni from awfully chocolate, going to do a Q3 followup",
+      "setup": {
+        "after_user_request": true,
+        "stub_tools": true,
+        "slack_thread_permalink": "https://staffany.slack.com/archives/C0B5H2YE5T2/p1779252562029414"
+      },
+      "expected_tool_trace": {
+        "must_call": [
+          "find_ticket_by_slack_thread",
+          "create_ps_wee_intake_ticket"
+        ],
+        "must_not_call": [
+          "draft_pco_task",
+          "create_approved_pco_task",
+          "search_pco_tickets"
+        ],
+        "argument_shape": {
+          "slack_thread_permalink": "required",
+          "request_type_key_in": [
+            "ps_follow_up",
+            "feedback"
+          ],
+          "customer": "awfully chocolate",
+          "pic": "laarni"
+        }
+      },
+      "expected_answer_contract": {
+        "must_include": [
+          "Source: Jira PCO",
+          "Confidence:"
+        ],
+        "must_not_include": [
+          "No existing PCO ticket",
+          "Reply \"create ticket\" to open the PS WEE intake ticket.",
+          "A few quick questions"
+        ]
+      },
+      "forbidden_behavior": [
+        "use the create-ready-offer flow inside the AA channel",
+        "ask Reply 'create ticket' in the AA channel",
+        "treat a Q3-followup note as needing confirmation before ticketing"
+      ],
+      "grade_notes": "AA-channel turns are always ticket-first regardless of the wording. A Q3-followup note is a ticket ask by virtue of being tagged in the AA channel. Guard: line-113 positive rule 'Perceived message intent is never a reason to block.' Retires SKILL.md anti-example (b).",
+      "assertions": {
+        "source_files": [
+          {
+            "path": "skills/psm-ops-bot/SKILL.md",
+            "must_contain": [
+              "Perceived message intent is never a reason to block.",
+              "every AA-channel trigger message is, by definition, a ticket ask"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "psm-tooltrace-aa-field-update-note-still-creates",
+      "bot": "PSM Ops Hermes Bot",
+      "surface": "slack:#event-aa",
+      "lane": "tool-trace",
+      "input": "@PS Wee Manager Dandy Collection / Rohit — updating HR contact for them, flagged a payroll export concern",
+      "setup": {
+        "after_user_request": true,
+        "stub_tools": true,
+        "slack_thread_permalink": "https://staffany.slack.com/archives/C0B5H2YE5T2/p1779252562029415"
+      },
+      "expected_tool_trace": {
+        "must_call": [
+          "find_ticket_by_slack_thread",
+          "create_ps_wee_intake_ticket"
+        ],
+        "must_not_call": [
+          "draft_pco_task",
+          "create_approved_pco_task"
+        ],
+        "argument_shape": {
+          "slack_thread_permalink": "required",
+          "customer": "Dandy Collection",
+          "pic": "Rohit"
+        }
+      },
+      "expected_answer_contract": {
+        "must_include": [
+          "Source: Jira PCO",
+          "Confidence:"
+        ],
+        "must_not_include": [
+          "field-update note",
+          "not an explicit ticket creation request",
+          "No ticket was created"
+        ]
+      },
+      "forbidden_behavior": [
+        "skip the create because the message reads like an FYI/status/field-update",
+        "use intent-judgment as a reason to block inside the AA channel"
+      ],
+      "grade_notes": "Intent-judgment is not a valid skip reason inside the AA channel. Guard: line-113 positive rule 'Perceived message intent is never a reason to block.' Retires SKILL.md anti-example (e).",
+      "assertions": {
+        "source_files": [
+          {
+            "path": "skills/psm-ops-bot/SKILL.md",
+            "must_contain": [
+              "Perceived message intent is never a reason to block."
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "psm-tooltrace-aa-past-due-date-phrase-not-passed",
+      "bot": "PSM Ops Hermes Bot",
+      "surface": "slack:#event-aa",
+      "lane": "tool-trace",
+      "input": "@PS Wee Manager agnes to roxanne. Hr changing 2 june playmade",
+      "setup": {
+        "after_user_request": true,
+        "stub_tools": true,
+        "slack_thread_permalink": "https://staffany.slack.com/archives/C0B5H2YE5T2/p1779252562029416"
+      },
+      "expected_tool_trace": {
+        "must_call": [
+          "find_ticket_by_slack_thread",
+          "create_ps_wee_intake_ticket"
+        ],
+        "must_not_call": [
+          "draft_pco_task",
+          "create_approved_pco_task"
+        ],
+        "argument_shape": {
+          "slack_thread_permalink": "required",
+          "customer": "playmade",
+          "due_date_not_passed": true,
+          "known_details_contains_date_phrase": true
+        }
+      },
+      "expected_answer_contract": {
+        "must_include": [
+          "Source: Jira PCO",
+          "Confidence:"
+        ],
+        "must_not_include": [
+          "Blocked on due date",
+          "is in the past",
+          "please confirm 2 June"
+        ]
+      },
+      "forbidden_behavior": [
+        "pass due_date on an AA-channel intake",
+        "block on a past-date phrase parsed from the message body",
+        "treat date phrases in AA messages as Jira deadlines"
+      ],
+      "grade_notes": "AA intakes never carry a Jira duedate. Date phrases stay in known_details as context. Guard: MCP defensively strips due_date on AA creates (line 133 of SKILL.md). Retires SKILL.md anti-example (f).",
+      "assertions": {
+        "source_files": [
+          {
+            "path": "skills/psm-ops-bot/SKILL.md",
+            "must_contain": [
+              "Never pass `due_date` on AA-channel intakes",
+              "MCP defensively strips any `due_date` supplied on AA creates"
+            ]
+          },
+          {
+            "path": "runtime/mcp/psm_jira_server.py",
+            "must_contain": [
+              "due_date"
+            ]
+          }
+        ]
+      }
+    },
+    {
       "id": "psm-live-smoke-ticket-first-intake",
       "bot": "PSM Ops Hermes Bot",
       "surface": "slack:#ps-weeman-bot-test",
