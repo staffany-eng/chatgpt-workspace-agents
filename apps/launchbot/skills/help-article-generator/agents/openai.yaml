@@ -1,0 +1,4 @@
+interface:
+  display_name: "Help Article Generator"
+  short_description: "Draft help articles from Pantheon feature evidence"
+  default_prompt: "Use $help-article-generator to extract feature/settings evidence from Pantheon and draft a Help Center article for the requested feature."
