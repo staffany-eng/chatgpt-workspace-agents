@@ -1,11 +1,11 @@
 ---
 name: help-article-generator
-description: Creates or updates StaffAny help articles with code-grounded accuracy, consistent formatting, and docx-ready output. Use when the user needs a new help article, an update suggestion across existing help center articles, or a review-ready draft with structured headings, lists, and FAQ.
+description: Creates or updates StaffAny help articles with Pantheon-grounded feature evidence, StaffAny Help Center structure, Google Docs-ready exports, and Launchbot Intercom staging gates. Use when the user needs a new help article, an update suggestion across existing help center articles, or a review-ready draft with structured headings, lists, and FAQ.
 ---
 
 # Help Article Generator
 
-Use this skill to produce help articles in a repeatable format that is ready for internal review and Google Docs editing.
+Use this skill to produce help articles in a repeatable format that is ready for internal review, Google Docs editing, and Launchbot's existing Intercom staging workflow.
 
 ## Inputs
 
@@ -19,6 +19,7 @@ Use this skill to produce help articles in a repeatable format that is ready for
   - PRD
   - Repo hint (`pantheon` / `manticore`)
   - Existing help center context
+  - Audience, country, plan/tier, platform, tone, or terminology preferences
 
 ## Intake Workflow
 
@@ -78,6 +79,32 @@ Use this skill to produce help articles in a repeatable format that is ready for
 7. Use only verified Pantheon behavior in the article body.
 8. If Pantheon is missing, dirty, ambiguous, stale, or conflicts with Jira/PRD/Intercom, mark the draft `needs-check` and do not stage it for Intercom.
 9. Keep assumptions explicit outside the publishable article body when evidence is incomplete.
+
+## Article Generation Assets
+
+- Use `templates/help-article-template.md` as the base article shape for new drafts.
+- Read `references/staffany-help-center-style.md` before drafting. Treat it as style guidance only; Pantheon code and explicit user requirements remain the authority for product behavior.
+- Use `scripts/feature_context.sh` to build a local code context pack when the Launchbot npm evidence scanner is unavailable or when a focused feature scan is useful:
+
+```bash
+bash apps/launchbot/skills/help-article-generator/scripts/feature_context.sh \
+  --feature "<feature>" \
+  --repo "$LAUNCH_PANTHEON_REPO" \
+  --max 80
+```
+
+- Optional deep scan:
+
+```bash
+ENABLE_BACKEND_SCAN=1 ENABLE_HELP_REF_SCAN=1 \
+bash apps/launchbot/skills/help-article-generator/scripts/feature_context.sh \
+  --feature "<feature>" \
+  --repo "$LAUNCH_PANTHEON_REPO" \
+  --max 80
+```
+
+- Use `scripts/export_help_article.sh` only after internal evidence notes are removed from the publishable body. It can create Google Docs copy formats and optional `.docx` output.
+- Use `scripts/publish_help_article_gdocs.sh` only when the user explicitly wants a Google Doc and valid Google credentials are available. Never commit OAuth credentials or token caches.
 
 ## Launchbot Planning Rules
 
@@ -213,20 +240,22 @@ Follow this exact high-level order:
   - `Product: PayrollAny`
   - `Platform: Web`
   - `Access Level: Owner`
-- After generating the draft, ask the user: `Are Product: PayrollAny, Platform: Web, and Access Level: Owner correct for this article?`
+- Continue with draft generation, review artifacts, and staging without pausing only to validate these default applicability values, unless the user flags them as uncertain or asks to review them.
 - Add a quick explanation of the feature before the guide outline.
 - The outline under `This guide will cover how to:` must list every section header in article order.
 - Section headers must start with a simple present-tense verb + noun. Order sections from setting up or explaining the feature first, then using or managing it.
 - Each section must use numbered user steps. Start with where the user goes in StaffAny, for example `Go to Settings > Payroll > ...`.
 - Keep step text simple present tense, verb + noun where practical. Use feature conditions inside the relevant section steps instead of separating them into unrelated notes.
 - Use the StaffAny help center references for structure: `Create and Manage Disbursement` for the new PayrollAny article pattern, and `Create and Manage Leave Types` for setup, edit, delete, recalculation, and condition examples.
+- Use `references/staffany-help-center-style.md` for current StaffAny Help Center conventions. The style reference must not override code evidence or explicit user requirements.
+- Insert screenshots, videos, or tables immediately after the step they support when assets are available. When screenshots are not available, use screenshot placeholders only where a reviewer can realistically supply the asset.
 
 ## Output Requirements
 
 1. Show draft text in-chat first.
-2. Ask whether `Product: PayrollAny`, `Platform: Web`, and `Access Level: Owner` are correct for the article.
-3. Generate `.docx` output for review.
-4. Ensure `.docx` preserves:
+2. Include "Evidence Used" notes and "Gaps/Assumptions" notes outside the public article body.
+3. Generate Google Docs copy artifacts or `.docx` output when the user or Launchbot flow asks for review artifacts.
+4. Ensure generated review artifacts preserve:
    - title/heading hierarchy
    - bold text
    - centered audience block
