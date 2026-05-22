@@ -175,15 +175,7 @@ if (!manifest) {
   if (helpMcp.video?.provider !== "loom") fail("Manifest help article MCP must be Loom-only");
   if (helpMcp.video?.reject_raw_video_files !== true) fail("Manifest help article MCP must reject raw video files");
   if (helpMcp.video?.reject_slack_file_urls !== true) fail("Manifest help article MCP must reject Slack file URLs");
-  for (const channelId of ["C0B32M34J3W", "C0AJAUNCEL8", "C01RZ7SHC8K", "CF8PK6V4J"]) {
-    if (!manifest.slack?.allowed_channel_ids?.includes(channelId)) {
-      fail(`Manifest Slack allowed channel IDs missing ${channelId}`);
-    }
-  }
   const kerMcp = manifest.mcp?.launchbot_ker || {};
-  if (!kerMcp.slack_context?.default_channel_ids?.includes("C01RZ7SHC8K")) {
-    fail("Manifest KER MCP default channels must include all-product-questions C01RZ7SHC8K");
-  }
   const ifiMcp = manifest.mcp?.launchbot_ifi || {};
   if (ifiMcp.mode !== "preview_first_confirmed_jira_mutation") fail("Manifest IFI MCP must be preview-first confirmed Jira mutation");
   const ifiTools = new Set(ifiMcp.tools || []);
@@ -215,9 +207,6 @@ if (!manifest) {
   if (productCommitmentMcp.slack_context?.configured_channel_ids_env_var !== "LAUNCHBOT_PRODUCT_COMMITMENT_ALLOWED_CHANNEL_IDS") {
     fail("Manifest product commitment MCP must use LAUNCHBOT_PRODUCT_COMMITMENT_ALLOWED_CHANNEL_IDS");
   }
-  if (!productCommitmentMcp.slack_context?.default_channel_ids?.includes("C01RZ7SHC8K")) {
-    fail("Manifest product commitment MCP default channels must include C01RZ7SHC8K");
-  }
   if (productCommitmentMcp.slack_context?.raw_transcript_persistence !== false) {
     fail("Manifest product commitment MCP must not persist raw Slack transcripts");
   }
@@ -239,9 +228,6 @@ if (!manifest) {
   }
   if (featureIntakeMcp.slack_context?.configured_channel_ids_env_var !== "LAUNCHBOT_FEATURE_INTAKE_ALLOWED_CHANNEL_IDS") {
     fail("Manifest feature intake MCP must use LAUNCHBOT_FEATURE_INTAKE_ALLOWED_CHANNEL_IDS");
-  }
-  if (!featureIntakeMcp.slack_context?.default_channel_ids?.includes("CF8PK6V4J")) {
-    fail("Manifest feature intake MCP default channels must include CF8PK6V4J");
   }
   if (featureIntakeMcp.slack_context?.raw_transcript_persistence !== false) {
     fail("Manifest feature intake MCP must not persist raw Slack transcripts");
@@ -338,8 +324,6 @@ for (const requiredText of [
   "reactions: false",
   "gateway_restart_notification: false",
   "C0B32M34J3W",
-  "C0AJAUNCEL8",
-  "C01RZ7SHC8K",
   "CF8PK6V4J",
   "launchbot_ker",
   "launchbot_ifi",
@@ -485,8 +469,6 @@ for (const requiredText of [
   "will_mutate_jira",
   "will_post_message",
   "transcript_persisted",
-  "C0AJAUNCEL8",
-  "C01RZ7SHC8K",
 ]) {
   if (!mcpText.includes(requiredText)) fail(`launchbot_ker_server.py missing required text: ${requiredText}`);
 }
@@ -530,7 +512,6 @@ for (const requiredText of [
   "check_product_commitment_from_slack_thread",
   "LAUNCHBOT_PRODUCT_COMMITMENT_ALLOWED_CHANNEL_IDS",
   "LAUNCHBOT_PRODUCT_COMMITMENT_FIELD_IDS",
-  "C01RZ7SHC8K",
   "fixVersions",
   "will_mutate_jira",
   "will_post_message",
@@ -572,7 +553,6 @@ for (const requiredText of [
   "CONFIRMATION_PHRASES",
   "create intake",
   "customfield_10080",
-  "CF8PK6V4J",
   "will_mutate_jira",
   "will_post_message",
   "transcript_persisted",

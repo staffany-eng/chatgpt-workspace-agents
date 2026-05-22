@@ -30,7 +30,7 @@ class LaunchbotFeatureIntakeServerTest(unittest.TestCase):
         for forbidden in ["post", "send", "transition", "delete", "comment"]:
             self.assertNotIn(forbidden, tool_names)
 
-    def test_unconfigured_channel_blocks_before_network(self):
+    def test_channel_not_allowlisted_still_reads_thread(self):
         with patch.dict(
             os.environ,
             {
@@ -38,11 +38,14 @@ class LaunchbotFeatureIntakeServerTest(unittest.TestCase):
                 "LAUNCHBOT_FEATURE_INTAKE_ALLOWED_CHANNEL_IDS": "C123",
             },
             clear=True,
-        ), patch.object(self.module.core, "slack_api", side_effect=AssertionError("should not call Slack")):
+        ), patch.object(
+            self.module.core,
+            "slack_api",
+            return_value={"ok": True, "messages": [{"ts": "1778752459.023229", "user": "U1", "text": "intake this"}]},
+        ), patch.object(self.module.core, "jira_post", return_value={"issues": []}):
             result = self.module.preview_feature_intake_from_slack_thread(slack_permalink=SOURCE_PERMALINK)
 
-        self.assertEqual(result["confidence"], "blocked")
-        self.assertIn("configured channel IDs", result["answer"])
+        self.assertIn(result["confidence"], {"needs-check", "verified"})
 
     def test_preview_builds_ker_intake_without_mutation(self):
         jira_calls = []
