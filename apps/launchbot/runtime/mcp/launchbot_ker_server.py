@@ -26,7 +26,7 @@ JIRA_TIMEOUT_SECONDS = 30
 MAX_THREAD_MESSAGES = 20
 MAX_JIRA_RESULTS_PER_QUERY = 10
 MAX_RETURNED_CANDIDATES = 5
-DEFAULT_ALLOWED_CHANNELS = {"C0B32M34J3W", "C0AJAUNCEL8", "C01RZ7SHC8K"}
+DEFAULT_ALLOWED_CHANNELS = set()
 DEFAULT_JIRA_BASE_URL = "https://staffany.atlassian.net"
 KER_RE = re.compile(r"\bKER-\d+\b", re.IGNORECASE)
 USER_AGENT = "StaffAny-Launchbot/1.0 (+https://staffany.com)"
@@ -56,7 +56,7 @@ def _scope(channel_id: str, thread_ts: str, query: str = "") -> dict[str, Any]:
         "will_post_message": False,
         "will_mutate_jira": False,
         "transcript_persisted": False,
-        "configured_channels_only": True,
+        "configured_channels_only": False,
     }
 
 
@@ -451,9 +451,6 @@ def find_ker_ticket_from_slack_thread(
     scope = _scope(channel, thread, query)
     if not channel or not thread:
         return _blocked("channel_id and thread_ts are required, or pass a Slack permalink.", "Launchbot KER Jira MCP", scope)
-    if channel not in _configured_channel_ids():
-        return _blocked("Launchbot KER lookup is restricted to configured channel IDs.", "Launchbot KER Jira MCP", scope)
-
     try:
         messages = _thread_messages(channel, thread, current_message_ts)
     except LaunchbotKerError as error:

@@ -27,7 +27,7 @@ JIRA_TIMEOUT_SECONDS = 30
 MAX_THREAD_MESSAGES = 20
 MAX_JIRA_RESULTS_PER_QUERY = 10
 MAX_RETURNED_CANDIDATES = 5
-DEFAULT_ALLOWED_CHANNELS = {"C0B32M34J3W", "C01RZ7SHC8K"}
+DEFAULT_ALLOWED_CHANNELS = set()
 DEFAULT_JIRA_BASE_URL = "https://staffany.atlassian.net"
 KER_PROJECT_KEY = "KER"
 SLACK_PRD_FIELD_ID = "customfield_10080"
@@ -65,7 +65,7 @@ def _scope(channel_id: str, thread_ts: str, slack_permalink: str = "", query: st
         "will_post_message": False,
         "will_mutate_jira": False,
         "transcript_persisted": False,
-        "configured_channels_only": True,
+        "configured_channels_only": False,
     }
 
 
@@ -612,9 +612,6 @@ def check_product_commitment_from_slack_thread(
     scope = _scope(channel, thread, source_url, query)
     if not channel or not thread:
         return _blocked("channel_id and thread_ts are required, or pass a Slack permalink.", "Launchbot product commitment MCP", scope)
-    if channel not in _configured_channel_ids():
-        return _blocked("Launchbot product commitment checks are restricted to configured channel IDs.", "Launchbot product commitment MCP", scope)
-
     try:
         messages = _thread_messages(channel, thread, current_message_ts)
     except LaunchbotProductCommitmentError as error:
