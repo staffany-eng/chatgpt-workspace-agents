@@ -6,21 +6,20 @@ For first-time environment bootstrap, run setup in `references/jira-setup.md` fi
 
 ## Modes
 
-- `direct-sync`: issue key/link provided; read current ticket context first, then sync final markdown back.
-- `md-only`: no issue key/link yet; produce markdown only and provide a sync command.
+- `direct-sync` (default): issue key/link provided; read current ticket context first, then update Jira in the same run.
+- `md-only` (fallback): no issue key/link yet, Jira credentials unavailable, or user explicitly asks for draft-only mode.
 
 ## Required Fields To Connect Jira
 
 Collect these before direct sync:
 - `issue`: Jira issue key or browse URL (for example `KER-304` or full Jira URL)
 - `mode`: `description` | `comment` | `both`
-- `file`: markdown path to sync (for example `outputs/jira/2026-04-16-ker-304-....md`)
 - Jira credentials availability in local environment:
   - `JIRA_BASE_URL`
   - `JIRA_EMAIL`
   - `JIRA_API_TOKEN`
 
-If Jira is not accessible in-session (no connector/tool exposure or auth-gated browser session), ask for the fields above explicitly and continue with `md-only` until they are provided.
+If Jira is not accessible in-session (no connector/tool exposure or auth-gated browser session), ask for missing fields explicitly and use `md-only` only as fallback.
 
 ## Read Existing Ticket Context
 
@@ -41,7 +40,7 @@ Default behavior is updating the issue description:
 SKILL_DIR="pantheon/apps/grimoire/catalog/shared/staffany-product-delivery-workflow"
 node "$SKILL_DIR/scripts/sync-jira-ticket.mjs" \
   --issue <ISSUE_KEY_OR_URL> \
-  --file outputs/jira/YYYY-MM-DD-short-kebab-title.md \
+  --file /tmp/jira-sync-<ISSUE_KEY>.md \
   --mode description \
   --set-need-product-review 1
 ```

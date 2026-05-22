@@ -21,9 +21,9 @@
 - Keep statements concise and testable.
 
 ## Jira Sync Output Rule
-- If Jira issue key/link is provided, run read/sync via skill-local scripts.
+- If Jira issue key/link is provided and credentials are available, run read/sync via skill-local scripts in the same run.
 - Use `references/jira-sync.md` as canonical source for exact commands, modes, and flags.
-- If no Jira issue is provided (`md-only`), always include explicit sync command in handoff.
+- Use `md-only` output only when Jira write is blocked or user explicitly requests draft-only output.
 
 ## RICE Output Rule (Mandatory For Jira Grooming)
 - Include full factors: Reach, Impact, Confidence, Effort, and computed `RICE Score`.

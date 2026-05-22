@@ -100,8 +100,8 @@ for (const requiredText of [
 
 const skillText = textOf(appRoot, "skills/product-ops-bot/SKILL.md");
 for (const requiredText of [
-  "require explicit `run`",
-  "write actions",
+  "default to direct Jira update",
+  "Do not force plan-output handoff",
   "product-ops-intake-linking",
   "staffany-product-delivery-workflow",
   "Answer:",

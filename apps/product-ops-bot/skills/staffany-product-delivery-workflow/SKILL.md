@@ -1,6 +1,6 @@
 ---
 name: staffany-product-delivery-workflow
-description: StaffAny PM workflow orchestration for Jira grooming, PRD/docs drafting, and frontend/backend implementation handoffs. Use when tasks require triage routing, model-tier enforcement (Triage=Low, PM/Designer=Medium, FE/BE=High), backend-first context checks (Kraken then Gryphon), per-task plan files, and policy-compliant outputs under outputs/.
+description: StaffAny PM workflow orchestration for Jira grooming, PRD/docs drafting, and frontend/backend implementation handoffs. Use when tasks require triage routing, model-tier enforcement (Triage=Low, PM/Designer=Medium, FE/BE=High), backend-first context checks (Kraken then Gryphon), and direct Jira updates when write preconditions are satisfied.
 ---
 
 # StaffAny Product Delivery Workflow
@@ -16,12 +16,11 @@ All required workflow assets for this skill are local to this directory:
 ## Quick Start
 
 1. Read root `AGENTS.md`, then any nested `AGENTS.md` in target subdirectories.
-2. Create or reuse one task plan file in `plans/YYYY-MM-DD-short-task-name.md`.
-3. Fill preflight checks before execution.
+2. Fill preflight checks mentally and only ask follow-up questions when missing context would risk a wrong Jira write.
 4. Run triage routing and record handoff entries with required fields.
 5. Use backend-first source of truth (`pantheon/apps/kraken`), then quick frontend check (`pantheon/apps/gryphon`).
-6. Produce output markdown in `outputs/<type>/` using the mapped template.
-7. Fill completion gate in the plan.
+6. For Jira grooming, update the Jira ticket directly after context + RICE are complete.
+7. Use local markdown output only when Jira write is blocked or user explicitly asks for file output.
 
 For required field-level details, read:
 - `references/workflow-checklist.md`
@@ -62,8 +61,8 @@ Override only when needed. Log reason in the plan.
 
 ## Output Mapping
 
-Map requests to templates and output paths:
-- Jira grooming -> template `references/jira-grooming-template.md` -> `outputs/jira/YYYY-MM-DD-short-kebab-title.md`
+Map requests to templates and destinations:
+- Jira grooming -> template `references/jira-grooming-template.md` -> direct Jira description/comment sync by default
 - PRD writing -> template `references/prd-template.md` -> `outputs/prd/YYYYMMDD - <Title> (PRD).md`
 - Other docs -> `outputs/docs/YYYY-MM-DD-short-kebab-title.md`
 
@@ -108,28 +107,28 @@ When the latest reviewed source is already the Notion page, default to `add-miss
 ## Jira Ticket Connection (Read + Update)
 
 For Jira grooming requests, support both modes:
-- `direct-sync`: Jira issue key/link is provided. Read ticket context first, draft markdown, then sync back to Jira.
-- `md-only`: no issue key yet. Draft markdown only and return explicit sync command for later.
+- `direct-sync` (default): Jira issue key/link is provided and credentials are available. Read ticket context first, then sync directly to Jira in the same run.
+- `md-only` (fallback): use only when Jira access is blocked, issue key is missing, or user explicitly asks for markdown output.
 
 When Jira cannot be accessed directly in-session (for example no Jira connector/tool, auth-gated URL, or missing credentials), explicitly ask for the required fields below before attempting sync:
 - Jira issue key or browse URL (for example `KER-304`).
 - Desired sync mode: `description` | `comment` | `both`.
-- Output markdown file path to sync (default under `outputs/jira/...`).
 - Confirmation that Jira credentials are available in local `.env`:
   - `JIRA_BASE_URL`
   - `JIRA_EMAIL`
   - `JIRA_API_TOKEN`
 
 If any required field is missing:
-- proceed with `md-only` output generation first,
-- then return an explicit command the user can run after providing the missing fields.
+- do not pretend the write happened,
+- continue with best safe read-only guidance,
+- use `md-only` only as fallback.
 
 Use local scripts inside this skill directory:
 - Read ticket context:
   - `node <skill-dir>/scripts/read-jira-ticket.mjs --issue <ISSUE_KEY_OR_URL> --include-comments --max-comments 10`
   - Add `--include-links` to inspect linked items (`IFI-*` evidence extraction).
-- Sync markdown to Jira description:
-  - `node <skill-dir>/scripts/sync-jira-ticket.mjs --issue <ISSUE_KEY_OR_URL> --file outputs/jira/YYYY-MM-DD-short-kebab-title.md --mode description --set-need-product-review 1`
+- Sync grooming content to Jira description:
+  - `node <skill-dir>/scripts/sync-jira-ticket.mjs --issue <ISSUE_KEY_OR_URL> --file <TEMP_MARKDOWN_PATH> --mode description --set-need-product-review 1`
   - This sync script enforces mandatory RICE presence by default and fails fast if missing.
   - Use `--set-need-product-review 0` after manual product acceptance.
   - Override only when intentionally syncing non-grooming content: add `--skip-rice-check`.
@@ -178,7 +177,7 @@ During execution:
 - Do not move to next stage when handoff fields are incomplete.
 
 At completion:
-- List output file paths, source-of-truth files, validation status, and open questions.
+- Report what was updated in Jira (fields/sections), source-of-truth used, validation status, and open questions.
 
 ## Competitor Benchmark Rule
 

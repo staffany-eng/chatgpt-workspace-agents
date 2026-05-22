@@ -29,8 +29,9 @@ Use `staffany-product-delivery-workflow` as a supporting workflow when intake mo
 
 ## Rules
 
-- For non-trivial asks, propose a short execution plan first.
-- require explicit `run` before write actions in external systems.
+- For Jira-ticket updates, default to direct Jira update when issue key + credentials + sufficient context are available.
+- Do not force plan-output handoff for routine Jira grooming updates.
+- Ask follow-up questions only when missing context would risk incorrect ticket updates.
 - Keep outputs concise and operational.
 - Call out blockers early with exact missing dependencies.
 

@@ -4,12 +4,11 @@
 - [ ] `request_type` identified: `product-output` | `frontend` | `backend` | `mixed`
 - [ ] Route confirmed
 - [ ] Model tier per agent recorded
-- [ ] Output path reserved under `outputs/<type>/`
 - [ ] Jira sync mode set for Jira grooming: `direct-sync` | `md-only`
 - [ ] Jira target issue recorded (`ISSUE-123`/URL or `TBD`)
 - [ ] Existing Jira context read first when `direct-sync` is used
 - [ ] Jira existing context reconciliation logged (`what was retained/changed`)
-- [ ] Jira required fields confirmed for direct sync: `issue`, `mode`, `file`, and env vars (`JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN`)
+- [ ] Jira required fields confirmed for direct sync: `issue`, `mode`, and env vars (`JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN`)
 - [ ] Jira setup/bootstrap checked (see `references/jira-setup.md`) when direct sync is used
 - [ ] PRD notion sync mode set when PRD has a target page: `direct-sync` | `full-overwrite` | `md-only`
 - [ ] PRD notion target recorded (page/database URL/ID or `TBD`)
@@ -46,7 +45,7 @@
 - `done_signal`
 
 ## Completion Gate
-- [ ] Output file path(s) listed
+- [ ] Jira update result listed (updated fields/sections or explicit blocked reason)
 - [ ] Source-of-truth files listed
 - [ ] Validation/checks listed (or skipped with reason)
 - [ ] Remaining open questions listed (or `None`)
