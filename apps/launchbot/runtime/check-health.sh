@@ -12,6 +12,7 @@ EXPECT_HOME_CHANNEL="${EXPECT_HOME_CHANNEL:-C0B32M34J3W}"
 EXPECT_KER_ALLOWED_CHANNELS="${EXPECT_KER_ALLOWED_CHANNELS:-C0B32M34J3W,C0AJAUNCEL8,C01RZ7SHC8K}"
 EXPECT_PRODUCT_COMMITMENT_ALLOWED_CHANNELS="${EXPECT_PRODUCT_COMMITMENT_ALLOWED_CHANNELS:-C0B32M34J3W,C01RZ7SHC8K}"
 EXPECT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME="${EXPECT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME:-all-bugs-production}"
+MCP_TEST_ATTEMPTS="${MCP_TEST_ATTEMPTS:-3}"
 GATEWAY_LAUNCHD_LABEL="${LAUNCHBOT_GATEWAY_LAUNCHD_LABEL:-ai.hermes.gateway-$PROFILE}"
 GATEWAY_SERVICE_NAME="${LAUNCHBOT_GATEWAY_SERVICE_NAME:-hermes-gateway-$PROFILE.service}"
 HERMES_AGENT_DIR="${HERMES_AGENT_DIR:-$HOME/.hermes/hermes-agent}"
@@ -44,16 +45,22 @@ check_mcp_server() {
   server_name="$1"
   expected_count="$2"
   server_file="$3"
-  mcp_out="$(hermes -p "$PROFILE" mcp test "$server_name" 2>&1)" && {
-    count="$(printf '%s\n' "$mcp_out" | sed -nE 's/.*Tools discovered: ([0-9]+).*/\1/p' | tail -1)"
-    [ "$count" = "$expected_count" ] || fail "mcp:$server_name:tools=${count:-unavailable}:expected=$expected_count"
-    return 0
-  }
-  if printf '%s\n' "$mcp_out" | grep -Fq "StdioServerParameters"; then
-    "$hermes_python" -m py_compile "$PROFILE_DIR/source/launchbot/runtime/mcp/$server_file" || fail "mcp:$server_name:py-compile-failed"
-    return 0
-  fi
-  fail "mcp:$server_name:test-failed"
+  attempt=1
+  mcp_out=""
+  count=""
+  while [ "$attempt" -le "$MCP_TEST_ATTEMPTS" ]; do
+    if mcp_out="$(hermes -p "$PROFILE" mcp test "$server_name" 2>&1)"; then
+      count="$(printf '%s\n' "$mcp_out" | sed -nE 's/.*Tools discovered: ([0-9]+).*/\1/p' | tail -1)"
+      [ "$count" = "$expected_count" ] && return 0
+    elif printf '%s\n' "$mcp_out" | grep -Fq "StdioServerParameters"; then
+      "$hermes_python" -m py_compile "$PROFILE_DIR/source/launchbot/runtime/mcp/$server_file" || fail "mcp:$server_name:py-compile-failed"
+      return 0
+    fi
+    attempt=$((attempt + 1))
+    [ "$attempt" -le "$MCP_TEST_ATTEMPTS" ] && sleep 2
+  done
+  [ -n "$count" ] && fail "mcp:$server_name:tools=$count:expected=$expected_count"
+  fail "mcp:$server_name:tools=unavailable:expected=$expected_count"
 }
 
 need_command() {

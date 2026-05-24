@@ -801,6 +801,7 @@ for (const requiredText of [
   "pantheon:status-stale",
   "platforms:slack:gateway-restart-notification-not-disabled",
   "slack:allowed-channels-static-not-empty",
+  "MCP_TEST_ATTEMPTS",
   "LAUNCHBOT_PANTHEON_REPO_DIR",
   "mcp:launchbot_ifi",
   "mcp:launchbot_help_article",
