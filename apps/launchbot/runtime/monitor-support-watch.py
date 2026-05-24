@@ -226,8 +226,16 @@ def window_start_from_state(args: argparse.Namespace, state: dict[str, Any]):
 def run_monitor(args: argparse.Namespace) -> dict[str, Any]:
     state_path = Path(os.path.expanduser(args.state_path)) if args.state_path else state_path_from_env()
     state = load_state(state_path)
-    lookback_days = int(os.environ.get("LAUNCHBOT_SUPPORT_WATCH_LOOKBACK_DAYS", args.lookback_days))
-    max_tickets = int(os.environ.get("LAUNCHBOT_SUPPORT_WATCH_MAX_TICKETS", args.max_tickets))
+    lookback_days = int(
+        args.lookback_days
+        if args.lookback_days is not None
+        else os.environ.get("LAUNCHBOT_SUPPORT_WATCH_LOOKBACK_DAYS", support_core.DEFAULT_LOOKBACK_DAYS)
+    )
+    max_tickets = int(
+        args.max_tickets
+        if args.max_tickets is not None
+        else os.environ.get("LAUNCHBOT_SUPPORT_WATCH_MAX_TICKETS", support_core.DEFAULT_MAX_TICKETS)
+    )
     args.lookback_days = lookback_days
     start, end = window_start_from_state(args, state)
 
@@ -324,8 +332,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--dry-run", action="store_true", help="Preview findings without Slack posts or state writes.")
     parser.add_argument("--window-start", default="", help="ISO UTC start timestamp. Defaults to previous state window end or lookback.")
     parser.add_argument("--window-end", default="", help="ISO UTC end timestamp. Defaults to now.")
-    parser.add_argument("--lookback-days", type=int, default=support_core.DEFAULT_LOOKBACK_DAYS)
-    parser.add_argument("--max-tickets", type=int, default=support_core.DEFAULT_MAX_TICKETS)
+    parser.add_argument("--lookback-days", type=int, default=None)
+    parser.add_argument("--max-tickets", type=int, default=None)
     parser.add_argument("--state-path", default="")
     parser.add_argument("--skip-traces", action="store_true", help="Skip Pantheon trace heuristics.")
     return parser

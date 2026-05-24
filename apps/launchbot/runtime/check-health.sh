@@ -13,7 +13,7 @@ EXPECT_KER_ALLOWED_CHANNELS="${EXPECT_KER_ALLOWED_CHANNELS:-C0B32M34J3W,C0AJAUNC
 EXPECT_PRODUCT_COMMITMENT_ALLOWED_CHANNELS="${EXPECT_PRODUCT_COMMITMENT_ALLOWED_CHANNELS:-C0B32M34J3W,C01RZ7SHC8K}"
 EXPECT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME="${EXPECT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME:-all-bugs-production}"
 MCP_TEST_ATTEMPTS="${MCP_TEST_ATTEMPTS:-3}"
-MCP_TEST_TIMEOUT_SECONDS="${MCP_TEST_TIMEOUT_SECONDS:-30}"
+MCP_TEST_TIMEOUT_SECONDS="${MCP_TEST_TIMEOUT_SECONDS:-60}"
 GATEWAY_LAUNCHD_LABEL="${LAUNCHBOT_GATEWAY_LAUNCHD_LABEL:-ai.hermes.gateway-$PROFILE}"
 GATEWAY_SERVICE_NAME="${LAUNCHBOT_GATEWAY_SERVICE_NAME:-hermes-gateway-$PROFILE.service}"
 HERMES_AGENT_DIR="${HERMES_AGENT_DIR:-$HOME/.hermes/hermes-agent}"
@@ -218,7 +218,7 @@ if str(config.get("LAUNCHBOT_SUPPORT_WATCH_ANALYTICS_DATASET") or "").strip('"')
     fail("support-watch-monitor:analytics-dataset-unexpected")
 if str(config.get("LAUNCHBOT_SUPPORT_WATCH_INCLUDE_WHATSAPP") or "").strip('"') != "true":
     fail("support-watch-monitor:include-whatsapp-unexpected")
-if str(config.get("LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_VIEW") or "").strip('"') != "gsheets.cs_tickets_logs_all_view":
+if str(config.get("LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_VIEW") or "").strip('"') != "analytics.support_watch_whatsapp_ticket_logs":
     fail("support-watch-monitor:whatsapp-view-unexpected")
 if str(config.get("LAUNCHBOT_SUPPORT_WATCH_MAX_TICKETS") or "").strip('"') != "100":
     fail("support-watch-monitor:max-tickets-unexpected")

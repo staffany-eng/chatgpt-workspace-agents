@@ -31,7 +31,7 @@ DEFAULT_SUPPORT_WATCH_SOURCE = "bigquery"
 DEFAULT_BIGQUERY_PROJECT = "staffany-warehouse"
 DEFAULT_INTERCOM_BIGQUERY_DATASET = "intercom"
 DEFAULT_ANALYTICS_BIGQUERY_DATASET = "analytics"
-DEFAULT_WHATSAPP_BIGQUERY_VIEW = "gsheets.cs_tickets_logs_all_view"
+DEFAULT_WHATSAPP_BIGQUERY_VIEW = "analytics.support_watch_whatsapp_ticket_logs"
 DEFAULT_INCLUDE_WHATSAPP = True
 DEFAULT_MAX_SUPPORT_ITEMS = 100
 DEFAULT_MAX_TICKETS = DEFAULT_MAX_SUPPORT_ITEMS
@@ -746,11 +746,15 @@ def build_intercom_counts_query() -> str:
 
 def build_whatsapp_counts_query() -> str:
     return f"""
-      SELECT COUNT(1) AS total_whatsapp_rows
-      FROM {bigquery_table_ref(whatsapp_bigquery_view(), bigquery_project())}
-      WHERE is_whatsapp
-        AND SAFE_CAST(reported_date AS TIMESTAMP) >= @windowStart
-        AND SAFE_CAST(reported_date AS TIMESTAMP) < @windowEnd
+      WITH source_rows AS (
+        SELECT reported_date
+        FROM {bigquery_table_ref(whatsapp_bigquery_view(), bigquery_project())}
+        WHERE is_whatsapp
+      )
+      SELECT
+        COUNTIF(SAFE_CAST(reported_date AS TIMESTAMP) >= @windowStart AND SAFE_CAST(reported_date AS TIMESTAMP) < @windowEnd) AS total_whatsapp_rows,
+        MAX(reported_date) AS latest_reported_date
+      FROM source_rows
     """
 
 
@@ -812,7 +816,9 @@ def search_bigquery_support_items(
     if include_whatsapp_source():
         try:
             whatsapp_counts = run_bigquery_query(build_whatsapp_counts_query(), params, project=bigquery_project())
-            whatsapp_total = int_value((whatsapp_counts[0] if whatsapp_counts else {}).get("total_whatsapp_rows"))
+            whatsapp_count_row = whatsapp_counts[0] if whatsapp_counts else {}
+            whatsapp_total = int_value(whatsapp_count_row.get("total_whatsapp_rows"))
+            latest_reported_date = str(whatsapp_count_row.get("latest_reported_date") or "")
             whatsapp_rows = run_bigquery_query(
                 build_whatsapp_ticket_logs_query(),
                 bigquery_params(window_start, window_end, max_items),
@@ -827,6 +833,7 @@ def search_bigquery_support_items(
                 "fetched_row_count": len(whatsapp_rows),
                 "candidate_row_count": len(whatsapp_rows),
                 "total_matching_rows": whatsapp_total,
+                "latest_reported_date": latest_reported_date,
                 "limit": max_items,
                 "hit_limit": len(whatsapp_rows) >= max_items,
             }

@@ -270,7 +270,8 @@ if (!manifest) {
   if (supportWatchBigQuery.org_mapping_table !== "dim_org_company") fail("Manifest support watch must document dim_org_company mapping");
   if (supportWatchBigQuery.include_whatsapp_env_var !== "LAUNCHBOT_SUPPORT_WATCH_INCLUDE_WHATSAPP") fail("Manifest support watch WhatsApp include env unexpected");
   if (supportWatchBigQuery.whatsapp_view_env_var !== "LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_VIEW") fail("Manifest support watch WhatsApp view env unexpected");
-  if (supportWatchBigQuery.default_whatsapp_view !== "gsheets.cs_tickets_logs_all_view") fail("Manifest support watch WhatsApp view unexpected");
+  if (supportWatchBigQuery.default_whatsapp_view !== "analytics.support_watch_whatsapp_ticket_logs") fail("Manifest support watch WhatsApp view unexpected");
+  if (supportWatchBigQuery.default_whatsapp_view?.startsWith("gsheets.")) fail("Manifest support watch WhatsApp runtime source must not be Drive-backed gsheets");
   if (supportWatchMcp.slack_context?.default_output_channel_name !== "all-bugs-production") {
     fail("Manifest support watch default output channel must be all-bugs-production");
   }
@@ -332,7 +333,8 @@ if (!manifest) {
   if (supportWatchMonitor.default_intercom_project !== "staffany-warehouse") fail("Manifest support watch monitor project unexpected");
   if (supportWatchMonitor.default_intercom_dataset !== "intercom") fail("Manifest support watch monitor dataset unexpected");
   if (supportWatchMonitor.default_include_whatsapp !== true) fail("Manifest support watch monitor must include WhatsApp by default");
-  if (supportWatchMonitor.default_whatsapp_view !== "gsheets.cs_tickets_logs_all_view") fail("Manifest support watch monitor WhatsApp view unexpected");
+  if (supportWatchMonitor.default_whatsapp_view !== "analytics.support_watch_whatsapp_ticket_logs") fail("Manifest support watch monitor WhatsApp view unexpected");
+  if (supportWatchMonitor.default_whatsapp_view?.startsWith("gsheets.")) fail("Manifest support watch monitor WhatsApp runtime source must not be Drive-backed gsheets");
   if (supportWatchMonitor.raw_transcript_persistence !== false) fail("Manifest support watch must not persist raw transcripts");
   if (supportWatchMonitor.posts_slack_reports !== true) fail("Manifest support watch must post reports from monitor");
   if (supportWatchMonitor.slack_reply_prefix !== "Launchbot automation:") fail("Manifest support watch must use Launchbot automation prefix");
@@ -717,7 +719,7 @@ for (const requiredText of [
   "LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_VIEW",
   "build_intercom_conversations_query",
   "conversation_parts",
-  "cs_tickets_logs_all_view",
+  "support_watch_whatsapp_ticket_logs",
   "build_intercom_counts_query",
   "build_whatsapp_counts_query",
   "candidate_score",
@@ -806,6 +808,7 @@ for (const requiredText of [
   "slack:allowed-channels-static-not-empty",
   "MCP_TEST_ATTEMPTS",
   "MCP_TEST_TIMEOUT_SECONDS",
+  'MCP_TEST_TIMEOUT_SECONDS="${MCP_TEST_TIMEOUT_SECONDS:-60}"',
   "timeout \"${MCP_TEST_TIMEOUT_SECONDS}s\" hermes",
   "LAUNCHBOT_PANTHEON_REPO_DIR",
   "mcp:launchbot_ifi",

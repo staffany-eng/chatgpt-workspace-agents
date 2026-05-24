@@ -134,7 +134,7 @@
     "include_whatsapp_env_var": "LAUNCHBOT_SUPPORT_WATCH_INCLUDE_WHATSAPP",
     "default_include_whatsapp": true,
     "whatsapp_view_env_var": "LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_VIEW",
-    "default_whatsapp_view": "gsheets.cs_tickets_logs_all_view",
+    "default_whatsapp_view": "analytics.support_watch_whatsapp_ticket_logs",
     "dedupe_channel_name": "team-cs-eng-duty",
     "default_dedupe_channel_names": "team-cs-eng-duty",
     "normal_gateway_require_mention": true,
@@ -310,7 +310,7 @@
         "include_whatsapp_env_var": "LAUNCHBOT_SUPPORT_WATCH_INCLUDE_WHATSAPP",
         "default_include_whatsapp": true,
         "whatsapp_view_env_var": "LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_VIEW",
-        "default_whatsapp_view": "gsheets.cs_tickets_logs_all_view",
+        "default_whatsapp_view": "analytics.support_watch_whatsapp_ticket_logs",
         "raw_transcript_persistence": false
       },
       "slack_context": {

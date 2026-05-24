@@ -192,7 +192,7 @@ When the external source checkout is absent, use `runtime/launchbot_e2e.py` as t
 - Required behavior:
   - Preview with `preview_weekly_support_watch_report`.
   - Scheduled runs use `runtime/monitor-support-watch.py` from no-agent cron `launchbot support watch`.
-  - Query BigQuery source tables `intercom.conversations`, `intercom.conversation_parts`, and optionally `gsheets.cs_tickets_logs_all_view`; count the full report window, then fetch bounded candidate rows using problem-keyword scoring instead of sampling only the latest rows. Persist only support-source IDs, safe summaries, source URLs, state, available team/admin assignee IDs, timestamps, signatures, source row counts, and safe counters.
+  - Query BigQuery source tables `intercom.conversations`, `intercom.conversation_parts`, and optionally the native `analytics.support_watch_whatsapp_ticket_logs` mirror; count the full report window, then fetch bounded candidate rows using problem-keyword scoring instead of sampling only the latest rows. Persist only support-source IDs, safe summaries, source URLs, state, available team/admin assignee IDs, timestamps, signatures, source row counts, and safe counters.
   - Cluster likely production bugs by repeated topic, shared error phrase, or one high-severity blocker.
   - Trace likely product/code causes through the Pantheon checkout and recent Git evidence. Treat this as heuristic and require review before claiming root cause.
   - Dedupe against recent `#team-cs-eng-duty` posts through `LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_IDS`, EDT issues through `LAUNCHBOT_SUPPORT_WATCH_EDT_JQL`, and prior state at `LAUNCHBOT_SUPPORT_WATCH_STATE_PATH`.

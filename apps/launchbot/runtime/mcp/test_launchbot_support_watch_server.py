@@ -75,6 +75,17 @@ class LaunchbotSupportWatchServerTest(unittest.TestCase):
         self.assertIn("REGEXP_CONTAINS", query)
         self.assertNotIn("tickets" + "/search", query)
 
+    def test_default_whatsapp_source_is_native_bigquery_table(self):
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(
+                self.module.core.whatsapp_bigquery_view(),
+                "analytics.support_watch_whatsapp_ticket_logs",
+            )
+            query = self.module.core.build_whatsapp_counts_query()
+
+        self.assertIn("analytics.support_watch_whatsapp_ticket_logs", query)
+        self.assertNotIn("gsheets.", query)
+
     def test_bigquery_timeout_kills_query_process_group(self):
         class FakeProcess:
             pid = 12345
@@ -113,7 +124,7 @@ class LaunchbotSupportWatchServerTest(unittest.TestCase):
             if "total_conversations" in query:
                 return [{"total_conversations": "478", "total_conversation_parts": "5416"}]
             if "total_whatsapp_rows" in query:
-                return [{"total_whatsapp_rows": "42"}]
+                return [{"total_whatsapp_rows": "42", "latest_reported_date": "2026-05-07"}]
             if "conversation_parts" in query:
                 return [support_item("1001", "Payroll blocked", "cannot run payroll error E101")]
             return [support_item("wa-1", "Payroll blocked again", "cannot run payroll error E101", source_type="whatsapp_ticket_log")]
@@ -131,6 +142,7 @@ class LaunchbotSupportWatchServerTest(unittest.TestCase):
         self.assertEqual(status["intercom_conversations"]["total_conversation_parts"], 5416)
         self.assertEqual(status["whatsapp_ticket_logs"]["row_count"], 1)
         self.assertEqual(status["whatsapp_ticket_logs"]["total_matching_rows"], 42)
+        self.assertEqual(status["whatsapp_ticket_logs"]["latest_reported_date"], "2026-05-07")
 
     def test_preview_clusters_redacts_and_dedupes_without_mutation(self):
         raw_tickets = [

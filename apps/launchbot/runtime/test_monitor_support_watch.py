@@ -186,6 +186,33 @@ class LaunchbotSupportWatchMonitorTest(unittest.TestCase):
         self.assertTrue(result["will_post_message"])
         self.assertFalse(state_path.exists())
 
+    def test_explicit_cli_limit_overrides_env_default_for_smoke_runs(self):
+        captured = {}
+
+        def fake_preview(**kwargs):
+            captured.update(kwargs)
+            return {"confidence": "verified", "answer": report_with_findings()}
+
+        args = args_for("/tmp/unused-support-watch-state.json", dry_run=True)
+        args.max_tickets = 20
+        args.lookback_days = 3
+        with patch.dict(
+            os.environ,
+            {
+                "LAUNCHBOT_SUPPORT_WATCH_MAX_TICKETS": "100",
+                "LAUNCHBOT_SUPPORT_WATCH_LOOKBACK_DAYS": "7",
+            },
+            clear=True,
+        ), patch.object(
+            self.module.support_core,
+            "preview_weekly_support_watch_report",
+            side_effect=fake_preview,
+        ), patch.object(self.module, "slack_post", side_effect=AssertionError("should not post in dry-run")):
+            self.module.run_monitor(args)
+
+        self.assertEqual(captured["max_tickets"], 20)
+        self.assertEqual(captured["lookback_days"], 3)
+
     def test_dry_run_resolves_public_output_channel_without_posting(self):
         with tempfile.TemporaryDirectory() as tmp, patch.dict(
             os.environ,

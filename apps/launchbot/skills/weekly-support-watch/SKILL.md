@@ -6,7 +6,7 @@ Use this skill when Launchbot needs the weekly report-only scan for production-b
 
 - Run weekly every Thursday 09:00 SGT from the UTC VM cron `0 1 * * 4`.
 - Source support signals from BigQuery-backed Intercom conversations and conversation parts for the previous report window.
-- Include WhatsApp support ticket logs from `gsheets.cs_tickets_logs_all_view` when `LAUNCHBOT_SUPPORT_WATCH_INCLUDE_WHATSAPP=true`.
+- Include WhatsApp support ticket logs from the native `analytics.support_watch_whatsapp_ticket_logs` mirror when `LAUNCHBOT_SUPPORT_WATCH_INCLUDE_WHATSAPP=true`.
 - Count the full source window first, then fetch bounded candidate rows using problem-keyword scoring instead of sampling only the latest rows.
 - Cluster likely production bugs by repeated topic, shared error phrase, or one high-severity blocker.
 - Trace likely product/code causes with the Pantheon checkout and recent Git evidence.
@@ -43,7 +43,7 @@ Required or deploy-resolved:
 - `LAUNCHBOT_SUPPORT_WATCH_INTERCOM_DATASET=intercom`
 - `LAUNCHBOT_SUPPORT_WATCH_ANALYTICS_DATASET=analytics`
 - `LAUNCHBOT_SUPPORT_WATCH_INCLUDE_WHATSAPP=true`
-- `LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_VIEW=gsheets.cs_tickets_logs_all_view`
+- `LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_VIEW=analytics.support_watch_whatsapp_ticket_logs`
 - `LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME=all-bugs-production`
 - `LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_ID=<optional pre-resolved output channel id>`
 - `LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_NAMES=team-cs-eng-duty`
