@@ -15,5 +15,13 @@ __pycache__/
 .codex/skills/*
 !.codex/skills/hermes-app-architecture/
 !.codex/skills/hermes-app-architecture/**
+!.codex/skills/openspec-apply-change/
+!.codex/skills/openspec-apply-change/**
+!.codex/skills/openspec-archive-change/
+!.codex/skills/openspec-archive-change/**
+!.codex/skills/openspec-explore/
+!.codex/skills/openspec-explore/**
+!.codex/skills/openspec-propose/
+!.codex/skills/openspec-propose/**
 dist/
 coverage/
