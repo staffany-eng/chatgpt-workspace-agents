@@ -8,6 +8,7 @@ import json
 import os
 import re
 import shutil
+import signal
 import socket
 import subprocess
 import urllib.error
@@ -251,6 +252,47 @@ def bigquery_table_ref(name: str, default_project: str = "") -> str:
     return f"`{'.'.join(parts)}`"
 
 
+def bigquery_timeout_seconds() -> int:
+    raw = os.environ.get("LAUNCHBOT_SUPPORT_WATCH_BQ_TIMEOUT_SECONDS", "").strip()
+    if not raw:
+        return 45
+    try:
+        value = int(raw)
+    except ValueError as error:
+        raise LaunchbotSupportWatchError("Invalid LAUNCHBOT_SUPPORT_WATCH_BQ_TIMEOUT_SECONDS.") from error
+    return max(5, min(value, 300))
+
+
+def run_bigquery_command(command: list[str], timeout_seconds: int) -> tuple[int, str, str]:
+    try:
+        process = subprocess.Popen(
+            command,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            start_new_session=True,
+        )
+    except OSError as error:
+        raise LaunchbotSupportWatchError(safe_error(f"BigQuery query failed: {error}")) from error
+    try:
+        stdout, stderr = process.communicate(timeout=timeout_seconds)
+    except subprocess.TimeoutExpired as error:
+        try:
+            os.killpg(process.pid, signal.SIGTERM)
+            process.communicate(timeout=5)
+        except Exception:
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except Exception:
+                pass
+            try:
+                process.communicate(timeout=5)
+            except Exception:
+                pass
+        raise LaunchbotSupportWatchError(f"BigQuery query timed out after {timeout_seconds} seconds.") from error
+    return process.returncode or 0, stdout or "", stderr or ""
+
+
 def run_bigquery_query(query: str, params: dict[str, tuple[str, str]], *, project: str = "") -> list[dict[str, Any]]:
     bq_binary = os.environ.get("LAUNCHBOT_SUPPORT_WATCH_BQ_BIN", "").strip() or "bq"
     bq_path = shutil.which(bq_binary)
@@ -267,14 +309,11 @@ def run_bigquery_query(query: str, params: dict[str, tuple[str, str]], *, projec
     for name, (param_type, value) in params.items():
         command.extend(["--parameter", f"{name}:{param_type}:{value}"])
     command.append(query)
-    try:
-        result = subprocess.run(command, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60, check=False)
-    except (OSError, subprocess.TimeoutExpired) as error:
-        raise LaunchbotSupportWatchError(safe_error(f"BigQuery query failed: {error}")) from error
-    if result.returncode != 0:
-        detail = (result.stderr or result.stdout or "").strip()
+    returncode, stdout, stderr = run_bigquery_command(command, bigquery_timeout_seconds())
+    if returncode != 0:
+        detail = (stderr or stdout or "").strip()
         raise LaunchbotSupportWatchError(safe_error(f"BigQuery query failed: {detail}"))
-    stdout = result.stdout.strip()
+    stdout = stdout.strip()
     if not stdout:
         return []
     try:

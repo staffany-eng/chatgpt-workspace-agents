@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import subprocess
 import unittest
 from datetime import datetime, timezone
 from pathlib import Path
@@ -73,6 +74,36 @@ class LaunchbotSupportWatchServerTest(unittest.TestCase):
         self.assertIn("candidate_score", query)
         self.assertIn("REGEXP_CONTAINS", query)
         self.assertNotIn("tickets" + "/search", query)
+
+    def test_bigquery_timeout_kills_query_process_group(self):
+        class FakeProcess:
+            pid = 12345
+            returncode = None
+
+            def __init__(self):
+                self.calls = 0
+
+            def communicate(self, timeout=None):
+                self.calls += 1
+                if self.calls == 1:
+                    raise subprocess.TimeoutExpired(["bq"], timeout)
+                self.returncode = -15
+                return "", ""
+
+        fake_process = FakeProcess()
+        with patch.dict(os.environ, {"LAUNCHBOT_SUPPORT_WATCH_BQ_TIMEOUT_SECONDS": "5"}, clear=True), patch.object(
+            self.module.core.shutil,
+            "which",
+            return_value="/usr/bin/bq",
+        ), patch.object(self.module.core.subprocess, "Popen", return_value=fake_process), patch.object(
+            self.module.core.os,
+            "killpg",
+        ) as killpg:
+            with self.assertRaises(self.module.core.LaunchbotSupportWatchError) as raised:
+                self.module.core.run_bigquery_query("SELECT 1", {}, project="staffany-warehouse")
+
+        self.assertIn("BigQuery query timed out after 5 seconds", str(raised.exception))
+        killpg.assert_called()
 
     def test_bigquery_source_combines_intercom_and_whatsapp_status(self):
         calls = []
