@@ -1,0 +1,7 @@
+interface:
+  display_name: "Pantheon Storybook Handoff"
+  short_description: "Prototype in master; hand off clean PRs."
+  default_prompt: "Use $pantheon-storybook-prototype-handoff to manage Pantheon Storybook prototype updates, clean engineering handover branches, and syncing accepted changes back to master."
+
+policy:
+  allow_implicit_invocation: true

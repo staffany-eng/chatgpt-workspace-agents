@@ -97,6 +97,16 @@ class PsmJiraServerTest(unittest.TestCase):
                 "PSM_OPS_JIRA_REQUEST_TYPE_ONBOARDING_TASK": "102",
                 "PSM_OPS_JIRA_REQUEST_TYPE_DATA_HYGIENE": "103",
                 "PSM_OPS_JIRA_REQUEST_TYPE_HANDOFF_PACKAGE": "104",
+                "PSM_OPS_JIRA_REQUEST_TYPE_PS_FOLLOW_UP": "123",
+                "PSM_OPS_JIRA_REQUEST_TYPE_CS_FOLLOW_UP": "124",
+                "PSM_OPS_JIRA_REQUEST_TYPE_ADHOC_OPS": "118",
+                "PSM_OPS_JIRA_REQUEST_TYPE_REV_CROSS_SELL": "120",
+                "PSM_OPS_JIRA_REQUEST_TYPE_PDT_DISCOVERY": "125",
+                "PSM_OPS_JIRA_REQUEST_TYPE_MKT_CLUBANY": "126",
+                "PSM_OPS_JIRA_REQUEST_TYPE_FEEDBACK": "122",
+                "PSM_OPS_JIRA_REQUEST_TYPE_PHOTO_FOLLOW_UP": "127",
+                "PSM_OPS_AA_CHANNEL_ID": "C0B5H2YE5T2",
+                "PSM_OPS_JIRA_FIELD_CREATOR": "customfield_10914",
                 "PSM_OPS_JIRA_FIELD_CUSTOMER": "customfield_10101",
                 "PSM_OPS_JIRA_FIELD_STAFFANY_ORGS": "customfield_10102",
                 "PSM_OPS_JIRA_FIELD_OWNER_PSM": "customfield_10103",
@@ -417,7 +427,260 @@ class PsmJiraServerTest(unittest.TestCase):
             }
         )
 
-        self.assertEqual(values["customfield_10876"], "12025")
+        self.assertEqual(values["customfield_10876"], {"id": "12025"})
+
+    def test_ps_team_request_value_matches_full_display_name_to_first_name_option(self):
+        """`ps_team="Jason Kanggara"` must still match the `Jason` option (token match)."""
+        self.module._ps_team_valid_values = lambda request_type_id="": [
+            {"value": "12005", "label": "Ega"},
+            {"value": "12016", "label": "Jason"},
+            {"value": "12017", "label": "Kai Yi"},
+        ]
+        self.assertEqual(
+            self.module._ps_team_request_value("Jason Kanggara", "123"),
+            {"id": "12016"},
+        )
+        # Two-word option should also match a longer display name (substring match).
+        self.assertEqual(
+            self.module._ps_team_request_value("Kai Yi Lee", "123"),
+            {"id": "12017"},
+        )
+        # Unknown name still returns None so the field is omitted, not sent as garbage.
+        self.assertIsNone(self.module._ps_team_request_value("Totally Unknown", "123"))
+
+    def test_ps_team_request_value_prefers_more_specific_match_regardless_of_option_order(self):
+        """If both a single-token `Kai` and a multi-word `Kai Yi` exist, target `Kai Yi Lee`
+        must resolve to `Kai Yi` even when Jira returns `Kai` first."""
+        self.module._ps_team_valid_values = lambda request_type_id="": [
+            {"value": "12100", "label": "Kai"},
+            {"value": "12017", "label": "Kai Yi"},
+        ]
+        self.assertEqual(
+            self.module._ps_team_request_value("Kai Yi Lee", "123"),
+            {"id": "12017"},
+        )
+
+    def test_resolve_assets_object_id_returns_numeric_id_on_exact_match(self):
+        captured_queries = []
+
+        def fake_request(method, path, body=None):
+            if method == "GET" and path == "/rest/servicedeskapi/assets/workspace":
+                return {"values": [{"workspaceId": "ws-1"}]}
+            if method == "POST" and "/v1/object/aql" in path:
+                captured_queries.append(body.get("qlQuery"))
+                return {"values": [{"id": "566", "objectKey": "HC-566", "label": "21 Supermarket"}]}
+            return {}
+
+        self.module._request_json = fake_request
+        # The resolver returns the numeric ``id`` (used in the composite write key) not the
+        # human-readable ``objectKey`` — the CMDB field's write contract needs the former.
+        self.assertEqual(self.module._resolve_assets_object_id("21 Supermarket"), "566")
+        self.assertEqual(captured_queries, ['Name = "21 Supermarket"'])
+
+    def test_resolve_assets_object_id_returns_none_on_zero_or_ambiguous_matches(self):
+        def fake_request(method, path, body=None):
+            if method == "GET" and path == "/rest/servicedeskapi/assets/workspace":
+                return {"values": [{"workspaceId": "ws-1"}]}
+            if method == "POST" and "/v1/object/aql" in path:
+                # Every strategy returns no usable match: empty for the first lookup,
+                # ambiguous (>1) for the second.
+                if "Bistro" in body["qlQuery"]:
+                    return {"values": []}
+                return {"values": [{"id": "1"}, {"id": "2"}]}
+            return {}
+
+        self.module._request_json = fake_request
+        self.assertIsNone(self.module._resolve_assets_object_id("Bistro Bamboo"))
+        self.assertIsNone(self.module._resolve_assets_object_id("Ambiguous Co"))
+
+    def test_resolve_assets_object_id_caches_negative_lookups(self):
+        call_count = {"aql": 0}
+
+        def fake_request(method, path, body=None):
+            if method == "GET" and path == "/rest/servicedeskapi/assets/workspace":
+                return {"values": [{"workspaceId": "ws-1"}]}
+            if method == "POST" and "/v1/object/aql" in path:
+                call_count["aql"] += 1
+                return {"values": []}
+            return {}
+
+        self.module._request_json = fake_request
+        # First call fires multiple AQL queries (exact, then like fallback) because none match.
+        self.assertIsNone(self.module._resolve_assets_object_id("Totally Unknown"))
+        first_call_count = call_count["aql"]
+        self.assertGreater(first_call_count, 0)
+        # Second call must be served from cache — no additional AQL.
+        self.assertIsNone(self.module._resolve_assets_object_id("Totally Unknown"))
+        self.assertEqual(call_count["aql"], first_call_count, "negative result should be cached")
+
+    def test_resolve_assets_object_id_escapes_embedded_quotes(self):
+        captured = []
+
+        def fake_request(method, path, body=None):
+            if method == "GET" and path == "/rest/servicedeskapi/assets/workspace":
+                return {"values": [{"workspaceId": "ws-1"}]}
+            if method == "POST" and "/v1/object/aql" in path:
+                captured.append(body.get("qlQuery"))
+                return {"values": []}
+            return {}
+
+        self.module._request_json = fake_request
+        self.module._resolve_assets_object_id('A "Tricky" Co')
+        # First strategy is exact match; embedded " must be escaped to keep the AQL literal well-formed.
+        self.assertEqual(captured[0], 'Name = "A \\"Tricky\\" Co"')
+
+    def test_resolve_assets_object_id_falls_back_to_legal_suffix_stripped_form(self):
+        """C360-canonicalised names ("21 Supermarket Pte Ltd") rarely match the Assets
+        display name verbatim ("21 Supermarket"). Stripping the legal suffix and retrying
+        the exact match should resolve cleanly."""
+        queries: list[str] = []
+
+        def fake_request(method, path, body=None):
+            if method == "GET" and path == "/rest/servicedeskapi/assets/workspace":
+                return {"values": [{"workspaceId": "ws-1"}]}
+            if method == "POST" and "/v1/object/aql" in path:
+                q = body["qlQuery"]
+                queries.append(q)
+                if q == 'Name = "21 Supermarket"':
+                    return {"values": [{"id": "566", "objectKey": "HC-566", "label": "21 Supermarket"}]}
+                return {"values": []}
+            return {}
+
+        self.module._request_json = fake_request
+        self.assertEqual(
+            self.module._resolve_assets_object_id("21 Supermarket Pte Ltd"),
+            "566",
+        )
+        # Strategy order: exact (miss) -> legal-suffix-stripped exact (hit).
+        self.assertEqual(queries[0], 'Name = "21 Supermarket Pte Ltd"')
+        self.assertEqual(queries[1], 'Name = "21 Supermarket"')
+        self.assertEqual(len(queries), 2, "should stop after the first successful strategy")
+
+    def test_resolve_assets_object_id_falls_back_to_like_substring_match(self):
+        """If exact and legal-stripped exact miss, a single substring match should resolve."""
+        queries: list[str] = []
+
+        def fake_request(method, path, body=None):
+            if method == "GET" and path == "/rest/servicedeskapi/assets/workspace":
+                return {"values": [{"workspaceId": "ws-1"}]}
+            if method == "POST" and "/v1/object/aql" in path:
+                q = body["qlQuery"]
+                queries.append(q)
+                if q.startswith("Name like"):
+                    return {"values": [{"id": "99", "objectKey": "HC-99", "label": "Acme HQ"}]}
+                return {"values": []}
+            return {}
+
+        self.module._request_json = fake_request
+        self.assertEqual(self.module._resolve_assets_object_id("Acme HQ"), "99")
+        self.assertTrue(any(q.startswith("Name like") for q in queries))
+
+    def test_resolve_assets_object_id_does_not_cache_transient_failures(self):
+        """A transient Assets/AQL outage must not turn into a process-lifetime false negative.
+        After the first call sees only JiraError responses, a follow-up call once Jira
+        recovers should re-hit the API and return the real answer."""
+        state = {"jira_up": False}
+        aql_calls = {"n": 0}
+
+        def fake_request(method, path, body=None):
+            if method == "GET" and path == "/rest/servicedeskapi/assets/workspace":
+                if not state["jira_up"]:
+                    raise self.module.JiraError("Jira API unavailable: timed out")
+                return {"values": [{"workspaceId": "ws-1"}]}
+            if method == "POST" and "/v1/object/aql" in path:
+                aql_calls["n"] += 1
+                if not state["jira_up"]:
+                    raise self.module.JiraError("Jira API unavailable: timed out")
+                return {"values": [{"id": "7", "objectKey": "HC-7", "label": "Recovered Co"}]}
+            return {}
+
+        self.module._request_json = fake_request
+
+        # First call during the outage: every strategy hits JiraError → no resolution,
+        # and no cache write because all queries failed transiently.
+        self.assertIsNone(self.module._resolve_assets_object_id("Recovered Co"))
+
+        # Jira recovers. The next call must re-hit AQL rather than returning a cached None.
+        state["jira_up"] = True
+        aql_before = aql_calls["n"]
+        self.assertEqual(self.module._resolve_assets_object_id("Recovered Co"), "7")
+        self.assertGreater(aql_calls["n"], aql_before, "transient failure must not be cached")
+
+    def test_resolve_assets_object_id_rejects_ambiguous_like_match(self):
+        """A substring `like` query that returns more than one Assets object should be
+        treated as ambiguous and resolve to None — better to omit than guess wrong."""
+        def fake_request(method, path, body=None):
+            if method == "GET" and path == "/rest/servicedeskapi/assets/workspace":
+                return {"values": [{"workspaceId": "ws-1"}]}
+            if method == "POST" and "/v1/object/aql" in path:
+                q = body["qlQuery"]
+                if q.startswith("Name like"):
+                    return {"values": [{"id": "1"}, {"id": "2"}]}
+                return {"values": []}
+            return {}
+
+        self.module._request_json = fake_request
+        self.assertIsNone(self.module._resolve_assets_object_id("Generic"))
+
+    def test_create_pco_task_warns_when_staffany_org_does_not_resolve(self):
+        calls = []
+        with patch.dict(
+            os.environ,
+            {
+                "PSM_OPS_JIRA_MODE": "thin_poc",
+                "PSM_OPS_ACCESS_POLICY_PATH": "",
+                "PSM_OPS_JIRA_SERVICE_DESK_ID": "",
+                "PSM_OPS_JIRA_FIELD_STAFFANY_ORGS": "",
+                "PSM_OPS_JIRA_FIELD_REMINDER_AT": "",
+            },
+            clear=False,
+        ):
+            def fake_request(method, path, body=None):
+                calls.append((method, path, deepcopy(body)))
+                if path == "/rest/servicedeskapi/request":
+                    return {"issueKey": "PCO-901", "requestTypeId": "81"}
+                if path.endswith("/comment"):
+                    return {"id": "c-901"}
+                return {}
+
+            self.module._request_json = fake_request
+            self.module._resolve_assets_object_id = lambda name: None  # nothing resolves
+
+            result = self.module.create_approved_pco_task(
+                {
+                    "customer": "Bistro Bamboo",
+                    "summary": "Confirm payroll readiness",
+                    "due_date": "2026-05-15",
+                    "priority": "High",
+                    "action_type": "Customer success",
+                    "request_type_id": "81",
+                    "source_links": [],
+                    "staffany_orgs": ["Bistro Bamboo"],
+                    "owner_psm": "Ada PSM",
+                    "owner_jira_account_id": "acct-123",
+                    "mode": "thin_poc",
+                },
+                "create",
+            )
+
+        self.assertEqual(result["confidence"], "verified")
+        # The org field must not be sent at all when nothing resolved — no retry needed.
+        request_values = calls[0][2]["requestFieldValues"]
+        self.assertNotIn("customfield_10667", request_values)
+        # Warning must name the unresolved org so triage knows which one to assign manually.
+        warnings = result["answer"]["warnings"]
+        self.assertTrue(any("Bistro Bamboo" in w and "no Jira Assets object matched" in w for w in warnings))
+
+    def test_ps_team_issue_value_uses_matched_option_label_when_id_missing(self):
+        """When the Jira option carries only `label` (no `value`/`id`), the issue value must
+        be the **matched** label, not the raw input the caller passed in."""
+        self.module._ps_team_valid_values = lambda request_type_id="": [
+            {"label": "Jason"},
+        ]
+        self.assertEqual(
+            self.module._ps_team_issue_value("Jason Kanggara"),
+            {"value": "Jason"},
+        )
 
     def test_set_pco_ps_team_maps_cs_duty_to_jira_option(self):
         calls = []
@@ -550,6 +813,90 @@ class PsmJiraServerTest(unittest.TestCase):
 
         self.assertEqual(result["confidence"], "blocked")
         self.assertIn("KER-123 or SCHE-123", result["caveat"])
+
+    def test_link_pco_to_pco_issue_creates_relates_link(self):
+        calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            return {}
+
+        self.module._request_json = fake_request
+
+        result = self.module.link_pco_to_pco_issue("PCO-200", "PCO-150")
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(calls[0][0], "GET")
+        self.assertEqual(calls[0][1], "/rest/api/3/issue/PCO-200?fields=issuelinks")
+        self.assertEqual(calls[1][0], "POST")
+        self.assertEqual(calls[1][1], "/rest/api/3/issueLink")
+        self.assertEqual(calls[1][2]["type"], {"name": "Relates"})
+        self.assertEqual(calls[1][2]["outwardIssue"], {"key": "PCO-200"})
+        self.assertEqual(calls[1][2]["inwardIssue"], {"key": "PCO-150"})
+        self.assertEqual(result["answer"]["link_type"], "Relates")
+        self.assertEqual(result["answer"]["relationship"], "PCO-200 relates to PCO-150")
+        self.assertFalse(result["answer"]["already_exists"])
+
+    def test_link_pco_to_pco_issue_short_circuits_when_link_already_exists(self):
+        calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if method == "GET":
+                return {
+                    "fields": {
+                        "issuelinks": [
+                            {
+                                "type": {"name": "Relates"},
+                                "outwardIssue": {"key": "PCO-150"},
+                            }
+                        ]
+                    }
+                }
+            return {}
+
+        self.module._request_json = fake_request
+
+        result = self.module.link_pco_to_pco_issue("PCO-200", "PCO-150")
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertTrue(result["answer"]["already_exists"])
+        self.assertEqual(len(calls), 1)
+        self.assertIn("already existed", result["caveat"])
+
+    def test_link_pco_to_pco_issue_treats_jira_duplicate_error_as_existing(self):
+        calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if method == "POST":
+                raise self.module.JiraError("Jira API failed: HTTP 400 issue link already exists")
+            return {}
+
+        self.module._request_json = fake_request
+
+        result = self.module.link_pco_to_pco_issue("PCO-200", "PCO-150")
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertTrue(result["answer"]["already_exists"])
+
+    def test_link_pco_to_pco_issue_rejects_non_pco_source(self):
+        result = self.module.link_pco_to_pco_issue("KER-2109", "PCO-150")
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("source_issue_key", result["caveat"])
+
+    def test_link_pco_to_pco_issue_rejects_non_pco_target(self):
+        result = self.module.link_pco_to_pco_issue("PCO-200", "SCHE-19631")
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("target_issue_key", result["caveat"])
+
+    def test_link_pco_to_pco_issue_rejects_self_link(self):
+        result = self.module.link_pco_to_pco_issue("PCO-200", "PCO-200")
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("must differ", result["caveat"])
 
     def test_find_engineering_issue_searches_ker_with_safe_fields_and_compact_variant(self):
         calls = []
@@ -877,6 +1224,1502 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertEqual(audit_calls[0][1]["source_thread_url"], "https://staffany.slack.com/archives/C0B2VT50YT1/p1778205303989579")
         self.assertEqual(audit_calls[0][1]["issue_key"], "PCO-789")
 
+    def _mock_creator_options(self, request_type_id=""):
+        return [
+            {"value": "creator-josica", "label": "Josica"},
+            {"value": "creator-jason", "label": "Jason"},
+            {"value": "creator-ega", "label": "Ega"},
+            {"value": "creator-may", "label": "May"},
+        ]
+
+    def test_ps_wee_intake_in_aa_channel_defaults_to_feedback_request_type(self):
+        calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
+                return {"issues": []}
+            if path == "/rest/servicedeskapi/request":
+                return {"issueKey": "PCO-901", "requestTypeId": "122"}
+            if path.endswith("/comment"):
+                return {"id": "comment-901"}
+            return {}
+
+        self.module._request_json = fake_request
+        self.module._creator_valid_values = self._mock_creator_options
+        self.module._update_issue_labels = lambda *args, **kwargs: None
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: {"ok": True}
+
+        result = self.module.create_ps_wee_intake_ticket(
+            slack_user_email="psm@staffany.com",
+            slack_thread_url="https://staffany.slack.com/archives/C0B5H2YE5T2/p1779100000000000",
+            customer="Kopi Janji",
+            issue_summary="PSM came back from AA event with selfie",
+            creator_slack_user_email="josica@staffany.com",
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        create_call = next(c for c in calls if c[1] == "/rest/servicedeskapi/request")
+        self.assertEqual(create_call[2]["requestTypeId"], "122")
+        self.assertEqual(result["scope"]["request_type_key"], "feedback")
+        self.assertEqual(result["scope"]["event"], "AA")
+
+    def test_ps_wee_intake_in_aa_channel_routes_each_new_request_type(self):
+        cases = [
+            ("ps_follow_up", "123", "Josica", "Josica"),
+            ("cs_follow_up", "124", "Ega", "Ega"),
+            ("adhoc_ops", "118", "Josica", "PS Ops"),
+            ("rev_cross_sell", "120", "Jason", "Jason"),
+            ("pdt_discovery", "125", "May", "May"),
+            ("mkt_clubany", "126", "Ega", "Ega"),
+            ("photo_follow_up", "127", "Jason", "Jason"),
+        ]
+        for request_type_key, expected_id, creator_name, expected_team in cases:
+            with self.subTest(request_type_key=request_type_key):
+                calls = []
+
+                def fake_request(method, path, body=None, _expected_id=expected_id):
+                    calls.append((method, path, deepcopy(body)))
+                    if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
+                        return {"issues": []}
+                    if path == "/rest/servicedeskapi/request":
+                        return {"issueKey": f"PCO-{_expected_id}", "requestTypeId": _expected_id}
+                    if path.endswith("/comment"):
+                        return {"id": "comment-x"}
+                    return {}
+
+                self.module._request_json = fake_request
+                self.module._creator_valid_values = self._mock_creator_options
+                self.module._ps_team_valid_values = lambda request_type_id="", _name=creator_name, _team=expected_team: [
+                    {"value": f"opt-{_team.lower().replace(' ', '-')}", "label": _team},
+                    {"value": f"opt-{_name.lower()}", "label": _name},
+                ]
+                self.module._update_issue_labels = lambda *args, **kwargs: None
+                self.module.post_ps_wee_audit = lambda event_type, **kwargs: {"ok": True}
+                self.module._caller = lambda email, require_jira_account=True, require_ps_team=False, _name=creator_name: {
+                    "slack_email": email,
+                    "jira_email": email,
+                    "jira_account_id": "",
+                    "display_name": _name,
+                    "ps_team": "",
+                    "ps_team_option_id": "",
+                }
+
+                result = self.module.create_ps_wee_intake_ticket(
+                    slack_user_email=f"{creator_name.lower()}@staffany.com",
+                    slack_thread_url=f"https://staffany.slack.com/archives/C0B5H2YE5T2/p177910{expected_id}000000",
+                    customer="Kopi Janji",
+                    issue_summary=f"event AA {request_type_key} follow-up",
+                    request_type_key=request_type_key,
+                    creator_slack_user_email=f"{creator_name.lower()}@staffany.com",
+                )
+
+                self.assertEqual(result["confidence"], "verified", msg=result)
+                create_call = next(c for c in calls if c[1] == "/rest/servicedeskapi/request")
+                self.assertEqual(create_call[2]["requestTypeId"], expected_id)
+                expected_team_value = f"opt-{expected_team.lower().replace(' ', '-')}"
+                self.assertEqual(
+                    create_call[2]["requestFieldValues"].get("customfield_10876"),
+                    {"id": expected_team_value},
+                    msg=f"PS Team auto-route failed for {request_type_key}",
+                )
+
+    def test_ps_wee_intake_in_aa_channel_adds_label(self):
+        label_calls = []
+
+        def fake_request(method, path, body=None):
+            if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
+                return {"issues": []}
+            if path == "/rest/servicedeskapi/request":
+                return {"issueKey": "PCO-960", "requestTypeId": "123"}
+            if path.endswith("/comment"):
+                return {"id": "comment-960"}
+            return {}
+
+        def fake_labels(issue_key, add=None, remove=None):
+            label_calls.append((issue_key, list(add or []), list(remove or [])))
+
+        self.module._request_json = fake_request
+        self.module._creator_valid_values = self._mock_creator_options
+        self.module._update_issue_labels = fake_labels
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: {"ok": True}
+
+        result = self.module.create_ps_wee_intake_ticket(
+            slack_user_email="psm@staffany.com",
+            slack_thread_url="https://staffany.slack.com/archives/C0B5H2YE5T2/p1779100000000010",
+            customer="Kopi Janji",
+            issue_summary="follow up deep dive",
+            request_type_key="ps_follow_up",
+            creator_slack_user_email="josica@staffany.com",
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        labels_added = [labels for _, labels, _ in label_calls]
+        self.assertTrue(any("AA-SG-2026" in batch for batch in labels_added))
+
+    def test_ps_wee_intake_in_aa_channel_uploads_selfies_to_drive_and_jira(self):
+        attachment_calls = []
+        drive_calls = []
+
+        def fake_request(method, path, body=None):
+            if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
+                return {"issues": []}
+            if path == "/rest/servicedeskapi/request":
+                return {"issueKey": "PCO-905", "requestTypeId": "122"}
+            if path.endswith("/comment"):
+                return {"id": "comment-905"}
+            return {}
+
+        def fake_slack_json(method, params):
+            if method == "conversations.history":
+                return {
+                    "messages": [
+                        {
+                            "ts": params["oldest"],
+                            "files": [
+                                {
+                                    "id": "F-img",
+                                    "name": "selfie.jpg",
+                                    "mimetype": "image/jpeg",
+                                    "url_private": "https://files.slack.com/selfie.jpg",
+                                },
+                                {
+                                    "id": "F-pdf",
+                                    "name": "deck.pdf",
+                                    "mimetype": "application/pdf",
+                                    "url_private": "https://files.slack.com/deck.pdf",
+                                },
+                            ],
+                        }
+                    ]
+                }
+            return {"members": []}
+
+        def fake_download(url):
+            return b"binary-image-data"
+
+        def fake_attach(issue_key, files):
+            attachment_calls.append((issue_key, deepcopy(files)))
+            return [{"id": "att-1", "filename": files[0]["name"]}]
+
+        def fake_drive_upload_detailed(images, company, pic):
+            drive_calls.append({"images": list(images), "company": company, "pic": pic})
+            return {
+                "uploaded": [
+                    {
+                        "drive_file_id": "drive-1",
+                        "name": "kopi-janji_andre.jpg",
+                        "web_view_link": "https://drive/x",
+                    }
+                ],
+                "drive_status": "ok",
+                "drive_reason": "",
+                "failure_count": 0,
+                "last_error": "",
+            }
+
+        self.module._request_json = fake_request
+        self.module._request_slack_json = fake_slack_json
+        self.module._download_slack_file = fake_download
+        self.module._attach_image_files_to_issue = fake_attach
+        self.module.upload_aa_selfies_detailed = fake_drive_upload_detailed
+        self.module._creator_valid_values = self._mock_creator_options
+        self.module._update_issue_labels = lambda *args, **kwargs: None
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: {"ok": True}
+
+        result = self.module.create_ps_wee_intake_ticket(
+            slack_user_email="psm@staffany.com",
+            slack_thread_url="https://staffany.slack.com/archives/C0B5H2YE5T2/p1779160186779359",
+            customer="Kopi Janji",
+            issue_summary="met Andre at AA",
+            request_type_key="ps_follow_up",
+            creator_slack_user_email="josica@staffany.com",
+            pic="Andre",
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(len(attachment_calls), 1)
+        self.assertEqual(attachment_calls[0][0], "PCO-905")
+        self.assertEqual([f["name"] for f in attachment_calls[0][1]], ["selfie.jpg"])
+        self.assertEqual(len(drive_calls), 1)
+        only_payload = drive_calls[0]
+        self.assertEqual(only_payload["company"], "Kopi Janji")
+        self.assertEqual(only_payload["pic"], "Andre")
+        self.assertEqual([entry["name"] for entry in only_payload["images"]], ["selfie.jpg"])
+        self.assertEqual(len(result["answer"]["attached_images"]), 1)
+        self.assertEqual(len(result["answer"]["drive_selfies"]), 1)
+        self.assertEqual(result["answer"]["drive_status"], "ok")
+        self.assertIn("Saved 1 selfie(s) to Drive.", result["answer"]["slack_reply"])
+        self.assertIn("Attached 1 image(s) to Jira.", result["answer"]["slack_reply"])
+
+    def test_ps_wee_intake_in_aa_channel_surfaces_drive_failure_without_blocking(self):
+        attachment_calls = []
+
+        def fake_request(method, path, body=None):
+            if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
+                return {"issues": []}
+            if path == "/rest/servicedeskapi/request":
+                return {"issueKey": "PCO-918", "requestTypeId": "122"}
+            if path.endswith("/comment"):
+                return {"id": "comment-918"}
+            return {}
+
+        def fake_slack_json(method, params):
+            if method == "conversations.history":
+                return {
+                    "messages": [
+                        {
+                            "ts": params["oldest"],
+                            "files": [
+                                {
+                                    "id": "F-img",
+                                    "name": "selfie.jpg",
+                                    "mimetype": "image/jpeg",
+                                    "url_private": "https://files.slack.com/selfie.jpg",
+                                }
+                            ],
+                        }
+                    ]
+                }
+            return {"members": []}
+
+        def fake_attach(issue_key, files):
+            attachment_calls.append((issue_key, deepcopy(files)))
+            return [{"id": "att-9", "filename": files[0]["name"]}]
+
+        def fake_drive_upload_detailed(images, company, pic):
+            return {
+                "uploaded": [],
+                "drive_status": "upload_failed",
+                "drive_reason": "Drive upload failed: 401 Invalid Credentials",
+                "failure_count": 1,
+                "last_error": "Drive upload failed: 401 Invalid Credentials",
+            }
+
+        self.module._request_json = fake_request
+        self.module._request_slack_json = fake_slack_json
+        self.module._download_slack_file = lambda url: b"binary-image-data"
+        self.module._attach_image_files_to_issue = fake_attach
+        self.module.upload_aa_selfies_detailed = fake_drive_upload_detailed
+        self.module._creator_valid_values = self._mock_creator_options
+        self.module._update_issue_labels = lambda *args, **kwargs: None
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: {"ok": True}
+
+        result = self.module.create_ps_wee_intake_ticket(
+            slack_user_email="psm@staffany.com",
+            slack_thread_url="https://staffany.slack.com/archives/C0B5H2YE5T2/p1779160186779359",
+            customer="Kopi Janji",
+            issue_summary="met Andre at AA",
+            request_type_key="ps_follow_up",
+            creator_slack_user_email="josica@staffany.com",
+            pic="Andre",
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["answer"]["drive_selfies"], [])
+        self.assertEqual(result["answer"]["drive_status"], "upload_failed")
+        self.assertEqual(
+            result["answer"]["drive_reason"],
+            "Drive upload failed: 401 Invalid Credentials",
+        )
+        self.assertEqual(len(result["answer"]["attached_images"]), 1)
+        self.assertIn(
+            "Drive selfie upload skipped: Drive upload failed: 401 Invalid Credentials",
+            result["answer"]["slack_reply"],
+        )
+        self.assertIn("Attached 1 image(s) to Jira.", result["answer"]["slack_reply"])
+
+    def test_ps_wee_intake_outside_aa_channel_attaches_images_to_jira_not_drive(self):
+        attachment_calls = []
+
+        def fake_request(method, path, body=None):
+            if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
+                return {"issues": []}
+            if path == "/rest/servicedeskapi/request":
+                return {"issueKey": "PCO-906", "requestTypeId": "101"}
+            if path.endswith("/comment"):
+                return {"id": "comment-906"}
+            return {}
+
+        def fake_slack_json(method, params):
+            if method == "conversations.history":
+                return {
+                    "messages": [
+                        {
+                            "ts": params["oldest"],
+                            "files": [
+                                {
+                                    "id": "F-img",
+                                    "name": "evidence.jpg",
+                                    "mimetype": "image/jpeg",
+                                    "url_private": "https://files.slack.com/evidence.jpg",
+                                }
+                            ],
+                        }
+                    ]
+                }
+            return {"members": []}
+
+        def fake_attach(issue_key, files):
+            attachment_calls.append((issue_key, deepcopy(files)))
+            return [{"id": "att-1", "filename": files[0]["name"]}]
+
+        self.module._request_json = fake_request
+        self.module._request_slack_json = fake_slack_json
+        self.module._attach_image_files_to_issue = fake_attach
+        def _fail_drive_outside_aa(*_args, **_kwargs):
+            raise AssertionError("Drive upload must not be called outside AA channel")
+        self.module.upload_aa_selfies = _fail_drive_outside_aa
+        self.module.upload_aa_selfies_detailed = _fail_drive_outside_aa
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: {"ok": True}
+
+        result = self.module.create_ps_wee_intake_ticket(
+            slack_user_email="psm@staffany.com",
+            slack_thread_url="https://staffany.slack.com/archives/C0B2VT50YT1/p1779160186779359",
+            customer="Some Customer",
+            issue_summary="regular intake",
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(len(attachment_calls), 1)
+        self.assertEqual(attachment_calls[0][0], "PCO-906")
+        self.assertEqual(len(result["answer"]["attached_images"]), 1)
+        self.assertEqual(result["answer"]["drive_selfies"], [])
+        self.assertIn("Attached 1 image(s) from Slack.", result["answer"]["slack_reply"])
+        self.assertNotIn("Drive", result["answer"]["slack_reply"])
+
+    def test_ps_wee_intake_in_aa_channel_handles_slack_fetch_failure_without_blocking(self):
+        calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
+                return {"issues": []}
+            if path == "/rest/servicedeskapi/request":
+                return {"issueKey": "PCO-907", "requestTypeId": "122"}
+            if path.endswith("/comment"):
+                return {"id": "comment-907"}
+            return {}
+
+        def fake_slack_json(method, params):
+            if method == "conversations.history":
+                raise self.module.JiraError("Slack API failed: ratelimited")
+            return {"members": []}
+
+        self.module._request_json = fake_request
+        self.module._request_slack_json = fake_slack_json
+        self.module._creator_valid_values = self._mock_creator_options
+        self.module._update_issue_labels = lambda *args, **kwargs: None
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: {"ok": True}
+
+        result = self.module.create_ps_wee_intake_ticket(
+            slack_user_email="psm@staffany.com",
+            slack_thread_url="https://staffany.slack.com/archives/C0B5H2YE5T2/p1779160186779359",
+            customer="Kopi Janji",
+            issue_summary="met Andre at AA",
+            creator_slack_user_email="josica@staffany.com",
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["answer"]["attached_images"], [])
+        self.assertEqual(result["answer"]["drive_selfies"], [])
+        self.assertNotIn("Attached", result["answer"]["slack_reply"])
+        self.assertNotIn("Drive", result["answer"]["slack_reply"])
+
+    def test_attach_aa_selfie_to_thread_uploads_trigger_message_images_to_drive(self):
+        slack_calls = []
+        drive_calls = []
+
+        def fake_slack_json(method, params):
+            slack_calls.append((method, dict(params)))
+            if method == "conversations.history":
+                return {
+                    "messages": [
+                        {
+                            "ts": params["oldest"],
+                            "files": [
+                                {
+                                    "id": "F-img",
+                                    "name": "selfie.jpg",
+                                    "mimetype": "image/jpeg",
+                                    "url_private": "https://files.slack.com/selfie.jpg",
+                                },
+                                {
+                                    "id": "F-pdf",
+                                    "name": "deck.pdf",
+                                    "mimetype": "application/pdf",
+                                    "url_private": "https://files.slack.com/deck.pdf",
+                                },
+                            ],
+                        }
+                    ]
+                }
+            return {"members": []}
+
+        def fake_download(url):
+            return b"binary-image-data"
+
+        def fake_drive_upload(images, company, pic):
+            drive_calls.append({"images": list(images), "company": company, "pic": pic})
+            return [
+                {
+                    "drive_file_id": "drive-1",
+                    "name": "kopi-janji_andre__F-img.jpg",
+                    "web_view_link": "https://drive/x",
+                }
+            ]
+
+        self.module._request_slack_json = fake_slack_json
+        self.module._download_slack_file = fake_download
+        self.module.upload_aa_selfies_detailed = lambda images, company, pic: {
+            "uploaded": fake_drive_upload(images, company, pic),
+            "drive_status": "ok",
+            "drive_reason": "",
+            "failure_count": 0,
+            "last_error": "",
+        }
+        self.module.aa_drive_configuration_status = lambda: ("ok", "")
+        self.module._ticket_by_slack_thread = lambda *args, **kwargs: []
+
+        result = self.module.attach_aa_selfie_to_thread(
+            slack_thread_url="https://staffany.slack.com/archives/C0B5H2YE5T2/p1779217695397149",
+            customer="Kopi Janji",
+            pic="Andre",
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["answer"]["image_count"], 1)
+        self.assertEqual(result["answer"]["saved_count"], 1)
+        self.assertEqual(result["answer"]["drive_status"], "ok")
+        self.assertEqual(len(result["answer"]["drive_selfies"]), 1)
+        self.assertIn("Saved 1 selfie(s) to Drive.", result["caveat"])
+        self.assertEqual(len(drive_calls), 1)
+        self.assertEqual(drive_calls[0]["company"], "Kopi Janji")
+        self.assertEqual(drive_calls[0]["pic"], "Andre")
+        self.assertEqual([entry["name"] for entry in drive_calls[0]["images"]], ["selfie.jpg"])
+        self.assertEqual(
+            [entry["slack_file_id"] for entry in drive_calls[0]["images"]], ["F-img"]
+        )
+        self.assertEqual([call[0] for call in slack_calls], ["conversations.history"])
+
+    def test_attach_aa_selfie_to_thread_uses_newest_thread_image_when_parent_permalink_passed(self):
+        # Real-world: the Hermes gateway exposes the parent thread permalink
+        # to the agent, not the reply's. When the agent forwards that parent
+        # URL, the tool must still locate the new selfie by scanning the
+        # thread for the most recent image attachment.
+        parent_ts = "1779222669.095949"
+        reply_ts = "1779222835.114159"
+        slack_calls = []
+        upload_inputs = []
+
+        def fake_slack_json(method, params):
+            slack_calls.append((method, dict(params)))
+            if method == "conversations.history":
+                # Parent message exists, ts matches request, but has no files.
+                return {
+                    "messages": [
+                        {"ts": parent_ts, "text": "smoke test parent", "files": []}
+                    ]
+                }
+            if method == "conversations.replies":
+                return {
+                    "messages": [
+                        {"ts": parent_ts, "text": "smoke test parent"},
+                        {
+                            "ts": reply_ts,
+                            "thread_ts": parent_ts,
+                            "files": [
+                                {
+                                    "id": "F0B4F0WAVST",
+                                    "name": "image.png",
+                                    "mimetype": "image/png",
+                                    "url_private": "https://files.slack.com/files-pri/T6BS929EZ-F0B4F0WAVST/image.png",
+                                }
+                            ],
+                        },
+                    ]
+                }
+            return {"members": []}
+
+        def fake_drive_upload(images, company, pic):
+            upload_inputs.append([entry["slack_file_id"] for entry in images])
+            return [
+                {
+                    "drive_file_id": "drive-newest",
+                    "name": "arabica-coffee_khairul__F0B4F0WAVST.png",
+                    "web_view_link": "https://drive/x",
+                }
+            ]
+
+        self.module._request_slack_json = fake_slack_json
+        self.module._download_slack_file = lambda url: b"binary-image-data"
+        self.module.upload_aa_selfies_detailed = lambda images, company, pic: {
+            "uploaded": fake_drive_upload(images, company, pic),
+            "drive_status": "ok",
+            "drive_reason": "",
+            "failure_count": 0,
+            "last_error": "",
+        }
+        self.module.aa_drive_configuration_status = lambda: ("ok", "")
+        self.module._ticket_by_slack_thread = lambda *args, **kwargs: []
+
+        result = self.module.attach_aa_selfie_to_thread(
+            slack_thread_url=f"https://staffany.slack.com/archives/C0B5H2YE5T2/p{parent_ts.replace('.', '')}",
+            customer="Arabica Coffee",
+            pic="Khairul",
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["answer"]["image_count"], 1)
+        self.assertEqual(result["answer"]["saved_count"], 1)
+        self.assertEqual(upload_inputs, [["F0B4F0WAVST"]])
+        # Calls both APIs: history to try the supplied ts, then replies to
+        # scan the thread when the parent has no files.
+        self.assertEqual(
+            [call[0] for call in slack_calls],
+            ["conversations.history", "conversations.replies"],
+        )
+
+    def test_attach_aa_selfie_to_thread_falls_back_to_replies_for_thread_reply(self):
+        slack_calls = []
+        drive_calls = []
+        reply_ts = "1779221847.895889"
+        parent_ts = "1779221716.687319"
+
+        def fake_slack_json(method, params):
+            slack_calls.append((method, dict(params)))
+            if method == "conversations.history":
+                # Slack's conversations.history does not return thread replies;
+                # it returns the next top-level message at or after `oldest`.
+                # That message's ts will not match the reply permalink, which
+                # is exactly the case that requires the conversations.replies
+                # fallback.
+                return {
+                    "messages": [
+                        {"ts": "1779225000.000100", "text": "some unrelated top-level message"}
+                    ]
+                }
+            if method == "conversations.replies":
+                return {
+                    "messages": [
+                        {"ts": parent_ts, "text": "thread parent"},
+                        {
+                            "ts": reply_ts,
+                            "thread_ts": parent_ts,
+                            "files": [
+                                {
+                                    "id": "F-reply-img",
+                                    "name": "selfie.jpg",
+                                    "mimetype": "image/jpeg",
+                                    "url_private": "https://files.slack.com/selfie.jpg",
+                                }
+                            ],
+                        },
+                        {"ts": "1779222000.000100", "text": "later reply, no files"},
+                    ]
+                }
+            return {"members": []}
+
+        def fake_drive_upload(images, company, pic):
+            drive_calls.append({"images": list(images), "company": company, "pic": pic})
+            return [
+                {
+                    "drive_file_id": "drive-reply",
+                    "name": "andsoforth_bayu__F-reply-img.jpg",
+                    "web_view_link": "https://drive/reply",
+                }
+            ]
+
+        self.module._request_slack_json = fake_slack_json
+        self.module._download_slack_file = lambda url: b"binary-image-data"
+        self.module.upload_aa_selfies_detailed = lambda images, company, pic: {
+            "uploaded": fake_drive_upload(images, company, pic),
+            "drive_status": "ok",
+            "drive_reason": "",
+            "failure_count": 0,
+            "last_error": "",
+        }
+        self.module.aa_drive_configuration_status = lambda: ("ok", "")
+        self.module._ticket_by_slack_thread = lambda *args, **kwargs: []
+
+        result = self.module.attach_aa_selfie_to_thread(
+            slack_thread_url=f"https://staffany.slack.com/archives/C0B5H2YE5T2/p{reply_ts.replace('.', '')}",
+            customer="Andsoforth",
+            pic="Bayu",
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["answer"]["image_count"], 1)
+        self.assertEqual(result["answer"]["saved_count"], 1)
+        self.assertEqual(
+            [entry["slack_file_id"] for entry in drive_calls[0]["images"]],
+            ["F-reply-img"],
+        )
+        # First tries conversations.history, then falls back to
+        # conversations.replies when the returned ts does not match.
+        self.assertEqual(
+            [call[0] for call in slack_calls],
+            ["conversations.history", "conversations.replies"],
+        )
+        self.assertEqual(slack_calls[1][1]["ts"], reply_ts)
+
+    def test_attach_aa_selfie_to_thread_returns_needs_check_when_slack_call_fails(self):
+        def fake_slack_json(method, params):
+            if method == "conversations.history":
+                raise self.module.JiraError("Slack API failed: ratelimited")
+            self.fail("Slack should not be called again after history failure")
+
+        self.module._request_slack_json = fake_slack_json
+        self.module.upload_aa_selfies_detailed = lambda *args, **kwargs: self.fail(
+            "Drive upload should not run when the Slack read failed"
+        )
+        self.module.aa_drive_configuration_status = lambda: ("ok", "")
+
+        result = self.module.attach_aa_selfie_to_thread(
+            slack_thread_url="https://staffany.slack.com/archives/C0B5H2YE5T2/p1779217695397149",
+            customer="Kopi Janji",
+            pic="Andre",
+        )
+
+        self.assertEqual(result["confidence"], "needs-check")
+        self.assertEqual(result["answer"]["image_count"], 0)
+        self.assertEqual(result["answer"]["drive_selfies"], [])
+        self.assertIn("Could not read the AA Slack message", result["caveat"])
+        self.assertIn("ratelimited", result["caveat"])
+
+    def test_attach_aa_selfie_to_thread_returns_needs_check_on_partial_ingest(self):
+        def fake_slack_json(method, params):
+            if method == "conversations.history":
+                return {
+                    "messages": [
+                        {
+                            "ts": params["oldest"],
+                            "files": [
+                                {
+                                    "id": "F-ok",
+                                    "name": "first.jpg",
+                                    "mimetype": "image/jpeg",
+                                    "url_private": "https://files.slack.com/first.jpg",
+                                },
+                                {
+                                    "id": "F-flaky",
+                                    "name": "second.jpg",
+                                    "mimetype": "image/jpeg",
+                                    "url_private": "https://files.slack.com/flaky.jpg",
+                                },
+                            ],
+                        }
+                    ]
+                }
+            return {"members": []}
+
+        def fake_download(url):
+            if "flaky" in url:
+                raise RuntimeError("transient Slack download failure")
+            return b"binary-image-data"
+
+        def fake_drive_upload(images, company, pic):
+            return [
+                {
+                    "drive_file_id": f"drive-{entry['slack_file_id']}",
+                    "name": entry["name"],
+                    "web_view_link": "https://drive/x",
+                }
+                for entry in images
+            ]
+
+        self.module._request_slack_json = fake_slack_json
+        self.module._download_slack_file = fake_download
+        self.module.upload_aa_selfies_detailed = lambda images, company, pic: {
+            "uploaded": fake_drive_upload(images, company, pic),
+            "drive_status": "ok",
+            "drive_reason": "",
+            "failure_count": 0,
+            "last_error": "",
+        }
+        self.module.aa_drive_configuration_status = lambda: ("ok", "")
+        self.module._ticket_by_slack_thread = lambda *args, **kwargs: []
+
+        result = self.module.attach_aa_selfie_to_thread(
+            slack_thread_url="https://staffany.slack.com/archives/C0B5H2YE5T2/p1779217695397149",
+            customer="Kopi Janji",
+            pic="Andre",
+        )
+
+        self.assertEqual(result["confidence"], "needs-check")
+        self.assertEqual(result["answer"]["image_count"], 2)
+        self.assertEqual(result["answer"]["downloaded_count"], 1)
+        self.assertEqual(result["answer"]["saved_count"], 1)
+        self.assertEqual(result["answer"]["download_failure_count"], 1)
+        self.assertEqual(result["answer"]["drive_failure_count"], 0)
+        self.assertIn("Partial AA selfie ingest", result["caveat"])
+
+    def test_attach_aa_selfie_to_thread_blocks_outside_aa_channel(self):
+        self.module._request_slack_json = lambda *_args, **_kwargs: self.fail(
+            "Slack should not be called when blocking outside AA channel"
+        )
+        self.module.aa_drive_configuration_status = lambda: ("ok", "")
+        self.module.upload_aa_selfies_detailed = lambda *args, **kwargs: self.fail(
+            "Drive upload should not run outside AA channel"
+        )
+
+        result = self.module.attach_aa_selfie_to_thread(
+            slack_thread_url="https://staffany.slack.com/archives/C0B2VT50YT1/p1779213672422819",
+            customer="Kopi Janji",
+            pic="Andre",
+        )
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("Event AA channel", result["caveat"])
+
+    def test_attach_aa_selfie_to_thread_reports_missing_token_status(self):
+        self.module._request_slack_json = lambda *_args, **_kwargs: self.fail(
+            "Slack should not be called when Drive is not configured"
+        )
+        self.module.upload_aa_selfies_detailed = lambda *args, **kwargs: self.fail(
+            "Drive upload should not run when token is missing"
+        )
+        self.module.aa_drive_configuration_status = lambda: (
+            "missing_token",
+            "Drive OAuth token file missing at /nope/drive-token.json.",
+        )
+
+        result = self.module.attach_aa_selfie_to_thread(
+            slack_thread_url="https://staffany.slack.com/archives/C0B5H2YE5T2/p1779213672422819",
+            customer="Kopi Janji",
+            pic="Andre",
+        )
+
+        self.assertEqual(result["confidence"], "needs-check")
+        self.assertEqual(result["answer"]["drive_status"], "missing_token")
+        self.assertEqual(result["answer"]["drive_selfies"], [])
+        self.assertIn("Drive OAuth token file missing", result["caveat"])
+
+    def test_attach_aa_selfie_to_thread_returns_verified_when_message_has_no_images(self):
+        def fake_slack_json(method, params):
+            if method == "conversations.history":
+                return {"messages": [{"ts": params["oldest"], "text": "no images here"}]}
+            return {"members": []}
+
+        self.module._request_slack_json = fake_slack_json
+        self.module.upload_aa_selfies_detailed = lambda *args, **kwargs: self.fail(
+            "Drive upload should not run when there are no images"
+        )
+        self.module.aa_drive_configuration_status = lambda: ("ok", "")
+
+        result = self.module.attach_aa_selfie_to_thread(
+            slack_thread_url="https://staffany.slack.com/archives/C0B5H2YE5T2/p1779217695397149",
+            customer="Kopi Janji",
+            pic="Andre",
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["answer"]["image_count"], 0)
+        self.assertEqual(result["answer"]["drive_selfies"], [])
+        self.assertIn("No image attachments", result["caveat"])
+
+    def test_attach_aa_selfie_to_thread_attaches_to_all_aa_tickets_in_thread(self):
+        attach_payload_calls = []
+
+        def fake_slack_json(method, params):
+            if method == "conversations.history":
+                return {
+                    "messages": [
+                        {
+                            "ts": params["oldest"],
+                            "files": [
+                                {
+                                    "id": "F-img",
+                                    "name": "selfie.jpg",
+                                    "mimetype": "image/jpeg",
+                                    "url_private": "https://files.slack.com/selfie.jpg",
+                                },
+                            ],
+                        }
+                    ]
+                }
+            return {"members": []}
+
+        def fake_drive_upload(images, company, pic):
+            return [
+                {
+                    "drive_file_id": "drive-1",
+                    "name": "dandy-collection_rohit__F-img.jpg",
+                    "web_view_link": "https://drive/x",
+                }
+            ]
+
+        def fake_attach_payloads(issue_keys, payloads):
+            attach_payload_calls.append((list(issue_keys), list(payloads)))
+            return {
+                key: {
+                    "attached": [{"id": f"att-{key}", "filename": "selfie.jpg"}],
+                    "errors": [],
+                }
+                for key in issue_keys
+            }
+
+        self.module._request_slack_json = fake_slack_json
+        self.module._download_slack_file = lambda url: b"binary-image-data"
+        self.module.upload_aa_selfies_detailed = lambda images, company, pic: {
+            "uploaded": fake_drive_upload(images, company, pic),
+            "drive_status": "ok",
+            "drive_reason": "",
+            "failure_count": 0,
+            "last_error": "",
+        }
+        self.module.aa_drive_configuration_status = lambda: ("ok", "")
+        self.module._ticket_by_slack_thread = lambda *args, **kwargs: [
+            {"issue_key": "PCO-247", "url": "https://staffany.atlassian.net/browse/PCO-247"},
+            {"issue_key": "PCO-248", "url": "https://staffany.atlassian.net/browse/PCO-248"},
+        ]
+        self.module._attach_payloads_to_issues = fake_attach_payloads
+
+        result = self.module.attach_aa_selfie_to_thread(
+            slack_thread_url="https://staffany.slack.com/archives/C0B5H2YE5T2/p1779217695397149",
+            customer="Dandy Collection",
+            pic="Rohit",
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["answer"]["saved_count"], 1)
+        self.assertEqual(result["answer"]["jira_ticket_count"], 2)
+        self.assertEqual(result["answer"]["jira_attached_count"], 2)
+        self.assertEqual(sorted(result["answer"]["jira_attachments"].keys()), ["PCO-247", "PCO-248"])
+        self.assertEqual(len(attach_payload_calls), 1)
+        self.assertEqual(attach_payload_calls[0][0], ["PCO-247", "PCO-248"])
+        self.assertIn("Saved 1 selfie(s) to Drive", result["caveat"])
+        self.assertIn("attached 2 image(s) across 2 Jira ticket(s)", result["caveat"])
+
+    def test_attach_aa_selfie_to_thread_searches_thread_permalink_variants(self):
+        ticket_lookup_args: list[str] = []
+
+        def fake_slack_json(method, params):
+            if method == "conversations.history":
+                return {
+                    "messages": [
+                        {
+                            "ts": params["oldest"],
+                            "files": [
+                                {
+                                    "id": "F-img",
+                                    "name": "selfie.jpg",
+                                    "mimetype": "image/jpeg",
+                                    "url_private": "https://files.slack.com/selfie.jpg",
+                                }
+                            ],
+                        }
+                    ]
+                }
+            return {"members": []}
+
+        def fake_ticket_lookup(url, _limit):
+            ticket_lookup_args.append(url)
+            # Only return a hit for the parent-thread variant — proves the
+            # tool didn't stop at the reply URL it was handed.
+            if url == "https://staffany.slack.com/archives/C0B5H2YE5T2/p1779243840262999":
+                return [{"issue_key": "PCO-247", "url": "https://staffany.atlassian.net/browse/PCO-247"}]
+            return []
+
+        self.module._request_slack_json = fake_slack_json
+        self.module._download_slack_file = lambda url: b"binary-image-data"
+        self.module.upload_aa_selfies_detailed = lambda *args, **kwargs: {
+            "uploaded": [{"drive_file_id": "drive-1", "name": "x.jpg", "web_view_link": "https://drive/x"}],
+            "drive_status": "ok",
+            "drive_reason": "",
+            "failure_count": 0,
+            "last_error": "",
+        }
+        self.module.aa_drive_configuration_status = lambda: ("ok", "")
+        self.module._ticket_by_slack_thread = fake_ticket_lookup
+        self.module._attach_payloads_to_issues = lambda keys, payloads: {
+            key: {"attached": [{"id": f"att-{key}", "filename": "x.jpg"}], "errors": []} for key in keys
+        }
+
+        # Reply permalink with thread_ts pointing at the parent — exactly the
+        # shape Slack hands the agent for a follow-up selfie reply.
+        result = self.module.attach_aa_selfie_to_thread(
+            slack_thread_url="https://staffany.slack.com/archives/C0B5H2YE5T2/p1779243903073209?thread_ts=1779243840.262999&cid=C0B5H2YE5T2",
+            customer="Dandy Collection",
+            pic="Rohit",
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["answer"]["jira_ticket_count"], 1)
+        self.assertEqual(result["answer"]["jira_attached_count"], 1)
+        # Confirms the parent-thread variant was tried, not just the reply URL.
+        self.assertIn(
+            "https://staffany.slack.com/archives/C0B5H2YE5T2/p1779243840262999",
+            ticket_lookup_args,
+        )
+
+    def test_attach_aa_selfie_to_thread_surfaces_jira_attach_errors(self):
+        def fake_slack_json(method, params):
+            if method == "conversations.history":
+                return {
+                    "messages": [
+                        {
+                            "ts": params["oldest"],
+                            "files": [
+                                {
+                                    "id": "F-img",
+                                    "name": "selfie.jpg",
+                                    "mimetype": "image/jpeg",
+                                    "url_private": "https://files.slack.com/selfie.jpg",
+                                }
+                            ],
+                        }
+                    ]
+                }
+            return {"members": []}
+
+        self.module._request_slack_json = fake_slack_json
+        self.module._download_slack_file = lambda url: b"binary-image-data"
+        self.module.upload_aa_selfies_detailed = lambda *args, **kwargs: {
+            "uploaded": [{"drive_file_id": "drive-1", "name": "x.jpg", "web_view_link": "https://drive/x"}],
+            "drive_status": "ok",
+            "drive_reason": "",
+            "failure_count": 0,
+            "last_error": "",
+        }
+        self.module.aa_drive_configuration_status = lambda: ("ok", "")
+        self.module._ticket_by_slack_thread = lambda *args, **kwargs: [
+            {"issue_key": "PCO-500", "url": "https://staffany.atlassian.net/browse/PCO-500"},
+        ]
+        self.module._attach_payloads_to_issues = lambda keys, payloads: {
+            "PCO-500": {
+                "attached": [],
+                "errors": ["Jira attachment POST failed: 401 Unauthorized"],
+            }
+        }
+
+        result = self.module.attach_aa_selfie_to_thread(
+            slack_thread_url="https://staffany.slack.com/archives/C0B5H2YE5T2/p1779217695397149",
+            customer="Dandy Collection",
+            pic="Rohit",
+        )
+
+        self.assertEqual(result["confidence"], "needs-check")
+        self.assertEqual(result["answer"]["jira_attached_count"], 0)
+        self.assertIn(
+            "PCO-500: Jira attachment POST failed: 401 Unauthorized",
+            result["answer"]["jira_attach_errors"],
+        )
+        self.assertIn("Jira errors", result["caveat"])
+
+    def test_attach_aa_selfie_to_thread_surfaces_drive_failure_reason(self):
+        def fake_slack_json(method, params):
+            if method == "conversations.history":
+                return {
+                    "messages": [
+                        {
+                            "ts": params["oldest"],
+                            "files": [
+                                {
+                                    "id": "F-img",
+                                    "name": "selfie.jpg",
+                                    "mimetype": "image/jpeg",
+                                    "url_private": "https://files.slack.com/selfie.jpg",
+                                }
+                            ],
+                        }
+                    ]
+                }
+            return {"members": []}
+
+        self.module._request_slack_json = fake_slack_json
+        self.module._download_slack_file = lambda url: b"binary-image-data"
+        self.module.upload_aa_selfies_detailed = lambda *args, **kwargs: {
+            "uploaded": [],
+            "drive_status": "upload_failed",
+            "drive_reason": "Drive upload failed: 401 Invalid Credentials",
+            "failure_count": 1,
+            "last_error": "Drive upload failed: 401 Invalid Credentials",
+        }
+        self.module.aa_drive_configuration_status = lambda: ("ok", "")
+        self.module._ticket_by_slack_thread = lambda *args, **kwargs: []
+
+        result = self.module.attach_aa_selfie_to_thread(
+            slack_thread_url="https://staffany.slack.com/archives/C0B5H2YE5T2/p1779217695397149",
+            customer="Dandy Collection",
+            pic="Rohit",
+        )
+
+        self.assertEqual(result["confidence"], "needs-check")
+        self.assertEqual(result["answer"]["drive_status"], "upload_failed")
+        self.assertEqual(
+            result["answer"]["drive_reason"],
+            "Drive upload failed: 401 Invalid Credentials",
+        )
+        # The caveat must include the verbatim Drive reason instead of the
+        # old invented "check OAuth token validity" message.
+        self.assertIn("Drive upload failed: 401 Invalid Credentials", result["caveat"])
+
+    def test_ps_wee_intake_in_aa_channel_creates_ticket_even_when_creator_no_match(self):
+        calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
+                return {"issues": []}
+            if path == "/rest/servicedeskapi/request":
+                return {"issueKey": "PCO-999", "requestTypeId": "123"}
+            if path.endswith("/comment"):
+                return {"id": "comment-999"}
+            return {}
+
+        self.module._request_json = fake_request
+        self.module._creator_valid_values = self._mock_creator_options
+        self.module._update_issue_labels = lambda *args, **kwargs: None
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: {"ok": True}
+
+        result = self.module.create_ps_wee_intake_ticket(
+            slack_user_email="strangerwhowasnotinvited@staffany.com",
+            slack_thread_url="https://staffany.slack.com/archives/C0B5H2YE5T2/p1779100000000099",
+            customer="Kopi Janji",
+            issue_summary="follow up",
+            request_type_key="ps_follow_up",
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        create_call = next(c for c in calls if c[1] == "/rest/servicedeskapi/request")
+        self.assertNotIn("customfield_10914", create_call[2]["requestFieldValues"], "Creator field should be omitted when no option matches")
+
+    def test_ps_wee_intake_in_aa_channel_overrides_hallucinated_slack_user_email(self):
+        calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
+                return {"issues": []}
+            if path == "/rest/servicedeskapi/request":
+                return {"issueKey": "PCO-901", "requestTypeId": "123"}
+            if path.endswith("/comment"):
+                return {"id": "comment-901"}
+            return {}
+
+        # Slack conversations.history returns the verified Slack tagger
+        # (Ada PSM's real Slack ID) for the trigger message — this is the
+        # source of truth the MCP must trust over whatever the agent passes.
+        def fake_slack_json(method, params):
+            if method == "conversations.history":
+                return {
+                    "messages": [
+                        {"ts": params.get("oldest", ""), "user": "UADAREAL"},
+                    ]
+                }
+            if method == "users.list":
+                return {
+                    "members": [
+                        {
+                            "id": "UADAREAL",
+                            "real_name": "Ada PSM",
+                            "profile": {
+                                "email": "psm@staffany.com",
+                                "real_name": "Ada PSM",
+                            },
+                        }
+                    ]
+                }
+            return {}
+
+        def creator_options(request_type_id=""):
+            return [
+                {"value": "creator-ada", "label": "Ada PSM"},
+                {"value": "creator-josica", "label": "Josica"},
+            ]
+        def ps_team_options(request_type_id=""):
+            return [
+                {"value": "team-ada", "label": "Ada PSM"},
+                {"value": "team-josica", "label": "Josica"},
+            ]
+
+        self.module._request_json = fake_request
+        self.module._request_slack_json = fake_slack_json
+        self.module._creator_valid_values = creator_options
+        self.module._ps_team_valid_values = ps_team_options
+        self.module._update_issue_labels = lambda *args, **kwargs: None
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: {"ok": True}
+
+        # Agent hallucinates a Slack ID that does not exist (matches the
+        # real-prod failure pattern from PCO-291/293 and PCO-298-300). The
+        # MCP must re-derive the tagger from the thread permalink and use
+        # Ada PSM's verified identity for Creator + PS Team.
+        result = self.module.create_ps_wee_intake_ticket(
+            slack_user_email="U07HALLUC1NAT",
+            slack_thread_url="https://staffany.slack.com/archives/C0B5H2YE5T2/p1779259580035789",
+            customer="Rock Productions",
+            issue_summary="Follow up on proper changelog",
+            request_type_key="ps_follow_up",
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        create_call = next(c for c in calls if c[1] == "/rest/servicedeskapi/request")
+        values = create_call[2]["requestFieldValues"]
+        self.assertEqual(
+            values.get("customfield_10914"), {"id": "creator-ada"},
+            msg=f"AA Creator must come from the verified Slack tagger, not the hallucinated slack_user_email: {values}",
+        )
+        self.assertEqual(
+            values.get("customfield_10876"), {"id": "team-ada"},
+            msg=f"AA PS Team must come from the verified Slack tagger: {values}",
+        )
+        self.assertNotIn("U07HALLUC1NAT", json.dumps(values), "hallucinated Slack ID must never reach Jira")
+
+    def test_ps_wee_intake_in_aa_channel_falls_back_to_supplied_email_when_slack_unreachable(self):
+        calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
+                return {"issues": []}
+            if path == "/rest/servicedeskapi/request":
+                return {"issueKey": "PCO-902", "requestTypeId": "123"}
+            if path.endswith("/comment"):
+                return {"id": "comment-902"}
+            return {}
+
+        # Slack is unreachable for both conversations.history and the
+        # subsequent users.list lookup — the MCP must not block.
+        def fake_slack_json(method, params):
+            raise self.module.JiraError("slack unreachable")
+
+        def creator_options(request_type_id=""):
+            return [{"value": "creator-ada", "label": "Ada PSM"}]
+        def ps_team_options(request_type_id=""):
+            return [{"value": "team-ada", "label": "Ada PSM"}]
+
+        self.module._request_json = fake_request
+        self.module._request_slack_json = fake_slack_json
+        self.module._creator_valid_values = creator_options
+        self.module._ps_team_valid_values = ps_team_options
+        self.module._update_issue_labels = lambda *args, **kwargs: None
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: {"ok": True}
+
+        # Agent supplies a real, policy-mapped email — Slack lookup failures
+        # must not regress this path: the agent-supplied email is honored
+        # when verification is impossible.
+        result = self.module.create_ps_wee_intake_ticket(
+            slack_user_email="psm@staffany.com",
+            slack_thread_url="https://staffany.slack.com/archives/C0B5H2YE5T2/p1779259580035789",
+            customer="Rock Productions",
+            issue_summary="Follow up on proper changelog",
+            request_type_key="ps_follow_up",
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        create_call = next(c for c in calls if c[1] == "/rest/servicedeskapi/request")
+        values = create_call[2]["requestFieldValues"]
+        self.assertEqual(values.get("customfield_10914"), {"id": "creator-ada"})
+        self.assertEqual(values.get("customfield_10876"), {"id": "team-ada"})
+
+    def test_ps_wee_intake_in_aa_channel_ignores_hallucinated_creator_override(self):
+        calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
+                return {"issues": []}
+            if path == "/rest/servicedeskapi/request":
+                return {"issueKey": "PCO-888", "requestTypeId": "123"}
+            if path.endswith("/comment"):
+                return {"id": "comment-888"}
+            return {}
+
+        # Mock includes "Ada PSM" so the verified Slack tagger has a real
+        # Creator + PS Team option to match — otherwise we'd only be testing
+        # the silent-omit path, not the override-ignore path.
+        def creator_options(request_type_id=""):
+            return [
+                {"value": "creator-ada", "label": "Ada PSM"},
+                {"value": "creator-josica", "label": "Josica"},
+            ]
+        def ps_team_options(request_type_id=""):
+            return [
+                {"value": "team-ada", "label": "Ada PSM"},
+                {"value": "team-josica", "label": "Josica"},
+            ]
+
+        self.module._request_json = fake_request
+        self.module._creator_valid_values = creator_options
+        self.module._ps_team_valid_values = ps_team_options
+        self.module._update_issue_labels = lambda *args, **kwargs: None
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: {"ok": True}
+
+        # slack_user_email maps to Ada PSM via the access policy. The
+        # creator_slack_user_email is a hallucinated Slack ID (the same one
+        # that broke PCO-291/293 in prod) — the MCP must ignore it and use
+        # the verified tagger identity for both Creator and PS Team fallback.
+        result = self.module.create_ps_wee_intake_ticket(
+            slack_user_email="psm@staffany.com",
+            slack_thread_url="https://staffany.slack.com/archives/C0B5H2YE5T2/p1779257813193379",
+            customer="Super Loco Group",
+            issue_summary="Follow up API access for wall",
+            request_type_key="ps_follow_up",
+            creator_slack_user_email="U07UTFE8U3X",
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        create_call = next(c for c in calls if c[1] == "/rest/servicedeskapi/request")
+        values = create_call[2]["requestFieldValues"]
+        self.assertEqual(
+            values.get("customfield_10914"), {"id": "creator-ada"},
+            msg=f"AA Creator must come from the verified Slack tagger, not the hallucinated override: {values}",
+        )
+        # PS Team fallback (ps_follow_up isn't in EVENT_AA_PS_TEAM_BY_CATEGORY,
+        # so the fallback resolves through the matched creator label /
+        # tagger display name → Ada PSM in the policy).
+        self.assertEqual(
+            values.get("customfield_10876"), {"id": "team-ada"},
+            msg=f"AA PS Team must come from the verified Slack tagger: {values}",
+        )
+        self.assertNotIn("U07UTFE8U3X", json.dumps(values), "hallucinated creator ID must never reach Jira")
+
+    def test_ps_wee_intake_in_aa_channel_strips_any_supplied_due_date(self):
+        calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
+                return {"issues": []}
+            if path == "/rest/servicedeskapi/request":
+                return {"issueKey": "PCO-777", "requestTypeId": "122"}
+            if path.endswith("/comment"):
+                return {"id": "comment-777"}
+            return {}
+
+        self.module._request_json = fake_request
+        self.module._creator_valid_values = self._mock_creator_options
+        self.module._update_issue_labels = lambda *args, **kwargs: None
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: {"ok": True}
+
+        # Past date (would have triggered the validator) and a future date
+        # both must be stripped on AA intakes — triage owns deadlines.
+        for supplied_due in ("2025-06-02", "2026-06-02"):
+            calls.clear()
+            result = self.module.create_ps_wee_intake_ticket(
+                slack_user_email="josica@staffany.com",
+                slack_thread_url="https://staffany.slack.com/archives/C0B5H2YE5T2/p1779257501716939",
+                customer="Playmade",
+                issue_summary="HR PIC change Agnes to Roxanne, handover required",
+                request_type_key="feedback",
+                due_date=supplied_due,
+                creator_slack_user_email="josica@staffany.com",
+            )
+
+            self.assertEqual(
+                result["confidence"], "verified",
+                msg=f"AA intake must not block on any supplied due_date ({supplied_due}): {result}",
+            )
+            create_calls = [c for c in calls if c[1] == "/rest/servicedeskapi/request"]
+            self.assertEqual(len(create_calls), 1, "ticket must still be created")
+            duedate_writes = [c for c in calls if c[0] == "PUT" and "duedate" in json.dumps(c[2] or {})]
+            self.assertEqual(
+                duedate_writes, [],
+                msg=f"AA intake must not write due_date to Jira (supplied={supplied_due})",
+            )
+            slack_reply = result["answer"]["slack_reply"]
+            self.assertIn("Created first", slack_reply)
+            self.assertNotIn(supplied_due, slack_reply, "AA reply must not echo a stripped date")
+
+    def test_ps_wee_intake_outside_aa_channel_still_blocks_past_due_date(self):
+        calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
+                return {"issues": []}
+            if path == "/rest/servicedeskapi/request":
+                return {"issueKey": "PCO-778", "requestTypeId": "101"}
+            return {}
+
+        self.module._request_json = fake_request
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: {"ok": True}
+
+        result = self.module.create_ps_wee_intake_ticket(
+            slack_user_email="psm@staffany.com",
+            slack_thread_url="https://staffany.slack.com/archives/C9999AAAA00/p1779100000000777",
+            customer="Acme",
+            issue_summary="non-AA flow",
+            due_date="2025-06-02",
+        )
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("before today", result["answer"]["message"])
+        create_calls = [c for c in calls if c[1] == "/rest/servicedeskapi/request"]
+        self.assertEqual(create_calls, [], "non-AA flows must still block past dates before write")
+
+    def test_ps_wee_intake_in_aa_channel_allows_multi_ticket_per_thread(self):
+        calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
+                if "PS+Follow+Up" in path or "PS%20Follow%20Up" in path:
+                    return {"issues": []}
+                if "CS+Follow+Up" in path or "CS%20Follow%20Up" in path:
+                    return {"issues": []}
+                return {"issues": []}
+            if path == "/rest/servicedeskapi/request":
+                rtype = (body or {}).get("requestTypeId")
+                key = "PCO-PS" if rtype == "123" else "PCO-CS"
+                return {"issueKey": key, "requestTypeId": rtype}
+            if path.endswith("/comment"):
+                return {"id": "comment-x"}
+            return {}
+
+        self.module._request_json = fake_request
+        self.module._creator_valid_values = self._mock_creator_options
+        self.module._update_issue_labels = lambda *args, **kwargs: None
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: {"ok": True}
+
+        thread = "https://staffany.slack.com/archives/C0B5H2YE5T2/p1779100000000050"
+
+        first = self.module.create_ps_wee_intake_ticket(
+            slack_user_email="josica@staffany.com",
+            slack_thread_url=thread,
+            customer="Kopi Janji",
+            issue_summary="deep dive",
+            request_type_key="ps_follow_up",
+            creator_slack_user_email="josica@staffany.com",
+        )
+        second = self.module.create_ps_wee_intake_ticket(
+            slack_user_email="josica@staffany.com",
+            slack_thread_url=thread,
+            customer="Kopi Janji",
+            issue_summary="troubleshooting",
+            request_type_key="cs_follow_up",
+            creator_slack_user_email="josica@staffany.com",
+        )
+
+        self.assertEqual(first["confidence"], "verified")
+        self.assertEqual(second["confidence"], "verified")
+        create_calls = [c for c in calls if c[1] == "/rest/servicedeskapi/request"]
+        self.assertEqual(len(create_calls), 2)
+        self.assertEqual(create_calls[0][2]["requestTypeId"], "123")
+        self.assertEqual(create_calls[1][2]["requestTypeId"], "124")
+        search_calls = [c[1] for c in calls if c[1].startswith("/rest/api/3/search/jql?")]
+        self.assertTrue(
+            any("PS+Follow+Up" in path or "PS%20Follow%20Up" in path for path in search_calls),
+            msg=f"PS Follow Up filter missing from dedupe queries: {search_calls}",
+        )
+        self.assertTrue(
+            any("CS+Follow+Up" in path or "CS%20Follow%20Up" in path for path in search_calls),
+            msg=f"CS Follow Up filter missing from dedupe queries: {search_calls}",
+        )
+
+    def test_ps_wee_intake_in_aa_channel_allows_multi_customer_same_request_type(self):
+        existing_issue = {
+            "key": "PCO-264",
+            "fields": {
+                "summary": "[Needs info] Qiqi - Want to expand more outlets",
+                "status": {"name": "Open"},
+                "priority": {"name": "Medium"},
+            },
+        }
+        calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
+                # Same Slack thread + same request_type returns the prior Qiqi ticket.
+                return {"issues": [existing_issue]}
+            if path == "/rest/servicedeskapi/request":
+                return {"issueKey": "PCO-265", "requestTypeId": "120"}
+            if path.endswith("/comment"):
+                return {"id": "comment-265"}
+            return {}
+
+        self.module._request_json = fake_request
+        self.module._creator_valid_values = self._mock_creator_options
+        self.module._update_issue_labels = lambda *args, **kwargs: None
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: {"ok": True}
+
+        result = self.module.create_ps_wee_intake_ticket(
+            slack_user_email="eugene@staffany.com",
+            slack_thread_url="https://staffany.slack.com/archives/C0B5H2YE5T2/p1779250051395009",
+            customer="Lo and Behold",
+            issue_summary="Want to expand more outlets",
+            request_type_key="rev_cross_sell",
+            creator_slack_user_email="eugene@staffany.com",
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        # New ticket must be created — dedupe should not collapse Lo and Behold into Qiqi.
+        create_calls = [c for c in calls if c[1] == "/rest/servicedeskapi/request"]
+        self.assertEqual(len(create_calls), 1)
+        self.assertNotIn("existing_ticket", result["answer"])
+
+    def test_ps_wee_intake_in_aa_channel_reuses_only_when_customer_matches(self):
+        existing_issue = {
+            "key": "PCO-300",
+            "fields": {
+                "summary": "[Needs info] Dapur Penyet - Follow up on HRany",
+                "status": {"name": "Open"},
+                "priority": {"name": "Medium"},
+            },
+        }
+        label_calls = []
+
+        def fake_request(method, path, body=None):
+            if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
+                return {"issues": [existing_issue]}
+            return {}
+
+        def fake_labels(issue_key, add=None, remove=None):
+            label_calls.append((issue_key, list(add or []), list(remove or [])))
+
+        self.module._request_json = fake_request
+        self.module._creator_valid_values = self._mock_creator_options
+        self.module._update_issue_labels = fake_labels
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: {"ok": True}
+
+        result = self.module.create_ps_wee_intake_ticket(
+            slack_user_email="siti@staffany.com",
+            slack_thread_url="https://staffany.slack.com/archives/C0B5H2YE5T2/p1779249926878009",
+            customer="Dapur Penyet",
+            issue_summary="Follow up on HRany",
+            request_type_key="rev_cross_sell",
+            creator_slack_user_email="siti@staffany.com",
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["answer"]["existing_ticket"]["issue_key"], "PCO-300")
+        # AA reuse path must defensively re-apply the AA-SG-2026 label on the existing ticket.
+        self.assertTrue(
+            any("PCO-300" == key and "AA-SG-2026" in labels for key, labels, _ in label_calls),
+            msg=f"AA-SG-2026 label was not re-applied on reuse: {label_calls}",
+        )
+
+    def test_ps_wee_intake_outside_aa_channel_does_not_force_event_aa_request_type(self):
+        calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
+                return {"issues": []}
+            if path == "/rest/servicedeskapi/request":
+                return {"issueKey": "PCO-903", "requestTypeId": "101"}
+            if path.endswith("/comment"):
+                return {"id": "comment-903"}
+            return {}
+
+        self.module._request_json = fake_request
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: {"ok": True}
+
+        result = self.module.create_ps_wee_intake_ticket(
+            slack_user_email="psm@staffany.com",
+            slack_thread_url="https://staffany.slack.com/archives/C0B2VT50YT1/p1779100000000002",
+            customer="Some Customer",
+            issue_summary="Regular non-event request",
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        create_call = next(c for c in calls if c[1] == "/rest/servicedeskapi/request")
+        self.assertEqual(create_call[2]["requestTypeId"], "101")
+        self.assertEqual(result["scope"]["request_type_key"], "customer_next_action")
+        self.assertEqual(result["scope"]["event"], "")
+
     def test_ps_wee_intake_prunes_known_fields_and_caps_slack_missing_info(self):
         calls = []
         audit_calls = []
@@ -983,6 +2826,10 @@ class PsmJiraServerTest(unittest.TestCase):
             return {}
 
         self.module._request_json = fake_request
+        # Stub Assets resolution: workspace discovery is short-circuited and each supplied
+        # name echoes back as its numeric id, so the wire payload uses the composite globalId.
+        self.module._assets_workspace_id = lambda: "ws-test"
+        self.module._resolve_assets_object_id = lambda name: name
 
         with patch.dict(os.environ, {"PSM_OPS_CUSTOMER_CHANNEL_MAP_PATH": map_path}, clear=False):
             result = self.module.create_ps_wee_intake_ticket(
@@ -994,7 +2841,10 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertEqual(result["confidence"], "verified")
         request_values = calls[1][2]["requestFieldValues"]
         self.assertEqual(request_values["customfield_10101"], "Fei Siong Group")
-        self.assertEqual(request_values["customfield_10102"], "FS-001, FS-002")
+        self.assertEqual(
+            request_values["customfield_10102"],
+            [{"id": "ws-test:FS-001"}, {"id": "ws-test:FS-002"}],
+        )
         self.assertEqual(request_values["summary"], "[Needs info] Fei Siong Group - Payroll readiness unclear")
         self.assertNotIn("customer/org", result["answer"]["missing_info"])
         self.assertIn("Customer channel: C08SDJR03N1", calls[2][2]["body"])
@@ -1026,6 +2876,8 @@ class PsmJiraServerTest(unittest.TestCase):
             return {}
 
         self.module._request_json = fake_request
+        self.module._assets_workspace_id = lambda: "ws-test"
+        self.module._resolve_assets_object_id = lambda name: name
 
         with patch.dict(os.environ, {"PSM_OPS_CUSTOMER_CHANNEL_MAP_PATH": map_path}, clear=False):
             result = self.module.create_ps_wee_intake_ticket(
@@ -1036,7 +2888,7 @@ class PsmJiraServerTest(unittest.TestCase):
             )
 
         self.assertEqual(result["confidence"], "verified")
-        self.assertEqual(calls[1][2]["requestFieldValues"]["customfield_10102"], "FS-001")
+        self.assertEqual(calls[1][2]["requestFieldValues"]["customfield_10102"], [{"id": "ws-test:FS-001"}])
 
     def test_ps_wee_intake_blocks_conflicting_customer_channel_mapping(self):
         map_path = self._customer_channel_map(
@@ -1916,7 +3768,7 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertEqual(draft["owner_jira_account_id"], "acct-kaiyi")
         self.assertEqual(draft["ps_team"], "Kai Yi")
 
-    def test_thin_poc_create_retries_summary_only_comments_and_assigns(self):
+    def test_thin_poc_create_retries_without_staffany_orgs_when_assets_rejects(self):
         calls = []
         with patch.dict(
             os.environ,
@@ -1932,11 +3784,122 @@ class PsmJiraServerTest(unittest.TestCase):
             def fake_request(method, path, body=None):
                 calls.append((method, path, deepcopy(body)))
                 if path == "/rest/servicedeskapi/request" and "customfield_10667" in body["requestFieldValues"]:
-                    raise self.module.JiraError("Jira rejected optional field value")
+                    raise self.module.JiraError("Jira rejected optional field value", status_code=400)
                 if path == "/rest/servicedeskapi/request":
                     return {"issueKey": "PCO-456", "requestTypeId": "81"}
                 if path.endswith("/comment"):
                     return {"id": "comment-456"}
+                return {}
+
+            self.module._request_json = fake_request
+            self.module._assets_workspace_id = lambda: "ws-test"
+            self.module._resolve_assets_object_id = lambda name: name
+
+            result = self.module.create_approved_pco_task(
+                {
+                    "customer": "Fei Siong",
+                    "summary": "Confirm payroll readiness",
+                    "due_date": "2026-05-15",
+                    "priority": "High",
+                    "action_type": "Customer success",
+                    "request_type_id": "81",
+                    "source_links": ["https://c360/fei"],
+                    "staffany_orgs": ["FS-001"],
+                    "owner_psm": "Ada PSM",
+                    "owner_jira_account_id": "acct-123",
+                    "mode": "thin_poc",
+                },
+                "create",
+            )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(calls[0][2]["requestFieldValues"]["customfield_10667"], [{"id": "ws-test:FS-001"}])
+        retry_values = calls[1][2]["requestFieldValues"]
+        self.assertNotIn("customfield_10667", retry_values)
+        self.assertEqual(retry_values["summary"], "Confirm payroll readiness")
+        self.assertEqual(calls[2][1], "/rest/api/3/issue/PCO-456")
+        self.assertEqual(calls[2][2]["fields"], {"duedate": "2026-05-15"})
+        self.assertEqual(calls[3][1], "/rest/servicedeskapi/request/PCO-456/comment")
+        self.assertEqual(calls[4][1], "/rest/api/3/issue/PCO-456/assignee")
+        self.assertIn("StaffAny Organization was skipped", result["answer"]["warnings"][0])
+
+    def test_thin_poc_create_falls_back_to_summary_only_when_retry_still_fails(self):
+        calls = []
+        original_ps_team_request_value = self.module._ps_team_request_value
+        with patch.dict(
+            os.environ,
+            {
+                "PSM_OPS_JIRA_MODE": "thin_poc",
+                "PSM_OPS_ACCESS_POLICY_PATH": "",
+                "PSM_OPS_JIRA_SERVICE_DESK_ID": "",
+                "PSM_OPS_JIRA_FIELD_STAFFANY_ORGS": "",
+                "PSM_OPS_JIRA_FIELD_REMINDER_AT": "",
+            },
+            clear=False,
+        ):
+            def fake_request(method, path, body=None):
+                calls.append((method, path, deepcopy(body)))
+                if path == "/rest/servicedeskapi/request" and set(body["requestFieldValues"]) != {"summary"}:
+                    raise self.module.JiraError("Jira rejected optional field value", status_code=400)
+                if path == "/rest/servicedeskapi/request":
+                    return {"issueKey": "PCO-789", "requestTypeId": "81"}
+                if path.endswith("/comment"):
+                    return {"id": "comment-789"}
+                return {}
+
+            self.module._request_json = fake_request
+            self.module._assets_workspace_id = lambda: "ws-test"
+            self.module._resolve_assets_object_id = lambda name: name
+            self.module._ps_team_request_value = lambda label, request_type_id="": {"id": "ps-team-id"}
+
+            try:
+                result = self.module.create_approved_pco_task(
+                    {
+                        "customer": "Fei Siong",
+                        "summary": "Confirm payroll readiness",
+                        "due_date": "2026-05-15",
+                        "priority": "High",
+                        "action_type": "Customer success",
+                        "request_type_id": "81",
+                        "source_links": ["https://c360/fei"],
+                        "staffany_orgs": ["FS-001"],
+                        "ps_team": "CS Duty",
+                        "owner_psm": "Ada PSM",
+                        "owner_jira_account_id": "acct-123",
+                        "mode": "thin_poc",
+                    },
+                    "create",
+                )
+            finally:
+                self.module._ps_team_request_value = original_ps_team_request_value
+
+        self.assertEqual(result["confidence"], "verified")
+        create_calls = [c for c in calls if c[1] == "/rest/servicedeskapi/request"]
+        self.assertEqual(len(create_calls), 3)
+        self.assertIn("customfield_10667", create_calls[0][2]["requestFieldValues"])
+        self.assertNotIn("customfield_10667", create_calls[1][2]["requestFieldValues"])
+        self.assertGreater(len(create_calls[1][2]["requestFieldValues"]), 1)
+        self.assertEqual(create_calls[2][2]["requestFieldValues"], {"summary": "Confirm payroll readiness"})
+        self.assertIn("Optional PCO request fields were skipped", result["answer"]["warnings"][0])
+
+    def test_thin_poc_create_does_not_retry_on_non_400_error(self):
+        """Network errors / 5xx must not retry — the original create may have landed."""
+        calls = []
+        with patch.dict(
+            os.environ,
+            {
+                "PSM_OPS_JIRA_MODE": "thin_poc",
+                "PSM_OPS_ACCESS_POLICY_PATH": "",
+                "PSM_OPS_JIRA_SERVICE_DESK_ID": "",
+                "PSM_OPS_JIRA_FIELD_STAFFANY_ORGS": "",
+                "PSM_OPS_JIRA_FIELD_REMINDER_AT": "",
+            },
+            clear=False,
+        ):
+            def fake_request(method, path, body=None):
+                calls.append((method, path, deepcopy(body)))
+                if path == "/rest/servicedeskapi/request":
+                    raise self.module.JiraError("Jira API unavailable: timed out")
                 return {}
 
             self.module._request_json = fake_request
@@ -1958,14 +3921,9 @@ class PsmJiraServerTest(unittest.TestCase):
                 "create",
             )
 
-        self.assertEqual(result["confidence"], "verified")
-        self.assertEqual(calls[0][2]["requestFieldValues"]["customfield_10667"], "FS-001")
-        self.assertEqual(calls[1][2]["requestFieldValues"], {"summary": "Confirm payroll readiness"})
-        self.assertEqual(calls[2][1], "/rest/api/3/issue/PCO-456")
-        self.assertEqual(calls[2][2]["fields"], {"duedate": "2026-05-15"})
-        self.assertEqual(calls[3][1], "/rest/servicedeskapi/request/PCO-456/comment")
-        self.assertEqual(calls[4][1], "/rest/api/3/issue/PCO-456/assignee")
-        self.assertIn("Optional PCO request fields were skipped", result["answer"]["warnings"][0])
+        create_calls = [c for c in calls if c[1] == "/rest/servicedeskapi/request"]
+        self.assertEqual(len(create_calls), 1, "transient errors must not retry the create")
+        self.assertEqual(result["confidence"], "blocked")
 
     def test_create_blocks_past_due_date_before_jira_write(self):
         calls = []

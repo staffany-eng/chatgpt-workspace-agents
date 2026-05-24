@@ -201,6 +201,75 @@ class PsmC360ServerTest(unittest.TestCase):
         self.assertEqual(audit_calls[0][0], "c360_blocked")
         self.assertIn("CUSTOMER360_INTERNAL_API_TOKEN", audit_calls[0][1]["blocked_reason"])
 
+    def test_ask_customer_context_aa_channel_redirects_without_calling_c360(self):
+        http_calls = []
+        audit_calls = []
+
+        def fake_http(method, path, body=None):
+            http_calls.append((method, path, body))
+            return {"status": "ok", "data": {"answer": "should not be called"}}
+
+        self.module._http_json = fake_http
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: audit_calls.append((event_type, kwargs)) or {"ok": True}
+
+        with patch.dict(os.environ, {"PSM_OPS_AA_CHANNEL_ID": "C0B5H2YE5T2"}, clear=False):
+            result = self.module.ask_c360_customer_context(
+                "customer-7300112790",
+                "who is the caterer for the halal catering?",
+                slack_thread_url="https://staffany.slack.com/archives/C0B5H2YE5T2/p1779264188901099",
+            )
+
+        self.assertEqual(http_calls, [])
+        self.assertTrue(result.get("aa_channel_redirect"))
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertEqual(result["answer"]["status"], "aa_channel_redirect")
+        self.assertIn("create_ps_wee_intake_ticket", result["caveat"])
+        self.assertEqual(audit_calls[0][0], "c360_aa_channel_redirect")
+
+    def test_ask_customer_context_aa_channel_redirects_via_thin_poc_fallback(self):
+        http_calls = []
+        audit_calls = []
+
+        def fake_http(method, path, body=None):
+            http_calls.append((method, path, body))
+            return {"status": "ok", "data": {"answer": "should not be called"}}
+
+        self.module._http_json = fake_http
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: audit_calls.append((event_type, kwargs)) or {"ok": True}
+
+        with patch.dict(
+            os.environ,
+            {"PSM_OPS_AA_CHANNEL_ID": "", "PSM_OPS_JIRA_MODE": "thin_poc"},
+            clear=False,
+        ):
+            result = self.module.ask_c360_customer_context(
+                "customer-7300112790",
+                "who is the caterer?",
+                slack_thread_url="https://staffany.slack.com/archives/C0B5H2YE5T2/p1779264188901099",
+            )
+
+        self.assertEqual(http_calls, [])
+        self.assertTrue(result.get("aa_channel_redirect"))
+
+    def test_ask_customer_context_non_aa_channel_calls_c360_as_usual(self):
+        http_calls = []
+        self.module._http_json = lambda method, path, body=None: http_calls.append((method, path, body)) or {
+            "status": "ok",
+            "data": {"answer": "ok"},
+        }
+        self.module.post_ps_wee_audit = lambda *args, **kwargs: {"ok": True}
+
+        with patch.dict(os.environ, {"PSM_OPS_AA_CHANNEL_ID": "C0B5H2YE5T2"}, clear=False):
+            result = self.module.ask_c360_customer_context(
+                "customer-7300112790",
+                "who is the caterer?",
+                slack_thread_url="https://staffany.slack.com/archives/C0B2VT50YT1/p1779264188901099",
+            )
+
+        self.assertEqual(len(http_calls), 1)
+        self.assertFalse(result.get("aa_channel_redirect"))
+        self.assertEqual(result["confidence"], "verified")
+
 
 if __name__ == "__main__":
     unittest.main()

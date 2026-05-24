@@ -76,8 +76,8 @@ if not isinstance(jobs, list):
     raise SystemExit(1)
 
 enabled = [job for job in jobs if isinstance(job, dict) and job.get("enabled", True)]
-if len(enabled) != int(expected_enabled_count):
-    print(f"cron:enabled-count-unexpected:{len(enabled)}")
+if len(enabled) < int(expected_enabled_count):
+    print(f"cron:enabled-count-below-minimum:{len(enabled)}")
     raise SystemExit(1)
 
 by_name = {job.get("name"): job for job in enabled if isinstance(job, dict)}

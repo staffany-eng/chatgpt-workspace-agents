@@ -238,6 +238,31 @@ if (!existsSync(manifestPath)) {
     if (manifest.sales_whatsapp_window_report?.delivery_channel_ids_env_var !== "NURTUREANY_REPORT_DELIVERY_CHANNEL_IDS") {
       fail("Manifest sales_whatsapp_window_report must name NURTUREANY_REPORT_DELIVERY_CHANNEL_IDS");
     }
+    const salesReportCountries = manifest.sales_whatsapp_window_report?.supported_countries || [];
+    for (const country of ["Singapore", "Malaysia", "Indonesia"]) {
+      if (!salesReportCountries.includes(country)) {
+        fail(`Manifest sales_whatsapp_window_report must support ${country}`);
+      }
+    }
+    const salesReportCrons = manifest.sales_whatsapp_window_report?.known_production_cron_expressions || [];
+    for (const cronExpr of ["35 2 * * 1-5", "45 3 * * 1-5", "35 3 * * 1-5"]) {
+      if (!salesReportCrons.includes(cronExpr)) {
+        fail(`Manifest sales_whatsapp_window_report missing known production cron ${cronExpr}`);
+      }
+    }
+    const salesReportCronRecords = manifest.sales_whatsapp_window_report?.production_cron_records || [];
+    if (
+      !salesReportCronRecords.some(
+        (record) =>
+          record?.name === "ID WhatsApp Morning Blitz Report" &&
+          record?.deliver === "local" &&
+          record?.delivery_channel_id === "C04MSJ1BGF9" &&
+          record?.script === "runtime/scripts/nurtureany_sales_whatsapp_report_runner.py" &&
+          record?.no_agent === true,
+      )
+    ) {
+      fail("Manifest sales_whatsapp_window_report must include the no-agent ID manager channel cron record");
+    }
     if (manifest.sales_whatsapp_window_report?.adhoc_reruns_mutate_schedule !== false) {
       fail("Manifest sales_whatsapp_window_report must keep ad hoc reruns schedule-safe");
     }
@@ -306,10 +331,16 @@ if (!existsSync(manifestPath)) {
       "resolve_aircall_call_for_coaching",
       "transcribe_aircall_recording",
       "analyze_aircall_call_coaching",
+      "extract_demo_transcript_evidence",
       "get_account_context",
       "build_pre_demo_game_plans",
       "find_sales_case_studies",
       "build_singapore_lead_enrichment_plan",
+      "resolve_company_enrichment_target",
+      "create_company_enrichment_artifact",
+      "update_company_enrichment_artifact",
+      "read_company_enrichment_artifact",
+      "summarize_company_enrichment_artifact",
       "list_active_deals_missing_next_meeting",
       "list_sales_followup_tasks",
       "list_due_hubspot_sales_task_reminders",
@@ -356,6 +387,7 @@ if (!existsSync(manifestPath)) {
       "search_exa_people_candidates",
       "search_lusha_decision_maker_candidates",
       "search_lusha_candidates_by_linkedin_urls",
+      "search_lusha_candidates_by_names",
       "get_lusha_credit_usage",
       "search_prospeo_decision_maker_candidates",
       "search_prospeo_candidates_by_linkedin_urls",
@@ -433,6 +465,7 @@ if (!existsSync(manifestPath)) {
       "runtime/mcp/slack_nurtureany_server.py",
       "runtime/mcp/hubspot_nurtureany_server.py",
       "runtime/mcp/aircall_nurtureany_server.py",
+      "runtime/mcp/demo_sources_nurtureany_server.py",
       "runtime/mcp/google_calendar_nurtureany_server.py",
       "runtime/mcp/google_drive_nurtureany_server.py",
       "runtime/mcp/google_sheets_nurtureany_server.py",
@@ -452,9 +485,15 @@ if (!existsSync(manifestPath)) {
     if (manifest.lusha?.auth_env_var !== "LUSHA_API_KEY") fail("Manifest missing LUSHA_API_KEY auth env var");
     if (manifest.lusha?.max_search_companies !== 5) fail("Manifest Lusha max_search_companies must be 5");
     if (manifest.lusha?.max_candidates_per_company !== 5) fail("Manifest Lusha max_candidates_per_company must be 5");
+    if (manifest.lusha?.max_linkedin_urls !== 10) fail("Manifest Lusha max_linkedin_urls must be 10");
+    if (manifest.lusha?.max_candidates_per_linkedin_url !== 5) fail("Manifest Lusha max_candidates_per_linkedin_url must be 5");
+    if (manifest.lusha?.max_name_lookups !== 10) fail("Manifest Lusha max_name_lookups must be 10");
     if (manifest.lusha?.max_reveal_contacts !== 3) fail("Manifest Lusha max_reveal_contacts must be 3");
     if (manifest.lusha?.selected_pii_in_slack !== true) fail("Manifest Lusha selected_pii_in_slack must be true");
     if (manifest.lusha?.bulk_contact_exports !== false) fail("Manifest Lusha bulk_contact_exports must be false");
+    for (const endpoint of ["POST /prospecting/contact/search", "POST /v2/contacts/search", "GET /v2/person"]) {
+      if (!manifest.lusha?.allowed_search_endpoints?.includes(endpoint)) fail(`Manifest Lusha missing endpoint: ${endpoint}`);
+    }
     if (manifest.prospeo?.auth_env_var !== "PROSPEO_API_KEY") fail("Manifest missing PROSPEO_API_KEY auth env var");
     if (manifest.prospeo?.max_search_companies !== 5) fail("Manifest Prospeo max_search_companies must be 5");
     if (manifest.prospeo?.max_candidates_per_company !== 5) fail("Manifest Prospeo max_candidates_per_company must be 5");
@@ -486,6 +525,46 @@ if (!existsSync(manifestPath)) {
     if (manifest.aircall?.bulk_transcript_exports !== false) fail("Manifest Aircall must block bulk transcript exports");
     for (const tool of ["find_aircall_calls", "resolve_aircall_call_for_coaching", "transcribe_aircall_recording", "analyze_aircall_call_coaching"]) {
       if (!manifest.aircall?.allowed_tools?.includes(tool)) fail(`Manifest Aircall missing allowed tool: ${tool}`);
+    }
+    if (manifest.aircall?.demo_call_type_supported !== true) fail("Manifest Aircall must support demo call_type");
+    for (const dimension of [
+      "Control and conversational opening",
+      "Discovery and I-C-BANT",
+      "Consultative/contextual demo",
+      "Before/after value framing",
+      "Benefits over features",
+      "Product knowledge accuracy",
+      "Objection and negotiation handling",
+      "Customer engagement and interaction cues",
+      "Next step and post-demo follow-up quality"
+    ]) {
+      if (!manifest.aircall?.demo_score_dimensions?.includes(dimension)) {
+        fail(`Manifest Aircall missing demo score dimension: ${dimension}`);
+      }
+    }
+    if (manifest.demo_sources?.provider !== "Loom share page captions/VTT selected demo source") {
+      fail("Manifest demo_sources provider must be Loom captions/VTT");
+    }
+    if (manifest.demo_sources?.read_only !== true) fail("Manifest demo_sources read_only must be true");
+    if (manifest.demo_sources?.caption_first !== true) fail("Manifest demo_sources caption_first must be true");
+    if (!manifest.demo_sources?.allowed_tools?.includes("extract_demo_transcript_evidence")) {
+      fail("Manifest demo_sources missing extract_demo_transcript_evidence");
+    }
+    if (manifest.demo_sources?.max_fetch_bytes !== 1000000) fail("Manifest demo_sources max_fetch_bytes must be 1000000");
+    if (manifest.demo_sources?.max_safe_segments !== 24) fail("Manifest demo_sources max_safe_segments must be 24");
+    if (manifest.demo_sources?.raw_transcript_returned !== false) fail("Manifest demo_sources must not return raw transcripts");
+    if (manifest.demo_sources?.signed_loom_media_urls_returned !== false) fail("Manifest demo_sources must not return signed Loom media URLs");
+    if (manifest.demo_sources?.video_audio_bytes_returned !== false) fail("Manifest demo_sources must not return media bytes");
+    if (manifest.demo_sources?.phone_numbers_returned !== false) fail("Manifest demo_sources must not return phone numbers");
+    if (manifest.demo_sources?.full_emails_returned !== false) fail("Manifest demo_sources must not return full emails");
+    if (manifest.demo_sources?.media_downloads !== false) fail("Manifest demo_sources must disable media downloads");
+    if (manifest.demo_sources?.demo_grading_public_primitive !== false) {
+      fail("Manifest demo_sources must keep demo grading internal, not a public primitive");
+    }
+    for (const tool of ["preview_analysis_sheet_export", "apply_analysis_sheet_export"]) {
+      if (!manifest.demo_sources?.sheet_export_tools?.includes(tool)) {
+        fail(`Manifest demo_sources missing Sheet export tool: ${tool}`);
+      }
     }
     if (manifest.exa?.auth_env_var !== "EXA_API_KEY") fail("Manifest missing EXA_API_KEY auth env var");
     if (manifest.exa?.max_search_companies !== 5) fail("Manifest Exa max_search_companies must be 5");
@@ -789,6 +868,13 @@ const filesToScan = [
   "profile/config.template.yaml",
   "runtime/access-policy.template.json",
   "skills/nurtureany-sales-bot/SKILL.md",
+  "skills/company-enrichment/SKILL.md",
+  "skills/apify-linkedin-scraper/SKILL.md",
+  "skills/apify-linkedin-scraper/agents/openai.yaml",
+  "skills/apify-instagram-scraper/SKILL.md",
+  "skills/apify-instagram-scraper/agents/openai.yaml",
+  "skills/apify-facebook-scraper/SKILL.md",
+  "skills/apify-facebook-scraper/agents/openai.yaml",
   "skills/target-account-news-scout/SKILL.md",
   "skills/target-account-news-scout/references/search-playbook.md",
   "skills/target-account-news-scout/references/output-contract.md",
@@ -808,6 +894,9 @@ const filesToScan = [
   "runtime/aircall.md",
   "runtime/mcp/aircall_nurtureany_server.py",
   "runtime/mcp/test_aircall_nurtureany_server.py",
+  "runtime/demo-sources.md",
+  "runtime/mcp/demo_sources_nurtureany_server.py",
+  "runtime/mcp/test_demo_sources_nurtureany_server.py",
   "runtime/mcp/nurtureany_common/responses.py",
   "runtime/mcp/nurtureany_common/text.py",
   "runtime/mcp/nurtureany_common/scoped_company.py",
@@ -837,6 +926,7 @@ const filesToScan = [
   "runtime/mcp/nurtureany_common/public_research.py",
   "runtime/mcp/public_research_nurtureany_server.py",
   "runtime/mcp/test_public_research_nurtureany_server.py",
+  "runtime/apify.md",
   "runtime/exa.md",
   "runtime/mcp/exa_nurtureany_server.py",
   "runtime/mcp/test_exa_nurtureany_server.py",
@@ -858,6 +948,10 @@ const filesToScan = [
   "runtime/scripts/nurtureany_sales_task_reminders.py",
   "runtime/scripts/nurtureany_sales_task_reminders_eod.py",
   "runtime/scripts/nurtureany_inbound_monitor.py",
+  "runtime/scripts/test_nurtureany_inbound_monitor.py",
+  "runtime/scripts/nurtureany_sales_whatsapp_report_runner.py",
+  "runtime/scripts/test_nurtureany_sales_whatsapp_report_runner.py",
+  "runtime/scripts/fixtures/nurtureany_inbound_monitor_fixture.json",
   "runtime/jobs/near_me_outlet_match_writer.py",
   "runtime/jobs/test_near_me_outlet_match_writer.py",
   "tests/regression-cases.md",
@@ -906,6 +1000,10 @@ for (const text of [
   "copy_dir",
   "source/nurtureany-sales-bot",
   "skills/nurtureany-sales-bot",
+  "skills/company-enrichment",
+  "skills/apify-linkedin-scraper",
+  "skills/apify-instagram-scraper",
+  "skills/apify-facebook-scraper",
   "skills/target-account-news-scout",
   "skills/publish-analysis-to-sheets",
   "runtime/mcp",
@@ -922,6 +1020,7 @@ for (const text of [
   "nurtureany_sales_task_reminders.py",
   "nurtureany_sales_task_reminders_eod.py",
   "nurtureany_inbound_monitor.py",
+  "nurtureany_sales_whatsapp_report_runner.py",
   "deploy:cron-timezone-repaired",
   "profile/config.template.yaml",
   "config.yaml",
@@ -934,7 +1033,7 @@ for (const text of [
   "apply-live-config-overrides.py",
   "copy.deepcopy(template_server)",
   "deploy:config-added-mcp-server:",
-  "for key in (\"auth_metadata\", \"access_policy\", \"env\"):",
+  "for key in (\"auth_metadata\", \"access_policy\", \"env\", \"headers\"):",
   "current_mapping = config_server.setdefault(key, {})",
   "gcloud secrets versions access latest",
   "deploy:secrets=preserved",
@@ -1129,6 +1228,17 @@ for (const text of [
   "research_public_company_signals",
   "find_brand_parent_candidates",
   "tavily_research_api: false",
+  "apify_nurtureany",
+  "APIFY_TOKEN",
+  "https://mcp.apify.com?tools=actors,docs",
+  "Authorization: Bearer ${APIFY_TOKEN}",
+  "search-actors",
+  "fetch-actor-details",
+  "call-actor",
+  "get-actor-run",
+  "get-actor-output",
+  "search-apify-docs",
+  "fetch-apify-docs",
   "exa_nurtureany",
   "EXA_API_KEY",
   "search_exa_people_candidates",
@@ -1136,6 +1246,7 @@ for (const text of [
   "LUSHA_API_KEY",
   "search_lusha_decision_maker_candidates",
   "search_lusha_candidates_by_linkedin_urls",
+  "search_lusha_candidates_by_names",
   "reveal_lusha_contact_details",
   "get_lusha_credit_usage",
   "prospeo_nurtureany",
@@ -1149,6 +1260,12 @@ for (const text of [
   "record_nurtureany_lesson_candidate",
   "list_nurtureany_lesson_candidates",
   "read_nurtureany_lesson_candidate",
+  "sales_whatsapp_window_report:",
+  "supported_countries:",
+  "indonesia_schedule_id: id-whatsapp-morning-report",
+  "id_manager_channel_id: C04MSJ1BGF9",
+  "id_source_thread: https://staffany.slack.com/archives/C04MSJ1BGF9/p1778822647171049",
+  "runner_script: nurtureany_sales_whatsapp_report_runner.py",
   "NURTUREANY_REPORT_DELIVERY_CHANNEL_IDS",
   "NURTUREANY_REPORT_SCHEDULE_DIR",
   "build_sales_whatsapp_window_report",
@@ -1194,6 +1311,12 @@ for (const text of [
   "AI/data-readiness",
   "event attribution",
   "pre-demo game plans",
+  "selected demo grading",
+  "demo_source",
+  "extract_demo_transcript_evidence",
+  "demo_review_nurtureany",
+  "signed Loom media URLs",
+  "Better talk tracks",
   "NURTUREANY_ACCESS_POLICY_PATH",
   "Unclassified HubSpot owners are blocked",
   "Managers cannot create HubSpot write-back previews",
@@ -1277,6 +1400,10 @@ for (const text of [
   "references/sales-best-practices.md",
   "references/sop-tool-coverage.md",
   "references/pre-demo-game-plans.md",
+  "extract_demo_transcript_evidence",
+  "Overall grade",
+  "Better talk tracks",
+  "demo_review_nurtureany",
   "Nurture-ready enriched",
   "verified decision maker",
   "missing-decision-maker counts",
@@ -1364,6 +1491,7 @@ for (const text of [
   "search_exa_people_candidates",
   "search_lusha_decision_maker_candidates",
   "search_lusha_candidates_by_linkedin_urls",
+  "search_lusha_candidates_by_names",
   "reveal_lusha_contact_details",
   "get_lusha_credit_usage",
   "search_prospeo_decision_maker_candidates",
@@ -1400,6 +1528,12 @@ for (const text of [
   "build_sales_metric_actuals_query",
   "build_friday_sales_review",
   "build_pre_demo_game_plans",
+  "Demo Grading Rubric",
+  "extract_demo_transcript_evidence",
+  "Control and conversational opening",
+  "Overall grade",
+  "Better talk tracks",
+  "signed Loom media URLs",
   "manual-review only",
   "Terminology aliases",
   "KNS`, `K/N/S`, and `K N S` all mean Knowledge, Network, Support",
@@ -1432,6 +1566,10 @@ for (const text of [
   "Cost/credit reporting",
   "Mutation policy",
   "build_sales_whatsapp_window_report",
+  "extract_demo_transcript_evidence",
+  "Demo review",
+  "signed Loom media URLs",
+  "explicit Indonesia support",
   "NURTUREANY_REPORT_DELIVERY_CHANNEL_IDS",
   "Sales-best-practices usage",
   "Inbound/routing",
@@ -1458,6 +1596,7 @@ for (const text of [
 for (const tool of [
   "runtime/mcp/slack_nurtureany_server.py",
   "runtime/mcp/hubspot_nurtureany_server.py",
+  "runtime/mcp/demo_sources_nurtureany_server.py",
   "runtime/mcp/google_calendar_nurtureany_server.py",
   "runtime/mcp/google_drive_nurtureany_server.py",
   "runtime/mcp/eazybe_nurtureany_server.py",
@@ -1477,6 +1616,7 @@ const combinedRegressionText = `${textOf("skills/nurtureany-sales-bot/references
 for (const text of [
   "Inbound Routing Quality",
   "SG/MY WhatsApp Morning Report Primitive",
+  "Indonesia WhatsApp Morning Report Primitive",
   "build_sales_whatsapp_window_report",
   "post_generated_sales_report",
   "Smoke/test prompts follow the same quick-intent gate",
@@ -1498,7 +1638,12 @@ for (const text of [
   "Mutation Disabled In V1",
   "create_hubspot_task",
   "append_hubspot_note",
-  "update_nurture_fields"
+  "update_nurture_fields",
+  "Selected Loom Demo Review Scorecard",
+  "extract_demo_transcript_evidence",
+  "Overall grade:",
+  "Better talk tracks:",
+  "signed Loom media URLs"
 ]) {
   if (!combinedRegressionText.includes(text)) fail(`regression cases missing SOP scenario text: ${text}`);
 }
@@ -2005,11 +2150,15 @@ for (const text of [
   "marketing attribution smoke check",
   "Indonesia event-registration fallback smoke check",
   "Google Slides deck-access smoke check",
+  "Demo Sources MCP lists only `extract_demo_transcript_evidence`",
+  "Demo Sources smoke check",
+  "signed Loom media URLs",
   "read_google_slides_deck",
   "Anyone with the link",
   "read_indonesia_event_registration_attendance",
   "Daily nurture automation is disabled pending refinement",
   "Eugene-owned WhatsApp Morning Blitz report crons are intended production crons",
+  "available for Singapore, Malaysia, and Indonesia",
   "ten enabled recurring operational crons",
   "HubSpot inbound monitor",
   "read-only internal exception report",
@@ -2141,6 +2290,7 @@ for (const text of [
   "nurtureany_sales_task_reminders.py",
   "nurtureany_sales_task_reminders_eod.py",
   "nurtureany_inbound_monitor.py",
+  "nurtureany_sales_whatsapp_report_runner.py",
   "nurtureany-cloud-doctor.sh",
   "Prospeo MCP lists only",
   "*/5 * * * *",
@@ -2154,8 +2304,9 @@ for (const text of [
   "PROFILE=\"${HERMES_PROFILE:-nurtureanysalesbot}\"",
   "export HERMES_HOME=\"$HOME/.hermes/profiles/$PROFILE\"",
   "EXPECT_SLACK_INTENT_TOOLS=\"${EXPECT_SLACK_INTENT_TOOLS:-5}\"",
-  "EXPECT_HUBSPOT_TOOLS=\"${EXPECT_HUBSPOT_TOOLS:-60}\"",
+  "EXPECT_HUBSPOT_TOOLS=\"${EXPECT_HUBSPOT_TOOLS:-65}\"",
   "EXPECT_AIRCALL_TOOLS=\"${EXPECT_AIRCALL_TOOLS:-4}\"",
+  "EXPECT_DEMO_SOURCES_TOOLS=\"${EXPECT_DEMO_SOURCES_TOOLS:-1}\"",
   "NURTUREANY_GATEWAY_SERVICE_NAME",
   "systemctl --user is-active --quiet \"$GATEWAY_SERVICE_NAME\"",
   "GATEWAY_LAUNCHD_LABEL",
@@ -2208,8 +2359,10 @@ for (const text of [
   "find_event_sourcing_target_accounts",
   "mcp_test public_research_nurtureany",
   "mcp_test prospeo_nurtureany",
+  "mcp_test apify_nurtureany",
   "mcp_test slack_nurtureany",
   "mcp_test aircall_nurtureany",
+  "mcp_test demo_sources_nurtureany",
   "mcp:$name-test-timeout",
   "mcp_test eazybe_nurtureany",
   "mcp_test near_me_nurtureany"
@@ -2226,7 +2379,8 @@ for (const text of [
   "EXPECTED_CLOUD_HEARTBEAT_CRON_NAME",
   "nurtureanysalesbot local cloud heartbeat",
   "EXPECT_ENABLED_CRON_COUNT=\"${EXPECT_ENABLED_CRON_COUNT:-10}\"",
-  "EXPECT_HUBSPOT_TOOLS=\"${EXPECT_HUBSPOT_TOOLS:-60}\"",
+  "EXPECT_HUBSPOT_TOOLS=\"${EXPECT_HUBSPOT_TOOLS:-65}\"",
+  "EXPECT_DEMO_SOURCES_TOOLS=\"${EXPECT_DEMO_SOURCES_TOOLS:-1}\"",
   "EXPECTED_TASK_REMINDER_CRON_NAME",
   "EXPECTED_TASK_REMINDER_EOD_CRON_NAME",
   "EXPECTED_INBOUND_MONITOR_CRON_NAME",
@@ -2241,6 +2395,7 @@ for (const text of [
   "ID WhatsApp Morning Blitz Report",
   "EXPECT_PUBLIC_RESEARCH_TOOLS=\"${EXPECT_PUBLIC_RESEARCH_TOOLS:-2}\"",
   "EXPECT_PROSPEO_TOOLS=\"${EXPECT_PROSPEO_TOOLS:-4}\"",
+  "EXPECT_APIFY_TOOLS=\"${EXPECT_APIFY_TOOLS:-7}\"",
   "nurtureanysalesbot-check-cloud-heartbeat.sh",
   "cron:enabled-recurring-count-unexpected",
   "event-roi-enabled",
@@ -2249,9 +2404,11 @@ for (const text of [
   "cloud-doctor:cron-unhealthy",
   "enabled_recurring=$EXPECT_ENABLED_CRON_COUNT",
   "mcp:hubspot_nurtureany:tools=$EXPECT_HUBSPOT_TOOLS",
+  "mcp:demo_sources_nurtureany:tools=$EXPECT_DEMO_SOURCES_TOOLS",
   "mcp:google_sheets_nurtureany:tools=2",
   "mcp:public_research_nurtureany:tools=$EXPECT_PUBLIC_RESEARCH_TOOLS",
-  "mcp:prospeo_nurtureany:tools=$EXPECT_PROSPEO_TOOLS"
+  "mcp:prospeo_nurtureany:tools=$EXPECT_PROSPEO_TOOLS",
+  "mcp:apify_nurtureany:tools=$EXPECT_APIFY_TOOLS"
 ]) {
   if (!cloudHeartbeatScriptText.includes(text)) fail(`runtime/check-cloud-heartbeat.sh missing required text: ${text}`);
 }
@@ -2269,6 +2426,7 @@ for (const text of [
   "profile-drift:slack-socket-watchdog-script",
   "profile-drift:hs-reminder-file",
   "profile-drift:hs-reminder-eod-file",
+  "profile-drift:sales-whatsapp-report-runner-file",
   "profile-drift:cloud-doctor-script",
   "profile-drift:slack-access-repair-script",
   "profile-boundary:staffany-data-bot-skill-installed",
@@ -2324,6 +2482,7 @@ for (const text of [
   "ID WhatsApp Morning Blitz Report",
   "nurtureany_sales_task_reminders.py",
   "nurtureany_sales_task_reminders_eod.py",
+  "nurtureany_sales_whatsapp_report_runner.py",
   "NurtureAny automation:",
 ]) {
   if (!hermesProfilesText.includes(text)) fail(`ops/hermes/profiles.yaml missing required text: ${text}`);
@@ -2344,20 +2503,55 @@ for (const [label, scriptPath] of [
 for (const relPath of [
   "runtime/scripts/nurtureany_sales_task_reminders.py",
   "runtime/scripts/nurtureany_sales_task_reminders_eod.py",
+  "runtime/scripts/nurtureany_inbound_monitor.py",
+  "runtime/scripts/nurtureany_sales_whatsapp_report_runner.py",
 ]) {
   const scriptText = textOf(relPath);
-  for (const text of [
-    "NurtureAny automation:",
-    "list_due_hubspot_sales_task_reminders",
-    "HubSpot Task hs_timestamp",
-    "hs_task_status=COMPLETED",
-  ]) {
+  const requiredScriptTexts = relPath.includes("sales_whatsapp_report_runner")
+    ? [
+        "NurtureAny automation:",
+        "run_sales_whatsapp_window_report_schedule",
+        "post to Slack",
+        "DEFAULT_SCHEDULE_ID",
+      ]
+    : relPath.includes("inbound_monitor")
+    ? [
+        "NurtureAny automation:",
+        "audit_inbound_sla",
+        "HubSpot Conversations",
+        "NURTUREANY_INBOUND_MONITOR_ENABLED",
+        "will_mutate_hubspot",
+        "external_message_sending",
+      ]
+    : [
+        "NurtureAny automation:",
+        "list_due_hubspot_sales_task_reminders",
+        "HubSpot Task hs_timestamp",
+        "hs_task_status=COMPLETED",
+      ];
+  for (const text of requiredScriptTexts) {
     if (!scriptText.includes(text)) fail(`${relPath} missing required text: ${text}`);
   }
   const compile = spawnSync("python3", ["-m", "py_compile", join(appRoot, relPath)], { encoding: "utf8" });
   if (compile.status !== 0) {
     fail(`Python compile failed for ${relPath}: ${(compile.stderr || compile.stdout).trim()}`);
   }
+}
+
+const inboundMonitorUnitCheck = spawnSync("python3", ["-m", "unittest", "apps/nurtureany-sales-bot/runtime/scripts/test_nurtureany_inbound_monitor.py"], {
+  cwd: repoRoot,
+  encoding: "utf8"
+});
+if (inboundMonitorUnitCheck.status !== 0) {
+  fail(`Python unit tests failed for inbound monitor: ${(inboundMonitorUnitCheck.stderr || inboundMonitorUnitCheck.stdout).trim()}`);
+}
+
+const salesReportRunnerUnitCheck = spawnSync("python3", ["-m", "unittest", "apps/nurtureany-sales-bot/runtime/scripts/test_nurtureany_sales_whatsapp_report_runner.py"], {
+  cwd: repoRoot,
+  encoding: "utf8"
+});
+if (salesReportRunnerUnitCheck.status !== 0) {
+  fail(`Python unit tests failed for sales WhatsApp report runner: ${(salesReportRunnerUnitCheck.stderr || salesReportRunnerUnitCheck.stdout).trim()}`);
 }
 
 const slackSocketScriptPath = join(appRoot, "runtime/check-slack-socket-health.sh");
@@ -2491,7 +2685,9 @@ for (const text of [
   "MAX_CANDIDATES_PER_COMPANY = 5",
   "MAX_REVEAL_CONTACTS = 3",
   "MAX_LINKEDIN_URLS = 10",
+  "MAX_NAME_LOOKUPS = 10",
   "POST\", \"/v2/contacts/search\"",
+  "GET\", path",
   "revealEmails",
   "revealPhones",
   "credit_report",
@@ -2561,6 +2757,20 @@ if (hubspotCompileCheck.status !== 0) {
   fail(`Python compile failed for HubSpot MCP: ${(hubspotCompileCheck.stderr || hubspotCompileCheck.stdout).trim()}`);
 }
 
+const aircallCompileCheck = spawnSync("python3", ["-m", "py_compile", join(appRoot, "runtime/mcp/aircall_nurtureany_server.py")], {
+  encoding: "utf8"
+});
+if (aircallCompileCheck.status !== 0) {
+  fail(`Python compile failed for Aircall MCP: ${(aircallCompileCheck.stderr || aircallCompileCheck.stdout).trim()}`);
+}
+
+const demoSourcesCompileCheck = spawnSync("python3", ["-m", "py_compile", join(appRoot, "runtime/mcp/demo_sources_nurtureany_server.py")], {
+  encoding: "utf8"
+});
+if (demoSourcesCompileCheck.status !== 0) {
+  fail(`Python compile failed for Demo Sources MCP: ${(demoSourcesCompileCheck.stderr || demoSourcesCompileCheck.stdout).trim()}`);
+}
+
 const exaCompileCheck = spawnSync("python3", ["-m", "py_compile", join(appRoot, "runtime/mcp/exa_nurtureany_server.py")], {
   encoding: "utf8"
 });
@@ -2616,6 +2826,22 @@ const hubspotUnitCheck = spawnSync("python3", ["-m", "unittest", "apps/nurturean
 });
 if (hubspotUnitCheck.status !== 0) {
   fail(`Python unit tests failed for HubSpot MCP: ${(hubspotUnitCheck.stderr || hubspotUnitCheck.stdout).trim()}`);
+}
+
+const aircallUnitCheck = spawnSync("python3", ["-m", "unittest", "apps/nurtureany-sales-bot/runtime/mcp/test_aircall_nurtureany_server.py"], {
+  cwd: repoRoot,
+  encoding: "utf8"
+});
+if (aircallUnitCheck.status !== 0) {
+  fail(`Python unit tests failed for Aircall MCP: ${(aircallUnitCheck.stderr || aircallUnitCheck.stdout).trim()}`);
+}
+
+const demoSourcesUnitCheck = spawnSync("python3", ["-m", "unittest", "apps/nurtureany-sales-bot/runtime/mcp/test_demo_sources_nurtureany_server.py"], {
+  cwd: repoRoot,
+  encoding: "utf8"
+});
+if (demoSourcesUnitCheck.status !== 0) {
+  fail(`Python unit tests failed for Demo Sources MCP: ${(demoSourcesUnitCheck.stderr || demoSourcesUnitCheck.stdout).trim()}`);
 }
 
 const exaUnitCheck = spawnSync("python3", ["-m", "unittest", "apps/nurtureany-sales-bot/runtime/mcp/test_exa_nurtureany_server.py"], {

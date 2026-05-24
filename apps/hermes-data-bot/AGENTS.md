@@ -10,6 +10,7 @@ Read these first for app work:
 - `app.manifest.json`
 - `profile/SOUL.md`
 - `skills/staffany-data-bot/SKILL.md`
+- `skills/staffany-data-bot/references/reviewed-lessons.md`
 - `runtime/mcp/staffany-bigquery.md`
 - `runtime/slack.md`
 - `runtime/health-checks.md`

@@ -41,16 +41,19 @@ class LaunchbotKerServerTest(unittest.TestCase):
         for forbidden in ["post", "send", "create", "update", "delete"]:
             self.assertNotIn(forbidden, tool_names)
 
-    def test_unconfigured_channel_blocks_before_network(self):
+    def test_channel_not_allowlisted_still_reads_thread(self):
         with patch.dict(
             os.environ,
             {"SLACK_BOT_TOKEN": "test-bot-token", "LAUNCHBOT_KER_ALLOWED_CHANNEL_IDS": "C123"},
             clear=True,
-        ), patch.object(self.module, "_slack_api", side_effect=AssertionError("should not call Slack")):
+        ), patch.object(
+            self.module,
+            "_slack_api",
+            return_value={"ok": True, "messages": [{"ts": "1770000000.000000", "user": "U1", "text": "hello"}]},
+        ), patch.object(self.module, "_jira_post", return_value={"issues": []}):
             result = self.module.find_ker_ticket_from_slack_thread("C999", "1770000000.000000")
 
-        self.assertEqual(result["confidence"], "blocked")
-        self.assertIn("configured channel IDs", result["answer"])
+        self.assertIn(result["confidence"], {"needs-check", "verified"})
 
     def test_finds_data_blocking_ticket_from_thread_context(self):
         jira_calls = []

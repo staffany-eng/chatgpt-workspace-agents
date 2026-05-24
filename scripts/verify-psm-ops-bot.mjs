@@ -67,6 +67,8 @@ if (!existsSync(manifestPath)) {
       "create_roi_ticket_from_slack",
       "create_or_link_pco_roi_tracker",
       "create_ps_wee_intake_ticket",
+      "attach_aa_selfie_to_thread",
+      "verify_drive_oauth",
       "append_ps_wee_ticket_update",
       "mark_ps_wee_ticket_ready",
       "draft_pco_task",
@@ -76,6 +78,7 @@ if (!existsSync(manifestPath)) {
       "set_pco_assignee",
       "set_pco_ps_team",
       "link_pco_to_engineering_issue",
+      "link_pco_to_pco_issue",
       "set_pco_reminder",
       "list_due_pco_reminders"
     ];
@@ -488,7 +491,7 @@ if (!psmOpsProfileBlock) {
     "systemd_unit: hermes-gateway-psmopsbot.service",
     "bot_name: ps_wee_manager",
     "open_channel_mode: true",
-    "psm_jira: 24",
+    "psm_jira: 26",
     "psm_c360: 3",
     "psmopsbot due-date reminders",
     "psmopsbot assignment hygiene",

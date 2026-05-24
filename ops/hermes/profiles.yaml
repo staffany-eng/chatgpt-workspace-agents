@@ -106,9 +106,10 @@ profiles:
         deliver: slack:C0B2UGK4DB6
       - name: ID WhatsApp Morning Blitz Report
         schedule: "35 3 * * 1-5"
-        mode: agent
-        owner: eugene@staffany.com
-        deliver: slack:C04MSJ1BGF9
+        mode: no-agent
+        script: nurtureany_sales_whatsapp_report_runner.py
+        deliver: local
+        delivery_channel: slack:C04MSJ1BGF9
     unsafe_cron_name_prefixes: [event-roi-]
     checks:
       health_command: apps/nurtureany-sales-bot/runtime/check-health.sh
@@ -142,7 +143,7 @@ profiles:
       allowed_channel_ids: []
       report_prefix: "PSM Ops automation:"
     required_mcp:
-      psm_jira: 24
+      psm_jira: 26
       psm_c360: 3
     expected_crons:
       - name: psmopsbot due-date reminders

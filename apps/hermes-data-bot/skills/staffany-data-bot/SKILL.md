@@ -24,6 +24,7 @@ Use this skill for StaffAny internal data-bot work. It ports the ChatGPT Da Ta B
 - Slack threads where the user asks what metric or app-data question is being discussed.
 - Google Sheets output requests for an already-confirmed bounded table result.
 - Feedback that might become a confirmed metric definition, terminology mapping, or output preference.
+- Explicit reusable learning requests such as `learn this`, `remember this for next time`, or corrections that should become reviewed lesson candidates.
 
 Do not use this skill for generic coding, broad web research, or non-StaffAny personal tasks.
 
@@ -32,12 +33,13 @@ Do not use this skill for generic coding, broad web research, or non-StaffAny pe
 1. Release-feature usage tracking: `references/staffany-release-feature-registry.md`.
 2. Product and package lookups: `references/staffany-product-lookup-registry.md`.
 3. Known POC metrics: `references/staffany-data-bot-metric-registry.md`.
-4. Regression and safety expectations: `references/regression-cases.md`.
-5. Selected Slack thread context through the read-only `staffany_slack_context` MCP when the user gives an explicit configured Slack permalink.
-6. Customer 360 current-customer universe through the read-only `staffany_c360` MCP when the request asks for current customers, C360 definition, or a C360 correction.
-7. BigQuery schema inspection through the `staffany_bigquery` MCP server.
-8. Google Sheets output through the creation-only `staffany_google_sheets` MCP only after the underlying result table is already approved or delivered.
-9. GitHub/Pantheon evidence only when registry evidence is missing, explicitly requires code verification, or the user asks for code evidence.
+4. Reviewed runtime learning: `references/reviewed-lessons.md`.
+5. Regression and safety expectations: `references/regression-cases.md`.
+6. Selected Slack thread context through the read-only `staffany_slack_context` MCP when the user gives an explicit configured Slack permalink.
+7. Customer 360 current-customer universe through the read-only `staffany_c360` MCP when the request asks for current customers, C360 definition, or a C360 correction.
+8. BigQuery schema inspection through the `staffany_bigquery` MCP server.
+9. Google Sheets output through the creation-only `staffany_google_sheets` MCP only after the underlying result table is already approved or delivered.
+10. GitHub/Pantheon evidence only when registry evidence is missing, explicitly requires code verification, or the user asks for code evidence.
 
 Registry rows are guidance, not automatic truth. Product Corrections prevent known wrong answers, but they do not become metric definitions.
 
@@ -66,6 +68,20 @@ Use BigQuery Standard SQL against `staffany-warehouse.analytics`.
 - Avoid `SELECT *` unless inspecting a tiny sample is genuinely necessary.
 
 If the MCP server, auth, schema access, or required context fails, return `Confidence: blocked` and state the connector/source issue plainly.
+
+## ATS Applicant Leaderboard Rules
+
+Use the `ats_applicant_leaderboard` metric registry row for StaffAny ATS leaderboard, applicant-count, job-opening-count, JD, resume, or hiring-application requests.
+
+- Aggregate ATS facts at StaffAny `organisationid` grain before any HubSpot, company, industry, or display-name joins.
+- Count applicants from `staffany-warehouse.kraken_rds.JobApplication` with `COUNT(DISTINCT id)`.
+- Count job openings from `staffany-warehouse.kraken_rds.JobOpening` with `COUNT(DISTINCT id)`.
+- Use HubSpot/company joins only for display names, country/segment labels, and candidate F&B filtering. Do not use those joins as the measure grain.
+- For F&B leaderboards, build a deduped org set first, for example `fnb_org_ids AS SELECT DISTINCT organisation_id ...`, then join that set to org-grain ATS facts.
+- Do not `SUM(total_applicants)` or `SUM(total_job_openings)` after joining raw `dim_org_company` or `stg_hubspot__companies`; repeated bridge rows can multiply the same org.
+- Add a fan-out guard before answering: compare joined bridge rows with distinct org IDs. If bridge rows exceed distinct org IDs, dedupe to one row per org before returning results and include a `Confidence: needs-check` caveat that the company/industry bridge fanned out.
+- Use Stripes Australia as the sanity check for this class of query: `-LgO1Np3HFBryRmdDrXQ` should not appear as 2,048 applicants across 64 openings from the F&B leaderboard path. The reviewed sanity result is 32 applicants across 1 job opening.
+- When a user asks for a JD plus candidate resumes or application details, execute the safe job-opening/JD slice when the job/org scope is clear. Block raw candidate resumes, application details, contact fields, attachment URLs, and direct identity fields as PII; only redacted sample summaries are allowed under the ATS JD And Redacted Candidate Sample Rules.
 
 ## Google Sheets Output Rules
 
@@ -108,6 +124,29 @@ For AA marketing-banner questions, the final answer must bucket C360 current-cus
 3. Marketing banner on and AA used as banner content/target.
 
 If the banner enabled flag, banner content, or AA-target source cannot be discovered or owner-verified, return `Confidence: needs-check` or `blocked`; do not provide broad city/org counts as the answer.
+
+## ATS JD And Redacted Candidate Sample Rules
+
+Use this path when the user asks for ATS, applicant, candidate, resume, CV, application, hiring status, hired/rejected examples, job opening, or JD data for a StaffAny org.
+
+- First Slack mentions still stay plan-first when BigQuery or other app data is needed.
+- A clear same-thread follow-up after an ATS result, such as asking for a JD and two hired / two rejected examples for the same org, is continuation work. Do not require another `run` if the org, role, statuses, and sample count are clear.
+- JD / job-opening description text is org/job-level data. It can be returned when the org and role are clear. If multiple matching openings exist, ask one focused clarification or return a small candidate list of matching openings before exposing a long JD.
+- Candidate resume/application details are allowed only as redacted sample summaries. Do not return raw resumes, full CV text, attachment URLs, candidate/applicant IDs, names, emails, phone numbers, addresses, NRIC/FIN, date of birth, bank details, or other direct identity/contact fields.
+- Query only the minimum fields needed to identify the matching org, role, status, and sample rows. Do not use `SELECT *`. Inspect schema first when table names, status fields, resume fields, or job-opening joins are unclear.
+- Use deterministic sample selection, such as latest application/update date, unless the user specifies another criterion. Keep the default sample small: up to 2 candidates per requested status and no more than 10 candidates total without a revised plan.
+- Summarize useful non-contact evidence only: application status, relevant work experience, education/certifications when non-identifying, availability, screening answers, role-fit notes, and resume-derived skills. Paraphrase resume details instead of quoting long raw resume text.
+- Use neutral labels such as `Hired candidate A` and `Rejected candidate B`. If exact dates or rare background details could re-identify the candidate, bucket or omit them.
+- If the user asks for raw resumes, exact attachments, contact info, or unredacted candidate data, return `Confidence: blocked` for that raw portion while offering the redacted ATS sample pack.
+- If the user asks for Google Sheets output for the sample pack, create only redacted rows and include the same source, scope, confidence, and caveat.
+
+Final ATS sample result format:
+
+Answer: <JD summary/text plus redacted candidate sample pack, or blocked raw portion>
+Source: <BigQuery table/tool used>
+Scope: <org, role, statuses, sample count, time/status filters, redaction policy>
+Confidence: <verified | needs-check | blocked>
+Caveat: <only the material caveat, including schema/status ambiguity or redaction limits>
 
 ## Slack Plan-First Workflow
 
@@ -161,18 +200,33 @@ If the local registry is missing and no approved live registry source is availab
 
 Use Honcho memory when available, but only as a recall layer. Do not treat Honcho as a source of truth for current counts, customer/org facts, product registry truth, or metric registry truth.
 
-Store only confirmed reusable learning:
+Use reviewed lesson candidates for explicit reusable learning requests from Slack. `record_staffany_data_lesson_candidate` captures safe `pending_review` candidates only; it does not change active behavior. Durable behavior still requires repo promotion, prompt evals, verifier, deploy, and live smoke.
+
+Human review decisions use `update_staffany_data_lesson_candidate_status` with `approval_marker="human reviewed lesson"`. The bot must not self-approve, reject as itself, or mark a candidate `promoted`; `promoted` requires repo commit and live verification evidence.
+
+Honcho memory may store only confirmed safe recall:
 
 - Metric definitions.
 - StaffAny terminology mappings.
 - Preferred output formats.
 - Repeated feedback patterns.
 
-Never store secrets, connector tokens, raw Slack transcripts/images, raw query results, PII, bank details, NRIC/FIN, phone numbers, employee-level payroll detail, or one-off customer data. If a user asks to export or reveal these, refuse before querying tools, offer a safe aggregate/redacted alternative, and use `Confidence: blocked` (not `verified`) because the requested output is intentionally blocked by policy.
+Never store secrets, connector tokens, raw Slack transcripts/images, raw query results, PII, bank details, NRIC/FIN, phone numbers, employee-level payroll detail, or one-off customer data. If a user asks to export or reveal raw sensitive data, refuse before querying tools, offer a safe aggregate/redacted alternative, and use `Confidence: blocked` (not `verified`) for the raw portion because that output is intentionally blocked by policy. Redacted ATS candidate sample summaries are allowed only under the ATS JD And Redacted Candidate Sample Rules.
 
 Ask before storing ambiguous feedback.
 
-If Honcho memory conflicts with local registry references, BigQuery schema evidence, or explicit user context in the current thread, prefer the stronger source and state the conflict briefly. If a Honcho memory becomes durable StaffAny product or metric truth, promote it into the relevant repo registry after review.
+If Honcho memory conflicts with local registry references, BigQuery schema evidence, Customer 360, or explicit user context in the current thread, prefer the stronger source and state the conflict briefly. If a Honcho memory becomes durable StaffAny product or metric truth, promote it into the relevant repo registry after review.
+
+Same-session caveat: after a candidate or memory write, rely on the returned candidate ID and explicit current-thread context. Do not claim current behavior has already changed mid-thread.
+
+## Reviewed Learning Tools
+
+- `record_staffany_data_lesson_candidate`: record a reusable behavior correction as a safe `pending_review` runtime candidate only. It must not contain raw Slack transcripts, raw BigQuery rows, Customer 360 rows, phone numbers, secrets, tokens, PII, bank details, NRIC/FIN, or employee-level payroll detail.
+- `list_staffany_data_lesson_candidates`: list compact reviewed-learning candidates by status. Runtime candidates do not change behavior by themselves.
+- `read_staffany_data_lesson_candidate`: read one safe reviewed-learning candidate. Approved or promoted behavior must still be checked in the repo packet, verified, deployed, and live-checked before use.
+- `update_staffany_data_lesson_candidate_status`: record explicit human review status only. It requires `approval_marker="human reviewed lesson"`, a human reviewer, review notes, and repo/live evidence before `promoted`; it does not mutate BigQuery, Slack, Honcho, repo files, GitHub, Kanban, persistent goals, or self-evolution state.
+
+When the user says `learn this`, `remember this for next time`, or gives a reusable correction, record a candidate only if the lesson can be summarized safely at behavior level. Reply that the candidate was recorded for review and is not active behavior yet. For one-off customer/org facts, raw outputs, or sensitive content, refuse candidate recording and point to the correct source boundary.
 
 ## Common Pitfalls
 
@@ -183,7 +237,10 @@ If Honcho memory conflicts with local registry references, BigQuery schema evide
 5. Returning candidate metrics without `needs-check`.
 6. Repeating a stale Slack answer instead of re-parsing the latest reply.
 7. Revealing SQL, IDs, raw employee-level details, or secrets by default.
-8. Treating Jira releases as usage evidence. Jira only says what shipped and how it was prioritized; BigQuery must verify usage.
+8. Blocking an ATS project entirely when the safe answer is a JD plus redacted candidate sample summaries.
+9. Treating Jira releases as usage evidence. Jira only says what shipped and how it was prioritized; BigQuery must verify usage.
+10. Summing ATS applicant/opening counts after joining raw company bridges such as `dim_org_company`; aggregate by `organisationid` first, then join deduped display/filter dimensions.
+11. Treating a `pending_review` lesson candidate, Honcho recall, runtime-created skill, or Curator patch as active product behavior.
 
 ## Skill Update and Sync Workflow
 
@@ -218,4 +275,6 @@ Sync timing policy for this bot:
 - Slack first mention returns a plan only.
 - `run` and same-thread approval nudges execute the confirmed plan.
 - Secret and sensitive-data prompts are refused.
+- Reviewed learning tools are available, create only `pending_review` candidates, and require human-marker status updates before approved/promoted states.
+- Treat runtime-created or Curator-patched skills as review artifacts until promoted into the source packet.
 - Skill update workflow uses repo-first edit, full verify, and profile sync.

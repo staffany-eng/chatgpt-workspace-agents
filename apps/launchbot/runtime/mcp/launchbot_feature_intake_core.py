@@ -24,7 +24,7 @@ SLACK_TIMEOUT_SECONDS = 15
 JIRA_TIMEOUT_SECONDS = 30
 MAX_THREAD_MESSAGES = 20
 MAX_DESCRIPTION_MESSAGES = 8
-DEFAULT_ALLOWED_CHANNELS = {"C0B32M34J3W", "CF8PK6V4J"}
+DEFAULT_ALLOWED_CHANNELS = set()
 DEFAULT_JIRA_BASE_URL = "https://staffany.atlassian.net"
 KER_PROJECT_KEY = "KER"
 KER_IDEA_ISSUE_TYPE_ID = "10043"
@@ -51,7 +51,7 @@ def scope(channel_id: str, thread_ts: str, slack_permalink: str = "") -> dict[st
         "max_thread_messages": MAX_THREAD_MESSAGES,
         "will_post_message": False,
         "transcript_persisted": False,
-        "configured_channels_only": True,
+        "configured_channels_only": False,
         "requires_confirmation": True,
     }
 
@@ -401,8 +401,6 @@ def preview_feature_intake_from_slack_thread(
     scope_data = scope(channel, thread, source_url)
     if not channel or not thread:
         return blocked("channel_id and thread_ts are required, or pass a Slack permalink.", "Launchbot feature intake MCP", scope_data)
-    if channel not in configured_channel_ids():
-        return blocked("Launchbot feature intake is restricted to configured channel IDs.", "Launchbot feature intake MCP", scope_data)
     if not source_url.startswith("https://"):
         return blocked("A Slack permalink is required so Jira Slack / PRD can be the idempotency key.", "Launchbot feature intake MCP", scope_data)
 

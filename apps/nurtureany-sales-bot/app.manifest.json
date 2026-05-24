@@ -12,6 +12,10 @@
     "config_template": "profile/config.template.yaml",
     "skill": "skills/nurtureany-sales-bot/SKILL.md",
     "publish_analysis_to_sheets_skill": "skills/publish-analysis-to-sheets/SKILL.md",
+    "company_enrichment_skill": "skills/company-enrichment/SKILL.md",
+    "apify_linkedin_scraper_skill": "skills/apify-linkedin-scraper/SKILL.md",
+    "apify_instagram_scraper_skill": "skills/apify-instagram-scraper/SKILL.md",
+    "apify_facebook_scraper_skill": "skills/apify-facebook-scraper/SKILL.md",
     "target_account_news_scout_skill": "skills/target-account-news-scout/SKILL.md",
     "target_account_news_scout_references": [
       "skills/target-account-news-scout/references/search-playbook.md",
@@ -36,6 +40,8 @@
     "hubspot_mcp": "runtime/mcp/hubspot_nurtureany_server.py",
     "aircall_runtime": "runtime/aircall.md",
     "aircall_mcp": "runtime/mcp/aircall_nurtureany_server.py",
+    "demo_sources_runtime": "runtime/demo-sources.md",
+    "demo_sources_mcp": "runtime/mcp/demo_sources_nurtureany_server.py",
     "case_study_catalog": "runtime/data/case-studies.json",
     "access_policy_template": "runtime/access-policy.template.json",
     "bigquery_runtime": "runtime/bigquery.md",
@@ -54,6 +60,7 @@
     "near_me_outlet_matches_sql": "runtime/sql/near-me-outlet-matches.sql",
     "public_research_runtime": "runtime/public-research.md",
     "public_research_mcp": "runtime/mcp/public_research_nurtureany_server.py",
+    "apify_runtime": "runtime/apify.md",
     "exa_runtime": "runtime/exa.md",
     "exa_mcp": "runtime/mcp/exa_nurtureany_server.py",
     "lusha_runtime": "runtime/lusha.md",
@@ -67,6 +74,8 @@
     "slack_access_repair_script": "runtime/scripts/nurtureany_slack_access_repair.py",
     "hubspot_task_reminder_script": "runtime/scripts/nurtureany_sales_task_reminders.py",
     "hubspot_task_reminder_eod_script": "runtime/scripts/nurtureany_sales_task_reminders_eod.py",
+    "hubspot_inbound_monitor_script": "runtime/scripts/nurtureany_inbound_monitor.py",
+    "sales_whatsapp_report_runner_script": "runtime/scripts/nurtureany_sales_whatsapp_report_runner.py",
     "live_profile_audit": "runtime/audit-live-profile.sh",
     "cloud_doctor": "runtime/nurtureany-cloud-doctor.sh",
     "regression_cases": "tests/regression-cases.md",
@@ -125,11 +134,12 @@
     "format": "dotenv",
     "version_policy": "latest",
     "secret_values_committed": false,
-    "expected_key_count": 28,
+    "expected_key_count": 29,
     "expected_keys": [
       "AIRCALL_API_ID",
       "AIRCALL_API_TOKEN",
       "ANTHROPIC_API_KEY",
+      "APIFY_TOKEN",
       "EXA_API_KEY",
       "GOOGLE_PLACES_API_KEY",
       "HUBSPOT_PRIVATE_APP_TOKEN",
@@ -252,9 +262,21 @@
       "hs_lastmodifieddate"
     ],
     "friday_sales_review": {
-      "locked_pool_source": "hs_is_target_account=true plus hubspot_owner_id and company_country",
+      "locked_pool_source": "per-owner top 150 from hs_is_target_account=true plus hubspot_owner_id and company_country, with optional headcount and associated deal pipeline/stage filters",
       "weekly_account_target": "120 of locked 150",
       "connected_call_definition": "HubSpot calls with hs_call_status=COMPLETED and hs_call_duration>=120000 ms",
+      "meaningful_activity_definition": "HubSpot WhatsApp communications, completed outbound non-follow-up calls, and completed meetings; notes/tasks excluded",
+      "priority_account_headcount_min_env_var": "NURTUREANY_PRIORITY_ACCOUNT_HEADCOUNT_MIN",
+      "priority_account_headcount_max_env_var": "NURTUREANY_PRIORITY_ACCOUNT_HEADCOUNT_MAX",
+      "priority_account_pipeline_ids_env_var": "NURTUREANY_PRIORITY_ACCOUNT_PIPELINE_IDS",
+      "priority_account_deal_stage_ids_env_var": "NURTUREANY_PRIORITY_ACCOUNT_DEAL_STAGE_IDS",
+      "priority_account_sort": [
+        "nurtureany_priority_score DESC",
+        "nurtureany_last_nurtured_at ASC",
+        "nurtureany_last_reviewed_at ASC",
+        "name ASC",
+        "company_id ASC"
+      ],
       "warm_activity_labels": [
         "HHH",
         "LL",
@@ -348,6 +370,38 @@
         "eod_window": "overdue, due today",
         "no_local_task_truth": true
       }
+    },
+    "inbound_monitor": {
+      "enabled_env_var": "NURTUREANY_INBOUND_MONITOR_ENABLED",
+      "default_enabled": false,
+      "source_of_truth": "HubSpot Conversations",
+      "script": "runtime/scripts/nurtureany_inbound_monitor.py",
+      "schedule": "*/2 * * * *",
+      "caller_email_env_var": "NURTUREANY_INBOUND_MONITOR_CALLER_EMAIL",
+      "default_caller_email": "eugene@staffany.com",
+      "inbox_id_env_var": "NURTUREANY_INBOUND_MONITOR_INBOX_ID",
+      "state_path_env_var": "NURTUREANY_INBOUND_MONITOR_STATE_PATH",
+      "deliver_channel_env_var": "NURTUREANY_INBOUND_MONITOR_DELIVER_CHANNEL",
+      "lookback_minutes_env_var": "NURTUREANY_INBOUND_MONITOR_LOOKBACK_MINUTES",
+      "default_lookback_minutes": 30,
+      "ack_sla_minutes": 5,
+      "first_touch_sla_minutes": 15,
+      "output_prefix": "NurtureAny automation:",
+      "quiet_success": true,
+      "no_agent": true,
+      "no_external_send": true,
+      "no_hubspot_mutation": true,
+      "state_is_runtime_only": true,
+      "allowed_tools": [
+        "list_inbound_threads",
+        "get_inbound_thread_context",
+        "audit_inbound_sla"
+      ],
+      "slack_alert_chain_fallback": [
+        "extract_inbound_lead_alerts",
+        "resolve_inbound_slack_alerts_to_hubspot",
+        "audit_inbound_sla"
+      ]
     }
   },
   "customer360": {
@@ -448,6 +502,11 @@
     "schedule_save_tool": "save_sales_whatsapp_window_report_schedule",
     "schedule_run_tool": "run_sales_whatsapp_window_report_schedule",
     "delivery_tool": "post_generated_sales_report",
+    "supported_countries": [
+      "Singapore",
+      "Malaysia",
+      "Indonesia"
+    ],
     "default_countries": [
       "Singapore",
       "Malaysia"
@@ -462,6 +521,39 @@
     "logical_cron": "35 10 * * 1-5",
     "logical_timezone": "Asia/Singapore",
     "production_cron_expression": "35 2 * * 1-5",
+    "known_production_cron_expressions": [
+      "35 2 * * 1-5",
+      "45 3 * * 1-5",
+      "35 3 * * 1-5"
+    ],
+    "production_cron_records": [
+      {
+        "name": "SG MY WhatsApp Morning Blitz Report",
+        "countries": [
+          "Singapore",
+          "Malaysia"
+        ],
+        "deliver": "slack:C04HYF0NM8A"
+      },
+      {
+        "name": "ID Morning WhatsApp Blitz Report",
+        "countries": [
+          "Indonesia"
+        ],
+        "deliver": "slack:C0B2UGK4DB6"
+      },
+      {
+        "name": "ID WhatsApp Morning Blitz Report",
+        "countries": [
+          "Indonesia"
+        ],
+        "deliver": "local",
+        "delivery_channel_id": "C04MSJ1BGF9",
+        "script": "runtime/scripts/nurtureany_sales_whatsapp_report_runner.py",
+        "no_agent": true,
+        "source_thread": "https://staffany.slack.com/archives/C04MSJ1BGF9/p1778822647171049"
+      }
+    ],
     "delivery_channel_ids_env_var": "NURTUREANY_REPORT_DELIVERY_CHANNEL_IDS",
     "schedule_dir_env_var": "NURTUREANY_REPORT_SCHEDULE_DIR",
     "storage": "profile_runtime_state_not_repo_or_secret",
@@ -507,10 +599,16 @@
       "resolve_aircall_call_for_coaching",
       "transcribe_aircall_recording",
       "analyze_aircall_call_coaching",
+      "extract_demo_transcript_evidence",
       "get_account_context",
       "build_pre_demo_game_plans",
       "find_sales_case_studies",
       "build_singapore_lead_enrichment_plan",
+      "resolve_company_enrichment_target",
+      "create_company_enrichment_artifact",
+      "update_company_enrichment_artifact",
+      "read_company_enrichment_artifact",
+      "summarize_company_enrichment_artifact",
       "list_active_deals_missing_next_meeting",
       "list_sales_followup_tasks",
       "list_due_hubspot_sales_task_reminders",
@@ -556,6 +654,7 @@
       "search_exa_people_candidates",
       "search_lusha_decision_maker_candidates",
       "search_lusha_candidates_by_linkedin_urls",
+      "search_lusha_candidates_by_names",
       "get_lusha_credit_usage",
       "search_prospeo_decision_maker_candidates",
       "search_prospeo_candidates_by_linkedin_urls",
@@ -627,17 +726,20 @@
     "max_candidates_per_company": 5,
     "max_linkedin_urls": 10,
     "max_candidates_per_linkedin_url": 5,
+    "max_name_lookups": 10,
     "max_reveal_contacts": 3,
     "selected_pii_in_slack": true,
     "bulk_contact_exports": false,
     "hubspot_writeback": "preview_only",
     "allowed_search_endpoints": [
       "POST /prospecting/contact/search",
-      "POST /v2/contacts/search"
+      "POST /v2/contacts/search",
+      "GET /v2/person"
     ],
     "allowed_tools": [
       "search_lusha_decision_maker_candidates",
       "search_lusha_candidates_by_linkedin_urls",
+      "search_lusha_candidates_by_names",
       "reveal_lusha_contact_details",
       "get_lusha_credit_usage"
     ]
@@ -689,7 +791,56 @@
     "raw_recording_urls_returned": false,
     "raw_audio_retained": false,
     "bulk_transcript_exports": false,
-    "hubspot_source_of_truth": true
+    "hubspot_source_of_truth": true,
+    "demo_call_type_supported": true,
+    "demo_score_dimensions": [
+      "Control and conversational opening",
+      "Discovery and I-C-BANT",
+      "Consultative/contextual demo",
+      "Before/after value framing",
+      "Benefits over features",
+      "Product knowledge accuracy",
+      "Objection and negotiation handling",
+      "Customer engagement and interaction cues",
+      "Next step and post-demo follow-up quality"
+    ]
+  },
+  "demo_sources": {
+    "provider": "Loom share page captions/VTT selected demo source",
+    "read_only": true,
+    "caption_first": true,
+    "supported_source_types": [
+      "auto",
+      "loom"
+    ],
+    "allowed_tools": [
+      "extract_demo_transcript_evidence"
+    ],
+    "max_fetch_bytes": 1000000,
+    "max_safe_segments": 24,
+    "raw_transcript_returned": false,
+    "signed_loom_media_urls_returned": false,
+    "video_audio_bytes_returned": false,
+    "phone_numbers_returned": false,
+    "full_emails_returned": false,
+    "media_downloads": false,
+    "hubspot_source_of_truth": true,
+    "demo_grading_public_primitive": false,
+    "sheet_export_tools": [
+      "preview_analysis_sheet_export",
+      "apply_analysis_sheet_export"
+    ],
+    "demo_score_dimensions": [
+      "Control and conversational opening",
+      "Discovery and I-C-BANT",
+      "Consultative/contextual demo",
+      "Before/after value framing",
+      "Benefits over features",
+      "Product knowledge accuracy",
+      "Objection and negotiation handling",
+      "Customer engagement and interaction cues",
+      "Next step and post-demo follow-up quality"
+    ]
   },
   "exa": {
     "auth_env_var": "EXA_API_KEY",

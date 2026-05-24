@@ -60,6 +60,17 @@ CALL_COACH_SCORE_DIMENSIONS = [
     "customer reaction moments",
     "StaffAny value framing",
 ]
+DEMO_CALL_COACH_SCORE_DIMENSIONS = [
+    "Control and conversational opening",
+    "Discovery and I-C-BANT",
+    "Consultative/contextual demo",
+    "Before/after value framing",
+    "Benefits over features",
+    "Product knowledge accuracy",
+    "Objection and negotiation handling",
+    "Customer engagement and interaction cues",
+    "Next step and post-demo follow-up quality",
+]
 QUESTION_RE = re.compile(
     r"\?|^\s*(who|what|when|where|why|how|can|could|would|do|does|did|is|are|will|should)\b",
     re.IGNORECASE,
@@ -827,8 +838,116 @@ CALL_COACHING_SCHEMA = _json_schema_object(
 )
 
 
-def _call_coaching_system_prompt() -> str:
-    dimensions = ", ".join(CALL_COACH_SCORE_DIMENSIONS)
+DEMO_COACHING_SCHEMA = _json_schema_object(
+    {
+        "answer": {"type": "string"},
+        "overall_grade": {"type": "string"},
+        "scorecard": {
+            "type": "array",
+            "minItems": len(DEMO_CALL_COACH_SCORE_DIMENSIONS),
+            "maxItems": len(DEMO_CALL_COACH_SCORE_DIMENSIONS),
+            "items": _json_schema_object(
+                {
+                    "dimension": {"type": "string", "enum": DEMO_CALL_COACH_SCORE_DIMENSIONS},
+                    "score": {"type": "integer", "enum": [0, 1, 2]},
+                    "evidence": {"type": "string"},
+                    "timestamp": {"type": "string"},
+                    "segment_ref": {"type": "string"},
+                },
+                ["dimension", "score", "evidence", "timestamp", "segment_ref"],
+            ),
+        },
+        "coachable_moments": {
+            "type": "array",
+            "maxItems": 6,
+            "items": _json_schema_object(
+                {
+                    "timestamp": {"type": "string"},
+                    "segment_ref": {"type": "string"},
+                    "note": {"type": "string"},
+                    "coaching_point": {"type": "string"},
+                },
+                ["timestamp", "segment_ref", "note", "coaching_point"],
+            ),
+        },
+        "better_talk_tracks": {
+            "type": "array",
+            "maxItems": 6,
+            "items": _json_schema_object(
+                {
+                    "timestamp": {"type": "string"},
+                    "segment_ref": {"type": "string"},
+                    "current_pattern": {"type": "string"},
+                    "better_talk_track": {"type": "string"},
+                    "why": {"type": "string"},
+                },
+                ["timestamp", "segment_ref", "current_pattern", "better_talk_track", "why"],
+            ),
+        },
+        "manager_coaching_note": _json_schema_object(
+            {
+                "praise": {"type": "string"},
+                "correction": {"type": "string"},
+                "practice_assignment": {"type": "string"},
+                "next_action": {"type": "string"},
+            },
+            ["praise", "correction", "practice_assignment", "next_action"],
+        ),
+        "next_practice": {"type": "string"},
+        "source": {"type": "string"},
+        "scope": {"type": "string"},
+        "confidence": {"type": "string", "enum": ["verified", "needs-check", "blocked"]},
+        "caveat": {"type": "string"},
+    },
+    [
+        "answer",
+        "overall_grade",
+        "scorecard",
+        "coachable_moments",
+        "better_talk_tracks",
+        "manager_coaching_note",
+        "next_practice",
+        "source",
+        "scope",
+        "confidence",
+        "caveat",
+    ],
+)
+
+
+def _normalize_call_type(call_type: str) -> str:
+    normalized = str(call_type or "").strip().lower().replace("-", "_")
+    if normalized in ("", "sales_call", "call", "general", "aircall"):
+        return "sales_call"
+    if normalized == "demo":
+        return "demo"
+    raise AircallError("call_type must be sales_call or demo.")
+
+
+def _call_coach_dimensions(call_type: str) -> list[str]:
+    return DEMO_CALL_COACH_SCORE_DIMENSIONS if call_type == "demo" else CALL_COACH_SCORE_DIMENSIONS
+
+
+def _call_coaching_schema(call_type: str) -> dict[str, Any]:
+    return DEMO_COACHING_SCHEMA if call_type == "demo" else CALL_COACHING_SCHEMA
+
+
+def _call_coaching_system_prompt(call_type: str = "sales_call", score_dimensions: list[str] | None = None) -> str:
+    dimensions = ", ".join(score_dimensions or _call_coach_dimensions(call_type))
+    if call_type == "demo":
+        return (
+            "You are NurtureAny's StaffAny demo coach. Review one selected demo artifact using only "
+            "redacted transcript/timing evidence and supplied HubSpot context. Return manager-quality demo grading, "
+            "not a transcript. Never include raw transcript blocks, phone numbers, emails, recording URLs, Loom signed "
+            "media URLs, or audio/video references. Score exactly these dimensions using 0 missed, 1 partial, 2 strong: "
+            f"{dimensions}. Evidence must cite timestamps or safe segment refs. The output must cover Answer, Overall "
+            "grade, Scorecard, Coachable moments, Better talk tracks, Manager coaching note, Next practice, Source, "
+            "Scope, Confidence, and Caveat. Judge demos as value conversations: control and conversational opening, "
+            "I-C-BANT discovery, contextual workflow choices, before/after value framing, benefits over features, "
+            "product accuracy, objection/negotiation handling, customer interaction cues, and clear next-step/follow-up. "
+            "Do not infer hidden emotions as fact; describe observable behavior such as shorter answers, follow-up "
+            "questions, topic changes, repeated objections, or long monologues."
+        )
     return (
         "You are NurtureAny's StaffAny sales-call coach. Review one selected post-call Aircall artifact. "
         "Use HubSpot context as CRM truth when provided. Aircall/OpenAI are call-artifact enrichment only. "
@@ -864,7 +983,11 @@ def _openai_call_coach(
     metrics: dict[str, Any],
     context: dict[str, Any],
     model: str,
+    call_type: str = "sales_call",
+    score_dimensions: list[str] | None = None,
 ) -> dict[str, Any]:
+    normalized_call_type = _normalize_call_type(call_type)
+    dimensions = score_dimensions or _call_coach_dimensions(normalized_call_type)
     body = json.dumps(
         {
             "model": model or DEFAULT_CALL_COACH_REASONING_MODEL,
@@ -872,7 +995,12 @@ def _openai_call_coach(
             "input": [
                 {
                     "role": "system",
-                    "content": [{"type": "input_text", "text": _call_coaching_system_prompt()}],
+                    "content": [
+                        {
+                            "type": "input_text",
+                            "text": _call_coaching_system_prompt(normalized_call_type, dimensions),
+                        }
+                    ],
                 },
                 {
                     "role": "user",
@@ -882,6 +1010,8 @@ def _openai_call_coach(
                             "text": json.dumps(
                                 {
                                     "hubspot_context": context,
+                                    "call_type": normalized_call_type,
+                                    "score_dimensions": dimensions,
                                     "interaction_metrics": metrics,
                                     "redacted_transcript_text": transcript_text,
                                     "redacted_segments": segments,
@@ -895,9 +1025,9 @@ def _openai_call_coach(
             "text": {
                 "format": {
                     "type": "json_schema",
-                    "name": "nurtureany_call_coaching",
+                    "name": "nurtureany_demo_coaching" if normalized_call_type == "demo" else "nurtureany_call_coaching",
                     "strict": True,
-                    "schema": CALL_COACHING_SCHEMA,
+                    "schema": _call_coaching_schema(normalized_call_type),
                 }
             },
         },
@@ -945,21 +1075,41 @@ def _sanitize_observable_text(value: Any) -> Any:
     return value
 
 
-def _validate_coaching_payload(payload: dict[str, Any]) -> dict[str, Any]:
+def _validate_coaching_payload(
+    payload: dict[str, Any],
+    expected_dimensions: list[str] | None = None,
+    call_type: str = "sales_call",
+) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise AircallError("OpenAI coaching payload must be an object.")
-    required = [
-        "answer",
-        "scorecard",
-        "coachable_moments",
-        "interaction_cues",
-        "manager_coaching_note",
-        "next_action",
-        "source",
-        "scope",
-        "confidence",
-        "caveat",
-    ]
+    normalized_call_type = _normalize_call_type(call_type)
+    if normalized_call_type == "demo":
+        required = [
+            "answer",
+            "overall_grade",
+            "scorecard",
+            "coachable_moments",
+            "better_talk_tracks",
+            "manager_coaching_note",
+            "next_practice",
+            "source",
+            "scope",
+            "confidence",
+            "caveat",
+        ]
+    else:
+        required = [
+            "answer",
+            "scorecard",
+            "coachable_moments",
+            "interaction_cues",
+            "manager_coaching_note",
+            "next_action",
+            "source",
+            "scope",
+            "confidence",
+            "caveat",
+        ]
     missing = [key for key in required if key not in payload]
     if missing:
         raise AircallError(f"OpenAI coaching payload missing fields: {', '.join(missing)}.")
@@ -967,7 +1117,8 @@ def _validate_coaching_payload(payload: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(scorecard, list):
         raise AircallError("OpenAI coaching scorecard must be a list.")
     dimensions = [str(item.get("dimension") or "") for item in scorecard if isinstance(item, dict)]
-    if sorted(dimensions) != sorted(CALL_COACH_SCORE_DIMENSIONS):
+    required_dimensions = expected_dimensions or _call_coach_dimensions(normalized_call_type)
+    if sorted(dimensions) != sorted(required_dimensions):
         raise AircallError("OpenAI coaching scorecard missing required dimensions.")
     for item in scorecard:
         if not isinstance(item, dict):
@@ -983,11 +1134,21 @@ def _validate_coaching_payload(payload: dict[str, Any]) -> dict[str, Any]:
             raise AircallError("OpenAI coaching coachable moments must be objects.")
         if not str(moment.get("timestamp") or moment.get("segment_ref") or "").strip():
             raise AircallError("OpenAI coaching moments must cite a timestamp or safe segment ref.")
-    cues = payload.get("interaction_cues")
-    if not isinstance(cues, dict):
-        raise AircallError("OpenAI coaching interaction_cues must be an object.")
-    cues["status"] = "Interaction cues checked from transcript/timing"
-    cues["tone_audio_cues"] = "audio-native tone not checked"
+    if normalized_call_type == "demo":
+        talk_tracks = payload.get("better_talk_tracks")
+        if not isinstance(talk_tracks, list):
+            raise AircallError("OpenAI demo coaching better_talk_tracks must be a list.")
+        for talk_track in talk_tracks:
+            if not isinstance(talk_track, dict):
+                raise AircallError("OpenAI demo coaching better_talk_tracks rows must be objects.")
+            if not str(talk_track.get("timestamp") or talk_track.get("segment_ref") or "").strip():
+                raise AircallError("OpenAI demo coaching better_talk_tracks must cite a timestamp or safe segment ref.")
+    else:
+        cues = payload.get("interaction_cues")
+        if not isinstance(cues, dict):
+            raise AircallError("OpenAI coaching interaction_cues must be an object.")
+        cues["status"] = "Interaction cues checked from transcript/timing"
+        cues["tone_audio_cues"] = "audio-native tone not checked"
     if payload.get("confidence") not in ("verified", "needs-check", "blocked"):
         payload["confidence"] = "needs-check"
     return _sanitize_observable_text(payload)
@@ -1339,18 +1500,26 @@ def analyze_aircall_call_coaching(
     hubspot_company_id: str = "",
     hubspot_call_id: str = "",
     include_debug: bool = False,
+    call_type: str = "sales_call",
 ) -> dict[str, Any]:
-    """Analyze one selected Aircall recording into safe sales coaching JSON."""
+    """Analyze one selected Aircall recording into safe sales/demo coaching JSON."""
 
     call_id = str(aircall_call_id or "").strip()
     transcribe_model = _call_coach_transcribe_model()
     reasoning_model = _call_coach_reasoning_model()
     provider = _call_coach_provider()
+    try:
+        normalized_call_type = _normalize_call_type(call_type)
+    except AircallError as error:
+        return _blocked(str(error), {"caller_email": slack_user_email, "aircall_call_id": call_id})
+    score_dimensions = _call_coach_dimensions(normalized_call_type)
     scope = {
         "caller_email": slack_user_email,
         "aircall_call_id": call_id,
         "hubspot_company_id": _redact(str(hubspot_company_id or ""), 80),
         "hubspot_call_id": _redact(str(hubspot_call_id or ""), 80),
+        "call_type": normalized_call_type,
+        "score_dimensions": score_dimensions,
         "provider": provider,
         "transcribe_model": transcribe_model,
         "reasoning_model": reasoning_model,
@@ -1401,18 +1570,33 @@ def analyze_aircall_call_coaching(
             "hubspot_call_id": _redact(str(hubspot_call_id or ""), 80),
             "hubspot_source_of_truth": True,
             "aircall_call": safe_call,
+            "call_type": normalized_call_type,
+            "score_dimensions": score_dimensions,
             "raw_transcript_returned_to_user": False,
             "audio_native_tone_checked": False,
         }
         transcript_text = str(safe_transcript.get("transcript_text_redacted") or "")
-        coaching = _openai_call_coach(transcript_text, segments, metrics, context, reasoning_model)
-        safe_coaching = _validate_coaching_payload(coaching)
+        coaching = _openai_call_coach(
+            transcript_text,
+            segments,
+            metrics,
+            context,
+            reasoning_model,
+            call_type=normalized_call_type,
+            score_dimensions=score_dimensions,
+        )
+        safe_coaching = _validate_coaching_payload(
+            coaching,
+            expected_dimensions=score_dimensions,
+            call_type=normalized_call_type,
+        )
         safe_coaching["source"] = (
             "Aircall selected recording, OpenAI transcription/coaching analysis, and supplied HubSpot IDs/context. "
             "Gong is design inspiration only; ElevenLabs is not used."
         )
         safe_coaching["scope"] = (
-            f"selected Aircall call {call_id}; HubSpot company {scope['hubspot_company_id'] or 'not supplied'}; "
+            f"{normalized_call_type} selected Aircall call {call_id}; "
+            f"HubSpot company {scope['hubspot_company_id'] or 'not supplied'}; "
             f"HubSpot call {scope['hubspot_call_id'] or 'not supplied'}"
         )
         safe_coaching["confidence"] = "verified"
@@ -1442,6 +1626,7 @@ def analyze_aircall_call_coaching(
                     "transcribe": transcribe_model,
                     "reasoning": reasoning_model,
                 },
+                "call_type": normalized_call_type,
             }
         return {
             "answer": answer,

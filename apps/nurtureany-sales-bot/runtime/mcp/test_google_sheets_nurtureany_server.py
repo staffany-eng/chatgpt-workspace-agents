@@ -74,6 +74,63 @@ class GoogleSheetsNurtureAnyServerTest(unittest.TestCase):
         self.assertEqual(raw_transcript["confidence"], "blocked")
         self.assertIn("raw transcript", raw_transcript["answer"])
 
+    def test_preview_accepts_event_match_action_queue_columns_without_mutating(self):
+        columns = [
+            "event_id",
+            "event_name",
+            "rsvp_status",
+            "account_name",
+            "hubspot_company_link",
+            "hubspot_contact_link_if_exact_match",
+            "owner",
+            "customer_or_prospect",
+            "match_level",
+            "confidence",
+            "root_cause",
+            "next_action",
+            "action_owner",
+            "due_by",
+            "status",
+            "source_run_link",
+        ]
+        rows = [
+            {
+                "event_id": "evt-1",
+                "event_name": "AI Workshop",
+                "rsvp_status": "approved",
+                "account_name": "Exact Cafe",
+                "hubspot_company_link": "https://app.hubspot.com/contacts/4137076/record/0-2/123",
+                "hubspot_contact_link_if_exact_match": "https://app.hubspot.com/contacts/4137076/record/0-1/456",
+                "owner": "Sales Owner",
+                "customer_or_prospect": "customer",
+                "match_level": "exact_contact_email",
+                "confidence": "verified",
+                "root_cause": "Approved RSVP matched to scoped HubSpot target account by exact contact email.",
+                "next_action": "AE follow up from HubSpot account context.",
+                "action_owner": "Sales Owner",
+                "due_by": "2026-05-20",
+                "status": "not_started",
+                "source_run_link": "https://staffany.slack.com/archives/C0B2UGK4DB6/p1779057689264659",
+            }
+        ]
+
+        with patch.dict(os.environ, {self.module.SPREADSHEET_ID_ENV: "sheet-123"}), patch.object(
+            self.module, "_sheets_request", side_effect=AssertionError("preview must not call Google Sheets API")
+        ):
+            result = self.module.preview_analysis_sheet_export(
+                slack_user_email="jan-e@staffany.com",
+                analysis_type="event_match_action_queue",
+                title="AI Workshop Event Match Action Queue",
+                idempotency_key="event-queue-1",
+                sheet_tab_name="Event Match Action Queue",
+                columns=columns,
+                rows=rows,
+            )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["answer"]["row_count"], 1)
+        self.assertFalse(result["answer"]["will_mutate_google_sheets"])
+
     def test_apply_creates_runs_index_and_updates_run_tab_idempotently(self):
         state = {"sheets": {}, "next_sheet_id": 100, "runs": []}
 

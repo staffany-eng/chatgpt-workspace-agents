@@ -16,7 +16,7 @@ platforms:
     gateway_restart_notification: false
 slack:
   require_mention: true
-  allowed_channels: "C0B32M34J3W,C0AJAUNCEL8,C01RZ7SHC8K,CF8PK6V4J"
+  allowed_channels: ""
   reactions: false
 cron:
   max_parallel_jobs: 1

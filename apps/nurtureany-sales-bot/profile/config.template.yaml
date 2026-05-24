@@ -229,6 +229,63 @@ nurtureany:
       window: overdue_due_today
       script: nurtureany_sales_task_reminders_eod.py
       deliver: slack:#nurtureany-testing
+  hubspot_inbound_monitor:
+    enabled_env: NURTUREANY_INBOUND_MONITOR_ENABLED
+    default_enabled: false
+    source_of_truth: HubSpot Conversations
+    script: nurtureany_inbound_monitor.py
+    schedule: "*/2 * * * *"
+    caller_email_env: NURTUREANY_INBOUND_MONITOR_CALLER_EMAIL
+    default_caller_email: eugene@staffany.com
+    inbox_id_env: NURTUREANY_INBOUND_MONITOR_INBOX_ID
+    state_path_env: NURTUREANY_INBOUND_MONITOR_STATE_PATH
+    deliver_channel_env: NURTUREANY_INBOUND_MONITOR_DELIVER_CHANNEL
+    default_deliver_channel: slack:#nurtureany-testing
+    lookback_minutes_env: NURTUREANY_INBOUND_MONITOR_LOOKBACK_MINUTES
+    default_lookback_minutes: 30
+    ack_sla_minutes: 5
+    first_touch_sla_minutes: 15
+    output_prefix: "NurtureAny automation:"
+    quiet_success: true
+    no_agent: true
+    no_external_send: true
+    no_hubspot_mutation: true
+    slack_alert_chain_fallback: extract_inbound_lead_alerts -> resolve_inbound_slack_alerts_to_hubspot -> audit_inbound_sla
+  sales_whatsapp_window_report:
+    enabled: true
+    supported_countries:
+    - Singapore
+    - Malaysia
+    - Indonesia
+    default_countries:
+    - Singapore
+    - Malaysia
+    indonesia_countries:
+    - Indonesia
+    default_window_local: 09:30-10:30
+    target_per_owner: 30
+    source_of_truth: HubSpot target-account WhatsApp communication metadata plus runtime access policy owner/country/timezone
+    generation_tool: build_sales_whatsapp_window_report
+    schedule_save_tool: save_sales_whatsapp_window_report_schedule
+    schedule_run_tool: run_sales_whatsapp_window_report_schedule
+    delivery_tool: post_generated_sales_report
+    runner_script: nurtureany_sales_whatsapp_report_runner.py
+    schedule_dir_env: NURTUREANY_REPORT_SCHEDULE_DIR
+    delivery_channel_ids_env: NURTUREANY_REPORT_DELIVERY_CHANNEL_IDS
+    default_schedule_id: sg-my-whatsapp-morning-report
+    indonesia_schedule_id: id-whatsapp-morning-report
+    known_production_crons:
+    - "35 2 * * 1-5"
+    - "45 3 * * 1-5"
+    - "35 3 * * 1-5"
+    id_manager_channel_id: C04MSJ1BGF9
+    id_source_thread: https://staffany.slack.com/archives/C04MSJ1BGF9/p1778822647171049
+    output_prefix: "NurtureAny automation:"
+    raw_bodies_returned: false
+    no_external_send: true
+    no_hubspot_mutation: true
+    user_token_fallback: false
+    slack_connector_fallback: false
   aircall_call_review:
     source_role: selected_call_enrichment_only
     source_of_truth: HubSpot remains account, owner, task, note, deal, contact, and nurture-field truth
@@ -247,6 +304,33 @@ nurtureany:
     raw_recording_urls_returned: false
     raw_audio_retained: false
     bulk_transcript_exports: false
+    demo_call_type_supported: true
+    demo_score_dimensions:
+    - Control and conversational opening
+    - Discovery and I-C-BANT
+    - Consultative/contextual demo
+    - Before/after value framing
+    - Benefits over features
+    - Product knowledge accuracy
+    - Objection and negotiation handling
+    - Customer engagement and interaction cues
+    - Next step and post-demo follow-up quality
+  demo_sources:
+    source_role: selected_demo_transcript_evidence_only
+    source_of_truth: HubSpot remains account, owner, task, note, deal, contact, and nurture-field truth
+    extractor_tool: extract_demo_transcript_evidence
+    supported_sources:
+    - loom_captions_vtt
+    caption_first: true
+    media_downloads: false
+    max_fetch_bytes: 1000000
+    max_safe_segments: 24
+    raw_transcript_returned: false
+    signed_loom_media_urls_returned: false
+    video_audio_bytes_returned: false
+    phone_numbers_returned: false
+    full_emails_returned: false
+    demo_grading_public_primitive: false
   daily_nurture:
     status: disabled_pending_refinement
     approved_runtime_workflow: false
@@ -343,6 +427,18 @@ mcp_servers:
       default_org_url_template: https://customer-360-qv4r5xkisq-as.a.run.app/companies/{customer360_route_key}/orgs/{organisation_id}
       known_route_keys:
         '1991281569': fei-siong-group
+    meaningful_activity_target_pool:
+      headcount_min_env: NURTUREANY_PRIORITY_ACCOUNT_HEADCOUNT_MIN
+      headcount_max_env: NURTUREANY_PRIORITY_ACCOUNT_HEADCOUNT_MAX
+      pipeline_ids_env: NURTUREANY_PRIORITY_ACCOUNT_PIPELINE_IDS
+      deal_stage_ids_env: NURTUREANY_PRIORITY_ACCOUNT_DEAL_STAGE_IDS
+      selected_pool_size: 150
+      sort:
+      - nurtureany_priority_score DESC
+      - nurtureany_last_nurtured_at ASC
+      - nurtureany_last_reviewed_at ASC
+      - name ASC
+      - company_id ASC
     timeout: 600
     tool_allowlist:
     - list_inbound_threads
@@ -374,6 +470,11 @@ mcp_servers:
     - build_pre_demo_game_plans
     - find_sales_case_studies
     - build_singapore_lead_enrichment_plan
+    - resolve_company_enrichment_target
+    - create_company_enrichment_artifact
+    - update_company_enrichment_artifact
+    - read_company_enrichment_artifact
+    - summarize_company_enrichment_artifact
     - list_active_deals_missing_next_meeting
     - list_sales_followup_tasks
     - list_due_hubspot_sales_task_reminders
@@ -444,6 +545,30 @@ mcp_servers:
     - resolve_aircall_call_for_coaching
     - transcribe_aircall_recording
     - analyze_aircall_call_coaching
+  demo_sources_nurtureany:
+    description: Read-only selected demo transcript evidence adapter for Loom captions/VTT.
+    command: /Users/leekaiyi/.hermes/hermes-agent/venv/bin/python
+    args:
+    - /Users/leekaiyi/workspace/agent builder/apps/nurtureany-sales-bot/runtime/mcp/demo_sources_nurtureany_server.py
+    auth_metadata:
+      type: no_secret_public_caption_fetch
+      provider: Loom share page captions/VTT
+    access_policy:
+      mode: read_only
+      selected_source_only: true
+      caption_first: true
+      media_downloads: false
+      max_fetch_bytes: 1000000
+      max_safe_segments: 24
+      raw_transcript_returned: false
+      signed_loom_media_urls_returned: false
+      video_audio_bytes_returned: false
+      phone_numbers_returned: false
+      full_emails_returned: false
+      transcript_output: redacted_bounded_timing_evidence_only
+      hubspot_source_of_truth: true
+    tool_allowlist:
+    - extract_demo_transcript_evidence
   public_research_nurtureany:
     description: Read-only Tavily public company research for scoped HubSpot companies, plus brand-parent identity lookup before HubSpot re-query.
     command: /Users/leekaiyi/.hermes/hermes-agent/venv/bin/python
@@ -496,6 +621,7 @@ mcp_servers:
       max_candidates_per_company: 5
       max_linkedin_urls: 10
       max_candidates_per_linkedin_url: 5
+      max_name_lookups: 10
       max_reveal_contacts: 3
       require_credit_report: true
       recommend_low_monthly_dashboard_limit: true
@@ -506,6 +632,7 @@ mcp_servers:
     tool_allowlist:
     - search_lusha_decision_maker_candidates
     - search_lusha_candidates_by_linkedin_urls
+    - search_lusha_candidates_by_names
     - reveal_lusha_contact_details
     - get_lusha_credit_usage
   prospeo_nurtureany:
@@ -560,6 +687,54 @@ mcp_servers:
       linkedin_urls_are_manual_check_only: true
     tool_allowlist:
     - search_exa_people_candidates
+  apify_nurtureany:
+    description: Approval-gated Apify MCP for explicit public social scraping and
+      Actor discovery in NurtureAny enrichment workflows.
+    url: https://mcp.apify.com?tools=actors,docs
+    headers:
+      Authorization: Bearer ${APIFY_TOKEN}
+    env:
+      APIFY_TOKEN: ${APIFY_TOKEN}
+    auth_metadata:
+      type: bearer_env
+      env: APIFY_TOKEN
+    cost_policy:
+      require_budget_confirmation: true
+      explicit_user_approval_before_actor_run: true
+      default_result_cap: 10
+      actor_selection_requires_schema_check: true
+      prefer_apify_maintained_actors: true
+    pii_policy:
+      selected_pii_in_internal_slack: false
+      bulk_contact_exports: false
+      raw_dataset_exports: false
+      private_session_cookies: false
+      public_pages_only_by_default: true
+      social_results_are_manual_review_only: true
+    access_policy:
+      mode: approval_gated_public_social_scrape
+      requires_scoped_hubspot_company_for_enrichment: true
+      explicit_run_only: true
+      default_waterfall_source: false
+      allowed_social_sources:
+      - linkedin_public
+      - instagram_public
+      - facebook_public
+      blocked_sources:
+      - private_profiles
+      - private_groups
+      - authenticated_sessions
+      - sales_navigator
+      - login_cookies
+      hubspot_writeback: none
+    tool_allowlist:
+    - search-actors
+    - fetch-actor-details
+    - call-actor
+    - get-actor-run
+    - get-actor-output
+    - search-apify-docs
+    - fetch-apify-docs
   staffany_bigquery:
     description: Read-only C360 enrichment source for MRR, renewal timing, account
       owner, and PSM context.

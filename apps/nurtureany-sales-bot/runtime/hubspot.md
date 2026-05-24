@@ -15,7 +15,7 @@ Field-level durable sources:
 - Phone verification: contact `nurtureany_phone_verification_status`, `nurtureany_phone_verified_at`, `nurtureany_phone_verified_by`, `nurtureany_phone_verification_source`, and `nurtureany_phone_verification_notes`. Valid phone verification requires `called_connected`; `truecaller_manual_lookup` is manual candidate evidence only unless paired with a connected-call outcome.
 - Task queue and recurring reminder truth: HubSpot Task `hs_timestamp`; completed tasks are excluded by `hs_task_status=COMPLETED`. `hs_task_reminders` may be set as a native due-minus-one-day HubSpot UI nudge, but no Slack reminder loop should treat it as the recurring source of truth.
 
-`current_tool_renewal_date` is secondary context only. C360, Google Calendar, Luma, the Indonesia event registration Sheet fallback, Tavily public research, Exa, Lusha, Prospeo, Slack, and public evidence enrich the answer but do not override the durable HubSpot fields above. Prospeo is an active paid-provider pilot adapter when `PROSPEO_API_KEY` is configured; it follows Lusha-style approval, selected-contact, credit-reporting, and no-write guardrails.
+`current_tool_renewal_date` is secondary context only. C360, Google Calendar, Luma, the Indonesia event registration Sheet fallback, Tavily public research, Exa, Lusha, Prospeo, Slack, and public evidence enrich the answer but do not override the durable HubSpot fields above. Single-company enrichment stores runtime-only JSON artifacts under `lead-enrichment-artifacts/`; artifact rows are preview-only and do not mutate HubSpot. Prospeo is an active paid-provider pilot adapter when `PROSPEO_API_KEY` is configured; it follows Lusha-style approval, selected-contact, credit-reporting, and no-write guardrails.
 
 Do not call contract timing a StaffAny renewal unless customer status is verified. For prospects or unknowns, use incumbent-tool contract timing or migration/procurement timing.
 
@@ -84,6 +84,11 @@ It exposes these tools:
 - `build_pre_demo_game_plans`
 - `find_sales_case_studies`
 - `build_singapore_lead_enrichment_plan`
+- `resolve_company_enrichment_target`
+- `create_company_enrichment_artifact`
+- `update_company_enrichment_artifact`
+- `read_company_enrichment_artifact`
+- `summarize_company_enrichment_artifact`
 - `list_sales_followup_tasks`
 - `preview_hubspot_sales_task`
 - `create_approved_hubspot_sales_task`
@@ -115,6 +120,12 @@ It exposes these tools:
 - `plan_hubspot_writeback`
 
 It intentionally does not expose generic HubSpot mutation tools in V1. The only HubSpot write path here is the narrow, preview-first, exact-approval Task primitive set; `create_hubspot_task`, `append_hubspot_note`, and `update_nurture_fields` remain disabled planned tools.
+
+The single-company enrichment artifact tools are runtime state tools only. `resolve_company_enrichment_target` and `create_company_enrichment_artifact` must resolve exactly one scoped HubSpot target account before any Tavily, standalone public search, Exa, Lusha, or Prospeo work. `update_company_enrichment_artifact` appends normalized public/provider evidence or a raw `tool_result`, including Tavily public extract/read-through, standalone public people/contact searches across official team pages, public directories/events, careers pages, public social/company pages where allowed, Indeed, JobStreet, Glints, MyCareersFuture, Maukerja, Ricebowl, Kalibrr, and Dealls where relevant by country, then Exa people candidates plus safe public read-through evidence as fallback/corroboration, then Lusha and Prospeo search results. Uncorroborated Exa LinkedIn names remain audit evidence only and must not appear as AE-ready contact preview rows. If domain search returns zero and public LinkedIn person URLs exist, the LinkedIn-URL provider lookup path must run before the paid-provider level counts as complete. If a public/provider level found full candidate names but no LinkedIn URL, the Lusha name fallback can run against the scoped company name/domain before reveal recommendations. It can store revealed personal PII only with an approval marker and a 14-day TTL; public company channels from official/public pages can be returned separately as company-level contact channels. Default reads redact personal email, phone, and mobile. `summarize_company_enrichment_artifact` returns HubSpot contact-format preview rows with `will_mutate_hubspot=false` and a `waterfall_state`; final answers must not claim a full waterfall unless `waterfall_state.can_claim_full_waterfall=true`.
+
+LinkedIn, Facebook, Instagram, TikTok, and Slack unfurls are not verification sources by themselves. They may create candidate evidence and manual-review items, but the bot must not call a current role/company "confirmed" from those sources alone.
+
+Public company-channel extraction should be broad on non-gated sources: official contact pages, website/careers pages, public job posts, directories, review pages, and articles may be extracted for outlet phone, booking WhatsApp, public company email, hiring signals, and public role/name hints. Social pages stay manual-review even when discovered.
 
 The near-me stdio MCP adapter lives separately at `runtime/mcp/near_me_nurtureany_server.py`. It builds BigQuery outlet-match and C360 SQL, refreshes Google Places, and never mutates HubSpot.
 
@@ -153,7 +164,39 @@ Generic account-name follow-up checks should resolve scoped HubSpot candidates w
 
 Post-event follow-up status uses safe HubSpot timeline evidence only. Count associated WhatsApp `communications` with `hs_communication_channel_type=WHATS_APP`, associated notes, completed tasks, open/incomplete tasks, and completed HubSpot meeting logs after the supplied `since_at`. Event-level follow-up uses Luma first to resolve checked-in matched accounts; for Indonesia LL/HHH events where Luma check-in is empty or not used, `read_indonesia_event_registration_attendance` may provide manual `Attend The Event` attendance keys from the ID Rev registration Sheet. Resolve those attended keys with `find_target_accounts_by_luma_match_keys`; do not call `list_team_target_accounts` or delegate this matching flow. The matched scoped accounts then require event-specific Eazybe WhatsApp evidence in HubSpot or an event-specific completed task for `followed_up`; generic post-event WhatsApp and meeting logs alone become `needs_check`/hygiene evidence. Return object type, object ID, timestamp, owner ID, channel/status/outcome when safe, event-match label when applicable, and association path only. Do not expose communication body, note body, task body, meeting body, phone numbers, unmatched attendees, raw registration rows, or raw event guest exports.
 
-Friday sales review uses the same scoped association discipline, plus HubSpot calls and meetings. Connected calls are completed calls with `hs_call_duration >= 120000` milliseconds. Warm activity points are completed meetings whose title or activity type matches configured labels: HHH, LL, coffee, lunch, dinner, cosy, ABM, event, appreciation afternoon, or sports. QO, QO Met, and closed-won counts require runtime stage config through `NURTUREANY_QO_PIPELINE_IDS`, `NURTUREANY_QO_STAGE_IDS`, `NURTUREANY_QO_MET_STAGE_IDS`, and `NURTUREANY_CLOSED_WON_STAGE_IDS`; when missing, return hygiene and account coverage with `Confidence: needs-check`.
+Friday sales review uses the same scoped association discipline, plus HubSpot communications, calls, and meetings. Meaningful-activities coverage first builds a deterministic protected pool per owner: HubSpot target accounts scoped by owner/country, optional runtime headcount filters (`NURTUREANY_PRIORITY_ACCOUNT_HEADCOUNT_MIN` / `NURTUREANY_PRIORITY_ACCOUNT_HEADCOUNT_MAX`), optional associated-deal bucket filters (`NURTUREANY_PRIORITY_ACCOUNT_PIPELINE_IDS` / `NURTUREANY_PRIORITY_ACCOUNT_DEAL_STAGE_IDS`), then top 150 ordered by `nurtureany_priority_score` descending and oldest nurture/review timestamps. Meaningful-activities coverage counts an account as 2-touched from HubSpot WhatsApp communications, completed outbound non-follow-up calls, and completed meetings only; notes and tasks are hygiene evidence, not meaningful touches. Connected calls are completed calls with `hs_call_duration >= 120000` milliseconds, and Eugene's meaningful-activities report should use the outbound connected-call count when available. Warm activity points are completed meetings whose title or activity type matches configured labels: HHH, LL, coffee, lunch, dinner, cosy, ABM, event, appreciation afternoon, or sports. QO, QO Met, and closed-won counts require runtime stage config through `NURTUREANY_QO_PIPELINE_IDS`, `NURTUREANY_QO_STAGE_IDS`, `NURTUREANY_QO_MET_STAGE_IDS`, and `NURTUREANY_CLOSED_WON_STAGE_IDS`; when missing, return hygiene and account coverage with `Confidence: needs-check`.
+
+## HubSpot-Source Inbound Monitor
+
+The optional no-agent monitor is `runtime/scripts/nurtureany_inbound_monitor.py`.
+It polls HubSpot Conversations as the primary source for open inbound threads,
+then calls `audit_inbound_sla` with `resolve_slack_alerts=false`.
+
+Runtime config:
+
+- `NURTUREANY_INBOUND_MONITOR_ENABLED`: must be truthy before non-dry-run output/state writes.
+- `NURTUREANY_INBOUND_MONITOR_CALLER_EMAIL`: defaults to `eugene@staffany.com`; this controls HubSpot access scope.
+- `NURTUREANY_INBOUND_MONITOR_INBOX_ID`: optional HubSpot inbox filter.
+- `NURTUREANY_INBOUND_MONITOR_STATE_PATH`: runtime-only cursor/dedupe state path, defaulting under the live profile.
+- `NURTUREANY_INBOUND_MONITOR_DELIVER_CHANNEL`: intended Slack delivery target for the Hermes cron runbook.
+- `NURTUREANY_INBOUND_MONITOR_LOOKBACK_MINUTES`: defaults to 30 so threads can become stale across cron ticks.
+
+The monitor is exception-first and quiet on healthy runs. It prints only rows
+that need action: unassigned or unclear owner, missing/late first touch,
+duplicate/candidate duplicate, existing customer routed into sales inbox, or
+missing clean-lead context such as company, role, current tools, lead source, or
+verified decision-maker signal. Output must start with `NurtureAny automation:`
+and use compact internal rows:
+
+```text
+Owner: <name/unknown> | Status: new / touched / stale / customer / duplicate / blocked | Next step: <action> | ETA: <time>
+```
+
+It never posts customer-facing messages, sends WhatsApp/email, reassigns owners,
+creates HubSpot Tasks, appends notes, updates fields, or stores business truth in
+local state. State is only runtime cursor/dedupe metadata. Slack inbound alerts
+remain fallback/secondary context through `extract_inbound_lead_alerts` ->
+`resolve_inbound_slack_alerts_to_hubspot` -> `audit_inbound_sla`.
 
 ## Tool Behavior
 
@@ -369,15 +412,15 @@ HubSpot Task management:
 
 `build_sales_whatsapp_window_report`:
 
-- Input: caller email, optional scoped owner emails, `for_date`, local window, countries, SG-first country order, `target_per_owner` default 30, and `include_kns=false`.
-- Output: generated SG/MY report rows by country and owner, access-policy timezone, local and UTC window, first target-account WhatsApp local time, target-account WhatsApp count, hit/miss against 30, truncation, confidence/caveat, and `slack_markdown`.
+- Input: caller email, optional scoped owner emails, `for_date`, local window, countries, country order, `target_per_owner` default 30, and `include_kns=false`.
+- Output: generated Singapore/Malaysia/Indonesia report rows by country and owner, access-policy timezone, local and UTC window, first target-account WhatsApp local time, target-account WhatsApp count, hit/miss against 30, truncation, confidence/caveat, and `slack_markdown`.
 - Owner, country, and timezone source of truth is `NURTUREANY_ACCESS_POLICY_PATH` through `resolve_sales_owners` / `_sales_owner_rows_for_scope`. Do not patch rosters from Slack memory or silently fall back to SGT. Missing timezone is `needs-check` and blocks the HubSpot query.
 - Slack answers should render the returned `slack_markdown` or summarize only the returned `country_rows` for the returned `countries`. Do not add owner rows, countries, timezone gaps, or admin-scope expansion commentary that the primitive did not return.
 - Ad hoc reruns such as `09:45-10:45 today` call this primitive only; they must not update the saved weekday schedule.
 
 `save_sales_whatsapp_window_report_schedule` and `run_sales_whatsapp_window_report_schedule`:
 
-- Schedule state is profile-runtime JSON, not repo state or secrets. It stores report args, logical cron `35 10 * * 1-5 Asia/Singapore`, current production cron expression `35 2 * * 1-5`, delivery channel, source Slack thread, idempotency key pattern, `created_by`, and `updated_by`.
+- Schedule state is profile-runtime JSON, not repo state or secrets. It stores report args, logical cron `35 10 * * 1-5 Asia/Singapore`, one of the existing production WhatsApp Blitz cron expressions, delivery channel, source Slack thread, idempotency key pattern, `created_by`, and `updated_by`.
 - The runner loads the saved state and calls `build_sales_whatsapp_window_report` deterministically. Weekends are skipped for the default weekday schedule.
 - Existing Eugene-owned SG/MY and ID WhatsApp Blitz crons stay active until a separate live migration changes them.
 

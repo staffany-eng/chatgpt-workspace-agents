@@ -121,6 +121,31 @@ Prompt:
 @NurtureAny send approved Eazybe messages for selected approved preview payloads
 ```
 
+## Single-Company Country Enrichment
+
+Prompt:
+
+```text
+@NurtureAny enrich Tung Lok for Singapore
+```
+
+Expected behavior:
+
+- First response is plan-only unless the quick-autorun gate is fully satisfied.
+- After `run`, resolves scoped HubSpot companies first with `resolve_company_enrichment_target`.
+- If exactly one scoped HubSpot company is found, creates one artifact with `create_company_enrichment_artifact`.
+- If multiple scoped matches are found, returns choices and asks for the exact `company_id`.
+- If no scoped match is found, uses `find_brand_parent_candidates` only for identity resolution, then re-runs HubSpot resolution with `brand_parent_candidates`.
+- If still none or ambiguous, stops and asks for a HubSpot company ID or exact scoped account.
+- Domain is used only as a tie-breaker, not as the source of truth.
+- Artifact reads redact email, phone, and mobile by default.
+- `summarize_company_enrichment_artifact` returns HubSpot contact-format preview rows with `will_mutate_hubspot=false` and `waterfall_state`.
+- Tavily, standalone public people/job-board search, Exa, Lusha, and Prospeo outputs are appended back into the same artifact before final summary.
+- Tavily results are read through with public extract where supported, then standalone public people/contact search runs before Exa across official pages, public directory/event/speaker evidence, careers pages, public social/company pages where allowed, and public job boards such as Indeed, JobStreet, Glints, MyCareersFuture, Maukerja, Ricebowl, Kalibrr, and Dealls where relevant by country.
+- Exa people URLs are used after public search as fallback or corroboration and are read through only through safe public snippets/pages; gated LinkedIn or social scraping is forbidden.
+- Lusha and Prospeo searches may add candidates, but reveal requires manual approval before revealed details are stored.
+- The bot must not claim enrichment is complete or that a full waterfall ran unless `waterfall_state.can_claim_full_waterfall=true`; otherwise it reports the next required tool.
+
 Expected behavior:
 
 - Does not auto-run from quick intent.
@@ -318,6 +343,24 @@ Expected behavior:
 - If only redacted transcript/segments/timing are available, says `Interaction cues checked from transcript/timing` and `Tone/audio cues: audio-native tone not checked`.
 - If a future approved audio-native analysis is available, may say `Tone/audio cues checked from recording`, but only for observable cues and not hidden emotion as fact.
 - Preserves HubSpot as source of truth for account, owner, contacts, deals, activities, tasks, notes, follow-up, and CRM hygiene.
+
+## Selected Loom Demo Review Scorecard
+
+Prompt:
+
+```text
+@NurtureAny https://www.loom.com/share/e63d65ea325b4408abd9a756564e36f6 analyze and grade this meeting
+```
+
+Expected behavior:
+
+- First response is plan-only unless quick-autorun is fully satisfied.
+- Route after `run`: `get_selected_slack_thread_context` only if needed to identify the selected source/context -> `extract_demo_transcript_evidence` -> internal demo grading -> optional `preview_analysis_sheet_export` / `apply_analysis_sheet_export` only if the user asked for history/trend export.
+- Uses the demo rubric from `sales-best-practices.md`, with 9 scorecard dimensions scored 0/1/2: Control and conversational opening; Discovery and I-C-BANT; Consultative/contextual demo; Before/after value framing; Benefits over features; Product knowledge accuracy; Objection and negotiation handling; Customer engagement and interaction cues; Next step and post-demo follow-up quality.
+- Final answer uses `Answer:`, `Overall grade:`, `Scorecard:`, `Coachable moments:`, `Better talk tracks:`, `Manager coaching note:`, `Next practice:`, `Source:`, `Scope:`, `Confidence:`, and `Caveat:`.
+- Does not create or call a separate `demo_review_nurtureany` MCP.
+- Does not return raw transcript dumps, signed Loom media URLs, Loom MP4/HLS/audio/video bytes, phone numbers, full emails, or private demo content in Sheets.
+- If captions are unavailable, private, blocked, or malformed, returns `Confidence: blocked` and asks for captions or transcript input.
 
 Prompt:
 
@@ -701,8 +744,10 @@ Expected behavior:
 
 - First response is plan-only unless the quick-autorun gate is fully satisfied.
 - After `run`, resolves the Luma URL by direct event lookup or bounded calendar URL matching when the public slug returns `403`, `400`, or `404`.
-- Calls `get_luma_event_match_keys(include_contact_pii=true)`, then `find_target_accounts_by_luma_match_keys(include_contact_pii=true)` with Jan-E's configured event-operator countries.
-- Returns RSVP totals, matched client/customer count, matched prospect count, unknown/candidate count, AE ownership, matched scoped HubSpot contact details for exact contact-email matches, source, scope, confidence, and caveat.
+- Calls `get_luma_event_match_keys(include_contact_pii=true)`, then `find_target_accounts_by_luma_match_keys(include_contact_pii=true)` with Jan-E's configured event-operator countries and the returned `event_match_action_inputs` as `attendee_records`.
+- Returns RSVP totals/statuses, attendee-level verified match count, approved unmatched/needs-action count, action buckets (`Follow up now`, `CRM cleanup`, `Target-account review`, `Net-new enrichment`, `Defer/exclude`), AE/RevOps/event-operator owner load, matched scoped HubSpot contact details for exact contact-email matches, source, scope, confidence, and caveat.
+- Does not say unmatched attendees by subtracting matched account count from RSVP count.
+- For Sheet output, calls `preview_analysis_sheet_export` with `event_action_pack.sheet_export_payload` for one tab named `Event Match Action Queue`, and calls `apply_analysis_sheet_export` only after explicit Sheet approval.
 - Supports owner-specific follow-up checks such as Jolene/Siti/Jeff/Jeremy by filtering or grouping the same matched-account snapshot by returned owner fields before checking safe follow-up status.
 - Uses `client/customer` only for HubSpot-verified customer status; company-name-only matches remain `needs-check` and unknown/candidate rows stay visible.
 - Matched contact details are limited to contact ID, name/title/role, email, phone, mobile phone, buying role, and match reason for scoped exact HubSpot contact matches.
@@ -1050,6 +1095,28 @@ Expected behavior:
 - Final per-alert Slack rows include `Context:` from safe contact/company/role/domain/summary metadata, or explicitly say context is missing and HubSpot match is needed.
 - Groups duplicates only when HubSpot confirms the same conversation thread, contact, ticket, or company; Slack-only "same person" hints or identical timestamps remain `needs-check` / duplicate candidates.
 - Excludes existing clients only when HubSpot verifies customer status from `type`, `lifecyclestage`, or `prospecting_account`; candidate or unmatched rows remain `needs-check`, not clean non-customers.
+
+### HubSpot-Source Inbound Monitor
+
+Runtime:
+
+```text
+runtime/scripts/nurtureany_inbound_monitor.py --dry-run --once
+```
+
+Expected behavior:
+
+- Uses HubSpot Conversations as the primary source through `audit_inbound_sla`; Slack inbound alerts remain fallback context only.
+- Is disabled for non-dry-run execution unless `NURTUREANY_INBOUND_MONITOR_ENABLED` is truthy.
+- Stores only runtime cursor/dedupe state, never business truth.
+- Prints nothing when all open inbound threads are already handled within SLA and have no routing/clean-lead exceptions.
+- Prints internal exception rows only, starting with `NurtureAny automation:`.
+- Row format is `Owner: <name/unknown> | Status: new / touched / stale / customer / duplicate / blocked | Next step: <action> | ETA: <time>`.
+- Existing customers are flagged as `customer` and routed to support/CSM check, not treated as new sales inbound.
+- Duplicate groups are visible only when HubSpot confirms the same conversation thread, contact, ticket, or company; candidate/unmatched rows stay `needs-check`.
+- Missing company/contact/current-tools/buying-role/lead-source/context triggers a clean-lead exception without inventing values.
+- Does not expose raw HubSpot message bodies, raw Slack transcripts, phone numbers, contact exports, or secrets.
+- Does not mutate HubSpot, create tasks, reassign owners, send WhatsApp/email, or post customer-facing messages.
 - Does not label automated HubSpot outbound as manual AE action; reports `first_hubspot_outbound_at` separately from `manual_ae_touch_status`.
 - Does not auto-reassign, mutate HubSpot, paste raw Slack transcripts, expose raw phone numbers, expose raw HubSpot message bodies, or send external messages. Phone output is at most `phone_hint=masked_last4`.
 
@@ -1320,6 +1387,23 @@ Expected behavior:
 - Returns per-country/per-owner rows with timezone, local/UTC window, first target-account WhatsApp local time, target-account count, hit/miss, truncation, confidence, caveat, and generated `slack_markdown`.
 - Final answer uses `answer.slack_markdown` or only the returned `answer.country_rows` for `answer.countries`; it does not add Indonesia/admin-scope expansion notes, owner rows, or timezone gaps unless the primitive returned them.
 - Does not return raw WhatsApp bodies, phone numbers, raw Slack transcripts, raw HubSpot rows, or mutate HubSpot.
+
+### Indonesia WhatsApp Morning Report Primitive
+
+Prompt:
+
+```text
+@NurtureAny build the ID WhatsApp morning report for today
+```
+
+Expected behavior:
+
+- First response is plan-only and asks for `run` unless the quick-autorun gate proves this is an obvious low-cost read.
+- After `run`, calls `build_sales_whatsapp_window_report` with `countries=["Indonesia"]`, usually `country_order=["Indonesia"]`, 09:30-10:30 owner-local time, target 30, and `include_kns=false`.
+- Resolves Sarah's Indonesia manager scope and classified Indonesia owner/timezone rows from `NURTUREANY_ACCESS_POLICY_PATH` through `resolve_sales_owners`; does not infer the roster from the sample Slack thread.
+- Uses the linked ID manager-channel thread only as source-shape provenance for the internal report format; raw Slack transcripts are not stored or copied.
+- Returns generated `slack_markdown` beginning with `NurtureAny automation:` and grouped under Indonesia.
+- Does not create a separate no-agent daily-nurture cron, re-enable the Jeremy 09:00/noon workflow, send WhatsApp/Eazybe/email/LinkedIn messages, or mutate HubSpot.
 
 Prompt:
 

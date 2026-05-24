@@ -23,19 +23,24 @@ class LaunchbotProductCommitmentServerTest(unittest.TestCase):
         for forbidden in ["post", "send", "create", "update", "delete", "transition", "comment"]:
             self.assertNotIn(forbidden, tool_names)
 
-    def test_unconfigured_channel_blocks_before_network(self):
+    def test_channel_not_allowlisted_still_reads_thread(self):
         with patch.dict(
             os.environ,
             {
                 "SLACK_BOT_TOKEN": "test-bot-token",
                 "LAUNCHBOT_PRODUCT_COMMITMENT_ALLOWED_CHANNEL_IDS": "C123",
+                "JIRA_EMAIL": "bot@staffany.com",
+                "JIRA_API_TOKEN": "jira-token",
             },
             clear=True,
-        ), patch.object(self.module, "_slack_api", side_effect=AssertionError("should not call Slack")):
+        ), patch.object(
+            self.module,
+            "_slack_api",
+            return_value={"ok": True, "messages": [{"ts": "1778816627.326029", "user": "U1", "text": "check commitment"}]},
+        ), patch.object(self.module, "_jira_post", return_value={"issues": []}):
             result = self.module.check_product_commitment_from_slack_thread(slack_permalink=SOURCE_PERMALINK)
 
-        self.assertEqual(result["confidence"], "blocked")
-        self.assertIn("restricted to configured channel IDs", result["answer"])
+        self.assertIn(result["confidence"], {"needs-check", "verified"})
 
     def test_commitment_absent_returns_needs_check_without_mutation(self):
         jira_calls = []

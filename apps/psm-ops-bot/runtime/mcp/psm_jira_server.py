@@ -7,6 +7,7 @@ import base64
 import json
 import os
 import re
+import sys
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -17,6 +18,12 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from mcp.server.fastmcp import FastMCP
 
+from aa_selfie_drive import (
+    configuration_status as aa_drive_configuration_status,
+    health_check as aa_drive_health_check,
+    upload_aa_selfies,
+    upload_aa_selfies_detailed,
+)
 from profile_env import load_profile_env
 from psm_slack_notifier import post_ps_wee_audit
 
@@ -53,6 +60,42 @@ REQUEST_TYPE_ENVS = {
     "onboarding_task": "PSM_OPS_JIRA_REQUEST_TYPE_ONBOARDING_TASK",
     "data_hygiene": "PSM_OPS_JIRA_REQUEST_TYPE_DATA_HYGIENE",
     "handoff_package": "PSM_OPS_JIRA_REQUEST_TYPE_HANDOFF_PACKAGE",
+    "ps_follow_up": "PSM_OPS_JIRA_REQUEST_TYPE_PS_FOLLOW_UP",
+    "cs_follow_up": "PSM_OPS_JIRA_REQUEST_TYPE_CS_FOLLOW_UP",
+    "adhoc_ops": "PSM_OPS_JIRA_REQUEST_TYPE_ADHOC_OPS",
+    "rev_cross_sell": "PSM_OPS_JIRA_REQUEST_TYPE_REV_CROSS_SELL",
+    "pdt_discovery": "PSM_OPS_JIRA_REQUEST_TYPE_PDT_DISCOVERY",
+    "mkt_clubany": "PSM_OPS_JIRA_REQUEST_TYPE_MKT_CLUBANY",
+    "feedback": "PSM_OPS_JIRA_REQUEST_TYPE_FEEDBACK",
+    "photo_follow_up": "PSM_OPS_JIRA_REQUEST_TYPE_PHOTO_FOLLOW_UP",
+}
+
+EVENT_AA_REQUEST_TYPE_KEYS = {
+    "ps_follow_up",
+    "cs_follow_up",
+    "adhoc_ops",
+    "rev_cross_sell",
+    "pdt_discovery",
+    "mkt_clubany",
+    "feedback",
+    "photo_follow_up",
+}
+EVENT_AA_DEFAULT_REQUEST_TYPE_KEY = "feedback"
+EVENT_AA_PHOTO_REQUEST_TYPE_KEY = "photo_follow_up"
+EVENT_AA_LABEL = "AA-SG-2026"
+EVENT_AA_PS_TEAM_BY_CATEGORY = {
+    "cs_follow_up": "Ega",
+    "adhoc_ops": "PS Ops",
+}
+EVENT_AA_REQUEST_TYPE_NAMES = {
+    "ps_follow_up": "PS Follow Up",
+    "cs_follow_up": "CS Follow Up",
+    "adhoc_ops": "Adhoc Ops",
+    "rev_cross_sell": "REV Cross Sell",
+    "pdt_discovery": "PDT Discovery",
+    "mkt_clubany": "MKT ClubAny Interest",
+    "feedback": "Feedback",
+    "photo_follow_up": "Photo Follow Up",
 }
 
 THIN_POC_MODE = "thin_poc"
@@ -62,11 +105,46 @@ THIN_POC_REQUEST_TYPES = {
     "onboarding_task": "82",
     "data_hygiene": "83",
     "handoff_package": "",
+    "ps_follow_up": "123",
+    "cs_follow_up": "124",
+    "adhoc_ops": "118",
+    "rev_cross_sell": "120",
+    "pdt_discovery": "125",
+    "mkt_clubany": "126",
+    "feedback": "122",
+    "photo_follow_up": "127",
 }
+THIN_POC_AA_CHANNEL_ID = "C0B5H2YE5T2"
 THIN_POC_FIELD_IDS = {
     "staffany_orgs": "customfield_10667",
     "ps_team": "customfield_10876",
+    "creator": "customfield_10914",
 }
+THIN_POC_CREATOR_OPTIONS = (
+    "Josica",
+    "Izzat",
+    "Damba",
+    "Priska",
+    "May",
+    "Lucky",
+    "Ega",
+    "Alya",
+    "Jason",
+    "Kai Yi",
+    "Albert",
+    "Jan-E",
+    "Jeffrey",
+    "Wong Man Zhong",
+    "Jolene",
+    "Siti",
+    "Jeremy",
+    "Edeline",
+    "Kerren",
+    "Will",
+    "Vanessa",
+    "Janson",
+    "Eugene",
+)
 REMINDER_NOT_CONFIGURED = "Reminder at field is not configured in PCO yet."
 ENGINEERING_LINK_TARGET_RE = re.compile(r"^(KER|SCHE)-\d+$", re.IGNORECASE)
 ENGINEERING_SEARCH_ALLOWED_PROJECTS = {"KER", "SCHE"}
@@ -90,6 +168,7 @@ FIELD_ENVS = {
     "risk_reason": "PSM_OPS_JIRA_FIELD_RISK_REASON",
     "source_links": "PSM_OPS_JIRA_FIELD_SOURCE_LINKS",
     "reminder_at": "PSM_OPS_JIRA_FIELD_REMINDER_AT",
+    "creator": "PSM_OPS_JIRA_FIELD_CREATOR",
 }
 
 ROI_FIELD_ENVS = {
@@ -237,9 +316,16 @@ SAFE_FIELDS = [
 
 SLACK_USER_CACHE: list[dict[str, Any]] | None = None
 
+# Caches for Jira Assets (CMDB) lookups used to resolve StaffAny Organization names
+# to actual Assets object references. Both are cleared on process restart.
+_ASSETS_WORKSPACE_ID_CACHE: str | None = None
+_ASSETS_OBJECT_ID_CACHE: dict[str, str | None] = {}
+
 
 class JiraError(RuntimeError):
-    pass
+    def __init__(self, message: str, status_code: int | None = None) -> None:
+        super().__init__(message)
+        self.status_code = status_code
 
 
 @mcp.resource(
@@ -414,6 +500,8 @@ def _field_id(key: str) -> str:
     if not value and _is_thin_poc():
         if key == "staffany_orgs":
             return THIN_POC_FIELD_IDS["staffany_orgs"]
+        if key == "creator":
+            return THIN_POC_FIELD_IDS["creator"]
         if key == "reminder_at":
             raise JiraError(REMINDER_NOT_CONFIGURED)
     if not value:
@@ -483,28 +571,150 @@ def _ps_team_valid_values(request_type_id: str = "") -> list[dict[str, Any]]:
     return []
 
 
+def _match_option_label(target_label: str, options: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """Find the best-ranked option matching by exact label, multi-word substring, or single-token equality.
+
+    Resolves a Slack display name like "Jane Doe" to the corresponding option label.
+    Single-token labels (e.g. "Jane") match via the token-equality branch.
+    Multi-word labels (e.g. "Kai Yi", "CS Duty") need the substring branch to match
+    longer display names like "Kai Yi Lee".
+
+    Among multiple matches, rank wins (exact > multi-word substring > token), then longer
+    label wins, so a more specific option like "Kai Yi" is preferred over "Kai" regardless
+    of the order Jira returns them.
+    """
+
+    target = _normalize_label(target_label)
+    if not target:
+        return None
+    tokens = [token for token in target.split() if token]
+    best: tuple[int, int, dict[str, Any]] | None = None
+    for option in options:
+        label = _normalize_label(str(option.get("label") or option.get("value") or ""))
+        if not label:
+            continue
+        if label == target:
+            rank = 3
+        elif " " in label and label in target:
+            rank = 2
+        elif label in tokens:
+            rank = 1
+        else:
+            continue
+        score = (rank, len(label))
+        if best is None or score > (best[0], best[1]):
+            best = (rank, len(label), option)
+    return best[2] if best else None
+
+
 def _ps_team_request_value(label: str, request_type_id: str = "") -> Any:
+    """Return the Jira-shaped single-select value for PS Team on a JSM request, or None when no option matches."""
+
     normalized = _normalize_ps_team(label)
     if not normalized:
-        return ""
-    normalized_key = _normalize_label(normalized)
-    for option in _ps_team_valid_values(request_type_id):
-        if _normalize_label(str(option.get("label") or "")) == normalized_key:
-            return option.get("value") or option.get("id") or normalized
-    return normalized
+        return None
+    option = _match_option_label(normalized, _ps_team_valid_values(request_type_id))
+    if option:
+        option_id = str(option.get("value") or option.get("id") or "").strip()
+        if option_id:
+            return {"id": option_id}
+        option_label = str(option.get("label") or "").strip()
+        if option_label:
+            return {"value": option_label}
+    return None
 
 
 def _ps_team_issue_value(label: str) -> Any:
     normalized = _normalize_ps_team(label)
     if not normalized:
         return ""
-    normalized_key = _normalize_label(normalized)
-    for option in _ps_team_valid_values():
-        if _normalize_label(str(option.get("label") or "")) == normalized_key:
-            option_id = str(option.get("value") or option.get("id") or "").strip()
-            if option_id:
-                return {"id": option_id}
+    option = _match_option_label(normalized, _ps_team_valid_values())
+    if option:
+        option_id = str(option.get("value") or option.get("id") or "").strip()
+        if option_id:
+            return {"id": option_id}
+        option_label = str(option.get("label") or "").strip()
+        if option_label:
+            return {"value": option_label}
     return {"value": normalized}
+
+
+def _creator_valid_values(request_type_id: str = "") -> list[dict[str, Any]]:
+    creator_field = _field_id("creator")
+    try:
+        rid = request_type_id or _request_type_id("feedback")
+        payload = _request_json(
+            "GET",
+            f"/rest/servicedeskapi/servicedesk/{urllib.parse.quote(_service_desk_id())}"
+            f"/requesttype/{urllib.parse.quote(rid)}/field",
+        )
+    except JiraError:
+        return []
+    fields = payload.get("requestTypeFields", []) if isinstance(payload, dict) else []
+    for field in fields:
+        if not isinstance(field, dict):
+            continue
+        if field.get("fieldId") == creator_field or _normalize_label(str(field.get("name") or "")) == "creator":
+            values = field.get("validValues") or []
+            return [value for value in values if isinstance(value, dict)]
+    return []
+
+
+def _match_creator_option(display_name: str, options: list[dict[str, Any]]) -> str:
+    target = _normalize_label(display_name)
+    if not target:
+        return ""
+    tokens = [token for token in target.split() if token]
+    for option in options:
+        label = _normalize_label(str(option.get("label") or option.get("value") or ""))
+        if not label:
+            continue
+        if label == target:
+            return label
+        if any(label == token for token in tokens):
+            return label
+        if len(label) >= 4 and label in target:
+            return label
+    return ""
+
+
+def _match_creator_thin_poc(display_name: str) -> str:
+    target = _normalize_label(display_name)
+    if not target:
+        return ""
+    tokens = [token for token in target.split() if token]
+    for option in THIN_POC_CREATOR_OPTIONS:
+        label = _normalize_label(option)
+        if label == target:
+            return option
+        if any(label == token for token in tokens):
+            return option
+        if len(label) >= 4 and label in target:
+            return option
+    return ""
+
+
+def _creator_request_value(display_name: str, request_type_id: str = "") -> Any:
+    """Return the Jira-shaped single-select value for the creator field, or None when no option matches."""
+
+    if not (display_name or "").strip():
+        return None
+    options = _creator_valid_values(request_type_id)
+    matched_label = _match_creator_option(display_name, options)
+    if matched_label:
+        for option in options:
+            if _normalize_label(str(option.get("label") or option.get("value") or "")) == matched_label:
+                option_id = str(option.get("value") or option.get("id") or "").strip()
+                if option_id:
+                    return {"id": option_id}
+                label = str(option.get("label") or "").strip()
+                if label:
+                    return {"value": label}
+        return {"value": matched_label}
+    thin_match = _match_creator_thin_poc(display_name) if _is_thin_poc() else ""
+    if thin_match:
+        return {"value": thin_match}
+    return None
 
 
 def _configured_roi_field_ids() -> dict[str, str]:
@@ -710,6 +920,360 @@ def _slack_channel_id_from_permalink(slack_thread_url: str) -> str:
     return match.group(1) if match else ""
 
 
+def _event_aa_channel_id() -> str:
+    value = (os.environ.get("PSM_OPS_AA_CHANNEL_ID") or "").strip()
+    if not value and _is_thin_poc():
+        return THIN_POC_AA_CHANNEL_ID
+    return value
+
+
+def _is_event_aa_thread(slack_thread_url: str) -> bool:
+    expected = _event_aa_channel_id()
+    if not expected:
+        return False
+    return _slack_channel_id_from_permalink(slack_thread_url) == expected
+
+
+def _slack_message_ts_from_permalink(slack_thread_url: str) -> str:
+    match = re.search(r"/archives/[A-Z0-9]+/p(\d+)", slack_thread_url or "")
+    if not match:
+        return ""
+    compact = match.group(1)
+    if len(compact) <= 6:
+        return ""
+    return f"{compact[:-6]}.{compact[-6:]}"
+
+
+def _extract_image_files(files: list[Any]) -> list[dict[str, Any]]:
+    images: list[dict[str, Any]] = []
+    for entry in files or []:
+        if not isinstance(entry, dict):
+            continue
+        mimetype = str(entry.get("mimetype") or "").lower()
+        url_private = str(entry.get("url_private") or entry.get("url_private_download") or "")
+        if not mimetype.startswith("image/") or not url_private:
+            continue
+        images.append(
+            {
+                "id": str(entry.get("id") or ""),
+                "name": str(entry.get("name") or entry.get("title") or "image"),
+                "mimetype": mimetype,
+                "url_private": url_private,
+            }
+        )
+    return images
+
+
+def _slack_trigger_message_image_files(slack_thread_url: str) -> list[dict[str, Any]]:
+    """Return image-only file metadata for the "new selfie" the agent wants to upload.
+
+    Resolution order is robust to the agent passing either the reply
+    permalink (the message that actually carries the file) or the thread
+    parent permalink (what the Hermes gateway exposes by default, since the
+    raw reply ts is not surfaced to the agent):
+
+    1. ``conversations.history`` with the supplied ``message_ts``. If the
+       returned message both matches by ``ts`` *and* carries image files,
+       use those.
+    2. ``conversations.replies(channel, ts=<message_ts>)``. Slack accepts
+       any thread ts (parent or reply) and returns the full thread. If a
+       reply matches by ``ts`` and has files, use those.
+    3. As a last resort, pick the **most recent thread message that has any
+       image attachment** and use its files. This is the "agent passed the
+       parent permalink but the new selfie is on a reply" case — finding
+       the newest image is equivalent to "the new selfie", since the agent
+       only invokes the tool when a new one has just arrived.
+
+    Returns an empty list when the permalink does not parse or the thread
+    has no image attachments anywhere. Slack auth / network / API errors
+    propagate as :class:`JiraError` so callers can distinguish "no images
+    in this thread" from "Slack was unreachable". The existing
+    ``create_ps_wee_intake_ticket`` caller wraps this in
+    ``try/except Exception`` to preserve its best-effort intake semantics;
+    new callers may catch ``JiraError`` to surface a ``needs-check``
+    outcome instead.
+    """
+
+    channel_id = _slack_channel_id_from_permalink(slack_thread_url)
+    message_ts = _slack_message_ts_from_permalink(slack_thread_url)
+    if not channel_id or not message_ts:
+        return []
+
+    history = _request_slack_json(
+        "conversations.history",
+        {
+            "channel": channel_id,
+            "oldest": message_ts,
+            "inclusive": "true",
+            "limit": "1",
+        },
+    )
+    for entry in history.get("messages") or []:
+        if isinstance(entry, dict) and str(entry.get("ts") or "") == message_ts:
+            images = _extract_image_files(entry.get("files") or [])
+            if images:
+                return images
+            break  # matched but empty — fall through to thread scan
+
+    replies = _request_slack_json(
+        "conversations.replies",
+        {
+            "channel": channel_id,
+            "ts": message_ts,
+            "inclusive": "true",
+            "limit": "200",
+        },
+    )
+    thread_messages = replies.get("messages") or []
+    # Prefer the exact ts match if it has files — that is the message the
+    # agent intended to target (the reply-permalink case).
+    for entry in thread_messages:
+        if isinstance(entry, dict) and str(entry.get("ts") or "") == message_ts:
+            images = _extract_image_files(entry.get("files") or [])
+            if images:
+                return images
+            break
+    # Fallback: newest message in the thread that carries an image. Honors
+    # the "just upload new images" intent — duplicates from older replies
+    # are not picked up because we stop at the most recent image.
+    sorted_messages = sorted(
+        (m for m in thread_messages if isinstance(m, dict)),
+        key=lambda m: float(m.get("ts") or 0.0),
+        reverse=True,
+    )
+    for entry in sorted_messages:
+        images = _extract_image_files(entry.get("files") or [])
+        if images:
+            return images
+    return []
+
+
+def _slack_trigger_message_sender(slack_thread_url: str) -> str:
+    """Return the Slack user ID of the trigger message at ``slack_thread_url``.
+
+    Uses ``conversations.history`` for the parent permalink (the shape the
+    Hermes gateway exposes for AA intakes), falling back to
+    ``conversations.replies`` for reply permalinks. Returns ``""`` on any
+    failure — callers must treat the empty result as "unknown" and fall back
+    to whatever identity was supplied by the agent. This is the verified
+    source of truth for "who tagged the bot", and is used to override the
+    agent's ``slack_user_email`` on AA intakes because agents have
+    hallucinated invalid Slack IDs in that field (e.g. ``U07UTFE8U3X`` on
+    PCO-291/293, ``U07N3TH1CJK`` on PCO-298-300), which silently dropped
+    Creator and PS Team because nothing matched the policy or dropdowns.
+    """
+
+    channel_id = _slack_channel_id_from_permalink(slack_thread_url)
+    message_ts = _slack_message_ts_from_permalink(slack_thread_url)
+    if not channel_id or not message_ts:
+        return ""
+    try:
+        history = _request_slack_json(
+            "conversations.history",
+            {
+                "channel": channel_id,
+                "oldest": message_ts,
+                "inclusive": "true",
+                "limit": "1",
+            },
+        )
+    except Exception:  # noqa: BLE001 — verified-tagger lookup must never block intake.
+        history = {}
+    for entry in history.get("messages") or []:
+        if isinstance(entry, dict) and str(entry.get("ts") or "") == message_ts:
+            user = str(entry.get("user") or "").strip()
+            if user:
+                return user
+            break
+    try:
+        replies = _request_slack_json(
+            "conversations.replies",
+            {
+                "channel": channel_id,
+                "ts": message_ts,
+                "inclusive": "true",
+                "limit": "1",
+            },
+        )
+    except Exception:  # noqa: BLE001
+        return ""
+    for entry in replies.get("messages") or []:
+        if isinstance(entry, dict) and str(entry.get("ts") or "") == message_ts:
+            user = str(entry.get("user") or "").strip()
+            if user:
+                return user
+            break
+    return ""
+
+
+def _download_slack_file(url_private: str) -> bytes:
+    token = _slack_token()
+    if not token:
+        raise JiraError("SLACK_BOT_TOKEN is not configured for Slack file download.")
+    request = urllib.request.Request(
+        url_private,
+        headers={"Authorization": f"Bearer {token}"},
+        method="GET",
+    )
+    with urllib.request.urlopen(request, timeout=30) as response:
+        return response.read()
+
+
+def _download_slack_images_for_drive(files: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Best-effort download of Slack image files. Per-file errors are dropped silently."""
+
+    downloads: list[dict[str, Any]] = []
+    for entry in files or []:
+        if not isinstance(entry, dict):
+            continue
+        url_private = str(entry.get("url_private") or "")
+        if not url_private:
+            continue
+        try:
+            content = _download_slack_file(url_private)
+        except Exception:
+            continue
+        if not content:
+            continue
+        downloads.append(
+            {
+                "content": content,
+                "name": str(entry.get("name") or "selfie"),
+                "mimetype": str(entry.get("mimetype") or "image/jpeg"),
+                "slack_file_id": str(entry.get("id") or ""),
+            }
+        )
+    return downloads
+
+
+def _post_attachment_bytes_to_issue(
+    issue_key: str,
+    filename: str,
+    mimetype: str,
+    content: bytes,
+) -> tuple[list[dict[str, Any]], str]:
+    """POST a single in-memory file to the Jira issue attachments endpoint.
+
+    Returns ``(records, error_reason)``. ``records`` is the list Jira accepted;
+    ``error_reason`` is a short string describing the failure when the POST
+    raised (HTTP status + message, timeout, JSON parse). Empty string means
+    "no error" — callers can distinguish "no attachments returned" from
+    "attempt failed silently" by checking ``error_reason``.
+    """
+    if not issue_key or not content:
+        return [], ""
+    base = _env("JIRA_BASE_URL").rstrip("/")
+    email = _env("JIRA_EMAIL")
+    token = _env("JIRA_API_TOKEN")
+    if not base or not email or not token:
+        return [], "Jira credentials are not configured."
+    basic = base64.b64encode(f"{email}:{token}".encode("utf-8")).decode("ascii")
+    boundary = "----PsmOpsAttachmentBoundary"
+    body = (
+        f"--{boundary}\r\n"
+        f'Content-Disposition: form-data; name="file"; filename="{filename}"\r\n'
+        f"Content-Type: {mimetype or 'application/octet-stream'}\r\n\r\n"
+    ).encode("utf-8") + bytes(content) + f"\r\n--{boundary}--\r\n".encode("utf-8")
+    url = f"{base}/rest/api/3/issue/{urllib.parse.quote(issue_key)}/attachments"
+    request = urllib.request.Request(
+        url,
+        data=body,
+        headers={
+            "Authorization": f"Basic {basic}",
+            "X-Atlassian-Token": "no-check",
+            "Content-Type": f"multipart/form-data; boundary={boundary}",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=60) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as error:
+        try:
+            detail = error.read().decode("utf-8", errors="replace")
+        except Exception:
+            detail = ""
+        reason = f"Jira attachment POST failed: {error.code} {detail[:200]}"
+        print(f"[psm-ops-bot] {reason} (issue={issue_key}, filename={filename})", file=sys.stderr)
+        return [], reason
+    except (urllib.error.URLError, TimeoutError) as error:
+        reason = f"Jira attachment POST could not complete: {getattr(error, 'reason', error)}"
+        print(f"[psm-ops-bot] {reason} (issue={issue_key}, filename={filename})", file=sys.stderr)
+        return [], reason
+    except (json.JSONDecodeError, ValueError) as error:
+        reason = f"Jira attachment response was not JSON: {error}"
+        print(f"[psm-ops-bot] {reason} (issue={issue_key}, filename={filename})", file=sys.stderr)
+        return [], reason
+    out: list[dict[str, Any]] = []
+    if isinstance(payload, list):
+        for record in payload:
+            if isinstance(record, dict):
+                out.append(
+                    {
+                        "id": str(record.get("id") or ""),
+                        "filename": str(record.get("filename") or filename),
+                    }
+                )
+    return out, ""
+
+
+def _attach_image_files_to_issue(issue_key: str, files: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Upload image files to a Jira issue. Best-effort: continues past per-file errors."""
+    if not files or not issue_key:
+        return []
+    attached: list[dict[str, Any]] = []
+    for entry in files:
+        try:
+            content = _download_slack_file(entry["url_private"])
+        except Exception:
+            continue
+        records, _error = _post_attachment_bytes_to_issue(
+            issue_key,
+            str(entry.get("name") or "attachment"),
+            str(entry.get("mimetype") or "application/octet-stream"),
+            content,
+        )
+        attached.extend(records)
+    return attached
+
+
+def _attach_payloads_to_issues(
+    issue_keys: list[str],
+    payloads: list[dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    """Attach pre-downloaded payloads to multiple Jira issues without re-downloading.
+
+    Each payload should carry ``content`` (bytes), ``name``, and ``mimetype``
+    (the shape returned by :func:`_download_slack_images_for_drive`). Returns a
+    map from issue_key to ``{"attached": list, "errors": list[str]}``. Callers
+    can distinguish "Jira accepted nothing" from "Jira rejected everything"
+    by checking the per-issue ``errors`` list.
+    """
+    if not issue_keys or not payloads:
+        return {}
+    result: dict[str, dict[str, Any]] = {}
+    for issue_key in issue_keys:
+        if not issue_key:
+            continue
+        attached: list[dict[str, Any]] = []
+        errors: list[str] = []
+        for entry in payloads:
+            content = entry.get("content") if isinstance(entry, dict) else None
+            if not isinstance(content, (bytes, bytearray)) or not content:
+                continue
+            records, error_reason = _post_attachment_bytes_to_issue(
+                issue_key,
+                str(entry.get("name") or "selfie"),
+                str(entry.get("mimetype") or "image/jpeg"),
+                content,
+            )
+            attached.extend(records)
+            if error_reason:
+                errors.append(error_reason)
+        result[issue_key] = {"attached": attached, "errors": errors}
+    return result
+
+
 def _customer_channel_map_path() -> str:
     return _env("PSM_OPS_CUSTOMER_CHANNEL_MAP_PATH")
 
@@ -835,7 +1399,7 @@ def _request_json(method: str, path: str, body: dict[str, Any] | None = None) ->
             return json.loads(payload) if payload else {}
     except urllib.error.HTTPError as error:
         detail = error.read().decode("utf-8", errors="replace")[:400]
-        raise JiraError(f"Jira API failed: HTTP {error.code} {detail}") from error
+        raise JiraError(f"Jira API failed: HTTP {error.code} {detail}", status_code=error.code) from error
     except urllib.error.URLError as error:
         raise JiraError(f"Jira API unavailable: {error.reason}") from error
 
@@ -1474,13 +2038,203 @@ def _description_from_draft(draft: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _assets_workspace_id() -> str:
+    """Return the Jira Assets workspace ID, fetching once and caching for the process lifetime."""
+
+    global _ASSETS_WORKSPACE_ID_CACHE
+    if _ASSETS_WORKSPACE_ID_CACHE is not None:
+        return _ASSETS_WORKSPACE_ID_CACHE
+    payload = _request_json("GET", "/rest/servicedeskapi/assets/workspace")
+    workspaces = payload.get("values") if isinstance(payload, dict) else None
+    if not workspaces:
+        raise JiraError("Jira Assets workspace is not configured for this site.")
+    workspace_id = str(workspaces[0].get("workspaceId") or "").strip()
+    if not workspace_id:
+        raise JiraError("Jira Assets workspace response did not include a workspaceId.")
+    _ASSETS_WORKSPACE_ID_CACHE = workspace_id
+    return workspace_id
+
+
+# Common trailing legal-entity tokens we strip before matching. Covers SG/MY/ID-heavy
+# customer base + generic global forms. Match is case-insensitive, anchored to end.
+_LEGAL_SUFFIX_PATTERN = re.compile(
+    r"[\s,]+("
+    r"pte\.?\s*ltd\.?|sdn\.?\s*bhd\.?|pty\.?\s*ltd\.?|"
+    r"p\.?\s*t\.?|tbk|persero|"
+    r"llc|inc\.?|corp\.?|llp|lp|"
+    r"co\.?|company|limited|ltd\.?"
+    r")\s*$",
+    re.IGNORECASE,
+)
+
+
+def _strip_legal_suffix(name: str) -> str:
+    """Strip trailing legal-entity tokens (e.g. ``Pte Ltd``, ``Sdn Bhd``, ``Inc``)."""
+
+    cleaned = name
+    while True:
+        stripped = _LEGAL_SUFFIX_PATTERN.sub("", cleaned).rstrip(" ,.\t")
+        if stripped == cleaned:
+            return cleaned
+        cleaned = stripped
+
+
+def _aql_escape(value: str) -> str:
+    return value.replace("\\", "\\\\").replace('"', '\\"')
+
+
+def _aql_search_object_id(query: str) -> str | None:
+    """Run an AQL query; return the unique result's numeric ``id``, or None on 0/many.
+
+    Raises ``JiraError`` on transient / network failures so the caller can distinguish
+    "definitely no match" from "couldn't ask Jira this time" and avoid caching the
+    latter as a permanent miss.
+
+    Returns the numeric object id (e.g. ``"61"``), not the human-readable ``objectKey``
+    (e.g. ``"HC-61"``). The CMDB field reference uses a composite ``<workspaceId>:<id>``
+    written under the ``id`` key — see :func:`_staffany_orgs_assets_payload`.
+    """
+
+    workspace_id = _assets_workspace_id()
+    payload = _request_json(
+        "POST",
+        f"/gateway/api/jsm/assets/workspace/{urllib.parse.quote(workspace_id)}/v1/object/aql",
+        {"qlQuery": query},
+    )
+    values = payload.get("values") if isinstance(payload, dict) else None
+    if not isinstance(values, list) or len(values) != 1:
+        return None
+    return str(values[0].get("id") or "").strip() or None
+
+
+def _resolve_assets_object_id(name: str) -> str | None:
+    """Resolve a StaffAny Organization name to its Jira Assets numeric object ``id``.
+
+    Tries progressively more permissive AQL queries and returns the numeric id of the
+    unique match. Returns None when nothing matches uniquely (zero or ambiguous).
+    Strategies attempted in order:
+
+    1. Exact ``Name = "<name>"`` against the supplied name.
+    2. If the name carries a trailing legal-entity token (``Pte Ltd``, ``Sdn Bhd``,
+       etc.), exact match on the stripped form. Handles the common C360 case where
+       enrichment appends the legal name to a shorter Assets-side label.
+    3. ``Name like "..."`` (substring) — first on the supplied name, then on the
+       stripped form. Accepted only when exactly one Assets object matches, to avoid
+       silently picking the wrong customer.
+
+    Results are cached in-process keyed by the original input.
+    """
+
+    clean = (name or "").strip()
+    if not clean:
+        return None
+    if clean in _ASSETS_OBJECT_ID_CACHE:
+        return _ASSETS_OBJECT_ID_CACHE[clean]
+
+    stripped = _strip_legal_suffix(clean)
+    stripped = stripped if stripped and stripped != clean else ""
+
+    escaped_clean = _aql_escape(clean)
+    queries: list[str] = [f'Name = "{escaped_clean}"']
+    if stripped:
+        queries.append(f'Name = "{_aql_escape(stripped)}"')
+    queries.append(f'Name like "{escaped_clean}"')
+    if stripped:
+        queries.append(f'Name like "{_aql_escape(stripped)}"')
+
+    resolved: str | None = None
+    had_transient_error = False
+    for query in queries:
+        try:
+            resolved = _aql_search_object_id(query)
+        except JiraError:
+            had_transient_error = True
+            continue
+        if resolved:
+            break
+
+    # Cache positive resolutions always. Cache the negative only when we got a
+    # definitive answer from Jira — if all queries hit transient errors we leave the
+    # cache untouched so the next call retries instead of returning a stale miss.
+    if resolved or not had_transient_error:
+        _ASSETS_OBJECT_ID_CACHE[clean] = resolved
+    return resolved
+
+
+def _staffany_orgs_input_names(draft: dict[str, Any]) -> list[str]:
+    """Return the raw StaffAny Organization names from the draft as a normalized string list."""
+
+    raw = draft.get("staffany_orgs")
+    if isinstance(raw, str):
+        candidates = [part.strip() for part in raw.split(",")]
+    elif isinstance(raw, list):
+        candidates = [str(org).strip() for org in raw]
+    else:
+        candidates = []
+    return [org for org in candidates if org]
+
+
+def _staffany_orgs_assets_payload(draft: dict[str, Any]) -> tuple[list[dict[str, str]], list[str]]:
+    """Resolve each StaffAny Organization name to its Jira Assets object reference.
+
+    Returns a tuple of (payload, unresolved_names), where payload is the wire-shape
+    array suitable for the CMDB object field — a list of
+    ``{"id": "<workspaceId>:<numericId>"}`` entries (Jira silently drops other shapes
+    like ``{"objectId": ...}`` or ``{"key": ...}`` from the create payload without
+    erroring, so this composite globalId is the only reliable write format).
+
+    ``unresolved_names`` is the list of input names that did not resolve to a single
+    Assets object so the caller can surface a precise warning.
+    """
+
+    names = _staffany_orgs_input_names(draft)
+    payload: list[dict[str, str]] = []
+    unresolved: list[str] = []
+    workspace_id: str | None = None
+    for name in names:
+        object_id = _resolve_assets_object_id(name)
+        if not object_id:
+            unresolved.append(name)
+            continue
+        if workspace_id is None:
+            try:
+                workspace_id = _assets_workspace_id()
+            except JiraError:
+                # Should not happen — the resolver already fetched it — but stay safe.
+                unresolved.append(name)
+                continue
+        payload.append({"id": f"{workspace_id}:{object_id}"})
+    return payload, unresolved
+
+
+def _staffany_orgs_array(draft: dict[str, Any]) -> list[str]:
+    """Backwards-compatible helper retained for legacy callers (tests, ROI flow).
+
+    New code should prefer :func:`_staffany_orgs_assets_payload`, which returns the
+    Jira-shaped CMDB payload and the list of unresolved names.
+    """
+
+    return _staffany_orgs_input_names(draft)
+
+
 def _request_field_values(draft: dict[str, Any]) -> dict[str, Any]:
+    # Prefer the pre-resolved payload stashed by _create_pco_task_from_draft so we don't
+    # repeat the AQL lookup. Tests/legacy callers without the stash fall back to live
+    # resolution here.
+    orgs_payload = draft.get("_staffany_orgs_payload")
+    if orgs_payload is None:
+        orgs_payload, _ = _staffany_orgs_assets_payload(draft)
+
     if _is_thin_poc():
         values: dict[str, Any] = {"summary": draft["summary"]}
-        if draft.get("staffany_orgs"):
-            values[_field_id("staffany_orgs")] = ", ".join(draft.get("staffany_orgs") or [])
+        if orgs_payload:
+            values[_field_id("staffany_orgs")] = orgs_payload
         if draft.get("ps_team"):
-            values[_ps_team_field_id()] = _ps_team_request_value(str(draft["ps_team"]), str(draft.get("request_type_id") or ""))
+            ps_team_value = _ps_team_request_value(str(draft["ps_team"]), str(draft.get("request_type_id") or ""))
+            if ps_team_value:
+                values[_ps_team_field_id()] = ps_team_value
+        if draft.get("creator_field_value"):
+            values[_field_id("creator")] = draft["creator_field_value"]
         return values
 
     fields = _field_ids()
@@ -1488,19 +2242,24 @@ def _request_field_values(draft: dict[str, Any]) -> dict[str, Any]:
         "summary": draft["summary"],
         "description": _description_from_draft(draft),
     }
-    mappings = {
+    mappings: dict[str, Any] = {
         fields["customer"]: draft.get("customer"),
-        fields["staffany_orgs"]: ", ".join(draft.get("staffany_orgs") or []),
         fields["owner_psm"]: draft.get("owner_psm"),
         fields["contributor_cse"]: draft.get("contributor_cse"),
         fields["action_type"]: draft.get("action_type"),
         fields["risk_reason"]: draft.get("risk_reason"),
         fields["source_links"]: "\n".join(draft.get("source_links") or []),
     }
+    if orgs_payload:
+        values[fields["staffany_orgs"]] = orgs_payload
     if draft.get("priority"):
         values["priority"] = {"name": draft["priority"]}
     if draft.get("ps_team"):
-        values[_ps_team_field_id()] = _ps_team_request_value(str(draft["ps_team"]), str(draft.get("request_type_id") or ""))
+        ps_team_value = _ps_team_request_value(str(draft["ps_team"]), str(draft.get("request_type_id") or ""))
+        if ps_team_value:
+            values[_ps_team_field_id()] = ps_team_value
+    if draft.get("creator_field_value"):
+        values[_field_id("creator")] = draft["creator_field_value"]
     for field_id, value in mappings.items():
         if value:
             values[field_id] = value
@@ -1519,14 +2278,21 @@ def _duplicate_candidates(customer: str, summary: str) -> list[dict[str, Any]]:
         return []
 
 
-def _ticket_by_slack_thread(slack_thread_url: str, max_results: int = 5) -> list[dict[str, Any]]:
+def _ticket_by_slack_thread(
+    slack_thread_url: str,
+    max_results: int = 5,
+    request_type_name: str = "",
+) -> list[dict[str, Any]]:
     source = (slack_thread_url or "").strip()
     if not source:
         return []
-    jql = (
-        f"project = {_project_key()} AND text ~ {_quote_jql(source[:180])} "
-        "ORDER BY updated DESC"
-    )
+    clauses = [
+        f"project = {_project_key()}",
+        f"text ~ {_quote_jql(source[:180])}",
+    ]
+    if request_type_name.strip():
+        clauses.append(f'"Request Type" = {_quote_jql(request_type_name.strip())}')
+    jql = " AND ".join(clauses) + " ORDER BY updated DESC"
     return [_safe_issue(issue) for issue in _search_issues(jql, _search_fields(), max_results)]
 
 
@@ -2103,6 +2869,10 @@ def _create_pco_task_from_draft(draft: dict[str, Any], scope: dict[str, Any]) ->
     try:
         _validate_due_date_for_write(str(draft.get("due_date") or ""))
         request_type_id = str(draft.get("request_type_id") or _request_type_id(str(draft.get("request_type_key") or "customer_next_action")))
+        # Resolve StaffAny Organization names to Assets object keys before building the
+        # request payload so we can surface a precise "unresolved" warning to triage.
+        orgs_payload, unresolved_orgs = _staffany_orgs_assets_payload(draft)
+        draft["_staffany_orgs_payload"] = orgs_payload
         request_values = _request_field_values(draft)
         payload = {
             "serviceDeskId": _service_desk_id(),
@@ -2115,14 +2885,45 @@ def _create_pco_task_from_draft(draft: dict[str, Any], scope: dict[str, Any]) ->
         try:
             response = _request_json("POST", "/rest/servicedeskapi/request", payload)
             warnings: list[str] = []
-        except JiraError:
-            if not _is_thin_poc() or set(request_values) == {"summary"}:
+        except JiraError as error:
+            # Only retry on deterministic validation failures. Network errors, 5xx,
+            # or auth failures might mean the original create already landed — retrying
+            # could duplicate.
+            if (
+                not _is_thin_poc()
+                or set(request_values) == {"summary"}
+                or error.status_code != 400
+            ):
                 raise
-            payload["requestFieldValues"] = {"summary": draft["summary"]}
-            response = _request_json("POST", "/rest/servicedeskapi/request", payload)
-            warnings = ["Optional PCO request fields were skipped because Jira rejected their values."]
+            response = None
+            warnings = []
+            # Assets-backed StaffAny Organization is the most common rejection cause.
+            # Drop just that field first so PS Team, Creator, Customer, etc. still land.
+            orgs_field_id = _field_id("staffany_orgs")
+            if orgs_field_id and orgs_field_id in request_values:
+                retry_values = {k: v for k, v in request_values.items() if k != orgs_field_id}
+                try:
+                    payload["requestFieldValues"] = retry_values
+                    response = _request_json("POST", "/rest/servicedeskapi/request", payload)
+                    warnings = ["StaffAny Organization was skipped because Jira rejected the value."]
+                except JiraError as retry_error:
+                    if retry_error.status_code != 400:
+                        raise
+                    response = None
+            if response is None:
+                payload["requestFieldValues"] = {"summary": draft["summary"]}
+                response = _request_json("POST", "/rest/servicedeskapi/request", payload)
+                warnings = ["Optional PCO request fields were skipped because Jira rejected their values."]
     except JiraError as error:
         return _blocked(str(error), scope)
+
+    if unresolved_orgs:
+        warnings.append(
+            "StaffAny Organization not assigned automatically — "
+            "no Jira Assets object matched: "
+            + ", ".join(unresolved_orgs)
+            + ". Triage can assign manually."
+        )
 
     issue_key = response.get("issueKey") or response.get("issueId") or response.get("key")
     if issue_key and draft.get("due_date"):
@@ -2152,6 +2953,15 @@ def _create_pco_task_from_draft(draft: dict[str, Any], scope: dict[str, Any]) ->
             _update_issue_labels(str(issue_key), add=["needs-info"])
         except JiraError:
             warnings.append("Issue was created but the needs-info label could not be set.")
+    if issue_key and draft.get("labels_extra"):
+        extras = [str(label).strip() for label in (draft.get("labels_extra") or []) if str(label).strip()]
+        if extras:
+            try:
+                _update_issue_labels(str(issue_key), add=extras)
+            except JiraError:
+                warnings.append(
+                    f"Issue was created but the {', '.join(extras)} label(s) could not be set."
+                )
     return _verified(
         {
             "issue_key": issue_key,
@@ -2601,43 +3411,104 @@ def create_ps_wee_intake_ticket(
     due_date: str = "",
     request_type_key: str = "customer_next_action",
     ps_team: str = "",
+    creator_slack_user_email: str = "",
+    pic: str = "",
 ) -> dict[str, Any]:
-    """Create an immediate PCO intake ticket for PS WEE/PSM Manager Ops requests."""
+    """Create an immediate PCO intake ticket for PS WEE/PSM Manager Ops requests.
+
+    Event AA intakes (Slack thread in the configured AA channel) additionally:
+    - Require a `creator` single-select option that matches the Slack tagger.
+    - Auto-route `ps_team` per category for CS Follow Up (Ega) and Adhoc Ops (PS Ops).
+    - Add the `AA-SG-2026` label on every ticket.
+    - Upload any selfies on the trigger Slack message to the configured Drive
+      folder as `{company}_{pic}.{ext}` instead of attaching to the Jira ticket.
+    - Allow multiple tickets per Slack thread when they have different request types.
+    """
 
     source = (slack_thread_url or "").strip()
     supplied_customer = (customer or "").strip()
     normalized_customer = supplied_customer or "Unknown customer"
     normalized_issue = (issue_summary or "").strip() or "PS request from Slack"
+    is_event_aa = _is_event_aa_thread(source)
+    if is_event_aa and request_type_key not in EVENT_AA_REQUEST_TYPE_KEYS:
+        request_type_key = EVENT_AA_DEFAULT_REQUEST_TYPE_KEY
+    # AA always-ticket-first: the thread permalink IS the source of truth for
+    # who tagged the bot. Agents have hallucinated invalid Slack IDs in
+    # slack_user_email (e.g. `U07UTFE8U3X` on PCO-291/293, `U07N3TH1CJK` on
+    # PCO-298-300), which then silently dropped Creator and PS Team because
+    # nothing matched the access policy or dropdowns. Re-derive the tagger
+    # from conversations.history before resolving caller. If Slack is
+    # unreachable, fall back to the agent-supplied value rather than blocking.
+    if is_event_aa and source:
+        verified_sender = _slack_trigger_message_sender(source)
+        if verified_sender:
+            slack_user_email = verified_sender
     scope = {
         "caller": (slack_user_email or "").strip().lower(),
         "slack_thread_url": source,
         "customer": normalized_customer,
         "request_type_key": request_type_key,
+        "event": "AA" if is_event_aa else "",
     }
     if not source:
         return _blocked("Slack thread URL is required before creating a traceable PS WEE ticket.", scope)
 
     try:
-        existing = _ticket_by_slack_thread(source, 5)
+        try:
+            request_type_id = _request_type_id(request_type_key)
+        except JiraError as error:
+            return _blocked(str(error), scope)
+        dedupe_request_type_name = (
+            EVENT_AA_REQUEST_TYPE_NAMES.get(request_type_key, "") if is_event_aa else ""
+        )
+        existing = _ticket_by_slack_thread(
+            source,
+            5,
+            request_type_name=dedupe_request_type_name,
+        )
+        if existing and is_event_aa:
+            # AA channel allows multiple same-request-type tickets per thread when they
+            # cover different customers (e.g. one PSM logs Qiqi and Lo & Behold in the
+            # same booth-meeting message). Only treat an existing ticket as a duplicate
+            # when its summary references the same customer name.
+            customer_needle = normalized_customer.strip().lower()
+            if customer_needle and customer_needle != "unknown customer":
+                existing = [
+                    candidate
+                    for candidate in existing
+                    if customer_needle in str(candidate.get("summary") or "").lower()
+                ]
+            else:
+                existing = []
         if existing:
+            existing_key = str(existing[0].get("issue_key") or "").strip()
+            if is_event_aa and existing_key:
+                # Best-effort: ensure the reused ticket carries the AA-SG-2026 label even
+                # when the original create path predated the label rollout. Adding an
+                # existing label is a no-op in Jira, so this is safe to retry.
+                try:
+                    _update_issue_labels(existing_key, add=[EVENT_AA_LABEL])
+                except Exception:
+                    pass
             answer = {"existing_ticket": existing[0], "duplicate_candidates": existing}
             answer["central_copy"] = post_ps_wee_audit(
                 "ticket_reused",
                 source_thread_url=source,
-                issue_key=str(existing[0].get("issue_key") or ""),
+                issue_key=existing_key,
                 issue_url=str(existing[0].get("url") or ""),
                 requester=scope["caller"],
                 customer=normalized_customer,
                 summary=str(existing[0].get("summary") or normalized_issue),
                 status=str(existing[0].get("status") or ""),
                 jira_payload=answer,
-                extra={"request_type_key": request_type_key},
+                extra={"request_type_key": request_type_key, "event": "AA" if is_event_aa else ""},
             )
-            return _verified(
-                answer,
-                scope,
-                "Existing PCO ticket found for the same Slack thread; update it instead of creating a duplicate.",
+            caveat = (
+                "Existing PCO ticket found for the same Slack thread, request type, and customer; update it instead of creating a duplicate."
+                if is_event_aa
+                else "Existing PCO ticket found for the same Slack thread; update it instead of creating a duplicate."
             )
+            return _verified(answer, scope, caveat)
         try:
             caller = _caller(slack_user_email)
         except JiraError:
@@ -2645,17 +3516,52 @@ def create_ps_wee_intake_ticket(
                 "jira_account_id": "",
                 "display_name": (slack_user_email or "").strip() or "Unresolved Slack requester",
             }
+        # AA always-ticket-first: the Slack tagger IS the Creator. Ignore any
+        # supplied `creator_slack_user_email` on AA — agents have hallucinated
+        # invalid Slack IDs here (e.g. `U07UTFE8U3X` for the Super Loco
+        # threads), which silently dropped Creator + PS Team because neither
+        # value resolved against the access policy or the Creator dropdown.
+        # The bot is always tagged from inside Slack, so the tagger is the
+        # only meaningful creator identity. Outside AA, the supplied override
+        # is honored (e.g. when one PSM logs a teammate's meeting).
+        if is_event_aa:
+            creator_identity = caller
+        else:
+            creator_caller_email = (creator_slack_user_email or slack_user_email or "").strip()
+            if creator_caller_email and creator_caller_email != (slack_user_email or "").strip():
+                try:
+                    creator_identity = _caller(creator_caller_email)
+                except JiraError:
+                    creator_identity = {
+                        "display_name": creator_caller_email,
+                        "jira_account_id": "",
+                    }
+            else:
+                creator_identity = caller
+        creator_display = str(creator_identity.get("display_name") or "").strip()
+        creator_field_value: Any = None
+        if is_event_aa:
+            # Best-effort: if the tagger doesn't match a Creator dropdown option, leave the field
+            # unset rather than blocking. The ticket still creates; triage can assign Creator later.
+            creator_field_value = _creator_request_value(creator_display, request_type_id)
         customer_channel_mapping: dict[str, Any] = {}
         try:
             customer_channel_mapping = _reviewed_customer_channel_mapping(source, supplied_customer)
         except CustomerChannelMapMiss:
+            customer_channel_mapping = {}
+        except JiraError:
+            # AA threads never live in a customer channel, so mapping errors
+            # (missing map file, conflict, unreviewed entry) must not block
+            # creation. Triage will sort the StaffAny Org later. For non-AA
+            # the original block is preserved by the outer try/except.
+            if not is_event_aa:
+                raise
             customer_channel_mapping = {}
         if customer_channel_mapping:
             normalized_customer = customer_channel_mapping["customer_name"]
             scope["customer"] = normalized_customer
             scope["channel_id"] = customer_channel_mapping["channel_id"]
             scope["customer_channel_mapping"] = "reviewed"
-        request_type_id = _request_type_id(request_type_key)
         _configured_fields()
     except JiraError as error:
         return _blocked(str(error), scope)
@@ -2680,15 +3586,44 @@ def create_ps_wee_intake_ticket(
         expected_outcome,
         normalized_customer,
     )
+    if is_event_aa and not _normalize_ps_team(ps_team):
+        # Non-fixed AA categories route to the Slack tagger, which is also the matched Creator.
+        creator_label = creator_field_value.get("value") if isinstance(creator_field_value, dict) else ""
+        normalized_ps_team = (
+            EVENT_AA_PS_TEAM_BY_CATEGORY.get(request_type_key)
+            or str(creator_label or "").strip()
+            or creator_display
+        )
+    staffany_orgs_value = list(customer_channel_mapping.get("staffany_orgs", []) or [])
+    if (
+        is_event_aa
+        and not staffany_orgs_value
+        and supplied_customer
+        and normalized_customer != "Unknown customer"
+    ):
+        # Best-effort: try the customer name against Jira Assets. If the field rejects
+        # (name doesn't match an asset), the thin_poc summary-only retry below will still
+        # create the ticket — we never block AA on org resolution.
+        staffany_orgs_value = [normalized_customer]
+    labels_extra: list[str] = []
+    if is_event_aa:
+        labels_extra.append(EVENT_AA_LABEL)
+    # AA intakes never carry a Jira `duedate`. Date phrases in the trigger
+    # message (e.g. `2 June`) are descriptive context, not deadlines, and
+    # triage owns any real deadline. Strip any supplied due_date defensively
+    # so the agent can't accidentally write speculative deadlines or trigger
+    # the past-date validator. Outside AA, the supplied date is preserved
+    # and the original strict validator still gates writes.
+    sanitized_due_date = "" if is_event_aa else (due_date or "").strip()
     draft = {
         "customer": normalized_customer,
         "summary": f"[Needs info] {normalized_customer} - {normalized_issue}",
-        "due_date": due_date.strip(),
+        "due_date": sanitized_due_date,
         "action_type": "PS WEE ticket intake",
         "priority": (priority or "Medium").strip(),
         "risk_reason": "Needs info from Slack thread",
         "source_links": source_links,
-        "staffany_orgs": customer_channel_mapping.get("staffany_orgs", []),
+        "staffany_orgs": staffany_orgs_value,
         "ps_team": normalized_ps_team,
         "owner_psm": caller["display_name"],
         "owner_jira_account_id": caller.get("jira_account_id", ""),
@@ -2707,6 +3642,11 @@ def create_ps_wee_intake_ticket(
         "customer_channel_name": customer_channel_mapping.get("channel_name", ""),
         "customer_channel_customer_key": customer_channel_mapping.get("customer_key", ""),
         "add_needs_info_label": True,
+        "creator_field_value": creator_field_value,
+        "creator_display": creator_display,
+        "pic": (pic or "").strip(),
+        "labels_extra": labels_extra,
+        "event": "AA" if is_event_aa else "",
     }
     result = _create_pco_task_from_draft(draft, scope)
     if result.get("confidence") != "verified":
@@ -2716,13 +3656,63 @@ def create_ps_wee_intake_ticket(
     issue_key = str(answer.get("issue_key") or "").strip()
     issue_url = str(answer.get("url") or "").strip()
     ticket_ref = f"<{issue_url}|{issue_key}>" if issue_key and issue_url else issue_key or issue_url or "the ticket"
+    attached_images: list[dict[str, Any]] = []
+    drive_uploads: list[dict[str, Any]] = []
+    drive_status = "ok"
+    drive_reason = ""
+    drive_failure_count = 0
+    images: list[dict[str, Any]] = []
+    if issue_key:
+        try:
+            images = _slack_trigger_message_image_files(source)
+        except Exception:
+            images = []
+    if issue_key and images:
+        # AA tickets get the same Jira attachment treatment as non-AA so the
+        # selfie lives on the ticket itself, not only in Drive.
+        attached_images = _attach_image_files_to_issue(issue_key, images)
+    if is_event_aa and images:
+        payloads = _download_slack_images_for_drive(images)
+        if payloads:
+            drive_result = upload_aa_selfies_detailed(
+                payloads,
+                company=normalized_customer,
+                pic=(pic or "").strip() or creator_display or "unknown",
+            )
+            drive_uploads = drive_result.get("uploaded", [])
+            drive_status = str(drive_result.get("drive_status") or "ok")
+            drive_reason = str(drive_result.get("drive_reason") or "")
+            drive_failure_count = int(drive_result.get("failure_count") or 0)
+        elif images:
+            drive_status = "no_downloads"
+            drive_reason = "Image files were found but every Slack download failed."
+    answer["attached_images"] = attached_images
+    answer["drive_selfies"] = drive_uploads
+    answer["drive_status"] = drive_status if is_event_aa else "ok"
+    answer["drive_reason"] = drive_reason if is_event_aa else ""
+    answer["drive_failure_count"] = drive_failure_count
+    attachment_parts: list[str] = []
+    if is_event_aa:
+        if drive_uploads:
+            attachment_parts.append(f"Saved {len(drive_uploads)} selfie(s) to Drive.")
+        elif images:
+            attachment_parts.append(f"Drive selfie upload skipped: {drive_reason or 'unknown reason.'}")
+        if attached_images:
+            attachment_parts.append(f"Attached {len(attached_images)} image(s) to Jira.")
+    else:
+        if attached_images:
+            attachment_parts.append(f"Attached {len(attached_images)} image(s) from Slack.")
+    attachment_suffix = (" " + " ".join(attachment_parts)) if attachment_parts else ""
     if slack_missing:
         answer["slack_reply"] = (
             f"Created first so this won't be missed: {ticket_ref}. "
-            f"I still need: {', '.join(slack_missing)}."
+            f"I still need: {', '.join(slack_missing)}.{attachment_suffix}"
         )
     else:
-        answer["slack_reply"] = f"Created first so this won't be missed: {ticket_ref}. No extra info needed from Slack right now."
+        answer["slack_reply"] = (
+            f"Created first so this won't be missed: {ticket_ref}. "
+            f"No extra info needed from Slack right now.{attachment_suffix}"
+        )
     answer["central_copy"] = post_ps_wee_audit(
         "ticket_created",
         source_thread_url=source,
@@ -2734,14 +3724,252 @@ def create_ps_wee_intake_ticket(
         status="created",
         missing_info=full_missing,
         jira_payload={"draft": draft, "answer": answer},
-        extra={"request_type_key": request_type_key},
+        extra={
+            "request_type_key": request_type_key,
+            "event": "AA" if is_event_aa else "",
+            "attached_images": [item["filename"] for item in attached_images],
+            "drive_selfies": [item["name"] for item in drive_uploads if item.get("name")],
+            "creator": creator_display,
+            "pic": (pic or "").strip(),
+        },
     )
     return result
+
+
+@mcp.tool()
+def attach_aa_selfie_to_thread(
+    slack_thread_url: str,
+    customer: str,
+    pic: str = "",
+    slack_user_email: str = "",
+) -> dict[str, Any]:
+    """Upload selfies attached to a follow-up message in an existing Event AA thread.
+
+    Use this when a selfie is added as a reply *after* `create_ps_wee_intake_ticket`
+    has already run for the thread. ``slack_thread_url`` must be the permalink
+    of the specific message that has the new image(s) attached — the tool only
+    looks at that one message, it does not scan the rest of the thread.
+    Filename convention matches the intake path:
+    ``{slugified_company}_{slugified_pic}__{slack_file_id}{ext}``. Re-uploads
+    of the same Slack file are allowed; Drive accepts duplicate filenames and
+    "duplicate selfie" is preferred over "missing selfie". Returns a
+    structured Drive status (``ok`` / ``missing_folder_id`` / ``missing_token``)
+    so the bot does not have to guess the cause when the upload is skipped.
+    """
+
+    source = (slack_thread_url or "").strip()
+    company = (customer or "").strip()
+    operator = (pic or "").strip() or "unknown"
+    scope = {
+        "caller": (slack_user_email or "").strip().lower(),
+        "slack_thread_url": source,
+        "customer": company or "Unknown customer",
+        "pic": operator,
+        "event": "AA",
+    }
+    if not source:
+        return _blocked("Slack thread URL is required.", scope)
+    if not _is_event_aa_thread(source):
+        return _blocked(
+            "Slack thread is not in the Event AA channel; selfie ingest is AA-only.",
+            scope,
+        )
+    if not company:
+        return _blocked(
+            "Customer is required so the Drive filename can be {company}_{pic}.",
+            scope,
+        )
+
+    drive_status, drive_reason = aa_drive_configuration_status()
+    if drive_status != "ok":
+        return _needs_check(
+            {"drive_selfies": [], "image_count": 0, "drive_status": drive_status},
+            scope,
+            f"Drive upload skipped: {drive_reason}",
+        )
+
+    try:
+        images = _slack_trigger_message_image_files(source)
+    except JiraError as error:
+        return _needs_check(
+            {"drive_selfies": [], "image_count": 0, "drive_status": "ok"},
+            scope,
+            f"Could not read the AA Slack message: {error}.",
+        )
+    if not images:
+        return _verified(
+            {"drive_selfies": [], "image_count": 0, "drive_status": "ok"},
+            scope,
+            "No image attachments were found on this Slack message.",
+        )
+    payloads = _download_slack_images_for_drive(images)
+    download_failures = len(images) - len(payloads)
+    if not payloads:
+        return _needs_check(
+            {
+                "drive_selfies": [],
+                "image_count": len(images),
+                "download_failure_count": download_failures,
+                "drive_status": "ok",
+            },
+            scope,
+            "Image files were found but every Slack download failed; selfies were not uploaded.",
+        )
+    drive_result = upload_aa_selfies_detailed(payloads, company=company, pic=operator)
+    drive_uploads = list(drive_result.get("uploaded") or [])
+    drive_failures = int(drive_result.get("failure_count") or 0)
+    drive_status_code = str(drive_result.get("drive_status") or "ok")
+    drive_reason_text = str(drive_result.get("drive_reason") or "")
+    # Attach to every AA ticket the thread already opened so the selfie reaches
+    # all of them, not just one. Tickets cite the parent-thread permalink, so
+    # search across permalink variants (parent ts, compact ts, etc.), not only
+    # the reply URL the caller forwarded. Best-effort: Jira attach failures
+    # never block.
+    thread_tickets: list[dict[str, Any]] = []
+    for variant in _slack_permalink_variants(source) or [source]:
+        try:
+            thread_tickets.extend(_ticket_by_slack_thread(variant, 20))
+        except JiraError:
+            continue
+    issue_keys = list(
+        dict.fromkeys(
+            str(ticket.get("issue_key") or "").strip()
+            for ticket in thread_tickets
+            if str(ticket.get("issue_key") or "").strip()
+        )
+    )
+    jira_attach_results: dict[str, dict[str, Any]] = {}
+    if issue_keys and payloads:
+        try:
+            jira_attach_results = _attach_payloads_to_issues(issue_keys, payloads)
+        except Exception as error:
+            print(
+                f"[psm-ops-bot] AA selfie Jira fan-out failed: {error}",
+                file=sys.stderr,
+            )
+            jira_attach_results = {}
+    jira_attachments = {
+        key: value.get("attached") or [] for key, value in jira_attach_results.items()
+    }
+    jira_attach_errors = [
+        f"{key}: {err}"
+        for key, value in jira_attach_results.items()
+        for err in (value.get("errors") or [])
+    ]
+    jira_attach_count = sum(len(v) for v in jira_attachments.values())
+    if not drive_uploads:
+        return _needs_check(
+            {
+                "drive_selfies": [],
+                "image_count": len(images),
+                "download_failure_count": download_failures,
+                "drive_failure_count": drive_failures,
+                "drive_status": drive_status_code,
+                "drive_reason": drive_reason_text,
+                "jira_attachments": jira_attachments,
+                "jira_attach_errors": jira_attach_errors,
+                "jira_attached_count": jira_attach_count,
+                "jira_ticket_count": len(issue_keys),
+            },
+            scope,
+            (
+                drive_reason_text
+                or "Drive upload returned no records; run verify_drive_oauth to diagnose."
+            ),
+        )
+    if download_failures or drive_failures or jira_attach_errors:
+        return _needs_check(
+            {
+                "drive_selfies": drive_uploads,
+                "image_count": len(images),
+                "downloaded_count": len(payloads),
+                "saved_count": len(drive_uploads),
+                "download_failure_count": download_failures,
+                "drive_failure_count": drive_failures,
+                "drive_status": drive_status_code,
+                "drive_reason": drive_reason_text,
+                "jira_attachments": jira_attachments,
+                "jira_attach_errors": jira_attach_errors,
+                "jira_attached_count": jira_attach_count,
+                "jira_ticket_count": len(issue_keys),
+            },
+            scope,
+            (
+                f"Partial AA selfie ingest: {len(images)} image(s) seen, "
+                f"{download_failures} Slack download failure(s), "
+                f"{drive_failures} Drive upload failure(s); "
+                f"{len(drive_uploads)} saved to Drive; "
+                f"{jira_attach_count} attached across {len(issue_keys)} Jira ticket(s)"
+                + (f"; Jira errors: {'; '.join(jira_attach_errors)}" if jira_attach_errors else "")
+                + "."
+            ),
+        )
+    if jira_attach_count and issue_keys:
+        verified_caveat = (
+            f"Saved {len(drive_uploads)} selfie(s) to Drive; "
+            f"attached {jira_attach_count} image(s) across {len(issue_keys)} Jira ticket(s)."
+        )
+    else:
+        verified_caveat = f"Saved {len(drive_uploads)} selfie(s) to Drive."
+    return _verified(
+        {
+            "drive_selfies": drive_uploads,
+            "image_count": len(images),
+            "saved_count": len(drive_uploads),
+            "drive_status": "ok",
+            "jira_attachments": jira_attachments,
+            "jira_attached_count": jira_attach_count,
+            "jira_ticket_count": len(issue_keys),
+        },
+        scope,
+        verified_caveat,
+    )
+
+
+@mcp.tool()
+def verify_drive_oauth() -> dict[str, Any]:
+    """Diagnose the AA selfie Drive OAuth without uploading anything.
+
+    Read-only. Runs configuration_status, attempts a token refresh, then calls
+    ``GET https://www.googleapis.com/drive/v3/about`` to confirm the
+    refreshed token works. Use this when an AA intake reports an upload skip
+    or when the Slack reply mentions Drive failures — the returned ``status``
+    + ``reason`` tells you whether the problem is configuration, refresh, or
+    upload-time, so you do not have to guess between OAuth / scope / folder
+    permission causes.
+    """
+
+    report = aa_drive_health_check()
+    answer = {
+        "drive_status": report.get("status"),
+        "drive_reason": report.get("reason"),
+        "folder_id": report.get("folder_id"),
+        "token_path": report.get("token_path"),
+        "user_email": report.get("user_email"),
+        "scopes": report.get("scopes"),
+        "last_error": report.get("last_error", ""),
+    }
+    scope = {"check": "drive_oauth"}
+    status = str(report.get("status") or "")
+    if status == "ok":
+        return _verified(
+            answer,
+            scope,
+            (
+                f"Drive OAuth healthy as {report.get('user_email') or 'unknown user'}; "
+                f"folder {report.get('folder_id') or 'unset'}."
+            ),
+        )
+    if status in {"missing_folder_id", "missing_token"}:
+        return _blocked(report.get("reason") or "Drive is not configured.", scope)
+    return _needs_check(answer, scope, report.get("reason") or "Drive health-check failed.")
 
 
 def _metadata_comment_from_draft(draft: dict[str, Any]) -> str:
     metadata = [
         ("Customer", draft.get("customer")),
+        ("Creator", draft.get("creator_display")),
+        ("PIC", draft.get("pic")),
         ("Owner PSM", draft.get("owner_psm")),
         ("Contributor CSE", draft.get("contributor_cse")),
         ("Due date", draft.get("due_date")),
@@ -3139,6 +4367,77 @@ def _set_issue_due_date(issue_key: str, due_date: str) -> None:
         "PUT",
         f"/rest/api/3/issue/{urllib.parse.quote(issue_key)}",
         {"fields": {"duedate": value}},
+    )
+
+
+@mcp.tool()
+def link_pco_to_pco_issue(
+    source_issue_key: str,
+    target_issue_key: str,
+) -> dict[str, Any]:
+    """Link two PCO issues with a `Relates` link (used by AA link-to-existing flow)."""
+
+    source_key = _normalize_issue_key(source_issue_key)
+    target_key = _normalize_issue_key(target_issue_key)
+    link_type = "Relates"
+    scope = {
+        "source_issue_key": source_key,
+        "target_issue_key": target_key,
+        "link_type": link_type,
+    }
+    if not PCO_ISSUE_RE.fullmatch(source_key):
+        return _blocked("source_issue_key must look like PCO-123.", scope)
+    if not PCO_ISSUE_RE.fullmatch(target_key):
+        return _blocked("target_issue_key must look like PCO-123.", scope)
+    if source_key == target_key:
+        return _blocked("source_issue_key and target_issue_key must differ.", scope)
+
+    body = {
+        "type": {"name": link_type},
+        "outwardIssue": {"key": source_key},
+        "inwardIssue": {"key": target_key},
+    }
+    relationship = f"{source_key} relates to {target_key}"
+
+    try:
+        if _issue_link_exists_between(source_key, target_key, link_type):
+            return _verified(
+                {
+                    "source_issue_key": source_key,
+                    "target_issue_key": target_key,
+                    "link_type": link_type,
+                    "relationship": relationship,
+                    "already_exists": True,
+                },
+                scope,
+                "Issue link already existed; checked issue links only, without reading Jira comments or descriptions.",
+            )
+        _request_json("POST", "/rest/api/3/issueLink", body)
+    except JiraError as error:
+        if _looks_like_existing_issue_link_error(error):
+            return _verified(
+                {
+                    "source_issue_key": source_key,
+                    "target_issue_key": target_key,
+                    "link_type": link_type,
+                    "relationship": relationship,
+                    "already_exists": True,
+                },
+                scope,
+                "Jira reported the issue link already exists; no raw Jira comments or descriptions were exposed.",
+            )
+        return _blocked(str(error), scope)
+
+    return _verified(
+        {
+            "source_issue_key": source_key,
+            "target_issue_key": target_key,
+            "link_type": link_type,
+            "relationship": relationship,
+            "already_exists": False,
+        },
+        scope,
+        "Issue link created only between two PCO issues; no raw Jira issue content was read or exposed.",
     )
 
 

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Product Ops Intake Workflow"
+  short_description: "Triage feature gaps, match backlog work, and create linked tickets"
+  default_prompt: "Use $product-ops-intake-linking to triage a product request, match backlog work in KER scope by default, and create the right linked tickets when needed. Do not recommend EDT unless explicitly requested."

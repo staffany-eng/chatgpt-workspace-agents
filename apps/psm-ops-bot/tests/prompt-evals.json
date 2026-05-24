@@ -137,6 +137,122 @@
       }
     },
     {
+      "id": "psm-tooltrace-event-aa-always-ticket-first",
+      "bot": "PSM Ops Hermes Bot",
+      "surface": "slack:#event-aa",
+      "lane": "tool-trace",
+      "input": "@PS Wee Manager Mr Bean Da Wei open to meet and explore StaffAny",
+      "setup": {
+        "after_user_request": true,
+        "stub_tools": true,
+        "slack_thread_permalink": "https://staffany.slack.com/archives/C0B5H2YE5T2/p1779252562029409"
+      },
+      "expected_tool_trace": {
+        "must_call": [
+          "find_ticket_by_slack_thread",
+          "create_ps_wee_intake_ticket"
+        ],
+        "must_not_call": [
+          "draft_pco_task",
+          "create_approved_pco_task",
+          "search_pco_tickets"
+        ],
+        "argument_shape": {
+          "slack_thread_permalink": "required",
+          "request_type_key": "feedback",
+          "customer_or_header_context_required": true
+        }
+      },
+      "expected_answer_contract": {
+        "must_include": [
+          "Source: Jira PCO",
+          "Confidence:"
+        ],
+        "must_not_include": [
+          "Reply \"create ticket\" to open the PS WEE intake ticket.",
+          "A few quick questions"
+        ]
+      },
+      "forbidden_behavior": [
+        "create-ready offer in the AA channel",
+        "pre-create clarifying questions in the AA channel",
+        "tracking-status flow for an AA intake"
+      ],
+      "grade_notes": "AA-channel turns are always ticket-first. The linked thread channel `C0B5H2YE5T2` is the configured Event AA channel, so the bot must create the intake before any Slack follow-up.",
+      "assertions": {
+        "source_files": [
+          {
+            "path": "profile/SOUL.md",
+            "must_contain": [
+              "Event AA turns are always ticket-first.",
+              "never reply with create-ready offers, `Reply \"create ticket\"`, or clarifying questions before creation."
+            ]
+          },
+          {
+            "path": "tests/regression-cases.md",
+            "must_contain": [
+              "PS WEE Event AA Warm Lead Still Tickets",
+              "Does not ask `Reply 'create ticket' to open the PS WEE intake ticket.` in the AA channel."
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "psm-tooltrace-event-aa-features-route-to-pdt",
+      "bot": "PSM Ops Hermes Bot",
+      "surface": "slack:#event-aa",
+      "lane": "tool-trace",
+      "input": "@PS Wee Manager customer asked for features around approval workflows and reporting",
+      "setup": {
+        "after_user_request": true,
+        "stub_tools": true,
+        "slack_thread_permalink": "https://staffany.slack.com/archives/C0B5H2YE5T2/p1779252562029409"
+      },
+      "expected_tool_trace": {
+        "must_call": [
+          "find_ticket_by_slack_thread",
+          "create_ps_wee_intake_ticket"
+        ],
+        "must_not_call": [
+          "draft_pco_task",
+          "create_approved_pco_task"
+        ],
+        "argument_shape": {
+          "slack_thread_permalink": "required",
+          "request_type_key": "pdt_discovery"
+        }
+      },
+      "expected_answer_contract": {
+        "must_include": [
+          "Source: Jira PCO",
+          "Confidence:"
+        ]
+      },
+      "forbidden_behavior": [
+        "route a product-features ask to feedback by default",
+        "ask for create-ticket confirmation in the AA channel"
+      ],
+      "grade_notes": "In the Event AA channel, product-feature asks should be treated as `pdt_discovery`, not generic feedback.",
+      "assertions": {
+        "source_files": [
+          {
+            "path": "profile/SOUL.md",
+            "must_contain": [
+              "`ATS`/`AI agents`/`PDT`/`discovery`/`feature`/`features` → `pdt_discovery`"
+            ]
+          },
+          {
+            "path": "tests/regression-cases.md",
+            "must_contain": [
+              "PS WEE Event AA Feature Request Maps To PDT",
+              "Maps `features` / product-related asks to `request_type_key=\"pdt_discovery\"`."
+            ]
+          }
+        ]
+      }
+    },
+    {
       "id": "psm-tooltrace-pco-board-search-before-no-ticket",
       "bot": "PSM Ops Hermes Bot",
       "surface": "slack:#proj-cs-munchi",

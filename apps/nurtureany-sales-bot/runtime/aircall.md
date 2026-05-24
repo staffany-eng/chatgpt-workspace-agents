@@ -59,6 +59,7 @@ ElevenLabs docs are future/alternative voice-stack evidence only. This Aircall a
 - Reads one selected numeric Aircall call ID.
 - Prefer the Aircall ID synced into HubSpot `hs_call_external_id`; never pass a HubSpot call object ID as the Aircall call ID.
 - Downloads the recording transiently, transcribes it through OpenAI `gpt-4o-transcribe-diarize` with `diarized_json`, computes Gong-style interaction evidence locally, and sends only redacted segments/metrics plus supplied HubSpot IDs/context into OpenAI `gpt-5.5` via the Responses API with Structured Outputs.
+- Accepts `call_type="demo"` for selected recorded demo coaching. Demo mode keeps the same selected-call safety bounds but switches the scorecard to the 9 demo dimensions and output fields in `runtime/demo-sources.md`.
 - Computes talk ratio by speaker, longest monologue, turn count, interactivity, question count, objection moments, next-step clarity, and customer reaction moments such as short answers, follow-up questions, silence gaps, and repeated objections.
 - Returns safe coaching JSON only: `answer`, `scorecard`, `coachable_moments`, `interaction_cues`, `manager_coaching_note`, `next_action`, `source`, `scope`, `confidence`, and `caveat`.
 - Labels transcript/timing evidence as `Interaction cues checked from transcript/timing` and `audio-native tone not checked`.
@@ -91,3 +92,5 @@ Do not paste raw transcript blocks into Slack by default. Do not expose recordin
 - `bulk_transcript_exports=false`.
 
 If Aircall returns no recording, or OpenAI/Aircall credentials are missing, answer `Confidence: blocked` and name the missing prerequisite.
+
+For demo recordings captured in Aircall, pass `call_type="demo"` only after one selected numeric Aircall call ID is resolved. Do not create a separate demo-review MCP for Aircall recordings; reuse this coaching primitive and the shared demo rubric.

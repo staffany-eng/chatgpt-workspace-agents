@@ -22,9 +22,11 @@ EXPECTED_CRON_TIMEZONE="${EXPECTED_CRON_TIMEZONE:-Asia/Singapore}"
 EXPECT_CLOUD_HEARTBEAT_CRON="${EXPECT_CLOUD_HEARTBEAT_CRON:-1}"
 EXPECT_ENABLED_CRON_COUNT="${EXPECT_ENABLED_CRON_COUNT:-10}"
 EXPECT_SLACK_INTENT_TOOLS="${EXPECT_SLACK_INTENT_TOOLS:-5}"
-EXPECT_HUBSPOT_TOOLS="${EXPECT_HUBSPOT_TOOLS:-60}"
+EXPECT_HUBSPOT_TOOLS="${EXPECT_HUBSPOT_TOOLS:-65}"
+EXPECT_DEMO_SOURCES_TOOLS="${EXPECT_DEMO_SOURCES_TOOLS:-1}"
 EXPECT_PUBLIC_RESEARCH_TOOLS="${EXPECT_PUBLIC_RESEARCH_TOOLS:-2}"
 EXPECT_PROSPEO_TOOLS="${EXPECT_PROSPEO_TOOLS:-4}"
+EXPECT_APIFY_TOOLS="${EXPECT_APIFY_TOOLS:-7}"
 EXPECT_CLOUD_DOCTOR="${EXPECT_CLOUD_DOCTOR:-1}"
 
 HERMES_AGENT_DIR="${HERMES_AGENT_DIR:-$HOME/.hermes/hermes-agent}"
@@ -145,7 +147,7 @@ require_job(task_reminder_eod_name, expr="0 9 * * 1-5", script="nurtureany_sales
 require_job(inbound_monitor_name, expr="*/2 * * * *", script="nurtureany_inbound_monitor.py", deliver="slack:#nurtureany-testing", no_agent=True)
 require_job(sg_my_blitz_name, expr="35 2 * * 1-5", deliver="slack:C04HYF0NM8A", no_agent=False)
 require_job(id_morning_blitz_name, expr="45 3 * * 1-5", deliver="slack:C0B2UGK4DB6", no_agent=False)
-require_job(id_blitz_name, expr="35 3 * * 1-5", deliver="slack:C04MSJ1BGF9", no_agent=False)
+require_job(id_blitz_name, expr="35 3 * * 1-5", script="nurtureany_sales_whatsapp_report_runner.py", deliver="local", no_agent=True)
 
 enabled = [job for job in jobs if isinstance(job, dict) and job.get("enabled") is True]
 enabled_recurring = [
@@ -186,15 +188,17 @@ if [ "$EXPECT_CLOUD_DOCTOR" = "1" ]; then
     "mcp:slack_nurtureany:tools=$EXPECT_SLACK_INTENT_TOOLS" \
     "mcp:staffany_bigquery:tools=4" \
     "mcp:hubspot_nurtureany:tools=$EXPECT_HUBSPOT_TOOLS" \
+    "mcp:demo_sources_nurtureany:tools=$EXPECT_DEMO_SOURCES_TOOLS" \
     "mcp:google_calendar_nurtureany:tools=2" \
     "mcp:google_drive_nurtureany:tools=5" \
     "mcp:google_sheets_nurtureany:tools=2" \
     "mcp:eazybe_nurtureany:tools=4" \
     "mcp:luma_nurtureany:tools=3" \
     "mcp:public_research_nurtureany:tools=$EXPECT_PUBLIC_RESEARCH_TOOLS" \
-    "mcp:lusha_nurtureany:tools=4" \
+    "mcp:lusha_nurtureany:tools=5" \
     "mcp:prospeo_nurtureany:tools=$EXPECT_PROSPEO_TOOLS" \
     "mcp:exa_nurtureany:tools=1" \
+    "mcp:apify_nurtureany:tools=$EXPECT_APIFY_TOOLS" \
     "mcp:near_me_nurtureany:tools=6"; do
     grep -Fq "$expected" "$doctor_out" || fail "cloud-doctor:${expected}:missing"
   done

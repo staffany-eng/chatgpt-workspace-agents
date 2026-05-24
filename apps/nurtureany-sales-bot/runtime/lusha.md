@@ -16,6 +16,7 @@ It exposes only:
 
 - `search_lusha_decision_maker_candidates`
 - `search_lusha_candidates_by_linkedin_urls`
+- `search_lusha_candidates_by_names`
 - `reveal_lusha_contact_details`
 - `get_lusha_credit_usage`
 
@@ -42,6 +43,15 @@ The adapter sends an explicit `StaffAny-NurtureAny/1.0` User-Agent header so Lus
 - Accepts up to 10 LinkedIn profile URLs per call and caps candidates at 5 per URL; the normal direct-lookup limit is 1.
 - Accepts profile URLs under `/in/` only. It does not scrape or browser-automate LinkedIn.
 - Returns inferred name, inferred title, Lusha contact ID, LinkedIn URL, confidence band, decision-maker match, quality warnings, and any returned request ID.
+- Does not reveal email addresses or phone numbers.
+
+`search_lusha_candidates_by_names`:
+
+- Calls `GET /v2/person` with `firstName`, `lastName`, and the scoped company name/domain.
+- Requires exactly one NurtureAny scoped HubSpot company input with `company_id` and `scope_source=hubspot_nurtureany` or `hubspot_scoped=true`; arbitrary company-name-only inputs are blocked before any Lusha API call.
+- Accepts up to 10 full candidate names from prior artifact/public/provider evidence.
+- Sends explicit `revealEmails=false` and `revealPhones=false`.
+- Returns inferred name, title, Lusha contact ID, company match, LinkedIn URL, confidence band, decision-maker match, and quality warnings.
 - Does not reveal email addresses or phone numbers.
 
 `reveal_lusha_contact_details`:
@@ -78,6 +88,7 @@ Every Lusha tool response must include:
 Credit estimates:
 
 - Search: `ceil(returned_results / 25)`, minimum 1 credit per API search.
+- Name fallback: 1 estimated credit per candidate-name lookup.
 - Email reveal: `+1 credit/contact`.
 - Phone reveal: `+5 credits/contact`.
 - Company full-data enrichment, if added later: `+1 credit/company`.

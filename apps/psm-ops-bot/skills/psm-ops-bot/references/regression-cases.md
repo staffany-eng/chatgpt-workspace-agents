@@ -424,3 +424,22 @@ Expected:
 - No `read_customer_calendar_context` call.
 - Asks for attendee emails or named attendees needed for availability lookup.
 - Keeps the PCO ticket path Jira-first if the same request also asks to create/add a task.
+
+## Event AA C360 Multi-Match Does Not Block
+
+Thread (in `PSM_OPS_AA_CHANNEL_ID`):
+
+```text
+@PS Wee Manager Met nasty cookie owner, happy with service wants to refer a friend
+```
+
+C360 returns two entities for `Nasty Cookie` (e.g. `Nasty Cookie` and `Nasty Cookie MY`).
+
+Expected:
+
+- Calls `create_ps_wee_intake_ticket` exactly once for this trigger message — multi-match must not block.
+- Passes the bare `customer="Nasty Cookie"` as written in the Slack message and omits `staffany_orgs` entirely.
+- Routes to `request_type_key="rev_cross_sell"` (warm referral lead → expansion-ish), or `feedback` when the routing is genuinely unclear — never blocks asking which entity.
+- Drive selfie ingest runs best-effort against the attached image and never blocks the create.
+- Slack reply names the created PCO key first, then surfaces the disambiguation as a *post-create* question ("Two `Nasty Cookie` entities in C360 — which one for the org link?"), never as a precondition.
+- Does NOT emit any of: "C360 found 2 ... which one did you meet?", "Reply 'create ticket' once you confirm the entity.", or "No ticket was created because this was a field-update note, not an explicit ticket creation request." for an AA-channel turn.

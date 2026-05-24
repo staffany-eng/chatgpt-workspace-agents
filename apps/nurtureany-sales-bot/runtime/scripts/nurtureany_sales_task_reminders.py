@@ -15,6 +15,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 DEFAULT_TIMEZONE = "Asia/Singapore"
 DEFAULT_CALLER_EMAIL = "kaiyi@staffany.com"
 AUTOMATION_PREFIX = "NurtureAny automation:"
+HERMES_VENV_REEXEC_ENV = "_NURTUREANY_TASK_REMINDER_HERMES_VENV"
 
 
 class ReminderError(RuntimeError):
@@ -32,25 +33,53 @@ def _profile_dir() -> Path:
     return Path.home() / ".hermes" / "profiles" / "nurtureanysalesbot"
 
 
+def ensure_runtime_python() -> None:
+    """Use the Hermes venv when cron invokes the script through /usr/bin/env python3."""
+
+    if os.environ.get(HERMES_VENV_REEXEC_ENV):
+        return
+    hermes_home = _profile_dir().parents[1]
+    venv_python = hermes_home / "hermes-agent" / "venv" / "bin" / "python"
+    if not venv_python.exists():
+        return
+    current = Path(sys.executable)
+    if current == venv_python:
+        return
+    os.environ[HERMES_VENV_REEXEC_ENV] = "1"
+    os.execv(str(venv_python), [str(venv_python), *sys.argv])
+
+
 def load_profile_env() -> None:
     """Load profile .env values when Hermes does not inject them into no-agent jobs."""
 
-    env_path = _profile_dir() / ".env"
+    profile_dir = _profile_dir()
+    env_path = profile_dir / ".env"
     if not env_path.exists():
-        return
-    for raw_line in env_path.read_text(encoding="utf-8").splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        key = key.strip()
-        if not key or key in os.environ:
-            continue
-        os.environ[key] = value.strip().strip('"').strip("'")
+        pass
+    else:
+        for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+            line = raw_line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            key = key.strip()
+            if not key or key in os.environ:
+                continue
+            os.environ[key] = value.strip().strip('"').strip("'")
+    access_policy = profile_dir / "runtime" / "access-policy.json"
+    if "NURTUREANY_ACCESS_POLICY_PATH" not in os.environ and access_policy.exists():
+        os.environ["NURTUREANY_ACCESS_POLICY_PATH"] = str(access_policy)
 
 
 def _runtime_root() -> Path:
-    return Path(__file__).resolve().parents[1]
+    current = Path(__file__).resolve()
+    repo_runtime = current.parents[1]
+    if (repo_runtime / "mcp").exists():
+        return repo_runtime
+    profile_runtime = _profile_dir() / "runtime"
+    if (profile_runtime / "mcp").exists():
+        return profile_runtime
+    return repo_runtime
 
 
 def _load_hubspot_module():
@@ -149,6 +178,7 @@ def format_digest(result: dict[str, Any], mode: str, as_of: datetime, dry_run: b
 
 
 def main(argv: list[str] | None = None) -> int:
+    ensure_runtime_python()
     load_profile_env()
     args = parse_args(argv or sys.argv[1:])
     try:

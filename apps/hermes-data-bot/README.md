@@ -37,6 +37,8 @@ See `deploy/gcp-vm-topology.md` before changing deployed bot placement or answer
 | `runtime/jira-release-sync.md` | Jira release-feature registry sync and review workflow. |
 | `runtime/high-priority-feature-digest.md` | Weekly high-priority release-feature usage digest setup. |
 | `runtime/memory-honcho.md` | Honcho external-memory contract and boundaries. |
+| `runtime/mcp/staffany_data_learning_server.py` | Reviewed-learning candidate MCP; runtime-only safe lesson capture plus human-gated status updates. |
+| `runtime/report-staffany-data-learning.py` | No-agent safe counts/staleness report for lesson-candidate review cadence. |
 | `runtime/slack.md` | Slack gateway behavior, scopes, and run gate. |
 | `runtime/update-slack-allowlist.sh` | Safe live-profile helper for adding Slack POC users. |
 | `runtime/health-checks.md` | No-agent operational checks and expected silence. |
@@ -61,7 +63,8 @@ See `deploy/gcp-vm-topology.md` before changing deployed bot placement or answer
 10. Run the Jira release sync discovery and confirm the launch-priority field/value mapping before enabling feature usage tracking.
 11. Configure the weekly high-priority feature usage digest only after the registry dry run is reviewed.
 12. Configure Honcho only after its self-hosted API, embeddings provider, and profile-local config are healthy.
-13. Run the health checks and regression cases before widening access.
+13. Configure `staffany_data_learning` and the no-agent reviewed-learning report only after candidate storage points to profile runtime state. Review status updates require `approval_marker="human reviewed lesson"` and do not change active behavior.
+14. Run the health checks and regression cases before widening access.
 
 ## Deploy Flow
 
