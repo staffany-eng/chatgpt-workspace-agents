@@ -464,6 +464,7 @@ for (const requiredText of [
   "allow_delete: false",
   "allow_tag_mutation: false",
   "allow_collection_mutation: false",
+  'allowed_channels: ""',
   "/home/leekaiyi/.hermes/profiles/launchbot/source/launchbot",
   "sources:",
   "pantheon:",
@@ -799,6 +800,7 @@ for (const requiredText of [
   "LAUNCHBOT_PANTHEON_SSH_KEY",
   "pantheon:status-stale",
   "platforms:slack:gateway-restart-notification-not-disabled",
+  "slack:allowed-channels-static-not-empty",
   "LAUNCHBOT_PANTHEON_REPO_DIR",
   "mcp:launchbot_ifi",
   "mcp:launchbot_help_article",
@@ -835,6 +837,11 @@ for (const requiredText of [
   "help-article-video-registry",
 ]) {
   if (!healthText.includes(requiredText)) fail(`check-health.sh missing required Pantheon health text: ${requiredText}`);
+}
+for (const forbiddenText of ["EXPECT_ALLOWED_CHANNELS", "slack:allowed-channel-missing"]) {
+  if (healthText.includes(forbiddenText)) {
+    fail(`check-health.sh must not enforce static normal-reply Slack allowlists: ${forbiddenText}`);
+  }
 }
 
 const auditText = textOf("runtime/audit-live-profile.sh");

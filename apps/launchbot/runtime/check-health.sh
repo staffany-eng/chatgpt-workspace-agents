@@ -9,7 +9,6 @@ fi
 EXPECT_MODEL_PROVIDER="${EXPECT_MODEL_PROVIDER:-anthropic}"
 EXPECT_MODEL_DEFAULT="${EXPECT_MODEL_DEFAULT:-claude-sonnet-4-6}"
 EXPECT_HOME_CHANNEL="${EXPECT_HOME_CHANNEL:-C0B32M34J3W}"
-EXPECT_ALLOWED_CHANNELS="${EXPECT_ALLOWED_CHANNELS:-C0B32M34J3W,C0AJAUNCEL8,C01RZ7SHC8K,CF8PK6V4J}"
 EXPECT_KER_ALLOWED_CHANNELS="${EXPECT_KER_ALLOWED_CHANNELS:-C0B32M34J3W,C0AJAUNCEL8,C01RZ7SHC8K}"
 EXPECT_PRODUCT_COMMITMENT_ALLOWED_CHANNELS="${EXPECT_PRODUCT_COMMITMENT_ALLOWED_CHANNELS:-C0B32M34J3W,C01RZ7SHC8K}"
 EXPECT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME="${EXPECT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME:-all-bugs-production}"
@@ -83,14 +82,14 @@ case "$(uname -s)" in
     ;;
 esac
 
-"$hermes_python" - "$config_path" "$EXPECT_MODEL_PROVIDER" "$EXPECT_MODEL_DEFAULT" "$EXPECT_HOME_CHANNEL" "$EXPECT_ALLOWED_CHANNELS" "$EXPECT_KER_ALLOWED_CHANNELS" "$EXPECT_PRODUCT_COMMITMENT_ALLOWED_CHANNELS" "$EXPECT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME" <<'PY' || exit 1
+"$hermes_python" - "$config_path" "$EXPECT_MODEL_PROVIDER" "$EXPECT_MODEL_DEFAULT" "$EXPECT_HOME_CHANNEL" "$EXPECT_KER_ALLOWED_CHANNELS" "$EXPECT_PRODUCT_COMMITMENT_ALLOWED_CHANNELS" "$EXPECT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME" <<'PY' || exit 1
 import os
 import sys
 from pathlib import Path
 
 import yaml
 
-config_path, expected_provider, expected_model, expected_home_channel, expected_allowed_channels, expected_ker_channels, expected_commitment_channels, expected_support_watch_output = sys.argv[1:9]
+config_path, expected_provider, expected_model, expected_home_channel, expected_ker_channels, expected_commitment_channels, expected_support_watch_output = sys.argv[1:8]
 config = yaml.safe_load(Path(config_path).read_text(encoding="utf-8")) or {}
 
 def fail(message: str) -> None:
@@ -128,9 +127,8 @@ if slack.get("reactions") is not False:
 if str(config.get("SLACK_HOME_CHANNEL") or "").strip('"') != expected_home_channel:
     fail("slack:home-channel-unexpected")
 allowed = str(slack.get("allowed_channels") or "")
-for channel_id in [item.strip() for item in expected_allowed_channels.split(",") if item.strip()]:
-    if channel_id not in allowed:
-        fail(f"slack:allowed-channel-missing:{channel_id}")
+if allowed.strip():
+    fail("slack:allowed-channels-static-not-empty")
 
 monitor = config.get("feature_intake_monitor") or {}
 if monitor.get("mode") != "no_agent_slack_poll":

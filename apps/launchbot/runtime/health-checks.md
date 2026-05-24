@@ -9,7 +9,7 @@ Expected checks:
 - Model route is `model.provider=anthropic`, `model.default=claude-sonnet-4-6`.
 - Slack quiet settings are enabled: no streaming, no tool progress, no interim assistant messages, no reactions, and no gateway restart notifications.
 - `SLACK_HOME_CHANNEL` is `C0B32M34J3W`.
-- Slack allowed channels include `C0B32M34J3W`, `C0AJAUNCEL8`, `C01RZ7SHC8K`, and `CF8PK6V4J`.
+- Slack `allowed_channels` is empty so normal replies work in any channel where Launchbot is invited and mentioned; lane-specific tools still keep their own channel/env gates.
 - `LAUNCHBOT_KER_ALLOWED_CHANNEL_IDS` includes `C0B32M34J3W`, `C0AJAUNCEL8`, and `C01RZ7SHC8K`; `#all-product-questions` is read-only KER lookup only.
 - Normal Slack gateway replies keep `slack.require_mention=true`; `#input-features-ux` monitoring is handled by the no-agent feature-intake monitor cron.
 - Feature-intake monitor channel IDs default to `CF8PK6V4J`, state path defaults to `~/.hermes/profiles/launchbot/runtime/feature-intake-monitor-state.json`, max messages per run defaults to `100`, and overlap defaults to `600` seconds.
