@@ -32,6 +32,7 @@ PSM Ops Bot needs deterministic cloud health checks because prompt correctness d
 - Reminder Slack mentions use `PSM_OPS_REMINDER_MENTION_MAP_PATH` when configured; unmapped PS Team values remain visible as `Mention gaps` and are not guessed.
 - Reminder customer-team tags use reviewed `PSM_OPS_CUSTOMER_CHANNEL_MAP_PATH` source-link matches only and never cross-post to customer channels.
 - ROI tracker sync cron is enabled in cloud as a no-agent script every 30 minutes during Singapore workdays and watches only linked `ps-wee-roi-tracker` PCO issues.
+- Churn reporting chase cron is enabled in cloud as a Monday 09:00 SGT no-agent script, reads BigQuery renewal/churn marts only, and delivers to `slack:#team-rev-account-management`.
 - VM-local cloud heartbeat cron is enabled every 15 minutes with local delivery disabled.
 - PS WEE adoption digest cron is enabled as a no-agent weekday Slack automation with the `PSM Ops automation:` prefix.
 - PS WEE adoption telemetry hook is installed under the profile hooks directory.
@@ -90,12 +91,18 @@ cp apps/psm-ops-bot/runtime/scripts/psm_ops_pco_assignment_hygiene.py \
   ~/.hermes/profiles/psmopsbot/scripts/psm_ops_pco_assignment_hygiene.py
 cp apps/psm-ops-bot/runtime/scripts/psm_ops_roi_tracker_sync.py \
   ~/.hermes/profiles/psmopsbot/scripts/psm_ops_roi_tracker_sync.py
+cp apps/psm-ops-bot/runtime/scripts/psm_ops_churn_reporting_chase.py \
+  ~/.hermes/profiles/psmopsbot/scripts/psm_ops_churn_reporting_chase.py
+mkdir -p ~/.hermes/profiles/psmopsbot/runtime/sql
+cp apps/psm-ops-bot/runtime/sql/psm_ops_churn_projection_dashboard_292.sql \
+  ~/.hermes/profiles/psmopsbot/runtime/sql/psm_ops_churn_projection_dashboard_292.sql
 cp apps/psm-ops-bot/runtime/scripts/psm_ops_join_public_channels.py \
   ~/.hermes/profiles/psmopsbot/scripts/psm_ops_join_public_channels.py
 chmod 755 ~/.hermes/profiles/psmopsbot/scripts/psm_ops_due_date_reminders.py \
   ~/.hermes/profiles/psmopsbot/scripts/psm_ops_due_date_reminders_eod.py \
   ~/.hermes/profiles/psmopsbot/scripts/psm_ops_pco_assignment_hygiene.py \
   ~/.hermes/profiles/psmopsbot/scripts/psm_ops_roi_tracker_sync.py \
+  ~/.hermes/profiles/psmopsbot/scripts/psm_ops_churn_reporting_chase.py \
   ~/.hermes/profiles/psmopsbot/scripts/psm_ops_join_public_channels.py
 
 hermes -p psmopsbot cron create "0 1 * * 1-5" \
@@ -122,6 +129,12 @@ hermes -p psmopsbot cron create "*/30 1-10 * * 1-5" \
   --no-agent \
   --deliver "slack:#ps-weeman-bot-test"
 
+hermes -p psmopsbot cron create "0 1 * * 1" \
+  --name "psmopsbot churn reporting chase" \
+  --script psm_ops_churn_reporting_chase.py \
+  --no-agent \
+  --deliver "slack:#team-rev-account-management"
+
 cp apps/psm-ops-bot/runtime/check-cloud-heartbeat.sh ~/.hermes/profiles/psmopsbot/scripts/psmopsbot-check-cloud-heartbeat.sh
 hermes -p psmopsbot cron create "*/15 * * * *" \
   --name "psmopsbot local cloud heartbeat" \
@@ -136,7 +149,7 @@ hermes -p psmopsbot cron create "0 2 * * 1-5" \
   --deliver "slack:#ps-weeman-bot-test"
 ```
 
-The GCE host runs UTC, so `0 1 * * 1-5` is 09:00 Asia/Singapore on weekdays, `15 1 * * 1-5` is 09:15 Asia/Singapore on weekdays, `0 9 * * 1-5` is 17:00 Asia/Singapore on weekdays, and `*/30 1-10 * * 1-5` checks ROI trackers every 30 minutes during Singapore workdays. Hermes cron does not pass script arguments, so the EOD cron uses the same source script copied under an `eod` filename; direct dry runs can still use `--mode morning|eod`.
+The GCE host runs UTC, so `0 1 * * 1-5` is 09:00 Asia/Singapore on weekdays, `15 1 * * 1-5` is 09:15 Asia/Singapore on weekdays, `0 9 * * 1-5` is 17:00 Asia/Singapore on weekdays, `*/30 1-10 * * 1-5` checks ROI trackers every 30 minutes during Singapore workdays, and `0 1 * * 1` sends the Monday 09:00 Asia/Singapore churn reporting chase. Hermes cron does not pass script arguments, so the EOD cron uses the same source script copied under an `eod` filename; direct dry runs can still use `--mode morning|eod`.
 
 Install central audit/adoption telemetry after the profile exists:
 

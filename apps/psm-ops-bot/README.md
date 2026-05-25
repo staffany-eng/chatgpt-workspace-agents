@@ -32,6 +32,8 @@ Alias note: `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` refer to this 
 | `runtime/scripts/psm_ops_due_date_reminders.py` | No-agent Jira PCO due-date reminder digest script. |
 | `runtime/scripts/psm_ops_pco_assignment_hygiene.py` | No-agent Jira PCO assignee, PS Team, and due-date hygiene digest script. |
 | `runtime/scripts/psm_ops_roi_tracker_sync.py` | No-agent ROI-to-PCO customer-loop tracker sync script. |
+| `runtime/scripts/psm_ops_churn_reporting_chase.py` | No-agent BigQuery churn reporting cleanup chase script for account management. |
+| `runtime/sql/psm_ops_churn_projection_dashboard_292.sql` | Repo-owned BigQuery SQL port of Metabase Dashboard 292 churn classification. |
 | `runtime/scripts/psm_ops_join_public_channels.py` | Bot-owned public/open Slack channel membership repair script. |
 | `runtime/jira.md` | Jira field, workflow, and safety contract. |
 | `runtime/c360.md` | Customer 360 internal API contract. |
@@ -76,8 +78,9 @@ chmod 600 ~/.hermes/profiles/psmopsbot/.env
 5. Copy `skills/psm-ops-bot/` into the profile skills directory.
 6. Set profile `.env` from Secret Manager values only, including `psm-ops-bot-roi-jira-env` for ROI-direct routing.
 7. Configure Slack, `psm_jira`, `psm_c360`, and `psm_google_calendar` MCP servers.
-8. Install health, audit, reminder, assignment hygiene, and ROI tracker sync cron jobs on the cloud host.
-9. Run health checks and regression cases before widening access.
+8. Copy `runtime/sql/` into the profile runtime directory for no-agent BigQuery scripts.
+9. Install health, audit, reminder, assignment hygiene, ROI tracker sync, and churn reporting cron jobs on the cloud host.
+10. Run health checks and regression cases before widening access.
 
 ## Verification
 

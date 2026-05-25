@@ -119,6 +119,12 @@ done
 [ -r "${GOOGLE_CALENDAR_TOKEN_FILE:-}" ] || fail "google_calendar:token-file-unreadable"
 [ -r "${GOOGLE_CALENDAR_CLIENT_SECRET_FILE:-}" ] || fail "google_calendar:client-secret-file-unreadable"
 
+if [ -n "${BQ_BIN:-}" ]; then
+  [ -x "$BQ_BIN" ] || fail "bigquery:bq-bin-not-executable"
+elif ! command -v bq >/dev/null 2>&1; then
+  fail "bigquery:bq-not-found"
+fi
+
 python3 - <<'PY'
 import json
 import os
@@ -213,7 +219,7 @@ enabled = [job for job in jobs if isinstance(job, dict) and job.get("enabled") i
 names = {str(job.get("name") or "") for job in enabled}
 missing = [
     name
-    for name in ["psmopsbot due-date reminders", "psmopsbot assignment hygiene", "psmopsbot due-date eod catch-up", "psmopsbot roi tracker sync"]
+    for name in ["psmopsbot due-date reminders", "psmopsbot assignment hygiene", "psmopsbot due-date eod catch-up", "psmopsbot roi tracker sync", "psmopsbot churn reporting chase"]
     if name not in names
 ]
 scripts = {str(job.get("name") or ""): job for job in enabled}
@@ -222,6 +228,7 @@ for name, expected_script in {
     "psmopsbot assignment hygiene": "psm_ops_pco_assignment_hygiene.py",
     "psmopsbot due-date eod catch-up": "psm_ops_due_date_reminders_eod.py",
     "psmopsbot roi tracker sync": "psm_ops_roi_tracker_sync.py",
+    "psmopsbot churn reporting chase": "psm_ops_churn_reporting_chase.py",
 }.items():
     job = scripts.get(name)
     if not job:
@@ -232,6 +239,9 @@ for name, expected_script in {
     if job.get("no_agent") is not True:
         print(f"cron:{name}:mode-unexpected")
         sys.exit(1)
+if scripts.get("psmopsbot churn reporting chase", {}).get("deliver") != "slack:#team-rev-account-management":
+    print("cron:psmopsbot churn reporting chase:delivery-unexpected")
+    sys.exit(1)
 if os.environ.get("PSM_OPS_ADOPTION_METRICS_ENABLED", "").strip().lower() in {"1", "true", "yes", "on"}:
     if "psmopsbot adoption digest" not in names:
         missing.append("psmopsbot adoption digest")

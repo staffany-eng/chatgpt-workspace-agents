@@ -148,22 +148,25 @@ hermes -p psmopsbot config set terminal.cwd "$HOME/agent-builder/apps/psm-ops-bo
 Copy packet files:
 
 ```bash
-mkdir -p ~/.hermes/profiles/psmopsbot/skills ~/.hermes/profiles/psmopsbot/hooks ~/.hermes/profiles/psmopsbot/scripts
+mkdir -p ~/.hermes/profiles/psmopsbot/skills ~/.hermes/profiles/psmopsbot/hooks ~/.hermes/profiles/psmopsbot/scripts ~/.hermes/profiles/psmopsbot/runtime/sql
 cp apps/psm-ops-bot/profile/SOUL.md ~/.hermes/profiles/psmopsbot/SOUL.md
 rsync -a --delete apps/psm-ops-bot/skills/psm-ops-bot/ ~/.hermes/profiles/psmopsbot/skills/psm-ops-bot/
 rsync -a apps/psm-ops-bot/runtime/mcp/ ~/.hermes/profiles/psmopsbot/runtime/mcp/
+rsync -a --delete apps/psm-ops-bot/runtime/sql/ ~/.hermes/profiles/psmopsbot/runtime/sql/
 rsync -a apps/psm-ops-bot/runtime/hooks/psm-ops-adoption-telemetry/ ~/.hermes/profiles/psmopsbot/hooks/psm-ops-adoption-telemetry/
 cp apps/psm-ops-bot/runtime/psm_ops_adoption_digest.py ~/.hermes/profiles/psmopsbot/scripts/psm_ops_adoption_digest.py
 cp apps/psm-ops-bot/runtime/scripts/psm_ops_due_date_reminders.py ~/.hermes/profiles/psmopsbot/scripts/psm_ops_due_date_reminders.py
 cp apps/psm-ops-bot/runtime/scripts/psm_ops_due_date_reminders.py ~/.hermes/profiles/psmopsbot/scripts/psm_ops_due_date_reminders_eod.py
 cp apps/psm-ops-bot/runtime/scripts/psm_ops_pco_assignment_hygiene.py ~/.hermes/profiles/psmopsbot/scripts/psm_ops_pco_assignment_hygiene.py
 cp apps/psm-ops-bot/runtime/scripts/psm_ops_roi_tracker_sync.py ~/.hermes/profiles/psmopsbot/scripts/psm_ops_roi_tracker_sync.py
+cp apps/psm-ops-bot/runtime/scripts/psm_ops_churn_reporting_chase.py ~/.hermes/profiles/psmopsbot/scripts/psm_ops_churn_reporting_chase.py
 cp apps/psm-ops-bot/runtime/scripts/psm_ops_join_public_channels.py ~/.hermes/profiles/psmopsbot/scripts/psm_ops_join_public_channels.py
 chmod 755 ~/.hermes/profiles/psmopsbot/scripts/psm_ops_adoption_digest.py \
   ~/.hermes/profiles/psmopsbot/scripts/psm_ops_due_date_reminders.py \
   ~/.hermes/profiles/psmopsbot/scripts/psm_ops_due_date_reminders_eod.py \
   ~/.hermes/profiles/psmopsbot/scripts/psm_ops_pco_assignment_hygiene.py \
   ~/.hermes/profiles/psmopsbot/scripts/psm_ops_roi_tracker_sync.py \
+  ~/.hermes/profiles/psmopsbot/scripts/psm_ops_churn_reporting_chase.py \
   ~/.hermes/profiles/psmopsbot/scripts/psm_ops_join_public_channels.py
 ```
 
@@ -258,6 +261,12 @@ hermes -p psmopsbot cron create "*/30 1-10 * * 1-5" \
   --no-agent \
   --deliver "slack:#ps-weeman-bot-test"
 
+hermes -p psmopsbot cron create "0 1 * * 1" \
+  --name "psmopsbot churn reporting chase" \
+  --script psm_ops_churn_reporting_chase.py \
+  --no-agent \
+  --deliver "slack:#team-rev-account-management"
+
 hermes -p psmopsbot cron create "0 2 * * 1-5" \
   --name "psmopsbot adoption digest" \
   --script psm_ops_adoption_digest.py \
@@ -293,7 +302,7 @@ Cloud smoke:
 2. Draft and approve-create one PCO test task.
 3. Transition it to Scheduled.
 4. Add an internal comment.
-5. Run `psm_ops_due_date_reminders.py --mode morning --dry-run`, `psm_ops_pco_assignment_hygiene.py --dry-run`, `psm_ops_due_date_reminders.py --mode eod --dry-run`, and `psm_ops_roi_tracker_sync.py --dry-run`; verify they output Slack-safe mrkdwn, optional reviewed PS lead / PS Team mentions, reviewed customer-channel mentions from source links only, safe Jira issue summaries, and `[SILENT]` when empty.
+5. Run `psm_ops_due_date_reminders.py --mode morning --dry-run`, `psm_ops_pco_assignment_hygiene.py --dry-run`, `psm_ops_due_date_reminders.py --mode eod --dry-run`, `psm_ops_roi_tracker_sync.py --dry-run`, and `psm_ops_churn_reporting_chase.py --as-of 2026-05-25 --dry-run`; verify they output Slack-safe mrkdwn, optional reviewed PS lead / PS Team mentions, reviewed customer-channel mentions from source links only, safe Jira issue summaries, BigQuery churn rows for `26Q2`, `26Q3`, and `26Q4`, and `[SILENT]` when empty.
 6. Ask for Rock Productions from a channel-style hint such as `proj-cs-rockproductions`; verify the bot finds `Rock Productions Pte Ltd`, shows the searched variants safely, and does not say a generic customer cannot be found.
 7. Ask one calendar follow-up question and verify `psm_google_calendar.read_customer_calendar_context` returns bounded event metadata from `team@staffany.com` without descriptions, attendee emails, raw guest lists, or conference links.
 8. Ask one C360 customer question and verify a C360 link/citation appears.

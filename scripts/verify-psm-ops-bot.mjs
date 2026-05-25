@@ -179,6 +179,8 @@ const filesToScan = [
   "runtime/scripts/psm_ops_due_date_reminders.py",
   "runtime/scripts/psm_ops_pco_assignment_hygiene.py",
   "runtime/scripts/psm_ops_roi_tracker_sync.py",
+  "runtime/scripts/psm_ops_churn_reporting_chase.py",
+  "runtime/sql/psm_ops_churn_projection_dashboard_292.sql",
   "runtime/scripts/psm_ops_join_public_channels.py",
   "runtime/mcp/psm_slack_notifier.py",
   "runtime/mcp/psm_jira_server.py",
@@ -190,6 +192,7 @@ const filesToScan = [
   "runtime/test_psm_ops_due_date_reminders.py",
   "runtime/test_psm_ops_pco_assignment_hygiene.py",
   "runtime/test_psm_ops_roi_tracker_sync.py",
+  "runtime/test_psm_ops_churn_reporting_chase.py",
   "runtime/test_psm_ops_join_public_channels.py",
   "deploy/gce-onboarding-runbook.md",
   "tests/regression-cases.md",
@@ -236,6 +239,9 @@ if (!existsSync(deployScriptPath)) {
     "psm_ops_due_date_reminders_eod.py",
     "psm_ops_pco_assignment_hygiene.py",
     "psm_ops_join_public_channels.py",
+    "psm_ops_churn_reporting_chase.py",
+    "runtime/sql",
+    "psm_ops_churn_projection_dashboard_292.sql",
     "psm-ops-adoption-telemetry",
     "smoke-rock-productions-c360.sh",
     "rock_productions_c360",
@@ -291,6 +297,9 @@ for (const requiredText of [
   "resolve_slack_user_identity",
     "PSM_OPS_CENTRAL_SLACK_CHANNEL_ID",
     "PSM_OPS_ADOPTION_METRICS_PATH",
+    "PSM_OPS_CHURN_REPORTING_CHANNEL_ID",
+    "PSM_OPS_CHURN_REPORTING_BQ_PROJECT",
+    "PSM_OPS_CHURN_REPORTING_BQ_DATASET",
     "PSM_OPS_REMINDER_MENTION_MAP_PATH",
     "assignment_hygiene:",
     "ps_leads.Josica",
@@ -497,7 +506,9 @@ if (!psmOpsProfileBlock) {
     "psmopsbot assignment hygiene",
     "psmopsbot due-date eod catch-up",
     "psmopsbot roi tracker sync",
+    "psmopsbot churn reporting chase",
     "psm_ops_roi_tracker_sync.py",
+    "psm_ops_churn_reporting_chase.py",
     "psm_ops_due_date_reminders.py",
     "psm_ops_pco_assignment_hygiene.py",
     "psm_ops_due_date_reminders_eod.py",
@@ -591,6 +602,7 @@ for (const requiredText of [
   "GOOGLE_CALENDAR_TOKEN_FILE",
   "team@staffany.com",
   "psm_ops_roi_tracker_sync.py",
+  "psm_ops_churn_reporting_chase.py",
   "psm_ops_pco_assignment_hygiene.py",
   "psmopsbot roi tracker sync"
 ]) {
@@ -604,10 +616,12 @@ for (const requiredText of [
     "psmopsbot assignment hygiene",
     "psmopsbot due-date eod catch-up",
     "psmopsbot roi tracker sync",
+    "psmopsbot churn reporting chase",
     "psm_ops_due_date_reminders.py",
     "psm_ops_pco_assignment_hygiene.py",
     "psm_ops_due_date_reminders_eod.py",
     "psm_ops_roi_tracker_sync.py",
+    "psm_ops_churn_reporting_chase.py",
     "psmopsbot local cloud heartbeat",
     "psmopsbot adoption digest",
     "EXPECTED_ENABLED_CRON_COUNT",
@@ -623,6 +637,8 @@ for (const requiredText of [
   "profile:health-script-drift",
   "profile:public-channel-join-script-drift",
   "profile:assignment-hygiene-script-drift",
+  "profile:churn-reporting-chase-script-drift",
+  "cron:churn-reporting-chase-missing",
   "psm_ops_join_public_channels.py"
 ]) {
   if (!auditText.includes(requiredText)) fail(`Audit script missing required text: ${requiredText}`);
@@ -638,7 +654,10 @@ for (const requiredText of [
   "slack:public-channel-join-scope-missing",
   "auxiliary:title-generation-provider-not-anthropic",
   "auxiliary:title-generation-model-not-haiku",
-  "auxiliary:title-generation-timeout-too-high"
+  "auxiliary:title-generation-timeout-too-high",
+  "bigquery:bq-not-found",
+  "psmopsbot churn reporting chase",
+  "psm_ops_churn_reporting_chase.py"
 ]) {
   if (!healthCheckText.includes(requiredText)) fail(`Health check script missing required text: ${requiredText}`);
 }
@@ -732,6 +751,57 @@ for (const requiredText of [
   if (!roiTrackerSyncText.includes(requiredText)) fail(`ROI tracker sync script missing required text: ${requiredText}`);
 }
 
+const churnReportingChaseText = textOf(appRoot, "runtime/scripts/psm_ops_churn_reporting_chase.py");
+for (const requiredText of [
+  "PSM Ops automation: Weekly churn reporting chase",
+  "[SILENT] PSM Ops automation",
+  "psm_ops_churn_projection_dashboard_292.sql",
+  "Dashboard 292 SQL",
+  "1-Actualized",
+  "company_churn_reason_bucket",
+  "renewal_assessment_reason",
+  "fct_upcoming_renewal_cycles",
+  "fct_company_revenue_snapshot",
+  "fct_churnmrrbymonth",
+  "PSM_OPS_CHURN_REPORTING_CHANNEL_ID",
+  "C019RVCR4S1",
+  "current quarter plus next two quarters",
+  "renewal status, churn reason/category, evidence link",
+  "No writes are ever performed"
+]) {
+  if (!churnReportingChaseText.includes(requiredText)) fail(`Churn reporting chase script missing required text: ${requiredText}`);
+}
+const churnProjectionDashboard292SqlText = textOf(appRoot, "runtime/sql/psm_ops_churn_projection_dashboard_292.sql");
+for (const requiredText of [
+  "Metabase card 2446",
+  "get_churn_class",
+  "churn_class",
+  "weighted_churn_mrr",
+  "company_churn_reason_bucket",
+  "renewal_assessment_reason",
+  "fct_alldealsmrr",
+  "stg_hubspot__companies"
+]) {
+  if (!churnProjectionDashboard292SqlText.includes(requiredText)) {
+    fail(`Dashboard 292 SQL missing required text: ${requiredText}`);
+  }
+}
+for (const forbiddenText of [
+  "13UjJOZpkyngN_5oo4LtzeJWfqhc7PAD8hR1E_aU6gP0",
+  "spreadsheets.values",
+  "googleapis.com/sheets",
+  "gspread",
+  "SLACK_USER_TOKEN",
+  "xoxp-"
+]) {
+  if (churnReportingChaseText.includes(forbiddenText)) {
+    fail(`Churn reporting chase script must not include forbidden runtime source/token text: ${forbiddenText}`);
+  }
+  if (churnProjectionDashboard292SqlText.includes(forbiddenText)) {
+    fail(`Dashboard 292 SQL must not include forbidden runtime source/token text: ${forbiddenText}`);
+  }
+}
+
 const shellCheck = spawnSync("bash", [
   "-n",
   join(appRoot, "runtime", "check-health.sh"),
@@ -770,6 +840,7 @@ const pyCompile = spawnSync("python3", [
   join(appRoot, "runtime/scripts/psm_ops_due_date_reminders.py"),
   join(appRoot, "runtime/scripts/psm_ops_pco_assignment_hygiene.py"),
   join(appRoot, "runtime/scripts/psm_ops_roi_tracker_sync.py"),
+  join(appRoot, "runtime/scripts/psm_ops_churn_reporting_chase.py"),
   join(appRoot, "runtime/scripts/psm_ops_join_public_channels.py")
 ], {
   cwd: repoRoot,
@@ -821,6 +892,19 @@ const roiTrackerScriptUnitCheck = spawnSync("python3", [
 });
 if (roiTrackerScriptUnitCheck.status !== 0) {
   fail(`ROI tracker sync unit tests failed: ${roiTrackerScriptUnitCheck.stderr || roiTrackerScriptUnitCheck.stdout}`);
+}
+
+const churnReportingChaseScriptUnitCheck = spawnSync("python3", [
+  "-m",
+  "unittest",
+  join(appRoot, "runtime/test_psm_ops_churn_reporting_chase.py")
+], {
+  cwd: repoRoot,
+  env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1" },
+  encoding: "utf8"
+});
+if (churnReportingChaseScriptUnitCheck.status !== 0) {
+  fail(`Churn reporting chase unit tests failed: ${churnReportingChaseScriptUnitCheck.stderr || churnReportingChaseScriptUnitCheck.stdout}`);
 }
 
 const assignmentHygieneScriptUnitCheck = spawnSync("python3", [

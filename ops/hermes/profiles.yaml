@@ -166,6 +166,12 @@ profiles:
         mode: no-agent
         script: psm_ops_roi_tracker_sync.py
         deliver: slack:#ps-weeman-bot-test
+      - name: psmopsbot churn reporting chase
+        schedule: "0 1 * * 1"
+        mode: no-agent
+        script: psm_ops_churn_reporting_chase.py
+        deliver: slack:#team-rev-account-management
+        source_sql: runtime/sql/psm_ops_churn_projection_dashboard_292.sql
       - name: psmopsbot local cloud heartbeat
         schedule: "*/15 * * * *"
         mode: no-agent
