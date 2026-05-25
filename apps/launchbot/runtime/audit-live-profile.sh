@@ -24,6 +24,7 @@ fail() {
 
 command -v cmp >/dev/null 2>&1 || fail "dependency:cmp:not-found"
 command -v git >/dev/null 2>&1 || fail "dependency:git:not-found"
+command -v bq >/dev/null 2>&1 || fail "dependency:bq:not-found"
 [ -x "$HERMES_PYTHON" ] || fail "dependency:hermes-python:not-found"
 [ -f "$HERMES_BIN" ] || fail "dependency:hermes-bin:not-found"
 
@@ -36,6 +37,7 @@ cmp -s "$APP_ROOT/runtime/audit-live-profile.sh" "$PROFILE_DIR/scripts/launchbot
 cmp -s "$APP_ROOT/runtime/update-pantheon-repo.sh" "$PROFILE_DIR/scripts/launchbot-update-pantheon-repo.sh" || fail "profile-drift:pantheon-update-script"
 cmp -s "$APP_ROOT/runtime/monitor-feature-intake.py" "$PROFILE_DIR/scripts/launchbot-monitor-feature-intake.py" || fail "profile-drift:feature-intake-monitor-script"
 cmp -s "$APP_ROOT/runtime/monitor-support-watch.py" "$PROFILE_DIR/scripts/launchbot-monitor-support-watch.py" || fail "profile-drift:support-watch-monitor-script"
+cmp -s "$APP_ROOT/runtime/support-watch-whatsapp-refresh.sql" "$PROFILE_DIR/source/launchbot/runtime/support-watch-whatsapp-refresh.sql" || fail "profile-drift:support-watch-whatsapp-refresh-sql"
 cmp -s "$APP_ROOT/runtime/mcp/launchbot_ker_server.py" "$PROFILE_DIR/source/launchbot/runtime/mcp/launchbot_ker_server.py" || fail "profile-drift:ker-mcp"
 cmp -s "$APP_ROOT/runtime/mcp/launchbot_ifi_server.py" "$PROFILE_DIR/source/launchbot/runtime/mcp/launchbot_ifi_server.py" || fail "profile-drift:ifi-mcp"
 cmp -s "$APP_ROOT/runtime/mcp/launchbot_product_commitment_server.py" "$PROFILE_DIR/source/launchbot/runtime/mcp/launchbot_product_commitment_server.py" || fail "profile-drift:product-commitment-mcp"
@@ -96,6 +98,9 @@ cron_out="$("$HERMES_PYTHON" "$HERMES_BIN" -p "$PROFILE" cron list 2>&1)" || fai
 printf '%s\n' "$cron_out" | grep -Fq "launchbot health check" || fail "cron:health-check-missing"
 printf '%s\n' "$cron_out" | grep -Fq "launchbot feature intake monitor" || fail "cron:feature-intake-monitor-missing"
 printf '%s\n' "$cron_out" | grep -Fq "launchbot support watch" || fail "cron:support-watch-missing"
+if [ "$(bq ls --transfer_config --transfer_location=asia-southeast1 --project_id=staffany-warehouse --format=prettyjson 2>/dev/null | grep -F "Launchbot support watch WhatsApp native mirror refresh" | wc -l | tr -d ' ')" = "0" ]; then
+  fail "bigquery:whatsapp-refresh-transfer-missing"
+fi
 if [ -r "$PANTHEON_SSH_KEY" ]; then
   export GIT_SSH_COMMAND="ssh -i $PANTHEON_SSH_KEY -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
 fi

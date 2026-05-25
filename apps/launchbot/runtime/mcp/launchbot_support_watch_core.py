@@ -255,7 +255,7 @@ def bigquery_table_ref(name: str, default_project: str = "") -> str:
 def bigquery_timeout_seconds() -> int:
     raw = os.environ.get("LAUNCHBOT_SUPPORT_WATCH_BQ_TIMEOUT_SECONDS", "").strip()
     if not raw:
-        return 45
+        return 240
     try:
         value = int(raw)
     except ValueError as error:

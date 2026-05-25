@@ -75,6 +75,7 @@ need_command() {
 
 need_command hermes
 need_command git
+need_command bq
 config_path="$(hermes -p "$PROFILE" config path 2>/dev/null)" || fail "hermes:config-path-failed"
 [ -r "$config_path" ] || fail "hermes:config-unreadable"
 hermes -p "$PROFILE" config check >/dev/null 2>&1 || fail "hermes:config-check-failed"
@@ -178,10 +179,20 @@ if support_watch_monitor.get("intercom_dataset_env") != "LAUNCHBOT_SUPPORT_WATCH
     fail("support-watch-monitor:intercom-dataset-env-unexpected")
 if support_watch_monitor.get("analytics_dataset_env") != "LAUNCHBOT_SUPPORT_WATCH_ANALYTICS_DATASET":
     fail("support-watch-monitor:analytics-dataset-env-unexpected")
+if support_watch_monitor.get("bq_timeout_seconds_env") != "LAUNCHBOT_SUPPORT_WATCH_BQ_TIMEOUT_SECONDS":
+    fail("support-watch-monitor:bq-timeout-env-unexpected")
 if support_watch_monitor.get("include_whatsapp_env") != "LAUNCHBOT_SUPPORT_WATCH_INCLUDE_WHATSAPP":
     fail("support-watch-monitor:include-whatsapp-env-unexpected")
 if support_watch_monitor.get("whatsapp_view_env") != "LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_VIEW":
     fail("support-watch-monitor:whatsapp-view-env-unexpected")
+if support_watch_monitor.get("whatsapp_source_view_env") != "LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_SOURCE_VIEW":
+    fail("support-watch-monitor:whatsapp-source-view-env-unexpected")
+if support_watch_monitor.get("whatsapp_refresh_transfer_name_env") != "LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_REFRESH_TRANSFER_NAME":
+    fail("support-watch-monitor:whatsapp-refresh-transfer-name-env-unexpected")
+if support_watch_monitor.get("whatsapp_refresh_schedule_utc_env") != "LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_REFRESH_SCHEDULE_UTC":
+    fail("support-watch-monitor:whatsapp-refresh-schedule-env-unexpected")
+if support_watch_monitor.get("whatsapp_max_staleness_hours_env") != "LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_MAX_STALENESS_HOURS":
+    fail("support-watch-monitor:whatsapp-max-staleness-env-unexpected")
 if support_watch_monitor.get("output_channel_name_env") != "LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME":
     fail("support-watch-monitor:output-channel-name-env-unexpected")
 if support_watch_monitor.get("output_channel_id_env") != "LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_ID":
@@ -216,10 +227,20 @@ if str(config.get("LAUNCHBOT_SUPPORT_WATCH_INTERCOM_DATASET") or "").strip('"') 
     fail("support-watch-monitor:intercom-dataset-unexpected")
 if str(config.get("LAUNCHBOT_SUPPORT_WATCH_ANALYTICS_DATASET") or "").strip('"') != "analytics":
     fail("support-watch-monitor:analytics-dataset-unexpected")
+if str(config.get("LAUNCHBOT_SUPPORT_WATCH_BQ_TIMEOUT_SECONDS") or "").strip('"') != "240":
+    fail("support-watch-monitor:bq-timeout-unexpected")
 if str(config.get("LAUNCHBOT_SUPPORT_WATCH_INCLUDE_WHATSAPP") or "").strip('"') != "true":
     fail("support-watch-monitor:include-whatsapp-unexpected")
 if str(config.get("LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_VIEW") or "").strip('"') != "analytics.support_watch_whatsapp_ticket_logs":
     fail("support-watch-monitor:whatsapp-view-unexpected")
+if str(config.get("LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_SOURCE_VIEW") or "").strip('"') != "gsheets.cs_tickets_logs_all_view":
+    fail("support-watch-monitor:whatsapp-source-view-unexpected")
+if str(config.get("LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_REFRESH_TRANSFER_NAME") or "").strip('"') != "Launchbot support watch WhatsApp native mirror refresh":
+    fail("support-watch-monitor:whatsapp-refresh-transfer-name-unexpected")
+if str(config.get("LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_REFRESH_SCHEDULE_UTC") or "").strip('"') != "every day 00:30":
+    fail("support-watch-monitor:whatsapp-refresh-schedule-unexpected")
+if str(config.get("LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_MAX_STALENESS_HOURS") or "").strip('"') != "36":
+    fail("support-watch-monitor:whatsapp-max-staleness-unexpected")
 if str(config.get("LAUNCHBOT_SUPPORT_WATCH_MAX_TICKETS") or "").strip('"') != "100":
     fail("support-watch-monitor:max-tickets-unexpected")
 
@@ -474,6 +495,77 @@ if not dedupe_ids:
     fail("support-watch:dedupe-channel-unresolved")
 for channel_id in dedupe_ids:
     ensure_public_channel_membership("dedupe", channel_id)
+PY
+
+"$hermes_python" - <<'PY' || exit 1
+import json
+import os
+import subprocess
+import time
+import sys
+
+
+def fail(message: str) -> None:
+    print(message, file=sys.stderr)
+    raise SystemExit(1)
+
+
+project = os.environ.get("LAUNCHBOT_SUPPORT_WATCH_INTERCOM_PROJECT", "staffany-warehouse").strip() or "staffany-warehouse"
+table = os.environ.get("LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_VIEW", "analytics.support_watch_whatsapp_ticket_logs").strip().strip("`")
+max_staleness_hours = int(os.environ.get("LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_MAX_STALENESS_HOURS", "36"))
+if table.startswith("gsheets."):
+    fail("support-watch:whatsapp-runtime-source-drive-backed")
+parts = table.split(".")
+if len(parts) == 2:
+    dataset, table_id = parts
+elif len(parts) == 3:
+    project = parts[0]
+    dataset, table_id = parts[1], parts[2]
+else:
+    fail("support-watch:whatsapp-table-ref-invalid")
+metadata_query = (
+    f"SELECT row_count, last_modified_time, type "
+    f"FROM `{project}.{dataset}.__TABLES__` "
+    f"WHERE table_id = '{table_id}'"
+)
+try:
+    result = subprocess.run(
+        [
+            "bq",
+            "--project_id",
+            project,
+            "query",
+            "--use_legacy_sql=false",
+            "--format=json",
+            "--max_rows=10",
+            metadata_query,
+        ],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=120,
+        check=False,
+    )
+except Exception as error:
+    fail(f"support-watch:whatsapp-table-metadata-failed:{error}")
+if result.returncode != 0:
+    detail = (result.stderr or result.stdout or "").strip()[:300]
+    fail(f"support-watch:whatsapp-table-metadata-failed:{detail}")
+try:
+    payload = json.loads(result.stdout)
+except Exception:
+    fail("support-watch:whatsapp-table-metadata-invalid-json")
+if not isinstance(payload, list) or not payload:
+    fail("support-watch:whatsapp-table-metadata-missing")
+metadata = payload[0]
+if str(metadata.get("type") or "") != "1":
+    fail("support-watch:whatsapp-table-not-native")
+if int(metadata.get("row_count") or 0) <= 0:
+    fail("support-watch:whatsapp-table-empty")
+last_modified_ms = int(metadata.get("last_modified_time") or 0)
+age_hours = (time.time() - (last_modified_ms / 1000)) / 3600
+if age_hours > max_staleness_hours:
+    fail(f"support-watch:whatsapp-table-stale:{age_hours:.1f}h")
 PY
 
 [ -r "$HELP_ARTICLE_VIDEO_REGISTRY_PATH" ] || fail "help-article-video-registry:missing"

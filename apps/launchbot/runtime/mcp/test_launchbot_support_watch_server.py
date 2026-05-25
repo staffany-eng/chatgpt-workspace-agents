@@ -116,6 +116,10 @@ class LaunchbotSupportWatchServerTest(unittest.TestCase):
         self.assertIn("BigQuery query timed out after 5 seconds", str(raised.exception))
         killpg.assert_called()
 
+    def test_bigquery_timeout_default_allows_slow_warehouse_queries(self):
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(self.module.core.bigquery_timeout_seconds(), 240)
+
     def test_bigquery_source_combines_intercom_and_whatsapp_status(self):
         calls = []
 

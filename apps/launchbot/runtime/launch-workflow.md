@@ -193,6 +193,7 @@ When the external source checkout is absent, use `runtime/launchbot_e2e.py` as t
   - Preview with `preview_weekly_support_watch_report`.
   - Scheduled runs use `runtime/monitor-support-watch.py` from no-agent cron `launchbot support watch`.
   - Query BigQuery source tables `intercom.conversations`, `intercom.conversation_parts`, and optionally the native `analytics.support_watch_whatsapp_ticket_logs` mirror; count the full report window, then fetch bounded candidate rows using problem-keyword scoring instead of sampling only the latest rows. Persist only support-source IDs, safe summaries, source URLs, state, available team/admin assignee IDs, timestamps, signatures, source row counts, and safe counters.
+  - Keep the native WhatsApp mirror fresh through BigQuery scheduled query `Launchbot support watch WhatsApp native mirror refresh` on `every day 00:30` UTC. The weekly runtime path must not query the Drive-backed `gsheets` source directly.
   - Cluster likely production bugs by repeated topic, shared error phrase, or one high-severity blocker.
   - Trace likely product/code causes through the Pantheon checkout and recent Git evidence. Treat this as heuristic and require review before claiming root cause.
   - Dedupe against recent `#team-cs-eng-duty` posts through `LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_IDS`, EDT issues through `LAUNCHBOT_SUPPORT_WATCH_EDT_JQL`, and prior state at `LAUNCHBOT_SUPPORT_WATCH_STATE_PATH`.
@@ -236,8 +237,13 @@ Optional runtime environment name:
 - `LAUNCHBOT_SUPPORT_WATCH_INTERCOM_PROJECT`
 - `LAUNCHBOT_SUPPORT_WATCH_INTERCOM_DATASET`
 - `LAUNCHBOT_SUPPORT_WATCH_ANALYTICS_DATASET`
+- `LAUNCHBOT_SUPPORT_WATCH_BQ_TIMEOUT_SECONDS`
 - `LAUNCHBOT_SUPPORT_WATCH_INCLUDE_WHATSAPP`
 - `LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_VIEW`
+- `LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_SOURCE_VIEW`
+- `LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_REFRESH_TRANSFER_NAME`
+- `LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_REFRESH_SCHEDULE_UTC`
+- `LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_MAX_STALENESS_HOURS`
 - `LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME`
 - `LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_ID`
 - `LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_IDS`

@@ -6,7 +6,9 @@ Use this skill when Launchbot needs the weekly report-only scan for production-b
 
 - Run weekly every Thursday 09:00 SGT from the UTC VM cron `0 1 * * 4`.
 - Source support signals from BigQuery-backed Intercom conversations and conversation parts for the previous report window.
+- Use `LAUNCHBOT_SUPPORT_WATCH_BQ_TIMEOUT_SECONDS` for warehouse query timeout; default is `240` seconds because weekly source queries can exceed short CLI defaults.
 - Include WhatsApp support ticket logs from the native `analytics.support_watch_whatsapp_ticket_logs` mirror when `LAUNCHBOT_SUPPORT_WATCH_INCLUDE_WHATSAPP=true`.
+- Refresh the native WhatsApp mirror with BigQuery scheduled query `Launchbot support watch WhatsApp native mirror refresh` before the weekly scan. Do not query the Drive-backed `gsheets` source in the weekly runtime path.
 - Count the full source window first, then fetch bounded candidate rows using problem-keyword scoring instead of sampling only the latest rows.
 - Cluster likely production bugs by repeated topic, shared error phrase, or one high-severity blocker.
 - Trace likely product/code causes with the Pantheon checkout and recent Git evidence.
@@ -44,6 +46,10 @@ Required or deploy-resolved:
 - `LAUNCHBOT_SUPPORT_WATCH_ANALYTICS_DATASET=analytics`
 - `LAUNCHBOT_SUPPORT_WATCH_INCLUDE_WHATSAPP=true`
 - `LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_VIEW=analytics.support_watch_whatsapp_ticket_logs`
+- `LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_SOURCE_VIEW=gsheets.cs_tickets_logs_all_view`
+- `LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_REFRESH_TRANSFER_NAME=Launchbot support watch WhatsApp native mirror refresh`
+- `LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_REFRESH_SCHEDULE_UTC=every day 00:30`
+- `LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_MAX_STALENESS_HOURS=36`
 - `LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME=all-bugs-production`
 - `LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_ID=<optional pre-resolved output channel id>`
 - `LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_NAMES=team-cs-eng-duty`

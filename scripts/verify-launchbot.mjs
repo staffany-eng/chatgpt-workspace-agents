@@ -267,11 +267,21 @@ if (!manifest) {
     fail("Manifest support watch must use Intercom conversations and conversation_parts tables");
   }
   if (supportWatchBigQuery.analytics_dataset_env_var !== "LAUNCHBOT_SUPPORT_WATCH_ANALYTICS_DATASET") fail("Manifest support watch analytics dataset env unexpected");
+  if (supportWatchBigQuery.bq_timeout_seconds_env_var !== "LAUNCHBOT_SUPPORT_WATCH_BQ_TIMEOUT_SECONDS") fail("Manifest support watch BigQuery timeout env unexpected");
+  if (supportWatchBigQuery.default_bq_timeout_seconds !== 240) fail("Manifest support watch BigQuery timeout unexpected");
   if (supportWatchBigQuery.org_mapping_table !== "dim_org_company") fail("Manifest support watch must document dim_org_company mapping");
   if (supportWatchBigQuery.include_whatsapp_env_var !== "LAUNCHBOT_SUPPORT_WATCH_INCLUDE_WHATSAPP") fail("Manifest support watch WhatsApp include env unexpected");
   if (supportWatchBigQuery.whatsapp_view_env_var !== "LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_VIEW") fail("Manifest support watch WhatsApp view env unexpected");
   if (supportWatchBigQuery.default_whatsapp_view !== "analytics.support_watch_whatsapp_ticket_logs") fail("Manifest support watch WhatsApp view unexpected");
   if (supportWatchBigQuery.default_whatsapp_view?.startsWith("gsheets.")) fail("Manifest support watch WhatsApp runtime source must not be Drive-backed gsheets");
+  if (supportWatchBigQuery.whatsapp_source_view_env_var !== "LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_SOURCE_VIEW") fail("Manifest support watch WhatsApp source view env unexpected");
+  if (supportWatchBigQuery.default_whatsapp_source_view !== "gsheets.cs_tickets_logs_all_view") fail("Manifest support watch WhatsApp source view unexpected");
+  if (supportWatchBigQuery.whatsapp_refresh_transfer_name_env_var !== "LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_REFRESH_TRANSFER_NAME") fail("Manifest support watch WhatsApp refresh transfer env unexpected");
+  if (supportWatchBigQuery.default_whatsapp_refresh_transfer_name !== "Launchbot support watch WhatsApp native mirror refresh") fail("Manifest support watch WhatsApp refresh transfer name unexpected");
+  if (supportWatchBigQuery.whatsapp_refresh_schedule_utc_env_var !== "LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_REFRESH_SCHEDULE_UTC") fail("Manifest support watch WhatsApp refresh schedule env unexpected");
+  if (supportWatchBigQuery.default_whatsapp_refresh_schedule_utc !== "every day 00:30") fail("Manifest support watch WhatsApp refresh schedule unexpected");
+  if (supportWatchBigQuery.whatsapp_max_staleness_hours_env_var !== "LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_MAX_STALENESS_HOURS") fail("Manifest support watch WhatsApp staleness env unexpected");
+  if (supportWatchBigQuery.default_whatsapp_max_staleness_hours !== 36) fail("Manifest support watch WhatsApp staleness unexpected");
   if (supportWatchMcp.slack_context?.default_output_channel_name !== "all-bugs-production") {
     fail("Manifest support watch default output channel must be all-bugs-production");
   }
@@ -290,6 +300,11 @@ if (!manifest) {
       fail(`Manifest support watch missing forbidden action: ${forbiddenAction}`);
     }
   }
+  const supportWatchWhatsappRefresh = (manifest.expected_crons || []).find((cron) => cron.name === "Launchbot support watch WhatsApp native mirror refresh");
+  if (supportWatchWhatsappRefresh?.schedule !== "every day 00:30") fail("Manifest must define WhatsApp native mirror scheduled query");
+  if (supportWatchWhatsappRefresh?.mode !== "bigquery-scheduled-query") fail("Manifest WhatsApp native mirror refresh must be a BigQuery scheduled query");
+  if (supportWatchWhatsappRefresh?.source !== "staffany-warehouse.gsheets.cs_tickets_logs_all_view") fail("Manifest WhatsApp native mirror source unexpected");
+  if (supportWatchWhatsappRefresh?.target !== "staffany-warehouse.analytics.support_watch_whatsapp_ticket_logs") fail("Manifest WhatsApp native mirror target unexpected");
   const healthCron = (manifest.expected_crons || []).find((cron) => cron.name === "launchbot health check");
   if (healthCron?.schedule !== "*/5 * * * *") fail("Manifest must define Launchbot health check cron");
   if (healthCron?.mode !== "no-agent") fail("Manifest health check cron must be no-agent");
@@ -332,9 +347,15 @@ if (!manifest) {
   if (supportWatchMonitor.default_source !== "bigquery") fail("Manifest support watch monitor source unexpected");
   if (supportWatchMonitor.default_intercom_project !== "staffany-warehouse") fail("Manifest support watch monitor project unexpected");
   if (supportWatchMonitor.default_intercom_dataset !== "intercom") fail("Manifest support watch monitor dataset unexpected");
+  if (supportWatchMonitor.bq_timeout_seconds_env_var !== "LAUNCHBOT_SUPPORT_WATCH_BQ_TIMEOUT_SECONDS") fail("Manifest support watch monitor BigQuery timeout env unexpected");
+  if (supportWatchMonitor.default_bq_timeout_seconds !== 240) fail("Manifest support watch monitor BigQuery timeout unexpected");
   if (supportWatchMonitor.default_include_whatsapp !== true) fail("Manifest support watch monitor must include WhatsApp by default");
   if (supportWatchMonitor.default_whatsapp_view !== "analytics.support_watch_whatsapp_ticket_logs") fail("Manifest support watch monitor WhatsApp view unexpected");
   if (supportWatchMonitor.default_whatsapp_view?.startsWith("gsheets.")) fail("Manifest support watch monitor WhatsApp runtime source must not be Drive-backed gsheets");
+  if (supportWatchMonitor.default_whatsapp_source_view !== "gsheets.cs_tickets_logs_all_view") fail("Manifest support watch monitor WhatsApp source view unexpected");
+  if (supportWatchMonitor.default_whatsapp_refresh_transfer_name !== "Launchbot support watch WhatsApp native mirror refresh") fail("Manifest support watch monitor WhatsApp refresh transfer unexpected");
+  if (supportWatchMonitor.default_whatsapp_refresh_schedule_utc !== "every day 00:30") fail("Manifest support watch monitor WhatsApp refresh schedule unexpected");
+  if (supportWatchMonitor.default_whatsapp_max_staleness_hours !== 36) fail("Manifest support watch monitor WhatsApp max staleness unexpected");
   if (supportWatchMonitor.raw_transcript_persistence !== false) fail("Manifest support watch must not persist raw transcripts");
   if (supportWatchMonitor.posts_slack_reports !== true) fail("Manifest support watch must post reports from monitor");
   if (supportWatchMonitor.slack_reply_prefix !== "Launchbot automation:") fail("Manifest support watch must use Launchbot automation prefix");
@@ -355,6 +376,7 @@ for (const relPath of [
   "runtime/test_monitor_feature_intake.py",
   "runtime/monitor-support-watch.py",
   "runtime/test_monitor_support_watch.py",
+  "runtime/support-watch-whatsapp-refresh.sql",
   "runtime/intercom-format-gate.mjs",
   "runtime/intercom-format-gate.test.mjs",
   "runtime/mcp/profile_env.py",
@@ -443,8 +465,13 @@ for (const requiredText of [
   "LAUNCHBOT_SUPPORT_WATCH_INTERCOM_PROJECT",
   "LAUNCHBOT_SUPPORT_WATCH_INTERCOM_DATASET",
   "LAUNCHBOT_SUPPORT_WATCH_ANALYTICS_DATASET",
+  "LAUNCHBOT_SUPPORT_WATCH_BQ_TIMEOUT_SECONDS",
   "LAUNCHBOT_SUPPORT_WATCH_INCLUDE_WHATSAPP",
   "LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_VIEW",
+  "LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_SOURCE_VIEW",
+  "LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_REFRESH_TRANSFER_NAME",
+  "LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_REFRESH_SCHEDULE_UTC",
+  "LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_MAX_STALENESS_HOURS",
   "LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME",
   "LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_ID",
   "LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_IDS",
@@ -752,6 +779,15 @@ if (supportWatchCoreText.includes("public_channel,private_channel")) {
   fail("launchbot_support_watch_core.py must not request private-channel scope for public channel resolution");
 }
 
+const supportWatchWhatsappRefreshSql = textOf("runtime/support-watch-whatsapp-refresh.sql");
+for (const requiredText of [
+  "CREATE OR REPLACE TABLE `staffany-warehouse.analytics.support_watch_whatsapp_ticket_logs`",
+  "PARTITION BY reported_date",
+  "FROM `staffany-warehouse.gsheets.cs_tickets_logs_all_view`",
+]) {
+  if (!supportWatchWhatsappRefreshSql.includes(requiredText)) fail(`support-watch-whatsapp-refresh.sql missing required text: ${requiredText}`);
+}
+
 const supportWatchMonitorText = textOf("runtime/monitor-support-watch.py");
 for (const requiredText of [
   "chat.postMessage",
@@ -835,6 +871,16 @@ for (const requiredText of [
   "support-watch-monitor:script-missing",
   "support-watch-monitor:py-compile-failed",
   "support-watch-monitor:raw-transcript-persistence-not-disabled",
+  "support-watch-monitor:bq-timeout-env-unexpected",
+  "support-watch-monitor:bq-timeout-unexpected",
+  "support-watch-monitor:whatsapp-refresh-transfer-name-unexpected",
+  "support-watch-monitor:whatsapp-refresh-schedule-unexpected",
+  "support-watch-monitor:whatsapp-max-staleness-unexpected",
+  "support-watch:whatsapp-table-metadata-missing",
+  "support-watch:whatsapp-table-stale",
+  "support-watch:whatsapp-runtime-source-drive-backed",
+  "__TABLES__",
+  "timeout=120",
   "LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME",
   "LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_ID",
   "LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_IDS",
@@ -858,6 +904,7 @@ for (const requiredText of [
   "cron:health-check-missing",
   "cron:feature-intake-monitor-missing",
   "cron:support-watch-missing",
+  "bigquery:whatsapp-refresh-transfer-missing",
   "cron:pantheon-repo-update-missing",
   "cron:pantheon-repo-update-present-without-github-ssh",
   "LAUNCHBOT_PANTHEON_SSH_KEY",
@@ -872,6 +919,7 @@ for (const requiredText of [
   "profile-drift:support-watch-mcp",
   "profile-drift:support-watch-core",
   "profile-drift:support-watch-monitor-script",
+  "profile-drift:support-watch-whatsapp-refresh-sql",
   "profile-drift:help-article-video-registry",
   "sessions:stale-system-prompt",
   "sessions:active-session-json-missing",
