@@ -179,6 +179,39 @@ class PsmC360ServerTest(unittest.TestCase):
         self.assertEqual(audit_calls[0][0], "c360_customer_answer")
         self.assertEqual(audit_calls[0][1]["source_thread_url"], "https://staffany.slack.com/archives/C0B2VT50YT1/p1778205303989579")
 
+    def test_ask_customer_context_strips_search_group_id_prefix(self):
+        calls = []
+
+        def fake_http(method, path, body=None):
+            calls.append((method, path, body))
+            return {
+                "status": "ok",
+                "data": {
+                    "answer": "Issue history.",
+                    "citationRefs": ["intercom.conversation_parts:1"],
+                },
+            }
+
+        self.module._http_json = fake_http
+
+        result = self.module.ask_c360_customer_context(
+            "customer-9003781770",
+            "What issues were raised in the past 6 months?",
+        )
+
+        self.assertEqual(
+            calls,
+            [
+                (
+                    "POST",
+                    "/api/companies/9003781770/ask",
+                    {"question": "What issues were raised in the past 6 months?"},
+                )
+            ],
+        )
+        self.assertEqual(result["scope"]["customer_key"], "9003781770")
+        self.assertEqual(result["source"], "Customer 360 /api/companies/9003781770/ask")
+
     def test_missing_token_blocks(self):
         with patch.dict(os.environ, {"CUSTOMER360_INTERNAL_API_TOKEN": "", "CUSTOMER_360_INTERNAL_API_TOKEN": ""}, clear=False):
             result = self.module.get_c360_account_context("fei-siong-group")

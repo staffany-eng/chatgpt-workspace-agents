@@ -313,6 +313,10 @@ def _normalized_key(value: Any) -> str:
     return " ".join(_customer_tokens(str(value)))
 
 
+def _canonical_c360_customer_key(value: str) -> str:
+    return re.sub(r"^customer-", "", (value or "").strip(), count=1, flags=re.IGNORECASE)
+
+
 def _group_dedupe_keys(group: Any) -> list[str]:
     if not isinstance(group, dict):
         return [f"payload:{json.dumps(group, sort_keys=True, default=str)}"]
@@ -465,7 +469,7 @@ def search_c360_customers(query: str, limit: int = 8, slack_thread_url: str = ""
 def get_c360_account_context(customer_key: str, format: str = "markdown", slack_thread_url: str = "") -> dict[str, Any]:
     """Fetch compact Customer 360 account context for one customer key."""
 
-    key = (customer_key or "").strip()
+    key = _canonical_c360_customer_key(customer_key)
     output_format = "json" if str(format).lower() == "json" else "markdown"
     scope = {"customer_key": key, "format": output_format, "slack_thread_url": (slack_thread_url or "").strip()}
     if not key:
@@ -501,7 +505,7 @@ def get_c360_account_context(customer_key: str, format: str = "markdown", slack_
 def ask_c360_customer_context(customer_key: str, question: str, slack_thread_url: str = "") -> dict[str, Any]:
     """Ask Customer 360 compiled wiki and account context about one customer."""
 
-    key = (customer_key or "").strip()
+    key = _canonical_c360_customer_key(customer_key)
     normalized_question = (question or "").strip()
     scope = {
         "customer_key": key,
