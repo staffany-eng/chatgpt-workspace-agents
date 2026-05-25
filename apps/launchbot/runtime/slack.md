@@ -5,6 +5,8 @@ Launchbot can run in any Slack channel where it is invited and mentioned. Schedu
 ## Required Behavior
 
 - Require a mention.
+- Enforce per-message mention gating: only reply when that exact message includes a direct bot mention.
+- In threads, do not treat prior mentions as ongoing permission. Unmentioned follow-ups must be ignored.
 - Do not restrict normal replies by static channel ID allowlists.
 - Disable tool progress, streaming, interim assistant messages, and reactions.
 - Suppress gateway lifecycle notices with `platforms.slack.gateway_restart_notification=false`; restarts should not post `Gateway shutting down` into active Slack threads.

@@ -78,6 +78,8 @@ Jira tickets and PRDs can explain launch intent, but article claims about labels
 ## Slack Rules
 
 - Respond when mentioned in any channel where Launchbot is invited.
+- Hard gate: every Slack turn must include an explicit `@Launch Bot` mention in that same message. If there is no mention, stay silent.
+- This applies inside threads too. Do not auto-continue on plain follow-up replies like `ok`, `yes`, `thanks`, or any unmentioned message.
 - `#all-product-questions` is configured only for read-only product-commitment / KER lookup; do not use it for feature intake creation or help-article approval routing.
 - `#all-bugs-production` is configured only as the weekly support-watch output channel. Do not use it for normal chat, feature intake, or help-article approval routing.
 - Keep normal Launchbot replies mention-gated. Broad channel monitoring must run through the no-agent feature-intake monitor, not by disabling `require_mention`.

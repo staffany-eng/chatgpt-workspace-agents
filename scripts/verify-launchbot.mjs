@@ -590,6 +590,8 @@ for (const requiredText of [
   "read-only product-commitment / KER lookup",
   "cloud-primary",
   "Launchbot's bot identity",
+  "every Slack turn must include an explicit `@Launch Bot` mention",
+  "applies inside threads too",
 ]) {
   if (!soulText.includes(requiredText)) fail(`SOUL.md missing required text: ${requiredText}`);
 }
