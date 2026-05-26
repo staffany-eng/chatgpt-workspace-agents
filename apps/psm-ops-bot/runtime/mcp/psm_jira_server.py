@@ -115,6 +115,57 @@ THIN_POC_REQUEST_TYPES = {
     "photo_follow_up": "127",
 }
 THIN_POC_AA_CHANNEL_ID = "C0B5H2YE5T2"
+# LLM classifier (not regex) — phrasings span EN + ID + mixed. Enforced
+# server-side so agent prompt rules cannot override the skip decision.
+NO_FOLLOW_UP_CLASSIFIER_MODEL = "claude-haiku-4-5-20251001"
+NO_FOLLOW_UP_CLASSIFIER_TOOL = {
+    "name": "report_no_follow_up_intent",
+    "description": (
+        "Report whether the AA Slack trigger message explicitly tells the team "
+        "NOT to follow up on the photo. Used by StaffAny's PSM Ops bot to skip "
+        "creating a redundant photo_follow_up Jira ticket when the PSM clearly "
+        "marked the photo as FYI / record-only / no action needed."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "skip_photo_follow_up": {
+                "type": "boolean",
+                "description": (
+                    "True iff the message contains an explicit no-follow-up "
+                    "instruction (e.g. 'no follow up needed', 'FYI only', "
+                    "'just a photo for the record', 'tidak perlu follow up', "
+                    "'cuma foto', 'fyi aja' or any equivalent in English or "
+                    "Indonesian). False when the message has actionable "
+                    "bullets, is ambiguous, or only quotes a past statement."
+                ),
+            },
+            "reason": {
+                "type": "string",
+                "description": (
+                    "One short sentence quoting or paraphrasing the part of "
+                    "the message that justifies the decision."
+                ),
+            },
+        },
+        "required": ["skip_photo_follow_up", "reason"],
+    },
+}
+NO_FOLLOW_UP_CLASSIFIER_SYSTEM = (
+    "You are a binary classifier for StaffAny's PSM Ops bot. The PSM team "
+    "tags an AA Slack message after meeting a prospect at an event; some "
+    "messages attach a photo for the record but explicitly say no follow-up "
+    "is needed. Your only job: decide whether THIS message tells the team "
+    "NOT to follow up on the photo.\n\n"
+    "Return skip_photo_follow_up=true ONLY when the message explicitly "
+    "carries that instruction (English or Indonesian). Return false when "
+    "the message has actionable bullets (e.g. 'want to expand more "
+    "outlets', 'follow up on pricing'), is ambiguous, just describes "
+    "context, or only quotes a past statement.\n\n"
+    "When in doubt, return false — creating a redundant tracking ticket is "
+    "safer than dropping a real follow-up. Always call the "
+    "report_no_follow_up_intent tool exactly once with your decision."
+)
 THIN_POC_FIELD_IDS = {
     "staffany_orgs": "customfield_10667",
     "ps_team": "customfield_10876",
@@ -1106,6 +1157,130 @@ def _slack_trigger_message_sender(slack_thread_url: str) -> str:
     return ""
 
 
+def _slack_trigger_message_text(slack_thread_url: str) -> str:
+    """Return trigger message body, or "" on any failure (callers must not block on "")."""
+
+    channel_id = _slack_channel_id_from_permalink(slack_thread_url)
+    message_ts = _slack_message_ts_from_permalink(slack_thread_url)
+    if not channel_id or not message_ts:
+        return ""
+    try:
+        history = _request_slack_json(
+            "conversations.history",
+            {
+                "channel": channel_id,
+                "oldest": message_ts,
+                "inclusive": "true",
+                "limit": "1",
+            },
+        )
+    except Exception:  # noqa: BLE001 — text lookup must never block intake.
+        history = {}
+    for entry in history.get("messages") or []:
+        if isinstance(entry, dict) and str(entry.get("ts") or "") == message_ts:
+            text = str(entry.get("text") or "").strip()
+            if text:
+                return text
+            break
+    try:
+        replies = _request_slack_json(
+            "conversations.replies",
+            {
+                "channel": channel_id,
+                "ts": message_ts,
+                "inclusive": "true",
+                "limit": "1",
+            },
+        )
+    except Exception:  # noqa: BLE001
+        return ""
+    for entry in replies.get("messages") or []:
+        if isinstance(entry, dict) and str(entry.get("ts") or "") == message_ts:
+            return str(entry.get("text") or "").strip()
+    return ""
+
+
+def _anthropic_api_key() -> str:
+    return (os.environ.get("ANTHROPIC_API_KEY") or "").strip()
+
+
+def _call_anthropic_messages(
+    model: str,
+    system: str,
+    user_text: str,
+    tools: list[dict[str, Any]],
+    tool_name: str,
+    max_tokens: int = 256,
+) -> dict[str, Any]:
+    """Forced tool-use call to Anthropic Messages; raises JiraError on any failure."""
+
+    key = _anthropic_api_key()
+    if not key:
+        raise JiraError("ANTHROPIC_API_KEY is not configured for the LLM classifier.")
+    body = json.dumps(
+        {
+            "model": model,
+            "max_tokens": max_tokens,
+            "system": system,
+            "tools": tools,
+            "tool_choice": {"type": "tool", "name": tool_name},
+            "messages": [{"role": "user", "content": user_text}],
+        }
+    ).encode("utf-8")
+    request = urllib.request.Request(
+        "https://api.anthropic.com/v1/messages",
+        data=body,
+        headers={
+            "x-api-key": key,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=15) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as error:
+        detail = error.read().decode("utf-8", errors="replace")[:400]
+        raise JiraError(f"Anthropic API failed: HTTP {error.code} {detail}") from error
+    except urllib.error.URLError as error:
+        raise JiraError(f"Anthropic API unavailable: {error.reason}") from error
+    except json.JSONDecodeError as error:
+        raise JiraError(f"Anthropic API returned non-JSON response: {error}") from error
+    for block in payload.get("content") or []:
+        if isinstance(block, dict) and block.get("type") == "tool_use" and block.get("name") == tool_name:
+            tool_input = block.get("input")
+            if isinstance(tool_input, dict):
+                return tool_input
+    raise JiraError(f"Anthropic API response missing tool_use block for '{tool_name}'.")
+
+
+def _classify_no_follow_up_intent(text: str) -> tuple[bool, str]:
+    """Return (skip, reason); fails closed to (False, "<why>") so the ticket still creates."""
+
+    if not text or not text.strip():
+        return False, "empty trigger text"
+    try:
+        result = _call_anthropic_messages(
+            model=NO_FOLLOW_UP_CLASSIFIER_MODEL,
+            system=NO_FOLLOW_UP_CLASSIFIER_SYSTEM,
+            user_text=text,
+            tools=[NO_FOLLOW_UP_CLASSIFIER_TOOL],
+            tool_name="report_no_follow_up_intent",
+            max_tokens=256,
+        )
+    except JiraError as error:
+        return False, f"classifier_unavailable: {error}"
+    except Exception as error:  # noqa: BLE001 — classifier must never block intake.
+        return False, f"classifier_error: {error}"
+    raw_skip = result.get("skip_photo_follow_up")
+    if not isinstance(raw_skip, bool):
+        return False, "classifier_error: invalid skip_photo_follow_up type"
+    skip = raw_skip
+    reason = str(result.get("reason") or "").strip() or "no reason returned"
+    return skip, reason
+
+
 def _download_slack_file(url_private: str) -> bytes:
     token = _slack_token()
     if not token:
@@ -1506,6 +1681,19 @@ def _normalize_slack_email(value: str) -> str:
     if bare:
         return bare.group(0).strip().lower()
     return raw
+
+
+def _audit_requester_identity(value: str) -> str:
+    raw = (value or "").strip()
+    if not raw:
+        return ""
+    mention = re.fullmatch(r"<@([UW][A-Z0-9]{8,})>", raw)
+    if mention:
+        return mention.group(1)
+    if re.fullmatch(r"[UW][A-Z0-9]{8,}", raw):
+        return raw
+    normalized_email = _normalize_slack_email(raw)
+    return normalized_email or raw
 
 
 def _identity_key(value: str) -> str:
@@ -3432,19 +3620,93 @@ def create_ps_wee_intake_ticket(
     is_event_aa = _is_event_aa_thread(source)
     if is_event_aa and request_type_key not in EVENT_AA_REQUEST_TYPE_KEYS:
         request_type_key = EVENT_AA_DEFAULT_REQUEST_TYPE_KEY
-    # AA always-ticket-first: the thread permalink IS the source of truth for
-    # who tagged the bot. Agents have hallucinated invalid Slack IDs in
-    # slack_user_email (e.g. `U07UTFE8U3X` on PCO-291/293, `U07N3TH1CJK` on
-    # PCO-298-300), which then silently dropped Creator and PS Team because
-    # nothing matched the access policy or dropdowns. Re-derive the tagger
-    # from conversations.history before resolving caller. If Slack is
-    # unreachable, fall back to the agent-supplied value rather than blocking.
+    # Re-derive tagger from Slack before any AA early return so skip audits use
+    # the same canonical caller identity as created tickets.
     if is_event_aa and source:
         verified_sender = _slack_trigger_message_sender(source)
         if verified_sender:
             slack_user_email = verified_sender
+    audit_requester = _audit_requester_identity(slack_user_email)
+    # AA photo_follow_up guard: skip ticket when trigger says no follow up needed.
+    # Enforced server-side because the prompt rule "perceived intent is never a
+    # reason to block" otherwise overrides any agent-side check.
+    if (
+        is_event_aa
+        and request_type_key == EVENT_AA_PHOTO_REQUEST_TYPE_KEY
+        and source
+    ):
+        try:
+            trigger_text = _slack_trigger_message_text(source)
+        except Exception:  # noqa: BLE001 — text fetch must never block creation.
+            trigger_text = ""
+        skip_decision, skip_reason_detail = _classify_no_follow_up_intent(trigger_text)
+        if skip_decision:
+            skip_scope = {
+                "caller": audit_requester,
+                "slack_thread_url": source,
+                "customer": (customer or "").strip() or "Unknown customer",
+                "request_type_key": request_type_key,
+                "event": "AA",
+                "skip_reason": "no_follow_up_signal_detected",
+                "classifier_reason": skip_reason_detail,
+            }
+            skip_answer: dict[str, Any] = {
+                "status": "skipped",
+                "skipped_request_type": EVENT_AA_PHOTO_REQUEST_TYPE_KEY,
+                "reason": "no_follow_up_signal_detected",
+                "classifier_reason": skip_reason_detail,
+                "slack_reply": (
+                    "Skipped Photo Follow Up ticket — the trigger message says "
+                    "no follow up is needed. Other per-bullet tickets, if any, "
+                    "were unaffected."
+                ),
+            }
+            try:
+                skip_answer["central_copy"] = post_ps_wee_audit(
+                    "photo_follow_up_skipped",
+                    source_thread_url=source,
+                    issue_key="",
+                    issue_url="",
+                    requester=skip_scope["caller"],
+                    customer=skip_scope["customer"],
+                    summary="photo_follow_up skipped (no_follow_up_signal_detected)",
+                    status="skipped",
+                    jira_payload={
+                        "skip_reason": "no_follow_up_signal_detected",
+                        "classifier_reason": skip_reason_detail,
+                        "classifier_model": NO_FOLLOW_UP_CLASSIFIER_MODEL,
+                    },
+                    extra={
+                        "request_type_key": request_type_key,
+                        "event": "AA",
+                    },
+                )
+            except Exception as error:  # noqa: BLE001 — audit failures must not block skip.
+                # Surface so a lost audit copy is distinguishable from a normal skip.
+                print(
+                    f"[psm-ops-bot] photo_follow_up_skipped audit failed: {error} "
+                    f"(thread={source}, customer={skip_scope['customer']})",
+                    file=sys.stderr,
+                )
+                skip_answer["audit_error"] = str(error)
+                skip_scope["audit_error"] = str(error)
+            return {
+                "answer": skip_answer,
+                "source": "Jira PCO",
+                "scope": skip_scope,
+                "confidence": "verified",
+                "caveat": (
+                    "Server-side skip: no_follow_up_signal_detected. The "
+                    "classifier judged the trigger Slack message says no "
+                    f"follow up is needed ({skip_reason_detail}). Other "
+                    "per-bullet tickets (if any) created via separate calls "
+                    "were unaffected. Call attach_aa_selfie_to_thread if the "
+                    "selfie should still be recorded on an already-opened AA "
+                    "ticket."
+                ),
+            }
     scope = {
-        "caller": (slack_user_email or "").strip().lower(),
+        "caller": audit_requester,
         "slack_thread_url": source,
         "customer": normalized_customer,
         "request_type_key": request_type_key,
