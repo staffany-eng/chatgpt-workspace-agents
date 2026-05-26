@@ -4013,6 +4013,11 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertFalse(skip)
         self.assertEqual(reason, "classifier_error: invalid skip_photo_follow_up type")
 
+    def test_audit_requester_identity_preserves_slack_user_id_casing(self):
+        self.assertEqual(self.module._audit_requester_identity("U0ABC12345"), "U0ABC12345")
+        self.assertEqual(self.module._audit_requester_identity("w0abc12345"), "w0abc12345")
+        self.assertEqual(self.module._audit_requester_identity("PSM@StaffAny.com"), "psm@staffany.com")
+
     def test_classify_no_follow_up_intent_empty_text_returns_false_without_calling_api(self):
         def boom(*args, **kwargs):
             self.fail("API must not be called for empty trigger text")

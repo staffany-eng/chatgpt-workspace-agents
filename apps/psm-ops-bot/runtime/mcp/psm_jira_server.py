@@ -1683,6 +1683,16 @@ def _normalize_slack_email(value: str) -> str:
     return raw
 
 
+def _audit_requester_identity(value: str) -> str:
+    raw = (value or "").strip()
+    if not raw:
+        return ""
+    if re.fullmatch(r"[UW][A-Z0-9]{8,}", raw):
+        return raw
+    normalized_email = _normalize_slack_email(raw)
+    return normalized_email or raw
+
+
 def _identity_key(value: str) -> str:
     return re.sub(r"[^a-z0-9]", "", (value or "").strip().lower())
 
@@ -3613,6 +3623,7 @@ def create_ps_wee_intake_ticket(
         verified_sender = _slack_trigger_message_sender(source)
         if verified_sender:
             slack_user_email = verified_sender
+    audit_requester = _audit_requester_identity(slack_user_email)
     # AA photo_follow_up guard: skip ticket when trigger says no follow up needed.
     # Enforced server-side because the prompt rule "perceived intent is never a
     # reason to block" otherwise overrides any agent-side check.
@@ -3628,7 +3639,7 @@ def create_ps_wee_intake_ticket(
         skip_decision, skip_reason_detail = _classify_no_follow_up_intent(trigger_text)
         if skip_decision:
             skip_scope = {
-                "caller": (slack_user_email or "").strip().lower(),
+                "caller": audit_requester,
                 "slack_thread_url": source,
                 "customer": (customer or "").strip() or "Unknown customer",
                 "request_type_key": request_type_key,
@@ -3692,7 +3703,7 @@ def create_ps_wee_intake_ticket(
                 ),
             }
     scope = {
-        "caller": (slack_user_email or "").strip().lower(),
+        "caller": audit_requester,
         "slack_thread_url": source,
         "customer": normalized_customer,
         "request_type_key": request_type_key,
