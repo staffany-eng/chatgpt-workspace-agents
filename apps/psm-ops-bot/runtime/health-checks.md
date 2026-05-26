@@ -157,6 +157,8 @@ Install central audit/adoption telemetry after the profile exists:
 mkdir -p ~/.hermes/profiles/psmopsbot/hooks ~/.hermes/profiles/psmopsbot/scripts
 rsync -a apps/psm-ops-bot/runtime/hooks/psm-ops-adoption-telemetry/ \
   ~/.hermes/profiles/psmopsbot/hooks/psm-ops-adoption-telemetry/
+rsync -a apps/psm-ops-bot/runtime/hooks/psm-ops-mention-guard/ \
+  ~/.hermes/profiles/psmopsbot/hooks/psm-ops-mention-guard/
 cp apps/psm-ops-bot/runtime/psm_ops_adoption_digest.py \
   ~/.hermes/profiles/psmopsbot/scripts/psm_ops_adoption_digest.py
 
@@ -166,6 +168,8 @@ hermes -p psmopsbot cron create "0 2 * * 1-5" \
   --no-agent \
   --deliver "slack:#ps-weeman-bot-test"
 ```
+
+`psm-ops-mention-guard` is observer-only on `agent:end` and posts a one-line warning to `PSM_OPS_CENTRAL_SLACK_CHANNEL_ID` whenever a Slack reply mentions a non-tagger (SCHE-19904). Set `PSM_OPS_BOT_USER_ID` in the profile `.env` so the bot's own `<@>` self-reference is not flagged.
 
 Set `PSM_OPS_CENTRAL_SLACK_CHANNEL_ID` to the central ops channel ID in the live profile `.env`; prefer the ID over the name.
 

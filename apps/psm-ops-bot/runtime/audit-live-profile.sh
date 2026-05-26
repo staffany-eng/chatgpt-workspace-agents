@@ -28,6 +28,7 @@ diff -qr "$SOURCE_DIR/skills/psm-ops-bot" "$PROFILE_DIR/skills/psm-ops-bot" >/de
 cmp -s "$SOURCE_DIR/runtime/check-health.sh" "$PROFILE_DIR/scripts/psmopsbot-check-health.sh" || fail "profile:health-script-drift"
 cmp -s "$SOURCE_DIR/runtime/check-cloud-heartbeat.sh" "$PROFILE_DIR/scripts/psmopsbot-check-cloud-heartbeat.sh" || fail "profile:cloud-heartbeat-script-drift"
 diff -qr -x __pycache__ "$SOURCE_DIR/runtime/hooks/psm-ops-adoption-telemetry" "$PROFILE_DIR/hooks/psm-ops-adoption-telemetry" >/dev/null || fail "profile:adoption-hook-drift"
+diff -qr -x __pycache__ "$SOURCE_DIR/runtime/hooks/psm-ops-mention-guard" "$PROFILE_DIR/hooks/psm-ops-mention-guard" >/dev/null || fail "profile:mention-guard-hook-drift"
 cmp -s "$SOURCE_DIR/runtime/psm_ops_adoption_digest.py" "$PROFILE_DIR/scripts/psm_ops_adoption_digest.py" || fail "profile:adoption-digest-script-drift"
 cmp -s "$SOURCE_DIR/runtime/scripts/psm_ops_due_date_reminders.py" "$PROFILE_DIR/scripts/psm_ops_due_date_reminders.py" || fail "profile:due-date-reminder-script-drift"
 cmp -s "$SOURCE_DIR/runtime/scripts/psm_ops_due_date_reminders.py" "$PROFILE_DIR/scripts/psm_ops_due_date_reminders_eod.py" || fail "profile:eod-due-date-reminder-script-drift"

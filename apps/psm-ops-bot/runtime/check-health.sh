@@ -258,3 +258,11 @@ if [ -d "$hook_dir" ]; then
 elif [ "${PSM_OPS_ADOPTION_METRICS_ENABLED:-}" = "true" ] || [ "${PSM_OPS_ADOPTION_METRICS_ENABLED:-}" = "1" ]; then
   fail "hook:adoption:missing"
 fi
+
+mention_guard_dir="$PROFILE_DIR/hooks/psm-ops-mention-guard"
+if [ -d "$mention_guard_dir" ]; then
+  [ -r "$mention_guard_dir/HOOK.yaml" ] || fail "hook:mention-guard:missing-HOOK.yaml"
+  [ -r "$mention_guard_dir/handler.py" ] || fail "hook:mention-guard:missing-handler.py"
+else
+  fail "hook:mention-guard:missing"
+fi
