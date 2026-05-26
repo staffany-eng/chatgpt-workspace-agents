@@ -4015,6 +4015,7 @@ class PsmJiraServerTest(unittest.TestCase):
 
     def test_audit_requester_identity_preserves_slack_user_id_casing(self):
         self.assertEqual(self.module._audit_requester_identity("U0ABC12345"), "U0ABC12345")
+        self.assertEqual(self.module._audit_requester_identity("<@U0ABC12345>"), "U0ABC12345")
         self.assertEqual(self.module._audit_requester_identity("w0abc12345"), "w0abc12345")
         self.assertEqual(self.module._audit_requester_identity("PSM@StaffAny.com"), "psm@staffany.com")
 

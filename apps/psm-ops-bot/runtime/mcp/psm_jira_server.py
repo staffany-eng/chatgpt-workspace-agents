@@ -1687,6 +1687,9 @@ def _audit_requester_identity(value: str) -> str:
     raw = (value or "").strip()
     if not raw:
         return ""
+    mention = re.fullmatch(r"<@([UW][A-Z0-9]{8,})>", raw)
+    if mention:
+        return mention.group(1)
     if re.fullmatch(r"[UW][A-Z0-9]{8,}", raw):
         return raw
     normalized_email = _normalize_slack_email(raw)
