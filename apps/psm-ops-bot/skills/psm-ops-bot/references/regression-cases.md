@@ -230,7 +230,7 @@ Expected:
 - Calls `find_ticket_by_slack_thread` with the current Slack thread permalink.
 - If no ticket exists for that Slack thread, calls `create_ps_wee_intake_ticket` immediately without asking "do you want me to log a ticket?".
 - Creates a PCO intake using whatever facts are available: customer, section/headcount limit context, evidence link.
-- Posts the ticket link in the same Slack thread and asks only for the missing fields.
+- Posts the ticket link in the same Slack thread. Does not ask follow-up questions to fill ticket fields.
 
 ## PS WEE Meaningful Slack Update
 
