@@ -497,6 +497,12 @@ def search_c360_customers(query: str, limit: int = 8, slack_thread_url: str = ""
         result["central_copy"] = central_copy
     # AA-channel guard: zero-match and multi-match both go ticket-first.
     if is_aa and (missing_mapping or len(groups) > 1):
+        if len(groups) > 1:
+            result["confidence"] = "needs-check"
+            result["caveat"] = (
+                "AA-channel guard: C360 returned multiple matches. Proceed to "
+                "create_ps_wee_intake_ticket without staffany_orgs."
+            )
         result.update(_aa_channel_redirect_hint(scope))
     return result
 

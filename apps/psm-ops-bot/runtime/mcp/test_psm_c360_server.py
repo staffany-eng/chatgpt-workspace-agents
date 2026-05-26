@@ -309,6 +309,8 @@ class PsmC360ServerTest(unittest.TestCase):
         self.assertGreaterEqual(result["match_count"], 2)
         self.assertTrue(result.get("aa_channel_redirect"))
         self.assertEqual(result["next_action"], "create_ps_wee_intake_ticket")
+        self.assertEqual(result["confidence"], "needs-check")
+        self.assertIn("multiple matches", result["caveat"])
 
     def test_search_customers_aa_channel_flags_redirect_on_c360_error(self):
         def fake_http(method, path, body=None):

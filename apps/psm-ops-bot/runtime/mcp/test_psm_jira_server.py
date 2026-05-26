@@ -4000,6 +4000,19 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertFalse(skip)
         self.assertIn("actionable", reason.lower())
 
+    def test_classify_no_follow_up_intent_rejects_non_boolean_skip_flag(self):
+        self.module._call_anthropic_messages = lambda *a, **kw: {
+            "skip_photo_follow_up": "false",
+            "reason": "string booleans must not suppress a real follow-up ticket",
+        }
+
+        skip, reason = self.module._classify_no_follow_up_intent(
+            "Met Andre. This should not skip because the tool returned a string."
+        )
+
+        self.assertFalse(skip)
+        self.assertEqual(reason, "classifier_error: invalid skip_photo_follow_up type")
+
     def test_classify_no_follow_up_intent_empty_text_returns_false_without_calling_api(self):
         def boom(*args, **kwargs):
             self.fail("API must not be called for empty trigger text")
@@ -4106,6 +4119,9 @@ class PsmJiraServerTest(unittest.TestCase):
         # No Jira write — we returned before touching Jira.
         self.assertEqual(request_calls, [])
         self.assertTrue(any(event == "photo_follow_up_skipped" for event, _ in audit_calls))
+        self.assertEqual(result["scope"]["caller"], "u-psm")
+        skipped_audit = next(payload for event, payload in audit_calls if event == "photo_follow_up_skipped")
+        self.assertEqual(skipped_audit["requester"], "u-psm")
 
     def test_ps_wee_intake_in_aa_channel_creates_photo_follow_up_when_classifier_says_no_skip(self):
         request_calls = []

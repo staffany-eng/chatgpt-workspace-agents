@@ -1273,7 +1273,10 @@ def _classify_no_follow_up_intent(text: str) -> tuple[bool, str]:
         return False, f"classifier_unavailable: {error}"
     except Exception as error:  # noqa: BLE001 — classifier must never block intake.
         return False, f"classifier_error: {error}"
-    skip = bool(result.get("skip_photo_follow_up"))
+    raw_skip = result.get("skip_photo_follow_up")
+    if not isinstance(raw_skip, bool):
+        return False, "classifier_error: invalid skip_photo_follow_up type"
+    skip = raw_skip
     reason = str(result.get("reason") or "").strip() or "no reason returned"
     return skip, reason
 
@@ -3604,6 +3607,12 @@ def create_ps_wee_intake_ticket(
     is_event_aa = _is_event_aa_thread(source)
     if is_event_aa and request_type_key not in EVENT_AA_REQUEST_TYPE_KEYS:
         request_type_key = EVENT_AA_DEFAULT_REQUEST_TYPE_KEY
+    # Re-derive tagger from Slack before any AA early return so skip audits use
+    # the same canonical caller identity as created tickets.
+    if is_event_aa and source:
+        verified_sender = _slack_trigger_message_sender(source)
+        if verified_sender:
+            slack_user_email = verified_sender
     # AA photo_follow_up guard: skip ticket when trigger says no follow up needed.
     # Enforced server-side because the prompt rule "perceived intent is never a
     # reason to block" otherwise overrides any agent-side check.
@@ -3682,13 +3691,6 @@ def create_ps_wee_intake_ticket(
                     "ticket."
                 ),
             }
-    # Re-derive tagger from Slack: agents have hallucinated invalid Slack IDs in
-    # slack_user_email, which silently dropped Creator and PS Team. Fall back to
-    # the agent value if Slack is unreachable rather than blocking.
-    if is_event_aa and source:
-        verified_sender = _slack_trigger_message_sender(source)
-        if verified_sender:
-            slack_user_email = verified_sender
     scope = {
         "caller": (slack_user_email or "").strip().lower(),
         "slack_thread_url": source,
