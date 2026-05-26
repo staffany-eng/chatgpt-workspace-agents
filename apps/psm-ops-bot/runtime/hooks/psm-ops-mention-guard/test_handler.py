@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import importlib.util
+import io
+import json
 import os
 import unittest
+from contextlib import redirect_stderr
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 
 HANDLER_PATH = Path(__file__).parent / "handler.py"
@@ -81,6 +84,8 @@ class ScanResponseTests(unittest.TestCase):
 class EvaluateTests(unittest.TestCase):
     def setUp(self):
         self.module = load_handler()
+        # Prevent _bot_user_id() from making a live auth.test call.
+        self.module._BOT_USER_ID_CACHE = ""
 
     def test_empty_response_is_skipped(self):
         verdict = self.module.evaluate({"response": "", "user_id": "U043M9HRWHG"})
@@ -152,13 +157,13 @@ class HandleAlertingTests(unittest.TestCase):
                 "SLACK_HOME_CHANNEL": "",
                 "SLACK_BOT_TOKEN": "test-fake-bot-token",
                 "PSM_OPS_SLACK_BOT_TOKEN": "",
-                "PSM_OPS_BOT_USER_ID": "U0B39JHV8TG",
             },
             clear=False,
         )
         self.env.start()
         self.addCleanup(self.env.stop)
         self.module = load_handler()
+        self.module._BOT_USER_ID_CACHE = ""
 
     def test_violation_posts_central_warning(self):
         context = {
@@ -211,6 +216,161 @@ class HandleAlertingTests(unittest.TestCase):
             asyncio.run(self.module.handle("session:start", context))
 
         fake_post.assert_not_called()
+
+
+class PostAuditWarningTests(unittest.TestCase):
+    def setUp(self):
+        self.env = patch.dict(
+            os.environ,
+            {
+                "PSM_OPS_CENTRAL_SLACK_CHANNEL_ID": "C0B2VT50YT1",
+                "SLACK_BOT_TOKEN": "test-fake-bot-token",
+            },
+            clear=False,
+        )
+        self.env.start()
+        self.addCleanup(self.env.stop)
+        self.module = load_handler()
+
+    @staticmethod
+    def _fake_response(payload: dict) -> MagicMock:
+        body = json.dumps(payload).encode("utf-8")
+        cm = MagicMock()
+        cm.__enter__.return_value.read.return_value = body
+        cm.__exit__.return_value = False
+        return cm
+
+    def test_audit_message_identifies_as_automation(self):
+        verdict = {
+            "skipped": False,
+            "sender": "U043M9HRWHG",
+            "violations": ["U6E68280P"],
+            "response_preview": "Hey <@U6E68280P>",
+        }
+        captured = {}
+
+        def fake_urlopen(request, timeout=10):
+            captured["body"] = request.data
+            return self._fake_response({"ok": True})
+
+        with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+            self.module._post_audit_warning(verdict)
+
+        body = json.loads(captured["body"].decode("utf-8"))
+        self.assertTrue(
+            body["text"].startswith("PSM Ops mention-guard automation:"),
+            f"audit text must self-identify as automation, got: {body['text']!r}",
+        )
+
+    def test_slack_ok_false_is_surfaced_on_stderr(self):
+        verdict = {"sender": "U043M9HRWHG", "violations": ["U6E68280P"]}
+        stderr = io.StringIO()
+
+        def fake_urlopen(request, timeout=10):
+            return self._fake_response({"ok": False, "error": "missing_scope"})
+
+        with patch("urllib.request.urlopen", side_effect=fake_urlopen), redirect_stderr(stderr):
+            self.module._post_audit_warning(verdict)
+
+        self.assertIn("psm-ops-mention-guard:alert-failed:missing_scope", stderr.getvalue())
+
+    def test_slack_ok_true_is_silent(self):
+        verdict = {"sender": "U043M9HRWHG", "violations": ["U6E68280P"]}
+        stderr = io.StringIO()
+
+        def fake_urlopen(request, timeout=10):
+            return self._fake_response({"ok": True, "ts": "1.0", "channel": "C0B2VT50YT1"})
+
+        with patch("urllib.request.urlopen", side_effect=fake_urlopen), redirect_stderr(stderr):
+            self.module._post_audit_warning(verdict)
+
+        self.assertEqual(stderr.getvalue(), "")
+
+    def test_transport_error_does_not_raise(self):
+        verdict = {"sender": "U043M9HRWHG", "violations": ["U6E68280P"]}
+        stderr = io.StringIO()
+
+        import urllib.error
+
+        def fake_urlopen(request, timeout=10):
+            raise urllib.error.URLError("network down")
+
+        with patch("urllib.request.urlopen", side_effect=fake_urlopen), redirect_stderr(stderr):
+            # Must not raise: hook is best-effort.
+            self.module._post_audit_warning(verdict)
+
+        self.assertIn("alert-transport-error", stderr.getvalue())
+
+
+class CoerceTextFallbackTests(unittest.TestCase):
+    def setUp(self):
+        self.module = load_handler()
+        self.module._BOT_USER_ID_CACHE = ""
+
+    def test_non_json_serializable_falls_back_to_str(self):
+        class Weird:
+            def __str__(self):
+                return "weird-value <@U6E68280P>"
+
+        # _coerce_text must not raise even when json.dumps cannot serialize.
+        text = self.module._coerce_text(Weird())
+        self.assertIn("weird-value", text)
+        # And evaluate() must still flow through scan_response over the fallback text.
+        verdict = self.module.evaluate({
+            "response": Weird(),
+            "user_id": "U043M9HRWHG",
+            "platform": "slack",
+        })
+        self.assertFalse(verdict["skipped"])
+        self.assertEqual(verdict["violations"], ["U6E68280P"])
+
+
+class BotUserIdAutoDiscoveryTests(unittest.TestCase):
+    def setUp(self):
+        self.module = load_handler()
+        self.module._BOT_USER_ID_CACHE = None
+
+    @staticmethod
+    def _fake_response(payload: dict) -> MagicMock:
+        body = json.dumps(payload).encode("utf-8")
+        cm = MagicMock()
+        cm.__enter__.return_value.read.return_value = body
+        cm.__exit__.return_value = False
+        return cm
+
+    def test_auth_test_resolves_and_caches(self):
+        with patch.dict(os.environ, {"SLACK_BOT_TOKEN": "x"}, clear=False):
+            calls = []
+
+            def fake_urlopen(request, timeout=10):
+                calls.append(request.full_url)
+                return self._fake_response({"ok": True, "user_id": "U0B39JHV8TG"})
+
+            with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+                self.assertEqual(self.module._bot_user_id(), "U0B39JHV8TG")
+                # second call must come from cache, not the network
+                self.assertEqual(self.module._bot_user_id(), "U0B39JHV8TG")
+
+            self.assertEqual(len(calls), 1)
+            self.assertIn("auth.test", calls[0])
+
+    def test_auth_test_failure_caches_empty_string(self):
+        with patch.dict(os.environ, {"SLACK_BOT_TOKEN": "x"}, clear=False):
+            stderr = io.StringIO()
+
+            def fake_urlopen(request, timeout=10):
+                return self._fake_response({"ok": False, "error": "invalid_auth"})
+
+            with patch("urllib.request.urlopen", side_effect=fake_urlopen), redirect_stderr(stderr):
+                self.assertEqual(self.module._bot_user_id(), "")
+
+            self.assertIn("auth-test-failed:invalid_auth", stderr.getvalue())
+
+    def test_missing_token_returns_empty_without_network(self):
+        with patch.dict(os.environ, {"SLACK_BOT_TOKEN": "", "PSM_OPS_SLACK_BOT_TOKEN": ""}, clear=False):
+            with patch("urllib.request.urlopen") as fake:
+                self.assertEqual(self.module._bot_user_id(), "")
+                fake.assert_not_called()
 
 
 class CentralChannelResolutionTests(unittest.TestCase):

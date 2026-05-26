@@ -169,7 +169,7 @@ hermes -p psmopsbot cron create "0 2 * * 1-5" \
   --deliver "slack:#ps-weeman-bot-test"
 ```
 
-`psm-ops-mention-guard` is observer-only on `agent:end` and posts a one-line warning to `PSM_OPS_CENTRAL_SLACK_CHANNEL_ID` whenever a Slack reply mentions a non-tagger (SCHE-19904). Set `PSM_OPS_BOT_USER_ID` in the profile `.env` so the bot's own `<@>` self-reference is not flagged.
+`psm-ops-mention-guard` is observer-only on `agent:end` and posts a one-line warning to `PSM_OPS_CENTRAL_SLACK_CHANNEL_ID` whenever a Slack reply mentions a non-tagger (SCHE-19904). The hook resolves its own Slack user ID via `auth.test` (cached per process) so the bot's `<@>` self-reference is not flagged. `runtime/check-health.sh` smoke-tests `auth.test` at deploy time and fails with `slack:auth-test:<error>` or `slack:auth-test-missing-user-id` if the token cannot identify the bot. The audit alert itself is bot-authored and self-identifies as `PSM Ops mention-guard automation: ...` per the AGENTS.md Slack identity rule, and reports `psm-ops-mention-guard:alert-failed:<slack_error>` on stderr if Slack returns `ok=false` (missing_scope, not_in_channel, channel_not_found).
 
 Set `PSM_OPS_CENTRAL_SLACK_CHANNEL_ID` to the central ops channel ID in the live profile `.env`; prefer the ID over the name.
 

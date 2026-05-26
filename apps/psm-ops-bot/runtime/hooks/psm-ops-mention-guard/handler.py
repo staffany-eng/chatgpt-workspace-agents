@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import sys
 import urllib.error
 import urllib.request
 from typing import Any
@@ -25,13 +26,43 @@ SLACK_MENTION_RE = re.compile(r"<@([UW][A-Z0-9]{2,})(?:\|[^>]*)?>")
 CRON_PREFIX = "PSM Ops automation:"
 SILENT_CRON_PREFIX = "[SILENT] PSM Ops automation:"
 
+_BOT_USER_ID_CACHE: str | None = None
+
 
 def _env(name: str, default: str = "") -> str:
     return os.environ.get(name, default).strip()
 
 
 def _bot_user_id() -> str:
-    return _env("PSM_OPS_BOT_USER_ID").upper()
+    """Return bot user ID via Slack auth.test, cached for the process. Returns "" on failure."""
+    global _BOT_USER_ID_CACHE
+    if _BOT_USER_ID_CACHE is not None:
+        return _BOT_USER_ID_CACHE
+    token = _bot_token()
+    if not token:
+        _BOT_USER_ID_CACHE = ""
+        return ""
+    request = urllib.request.Request(
+        "https://slack.com/api/auth.test",
+        headers={"Authorization": f"Bearer {token}"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=10) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except (urllib.error.URLError, urllib.error.HTTPError, OSError, ValueError, TypeError) as error:
+        print(f"psm-ops-mention-guard:auth-test-error:{error}", file=sys.stderr)
+        _BOT_USER_ID_CACHE = ""
+        return ""
+    if not payload.get("ok"):
+        print(
+            f"psm-ops-mention-guard:auth-test-failed:{payload.get('error', 'unknown_error')}",
+            file=sys.stderr,
+        )
+        _BOT_USER_ID_CACHE = ""
+        return ""
+    _BOT_USER_ID_CACHE = str(payload.get("user_id") or "").upper()
+    return _BOT_USER_ID_CACHE
 
 
 def _central_channel() -> str:
@@ -63,7 +94,10 @@ def _coerce_text(response: Any) -> str:
             candidate = response.get(key)
             if isinstance(candidate, str):
                 return candidate
-    return json.dumps(response, ensure_ascii=False)
+    try:
+        return json.dumps(response, ensure_ascii=False)
+    except (TypeError, ValueError):
+        return str(response)
 
 
 def scan_response(response: Any, sender_user_id: str, bot_user_id: str = "") -> list[str]:
@@ -112,8 +146,7 @@ def evaluate(context: dict[str, Any]) -> dict[str, Any]:
         return {"skipped": True, "skip_reason": f"non_slack_platform:{platform}", "violations": [], "sender": "", "response_preview": ""}
     sender = _normalize_id((context or {}).get("user_id"))
     if not sender:
-        # Without a known sender we cannot decide; record as skip so we don't
-        # spam the audit channel for cron contexts that lack a Slack user.
+        # No sender = cron-like context; skip so we don't alert on every cron tick.
         return {"skipped": True, "skip_reason": "missing_sender", "violations": [], "sender": "", "response_preview": _preview(text)}
     violations = scan_response(text, sender, _bot_user_id())
     return {
@@ -140,8 +173,8 @@ def _post_audit_warning(verdict: dict[str, Any]) -> None:
     sender = verdict.get("sender") or "unknown"
     violating = " ".join(f"<@{uid}>" for uid in verdict.get("violations") or [])
     text = (
-        "PSM Ops mention-guard: bot reply contained non-tagger mention(s) "
-        f"{violating} but the current Slack tagger was <@{sender}>. "
+        "PSM Ops mention-guard automation: bot reply contained non-tagger "
+        f"mention(s) {violating} but the current Slack tagger was <@{sender}>. "
         "See SOUL.md `Slack Output` rule."
     )
     body = json.dumps({"channel": channel, "text": text}).encode("utf-8")
@@ -155,10 +188,23 @@ def _post_audit_warning(verdict: dict[str, Any]) -> None:
         method="POST",
     )
     try:
-        urllib.request.urlopen(request, timeout=10).read()
-    except (urllib.error.URLError, urllib.error.HTTPError, OSError):
+        with urllib.request.urlopen(request, timeout=10) as response:
+            raw = response.read().decode("utf-8", errors="replace")
+    except (urllib.error.URLError, urllib.error.HTTPError, OSError) as error:
         # Best-effort: never let the audit alert raise into the agent loop.
+        print(f"psm-ops-mention-guard:alert-transport-error:{error}", file=sys.stderr)
         return
+    try:
+        payload = json.loads(raw)
+    except (TypeError, ValueError):
+        print("psm-ops-mention-guard:alert-non-json-response", file=sys.stderr)
+        return
+    if not payload.get("ok"):
+        # Slack returns HTTP 200 with ok=false for missing_scope / not_in_channel.
+        print(
+            f"psm-ops-mention-guard:alert-failed:{payload.get('error', 'unknown_error')}",
+            file=sys.stderr,
+        )
 
 
 async def handle(event_type: str, context: dict[str, Any]):

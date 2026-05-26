@@ -133,6 +133,23 @@ import urllib.parse
 import urllib.request
 
 token = os.environ.get("SLACK_BOT_TOKEN", "").strip()
+# mention-guard needs to know its own user ID to suppress self-references.
+auth_request = urllib.request.Request(
+    "https://slack.com/api/auth.test",
+    headers={"Authorization": f"Bearer {token}"},
+)
+try:
+    with urllib.request.urlopen(auth_request, timeout=20) as response:
+        auth_payload = json.loads(response.read().decode("utf-8"))
+except Exception:
+    print("slack:auth-test-unavailable")
+    sys.exit(1)
+if not auth_payload.get("ok"):
+    print(f"slack:auth-test:{auth_payload.get('error', 'unknown_error')}")
+    sys.exit(1)
+if not str(auth_payload.get("user_id") or "").strip():
+    print("slack:auth-test-missing-user-id")
+    sys.exit(1)
 query = urllib.parse.urlencode({"limit": "20"})
 request = urllib.request.Request(
     f"https://slack.com/api/users.list?{query}",

@@ -61,7 +61,6 @@ Thin POC Jira IDs must also be present in the profile `.env`:
 - `PSM_OPS_CENTRAL_SLACK_CHANNEL_ID` for bot-owned PS WEE central audit copies
 - `PSM_OPS_CENTRAL_FETCH_SLACK_THREAD=true` if bounded source-thread transcript excerpts should be included
 - `PSM_OPS_ADOPTION_METRICS_ENABLED=true` or `PSM_OPS_ADOPTION_METRICS_PATH` for adoption telemetry
-- `PSM_OPS_BOT_USER_ID` (Slack user ID of the bot, e.g. `U0B39JHV8TG`) so `psm-ops-mention-guard` does not flag self-references when the bot's `<@>` appears in its own reply
 
 ROI-direct Jira IDs must also be present before enabling RevOps / BD Ops / NYSS routing:
 

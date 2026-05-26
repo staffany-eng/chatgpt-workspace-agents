@@ -661,7 +661,8 @@ for (const requiredText of [
   "auxiliary:title-generation-timeout-too-high",
   "bigquery:bq-not-found",
   "psmopsbot churn reporting chase",
-  "psm_ops_churn_reporting_chase.py"
+  "psm_ops_churn_reporting_chase.py",
+  "slack:auth-test-missing-user-id"
 ]) {
   if (!healthCheckText.includes(requiredText)) fail(`Health check script missing required text: ${requiredText}`);
 }
