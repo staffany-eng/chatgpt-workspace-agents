@@ -35,7 +35,8 @@ def _bot_user_id() -> str:
 
 
 def _central_channel() -> str:
-    return _env("PSM_OPS_CENTRAL_SLACK_CHANNEL_ID") or _env("SLACK_HOME_CHANNEL")
+    # No SLACK_HOME_CHANNEL fallback: unset = no alert, not customer-channel leak.
+    return _env("PSM_OPS_CENTRAL_SLACK_CHANNEL_ID")
 
 
 def _bot_token() -> str:
@@ -51,10 +52,24 @@ def _is_cron_output(response: str) -> bool:
     return stripped.startswith(CRON_PREFIX) or stripped.startswith(SILENT_CRON_PREFIX)
 
 
+def _coerce_text(response: Any) -> str:
+    """Normalize response to text: strings pass through; dicts surface `slack_reply`/`answer`/`text` if present; else JSON dump."""
+    if response is None:
+        return ""
+    if isinstance(response, str):
+        return response
+    if isinstance(response, dict):
+        for key in ("slack_reply", "answer", "text"):
+            candidate = response.get(key)
+            if isinstance(candidate, str):
+                return candidate
+    return json.dumps(response, ensure_ascii=False)
+
+
 def scan_response(response: Any, sender_user_id: str, bot_user_id: str = "") -> list[str]:
     """Return mentions present in `response` that are neither the tagger nor the bot."""
 
-    text = response if isinstance(response, str) else json.dumps(response, ensure_ascii=False)
+    text = _coerce_text(response)
     sender = _normalize_id(sender_user_id)
     bot = _normalize_id(bot_user_id)
     allowed: set[str] = set()
@@ -87,7 +102,7 @@ def evaluate(context: dict[str, Any]) -> dict[str, Any]:
     """
 
     response = context.get("response") if isinstance(context, dict) else None
-    text = response if isinstance(response, str) else ("" if response is None else str(response))
+    text = _coerce_text(response)
     if not text.strip():
         return {"skipped": True, "skip_reason": "empty_response", "violations": [], "sender": "", "response_preview": ""}
     if _is_cron_output(text):

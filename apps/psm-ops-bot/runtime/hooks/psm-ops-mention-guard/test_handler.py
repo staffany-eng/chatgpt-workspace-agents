@@ -105,6 +105,15 @@ class EvaluateTests(unittest.TestCase):
         self.assertTrue(verdict["skipped"])
         self.assertEqual(verdict["skip_reason"], "cron_output")
 
+    def test_dict_form_cron_output_is_skipped(self):
+        verdict = self.module.evaluate({
+            "response": {"slack_reply": "PSM Ops automation: PCO due-date reminder - 2026-05-26"},
+            "user_id": "U043M9HRWHG",
+        })
+
+        self.assertTrue(verdict["skipped"])
+        self.assertEqual(verdict["skip_reason"], "cron_output")
+
     def test_non_slack_platform_is_skipped(self):
         verdict = self.module.evaluate({
             "response": "Hey <@U6E68280P>",
@@ -202,6 +211,33 @@ class HandleAlertingTests(unittest.TestCase):
             asyncio.run(self.module.handle("session:start", context))
 
         fake_post.assert_not_called()
+
+
+class CentralChannelResolutionTests(unittest.TestCase):
+    def setUp(self):
+        self.module = load_handler()
+
+    def test_central_channel_does_not_fall_back_to_slack_home_channel(self):
+        with patch.dict(
+            os.environ,
+            {
+                "PSM_OPS_CENTRAL_SLACK_CHANNEL_ID": "",
+                "SLACK_HOME_CHANNEL": "C_CUSTOMER_FACING",
+            },
+            clear=False,
+        ):
+            self.assertEqual(self.module._central_channel(), "")
+
+    def test_central_channel_returns_configured_audit_channel(self):
+        with patch.dict(
+            os.environ,
+            {
+                "PSM_OPS_CENTRAL_SLACK_CHANNEL_ID": "C0B2VT50YT1",
+                "SLACK_HOME_CHANNEL": "C_CUSTOMER_FACING",
+            },
+            clear=False,
+        ):
+            self.assertEqual(self.module._central_channel(), "C0B2VT50YT1")
 
 
 if __name__ == "__main__":
