@@ -203,13 +203,13 @@ systemctl --user restart hermes-gateway-psmopsbot.service
 Routine deploys should use the source-controlled deploy script from the repo root. Without `--apply`, it performs preflight and prints the target/SHA without uploading, syncing, restarting, or running prod checks.
 
 ```bash
-npm run psm-ops-bot:deploy
+pnpm psm-ops-bot:deploy
 ```
 
 Deploy exact `origin/main` to the PSM Ops cloud host:
 
 ```bash
-npm run psm-ops-bot:deploy -- --apply
+pnpm psm-ops-bot:deploy --apply
 ```
 
 The script:
@@ -228,9 +228,9 @@ The script:
 Useful options:
 
 ```bash
-npm run psm-ops-bot:deploy -- --apply --verbose
-npm run psm-ops-bot:deploy -- --apply --skip-upload
-npm run psm-ops-bot:deploy -- --apply --skip-restart
+pnpm psm-ops-bot:deploy --apply --verbose
+pnpm psm-ops-bot:deploy --apply --skip-upload
+pnpm psm-ops-bot:deploy --apply --skip-restart
 ```
 
 ## Cron
@@ -291,7 +291,7 @@ hermes -p psmopsbot cron create "0 2 * * 1-5" \
 ## Verification
 
 ```bash
-npm run psm-ops-bot:verify
+pnpm psm-ops-bot:verify
 apps/psm-ops-bot/runtime/check-health.sh
 apps/psm-ops-bot/runtime/audit-live-profile.sh
 apps/psm-ops-bot/runtime/smoke-rock-productions-c360.sh

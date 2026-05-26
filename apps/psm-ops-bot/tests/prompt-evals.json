@@ -22,7 +22,7 @@
     ],
     "must_run": [
       "node scripts/run-prompt-evals.mjs --app psm-ops-bot --mode all",
-      "npm run psm-ops-bot:verify"
+      "pnpm psm-ops-bot:verify"
     ]
   },
   "evals": [

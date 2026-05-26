@@ -44,7 +44,7 @@ Runtime learning is not durable until reviewed and copied into this app packet. 
 
 Anti-examples in `skills/psm-ops-bot/SKILL.md` (and any future workflow files under `skills/psm-ops-bot/workflows/`) are debt, not documentation. They cost tokens and attention on every invocation.
 
-**What an eval does and does not do.** `apps/psm-ops-bot/tests/prompt-evals.json` is a static test artifact — the bot never reads it at runtime. An eval is a **regression tripwire** that fires during `npm run psm-ops-bot:verify`, not a substitute prompt. Deleting an anti-example without something else holding the line means the agent gets no runtime signal at all; the eval will only catch the regression at verify-time.
+**What an eval does and does not do.** `apps/psm-ops-bot/tests/prompt-evals.json` is a static test artifact — the bot never reads it at runtime. An eval is a **regression tripwire** that fires during `pnpm psm-ops-bot:verify`, not a substitute prompt. Deleting an anti-example without something else holding the line means the agent gets no runtime signal at all; the eval will only catch the regression at verify-time.
 
 **Deletion rule.** An anti-example may be deleted from markdown only when at least one of the following carries the runtime guarantee:
 
@@ -64,5 +64,5 @@ If neither holds, the anti-example stays. A green eval alone is not enough — i
 Run from the repo root:
 
 ```bash
-npm run psm-ops-bot:verify
+pnpm psm-ops-bot:verify
 ```

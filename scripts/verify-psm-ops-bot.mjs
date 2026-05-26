@@ -600,7 +600,7 @@ for (const requiredText of [
   "public/open channels",
   "channels:join",
   "psm_ops_join_public_channels.py --apply",
-  "npm run psm-ops-bot:deploy",
+  "pnpm psm-ops-bot:deploy",
   "psm-ops-origin-main-<sha>.tar.gz",
   "preserves runtime secrets/state",
   "GOOGLE_CALENDAR_TOKEN_FILE",
