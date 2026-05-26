@@ -43,7 +43,7 @@ PSM Ops Bot needs deterministic cloud health checks because prompt correctness d
 Run source-packet verification from the repo root:
 
 ```bash
-npm run psm-ops-bot:verify
+pnpm psm-ops-bot:verify
 ```
 
 Run live health check on the cloud host:

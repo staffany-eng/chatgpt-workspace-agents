@@ -88,7 +88,7 @@ chmod 600 ~/.hermes/profiles/psmopsbot/.env
 Run from repo root:
 
 ```bash
-npm run psm-ops-bot:verify
+pnpm psm-ops-bot:verify
 ```
 
 ## Canonical Source Rule

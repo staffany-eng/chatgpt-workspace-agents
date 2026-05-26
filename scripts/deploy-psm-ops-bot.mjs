@@ -67,7 +67,7 @@ const shaPath = join(tmpRoot, shaName);
 
 if (!args.apply) {
   log("Dry run only. No archive upload, remote sync, gateway restart, or production health checks were run.");
-  log(`Use \`npm run psm-ops-bot:deploy -- --apply --ref ${args.ref}\` to deploy this exact ${args.ref} SHA.`);
+  log(`Use \`pnpm psm-ops-bot:deploy --apply --ref ${args.ref}\` to deploy this exact ${args.ref} SHA.`);
   printSummary({
     deploySha,
     deployRef: args.ref,
