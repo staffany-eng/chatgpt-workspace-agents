@@ -115,11 +115,8 @@ THIN_POC_REQUEST_TYPES = {
     "photo_follow_up": "127",
 }
 THIN_POC_AA_CHANNEL_ID = "C0B5H2YE5T2"
-# LLM-based detector for the "no follow-up needed" signal on AA photo intakes.
-# We deliberately do NOT hardcode phrase lists — a regex-only detector cannot
-# cover the long tail of phrasings (English + Indonesian + mixed). A small
-# Claude classifier handles the fuzzy judgment; the MCP remains the
-# authoritative decider so the agent's prompt rules cannot override.
+# LLM classifier (not regex) — phrasings span EN + ID + mixed. Enforced
+# server-side so agent prompt rules cannot override the skip decision.
 NO_FOLLOW_UP_CLASSIFIER_MODEL = "claude-haiku-4-5-20251001"
 NO_FOLLOW_UP_CLASSIFIER_TOOL = {
     "name": "report_no_follow_up_intent",
@@ -1161,13 +1158,7 @@ def _slack_trigger_message_sender(slack_thread_url: str) -> str:
 
 
 def _slack_trigger_message_text(slack_thread_url: str) -> str:
-    """Return the body text of the Slack trigger message at ``slack_thread_url``.
-
-    Mirrors ``_slack_trigger_message_sender`` resolution: ``conversations.history``
-    against the parent permalink first, then ``conversations.replies`` for the
-    reply permalink case. Returns ``""`` on any failure — callers MUST treat the
-    empty string as "unknown" and skip text-derived guards rather than block.
-    """
+    """Return trigger message body, or "" on any failure (callers must not block on "")."""
 
     channel_id = _slack_channel_id_from_permalink(slack_thread_url)
     message_ts = _slack_message_ts_from_permalink(slack_thread_url)
@@ -1221,14 +1212,7 @@ def _call_anthropic_messages(
     tool_name: str,
     max_tokens: int = 256,
 ) -> dict[str, Any]:
-    """POST to Anthropic Messages API with tool-use forcing.
-
-    Uses stdlib ``urllib.request`` to match the rest of this MCP — no extra
-    Python deps. Returns the tool-use ``input`` payload of the named tool.
-    Raises ``JiraError`` on any failure (missing key, HTTP error, no tool_use
-    block in response). Callers MUST catch and degrade to a safe default;
-    LLM availability is never load-bearing on AA ticket creation.
-    """
+    """Forced tool-use call to Anthropic Messages; raises JiraError on any failure."""
 
     key = _anthropic_api_key()
     if not key:
@@ -1272,13 +1256,7 @@ def _call_anthropic_messages(
 
 
 def _classify_no_follow_up_intent(text: str) -> tuple[bool, str]:
-    """Use Claude Haiku to decide whether ``text`` says no follow-up is needed.
-
-    Returns ``(skip, reason)``. On any failure the answer is ``(False, "<why>")``
-    so LLM unavailability cannot silently drop a real follow-up — the ticket
-    will still create. The caller emits an audit line with the reason so the
-    decision is traceable in the central ops channel.
-    """
+    """Return (skip, reason); fails closed to (False, "<why>") so the ticket still creates."""
 
     if not text or not text.strip():
         return False, "empty trigger text"
@@ -3626,13 +3604,9 @@ def create_ps_wee_intake_ticket(
     is_event_aa = _is_event_aa_thread(source)
     if is_event_aa and request_type_key not in EVENT_AA_REQUEST_TYPE_KEYS:
         request_type_key = EVENT_AA_DEFAULT_REQUEST_TYPE_KEY
-    # AA photo_follow_up guard: if the trigger message explicitly says no follow up
-    # is needed (English or Indonesian variants), do NOT create the photo_follow_up
-    # ticket. The per-bullet AA tickets (if any) are created via separate calls and
-    # are unaffected. This is server-side enforcement because the prompt rule
-    # "perceived intent is never a reason to block" otherwise overrides any
-    # agent-side check — and a single tagged photo with "no follow up needed"
-    # should not become a tracking ticket the team has to triage shut.
+    # AA photo_follow_up guard: skip ticket when trigger says no follow up needed.
+    # Enforced server-side because the prompt rule "perceived intent is never a
+    # reason to block" otherwise overrides any agent-side check.
     if (
         is_event_aa
         and request_type_key == EVENT_AA_PHOTO_REQUEST_TYPE_KEY
@@ -3685,8 +3659,7 @@ def create_ps_wee_intake_ticket(
                     },
                 )
             except Exception as error:  # noqa: BLE001 — audit failures must not block skip.
-                # Surface the failure so incident review can distinguish an
-                # intentional classifier skip from a lost central-audit copy.
+                # Surface so a lost audit copy is distinguishable from a normal skip.
                 print(
                     f"[psm-ops-bot] photo_follow_up_skipped audit failed: {error} "
                     f"(thread={source}, customer={skip_scope['customer']})",
@@ -3709,13 +3682,9 @@ def create_ps_wee_intake_ticket(
                     "ticket."
                 ),
             }
-    # AA always-ticket-first: the thread permalink IS the source of truth for
-    # who tagged the bot. Agents have hallucinated invalid Slack IDs in
-    # slack_user_email (e.g. `U07UTFE8U3X` on PCO-291/293, `U07N3TH1CJK` on
-    # PCO-298-300), which then silently dropped Creator and PS Team because
-    # nothing matched the access policy or dropdowns. Re-derive the tagger
-    # from conversations.history before resolving caller. If Slack is
-    # unreachable, fall back to the agent-supplied value rather than blocking.
+    # Re-derive tagger from Slack: agents have hallucinated invalid Slack IDs in
+    # slack_user_email, which silently dropped Creator and PS Team. Fall back to
+    # the agent value if Slack is unreachable rather than blocking.
     if is_event_aa and source:
         verified_sender = _slack_trigger_message_sender(source)
         if verified_sender:

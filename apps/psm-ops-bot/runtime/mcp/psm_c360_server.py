@@ -137,14 +137,7 @@ def _is_event_aa_thread(slack_thread_url: str) -> bool:
 
 
 def _aa_channel_redirect_hint(scope: dict[str, Any]) -> dict[str, Any]:
-    """Structured hint embedded on read-only C360 responses inside the AA channel.
-
-    Used by ``search_c360_customers`` and ``get_c360_account_context`` to flag
-    misses or errors as "do not disambiguate in Slack; proceed to ticket create
-    with the bare customer name and omit staffany_orgs". Agents have leaked
-    non-AA disambiguation phrasing on these tools when the AA-channel rule said
-    to ticket first regardless.
-    """
+    """Tell the agent to ticket-first when C360 lookup misses inside AA channel."""
 
     return {
         "aa_channel_redirect": True,
@@ -459,10 +452,7 @@ def search_c360_customers(query: str, limit: int = 8, slack_thread_url: str = ""
             groups.extend(_extract_c360_groups(payload))
     except C360Error as error:
         if is_aa:
-            # AA-channel guard: a C360 error must not block the ticket flow.
-            # Downgrade blocked → needs-check and surface the redirect hint so
-            # the agent proceeds to create_ps_wee_intake_ticket with the bare
-            # customer name and no staffany_orgs.
+            # AA-channel guard: C360 errors must not block the ticket flow.
             redirect = _aa_channel_redirect_hint(scope)
             return {
                 "answer": [],
@@ -505,9 +495,7 @@ def search_c360_customers(query: str, limit: int = 8, slack_thread_url: str = ""
     }
     if central_copy is not None:
         result["central_copy"] = central_copy
-    # AA-channel guard: zero-match and multi-match are both "do not disambiguate
-    # in Slack; ticket first" inside AA. Multi-match is flagged when groups exceed
-    # one entity and there is no obvious tiebreaker (no exact-name single match).
+    # AA-channel guard: zero-match and multi-match both go ticket-first.
     if is_aa and (missing_mapping or len(groups) > 1):
         result.update(_aa_channel_redirect_hint(scope))
     return result
