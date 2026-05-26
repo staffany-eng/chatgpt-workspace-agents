@@ -189,6 +189,9 @@ const filesToScan = [
   "runtime/mcp/psm_google_calendar_server.py",
   "runtime/hooks/psm-ops-adoption-telemetry/HOOK.yaml",
   "runtime/hooks/psm-ops-adoption-telemetry/handler.py",
+  "runtime/hooks/psm-ops-mention-guard/HOOK.yaml",
+  "runtime/hooks/psm-ops-mention-guard/handler.py",
+  "runtime/hooks/psm-ops-mention-guard/test_handler.py",
   "runtime/test_psm_ops_due_date_reminders.py",
   "runtime/test_psm_ops_pco_assignment_hygiene.py",
   "runtime/test_psm_ops_roi_tracker_sync.py",
@@ -243,6 +246,7 @@ if (!existsSync(deployScriptPath)) {
     "runtime/sql",
     "psm_ops_churn_projection_dashboard_292.sql",
     "psm-ops-adoption-telemetry",
+    "psm-ops-mention-guard",
     "smoke-rock-productions-c360.sh",
     "rock_productions_c360",
     "hermes-gateway-$profile_name.service",
@@ -657,7 +661,8 @@ for (const requiredText of [
   "auxiliary:title-generation-timeout-too-high",
   "bigquery:bq-not-found",
   "psmopsbot churn reporting chase",
-  "psm_ops_churn_reporting_chase.py"
+  "psm_ops_churn_reporting_chase.py",
+  "slack:auth-test-missing-user-id"
 ]) {
   if (!healthCheckText.includes(requiredText)) fail(`Health check script missing required text: ${requiredText}`);
 }
@@ -836,6 +841,7 @@ const pyCompile = spawnSync("python3", [
   join(appRoot, "runtime/mcp/google_oauth.py"),
   join(appRoot, "runtime/mcp/psm_google_calendar_server.py"),
   join(appRoot, "runtime/hooks/psm-ops-adoption-telemetry/handler.py"),
+  join(appRoot, "runtime/hooks/psm-ops-mention-guard/handler.py"),
   join(appRoot, "runtime/psm_ops_adoption_digest.py"),
   join(appRoot, "runtime/scripts/psm_ops_due_date_reminders.py"),
   join(appRoot, "runtime/scripts/psm_ops_pco_assignment_hygiene.py"),
@@ -931,6 +937,17 @@ const joinPublicChannelsUnitCheck = spawnSync("python3", [
 });
 if (joinPublicChannelsUnitCheck.status !== 0) {
   fail(`Public-channel join unit tests failed: ${joinPublicChannelsUnitCheck.stderr || joinPublicChannelsUnitCheck.stdout}`);
+}
+
+const mentionGuardUnitCheck = spawnSync("python3", [
+  join(appRoot, "runtime/hooks/psm-ops-mention-guard/test_handler.py")
+], {
+  cwd: repoRoot,
+  env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1" },
+  encoding: "utf8"
+});
+if (mentionGuardUnitCheck.status !== 0) {
+  fail(`Mention-guard hook unit tests failed: ${mentionGuardUnitCheck.stderr || mentionGuardUnitCheck.stdout}`);
 }
 
 if (failures.length > 0) {

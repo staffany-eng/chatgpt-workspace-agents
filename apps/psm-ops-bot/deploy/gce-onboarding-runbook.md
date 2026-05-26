@@ -154,6 +154,7 @@ rsync -a --delete apps/psm-ops-bot/skills/psm-ops-bot/ ~/.hermes/profiles/psmops
 rsync -a apps/psm-ops-bot/runtime/mcp/ ~/.hermes/profiles/psmopsbot/runtime/mcp/
 rsync -a --delete apps/psm-ops-bot/runtime/sql/ ~/.hermes/profiles/psmopsbot/runtime/sql/
 rsync -a apps/psm-ops-bot/runtime/hooks/psm-ops-adoption-telemetry/ ~/.hermes/profiles/psmopsbot/hooks/psm-ops-adoption-telemetry/
+rsync -a apps/psm-ops-bot/runtime/hooks/psm-ops-mention-guard/ ~/.hermes/profiles/psmopsbot/hooks/psm-ops-mention-guard/
 cp apps/psm-ops-bot/runtime/psm_ops_adoption_digest.py ~/.hermes/profiles/psmopsbot/scripts/psm_ops_adoption_digest.py
 cp apps/psm-ops-bot/runtime/scripts/psm_ops_due_date_reminders.py ~/.hermes/profiles/psmopsbot/scripts/psm_ops_due_date_reminders.py
 cp apps/psm-ops-bot/runtime/scripts/psm_ops_due_date_reminders.py ~/.hermes/profiles/psmopsbot/scripts/psm_ops_due_date_reminders_eod.py

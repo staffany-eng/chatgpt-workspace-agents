@@ -1125,6 +1125,66 @@
         "duplicate same-thread ticket"
       ],
       "grade_notes": "Run only as an approved ticket smoke because it writes Jira. Use bot-owned Slack reply and same-thread idempotency."
+    },
+    {
+      "id": "psm-static-reply-addresses-tagger-only",
+      "bot": "PSM Ops Hermes Bot",
+      "surface": "slack",
+      "lane": "static",
+      "input": "Thread: Izzat: 'Hey @Ega can you help check on this. 141 names but only ~63 active.' Izzat: '@PS Wee Manager'. PCO-31 already exists: status=Done, assignee=Kai Yi, Creator=Kai Yi, PS Team=Kai Yi.",
+      "setup": {
+        "first_slack_mention": true,
+        "live_tools": "disabled",
+        "current_slack_sender": {
+          "display_name": "Izzat Yazid",
+          "user_id": "U043M9HRWHG"
+        }
+      },
+      "expected_tool_trace": {
+        "must_call": []
+      },
+      "expected_answer_contract": {
+        "must_include": [
+          "Source:",
+          "Confidence:"
+        ],
+        "must_not_include": [
+          "<@U6E68280P",
+          "Hey <@U6E68280P",
+          "Hey Kai Yi"
+        ]
+      },
+      "forbidden_behavior": [
+        "mention Jira assignee with <@...>",
+        "mention Creator with <@...>",
+        "mention PS Team owner with <@...>",
+        "greet a non-tagger person in the reply"
+      ],
+      "grade_notes": "Covers SCHE-19904 (F2 root fix). Only the current Slack tagger (Izzat) may be <@...>-mentioned; Kai Yi (assignee/Creator/PS Team) must be plain text if referenced at all.",
+      "assertions": {
+        "source_files": [
+          {
+            "path": "profile/SOUL.md",
+            "must_contain": [
+              "the only allowed `<@U...>` is the current Slack tagger",
+              "Cron output (`PSM Ops automation:` prefix) is exempt"
+            ]
+          },
+          {
+            "path": "skills/psm-ops-bot/SKILL.md",
+            "must_contain": [
+              "only the current Slack tagger may be `<@>`-mentioned"
+            ]
+          },
+          {
+            "path": "tests/regression-cases.md",
+            "must_contain": [
+              "Reply Addresses Tagger Only",
+              "SCHE-19904"
+            ]
+          }
+        ]
+      }
     }
   ]
 }

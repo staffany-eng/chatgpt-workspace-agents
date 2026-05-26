@@ -46,6 +46,8 @@
     "slack_notifier": "runtime/mcp/psm_slack_notifier.py",
     "adoption_hook": "runtime/hooks/psm-ops-adoption-telemetry/HOOK.yaml",
     "adoption_hook_handler": "runtime/hooks/psm-ops-adoption-telemetry/handler.py",
+    "mention_guard_hook": "runtime/hooks/psm-ops-mention-guard/HOOK.yaml",
+    "mention_guard_hook_handler": "runtime/hooks/psm-ops-mention-guard/handler.py",
     "deploy_runbook": "deploy/gce-onboarding-runbook.md",
     "regression_cases": "tests/regression-cases.md",
     "prompt_evals": "tests/prompt-evals.json"

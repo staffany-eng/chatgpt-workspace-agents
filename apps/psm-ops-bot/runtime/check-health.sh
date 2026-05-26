@@ -133,6 +133,23 @@ import urllib.parse
 import urllib.request
 
 token = os.environ.get("SLACK_BOT_TOKEN", "").strip()
+# mention-guard needs to know its own user ID to suppress self-references.
+auth_request = urllib.request.Request(
+    "https://slack.com/api/auth.test",
+    headers={"Authorization": f"Bearer {token}"},
+)
+try:
+    with urllib.request.urlopen(auth_request, timeout=20) as response:
+        auth_payload = json.loads(response.read().decode("utf-8"))
+except Exception:
+    print("slack:auth-test-unavailable")
+    sys.exit(1)
+if not auth_payload.get("ok"):
+    print(f"slack:auth-test:{auth_payload.get('error', 'unknown_error')}")
+    sys.exit(1)
+if not str(auth_payload.get("user_id") or "").strip():
+    print("slack:auth-test-missing-user-id")
+    sys.exit(1)
 query = urllib.parse.urlencode({"limit": "20"})
 request = urllib.request.Request(
     f"https://slack.com/api/users.list?{query}",
@@ -257,4 +274,12 @@ if [ -d "$hook_dir" ]; then
   [ -r "$hook_dir/handler.py" ] || fail "hook:adoption:missing-handler.py"
 elif [ "${PSM_OPS_ADOPTION_METRICS_ENABLED:-}" = "true" ] || [ "${PSM_OPS_ADOPTION_METRICS_ENABLED:-}" = "1" ]; then
   fail "hook:adoption:missing"
+fi
+
+mention_guard_dir="$PROFILE_DIR/hooks/psm-ops-mention-guard"
+if [ -d "$mention_guard_dir" ]; then
+  [ -r "$mention_guard_dir/HOOK.yaml" ] || fail "hook:mention-guard:missing-HOOK.yaml"
+  [ -r "$mention_guard_dir/handler.py" ] || fail "hook:mention-guard:missing-handler.py"
+else
+  fail "hook:mention-guard:missing"
 fi
