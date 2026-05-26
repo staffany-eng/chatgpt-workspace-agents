@@ -136,7 +136,6 @@ class EvaluateTests(unittest.TestCase):
 
 class HandleAlertingTests(unittest.TestCase):
     def setUp(self):
-        self.module = load_handler()
         self.env = patch.dict(
             os.environ,
             {
@@ -150,6 +149,7 @@ class HandleAlertingTests(unittest.TestCase):
         )
         self.env.start()
         self.addCleanup(self.env.stop)
+        self.module = load_handler()
 
     def test_violation_posts_central_warning(self):
         context = {
