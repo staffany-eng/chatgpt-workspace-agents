@@ -341,3 +341,22 @@ Expected:
 - No `read_customer_calendar_context` call.
 - Asks for attendee emails or named attendees needed for availability lookup.
 - Keeps the PCO ticket path Jira-first if the same request also asks to create/add a task.
+
+## Reply Addresses Tagger Only
+
+Thread (House of Kashkha pattern from SCHE-19904):
+
+```text
+Izzat: Hey @Ega can you help check on this. I see that there are 141 names but i think active staff without the contract end date should only be 63. Can you help update and set those with contract end date to inactive?
+Izzat: @PS Wee Manager
+```
+
+PCO-31 (the org setup ticket for House of Kashkha) is `Done`, assignee `Kai Yi`, `Creator: Kai Yi`, `PS Team: Kai Yi`.
+
+Expected reply behavior:
+
+- The reply contains exactly one `<@U...>` mention and it points to Izzat (the current Slack sender / tagger).
+- No `<@U...>` mention of Kai Yi (Jira assignee / Creator / PS Team owner), Ega, Lucky, or Josica, even though they appear elsewhere in the thread or on PCO-31.
+- Greeting addresses Izzat (e.g., "Hey Izzat, ...") or is omitted; never "Hey Kai Yi, ...".
+- Referring to a non-tagger person uses plain text (e.g., "PCO-31 is assigned to Kai Yi") with no `<@...>` wrapper.
+- The bot still appends the internal follow-up comment to PCO-31, posts the link, and the standard Source/Scope/Confidence/Caveat footer — none of which add extra `<@...>` mentions.
