@@ -61,6 +61,8 @@ Thin POC Jira IDs must also be present in the profile `.env`:
 - `PSM_OPS_CENTRAL_SLACK_CHANNEL_ID` for bot-owned PS WEE central audit copies
 - `PSM_OPS_CENTRAL_FETCH_SLACK_THREAD=true` if bounded source-thread transcript excerpts should be included
 - `PSM_OPS_ADOPTION_METRICS_ENABLED=true` or `PSM_OPS_ADOPTION_METRICS_PATH` for adoption telemetry
+- `PSM_OPS_BOT_USER_ID` (Slack user ID of the bot, e.g. `U0B39JHV8TG`) so `psm-ops-mention-guard` does not flag self-references
+- `PSM_OPS_MENTION_VIOLATIONS_PATH` (optional) overrides the JSONL log path for mention-guard violations; defaults to `~/.hermes/profiles/psmopsbot/metrics/psm-ops-mention-violations.jsonl`
 
 ROI-direct Jira IDs must also be present before enabling RevOps / BD Ops / NYSS routing:
 
@@ -154,6 +156,7 @@ rsync -a --delete apps/psm-ops-bot/skills/psm-ops-bot/ ~/.hermes/profiles/psmops
 rsync -a apps/psm-ops-bot/runtime/mcp/ ~/.hermes/profiles/psmopsbot/runtime/mcp/
 rsync -a --delete apps/psm-ops-bot/runtime/sql/ ~/.hermes/profiles/psmopsbot/runtime/sql/
 rsync -a apps/psm-ops-bot/runtime/hooks/psm-ops-adoption-telemetry/ ~/.hermes/profiles/psmopsbot/hooks/psm-ops-adoption-telemetry/
+rsync -a apps/psm-ops-bot/runtime/hooks/psm-ops-mention-guard/ ~/.hermes/profiles/psmopsbot/hooks/psm-ops-mention-guard/
 cp apps/psm-ops-bot/runtime/psm_ops_adoption_digest.py ~/.hermes/profiles/psmopsbot/scripts/psm_ops_adoption_digest.py
 cp apps/psm-ops-bot/runtime/scripts/psm_ops_due_date_reminders.py ~/.hermes/profiles/psmopsbot/scripts/psm_ops_due_date_reminders.py
 cp apps/psm-ops-bot/runtime/scripts/psm_ops_due_date_reminders.py ~/.hermes/profiles/psmopsbot/scripts/psm_ops_due_date_reminders_eod.py

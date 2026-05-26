@@ -357,6 +357,7 @@ copy_dir "$deploy_dir/apps/psm-ops-bot/skills/psm-ops-bot" "$profile/skills/psm-
 copy_dir "$deploy_dir/apps/psm-ops-bot/runtime/mcp" "$profile/runtime/mcp"
 copy_dir "$deploy_dir/apps/psm-ops-bot/runtime/sql" "$profile/runtime/sql"
 copy_dir "$deploy_dir/apps/psm-ops-bot/runtime/hooks/psm-ops-adoption-telemetry" "$profile/hooks/psm-ops-adoption-telemetry"
+copy_dir "$deploy_dir/apps/psm-ops-bot/runtime/hooks/psm-ops-mention-guard" "$profile/hooks/psm-ops-mention-guard"
 
 copy_file "$deploy_dir/apps/psm-ops-bot/runtime/check-health.sh" "$profile/scripts/psmopsbot-check-health.sh" 0755
 copy_file "$deploy_dir/apps/psm-ops-bot/runtime/check-cloud-heartbeat.sh" "$profile/scripts/psmopsbot-check-cloud-heartbeat.sh" 0755
