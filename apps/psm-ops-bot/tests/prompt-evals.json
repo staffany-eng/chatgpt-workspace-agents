@@ -1167,14 +1167,14 @@
           {
             "path": "profile/SOUL.md",
             "must_contain": [
-              "Address only the Slack user who tagged PS Wee in the current turn",
-              "Never `<@...>`-mention the Jira assignee"
+              "the only allowed `<@U...>` is the current Slack tagger",
+              "Cron output (`PSM Ops automation:` prefix) is exempt"
             ]
           },
           {
             "path": "skills/psm-ops-bot/SKILL.md",
             "must_contain": [
-              "Address only the Slack user who tagged PS Wee in the current turn"
+              "only the current Slack tagger may be `<@>`-mentioned"
             ]
           },
           {
