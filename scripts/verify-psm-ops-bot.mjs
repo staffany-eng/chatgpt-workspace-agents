@@ -840,6 +840,7 @@ const pyCompile = spawnSync("python3", [
   join(appRoot, "runtime/mcp/google_oauth.py"),
   join(appRoot, "runtime/mcp/psm_google_calendar_server.py"),
   join(appRoot, "runtime/hooks/psm-ops-adoption-telemetry/handler.py"),
+  join(appRoot, "runtime/hooks/psm-ops-mention-guard/handler.py"),
   join(appRoot, "runtime/psm_ops_adoption_digest.py"),
   join(appRoot, "runtime/scripts/psm_ops_due_date_reminders.py"),
   join(appRoot, "runtime/scripts/psm_ops_pco_assignment_hygiene.py"),
@@ -935,6 +936,17 @@ const joinPublicChannelsUnitCheck = spawnSync("python3", [
 });
 if (joinPublicChannelsUnitCheck.status !== 0) {
   fail(`Public-channel join unit tests failed: ${joinPublicChannelsUnitCheck.stderr || joinPublicChannelsUnitCheck.stdout}`);
+}
+
+const mentionGuardUnitCheck = spawnSync("python3", [
+  join(appRoot, "runtime/hooks/psm-ops-mention-guard/test_handler.py")
+], {
+  cwd: repoRoot,
+  env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1" },
+  encoding: "utf8"
+});
+if (mentionGuardUnitCheck.status !== 0) {
+  fail(`Mention-guard hook unit tests failed: ${mentionGuardUnitCheck.stderr || mentionGuardUnitCheck.stdout}`);
 }
 
 if (failures.length > 0) {

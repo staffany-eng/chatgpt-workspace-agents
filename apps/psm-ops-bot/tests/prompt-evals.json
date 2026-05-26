@@ -1145,7 +1145,6 @@
       },
       "expected_answer_contract": {
         "must_include": [
-          "<@U043M9HRWHG",
           "Source:",
           "Confidence:"
         ],

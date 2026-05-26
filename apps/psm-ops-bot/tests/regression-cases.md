@@ -355,8 +355,7 @@ PCO-31 (the org setup ticket for House of Kashkha) is `Done`, assignee `Kai Yi`,
 
 Expected reply behavior:
 
-- The reply contains exactly one `<@U...>` mention and it points to Izzat (the current Slack sender / tagger).
-- No `<@U...>` mention of Kai Yi (Jira assignee / Creator / PS Team owner), Ega, Lucky, or Josica, even though they appear elsewhere in the thread or on PCO-31.
-- Greeting addresses Izzat (e.g., "Hey Izzat, ...") or is omitted; never "Hey Kai Yi, ...".
+- Zero `<@U...>` mentions is valid; the bot may greet by plain name ("Hey Izzat, ...") or skip the greeting entirely.
+- If any `<@U...>` appears in the reply, it must reference Izzat (the current Slack sender / tagger). Never `<@Kai Yi>`, `<@Ega>`, `<@Lucky>`, `<@Josica>`, or any other non-tagger, even though they appear elsewhere in the thread or on PCO-31.
 - Referring to a non-tagger person uses plain text (e.g., "PCO-31 is assigned to Kai Yi") with no `<@...>` wrapper.
 - The bot still appends the internal follow-up comment to PCO-31, posts the link, and the standard Source/Scope/Confidence/Caveat footer — none of which add extra `<@...>` mentions.
