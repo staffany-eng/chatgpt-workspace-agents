@@ -1,12 +1,14 @@
 """Hermes gateway hook that detects PSM Ops Bot Slack-mention scope violations.
 
 The bot's prompt (SOUL.md / SKILL.md) forbids `<@U...>`-mentioning anyone other
-than the current Slack tagger in thread replies. This hook deterministically
-checks every `agent:end` response against that rule, records violations to a
-JSONL log, and posts a one-line audit warning to the configured central channel.
+than the current Slack tagger in thread replies. This hook scans every
+`agent:end` response against that rule and posts a one-line audit warning to the
+configured central Slack channel when it slips.
 
-It does not mutate the response (Hermes hooks are observers here); it gives the
-team a deterministic signal whenever the prompt rule slips through.
+It does NOT mutate the response (Hermes hooks are observers here) and does NOT
+write to disk — the bad message has already been posted by the time this fires.
+The point is purely to give the team a real-time signal in Slack so prompt-rule
+regressions are visible immediately rather than silently piling up.
 """
 
 from __future__ import annotations
@@ -16,27 +18,16 @@ import os
 import re
 import urllib.error
 import urllib.request
-from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any
 
 
 SLACK_MENTION_RE = re.compile(r"<@([UW][A-Z0-9]{2,})(?:\|[^>]*)?>")
 CRON_PREFIX = "PSM Ops automation:"
 SILENT_CRON_PREFIX = "[SILENT] PSM Ops automation:"
-DEFAULT_VIOLATIONS_FILENAME = "psm-ops-mention-violations.jsonl"
 
 
 def _env(name: str, default: str = "") -> str:
     return os.environ.get(name, default).strip()
-
-
-def _violations_path() -> Path:
-    configured = _env("PSM_OPS_MENTION_VIOLATIONS_PATH")
-    if configured:
-        return Path(configured).expanduser()
-    profile_home = Path(_env("HERMES_HOME") or Path.home() / ".hermes" / "profiles" / "psmopsbot")
-    return profile_home / "metrics" / DEFAULT_VIOLATIONS_FILENAME
 
 
 def _bot_user_id() -> str:
@@ -126,24 +117,6 @@ def _preview(value: Any, limit: int = 500) -> str:
     return text[: max(0, limit - 20)].rstrip() + " ...[truncated]"
 
 
-def _record_violation(verdict: dict[str, Any], context: dict[str, Any]) -> None:
-    entry = {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "session_id": context.get("session_id", ""),
-        "session_key": context.get("session_key", ""),
-        "sender_user_id": verdict.get("sender", ""),
-        "violating_user_ids": verdict.get("violations", []),
-        "response_preview": verdict.get("response_preview", ""),
-    }
-    path = _violations_path()
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with path.open("a", encoding="utf-8") as handle_file:
-            handle_file.write(json.dumps(entry, ensure_ascii=True, default=str) + "\n")
-    except OSError:
-        pass
-
-
 def _post_audit_warning(verdict: dict[str, Any]) -> None:
     channel = _central_channel()
     token = _bot_token()
@@ -179,5 +152,4 @@ async def handle(event_type: str, context: dict[str, Any]):
     verdict = evaluate(context or {})
     if verdict["skipped"] or not verdict["violations"]:
         return
-    _record_violation(verdict, context or {})
     _post_audit_warning(verdict)

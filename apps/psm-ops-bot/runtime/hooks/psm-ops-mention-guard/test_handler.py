@@ -2,9 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import importlib.util
-import json
 import os
-import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -136,19 +134,15 @@ class EvaluateTests(unittest.TestCase):
         self.assertIn("PCO-31", verdict["response_preview"])
 
 
-class HandleSideEffectsTests(unittest.TestCase):
+class HandleAlertingTests(unittest.TestCase):
     def setUp(self):
         self.module = load_handler()
-        self.tmpdir = tempfile.TemporaryDirectory()
-        self.addCleanup(self.tmpdir.cleanup)
-        self.violations_path = Path(self.tmpdir.name) / "psm-ops-mention-violations.jsonl"
         self.env = patch.dict(
             os.environ,
             {
-                "PSM_OPS_MENTION_VIOLATIONS_PATH": str(self.violations_path),
-                "PSM_OPS_CENTRAL_SLACK_CHANNEL_ID": "",
+                "PSM_OPS_CENTRAL_SLACK_CHANNEL_ID": "C0B2VT50YT1",
                 "SLACK_HOME_CHANNEL": "",
-                "SLACK_BOT_TOKEN": "",
+                "SLACK_BOT_TOKEN": "test-fake-bot-token",
                 "PSM_OPS_SLACK_BOT_TOKEN": "",
                 "PSM_OPS_BOT_USER_ID": "U0B39JHV8TG",
             },
@@ -157,35 +151,45 @@ class HandleSideEffectsTests(unittest.TestCase):
         self.env.start()
         self.addCleanup(self.env.stop)
 
-    def test_violation_appends_to_jsonl(self):
+    def test_violation_posts_central_warning(self):
         context = {
             "response": "Hey <@U6E68280P|Kai Yi>, logged on PCO-31.",
             "user_id": "U043M9HRWHG",
             "platform": "slack",
             "session_id": "sess-1",
-            "session_key": "ps-weeman/C08EQMLVAMP/1778487886.105149",
         }
 
-        asyncio.run(self.module.handle("agent:end", context))
+        with patch.object(self.module, "_post_audit_warning") as fake_post:
+            asyncio.run(self.module.handle("agent:end", context))
 
-        contents = self.violations_path.read_text(encoding="utf-8").strip().splitlines()
-        self.assertEqual(len(contents), 1)
-        entry = json.loads(contents[0])
-        self.assertEqual(entry["sender_user_id"], "U043M9HRWHG")
-        self.assertEqual(entry["violating_user_ids"], ["U6E68280P"])
-        self.assertEqual(entry["session_id"], "sess-1")
-        self.assertIn("PCO-31", entry["response_preview"])
+        self.assertEqual(fake_post.call_count, 1)
+        verdict = fake_post.call_args[0][0]
+        self.assertEqual(verdict["sender"], "U043M9HRWHG")
+        self.assertEqual(verdict["violations"], ["U6E68280P"])
 
-    def test_clean_reply_writes_nothing(self):
+    def test_clean_reply_does_not_post(self):
         context = {
             "response": "Hey <@U043M9HRWHG>, noted on PCO-31.",
             "user_id": "U043M9HRWHG",
             "platform": "slack",
         }
 
-        asyncio.run(self.module.handle("agent:end", context))
+        with patch.object(self.module, "_post_audit_warning") as fake_post:
+            asyncio.run(self.module.handle("agent:end", context))
 
-        self.assertFalse(self.violations_path.exists())
+        fake_post.assert_not_called()
+
+    def test_cron_output_does_not_post(self):
+        context = {
+            "response": "PSM Ops automation: PCO assignment hygiene - 2026-05-26\n*PS Team: Kai Yi* <@U6E68280P>",
+            "user_id": "U043M9HRWHG",
+            "platform": "slack",
+        }
+
+        with patch.object(self.module, "_post_audit_warning") as fake_post:
+            asyncio.run(self.module.handle("agent:end", context))
+
+        fake_post.assert_not_called()
 
     def test_non_agent_end_event_is_ignored(self):
         context = {
@@ -194,9 +198,10 @@ class HandleSideEffectsTests(unittest.TestCase):
             "platform": "slack",
         }
 
-        asyncio.run(self.module.handle("session:start", context))
+        with patch.object(self.module, "_post_audit_warning") as fake_post:
+            asyncio.run(self.module.handle("session:start", context))
 
-        self.assertFalse(self.violations_path.exists())
+        fake_post.assert_not_called()
 
 
 if __name__ == "__main__":
