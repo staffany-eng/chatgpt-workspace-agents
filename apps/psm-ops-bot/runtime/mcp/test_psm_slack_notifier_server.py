@@ -72,7 +72,7 @@ class PsmSlackNotifierTest(unittest.TestCase):
         ):
             psm_slack_notifier._slack_post = fake_post
             result = psm_slack_notifier.post_ps_wee_audit(
-                "ticket_ready",
+                "ticket_update_synced",
                 source_thread_url="https://staffany.slack.com/archives/C0B2VT50YT1/p1778205303989579",
                 issue_key="PCO-789",
             )
@@ -80,7 +80,7 @@ class PsmSlackNotifierTest(unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertEqual(posts[0][0], "chat.postMessage")
         self.assertEqual(posts[0][1]["channel"], "C123")
-        self.assertIn("ticket_ready", posts[0][1]["text"])
+        self.assertIn("ticket_update_synced", posts[0][1]["text"])
 
     def test_post_replaces_unresolved_requester_id_with_source_thread_poster(self):
         posts = []

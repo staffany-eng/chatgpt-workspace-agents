@@ -215,7 +215,6 @@
       "roi_tracker_sync",
       "churn_reporting_chase",
       "ticket_update_synced",
-      "ticket_ready",
       "blocked",
       "c360_search",
       "c360_account_context",
