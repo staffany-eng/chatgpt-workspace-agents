@@ -1211,13 +1211,14 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertEqual(calls[1][1], "/rest/servicedeskapi/request")
         self.assertEqual(
             calls[1][2]["requestFieldValues"]["summary"],
-            "[Needs info] Fei Siong - Payroll readiness unclear",
+            "Fei Siong - Payroll readiness unclear",
         )
         self.assertEqual(calls[2][1], "/rest/servicedeskapi/request/PCO-789/comment")
         self.assertIn("Source Slack thread: https://staffany.slack.com/archives/C0B2VT50YT1/p1778205303989579", calls[2][2]["body"])
         self.assertIn("Known details: PS asked to raise this first.", calls[2][2]["body"])
-        self.assertEqual(calls[3][1], "/rest/api/3/issue/PCO-789")
-        self.assertEqual(calls[3][2]["update"]["labels"], [{"add": "needs-info"}])
+        # PS WEE intakes never carry the `needs-info` label.
+        label_calls = [c for c in calls if c[1] == "/rest/api/3/issue/PCO-789" and c[2].get("update", {}).get("labels")]
+        self.assertEqual(label_calls, [])
         self.assertIn("Created first so this won't be missed", result["answer"]["slack_reply"])
         self.assertIn("<https://staffany.atlassian.net/browse/PCO-789|PCO-789>", result["answer"]["slack_reply"])
         self.assertEqual(audit_calls[0][0], "ticket_created")
@@ -2612,7 +2613,7 @@ class PsmJiraServerTest(unittest.TestCase):
         existing_issue = {
             "key": "PCO-264",
             "fields": {
-                "summary": "[Needs info] Qiqi - Want to expand more outlets",
+                "summary": "Qiqi - Want to expand more outlets",
                 "status": {"name": "Open"},
                 "priority": {"name": "Medium"},
             },
@@ -2654,7 +2655,7 @@ class PsmJiraServerTest(unittest.TestCase):
         existing_issue = {
             "key": "PCO-300",
             "fields": {
-                "summary": "[Needs info] Dapur Penyet - Follow up on HRany",
+                "summary": "Dapur Penyet - Follow up on HRany",
                 "status": {"name": "Open"},
                 "priority": {"name": "Medium"},
             },
@@ -2720,46 +2721,7 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertEqual(result["scope"]["request_type_key"], "customer_next_action")
         self.assertEqual(result["scope"]["event"], "")
 
-    def test_ps_wee_intake_prunes_known_fields_and_caps_slack_missing_info(self):
-        calls = []
-        audit_calls = []
-
-        def fake_request(method, path, body=None):
-            calls.append((method, path, deepcopy(body)))
-            if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
-                return {"issues": []}
-            if path == "/rest/servicedeskapi/request":
-                return {"issueKey": "PCO-159", "requestTypeId": "101"}
-            if path.endswith("/comment"):
-                return {"id": "comment-159"}
-            return {}
-
-        self.module._request_json = fake_request
-        self.module.post_ps_wee_audit = lambda event_type, **kwargs: audit_calls.append((event_type, kwargs)) or {"ok": True}
-
-        result = self.module.create_ps_wee_intake_ticket(
-            slack_user_email="alya@staffany.com",
-            slack_thread_url="https://staffany.slack.com/archives/C01HQMYN4M9/p1778807520894139",
-            customer="Tomoro Coffee",
-            issue_summary="Unable to add a new staff in HRAny using a phone number already used in another org",
-            known_details="Affected staff HUI SHAN WENG has the same phone number linked to an inactive I LOVE TAIMEI profile; needs workaround advice.",
-            ps_team="CS Duty",
-        )
-
-        self.assertEqual(result["confidence"], "verified")
-        self.assertLessEqual(len(result["answer"]["missing_info"]), 2)
-        self.assertNotIn("customer/org", result["answer"]["missing_info"])
-        self.assertNotIn("issue details", result["answer"]["missing_info"])
-        self.assertNotIn("affected outlet/user/date range", result["answer"]["missing_info"])
-        self.assertNotIn("expected outcome", result["answer"]["missing_info"])
-        self.assertNotIn("1.", result["answer"]["slack_reply"])
-        self.assertNotIn("2.", result["answer"]["slack_reply"])
-        self.assertNotIn("Customer/org", result["answer"]["slack_reply"])
-        self.assertIn("<https://staffany.atlassian.net/browse/PCO-159|PCO-159>", result["answer"]["slack_reply"])
-        self.assertEqual(audit_calls[0][0], "ticket_created")
-        self.assertEqual(audit_calls[0][1]["customer"], "Tomoro Coffee")
-
-    def test_ps_wee_intake_keeps_full_jira_missing_info_but_slack_asks_top_two(self):
+    def test_ps_wee_intake_drops_needs_info_concept_entirely(self):
         calls = []
         audit_calls = []
 
@@ -2776,29 +2738,23 @@ class PsmJiraServerTest(unittest.TestCase):
         self.module._request_json = fake_request
         self.module.post_ps_wee_audit = lambda event_type, **kwargs: audit_calls.append((event_type, kwargs)) or {"ok": True}
 
+        # Minimal intake: no customer, no issue_summary, no extra context. PS does not
+        # use the needs-info concept, so this still creates cleanly without label/missing-info.
         result = self.module.create_ps_wee_intake_ticket(
             slack_user_email="alya@staffany.com",
             slack_thread_url="https://staffany.slack.com/archives/C01HQMYN4M9/p1778807520894139",
         )
 
         self.assertEqual(result["confidence"], "verified")
-        self.assertEqual(result["answer"]["missing_info"], ["customer/org", "issue details"])
-        self.assertIn("I still need: customer/org, issue details.", result["answer"]["slack_reply"])
-        self.assertIn(
-            "Missing info: customer/org, issue details, impact/urgency, affected outlet/user/date range, expected outcome, screenshots/logs if relevant",
-            calls[2][2]["body"],
-        )
-        self.assertEqual(
-            audit_calls[0][1]["missing_info"],
-            [
-                "customer/org",
-                "issue details",
-                "impact/urgency",
-                "affected outlet/user/date range",
-                "expected outcome",
-                "screenshots/logs if relevant",
-            ],
-        )
+        self.assertNotIn("missing_info", result["answer"])
+        self.assertNotIn("I still need", result["answer"]["slack_reply"])
+        self.assertIn("<https://staffany.atlassian.net/browse/PCO-160|PCO-160>", result["answer"]["slack_reply"])
+        for call in calls:
+            body = call[2] if isinstance(call[2], dict) else {}
+            self.assertNotIn("Missing info", str(body))
+            labels = (body.get("update") or {}).get("labels") or []
+            self.assertNotIn({"add": "needs-info"}, labels)
+        self.assertNotIn("missing_info", audit_calls[0][1])
 
     def test_ps_wee_intake_auto_tags_reviewed_customer_channel_with_blank_customer(self):
         map_path = self._customer_channel_map(
@@ -2845,8 +2801,7 @@ class PsmJiraServerTest(unittest.TestCase):
             request_values["customfield_10102"],
             [{"id": "ws-test:FS-001"}, {"id": "ws-test:FS-002"}],
         )
-        self.assertEqual(request_values["summary"], "[Needs info] Fei Siong Group - Payroll readiness unclear")
-        self.assertNotIn("customer/org", result["answer"]["missing_info"])
+        self.assertEqual(request_values["summary"], "Fei Siong Group - Payroll readiness unclear")
         self.assertIn("Customer channel: C08SDJR03N1", calls[2][2]["body"])
         self.assertIn("Customer 360 customer key: fei-siong-group", calls[2][2]["body"])
 
@@ -2959,7 +2914,7 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertEqual(len(calls), 1)
         self.assertIn("not reviewed", result["caveat"])
 
-    def test_ps_wee_intake_unmapped_channel_keeps_current_needs_info_behavior(self):
+    def test_ps_wee_intake_unmapped_channel_creates_ticket_with_unknown_customer(self):
         map_path = self._customer_channel_map(
             [
                 {
@@ -2995,9 +2950,8 @@ class PsmJiraServerTest(unittest.TestCase):
 
         self.assertEqual(result["confidence"], "verified")
         request_values = calls[1][2]["requestFieldValues"]
-        self.assertEqual(request_values["summary"], "[Needs info] Unknown customer - Payroll readiness unclear")
+        self.assertEqual(request_values["summary"], "Unknown customer - Payroll readiness unclear")
         self.assertNotIn("customfield_10102", request_values)
-        self.assertIn("customer/org", result["answer"]["missing_info"])
 
     def test_ps_wee_intake_reuses_existing_ticket_for_same_slack_thread(self):
         calls = []
@@ -3011,7 +2965,7 @@ class PsmJiraServerTest(unittest.TestCase):
                     {
                         "key": "PCO-789",
                         "fields": {
-                            "summary": "[Needs info] Fei Siong - Payroll readiness unclear",
+                            "summary": "Fei Siong - Payroll readiness unclear",
                             "status": {"name": "Open"},
                             "priority": {"name": "Medium"},
                         },
@@ -3372,33 +3326,6 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertFalse(calls[0][2]["public"])
         self.assertEqual(audit_calls[0][0], "ticket_update_synced")
         self.assertEqual(audit_calls[0][1]["source_thread_url"], "https://staffany.slack.com/archives/C0B2VT50YT1/p1778205303989579")
-
-    def test_mark_ps_wee_ticket_ready_comments_and_removes_needs_info_label(self):
-        calls = []
-        audit_calls = []
-
-        def fake_request(method, path, body=None):
-            calls.append((method, path, body))
-            if path.endswith("/comment"):
-                return {"id": "comment-791"}
-            return {}
-
-        self.module._request_json = fake_request
-        self.module.post_ps_wee_audit = lambda event_type, **kwargs: audit_calls.append((event_type, kwargs)) or {"ok": True}
-
-        result = self.module.mark_ps_wee_ticket_ready(
-            issue_key="PCO-789",
-            slack_thread_url="https://staffany.slack.com/archives/C0B2VT50YT1/p1778205303989579",
-            ready_summary="Customer, issue, impact, scope, and outcome are now complete.",
-        )
-
-        self.assertEqual(result["confidence"], "verified")
-        self.assertIn("PS WEE ticket ready for triage.", calls[0][2]["body"])
-        self.assertEqual(calls[1][1], "/rest/api/3/issue/PCO-789")
-        self.assertEqual(calls[1][2]["update"]["labels"], [{"remove": "needs-info"}])
-        self.assertTrue(result["answer"]["ready_for_triage"])
-        self.assertEqual(audit_calls[0][0], "ticket_ready")
-        self.assertEqual(audit_calls[0][1]["issue_key"], "PCO-789")
 
     def test_ps_wee_blocked_path_posts_central_audit_when_thread_is_present(self):
         audit_calls = []

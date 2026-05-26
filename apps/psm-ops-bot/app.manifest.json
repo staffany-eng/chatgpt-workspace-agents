@@ -72,7 +72,6 @@
         "attach_aa_selfie_to_thread",
         "verify_drive_oauth",
         "append_ps_wee_ticket_update",
-        "mark_ps_wee_ticket_ready",
         "draft_pco_task",
         "create_approved_pco_task",
         "transition_pco_task",

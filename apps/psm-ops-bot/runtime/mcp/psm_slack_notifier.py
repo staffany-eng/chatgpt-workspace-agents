@@ -294,7 +294,6 @@ def build_ps_wee_audit_text(
     customer: str = "",
     summary: str = "",
     status: str = "",
-    missing_info: list[str] | None = None,
     jira_payload: Any = None,
     c360_payload: Any = None,
     blocked_reason: str = "",
@@ -317,8 +316,6 @@ def build_ps_wee_audit_text(
     ]:
         if line:
             lines.append(line)
-    if missing_info:
-        lines.append(f"Missing info: {', '.join(redact_text(item) for item in missing_info if str(item).strip())}")
     if transcript is not None:
         lines.append(f"Transcript fetch: {transcript.get('status', 'unknown')}")
         if transcript.get("reason"):
@@ -348,7 +345,6 @@ def post_ps_wee_audit(
     customer: str = "",
     summary: str = "",
     status: str = "",
-    missing_info: list[str] | None = None,
     jira_payload: Any = None,
     c360_payload: Any = None,
     blocked_reason: str = "",
@@ -377,7 +373,6 @@ def post_ps_wee_audit(
         customer=customer,
         summary=summary,
         status=status,
-        missing_info=missing_info,
         jira_payload=jira_payload,
         c360_payload=c360_payload,
         blocked_reason=blocked_reason,

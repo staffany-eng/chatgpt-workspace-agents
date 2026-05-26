@@ -3136,11 +3136,6 @@ def _create_pco_task_from_draft(draft: dict[str, Any], scope: dict[str, Any]) ->
                 _assign_issue(str(issue_key), str(draft["owner_jira_account_id"]))
             except JiraError:
                 warnings.append("Issue was created but could not be assigned to the caller.")
-    if issue_key and draft.get("add_needs_info_label"):
-        try:
-            _update_issue_labels(str(issue_key), add=["needs-info"])
-        except JiraError:
-            warnings.append("Issue was created but the needs-info label could not be set.")
     if issue_key and draft.get("labels_extra"):
         extras = [str(label).strip() for label in (draft.get("labels_extra") or []) if str(label).strip()]
         if extras:
@@ -3499,90 +3494,6 @@ def create_roi_ticket_from_slack(
     return _verified(answer, scope, "ROI ticket is source of truth; Slack thread is evidence.", "Jira ROI")
 
 
-PS_WEE_DEFAULT_MISSING_INFO = [
-    "customer/org",
-    "issue details",
-    "impact/urgency",
-    "affected outlet/user/date range",
-    "expected outcome",
-    "screenshots/logs if relevant",
-]
-
-PS_WEE_SLACK_MISSING_INFO_LIMIT = 2
-
-
-def _has_any_text(*values: Any) -> bool:
-    return any(bool(str(value or "").strip()) for value in values)
-
-
-def _text_contains_any(text: str, needles: list[str]) -> bool:
-    lowered = (text or "").lower()
-    return any(needle in lowered for needle in needles)
-
-
-def _ps_wee_missing_info(
-    *,
-    supplied_missing_info: list[str] | None,
-    customer: str,
-    customer_channel_mapping: dict[str, Any],
-    issue_summary: str,
-    known_details: str,
-    impact: str,
-    affected_scope: str,
-    expected_outcome: str,
-    evidence_links: list[str] | None,
-) -> tuple[list[str], list[str]]:
-    candidates = [str(item).strip() for item in (supplied_missing_info or PS_WEE_DEFAULT_MISSING_INFO) if str(item).strip()]
-    known_text = " ".join(
-        str(value or "")
-        for value in [
-            customer,
-            issue_summary,
-            known_details,
-            impact,
-            affected_scope,
-            expected_outcome,
-            " ".join(str(link or "") for link in (evidence_links or [])),
-        ]
-    )
-    has_customer = _has_any_text(customer) or bool(customer_channel_mapping)
-    has_issue_details = _has_any_text(issue_summary, known_details)
-    has_impact = _has_any_text(impact) or _text_contains_any(
-        known_text,
-        ["blocked", "unable", "cannot", "can't", "not able", "failed", "limit", "error"],
-    )
-    has_affected_scope = _has_any_text(affected_scope) or _text_contains_any(
-        known_text,
-        ["affected", "outlet", "staff", "user", "profile", "employee", "date range"],
-    )
-    has_expected_outcome = _has_any_text(expected_outcome) or _text_contains_any(
-        known_text,
-        ["workaround", "resolve", "fix", "follow up", "check ", "advise", "expected outcome"],
-    )
-    has_evidence = bool([link for link in (evidence_links or []) if str(link or "").strip()]) or _text_contains_any(
-        known_text,
-        ["screenshot", "log", "intercom", "support thread", "slack thread", "attached"],
-    )
-    known_by_field = {
-        "customer/org": has_customer,
-        "issue details": has_issue_details,
-        "impact/urgency": has_impact,
-        "affected outlet/user/date range": has_affected_scope,
-        "expected outcome": has_expected_outcome,
-        "screenshots/logs if relevant": has_evidence,
-    }
-    missing = []
-    seen = set()
-    for item in candidates:
-        if item in seen:
-            continue
-        seen.add(item)
-        if known_by_field.get(item) is True:
-            continue
-        missing.append(item)
-    return missing, missing[:PS_WEE_SLACK_MISSING_INFO_LIMIT]
-
-
 @mcp.tool()
 def create_ps_wee_intake_ticket(
     slack_user_email: str,
@@ -3590,7 +3501,6 @@ def create_ps_wee_intake_ticket(
     customer: str = "",
     issue_summary: str = "",
     known_details: str = "",
-    missing_info: list[str] | None = None,
     impact: str = "",
     affected_scope: str = "",
     expected_outcome: str = "",
@@ -3828,17 +3738,6 @@ def create_ps_wee_intake_ticket(
     except JiraError as error:
         return _blocked(str(error), scope)
 
-    full_missing, slack_missing = _ps_wee_missing_info(
-        supplied_missing_info=missing_info,
-        customer=normalized_customer if supplied_customer or customer_channel_mapping else "",
-        customer_channel_mapping=customer_channel_mapping,
-        issue_summary=normalized_issue if issue_summary else "",
-        known_details=known_details,
-        impact=impact,
-        affected_scope=affected_scope,
-        expected_outcome=expected_outcome,
-        evidence_links=evidence_links,
-    )
     source_links = [source]
     source_links.extend(str(link).strip() for link in (evidence_links or []) if str(link).strip())
     normalized_ps_team = _normalize_ps_team(ps_team) or _infer_ps_team_from_text(
@@ -3879,11 +3778,11 @@ def create_ps_wee_intake_ticket(
     sanitized_due_date = "" if is_event_aa else (due_date or "").strip()
     draft = {
         "customer": normalized_customer,
-        "summary": f"[Needs info] {normalized_customer} - {normalized_issue}",
+        "summary": f"{normalized_customer} - {normalized_issue}",
         "due_date": sanitized_due_date,
         "action_type": "PS WEE ticket intake",
         "priority": (priority or "Medium").strip(),
-        "risk_reason": "Needs info from Slack thread",
+        "risk_reason": "PS WEE intake from Slack",
         "source_links": source_links,
         "staffany_orgs": staffany_orgs_value,
         "ps_team": normalized_ps_team,
@@ -3896,14 +3795,12 @@ def create_ps_wee_intake_ticket(
         "mode": _jira_mode(),
         "slack_thread_url": source,
         "known_details": (known_details or "").strip(),
-        "missing_info": full_missing,
         "impact": (impact or "").strip(),
         "affected_scope": (affected_scope or "").strip(),
         "expected_outcome": (expected_outcome or "").strip(),
         "customer_channel_id": customer_channel_mapping.get("channel_id", ""),
         "customer_channel_name": customer_channel_mapping.get("channel_name", ""),
         "customer_channel_customer_key": customer_channel_mapping.get("customer_key", ""),
-        "add_needs_info_label": True,
         "creator_field_value": creator_field_value,
         "creator_display": creator_display,
         "pic": (pic or "").strip(),
@@ -3914,7 +3811,6 @@ def create_ps_wee_intake_ticket(
     if result.get("confidence") != "verified":
         return result
     answer = result.get("answer", {})
-    answer["missing_info"] = slack_missing
     issue_key = str(answer.get("issue_key") or "").strip()
     issue_url = str(answer.get("url") or "").strip()
     ticket_ref = f"<{issue_url}|{issue_key}>" if issue_key and issue_url else issue_key or issue_url or "the ticket"
@@ -3965,16 +3861,9 @@ def create_ps_wee_intake_ticket(
         if attached_images:
             attachment_parts.append(f"Attached {len(attached_images)} image(s) from Slack.")
     attachment_suffix = (" " + " ".join(attachment_parts)) if attachment_parts else ""
-    if slack_missing:
-        answer["slack_reply"] = (
-            f"Created first so this won't be missed: {ticket_ref}. "
-            f"I still need: {', '.join(slack_missing)}.{attachment_suffix}"
-        )
-    else:
-        answer["slack_reply"] = (
-            f"Created first so this won't be missed: {ticket_ref}. "
-            f"No extra info needed from Slack right now.{attachment_suffix}"
-        )
+    answer["slack_reply"] = (
+        f"Created first so this won't be missed: {ticket_ref}.{attachment_suffix}"
+    )
     answer["central_copy"] = post_ps_wee_audit(
         "ticket_created",
         source_thread_url=source,
@@ -3984,7 +3873,6 @@ def create_ps_wee_intake_ticket(
         customer=normalized_customer,
         summary=normalized_issue,
         status="created",
-        missing_info=full_missing,
         jira_payload={"draft": draft, "answer": answer},
         extra={
             "request_type_key": request_type_key,
@@ -4247,7 +4135,6 @@ def _metadata_comment_from_draft(draft: dict[str, Any]) -> str:
         ("ROI URL", draft.get("roi_issue_url")),
         ("Original channel", draft.get("original_channel")),
         ("Tracker type", draft.get("tracker_type")),
-        ("Missing info", ", ".join(draft.get("missing_info") or [])),
         ("Source links", ", ".join(draft.get("source_links") or [])),
         ("Customer channel", draft.get("customer_channel_id")),
         ("Customer channel name", draft.get("customer_channel_name")),
@@ -4468,7 +4355,6 @@ def create_or_link_pco_roi_tracker(
                 "mode": _jira_mode(),
                 "slack_thread_url": source,
                 "known_details": (summary or "").strip(),
-                "missing_info": [],
                 "impact": "",
                 "affected_scope": "",
                 "expected_outcome": "Close the customer loop after ROI resolves the internal billing work.",
@@ -4859,50 +4745,6 @@ def append_ps_wee_ticket_update(
             },
         )
     return result
-
-
-@mcp.tool()
-def mark_ps_wee_ticket_ready(
-    issue_key: str,
-    slack_thread_url: str,
-    ready_summary: str = "",
-    slack_user_email: str = "",
-) -> dict[str, Any]:
-    """Mark a PS WEE intake ticket as ready for triage after required info is collected."""
-
-    key = (issue_key or "").strip().upper()
-    source = (slack_thread_url or "").strip()
-    scope = {"issue_key": key, "slack_thread_url": source, "caller": (slack_user_email or "").strip().lower()}
-    if not key or not source:
-        return _blocked("Issue key and Slack thread URL are required to mark a PS WEE ticket ready.", scope)
-    lines = [
-        "PS WEE ticket ready for triage.",
-        f"Source Slack thread: {source}",
-    ]
-    if ready_summary.strip():
-        lines.append(f"Ready summary: {ready_summary.strip()}")
-    comment_result = add_internal_pco_comment(key, "\n".join(lines), slack_user_email)
-    if comment_result.get("confidence") != "verified":
-        return comment_result
-    warnings: list[str] = []
-    try:
-        _update_issue_labels(key, remove=["needs-info"])
-    except JiraError:
-        warnings.append("Ready comment was added but the needs-info label could not be removed.")
-    answer = comment_result.get("answer", {})
-    answer["ready_for_triage"] = True
-    answer["warnings"] = warnings
-    answer["central_copy"] = post_ps_wee_audit(
-        "ticket_ready",
-        source_thread_url=source,
-        issue_key=key,
-        issue_url=_issue_url(key),
-        requester=scope["caller"],
-        summary=(ready_summary or "").strip(),
-        status="ready for triage",
-        jira_payload={"issue_key": key, "ready_summary": ready_summary, "warnings": warnings, "comment": comment_result.get("answer", {})},
-    )
-    return _verified(answer, scope, "Ticket readiness is marked by internal comment and removal of needs-info label when Jira allows it.")
 
 
 @mcp.tool()

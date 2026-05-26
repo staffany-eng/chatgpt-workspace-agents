@@ -125,7 +125,7 @@ For ROI urgency fields, match the field's configured options exactly. If the req
 - Each reviewed mapping must include `channel_id`, `channel_name`, `customer_key`, `customer_name`, `staffany_orgs`, and `status=reviewed`.
 - Use `resolve_customer_channel_org` for customer-specific Slack channels before creating a PS WEE intake ticket.
 - If the message names a different customer from the reviewed channel mapping, fail closed and ask for confirmation before creating the ticket.
-- Unmapped general Slack channels keep the existing needs-info intake behavior.
+- Unmapped general Slack channels still create an intake without org auto-tagging.
 
 ## Jira Assignee
 

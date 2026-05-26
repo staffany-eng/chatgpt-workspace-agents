@@ -188,9 +188,8 @@ Field rules:
 - `find_roi_ticket_by_slack_thread`: safe read; use the Slack thread permalink as the ROI idempotency key.
 - `create_roi_ticket_from_slack`: mutation; creates direct ROI JSM tickets for actionable RevOps/BD Ops/NYSS/ROI-board requests with first-class requester, required-field checks, source Slack thread, and no duplicate PCO execution wrapper.
 - `create_or_link_pco_roi_tracker`: mutation; creates or reuses one linked PCO customer-loop tracker per Slack thread for PS Team billing/invoice asks or explicit customer-loop tracking requests. It labels the PCO issue `ps-wee-roi-tracker`, links ROI as blocking PCO, and moves the PCO tracker to `Waiting Internal`.
-- `create_ps_wee_intake_ticket`: mutation; creates an immediate needs-info intake ticket for explicit PS WEE ticketing requests without preview approval.
+- `create_ps_wee_intake_ticket`: mutation; creates an immediate intake ticket for explicit PS WEE ticketing requests without preview approval. No required fields and no needs-info label — a Slack thread permalink alone is enough.
 - `append_ps_wee_ticket_update`: mutation; adds a concise structured internal comment for meaningful Slack follow-up discussion, including `Slack poster:` when the Slack poster display name, user ID, or email is available.
-- `mark_ps_wee_ticket_ready`: mutation; adds a ready-for-triage internal comment and removes `needs-info` when Jira allows it.
 - These three PS WEE lifecycle tools also emit bot-owned central ops audit copies when the central Slack channel is configured. The Jira issue itself remains structured; raw-ish ops detail belongs in the private central Slack audit copy only.
 - `draft_pco_task`: no mutation; includes duplicate candidates.
 - `create_approved_pco_task`: mutation; requires approval marker.
