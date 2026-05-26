@@ -84,8 +84,10 @@ class ScanResponseTests(unittest.TestCase):
 class EvaluateTests(unittest.TestCase):
     def setUp(self):
         self.module = load_handler()
-        # Prevent _bot_user_id() from making a live auth.test call.
-        self.module._BOT_USER_ID_CACHE = ""
+        # Stub bot-id discovery so tests never hit Slack auth.test.
+        self._bot_id_patch = patch.object(self.module, "_bot_user_id", return_value="")
+        self._bot_id_patch.start()
+        self.addCleanup(self._bot_id_patch.stop)
 
     def test_empty_response_is_skipped(self):
         verdict = self.module.evaluate({"response": "", "user_id": "U043M9HRWHG"})
@@ -163,7 +165,9 @@ class HandleAlertingTests(unittest.TestCase):
         self.env.start()
         self.addCleanup(self.env.stop)
         self.module = load_handler()
-        self.module._BOT_USER_ID_CACHE = ""
+        self._bot_id_patch = patch.object(self.module, "_bot_user_id", return_value="U0B39JHV8TG")
+        self._bot_id_patch.start()
+        self.addCleanup(self._bot_id_patch.stop)
 
     def test_violation_posts_central_warning(self):
         context = {
@@ -305,7 +309,9 @@ class PostAuditWarningTests(unittest.TestCase):
 class CoerceTextFallbackTests(unittest.TestCase):
     def setUp(self):
         self.module = load_handler()
-        self.module._BOT_USER_ID_CACHE = ""
+        self._bot_id_patch = patch.object(self.module, "_bot_user_id", return_value="")
+        self._bot_id_patch.start()
+        self.addCleanup(self._bot_id_patch.stop)
 
     def test_non_json_serializable_falls_back_to_str(self):
         class Weird:
@@ -328,7 +334,7 @@ class CoerceTextFallbackTests(unittest.TestCase):
 class BotUserIdAutoDiscoveryTests(unittest.TestCase):
     def setUp(self):
         self.module = load_handler()
-        self.module._BOT_USER_ID_CACHE = None
+        self.module._BOT_USER_ID_CACHE = ""
 
     @staticmethod
     def _fake_response(payload: dict) -> MagicMock:
@@ -354,17 +360,44 @@ class BotUserIdAutoDiscoveryTests(unittest.TestCase):
             self.assertEqual(len(calls), 1)
             self.assertIn("auth.test", calls[0])
 
-    def test_auth_test_failure_caches_empty_string(self):
+    def test_auth_test_failure_is_not_cached_and_recovers_next_call(self):
         with patch.dict(os.environ, {"SLACK_BOT_TOKEN": "x"}, clear=False):
             stderr = io.StringIO()
+            responses = [
+                self._fake_response({"ok": False, "error": "ratelimited"}),
+                self._fake_response({"ok": True, "user_id": "U0B39JHV8TG"}),
+            ]
 
             def fake_urlopen(request, timeout=10):
-                return self._fake_response({"ok": False, "error": "invalid_auth"})
+                return responses.pop(0)
+
+            with patch("urllib.request.urlopen", side_effect=fake_urlopen), redirect_stderr(stderr):
+                # First call: Slack returns ok=false; must not poison the cache.
+                self.assertEqual(self.module._bot_user_id(), "")
+                # Second call: Slack recovers; the hook resolves the real ID.
+                self.assertEqual(self.module._bot_user_id(), "U0B39JHV8TG")
+
+            self.assertIn("auth-test-failed:ratelimited", stderr.getvalue())
+            self.assertEqual(self.module._BOT_USER_ID_CACHE, "U0B39JHV8TG")
+
+    def test_transport_error_is_not_cached_and_recovers_next_call(self):
+        import urllib.error
+
+        with patch.dict(os.environ, {"SLACK_BOT_TOKEN": "x"}, clear=False):
+            stderr = io.StringIO()
+            call_index = {"n": 0}
+
+            def fake_urlopen(request, timeout=10):
+                call_index["n"] += 1
+                if call_index["n"] == 1:
+                    raise urllib.error.URLError("temporary blip")
+                return self._fake_response({"ok": True, "user_id": "U0B39JHV8TG"})
 
             with patch("urllib.request.urlopen", side_effect=fake_urlopen), redirect_stderr(stderr):
                 self.assertEqual(self.module._bot_user_id(), "")
+                self.assertEqual(self.module._bot_user_id(), "U0B39JHV8TG")
 
-            self.assertIn("auth-test-failed:invalid_auth", stderr.getvalue())
+            self.assertIn("auth-test-error", stderr.getvalue())
 
     def test_missing_token_returns_empty_without_network(self):
         with patch.dict(os.environ, {"SLACK_BOT_TOKEN": "", "PSM_OPS_SLACK_BOT_TOKEN": ""}, clear=False):

@@ -26,7 +26,7 @@ SLACK_MENTION_RE = re.compile(r"<@([UW][A-Z0-9]{2,})(?:\|[^>]*)?>")
 CRON_PREFIX = "PSM Ops automation:"
 SILENT_CRON_PREFIX = "[SILENT] PSM Ops automation:"
 
-_BOT_USER_ID_CACHE: str | None = None
+_BOT_USER_ID_CACHE: str = ""
 
 
 def _env(name: str, default: str = "") -> str:
@@ -34,13 +34,17 @@ def _env(name: str, default: str = "") -> str:
 
 
 def _bot_user_id() -> str:
-    """Return bot user ID via Slack auth.test, cached for the process. Returns "" on failure."""
+    """Return bot user ID via Slack auth.test, caching only successful resolutions.
+
+    Failures (transport, ok=false, missing token) return "" without poisoning the
+    cache so a transient Slack blip does not disable self-reference suppression
+    for the lifetime of the Hermes process.
+    """
     global _BOT_USER_ID_CACHE
-    if _BOT_USER_ID_CACHE is not None:
+    if _BOT_USER_ID_CACHE:
         return _BOT_USER_ID_CACHE
     token = _bot_token()
     if not token:
-        _BOT_USER_ID_CACHE = ""
         return ""
     request = urllib.request.Request(
         "https://slack.com/api/auth.test",
@@ -52,17 +56,17 @@ def _bot_user_id() -> str:
             payload = json.loads(response.read().decode("utf-8"))
     except (urllib.error.URLError, urllib.error.HTTPError, OSError, ValueError, TypeError) as error:
         print(f"psm-ops-mention-guard:auth-test-error:{error}", file=sys.stderr)
-        _BOT_USER_ID_CACHE = ""
         return ""
     if not payload.get("ok"):
         print(
             f"psm-ops-mention-guard:auth-test-failed:{payload.get('error', 'unknown_error')}",
             file=sys.stderr,
         )
-        _BOT_USER_ID_CACHE = ""
         return ""
-    _BOT_USER_ID_CACHE = str(payload.get("user_id") or "").upper()
-    return _BOT_USER_ID_CACHE
+    resolved = str(payload.get("user_id") or "").upper()
+    if resolved:
+        _BOT_USER_ID_CACHE = resolved
+    return resolved
 
 
 def _central_channel() -> str:
