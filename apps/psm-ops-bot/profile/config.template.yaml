@@ -232,7 +232,6 @@ mcp_servers:
       - "create_or_link_pco_roi_tracker"
       - "create_ps_wee_intake_ticket"
       - "append_ps_wee_ticket_update"
-      - "mark_ps_wee_ticket_ready"
       - "draft_pco_task"
       - "create_approved_pco_task"
       - "transition_pco_task"

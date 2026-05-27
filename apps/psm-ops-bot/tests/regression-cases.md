@@ -29,8 +29,10 @@
 - Calls `find_ticket_by_slack_thread`.
 - Creates the PCO intake ticket immediately with `create_ps_wee_intake_ticket` when no same-thread ticket exists.
 - Includes the Slack thread permalink in Jira.
+- Ticket title is `Fei Siong - payroll readiness` style with no `[Needs info]` prefix. The `needs-info` Jira label is never set. PS does not use the needs-info concept.
+- A ticket with only a Slack thread permalink is valid. The bot does not ask follow-up questions to fill customer/org, issue details, impact, expected outcome, affected scope, or screenshots.
 
-## PS WEE Compact Missing Info
+## PS WEE Compact Context
 
 Thread:
 
@@ -41,7 +43,6 @@ Thread:
 - Passes known customer, issue details, affected staff/profile, and workaround context into `create_ps_wee_intake_ticket`.
 - Does not ask for customer/org or issue details again.
 - Does not add a numbered questionnaire after the tool reply.
-- Slack-facing missing info is capped at two fields; full needs-info metadata may stay in Jira/audit.
 
 ## PS WEE Event AA Intake
 
@@ -55,7 +56,7 @@ Thread in Slack channel `C0B5H2YE5T2` (configured by `PSM_OPS_AA_CHANNEL_ID`):
 - MCP enforces the same `feedback` default defensively when the source Slack thread is in the AA channel but the caller passes a non-Event-AA `request_type_key`.
 - Inside the AA channel, creates first and never replies with `Reply "create ticket"` or pre-create clarifying questions.
 - Outside the AA channel, generic PS WEE intakes still default to `customer_next_action`; the 7 Event AA request types are only used when the PSM explicitly asks.
-- Posts the returned ticket link in-thread and asks only the tool-returned missing fields.
+- Posts the returned ticket link in-thread. Does not ask follow-up questions to fill ticket fields.
 - Posts a `PSM Ops automation:` central audit copy with `event: AA` in the extra payload.
 - For Event AA intakes only, pulls `image/*` files attached to the trigger Slack message via `conversations.history` (bot-token auth), uploads them to the configured Drive folder, and also uploads them to the Jira ticket via `/rest/api/3/issue/{key}/attachments`. Non-image attachments (PDFs, voice memos, etc.) are intentionally skipped.
 - Attachment fetch and upload are best-effort: Slack API failures, file-download failures, and Jira upload failures must not block ticket creation. The ticket is still created and the Slack reply still posts; the missing image is silently dropped.
@@ -121,8 +122,8 @@ Expected:
 - Customer-specific Slack channels use reviewed channel mappings only.
 - `create_ps_wee_intake_ticket` auto-fills customer and `StaffAny Org(s)` from the Slack thread channel.
 - Conflicting message customer vs mapped channel customer blocks before Jira creation.
-- Unmapped general channels still create a needs-info intake without org auto-tagging.
-- Posts the ticket link in-thread and asks for missing info.
+- Unmapped general channels still create an intake without org auto-tagging.
+- Posts the ticket link in-thread.
 - Posts a bot-owned `PSM Ops automation:` central audit copy with the source Slack thread permalink.
 
 ## PS WEE ROI Direct
@@ -220,7 +221,7 @@ Thread:
 
 - Treats the support confirmation as a ticket-first PS WEE intake trigger.
 - Calls `find_ticket_by_slack_thread`.
-- Creates the PCO needs-info intake immediately with `create_ps_wee_intake_ticket` when no same-thread ticket exists.
+- Creates the PCO intake immediately with `create_ps_wee_intake_ticket` when no same-thread ticket exists.
 - Includes the Slack thread permalink and support evidence link in Jira.
 - Does not ask "do you want me to log a ticket?" before creating the intake.
 
@@ -232,15 +233,6 @@ Thread:
 - Adds a structured internal Jira comment with the Slack thread permalink and `Slack poster:`.
 - Posts a central audit copy with update summary and source Slack thread permalink.
 - Does not sync every reply or paste raw Slack transcripts.
-
-## PS WEE Ready
-
-`@PSM Ops all info is complete, mark the ticket ready for triage`
-
-- Calls `mark_ps_wee_ticket_ready`.
-- Adds a ready-for-triage internal comment.
-- Removes `needs-info` when Jira allows it.
-- Posts a central audit copy with the source Slack thread permalink.
 
 ## PS WEE Blocked Routing
 

@@ -116,7 +116,7 @@
         "ask do you want me to log a ticket first",
         "create duplicate same-thread ticket"
       ],
-      "grade_notes": "Explicit PS WEE ticketing is ticket-first: dedupe by Slack thread, run bounded PCO board search as duplicate guard, then create the needs-info intake.",
+      "grade_notes": "Explicit PS WEE ticketing is ticket-first: dedupe by Slack thread, run bounded PCO board search as duplicate guard, then create the intake.",
       "assertions": {
         "source_files": [
           {
@@ -428,21 +428,21 @@
             "path": "profile/SOUL.md",
             "must_contain": [
               "If the user replies in the same thread with `create ticket`, `open ticket`, `log it`, or `yes, create it` after a create-ready offer",
-              "passing the prior ticket seed facts so the Jira tool asks only missing fields"
+              "passing whatever ticket seed facts are already known"
             ]
           },
           {
             "path": "skills/psm-ops-bot/SKILL.md",
             "must_contain": [
               "If the user replies in the same thread with `create ticket`, `open ticket`, `log it`, or `yes, create it` after a create-ready offer",
-              "pass the prior ticket seed facts so the tool asks only missing fields"
+              "pass whatever prior ticket seed facts are already known"
             ]
           }
         ]
       }
     },
     {
-      "id": "psm-tooltrace-tomoro-compact-missing-info",
+      "id": "psm-tooltrace-tomoro-compact-intake",
       "bot": "PSM Ops Hermes Bot",
       "surface": "slack:#all-ps",
       "lane": "tool-trace",
@@ -463,8 +463,7 @@
         ],
         "argument_shape": {
           "slack_thread_permalink": "required",
-          "known_facts_required": true,
-          "slack_missing_info_max": 2
+          "known_facts_required": true
         }
       },
       "expected_answer_contract": {
@@ -477,29 +476,24 @@
           "2. *Affected outlet/user*",
           "3. *Impact/urgency*",
           "4. *Expected outcome*",
-          "5. *Due date*"
+          "5. *Due date*",
+          "I still need:",
+          "[Needs info]"
         ]
       },
       "forbidden_behavior": [
         "numbered follow-up questionnaire",
-        "asking for customer/org when customer was supplied",
-        "asking for issue details when issue_summary or known_details was supplied",
-        "more than two Slack-facing missing-info asks"
+        "asking the user to fill any ticket field",
+        "appending an I still need: ask",
+        "applying a needs-info label"
       ],
-      "grade_notes": "Tomoro-style intake should still create first, but the tool must prune known facts and keep Slack missing-info compact.",
+      "grade_notes": "Tomoro-style intake creates first with whatever facts are available; no follow-up asks, no needs-info label.",
       "assertions": {
         "source_files": [
           {
-            "path": "runtime/mcp/psm_jira_server.py",
-            "must_contain": [
-              "PS_WEE_SLACK_MISSING_INFO_LIMIT = 2",
-              "answer[\"missing_info\"] = slack_missing"
-            ]
-          },
-          {
             "path": "profile/SOUL.md",
             "must_contain": [
-              "Do not add numbered questionnaires or expand the missing-info list; ask only the tool-returned missing fields."
+              "Do not add numbered questionnaires, follow-up questions, or missing-info asks."
             ]
           }
         ]
@@ -641,7 +635,7 @@
       "grade_notes": "If the Jira tool returns answer.slack_reply, paste it first exactly, then add labelled source/scope/confidence/caveat.",
       "assertions": {
         "answer_fixture": {
-          "output": "Created PCO ticket: <https://staffany.atlassian.net/browse/PCO-123|PCO-123>. Please add affected outlet and expected outcome.\nSource: Jira PCO\nScope: current Slack thread; PS WEE intake ticket\nConfidence: verified\nCaveat: Ticket is needs-info until the missing fields are added in this thread."
+          "output": "Created first so this won't be missed: <https://staffany.atlassian.net/browse/PCO-123|PCO-123>.\nSource: Jira PCO\nScope: current Slack thread; PS WEE intake ticket\nConfidence: verified\nCaveat: Use the same thread to add any extra context as it arrives."
         },
         "source_files": [
           {
