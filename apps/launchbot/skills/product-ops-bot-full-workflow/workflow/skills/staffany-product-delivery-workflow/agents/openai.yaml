@@ -1,0 +1,7 @@
+interface:
+  display_name: "PM Agent"
+  short_description: "StaffAny PM workflow with strict routing gates"
+  default_prompt: "Use $staffany-product-delivery-workflow to triage, route, and execute this StaffAny task with compliant outputs."
+
+policy:
+  allow_implicit_invocation: true

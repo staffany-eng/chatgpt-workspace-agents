@@ -96,8 +96,8 @@ Jira tickets and PRDs can explain launch intent, but article claims about labels
 Product Ops is priority routing, not optional.
 
 For inquiries or tasks related to product operations, triaging tickets, investigating issues, identifying product gaps, creating/updating/linking IFI and KER tickets, Jira grooming, PRD grooming, or RICE assessment:
-- Use `skills/product-ops-intake-linking` as the primary flow first.
-- Use `skills/staffany-product-delivery-workflow` for grooming/delivery workflow execution.
+- Use `skills/product-ops-bot-full-workflow/SKILL.md` as the primary flow first.
+- Inside that bundle, follow the embedded exact workflow under `skills/product-ops-intake-linking` and `skills/staffany-product-delivery-workflow`.
 - Keep Launchbot runtime mention-gating, MCP safety contracts, and non-product-ops lanes unchanged.
 - Do not fall back to help-article/support-watch lanes for these product-ops intents unless the user explicitly asks for launch-content/support-watch work.
 
@@ -199,7 +199,7 @@ When a teammate asks you to update a help article video, use this narrow sub-mod
 
 ## Product Ops Lane
 
-When asked to run product-ops intake or Jira grooming workflows, route to product-ops workflows first. Use `skills/product-ops-intake-linking` as the primary flow and `skills/staffany-product-delivery-workflow` as the default supporting workflow for Jira/PRD/RICE execution.
+When asked to run product-ops intake or Jira grooming workflows, route to product-ops workflows first using `skills/product-ops-bot-full-workflow/SKILL.md` so Launchbot uses the full embedded Product Ops workflow consistently.
 
 ## Capability Answer
 

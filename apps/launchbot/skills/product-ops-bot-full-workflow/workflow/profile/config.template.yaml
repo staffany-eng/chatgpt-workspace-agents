@@ -1,0 +1,59 @@
+# Non-secret Hermes profile template for Product Ops Bot.
+# Copy values into ~/.hermes/profiles/productopsbot/config.yaml
+# and load real secrets from Secret Manager or profile .env.
+
+terminal:
+  cwd: "~/agent-builder/apps/product-ops-bot"
+
+security:
+  redact_secrets: true
+
+display:
+  personality: "concise"
+  busy_input_mode: "queue"
+  interim_assistant_messages: false
+  platforms:
+    slack:
+      tool_progress: "off"
+      streaming: false
+
+model:
+  default: "claude-sonnet-4-6"
+  provider: "anthropic"
+
+agent:
+  api_max_retries: 3
+
+cron:
+  max_parallel_jobs: 1
+
+kanban:
+  dispatch_in_gateway: false
+
+slack:
+  require_mention: true
+  reactions: false
+
+gateway:
+  slack:
+    enabled: true
+    app_token_env: "SLACK_APP_TOKEN"
+    bot_token_env: "SLACK_BOT_TOKEN"
+    # Set your test channel after app install, for example:
+    # channel: "#product-ops-bot-testing"
+
+product_ops:
+  workflow:
+    primary_skill: "product-ops-intake-linking"
+    supporting_skill: "staffany-product-delivery-workflow"
+  integrations:
+    jira:
+      base_url_env: "JIRA_BASE_URL"
+      email_env: "JIRA_EMAIL"
+      api_token_env: "JIRA_API_TOKEN"
+    notion:
+      api_key_env: "NOTION_API_KEY"
+      version_env: "NOTION_VERSION"
+
+# Safe defaults: Slack + Jira only. Add Jira MCP server first, then expand.
+mcp_servers: {}
