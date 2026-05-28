@@ -4,7 +4,7 @@
 
 ## Must do (positive contract)
 
-1. **Always ticket-first.** Inside the AA channel, never reply with create-ready offers, `Reply "create ticket"` prompts, clarifying questions, or pre-create disambiguation. Call `create_ps_wee_intake_ticket` for every action bullet before composing the Slack reply. **Perceived message intent is never a reason to block** — phrasings like "find out X", "let them know", "check who/what", "who is the …", "look up the …" are ticket asks (route to `cs_follow_up` if customer-facing follow-up, otherwise `feedback`), not C360 wiki Q&A. Every AA-channel trigger message is, by definition, a ticket ask.
+1. **Always ticket-first.** Inside the AA channel, never reply with create-ready offers, `Reply "create ticket"` prompts, clarifying questions, or pre-create disambiguation. Call `create_ps_wee_intake_ticket` for every action bullet before composing the Slack reply. **Perceived message intent is never a reason to block** — phrasings like "find out X", "let them know", "check who/what", "who is the …", "look up the …" are ticket asks (route to `cs_follow_up` if customer-facing follow-up, otherwise `feedback`), not C360 wiki Q&A. Do not pre-judge whether a message is "actionable" yourself — always call `create_ps_wee_intake_ticket`. The MCP decides server-side whether to skip a non-actionable message (see [Non-actionable skip](#non-actionable-skip)); a returned `status:"skipped"` is success, not an error.
 2. **Parse the header (company + PIC), then emit one ticket per action bullet.** See the canonical message format and header parsing rules below.
 3. **Pass the bare customer name as written** when C360 returns zero-match, multi-match, or any error — omit `staffany_orgs`. Triage handles disambiguation after the ticket exists.
 4. **Never pass `due_date`.** Date phrases in the message body are context, leave them in `known_details`. The MCP defensively strips any `due_date` supplied on AA creates.
@@ -69,13 +69,21 @@ Inside the AA channel, `search_c360_customers` and `get_c360_account_context` st
 
 When the AA trigger Slack message has at least one `image/*` attachment, after creating the per-bullet tickets you MUST also call `create_ps_wee_intake_ticket` once with `request_type_key="photo_follow_up"` for the same `(customer, pic)`. This is an additional ticket, not a replacement — bullet routing is unchanged. Use a short summary like `Photo follow up — <company>` (and a description that names the PIC and references the source Slack thread). The standard AA Drive + Jira selfie pipeline runs for this call too, so the image lands on the `photo_follow_up` ticket as well as on the bullet tickets. If the trigger Slack message has no images, do **not** create a `photo_follow_up` ticket. Reply-thread selfies sent via `attach_aa_selfie_to_thread` do not trigger a new `photo_follow_up` ticket — that tool keeps attaching to the already-opened AA tickets.
 
+## Non-actionable skip
+
+The MCP defensively skips creating a ticket when an AA trigger message has no actionable follow-up — e.g. "met the new team", a greeting/introduction, an FYI or record-only note, general event chit-chat, or an explicit "no follow up needed" (English or Indonesian). An LLM intent classifier (Claude Haiku, run server-side from `create_ps_wee_intake_ticket`) reads the trigger text and decides; the gate runs for every AA request type **except** `photo_follow_up`, which has its own dedicated skip below. This is the deterministic enforcement of "don't ticket what doesn't need ticketing": the agent still always calls `create_ps_wee_intake_ticket`, and the MCP — not the agent — owns the skip.
+
+On skip, the tool returns `{status: "skipped", skipped_request_type: "<key>", reason: "non_actionable_no_follow_up", classifier_reason: "<one-line>", slack_reply: "<one-line note>"}` with `confidence: verified`. Treat it as success — quote the returned `slack_reply`, do not retry, do not block, do not re-create. Other per-bullet tickets created via separate calls are unaffected.
+
+When the classifier is unavailable (missing `ANTHROPIC_API_KEY`, network failure, malformed response, ambiguous text), the MCP **fails closed and creates the ticket** — an LLM outage can never silently drop a real follow-up.
+
 ## Photo follow-up — skip signal
 
 The MCP defensively skips `photo_follow_up` creation when an LLM intent classifier (Claude Haiku, run server-side from `create_ps_wee_intake_ticket`) judges the AA trigger Slack message as an explicit "no follow-up needed" message. The classifier reads the trigger message text and outputs a structured `{skip_photo_follow_up: bool, reason: str}` payload via tool-use; the MCP forwards the boolean as the skip decision and surfaces the reason in `answer.classifier_reason` and the audit log. Because this is LLM-based, the detector handles English, Indonesian, mixed-language, and arbitrary phrasings (e.g. `kindly disregard`, `for archive only`, `abaikan saja`) without a hardcoded phrase list.
 
 On skip, the tool returns `{status: "skipped", reason: "no_follow_up_signal_detected", classifier_reason: "<one-line>", skipped_request_type: "photo_follow_up", slack_reply: "<one-line note>"}` with `confidence: verified`. Treat the response as success — quote the returned `slack_reply` and do not retry, do not block, do not interpret the skip as an error. Per-bullet AA tickets created via earlier calls are unaffected.
 
-When the classifier is unavailable (missing `ANTHROPIC_API_KEY`, network failure, malformed response, ambiguous text), the MCP defaults to **NOT skip** — the ticket still creates so an LLM outage cannot silently drop a real follow-up. Skip is scoped to `photo_follow_up` only; other AA request types do not invoke the classifier and create normally regardless of the trigger message wording.
+When the classifier is unavailable (missing `ANTHROPIC_API_KEY`, network failure, malformed response, ambiguous text), the MCP defaults to **NOT skip** — the ticket still creates so an LLM outage cannot silently drop a real follow-up. This classifier judges the photo specifically; non-photo AA request types are gated separately by the [Non-actionable skip](#non-actionable-skip) above.
 
 ## Selfie ingest — initial
 
