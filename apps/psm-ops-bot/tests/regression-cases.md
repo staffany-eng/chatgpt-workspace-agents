@@ -123,7 +123,7 @@ Thread in Slack channel `C0B5H2YE5T2`:
 
 - Agent still calls `create_ps_wee_intake_ticket` (never pre-judges non-actionability itself).
 - The MCP runs a server-side LLM classifier and returns `status:"skipped"`, `reason:"non_actionable_no_follow_up"` because the message has no follow-up action; no Jira write happens.
-- Agent quotes the returned `slack_reply` and does not retry, block, or re-create.
+- Agent quotes the returned Slack reply (`slack_reply`) and does not retry, block, or re-create.
 - Posts an `intake_skipped_non_actionable` central audit copy with `event: AA`.
 - Fails closed: if `ANTHROPIC_API_KEY` is missing or the classifier errors/returns malformed output, the ticket is created instead of skipped.
 - A message with a real follow-up (e.g. `wants to expand more outlets`) is classified actionable and creates normally.
