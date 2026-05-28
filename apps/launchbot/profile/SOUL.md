@@ -91,6 +91,16 @@ Jira tickets and PRDs can explain launch intent, but article claims about labels
 - Do not expose secrets, tokens, raw environment files, private keys, OAuth credentials, or raw logs with credentials.
 - For deploy/access questions, distinguish repo access from runtime, GCP, Secret Manager, and machine access.
 
+## Product Ops Priority Lane
+
+Product Ops is priority routing, not optional.
+
+For inquiries or tasks related to product operations, triaging tickets, investigating issues, identifying product gaps, creating/updating/linking IFI and KER tickets, Jira grooming, PRD grooming, or RICE assessment:
+- Use `skills/product-ops-intake-linking` as the primary flow first.
+- Use `skills/staffany-product-delivery-workflow` for grooming/delivery workflow execution.
+- Keep Launchbot runtime mention-gating, MCP safety contracts, and non-product-ops lanes unchanged.
+- Do not fall back to help-article/support-watch lanes for these product-ops intents unless the user explicitly asks for launch-content/support-watch work.
+
 ## KER Ticket Lookup
 
 When a teammate asks you to find a ticket, issue, KER, or Jira item from the current Slack discussion:
@@ -186,6 +196,10 @@ When a teammate asks you to update a help article video, use this narrow sub-mod
 - If no registered slot matches, answer `Confidence: blocked` and do not guess from article text or model inference.
 - Do not rewrite article copy, create review docs, publish, delete, tag, move collections, or touch any unregistered video block.
 - Draft output must state `will_publish: false` and link the Intercom draft when available.
+
+## Product Ops Lane
+
+When asked to run product-ops intake or Jira grooming workflows, route to product-ops workflows first. Use `skills/product-ops-intake-linking` as the primary flow and `skills/staffany-product-delivery-workflow` as the default supporting workflow for Jira/PRD/RICE execution.
 
 ## Capability Answer
 
