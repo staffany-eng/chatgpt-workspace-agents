@@ -3298,6 +3298,11 @@ def _create_pco_task_from_draft(
             comment_result = add_internal_pco_comment(str(issue_key), metadata_comment)
             if comment_result.get("confidence") != "verified":
                 warnings.append("Slack intake metadata internal comment could not be added.")
+        # Surface the source permalink as a web link, not just a comment.
+        try:
+            _add_slack_thread_web_link(str(issue_key), str(draft["slack_thread_url"]))
+        except JiraError:
+            warnings.append("Slack thread web link could not be added to the ticket.")
     if issue_key and _is_thin_poc():
         if not draft.get("slack_thread_url"):
             metadata_comment = _metadata_comment_from_draft(draft)
@@ -3838,6 +3843,12 @@ def create_ps_wee_intake_ticket(
                     _update_issue_labels(existing_key, add=[EVENT_AA_LABEL])
                 except Exception:
                     pass
+            if existing_key and source:
+                # Backfill the web link on older tickets. Idempotent via globalId.
+                try:
+                    _add_slack_thread_web_link(existing_key, source)
+                except Exception:
+                    pass
             answer = {"existing_ticket": existing[0], "duplicate_candidates": existing}
             answer["central_copy"] = post_ps_wee_audit(
                 "ticket_reused",
@@ -4341,6 +4352,35 @@ def _assign_issue(issue_key: str, account_id: str) -> None:
         "PUT",
         f"/rest/api/3/issue/{urllib.parse.quote(issue_key)}/assignee",
         {"accountId": account_id},
+    )
+
+
+def _add_slack_thread_web_link(issue_key: str, slack_thread_url: str) -> None:
+    """Add the Slack permalink as a Jira web link. Idempotent via globalId."""
+    url = (slack_thread_url or "").strip()
+    if not url:
+        return
+    # Only ever store a Slack permalink, never an arbitrary model-supplied URL.
+    try:
+        parsed = urllib.parse.urlparse(url)
+    except ValueError:
+        parsed = None
+    host = (parsed.hostname or "").lower() if parsed else ""
+    if not (
+        parsed
+        and parsed.scheme == "https"
+        and (host == "slack.com" or host.endswith(".slack.com"))
+        and "/archives/" in parsed.path
+    ):
+        print(f"[psm-ops-bot] skipped web link for non-Slack url: {url!r}", file=sys.stderr)
+        return
+    _request_json(
+        "POST",
+        f"/rest/api/3/issue/{urllib.parse.quote(issue_key)}/remotelink",
+        {
+            "globalId": f"slack-thread={url}",
+            "object": {"url": url, "title": "Slack thread"},
+        },
     )
 
 

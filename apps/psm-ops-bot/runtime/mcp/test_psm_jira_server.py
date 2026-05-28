@@ -1217,6 +1217,19 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertEqual(calls[2][1], "/rest/servicedeskapi/request/PCO-789/comment")
         self.assertIn("Source Slack thread: https://staffany.slack.com/archives/C0B2VT50YT1/p1778205303989579", calls[2][2]["body"])
         self.assertIn("Known details: PS asked to raise this first.", calls[2][2]["body"])
+        # Source Slack permalink is also added as a web link.
+        web_link_calls = [c for c in calls if c[1] == "/rest/api/3/issue/PCO-789/remotelink"]
+        self.assertEqual(len(web_link_calls), 1)
+        self.assertEqual(web_link_calls[0][0], "POST")
+        self.assertEqual(
+            web_link_calls[0][2]["object"]["url"],
+            "https://staffany.slack.com/archives/C0B2VT50YT1/p1778205303989579",
+        )
+        self.assertEqual(web_link_calls[0][2]["object"]["title"], "Slack thread")
+        self.assertEqual(
+            web_link_calls[0][2]["globalId"],
+            "slack-thread=https://staffany.slack.com/archives/C0B2VT50YT1/p1778205303989579",
+        )
         # PS WEE intakes never carry the `needs-info` label.
         label_calls = [c for c in calls if c[1] == "/rest/api/3/issue/PCO-789" and c[2].get("update", {}).get("labels")]
         self.assertEqual(label_calls, [])
@@ -1225,6 +1238,31 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertEqual(audit_calls[0][0], "ticket_created")
         self.assertEqual(audit_calls[0][1]["source_thread_url"], "https://staffany.slack.com/archives/C0B2VT50YT1/p1778205303989579")
         self.assertEqual(audit_calls[0][1]["issue_key"], "PCO-789")
+
+    def test_add_slack_thread_web_link_skips_empty_url(self):
+        calls = []
+        self.module._request_json = lambda method, path, body=None: calls.append((method, path)) or {}
+        self.module._add_slack_thread_web_link("PCO-1", "")
+        self.module._add_slack_thread_web_link("PCO-1", "   ")
+        self.assertEqual(calls, [])
+
+    def test_add_slack_thread_web_link_skips_non_slack_url(self):
+        calls = []
+        self.module._request_json = lambda method, path, body=None: calls.append((method, path)) or {}
+        for bad in [
+            "https://evil.example.com/archives/C1/p1",
+            "http://staffany.slack.com/archives/C1/p1",  # not https
+            "https://slack.com.evil.com/archives/C1/p1",  # suffix spoof
+            "https://staffany.slack.com/team/U1",  # no /archives/
+            "javascript:alert(1)",
+        ]:
+            self.module._add_slack_thread_web_link("PCO-1", bad)
+        self.assertEqual(calls, [])
+        # A genuine Slack permalink still posts the remote link.
+        self.module._add_slack_thread_web_link(
+            "PCO-1", "https://staffany.slack.com/archives/C0B2VT50YT1/p1778205303989579"
+        )
+        self.assertEqual(calls, [("POST", "/rest/api/3/issue/PCO-1/remotelink")])
 
     def _mock_creator_options(self, request_type_id=""):
         return [
@@ -2960,19 +2998,20 @@ class PsmJiraServerTest(unittest.TestCase):
 
         def fake_request(method, path, body=None):
             calls.append((method, path, body))
-            self.assertEqual(method, "GET")
-            return {
-                "issues": [
-                    {
-                        "key": "PCO-789",
-                        "fields": {
-                            "summary": "Fei Siong - Payroll readiness unclear",
-                            "status": {"name": "Open"},
-                            "priority": {"name": "Medium"},
-                        },
-                    }
-                ]
-            }
+            if method == "GET":
+                return {
+                    "issues": [
+                        {
+                            "key": "PCO-789",
+                            "fields": {
+                                "summary": "Fei Siong - Payroll readiness unclear",
+                                "status": {"name": "Open"},
+                                "priority": {"name": "Medium"},
+                            },
+                        }
+                    ]
+                }
+            return {}
 
         self.module._request_json = fake_request
         self.module.post_ps_wee_audit = lambda event_type, **kwargs: audit_calls.append((event_type, kwargs)) or {"ok": True}
@@ -2984,7 +3023,16 @@ class PsmJiraServerTest(unittest.TestCase):
 
         self.assertEqual(result["confidence"], "verified")
         self.assertEqual(result["answer"]["existing_ticket"]["issue_key"], "PCO-789")
-        self.assertEqual(len(calls), 1)
+        # Reuse must not create a new request, only look up the existing one.
+        self.assertEqual([c for c in calls if c[1] == "/rest/servicedeskapi/request"], [])
+        # Reuse backfills the source Slack web link idempotently.
+        web_link_calls = [c for c in calls if c[1] == "/rest/api/3/issue/PCO-789/remotelink"]
+        self.assertEqual(len(web_link_calls), 1)
+        self.assertEqual(web_link_calls[0][0], "POST")
+        self.assertEqual(
+            web_link_calls[0][2]["object"]["url"],
+            "https://staffany.slack.com/archives/C0B2VT50YT1/p1778205303989579",
+        )
         self.assertEqual(audit_calls[0][0], "ticket_reused")
         self.assertEqual(audit_calls[0][1]["issue_key"], "PCO-789")
 
