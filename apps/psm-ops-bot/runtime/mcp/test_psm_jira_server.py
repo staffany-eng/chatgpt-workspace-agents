@@ -4402,6 +4402,29 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertEqual(result["confidence"], "blocked")
         self.assertIn("AA-only", result["answer"]["message"])
 
+    def test_create_approved_pco_task_blocks_photo_even_with_aa_thread(self):
+        # The public approval tool can never create photo_follow_up, even with a
+        # real AA permalink — that request type is reserved for the AA intake path.
+        def boom_request(*args, **kwargs):
+            self.fail("photo_follow_up must not reach Jira via create_approved_pco_task")
+
+        self.module._request_json = boom_request
+
+        draft = {
+            "customer": "Andre Cafe",
+            "summary": "Andre Cafe - photo follow up",
+            "request_type_key": "photo_follow_up",
+            "request_type_id": "127",
+            "due_date": "",
+            "event": "AA",
+            "slack_thread_url": "https://staffany.slack.com/archives/C0B5H2YE5T2/p1779264818954274",
+            "source_links": ["https://staffany.slack.com/archives/C0B5H2YE5T2/p1779264818954274"],
+        }
+        result = self.module.create_approved_pco_task(draft, "create")
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("AA intake flow", result["answer"]["message"])
+
     def test_classify_aa_actionable_intent_returns_decision(self):
         captured = []
 

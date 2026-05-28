@@ -3206,20 +3206,26 @@ def create_approved_pco_task(draft: dict[str, Any], approval_marker: str) -> dic
     return _create_pco_task_from_draft(draft, scope)
 
 
-def _create_pco_task_from_draft(draft: dict[str, Any], scope: dict[str, Any]) -> dict[str, Any]:
-    """Create a PCO JSM request from an already-authorized draft."""
+def _create_pco_task_from_draft(
+    draft: dict[str, Any],
+    scope: dict[str, Any],
+    *,
+    allow_photo_follow_up: bool = False,
+) -> dict[str, Any]:
+    """Create a PCO JSM request from an already-authorized draft.
+
+    photo_follow_up is reserved for the AA intake path; only that caller passes
+    allow_photo_follow_up. draft is public tool input, so it can't unlock it.
+    """
 
     try:
-        # Chokepoint containment: photo_follow_up is AA-only. Gate on the primary
-        # slack_thread_url channel only — source_links are caller-provided
-        # evidence and an unrelated AA link there must not unlock it.
         if (
             str(draft.get("request_type_key") or "") == EVENT_AA_PHOTO_REQUEST_TYPE_KEY
-            and not _is_event_aa_thread(str(draft.get("slack_thread_url") or ""))
+            and not allow_photo_follow_up
         ):
             return _blocked(
                 "photo_follow_up is an Event AA-only request type and can only "
-                "be created from an AA-channel thread.",
+                "be created via the AA intake flow.",
                 scope,
             )
         _validate_due_date_for_write(str(draft.get("due_date") or ""))
@@ -3977,7 +3983,7 @@ def create_ps_wee_intake_ticket(
         "labels_extra": labels_extra,
         "event": "AA" if is_event_aa else "",
     }
-    result = _create_pco_task_from_draft(draft, scope)
+    result = _create_pco_task_from_draft(draft, scope, allow_photo_follow_up=is_event_aa)
     if result.get("confidence") != "verified":
         return result
     answer = result.get("answer", {})
