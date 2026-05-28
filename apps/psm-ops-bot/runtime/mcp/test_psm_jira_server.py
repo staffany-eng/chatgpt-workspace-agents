@@ -4349,7 +4349,31 @@ class PsmJiraServerTest(unittest.TestCase):
             "request_type_key": "photo_follow_up",
             "request_type_id": "127",
             "due_date": "",
-            "event": "",
+            "slack_thread_url": "https://staffany.slack.com/archives/C08SDJR03N1/p1779264818954270",
+            "source_links": ["https://staffany.slack.com/archives/C08SDJR03N1/p1779264818954270"],
+        }
+        result = self.module.create_approved_pco_task(draft, "create")
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("AA-only", result["answer"]["message"])
+
+    def test_create_from_draft_blocks_forged_aa_event_photo_follow_up(self):
+        # A handcrafted draft cannot bypass containment by setting event="AA";
+        # AA-ness is derived from the permalink channel, not the flag.
+        def boom_request(*args, **kwargs):
+            self.fail("forged event=AA photo_follow_up draft must still be blocked")
+
+        self.module._request_json = boom_request
+
+        draft = {
+            "customer": "Andre Cafe",
+            "summary": "Andre Cafe - photo follow up",
+            "request_type_key": "photo_follow_up",
+            "request_type_id": "127",
+            "due_date": "",
+            "event": "AA",
+            "slack_thread_url": "https://staffany.slack.com/archives/C08SDJR03N1/p1779264818954271",
+            "source_links": ["https://staffany.slack.com/archives/C08SDJR03N1/p1779264818954271"],
         }
         result = self.module.create_approved_pco_task(draft, "create")
 

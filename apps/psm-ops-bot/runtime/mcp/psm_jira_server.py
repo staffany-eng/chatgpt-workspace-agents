@@ -3210,17 +3210,17 @@ def _create_pco_task_from_draft(draft: dict[str, Any], scope: dict[str, Any]) ->
     """Create a PCO JSM request from an already-authorized draft."""
 
     try:
-        # Chokepoint containment: photo_follow_up may only be created via the AA
-        # intake path, which stamps event="AA" on the draft.
-        if (
-            str(draft.get("request_type_key") or "") == EVENT_AA_PHOTO_REQUEST_TYPE_KEY
-            and str(draft.get("event") or "") != "AA"
-        ):
-            return _blocked(
-                "photo_follow_up is an Event AA-only request type and can only "
-                "be created via the AA intake flow.",
-                scope,
-            )
+        # Chokepoint containment: photo_follow_up is AA-only. Derive AA-ness from
+        # the permalink channel (trusted), not a forgeable draft flag.
+        if str(draft.get("request_type_key") or "") == EVENT_AA_PHOTO_REQUEST_TYPE_KEY:
+            thread_urls = [str(draft.get("slack_thread_url") or "")]
+            thread_urls.extend(str(link) for link in (draft.get("source_links") or []))
+            if not any(_is_event_aa_thread(url) for url in thread_urls if url):
+                return _blocked(
+                    "photo_follow_up is an Event AA-only request type and can "
+                    "only be created from an AA-channel thread.",
+                    scope,
+                )
         _validate_due_date_for_write(str(draft.get("due_date") or ""))
         request_type_id = str(draft.get("request_type_id") or _request_type_id(str(draft.get("request_type_key") or "customer_next_action")))
         # Resolve StaffAny Organization names to Assets object keys before building the
