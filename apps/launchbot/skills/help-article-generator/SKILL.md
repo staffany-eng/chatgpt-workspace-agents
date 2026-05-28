@@ -36,6 +36,10 @@ Use this skill to produce help articles in a repeatable format that is ready for
    - Search live Intercom articles first using `npm run intercom:affected -- --topic "<topic>"`.
    - Scan English help center content under `https://help.staffany.com/en/` only as public fallback context.
    - Propose which article(s)/section(s) should be edited.
+   - Treat the existing article as the base content. Do not generate a replacement article from scratch unless the user explicitly asks for a rewrite.
+   - Preserve all existing sections, steps, FAQs, screenshots, videos, notes, and wording that are not contradicted by the new feature evidence.
+   - Apply the smallest complete update: insert new sections, update the guide outline, add or adjust only directly affected steps/FAQ, and leave unrelated valid content intact.
+   - If the full existing article body is unavailable, fetch it before showing a "whole article" draft. If it cannot be fetched, return a patch-style update with insertion points instead of reconstructing the full article.
 5. If `Update -> Video-only update`:
    - Treat this as a sub-mode of `Update`, not as a separate skill.
    - Accept only Loom share/embed URLs.
@@ -138,6 +142,9 @@ bash apps/launchbot/skills/help-article-generator/scripts/feature_context.sh \
 - Start from `help-article:plan`, not the user's intake form.
 - Treat `needs-intake` as a normal planning stop: answer the concise questions, then rerun `help-article:plan` with the supplied `--surface`, `--audience`, `--outcome`, `--change`, `--jira`, `--prd`, `--release-state`, `--feature-flag`, `--reviewer`, or `--screenshot-owner` flags as relevant.
 - Prefer updating an existing article when live Intercom already has the same audience, platform, and workflow.
+- For existing article updates, preserve-by-default. Existing article content remains valid unless the new feature evidence directly makes it wrong, duplicate, or misleading.
+- Never shrink, summarize, or omit original article sections merely because they are not touched by the new change.
+- When asked to "generate the whole article" for an update, first load the full current article, merge the approved changes into it, and show the merged result. If only a proposed update draft is available, say so and show only the update patch.
 - Split articles when audiences perform different jobs, such as admin setup vs employee action.
 - Split articles when platform flows differ materially, such as Web owner setup vs Mobile staff redemption.
 - Split marketplace or multi-sided workflows by actor view.
@@ -263,6 +270,19 @@ Follow this exact high-level order:
    - numbered lists that restart per subsection
 5. Return only the requested article draft or structure. Do not add meta commentary such as "Structure complete" after the article body.
 
+For normal `Update` mode, output one of these explicit shapes:
+
+1. Patch-style update when the full existing article has not been loaded:
+   - target article
+   - sections to add
+   - sections to modify
+   - FAQ additions
+   - unchanged sections that should be preserved
+2. Full merged article only after reading the current full article body:
+   - preserve unchanged original content verbatim where practical
+   - mark only the inserted or changed sections in the review notes, not inside the publishable body
+   - do not remove original content unless listing a specific reason in "Gaps/Assumptions" or review notes
+
 For `Update -> Video-only update`, replace the normal article drafting output with:
 
 1. Preview output with:
@@ -314,4 +334,5 @@ Before finalizing:
 - FAQ has bold `Q:` questions and normal answers
 - Internal appendix is not in the publishable body
 - Tone is natural, concise, and user-centered
+- For existing article updates, full-article output was merged from the current article body rather than reconstructed from partial notes
 - For video-only updates, the patch touches exactly one registered Loom iframe and the Intercom payload uses `state: "draft"` only
