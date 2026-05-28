@@ -4380,6 +4380,28 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertEqual(result["confidence"], "blocked")
         self.assertIn("AA-only", result["answer"]["message"])
 
+    def test_create_from_draft_ignores_aa_link_in_source_links(self):
+        # An unrelated AA permalink in caller-provided source_links must not
+        # unlock photo_follow_up when the primary thread is non-AA.
+        def boom_request(*args, **kwargs):
+            self.fail("AA link in source_links must not unlock a non-AA photo draft")
+
+        self.module._request_json = boom_request
+
+        draft = {
+            "customer": "Andre Cafe",
+            "summary": "Andre Cafe - photo follow up",
+            "request_type_key": "photo_follow_up",
+            "request_type_id": "127",
+            "due_date": "",
+            "slack_thread_url": "https://staffany.slack.com/archives/C08SDJR03N1/p1779264818954272",
+            "source_links": ["https://staffany.slack.com/archives/C0B5H2YE5T2/p1779264818954273"],
+        }
+        result = self.module.create_approved_pco_task(draft, "create")
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("AA-only", result["answer"]["message"])
+
     def test_classify_aa_actionable_intent_returns_decision(self):
         captured = []
 
