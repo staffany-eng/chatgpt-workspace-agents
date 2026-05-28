@@ -1246,6 +1246,24 @@ class PsmJiraServerTest(unittest.TestCase):
         self.module._add_slack_thread_web_link("PCO-1", "   ")
         self.assertEqual(calls, [])
 
+    def test_add_slack_thread_web_link_skips_non_slack_url(self):
+        calls = []
+        self.module._request_json = lambda method, path, body=None: calls.append((method, path)) or {}
+        for bad in [
+            "https://evil.example.com/archives/C1/p1",
+            "http://staffany.slack.com/archives/C1/p1",  # not https
+            "https://slack.com.evil.com/archives/C1/p1",  # suffix spoof
+            "https://staffany.slack.com/team/U1",  # no /archives/
+            "javascript:alert(1)",
+        ]:
+            self.module._add_slack_thread_web_link("PCO-1", bad)
+        self.assertEqual(calls, [])
+        # A genuine Slack permalink still posts the remote link.
+        self.module._add_slack_thread_web_link(
+            "PCO-1", "https://staffany.slack.com/archives/C0B2VT50YT1/p1778205303989579"
+        )
+        self.assertEqual(calls, [("POST", "/rest/api/3/issue/PCO-1/remotelink")])
+
     def _mock_creator_options(self, request_type_id=""):
         return [
             {"value": "creator-josica", "label": "Josica"},

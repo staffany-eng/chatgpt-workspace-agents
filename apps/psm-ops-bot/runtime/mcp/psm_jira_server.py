@@ -4360,6 +4360,20 @@ def _add_slack_thread_web_link(issue_key: str, slack_thread_url: str) -> None:
     url = (slack_thread_url or "").strip()
     if not url:
         return
+    # Only ever store a Slack permalink, never an arbitrary model-supplied URL.
+    try:
+        parsed = urllib.parse.urlparse(url)
+    except ValueError:
+        parsed = None
+    host = (parsed.hostname or "").lower() if parsed else ""
+    if not (
+        parsed
+        and parsed.scheme == "https"
+        and (host == "slack.com" or host.endswith(".slack.com"))
+        and "/archives/" in parsed.path
+    ):
+        print(f"[psm-ops-bot] skipped web link for non-Slack url: {url!r}", file=sys.stderr)
+        return
     _request_json(
         "POST",
         f"/rest/api/3/issue/{urllib.parse.quote(issue_key)}/remotelink",
