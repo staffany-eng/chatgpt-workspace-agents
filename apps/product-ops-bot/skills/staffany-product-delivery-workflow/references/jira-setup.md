@@ -5,7 +5,7 @@ Use this guide to bootstrap Jira connectivity before running `direct-sync`.
 ## Available Local Scripts
 
 - `scripts/read-jira-ticket.mjs` - reads ticket summary/description/comments
-- `scripts/sync-jira-ticket.mjs` - writes markdown to Jira (`description`/`comment`/`both`)
+- `scripts/sync-jira-ticket.mjs` - writes grooming content to Jira (`description`/`comment`/`both`)
 - `scripts/load-env.mjs` - auto-loads local `.env` from current working directory or the skill directory
 
 Set:
@@ -18,7 +18,7 @@ SKILL_DIR="pantheon/apps/grimoire/catalog/shared/staffany-product-delivery-workf
 
 - Jira issue key or browse URL (for example `KER-304` or full Jira URL)
 - Sync mode: `description` | `comment` | `both`
-- Output markdown file path (for example `outputs/jira/YYYY-MM-DD-...md`)
+- Grooming content source: inline `--markdown "<CONTENT>"` (default) or optional `--file <MARKDOWN_PATH>`
 - Local credentials in `.env`:
  - `JIRA_BASE_URL` (for example `https://staffany.atlassian.net`)
  - `JIRA_EMAIL`
@@ -55,7 +55,7 @@ node "$SKILL_DIR/scripts/read-jira-ticket.mjs" --issue <ISSUE_KEY_OR_URL> --incl
 ```bash
 node "$SKILL_DIR/scripts/sync-jira-ticket.mjs" \
   --issue <ISSUE_KEY_OR_URL> \
-  --file outputs/jira/YYYY-MM-DD-short-kebab-title.md \
+  --markdown "<GROOMING_CONTENT>" \
   --mode description \
   --set-need-product-review 1 \
   --dry-run
@@ -66,11 +66,11 @@ node "$SKILL_DIR/scripts/sync-jira-ticket.mjs" \
 ```bash
 node "$SKILL_DIR/scripts/sync-jira-ticket.mjs" \
   --issue <ISSUE_KEY_OR_URL> \
-  --file outputs/jira/YYYY-MM-DD-short-kebab-title.md \
+  --markdown "<GROOMING_CONTENT>" \
   --mode description \
   --set-need-product-review 1
 ```
 
 ## Fallback
 
-If setup fields are unavailable, proceed with `md-only` and return the explicit sync command for later.
+If setup fields are unavailable, use `md-only` only when user explicitly asks for a markdown artifact; otherwise report blocked direct update requirements.

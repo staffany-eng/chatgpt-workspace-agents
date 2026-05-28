@@ -1,6 +1,6 @@
 ---
 name: staffany-product-delivery-workflow
-description: StaffAny PM workflow orchestration for Jira grooming, PRD/docs drafting, and frontend/backend implementation handoffs. Use when tasks require triage routing, model-tier enforcement (Triage=Low, PM/Designer=Medium, FE/BE=High), backend-first context checks (Kraken then Gryphon), per-task plan files, and policy-compliant outputs under outputs/.
+description: StaffAny PM workflow orchestration for Jira grooming, PRD/docs drafting, and frontend/backend implementation handoffs. Use when tasks require triage routing, model-tier enforcement (Triage=Low, PM/Designer=Medium, FE/BE=High), backend-first context checks (Kraken then Gryphon), and policy-compliant outputs under outputs/.
 ---
 
 # StaffAny Product Delivery Workflow
@@ -16,12 +16,10 @@ All required workflow assets for this skill are local to this directory:
 ## Quick Start
 
 1. Read root `AGENTS.md`, then any nested `AGENTS.md` in target subdirectories.
-2. Create or reuse one task plan file in `plans/YYYY-MM-DD-short-task-name.md`.
-3. Fill preflight checks before execution.
-4. Run triage routing and record handoff entries with required fields.
-5. Use backend-first source of truth (`pantheon/apps/kraken`), then quick frontend check (`pantheon/apps/gryphon`).
-6. Produce output markdown in `outputs/<type>/` using the mapped template.
-7. Fill completion gate in the plan.
+2. Fill preflight checks before execution (inline in working notes or output doc).
+3. Run triage routing and record handoff entries with required fields.
+4. Use backend-first source of truth (`pantheon/apps/kraken`), then quick frontend check (`pantheon/apps/gryphon`).
+5. Produce output artifacts only when needed by the request. For Jira grooming, update Jira directly by default (no mandatory local markdown file).
 
 For required field-level details, read:
 - `references/workflow-checklist.md`
@@ -45,7 +43,7 @@ Apply these route rules:
 - Use `PM -> Designer -> Frontend` for prototype-first requests (mock data only), then pause for review before backend.
 
 When triage resolves directly:
-- Record `triage_resolved_directly = true` in the plan.
+- Record `triage_resolved_directly = true` in working notes or the output doc.
 - Record `selected_reasoning_tier = Low`.
 - Add short `resolution_note` and `why_no_handoff_needed`.
 
@@ -58,12 +56,12 @@ Default reasoning tiers by agent:
 - Frontend Agent: `High`
 - Backend Agent: `High`
 
-Override only when needed. Log reason in the plan.
+Override only when needed. Log reason in working notes or the output doc.
 
 ## Output Mapping
 
 Map requests to templates and output paths:
-- Jira grooming -> template `references/jira-grooming-template.md` -> `outputs/jira/YYYY-MM-DD-short-kebab-title.md`
+- Jira grooming -> template `references/jira-grooming-template.md` -> direct Jira update (optional local notes only when explicitly requested)
 - PRD writing -> template `references/prd-template.md` -> `outputs/prd/YYYYMMDD - <Title> (PRD).md`
 - Other docs -> `outputs/docs/YYYY-MM-DD-short-kebab-title.md`
 
@@ -107,29 +105,28 @@ When the latest reviewed source is already the Notion page, default to `add-miss
 
 ## Jira Ticket Connection (Read + Update)
 
-For Jira grooming requests, support both modes:
-- `direct-sync`: Jira issue key/link is provided. Read ticket context first, draft markdown, then sync back to Jira.
-- `md-only`: no issue key yet. Draft markdown only and return explicit sync command for later.
+For Jira grooming requests, default to direct Jira update:
+- `direct-update` (default): Jira issue key/link is provided. Read ticket context first, then update Jira directly.
+- `md-only` (fallback): use only when Jira cannot be accessed in-session or user explicitly asks for markdown output.
 
-When Jira cannot be accessed directly in-session (for example no Jira connector/tool, auth-gated URL, or missing credentials), explicitly ask for the required fields below before attempting sync:
+When Jira cannot be accessed directly in-session (for example no Jira connector/tool, auth-gated URL, or missing credentials), explicitly ask for the required fields below before attempting direct update:
 - Jira issue key or browse URL (for example `KER-304`).
 - Desired sync mode: `description` | `comment` | `both`.
-- Output markdown file path to sync (default under `outputs/jira/...`).
 - Confirmation that Jira credentials are available in local `.env`:
   - `JIRA_BASE_URL`
   - `JIRA_EMAIL`
   - `JIRA_API_TOKEN`
 
 If any required field is missing:
-- proceed with `md-only` output generation first,
+- proceed with `md-only` output generation only if user explicitly wants a file artifact,
 - then return an explicit command the user can run after providing the missing fields.
 
 Use local scripts inside this skill directory:
 - Read ticket context:
   - `node <skill-dir>/scripts/read-jira-ticket.mjs --issue <ISSUE_KEY_OR_URL> --include-comments --max-comments 10`
   - Add `--include-links` to inspect linked items (`IFI-*` evidence extraction).
-- Sync markdown to Jira description:
-  - `node <skill-dir>/scripts/sync-jira-ticket.mjs --issue <ISSUE_KEY_OR_URL> --file outputs/jira/YYYY-MM-DD-short-kebab-title.md --mode description --set-need-product-review 1`
+- Sync grooming content to Jira directly:
+  - `node <skill-dir>/scripts/sync-jira-ticket.mjs --issue <ISSUE_KEY_OR_URL> --mode description --set-need-product-review 1 --markdown "<GROOMING_CONTENT>"`
   - This sync script enforces mandatory RICE presence by default and fails fast if missing.
   - Use `--set-need-product-review 0` after manual product acceptance.
   - Override only when intentionally syncing non-grooming content: add `--skip-rice-check`.
@@ -172,13 +169,13 @@ Use `references/workflow-checklist.md` as the canonical checklist.
 ## Quality Gates
 
 Before execution:
-- Complete preflight checks in plan.
+- Complete preflight checks in working notes or output doc.
 
 During execution:
 - Do not move to next stage when handoff fields are incomplete.
 
 At completion:
-- List output file paths, source-of-truth files, validation status, and open questions.
+- List Jira update outcome, source-of-truth files, validation status, and open questions.
 
 ## Competitor Benchmark Rule
 

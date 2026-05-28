@@ -1,7 +1,7 @@
 # Output Rules
 
 ## Output Directories
-- Jira: `outputs/jira/`
+- Jira: direct ticket update by default (no mandatory `outputs/jira/` file)
 - PRD: `outputs/prd/`
 - Other docs: `outputs/docs/`
 
@@ -11,7 +11,7 @@
 
 ## Referencing
 - Use full relative path in prompts for reliable mentions:
-  - `@outputs/jira/2026-03-16-my-payroll-cp22a-grooming.md`
+  - `@outputs/prd/20260427 - Manual Overtime Feature (PRD).md`
 - Alias files can be used for convenience if maintained.
 
 ## Jira AC Style
@@ -21,9 +21,9 @@
 - Keep statements concise and testable.
 
 ## Jira Sync Output Rule
-- If Jira issue key/link is provided, run read/sync via skill-local scripts.
+- If Jira issue key/link is provided, run direct read/update via skill-local scripts.
 - Use `references/jira-sync.md` as canonical source for exact commands, modes, and flags.
-- If no Jira issue is provided (`md-only`), always include explicit sync command in handoff.
+- Use `md-only` only when Jira is inaccessible or user explicitly requests a markdown artifact.
 
 ## RICE Output Rule (Mandatory For Jira Grooming)
 - Include full factors: Reach, Impact, Confidence, Effort, and computed `RICE Score`.

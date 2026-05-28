@@ -16,11 +16,12 @@ const RICE_FIELD_RATIONALE = process.env.JIRA_FIELD_RICE_RATIONALE || "";
 
 function printUsage() {
   console.log(`Usage:
-  node <skill-dir>/scripts/sync-jira-ticket.mjs --issue <ISSUE_KEY> --file <MARKDOWN_PATH> [options]
+  node <skill-dir>/scripts/sync-jira-ticket.mjs --issue <ISSUE_KEY> (--file <MARKDOWN_PATH> | --markdown "<CONTENT>") [options]
 
 Required:
   --issue <ISSUE_KEY|URL>          Jira key (SCHE-1234) or browse URL
-  --file <MARKDOWN_PATH>           Path to groomed markdown file
+  --file <MARKDOWN_PATH>           Path to groomed markdown file (optional if --markdown is used)
+  --markdown "<CONTENT>"           Grooming content inline (optional if --file is used)
 
 Options:
   --mode <MODE>                    description | comment | both (default: description)
@@ -51,6 +52,7 @@ function parseArgs(argv) {
   const parsed = {
     issue: "",
     filePath: "",
+    markdown: "",
     mode: "description",
     updateSummary: false,
     setNeedProductReview: null,
@@ -84,6 +86,11 @@ function parseArgs(argv) {
     }
     if (arg === "--file") {
       parsed.filePath = argv[i + 1] ?? "";
+      i += 1;
+      continue;
+    }
+    if (arg === "--markdown") {
+      parsed.markdown = argv[i + 1] ?? "";
       i += 1;
       continue;
     }
@@ -551,8 +558,8 @@ async function main() {
   if (!args.issue) {
     fail("Missing required --issue argument.");
   }
-  if (!args.filePath) {
-    fail("Missing required --file argument.");
+  if (!args.filePath && !args.markdown) {
+    fail("Missing content input. Provide --file <MARKDOWN_PATH> or --markdown \"<CONTENT>\".");
   }
   if (!VALID_MODES.has(args.mode)) {
     fail("Invalid --mode. Use description, comment, or both.");
@@ -560,14 +567,14 @@ async function main() {
 
   const setNeedProductReview = parseNeedProductReviewInput(args.setNeedProductReview);
 
-  if (!fs.existsSync(args.filePath)) {
+  if (args.filePath && !fs.existsSync(args.filePath)) {
     fail(`Markdown file not found: ${args.filePath}`);
   }
 
-  const markdown = fs.readFileSync(args.filePath, "utf8");
+  const markdown = args.filePath ? fs.readFileSync(args.filePath, "utf8") : args.markdown;
   const markdownTitle = parseMarkdownTitle(markdown);
   const syncedAt = new Date().toISOString();
-  const sourceFileName = path.basename(args.filePath);
+  const sourceFileName = args.filePath ? path.basename(args.filePath) : "inline-grooming-content";
 
   if (!args.skipRiceCheck) {
     validateMandatoryRice(markdown);
@@ -695,7 +702,8 @@ async function main() {
     console.log(`Added sync comment for ${issueKey}.`);
   }
 
-  console.log(`Jira sync completed for ${issueKey} from ${args.filePath}.`);
+  const sourceLabel = args.filePath || "inline markdown";
+  console.log(`Jira sync completed for ${issueKey} from ${sourceLabel}.`);
 }
 
 main().catch((error) => {
