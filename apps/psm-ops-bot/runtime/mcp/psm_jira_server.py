@@ -166,6 +166,61 @@ NO_FOLLOW_UP_CLASSIFIER_SYSTEM = (
     "safer than dropping a real follow-up. Always call the "
     "report_no_follow_up_intent tool exactly once with your decision."
 )
+# Generalized AA gate: is the message an actionable follow-up worth a ticket?
+# Separate from the photo classifier, which judges the photo specifically.
+AA_ACTIONABLE_CLASSIFIER_MODEL = NO_FOLLOW_UP_CLASSIFIER_MODEL
+AA_ACTIONABLE_CLASSIFIER_TOOL = {
+    "name": "report_aa_followup_intent",
+    "description": (
+        "Report whether an Event AA Slack message describes an actionable "
+        "customer follow-up that warrants creating a Jira tracking ticket. Used "
+        "by StaffAny's PSM Ops bot to avoid ticketing record-only notes."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "should_ticket": {
+                "type": "boolean",
+                "description": (
+                    "True iff the message describes a real follow-up to track "
+                    "(e.g. 'want to expand outlets', 'follow up on pricing', "
+                    "reported a bug/lag, asked for training/demo, cross-sell or "
+                    "feature interest, negative feedback to act on). False ONLY "
+                    "when the message is purely non-actionable: 'met the new "
+                    "team', a greeting/introduction, an FYI or record-only note, "
+                    "a selfie/photo with no ask, general event chit-chat, or an "
+                    "explicit 'no follow up needed' — in English or Indonesian."
+                ),
+            },
+            "reason": {
+                "type": "string",
+                "description": (
+                    "One short sentence quoting or paraphrasing the part of "
+                    "the message that justifies the decision."
+                ),
+            },
+        },
+        "required": ["should_ticket", "reason"],
+    },
+}
+AA_ACTIONABLE_CLASSIFIER_SYSTEM = (
+    "You are a binary classifier for StaffAny's PSM Ops bot. The PSM team tags "
+    "an AA Slack message after meeting people at an event. Most messages ask "
+    "the team to follow up with a customer (expand outlets, pricing, a bug or "
+    "lag, training/demo, cross-sell, a feature ask, or feedback to act on) — "
+    "those MUST be ticketed. Some messages are just records with no action: "
+    "'met the new team', greetings or introductions, FYI notes, a photo for the "
+    "record, or an explicit 'no follow up needed'. Your only job: decide "
+    "whether THIS message contains an actionable follow-up worth a Jira "
+    "ticket.\n\n"
+    "Return should_ticket=true when there is any actionable follow-up, the "
+    "message mixes context with at least one real ask, or the intent is "
+    "ambiguous. Return should_ticket=false ONLY when the message is clearly "
+    "non-actionable (English or Indonesian). When in doubt, return true — "
+    "creating a redundant ticket is safer than dropping a real follow-up. "
+    "Always call the report_aa_followup_intent tool exactly once with your "
+    "decision."
+)
 THIN_POC_FIELD_IDS = {
     "staffany_orgs": "customfield_10667",
     "ps_team": "customfield_10876",
@@ -1279,6 +1334,99 @@ def _classify_no_follow_up_intent(text: str) -> tuple[bool, str]:
     skip = raw_skip
     reason = str(result.get("reason") or "").strip() or "no reason returned"
     return skip, reason
+
+
+def _classify_aa_actionable_intent(text: str) -> tuple[bool, str]:
+    """Return (skip, reason); skip=True => no actionable follow-up. Fails closed to (False, why)."""
+
+    if not text or not text.strip():
+        return False, "empty trigger text"
+    try:
+        result = _call_anthropic_messages(
+            model=AA_ACTIONABLE_CLASSIFIER_MODEL,
+            system=AA_ACTIONABLE_CLASSIFIER_SYSTEM,
+            user_text=text,
+            tools=[AA_ACTIONABLE_CLASSIFIER_TOOL],
+            tool_name="report_aa_followup_intent",
+            max_tokens=256,
+        )
+    except JiraError as error:
+        return False, f"classifier_unavailable: {error}"
+    except Exception as error:  # noqa: BLE001 — classifier must never block intake.
+        return False, f"classifier_error: {error}"
+    raw_should_ticket = result.get("should_ticket")
+    if not isinstance(raw_should_ticket, bool):
+        return False, "classifier_error: invalid should_ticket type"
+    skip = not raw_should_ticket
+    reason = str(result.get("reason") or "").strip() or "no reason returned"
+    return skip, reason
+
+
+def _aa_intake_skip_result(
+    *,
+    audit_event: str,
+    skip_reason: str,
+    request_type_key: str,
+    customer: str,
+    source: str,
+    audit_requester: str,
+    classifier_reason: str,
+    classifier_model: str,
+    slack_reply: str,
+    caveat: str,
+) -> dict[str, Any]:
+    """Build the 'skipped' tool result shared by both AA skip paths."""
+
+    customer_label = (customer or "").strip() or "Unknown customer"
+    skip_scope: dict[str, Any] = {
+        "caller": audit_requester,
+        "slack_thread_url": source,
+        "customer": customer_label,
+        "request_type_key": request_type_key,
+        "event": "AA",
+        "skip_reason": skip_reason,
+        "classifier_reason": classifier_reason,
+    }
+    skip_answer: dict[str, Any] = {
+        "status": "skipped",
+        "skipped_request_type": request_type_key,
+        "reason": skip_reason,
+        "classifier_reason": classifier_reason,
+        "slack_reply": slack_reply,
+    }
+    try:
+        skip_answer["central_copy"] = post_ps_wee_audit(
+            audit_event,
+            source_thread_url=source,
+            issue_key="",
+            issue_url="",
+            requester=audit_requester,
+            customer=customer_label,
+            summary=f"intake skipped ({skip_reason})",
+            status="skipped",
+            jira_payload={
+                "skip_reason": skip_reason,
+                "classifier_reason": classifier_reason,
+                "classifier_model": classifier_model,
+            },
+            extra={"request_type_key": request_type_key, "event": "AA"},
+        )
+    except Exception as error:  # noqa: BLE001 — audit failures must not block skip.
+        # Surface so a lost audit copy is distinguishable from a normal skip.
+        print(
+            f"[psm-ops-bot] {audit_event} audit failed: {error} "
+            f"(thread={source}, customer={customer_label})",
+            file=sys.stderr,
+        )
+        skip_answer["audit_error"] = str(error)
+        skip_scope["audit_error"] = str(error)
+    return {
+        "answer": skip_answer,
+        "source": "Jira PCO",
+        "scope": skip_scope,
+        "confidence": "verified",
+        "caveat": caveat,
+    }
 
 
 def _download_slack_file(url_private: str) -> bytes:
@@ -3537,9 +3685,22 @@ def create_ps_wee_intake_ticket(
         if verified_sender:
             slack_user_email = verified_sender
     audit_requester = _audit_requester_identity(slack_user_email)
-    # AA photo_follow_up guard: skip ticket when trigger says no follow up needed.
-    # Enforced server-side because the prompt rule "perceived intent is never a
-    # reason to block" otherwise overrides any agent-side check.
+    # Containment: photo_follow_up is an AA-only request type. Block it outside
+    # the AA channel so the AA fallback can't create junk tickets elsewhere.
+    if not is_event_aa and request_type_key == EVENT_AA_PHOTO_REQUEST_TYPE_KEY:
+        return _blocked(
+            "photo_follow_up is an Event AA-only request type and cannot be "
+            "created outside the AA channel.",
+            {
+                "caller": audit_requester,
+                "slack_thread_url": source,
+                "customer": normalized_customer,
+                "request_type_key": request_type_key,
+                "event": "",
+            },
+        )
+    # AA photo skip: drop the photo ticket when the trigger says no follow up.
+    # Enforced server-side; the prompt's "never block" rule can't override it.
     if (
         is_event_aa
         and request_type_key == EVENT_AA_PHOTO_REQUEST_TYPE_KEY
@@ -3551,70 +3712,60 @@ def create_ps_wee_intake_ticket(
             trigger_text = ""
         skip_decision, skip_reason_detail = _classify_no_follow_up_intent(trigger_text)
         if skip_decision:
-            skip_scope = {
-                "caller": audit_requester,
-                "slack_thread_url": source,
-                "customer": (customer or "").strip() or "Unknown customer",
-                "request_type_key": request_type_key,
-                "event": "AA",
-                "skip_reason": "no_follow_up_signal_detected",
-                "classifier_reason": skip_reason_detail,
-            }
-            skip_answer: dict[str, Any] = {
-                "status": "skipped",
-                "skipped_request_type": EVENT_AA_PHOTO_REQUEST_TYPE_KEY,
-                "reason": "no_follow_up_signal_detected",
-                "classifier_reason": skip_reason_detail,
-                "slack_reply": (
+            return _aa_intake_skip_result(
+                audit_event="photo_follow_up_skipped",
+                skip_reason="no_follow_up_signal_detected",
+                request_type_key=request_type_key,
+                customer=customer,
+                source=source,
+                audit_requester=audit_requester,
+                classifier_reason=skip_reason_detail,
+                classifier_model=NO_FOLLOW_UP_CLASSIFIER_MODEL,
+                slack_reply=(
                     "Skipped Photo Follow Up ticket — the trigger message says "
                     "no follow up is needed. Other per-bullet tickets, if any, "
                     "were unaffected."
                 ),
-            }
-            try:
-                skip_answer["central_copy"] = post_ps_wee_audit(
-                    "photo_follow_up_skipped",
-                    source_thread_url=source,
-                    issue_key="",
-                    issue_url="",
-                    requester=skip_scope["caller"],
-                    customer=skip_scope["customer"],
-                    summary="photo_follow_up skipped (no_follow_up_signal_detected)",
-                    status="skipped",
-                    jira_payload={
-                        "skip_reason": "no_follow_up_signal_detected",
-                        "classifier_reason": skip_reason_detail,
-                        "classifier_model": NO_FOLLOW_UP_CLASSIFIER_MODEL,
-                    },
-                    extra={
-                        "request_type_key": request_type_key,
-                        "event": "AA",
-                    },
-                )
-            except Exception as error:  # noqa: BLE001 — audit failures must not block skip.
-                # Surface so a lost audit copy is distinguishable from a normal skip.
-                print(
-                    f"[psm-ops-bot] photo_follow_up_skipped audit failed: {error} "
-                    f"(thread={source}, customer={skip_scope['customer']})",
-                    file=sys.stderr,
-                )
-                skip_answer["audit_error"] = str(error)
-                skip_scope["audit_error"] = str(error)
-            return {
-                "answer": skip_answer,
-                "source": "Jira PCO",
-                "scope": skip_scope,
-                "confidence": "verified",
-                "caveat": (
-                    "Server-side skip: no_follow_up_signal_detected. The "
-                    "classifier judged the trigger Slack message says no "
-                    f"follow up is needed ({skip_reason_detail}). Other "
-                    "per-bullet tickets (if any) created via separate calls "
-                    "were unaffected. Call attach_aa_selfie_to_thread if the "
-                    "selfie should still be recorded on an already-opened AA "
-                    "ticket."
+                caveat=(
+                    "Server-side skip: no_follow_up_signal_detected "
+                    f"({skip_reason_detail}). Other per-bullet tickets (if any) "
+                    "were unaffected. Call attach_aa_selfie_to_thread to record "
+                    "the selfie on an already-opened AA ticket."
                 ),
-            }
+            )
+    # AA non-actionable skip: drop the whole ticket when the message has no
+    # real follow-up (e.g. "met new team", FYI/record-only). LLM judges intent;
+    # fail-closed (outage/ambiguous -> create) so a real follow-up is never lost.
+    if (
+        is_event_aa
+        and request_type_key != EVENT_AA_PHOTO_REQUEST_TYPE_KEY
+        and source
+    ):
+        try:
+            trigger_text = _slack_trigger_message_text(source)
+        except Exception:  # noqa: BLE001 — text fetch must never block creation.
+            trigger_text = ""
+        skip_decision, skip_reason_detail = _classify_aa_actionable_intent(trigger_text)
+        if skip_decision:
+            return _aa_intake_skip_result(
+                audit_event="intake_skipped_non_actionable",
+                skip_reason="non_actionable_no_follow_up",
+                request_type_key=request_type_key,
+                customer=customer,
+                source=source,
+                audit_requester=audit_requester,
+                classifier_reason=skip_reason_detail,
+                classifier_model=AA_ACTIONABLE_CLASSIFIER_MODEL,
+                slack_reply=(
+                    "Skipped — this message doesn't look like a follow-up that "
+                    "needs a ticket. Tag me again if it should be tracked."
+                ),
+                caveat=(
+                    "Server-side skip: non_actionable_no_follow_up "
+                    f"({skip_reason_detail}). No ticket was created. Tag the bot "
+                    "again if this should be ticketed."
+                ),
+            )
     scope = {
         "caller": audit_requester,
         "slack_thread_url": source,

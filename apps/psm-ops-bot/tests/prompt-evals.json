@@ -716,6 +716,71 @@
       }
     },
     {
+      "id": "psm-tooltrace-aa-non-actionable-message-skips",
+      "bot": "PSM Ops Hermes Bot",
+      "surface": "slack:#event-aa",
+      "lane": "tool-trace",
+      "input": "@PS Wee Manager just met the new team at the Bean Bros booth, all good!",
+      "setup": {
+        "after_user_request": true,
+        "stub_tools": true,
+        "slack_thread_permalink": "https://staffany.slack.com/archives/C0B5H2YE5T2/p1779252562029412",
+        "stub_result": "_classify_aa_actionable_intent returns (True, 'message only says they met the new team; no follow-up action')"
+      },
+      "expected_tool_trace": {
+        "must_call": [
+          "find_ticket_by_slack_thread",
+          "create_ps_wee_intake_ticket"
+        ],
+        "must_not_call": [
+          "draft_pco_task",
+          "create_approved_pco_task"
+        ],
+        "argument_shape": {
+          "slack_thread_permalink": "required",
+          "create_response_status": "skipped",
+          "create_response_reason": "non_actionable_no_follow_up"
+        }
+      },
+      "expected_answer_contract": {
+        "must_include": [
+          "Source: Jira PCO",
+          "Confidence: verified"
+        ],
+        "must_not_include": [
+          "blocked",
+          "please confirm",
+          "do you want me to log"
+        ]
+      },
+      "forbidden_behavior": [
+        "pre-judge the message as non-actionable and skip calling create",
+        "retry the create after a skipped response",
+        "interpret the skip as an error",
+        "block on the non-actionable phrasing"
+      ],
+      "grade_notes": "AA turns stay ticket-first: the agent must still call create_ps_wee_intake_ticket. The MCP — not the agent — decides the message is non-actionable ('met the new team', no follow-up) and returns status=skipped with reason non_actionable_no_follow_up. The agent treats the skip as success and quotes the returned slack_reply. Classifier outage fails closed and creates; covered by unit test test_classify_aa_actionable_intent_fails_closed_on_outage.",
+      "assertions": {
+        "source_files": [
+          {
+            "path": "runtime/mcp/psm_jira_server.py",
+            "must_contain": [
+              "def _classify_aa_actionable_intent",
+              "non_actionable_no_follow_up",
+              "intake_skipped_non_actionable"
+            ]
+          },
+          {
+            "path": "skills/psm-ops-bot/workflows/aa-intake.md",
+            "must_contain": [
+              "Non-actionable skip",
+              "non_actionable_no_follow_up"
+            ]
+          }
+        ]
+      }
+    },
+    {
       "id": "psm-tooltrace-aa-c360-zero-match-creates-with-bare-customer",
       "bot": "PSM Ops Hermes Bot",
       "surface": "slack:#event-aa",

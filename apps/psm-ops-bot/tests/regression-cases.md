@@ -115,6 +115,26 @@ Thread in Slack channel `C0B5H2YE5T2`:
 - Maps `features` / product-related asks to `request_type_key="pdt_discovery"`.
 - Does not fall through to `feedback` when the message is clearly about product features.
 
+## PS WEE Event AA Non-Actionable Skip
+
+Thread in Slack channel `C0B5H2YE5T2`:
+
+`@PS Wee Manager just met the new team at the Bean Bros booth, all good, photo for the record`
+
+- Agent still calls `create_ps_wee_intake_ticket` (never pre-judges non-actionability itself).
+- The MCP runs a server-side LLM classifier and returns `status:"skipped"`, `reason:"non_actionable_no_follow_up"` because the message has no follow-up action; no Jira write happens.
+- Agent quotes the returned `slack_reply` and does not retry, block, or re-create.
+- Posts an `intake_skipped_non_actionable` central audit copy with `event: AA`.
+- Fails closed: if `ANTHROPIC_API_KEY` is missing or the classifier errors/returns malformed output, the ticket is created instead of skipped.
+- A message with a real follow-up (e.g. `wants to expand more outlets`) is classified actionable and creates normally.
+
+## PS WEE photo_follow_up Blocked Outside AA
+
+Thread in a non-AA channel (any `/archives/<id>/` other than `C0B5H2YE5T2`):
+
+- A `create_ps_wee_intake_ticket` call with `request_type_key="photo_follow_up"` is blocked (`confidence: blocked`) — `photo_follow_up` is AA-only and cannot be created outside the AA channel.
+- AA fallback behaviors (always-create, never-block, create-on-error, omit-StaffAny-Org) only apply when the thread is in `C0B5H2YE5T2`; non-AA flows keep the create-ready-offer + approval gate and block on C360/MCP errors.
+
 ## PS WEE Customer Channel Auto-Tag
 
 Expected:

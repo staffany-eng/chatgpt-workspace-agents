@@ -127,6 +127,7 @@ class PsmJiraServerTest(unittest.TestCase):
                 "PSM_OPS_ROI_JIRA_FIELD_ORIGINAL_CHANNEL": "customfield_20105",
                 "PSM_OPS_ROI_JIRA_FIELD_PRIORITY": "customfield_20106",
                 "PSM_OPS_CUSTOMER_CHANNEL_MAP_PATH": "",
+                "ANTHROPIC_API_KEY": "",
             },
             clear=False,
         )
@@ -4191,8 +4192,9 @@ class PsmJiraServerTest(unittest.TestCase):
         create_call = next(c for c in request_calls if c[1] == "/rest/servicedeskapi/request")
         self.assertEqual(create_call[2]["requestTypeId"], "127")
 
-    def test_ps_wee_intake_non_photo_request_type_in_aa_does_not_call_classifier(self):
+    def test_ps_wee_intake_non_photo_actionable_creates_via_general_classifier(self):
         request_calls = []
+        actionable_calls = []
 
         def fake_request(method, path, body=None):
             request_calls.append((method, path, deepcopy(body)))
@@ -4211,18 +4213,23 @@ class PsmJiraServerTest(unittest.TestCase):
                         {
                             "ts": params["oldest"],
                             "user": "U-PSM",
-                            "text": "no follow up needed, just FYI — but want to expand to more outlets.",
+                            "text": "want to expand to more outlets.",
                             "files": [],
                         }
                     ]
                 }
             return {"members": []}
 
-        # Classifier MUST NOT be called for non-photo request types — the skip rule
-        # is scoped to photo_follow_up only, so other types don't pay the LLM cost.
+        # Non-photo AA types run the general actionable classifier, NOT the
+        # photo-specific one.
         def boom(*args, **kwargs):
-            self.fail("Classifier must not be called for non-photo request types")
+            self.fail("photo classifier must not run for non-photo request types")
         self.module._classify_no_follow_up_intent = boom
+
+        def fake_actionable(text):
+            actionable_calls.append(text)
+            return False, "Has an actionable expansion ask."
+        self.module._classify_aa_actionable_intent = fake_actionable
         self.module._request_json = fake_request
         self.module._request_slack_json = fake_slack_json
         self.module._creator_valid_values = self._mock_creator_options
@@ -4239,8 +4246,144 @@ class PsmJiraServerTest(unittest.TestCase):
 
         self.assertEqual(result["confidence"], "verified")
         self.assertNotEqual(result["answer"].get("status"), "skipped")
+        self.assertEqual(len(actionable_calls), 1)
+        self.assertIn("expand", actionable_calls[0].lower())
         create_call = next(c for c in request_calls if c[1] == "/rest/servicedeskapi/request")
         self.assertEqual(create_call[2]["requestTypeId"], "120")
+
+    def test_ps_wee_intake_in_aa_channel_skips_non_actionable_message(self):
+        request_calls = []
+        audit_calls = []
+
+        def fake_request(method, path, body=None):
+            request_calls.append((method, path, deepcopy(body)))
+            if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
+                return {"issues": []}
+            if path == "/rest/servicedeskapi/request":
+                self.fail("non-actionable AA message must not create a ticket")
+            return {}
+
+        def fake_slack_json(method, params):
+            if method == "conversations.history":
+                return {
+                    "messages": [
+                        {
+                            "ts": params["oldest"],
+                            "user": "U-PSM",
+                            "text": "just met the new team at the booth, all good!",
+                            "files": [],
+                        }
+                    ]
+                }
+            return {"members": []}
+
+        actionable_calls = []
+
+        def fake_actionable(text):
+            actionable_calls.append(text)
+            return True, "Message only says they met the new team; no follow-up action."
+
+        self.module._request_json = fake_request
+        self.module._request_slack_json = fake_slack_json
+        self.module._classify_aa_actionable_intent = fake_actionable
+        self.module._creator_valid_values = self._mock_creator_options
+        self.module._update_issue_labels = lambda *args, **kwargs: None
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: audit_calls.append((event_type, kwargs)) or {"ok": True}
+
+        result = self.module.create_ps_wee_intake_ticket(
+            slack_user_email="psm@staffany.com",
+            slack_thread_url="https://staffany.slack.com/archives/C0B5H2YE5T2/p1779264818954263",
+            customer="Bean Bros",
+            issue_summary="met new team",
+            request_type_key="feedback",
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["answer"]["status"], "skipped")
+        self.assertEqual(result["answer"]["reason"], "non_actionable_no_follow_up")
+        self.assertEqual(result["answer"]["skipped_request_type"], "feedback")
+        self.assertIn("met the new team", result["answer"]["classifier_reason"].lower())
+        self.assertEqual(len(actionable_calls), 1)
+        # No Jira write — returned before touching Jira.
+        self.assertEqual(request_calls, [])
+        self.assertTrue(any(event == "intake_skipped_non_actionable" for event, _ in audit_calls))
+
+    def test_ps_wee_intake_blocks_photo_follow_up_outside_aa_channel(self):
+        def boom_request(*args, **kwargs):
+            self.fail("photo_follow_up outside AA must be blocked before any Jira call")
+
+        self.module._request_json = boom_request
+
+        result = self.module.create_ps_wee_intake_ticket(
+            slack_user_email="psm@staffany.com",
+            slack_thread_url="https://staffany.slack.com/archives/C08SDJR03N1/p1779264818954264",
+            customer="Andre Cafe",
+            issue_summary="photo follow up",
+            request_type_key="photo_follow_up",
+        )
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("AA-only", result["answer"]["message"])
+
+    def test_classify_aa_actionable_intent_returns_decision(self):
+        captured = []
+
+        def fake_call(model, system, user_text, tools, tool_name, max_tokens=256):
+            captured.append({"model": model, "tool_name": tool_name})
+            return {"should_ticket": False, "reason": "Just met the new team, no action."}
+
+        self.module._call_anthropic_messages = fake_call
+
+        skip, reason = self.module._classify_aa_actionable_intent("met the new team, all good")
+
+        self.assertTrue(skip)
+        self.assertIn("met the new team", reason.lower())
+        self.assertEqual(captured[0]["model"], self.module.AA_ACTIONABLE_CLASSIFIER_MODEL)
+        self.assertEqual(captured[0]["tool_name"], "report_aa_followup_intent")
+
+    def test_classify_aa_actionable_intent_creates_when_actionable(self):
+        self.module._call_anthropic_messages = lambda *a, **kw: {
+            "should_ticket": True,
+            "reason": "Wants to expand to more outlets.",
+        }
+
+        skip, reason = self.module._classify_aa_actionable_intent("wants to expand more outlets")
+
+        self.assertFalse(skip)
+        self.assertIn("expand", reason.lower())
+
+    def test_classify_aa_actionable_intent_rejects_non_boolean(self):
+        self.module._call_anthropic_messages = lambda *a, **kw: {
+            "should_ticket": "true",
+            "reason": "string booleans must not drive a skip",
+        }
+
+        skip, reason = self.module._classify_aa_actionable_intent("anything")
+
+        self.assertFalse(skip)
+        self.assertEqual(reason, "classifier_error: invalid should_ticket type")
+
+    def test_classify_aa_actionable_intent_fails_closed_on_outage(self):
+        def fail(*args, **kwargs):
+            raise self.module.JiraError("ANTHROPIC_API_KEY is not configured for the LLM classifier.")
+
+        self.module._call_anthropic_messages = fail
+
+        skip, reason = self.module._classify_aa_actionable_intent("met new team")
+
+        self.assertFalse(skip)
+        self.assertIn("classifier_unavailable", reason)
+
+    def test_classify_aa_actionable_intent_empty_text_skips_api(self):
+        def boom(*args, **kwargs):
+            self.fail("API must not be called for empty trigger text")
+
+        self.module._call_anthropic_messages = boom
+
+        skip, reason = self.module._classify_aa_actionable_intent("")
+
+        self.assertFalse(skip)
+        self.assertEqual(reason, "empty trigger text")
 
     def test_thin_poc_reminder_uses_due_date_without_custom_field(self):
         with patch.dict(
