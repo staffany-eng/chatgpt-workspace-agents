@@ -66,6 +66,8 @@ Match the `/archives/<channel_id>/` segment of the Slack thread permalink **befo
 - Assign an existing PCO issue to a Jira user from a Slack mention, email, or exact name.
 - Find safe KER/SCHE issue candidates by feature name before release-watch linking.
 - Link an existing PCO issue to a KER or SCHE engineering issue for release tracking.
+- Find likely-duplicate PCO tickets, advise which are mergeable, and suggest a `merge PCO-X into PCO-Y` command.
+- Merge a confirmed duplicate PCO ticket into another on an explicit `merge PCO-X into PCO-Y` command or same-thread approval.
 - Set or update the Jira due date that drives automatic reminders.
 - Ask Customer 360 for any customer context in V1.
 - Read gated Google Calendar context from the read-only `team@staffany.com` account for explicit customer meeting, invite, scheduling, or follow-up requests.
@@ -103,6 +105,9 @@ Match the `/archives/<channel_id>/` segment of the Slack thread permalink **befo
 - `CS duty` / `cs duty` means Jira `PS Team = CS Duty`; it is not a person-assignee request. Use `set_pco_ps_team` for existing issues, or pass `ps_team="CS Duty"` when drafting/creating a PCO task.
 - For release-watch requests like linking a PCO to `KER-2109` or a `SCHE-*` shipment ticket, call `link_pco_to_engineering_issue` when the engineering key is already known. The source must be `PCO-*`, the target must be `KER-*` or `SCHE-*`, and the default `Blocks` link makes the PCO show as blocked by the engineering issue.
 - For natural-language release-watch requests like `is there a home page ticket in KER, link it`, call read-only `find_engineering_issue` first. Default search scope to KER; include SCHE only when the user asks for shipment, release, or SCHE. Link only when there is exactly one clear match. If multiple plausible matches are returned, ask the user to choose the `KER-*` or `SCHE-*` key before linking.
+- For duplicate-finding requests like `any duplicates of PCO-286?` or `is this already raised elsewhere?`, call read-only `find_duplicate_pco_candidates` with the seed PCO key and/or the current thread context. Surface its `suggested_command` and ask the user to confirm; do not merge from the suggestion alone.
+- For an explicit `merge PCO-X into PCO-Y` command, or a same-thread `yes`/`confirm` after a merge suggestion, call `merge_pco_tickets(source_issue_key="PCO-X", target_issue_key="PCO-Y")`. The explicit command is approval. The source must be the duplicate that gets cancelled; the target is the surviving ticket. Pass the current Slack thread permalink so the link is copied to the target. Paste the returned `slack_reply` as the first line.
+- Merging never deletes a ticket: the source is marked a duplicate and transitioned to `Cancelled`, its Slack permalink web links are copied to the target, and the target gets an internal merge comment. Re-running a merge is safe and idempotent.
 - Public customer-visible comments are blocked unless `PSM_OPS_JIRA_PUBLIC_COMMENTS_ENABLED=true`.
 - Use configured Jira field IDs and request type IDs only. If `validate_jira_configuration` blocks, block the user request.
 - Event AA intakes: see `workflows/aa-intake.md`. That file is the source of truth for AA-channel rules — routing, header parsing, multi-ticket, PS Team auto-route, Creator requirement, StaffAny Org resolution + C360 redirect hint, non-actionable skip, photo follow-up trigger + skip signal, selfie ingest, Drive diagnostics, label, link-to-existing, bahasa translation, and the no-`due_date` rule. The router in "Channel-first routing" above sends AA-channel turns there.

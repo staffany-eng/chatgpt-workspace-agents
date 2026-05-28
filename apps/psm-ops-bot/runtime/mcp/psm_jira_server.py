@@ -263,6 +263,9 @@ ISSUE_LINK_TYPE_ALIASES = {
     "blocked by": "Blocks",
     "relates": "Relates",
     "relates to": "Relates",
+    "duplicate": "Duplicate",
+    "duplicates": "Duplicate",
+    "is duplicated by": "Duplicate",
 }
 
 FIELD_ENVS = {
@@ -1753,6 +1756,11 @@ def _looks_like_existing_issue_link_error(error: JiraError) -> bool:
         ("issue link" in message or "link between" in message or "link" in message)
         and ("already exists" in message or "exists" in message or "duplicate" in message)
     )
+
+
+def _looks_like_unknown_link_type_error(error: JiraError) -> bool:
+    # Check before the existing-link heuristic, whose "duplicate" keyword would collide.
+    return "issue link type" in str(error).lower()
 
 
 def _slack_token() -> str:
@@ -3487,6 +3495,120 @@ def search_pco_tickets(
     )
 
 
+def _pco_issue_number(issue_key: str) -> int:
+    match = re.search(r"-(\d+)$", issue_key or "")
+    return int(match.group(1)) if match else 0
+
+
+@mcp.tool()
+def find_duplicate_pco_candidates(
+    issue_key: str = "",
+    query: str = "",
+    customer: str = "",
+    slack_thread_url: str = "",
+    ps_team: str = "",
+    max_results: int = 5,
+) -> dict[str, Any]:
+    """Find likely-duplicate PCO tickets and advise which are mergeable. Read-only."""
+
+    seed_key = _normalize_issue_key(issue_key)
+    search_query = re.sub(r"\s+", " ", (query or "").strip())
+    normalized_customer = re.sub(r"\s+", " ", (customer or "").strip())
+    capped_max = max(1, min(int(max_results or 5), 20))
+    scope = {
+        "issue_key": seed_key,
+        "query": search_query,
+        "customer": normalized_customer,
+        "slack_thread_url": (slack_thread_url or "").strip(),
+        "max_results": capped_max,
+        "subsystem": "jira_pco_merge",
+    }
+    if seed_key and not PCO_ISSUE_RE.fullmatch(seed_key):
+        return _blocked("issue_key must look like PCO-123 when provided.", scope)
+    if not seed_key and not search_query and not normalized_customer and not scope["slack_thread_url"]:
+        return _blocked("Provide a PCO issue key, query, customer, or Slack thread to find duplicate candidates.", scope)
+
+    seed_issue: dict[str, Any] | None = None
+    try:
+        if seed_key:
+            issues = _search_issues(f"project = {_project_key()} AND key = {seed_key}", _search_fields(), 1)
+            if not issues:
+                return _blocked(f"{seed_key} was not found on the PCO board.", scope)
+            seed_issue = _safe_pco_search_issue(issues[0])
+            if not search_query:
+                search_query = str(seed_issue.get("summary") or "")
+    except JiraError as error:
+        return _blocked(str(error), scope)
+
+    # Ask for one extra result so excluding the seed still leaves enough candidates.
+    result = search_pco_tickets(
+        query=search_query,
+        slack_thread_url=scope["slack_thread_url"],
+        customer=normalized_customer,
+        ps_team=ps_team,
+        include_done=False,
+        max_results=min(capped_max + 1, 20),
+    )
+    if result.get("confidence") == "blocked":
+        return result
+
+    matches = list((result.get("answer") or {}).get("matches") or [])
+    candidates: list[dict[str, Any]] = []
+    for match in matches:
+        key = str(match.get("issue_key") or "").upper()
+        if not key or key == seed_key:
+            continue
+        score = int(match.get("match_score") or 0)
+        if score >= 75:
+            mergeable, recommendation = True, "strong duplicate"
+        elif score >= 60:
+            mergeable, recommendation = True, "likely duplicate, confirm before merging"
+        else:
+            mergeable, recommendation = False, "weak match, review before merging"
+        candidates.append({**match, "mergeable": mergeable, "merge_recommendation": recommendation})
+        if len(candidates) >= capped_max:
+            break
+
+    mergeable_candidates = [candidate for candidate in candidates if candidate["mergeable"]]
+    suggested_merge: dict[str, str] | None = None
+    if seed_key and mergeable_candidates:
+        # Seed is the canonical target; merge the top candidate into it.
+        suggested_merge = {"source_issue_key": mergeable_candidates[0]["issue_key"], "target_issue_key": seed_key}
+    elif len(mergeable_candidates) >= 2:
+        # No seed: keep the older (lower-numbered) ticket as target.
+        ordered = sorted(mergeable_candidates, key=lambda candidate: _pco_issue_number(candidate["issue_key"]))
+        suggested_merge = {"source_issue_key": ordered[-1]["issue_key"], "target_issue_key": ordered[0]["issue_key"]}
+
+    answer: dict[str, Any] = {
+        "seed": seed_issue if seed_issue else ({"issue_key": seed_key} if seed_key else None),
+        "candidates": candidates,
+        "mergeable_count": len(mergeable_candidates),
+        "suggested_merge": suggested_merge,
+    }
+    if suggested_merge:
+        source = suggested_merge["source_issue_key"]
+        target = suggested_merge["target_issue_key"]
+        answer["suggested_command"] = f"merge {source} into {target}"
+        answer["slack_reply"] = (
+            f"{source} looks like a duplicate of {target}. Want me to merge {source} into {target}? "
+            f"Reply `merge {source} into {target}` to confirm."
+        )
+
+    if not candidates:
+        return _verified(answer, scope, "No active duplicate candidates found by bounded board search.")
+    if not mergeable_candidates:
+        return _needs_check(
+            answer,
+            scope,
+            "Found related tickets but none scored high enough to recommend a merge; review before merging.",
+        )
+    return _verified(
+        answer,
+        scope,
+        "Merge suggestions are advisory; confirm before running merge_pco_tickets. Merging cancels the duplicate, it does not delete it.",
+    )
+
+
 @mcp.tool()
 def find_roi_ticket_by_slack_thread(slack_thread_url: str, max_results: int = 5) -> dict[str, Any]:
     """Find existing ROI tickets that already cite a Slack thread permalink."""
@@ -4355,23 +4477,42 @@ def _assign_issue(issue_key: str, account_id: str) -> None:
     )
 
 
+def _is_slack_permalink(url: str) -> bool:
+    """True only for a validated Slack archive permalink (never an arbitrary URL)."""
+    try:
+        parsed = urllib.parse.urlparse((url or "").strip())
+    except ValueError:
+        return False
+    host = (parsed.hostname or "").lower()
+    return bool(
+        parsed.scheme == "https"
+        and (host == "slack.com" or host.endswith(".slack.com"))
+        and "/archives/" in parsed.path
+    )
+
+
+def _slack_remote_links(issue_key: str) -> list[str]:
+    """Return the validated Slack permalink web links already attached to an issue."""
+    key = (issue_key or "").strip().upper()
+    if not key:
+        return []
+    payload = _request_json("GET", f"/rest/api/3/issue/{urllib.parse.quote(key)}/remotelink")
+    links = payload if isinstance(payload, list) else []
+    urls: list[str] = []
+    for link in links:
+        url = str(((link or {}).get("object") or {}).get("url") or "").strip()
+        if _is_slack_permalink(url) and url not in urls:
+            urls.append(url)
+    return urls
+
+
 def _add_slack_thread_web_link(issue_key: str, slack_thread_url: str) -> None:
     """Add the Slack permalink as a Jira web link. Idempotent via globalId."""
     url = (slack_thread_url or "").strip()
     if not url:
         return
     # Only ever store a Slack permalink, never an arbitrary model-supplied URL.
-    try:
-        parsed = urllib.parse.urlparse(url)
-    except ValueError:
-        parsed = None
-    host = (parsed.hostname or "").lower() if parsed else ""
-    if not (
-        parsed
-        and parsed.scheme == "https"
-        and (host == "slack.com" or host.endswith(".slack.com"))
-        and "/archives/" in parsed.path
-    ):
+    if not _is_slack_permalink(url):
         print(f"[psm-ops-bot] skipped web link for non-Slack url: {url!r}", file=sys.stderr)
         return
     _request_json(
@@ -4802,6 +4943,137 @@ def link_pco_to_pco_issue(
         },
         scope,
         "Issue link created only between two PCO issues; no raw Jira issue content was read or exposed.",
+    )
+
+
+def _create_issue_link(link_type: str, outward_key: str, inward_key: str) -> None:
+    _request_json(
+        "POST",
+        "/rest/api/3/issueLink",
+        {
+            "type": {"name": link_type},
+            "outwardIssue": {"key": outward_key},
+            "inwardIssue": {"key": inward_key},
+        },
+    )
+
+
+@mcp.tool()
+def merge_pco_tickets(
+    source_issue_key: str,
+    target_issue_key: str,
+    slack_user_email: str = "",
+    slack_thread_url: str = "",
+    reason: str = "",
+) -> dict[str, Any]:
+    """Merge a duplicate PCO issue into another: `merge PCO-X into PCO-Y`. Idempotent; never deletes."""
+
+    source_key = _normalize_issue_key(source_issue_key)
+    target_key = _normalize_issue_key(target_issue_key)
+    source = (slack_thread_url or "").strip()
+    note = (reason or "").strip()
+    scope = {
+        "source_issue_key": source_key,
+        "target_issue_key": target_key,
+        "caller": (slack_user_email or "").strip().lower(),
+        "slack_thread_url": source,
+        "subsystem": "jira_pco_merge",
+    }
+    if not PCO_ISSUE_RE.fullmatch(source_key):
+        return _blocked("source_issue_key must look like PCO-123.", scope)
+    if not PCO_ISSUE_RE.fullmatch(target_key):
+        return _blocked("target_issue_key must look like PCO-123.", scope)
+    if source_key == target_key:
+        return _blocked("source_issue_key and target_issue_key must differ.", scope)
+
+    warnings: list[str] = []
+    link_type = "Duplicate"
+    link_already_exists = False
+    try:
+        # 1. Mark source a duplicate of target; fall back to Relates if Duplicate is unsupported.
+        link_already_exists = _issue_link_exists_between(source_key, target_key, "Duplicate")
+        if not link_already_exists:
+            try:
+                _create_issue_link("Duplicate", source_key, target_key)
+            except JiraError as error:
+                if _looks_like_unknown_link_type_error(error):
+                    link_type = "Relates"
+                    if _issue_link_exists_between(source_key, target_key, "Relates"):
+                        link_already_exists = True
+                    else:
+                        _create_issue_link("Relates", source_key, target_key)
+                    warnings.append(
+                        "Jira has no Duplicate link type on this site; used Relates and recorded the duplicate in the comment."
+                    )
+                elif _looks_like_existing_issue_link_error(error):
+                    link_already_exists = True
+                else:
+                    raise
+
+        # 2. Copy source's Slack permalink web links onto target.
+        candidate_links = _slack_remote_links(source_key)
+        if source and _is_slack_permalink(source) and source not in candidate_links:
+            candidate_links.append(source)
+        existing_target_links = set(_slack_remote_links(target_key))
+        copied_links: list[str] = []
+        for url in candidate_links:
+            if url in existing_target_links:
+                continue
+            _add_slack_thread_web_link(target_key, url)
+            copied_links.append(url)
+
+        # 3. Record the merge on the target.
+        target_comment = f"PS WEE merge: {source_key} merged into this ticket as a duplicate."
+        if note:
+            target_comment += f" Reason: {note}"
+        comment_result = add_internal_pco_comment(target_key, target_comment, slack_user_email)
+        if comment_result.get("confidence") != "verified":
+            warnings.append(f"Merged but could not add the merge comment to {target_key}: {comment_result.get('caveat')}")
+
+        # 4. Cancel source so the duplicate leaves the active board.
+        source_comment = f"Merged into {target_key} as a duplicate."
+        if note:
+            source_comment += f" Reason: {note}"
+        transition_result = transition_pco_task(source_key, "Cancelled", slack_user_email, source_comment)
+        source_cancelled = transition_result.get("confidence") == "verified"
+        if not source_cancelled:
+            warnings.append(f"Linked and copied, but could not cancel {source_key}: {transition_result.get('caveat')}")
+    except JiraError as error:
+        return _blocked(str(error), scope)
+
+    source_ref = f"<{_issue_url(source_key)}|{source_key}>"
+    target_ref = f"<{_issue_url(target_key)}|{target_key}>"
+    source_state = "Cancelled" if source_cancelled else "still open (cancel failed)"
+    answer: dict[str, Any] = {
+        "source_issue_key": source_key,
+        "source_url": _issue_url(source_key),
+        "target_issue_key": target_key,
+        "target_url": _issue_url(target_key),
+        "link_type": link_type,
+        "link_already_exists": link_already_exists,
+        "copied_slack_links": copied_links,
+        "source_cancelled": source_cancelled,
+        "warnings": warnings,
+        "slack_reply": (
+            f"Merged {source_ref} into {target_ref} as a duplicate. "
+            f"{source_key} is now {source_state} and the Slack thread link is on {target_key}."
+        ),
+    }
+    answer["central_copy"] = post_ps_wee_audit(
+        "tickets_merged",
+        source_thread_url=source,
+        issue_key=target_key,
+        issue_url=_issue_url(target_key),
+        requester=scope["caller"],
+        summary=f"{source_key} merged into {target_key}",
+        status="Cancelled" if source_cancelled else "Open",
+        jira_payload=answer,
+        extra={"subsystem": "jira_pco_merge", "source_issue_key": source_key},
+    )
+    return _verified(
+        answer,
+        scope,
+        "Duplicate recorded via issue link only; the source was cancelled, not deleted, and no raw Jira content was exposed.",
     )
 
 

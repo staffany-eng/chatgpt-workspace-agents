@@ -175,6 +175,15 @@ Field rules:
 - If the ROI form requires priority and has a `Medium` or `Normal` option, the adapter may use that as the default.
 - If any required field remains missing, `create_roi_ticket_from_slack` blocks with exact missing field names and does not write to Jira.
 
+## Duplicate Merge Pattern
+
+PS WEE can merge duplicate PCO tickets on demand. Merging is on-demand and human-triggered — there is no auto pre-create dedupe.
+
+- Discovery: `find_duplicate_pco_candidates` is read-only. Seed it with the PCO issue the user is looking at, or a query / customer / Slack thread. It returns ranked active candidates, a mergeability flag per candidate, and a `suggested_merge` (`source_issue_key` into `target_issue_key`) with a ready `merge PCO-X into PCO-Y` command.
+- Suggestion direction: when a seed issue is supplied it is treated as the canonical target and candidates merge into it. Without a seed, the older (lower-numbered) ticket is the target.
+- Approval gate: never call `merge_pco_tickets` from a suggestion alone. Proceed only on an explicit `merge PCO-X into PCO-Y` command or a same-thread confirmation of a prior suggestion. The explicit command itself is approval.
+- Execution: `merge_pco_tickets` records the source as a duplicate of the target via a `Duplicate` issue link (Relates fallback when the site lacks the type), copies the source's validated Slack permalink web links onto the target, adds an internal merge comment to the target, and transitions the source to `Cancelled`. It never deletes the source and is idempotent — re-running detects the existing link and a cancelled source.
+
 ## Tool Rules
 
 - `validate_jira_configuration`: run in health checks and before broad enablement.
@@ -184,6 +193,8 @@ Field rules:
 - `classify_roi_ticket_request`: safe read; route actionable ROI/RevOps/BD Ops/NYSS requests to ROI when create/add/log/handle/task wording is present, and treat PS Team billing/invoice operational asks as ROI + PCO tracker candidates by default.
 - `list_my_pco_tasks`: safe read, caller-scoped by Jira `PS Team`.
 - `search_pco_tickets`: safe read; use before saying a current Slack thread is not tracked in PCO or not ticketed yet, or before creating a likely duplicate when same-thread lookup misses. It returns only safe issue fields and uses deterministic scoring: exact key/source matches auto-match, one strong active keyword match auto-matches, ambiguous candidates return `needs-check`, and no match returns a bounded not-found result suitable for a create-ready offer.
+- `find_duplicate_pco_candidates`: safe read; given a seed PCO issue key, query, customer, or Slack thread, it runs the bounded board search, excludes the seed, flags mergeable candidates by score (>=75 strong, >=60 likely-confirm, below weak), and returns a `suggested_merge` plus a `merge PCO-X into PCO-Y` command. It does not mutate anything; the bot must surface the suggestion and get approval before merging.
+- `merge_pco_tickets`: mutation; merges a confirmed duplicate `PCO-X` into `PCO-Y`. It records the source as a duplicate of the target via a Jira `Duplicate` issue link (falling back to `Relates` on sites without the type), copies the source's validated Slack permalink web links onto the target, adds an internal merge comment to the target, and transitions the source to `Cancelled`. It never deletes the source and is idempotent on re-run. Requires explicit approval: a `merge PCO-X into PCO-Y` command or same-thread confirmation after a `find_duplicate_pco_candidates` suggestion.
 - `find_ticket_by_slack_thread`: safe read; use the Slack thread permalink as the PS WEE idempotency key.
 - `find_roi_ticket_by_slack_thread`: safe read; use the Slack thread permalink as the ROI idempotency key.
 - `create_roi_ticket_from_slack`: mutation; creates direct ROI JSM tickets for actionable RevOps/BD Ops/NYSS/ROI-board requests with first-class requester, required-field checks, source Slack thread, and no duplicate PCO execution wrapper.
