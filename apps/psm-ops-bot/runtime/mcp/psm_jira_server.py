@@ -3298,7 +3298,7 @@ def _create_pco_task_from_draft(
             comment_result = add_internal_pco_comment(str(issue_key), metadata_comment)
             if comment_result.get("confidence") != "verified":
                 warnings.append("Slack intake metadata internal comment could not be added.")
-        # F7: surface the source permalink as a web link, not just a comment.
+        # Surface the source permalink as a web link, not just a comment.
         try:
             _add_slack_thread_web_link(str(issue_key), str(draft["slack_thread_url"]))
         except JiraError:

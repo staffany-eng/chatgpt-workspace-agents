@@ -1217,7 +1217,7 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertEqual(calls[2][1], "/rest/servicedeskapi/request/PCO-789/comment")
         self.assertIn("Source Slack thread: https://staffany.slack.com/archives/C0B2VT50YT1/p1778205303989579", calls[2][2]["body"])
         self.assertIn("Known details: PS asked to raise this first.", calls[2][2]["body"])
-        # F7 / SCHE-19910: source Slack permalink is also added as a web link.
+        # Source Slack permalink is also added as a web link.
         web_link_calls = [c for c in calls if c[1] == "/rest/api/3/issue/PCO-789/remotelink"]
         self.assertEqual(len(web_link_calls), 1)
         self.assertEqual(web_link_calls[0][0], "POST")
@@ -3007,7 +3007,7 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertEqual(result["answer"]["existing_ticket"]["issue_key"], "PCO-789")
         # Reuse must not create a new request, only look up the existing one.
         self.assertEqual([c for c in calls if c[1] == "/rest/servicedeskapi/request"], [])
-        # F7 / SCHE-19910: reuse backfills the source Slack web link idempotently.
+        # Reuse backfills the source Slack web link idempotently.
         web_link_calls = [c for c in calls if c[1] == "/rest/api/3/issue/PCO-789/remotelink"]
         self.assertEqual(len(web_link_calls), 1)
         self.assertEqual(web_link_calls[0][0], "POST")
