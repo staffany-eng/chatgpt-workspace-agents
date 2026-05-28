@@ -592,6 +592,9 @@ for (const requiredText of [
   "Launchbot's bot identity",
   "every Slack turn must include an explicit `@Launch Bot` mention",
   "applies inside threads too",
+  "Never print a `Router:` line in normal Slack replies.",
+  "do not redirect users to another bot. Execute the workflow directly in Launchbot.",
+  "Do not tell users to `Ping @Product Ops Bot`",
 ]) {
   if (!soulText.includes(requiredText)) fail(`SOUL.md missing required text: ${requiredText}`);
 }
