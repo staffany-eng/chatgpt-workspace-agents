@@ -1,6 +1,17 @@
 ---
 name: product-ops-intake-linking
-description: Use when the agent needs to triage a product feature gap, bug, workflow pain point, or customer/internal request; search KER backlog first; collect explicit routing decision; create IFI and link KER when applicable; and continue Jira grooming/PRD in the same Launchbot workflow with staffany-product-delivery-workflow.
+description: Use when the agent needs to triage a product feature gap, bug, workflow pain point, or customer/internal request; search KER backlog first; collect explicit routing decision; create IFI and link KER when applicable; and hand off Jira grooming/PRD to staffany-product-delivery-workflow.
+triggers:
+  - "triage this"
+  - "track this IFI"
+  - "track IFI for"
+  - "log this feature request"
+  - "Company: / Module: / Problems/JTBD:"
+  - "BD note"
+  - "customer gap"
+  - "feature demand"
+  - "APQ"
+tags: [product-ops, ifi, ker, triage, routing]
 ---
 
 # Product Ops Intake And Linking
@@ -147,3 +158,41 @@ After decision:
 1. `Outcome`
 2. `Created or linked records` (with direct links)
 3. `Notes`
+
+---
+
+## Launchbot Routing Rules (Launchbot-specific — not for product-ops-bot)
+
+When this skill is loaded inside **Launchbot**, apply this routing table **before** any tool call:
+
+| Message shape | Classification | Right bot |
+|---|---|---|
+| Structured customer note (Company / Module / Problems/JTBD / Proposed Solution / User Impact Score) + "triage this" | Customer triage | **Product-ops-bot** |
+| APQ thread or Slack product question → IFI tracking | Feature demand tracking | **Launchbot** (IFI lane) |
+| BD note or meeting note with customer feature ask | Feature demand tracking | **Launchbot** (IFI BD-note lane) |
+| KER intake for a *shipped* feature | Launch asset intake | **Launchbot** (KER lane) |
+| Read-only product commitment / roadmap check | Commitment check | **Launchbot** (read-only) |
+| KER/IFI CRUD for customer triage or product gap analysis | Product ops grooming | **Product-ops-bot** |
+
+**Hard rule:** Classify FIRST. Do not call any MCP tool until you know which bot owns this request.
+
+### Customer Triage → Redirect Immediately
+
+If the request is customer triage (structured note + "triage this"), respond:
+
+> "This looks like a customer triage request. For KER & IFI lookup and ticket creation on customer gaps, product-ops-bot is the priority lane. I handle help articles, support watch, and launch-asset IFI/KER intake."
+
+**Do not** run `find_ker_ticket_from_slack_thread`, `preview_ifi_feature_request_tracking`, `lookup_ker_ticket_by_key`, or return a triage summary before redirecting.
+
+### Pitfalls
+
+- **Always cite the exact source file path when redirecting** — format: `Source: apps/launchbot/skills/product-ops-bot-full-workflow/workflow/skills/product-ops-intake-linking/SKILL.md — Launchbot Routing Rules`.
+- **Running tools before classifying is the #1 mistake** — Launchbot ran KER search + IFI preview for a Shabu Shabu House "triage this" note (2026-05-28) before realizing it should redirect. Classify first, always.
+- **4 HubSpot companies for one customer is normal** — e.g. Shabu Shabu House had `Shabu Shabu House` (customer), `[BE] PT Shabu Shabu House` (billing entity), `PT Shabu shabu house` (opportunity), `[BE] PT Shabu Shabu House (HOTARU)`. Always surface the list and ask which is correct.
+- **KER search may not find an exact match for a novel solution angle** — surface the closest candidate as "same root problem, different solution angle" and note it may be net-new.
+
+### Product-Ops-Bot Access
+
+Product-ops-bot source: `/home/leekaiyi/chatgpt-workspace-agents/apps/product-ops-bot/`
+Live profile: `/home/leekaiyi/.hermes/profiles/productopsbot/`
+Launchbot cannot invoke product-ops-bot directly — the redirect is a Slack message only.
