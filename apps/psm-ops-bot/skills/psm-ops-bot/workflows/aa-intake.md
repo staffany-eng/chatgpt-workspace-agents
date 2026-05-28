@@ -83,7 +83,7 @@ The MCP defensively skips `photo_follow_up` creation when an LLM intent classifi
 
 On skip, the tool returns `{status: "skipped", reason: "no_follow_up_signal_detected", classifier_reason: "<one-line>", skipped_request_type: "photo_follow_up", slack_reply: "<one-line note>"}` with `confidence: verified`. Treat the response as success — quote the returned `slack_reply` and do not retry, do not block, do not interpret the skip as an error. Per-bullet AA tickets created via earlier calls are unaffected.
 
-When the classifier is unavailable (missing `ANTHROPIC_API_KEY`, network failure, malformed response, ambiguous text), the MCP defaults to **NOT skip** — the ticket still creates so an LLM outage cannot silently drop a real follow-up. Skip is scoped to `photo_follow_up` only; other AA request types do not invoke the classifier and create normally regardless of the trigger message wording.
+When the classifier is unavailable (missing `ANTHROPIC_API_KEY`, network failure, malformed response, ambiguous text), the MCP defaults to **NOT skip** — the ticket still creates so an LLM outage cannot silently drop a real follow-up. This classifier judges the photo specifically; non-photo AA request types are gated separately by the [Non-actionable skip](#non-actionable-skip) above.
 
 ## Selfie ingest — initial
 

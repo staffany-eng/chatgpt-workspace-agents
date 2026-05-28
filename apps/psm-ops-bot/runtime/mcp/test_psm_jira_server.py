@@ -4325,6 +4325,37 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertEqual(result["confidence"], "blocked")
         self.assertIn("AA-only", result["answer"]["message"])
 
+    def test_draft_pco_task_blocks_photo_follow_up(self):
+        result = self.module.draft_pco_task(
+            slack_user_email="psm@staffany.com",
+            customer="Andre Cafe",
+            summary="photo follow up",
+            due_date="2026-06-01",
+            request_type_key="photo_follow_up",
+        )
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("AA-only", result["answer"]["message"])
+
+    def test_create_from_draft_blocks_non_aa_photo_follow_up(self):
+        def boom_request(*args, **kwargs):
+            self.fail("non-AA photo_follow_up draft must be blocked before any Jira call")
+
+        self.module._request_json = boom_request
+
+        draft = {
+            "customer": "Andre Cafe",
+            "summary": "Andre Cafe - photo follow up",
+            "request_type_key": "photo_follow_up",
+            "request_type_id": "127",
+            "due_date": "",
+            "event": "",
+        }
+        result = self.module.create_approved_pco_task(draft, "create")
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("AA-only", result["answer"]["message"])
+
     def test_classify_aa_actionable_intent_returns_decision(self):
         captured = []
 

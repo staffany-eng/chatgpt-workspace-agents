@@ -3144,6 +3144,13 @@ def draft_pco_task(
     """Build a Jira-ready PCO task draft without creating it."""
 
     scope = {"caller": (slack_user_email or "").strip().lower(), "customer": customer, "request_type_key": request_type_key}
+    # photo_follow_up is AA-only; it must go through the AA intake flow.
+    if request_type_key == EVENT_AA_PHOTO_REQUEST_TYPE_KEY:
+        return _blocked(
+            "photo_follow_up is an Event AA-only request type; use the AA "
+            "intake flow, not draft_pco_task.",
+            scope,
+        )
     normalized_ps_team = _normalize_ps_team(ps_team) or _infer_ps_team_from_text(summary, action_type, risk_reason, customer)
     try:
         caller = _caller(slack_user_email, require_jira_account=not _is_thin_poc(), require_ps_team=not bool(normalized_ps_team))
@@ -3203,6 +3210,17 @@ def _create_pco_task_from_draft(draft: dict[str, Any], scope: dict[str, Any]) ->
     """Create a PCO JSM request from an already-authorized draft."""
 
     try:
+        # Chokepoint containment: photo_follow_up may only be created via the AA
+        # intake path, which stamps event="AA" on the draft.
+        if (
+            str(draft.get("request_type_key") or "") == EVENT_AA_PHOTO_REQUEST_TYPE_KEY
+            and str(draft.get("event") or "") != "AA"
+        ):
+            return _blocked(
+                "photo_follow_up is an Event AA-only request type and can only "
+                "be created via the AA intake flow.",
+                scope,
+            )
         _validate_due_date_for_write(str(draft.get("due_date") or ""))
         request_type_id = str(draft.get("request_type_id") or _request_type_id(str(draft.get("request_type_key") or "customer_next_action")))
         # Resolve StaffAny Organization names to Assets object keys before building the
