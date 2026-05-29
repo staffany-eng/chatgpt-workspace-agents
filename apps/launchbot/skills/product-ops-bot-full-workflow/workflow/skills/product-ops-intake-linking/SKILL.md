@@ -1,6 +1,6 @@
 ---
 name: product-ops-intake-linking
-description: Use when the agent needs to triage a product feature gap, bug, workflow pain point, or customer/internal request; search KER backlog first; collect explicit routing decision; create IFI and link KER when applicable; and hand off Jira grooming/PRD to staffany-product-delivery-workflow.
+description: Use when the agent needs to triage a product feature gap, bug, workflow pain point, or customer/internal request; search KER backlog first; collect explicit routing decision; create IFI and link KER when applicable; and continue Jira grooming/PRD in the same Launchbot workflow with staffany-product-delivery-workflow.
 ---
 
 # Product Ops Intake And Linking

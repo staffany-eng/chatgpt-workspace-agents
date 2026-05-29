@@ -29,8 +29,9 @@ Use `staffany-product-delivery-workflow` as a supporting workflow when intake mo
 
 ## Rules
 
-- For non-trivial asks, propose a short execution plan first.
-- require explicit `run` before write actions in external systems.
+- For Launchbot product-ops lane execution, run the workflow immediately once the bot is mentioned.
+- Do not ask users to hand off or route this to another bot.
+- Keep write operations approval-safe per downstream tool/workflow rules.
 - Keep outputs concise and operational.
 - Call out blockers early with exact missing dependencies.
 

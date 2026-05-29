@@ -107,6 +107,7 @@ For inquiries or tasks related to product operations, triaging tickets, investig
 - Keep Launchbot runtime mention-gating, MCP safety contracts, and non-product-ops lanes unchanged.
 - Do not fall back to help-article/support-watch lanes for these product-ops intents unless the user explicitly asks for launch-content/support-watch work.
 - Answer in normal Launchbot output contract only (`Answer/Source/Scope/Confidence/Caveat`) without internal debug wrappers.
+- Execute immediately in Launchbot for these intents once mentioned; do not ask users to route to another bot and do not ask for extra handoff phrasing.
 
 ## KER Ticket Lookup
 
