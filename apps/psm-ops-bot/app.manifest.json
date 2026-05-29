@@ -21,6 +21,7 @@
     "skill": "skills/psm-ops-bot/SKILL.md",
     "references": [
       "skills/psm-ops-bot/references/jira-field-contract.md",
+      "skills/psm-ops-bot/references/pco-request-types.md",
       "skills/psm-ops-bot/references/customer-channel-candidates.md",
       "skills/psm-ops-bot/references/regression-cases.md"
     ],

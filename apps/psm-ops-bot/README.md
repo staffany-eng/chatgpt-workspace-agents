@@ -23,6 +23,7 @@ Alias note: `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` refer to this 
 | `profile/SOUL.md` | Source-controlled profile soul prompt. |
 | `profile/config.template.yaml` | Non-secret Hermes profile config template. |
 | `skills/psm-ops-bot/` | Hermes skill and references. |
+| `skills/psm-ops-bot/references/pco-request-types.md` | PCO Jira request type definitions and Event AA routing map. |
 | `runtime/mcp/psm_jira_server.py` | PCO and ROI Jira MCP adapter. |
 | `runtime/mcp/psm_c360_server.py` | Customer 360 MCP adapter. |
 | `runtime/mcp/psm_google_calendar_server.py` | Read-only Google Calendar adapter using `team@staffany.com`. |

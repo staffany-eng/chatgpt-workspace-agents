@@ -38,12 +38,13 @@ Match the `/archives/<channel_id>/` segment of the Slack thread permalink **befo
 ## Source Order
 
 1. `references/jira-field-contract.md` for configured Jira request types, field IDs, status names, and write boundaries.
-2. `references/customer-channel-candidates.md` for the public Slack customer-channel review queue. This is not an active runtime map.
-3. `tests/regression-cases.md` for expected behavior.
-4. `workflows/aa-intake.md` for Event AA channel rules (loaded by the channel-first router above).
-5. `psm_jira` MCP for live PCO task reads/writes and ROI-direct JSM ticket creation.
-6. `psm_c360` MCP for live Customer 360 search/context/Q&A.
-7. `psm_google_calendar` MCP for read-only `team@staffany.com` scheduling context only through the gated `read_customer_calendar_context` tool.
+2. `references/pco-request-types.md` for the human-readable PCO request type taxonomy and Event AA routing definitions.
+3. `references/customer-channel-candidates.md` for the public Slack customer-channel review queue. This is not an active runtime map.
+4. `tests/regression-cases.md` for expected behavior.
+5. `workflows/aa-intake.md` for Event AA channel rules (loaded by the channel-first router above).
+6. `psm_jira` MCP for live PCO task reads/writes and ROI-direct JSM ticket creation.
+7. `psm_c360` MCP for live Customer 360 search/context/Q&A.
+8. `psm_google_calendar` MCP for read-only `team@staffany.com` scheduling context only through the gated `read_customer_calendar_context` tool.
 
 ## Capabilities
 
