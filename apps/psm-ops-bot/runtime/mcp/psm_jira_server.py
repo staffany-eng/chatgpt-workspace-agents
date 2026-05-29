@@ -1750,6 +1750,21 @@ def _issue_link_exists(pco_key: str, engineering_key: str, link_type: str) -> bo
     return _issue_link_exists_between(pco_key, engineering_key, link_type)
 
 
+def _duplicate_link_direction(source_key: str, target_key: str) -> str:
+    """Direction of an existing Duplicate link from source to target: 'forward', 'reverse', or ''."""
+    payload = _request_json("GET", f"/rest/api/3/issue/{urllib.parse.quote(source_key)}?fields=issuelinks")
+    target = (target_key or "").upper()
+    for issue_link in ((payload.get("fields") or {}).get("issuelinks") or []):
+        if ((issue_link.get("type") or {}).get("name") or "") != "Duplicate":
+            continue
+        # Viewed from source: the intended outward=source/inward=target link shows inwardIssue == target.
+        if ((issue_link.get("inwardIssue") or {}).get("key") or "").upper() == target:
+            return "forward"
+        if ((issue_link.get("outwardIssue") or {}).get("key") or "").upper() == target:
+            return "reverse"
+    return ""
+
+
 def _looks_like_existing_issue_link_error(error: JiraError) -> bool:
     message = str(error).lower()
     return (
@@ -4990,12 +5005,24 @@ def merge_pco_tickets(
     if source_key == target_key:
         return _blocked("source_issue_key and target_issue_key must differ.", scope)
 
+    # A backwards Duplicate relation contradicts cancelling the source; surface it before mutating.
+    try:
+        duplicate_direction = _duplicate_link_direction(source_key, target_key)
+    except JiraError as error:
+        return _blocked(str(error), scope)
+    if duplicate_direction == "reverse":
+        return _needs_check(
+            {"source_issue_key": source_key, "target_issue_key": target_key, "existing_link": "reverse_duplicate"},
+            scope,
+            f"Jira already marks {target_key} as a duplicate of {source_key} (opposite direction). "
+            f"Resolve that link before merging {source_key} into {target_key}.",
+        )
+
     warnings: list[str] = []
     link_type = "Duplicate"
-    link_already_exists = False
+    link_already_exists = duplicate_direction == "forward"
     try:
         # 1. Mark source a duplicate of target; fall back to Relates if Duplicate is unsupported.
-        link_already_exists = _issue_link_exists_between(source_key, target_key, "Duplicate")
         if not link_already_exists:
             try:
                 _create_issue_link("Duplicate", source_key, target_key)

@@ -1049,6 +1049,33 @@ class PsmJiraServerTest(unittest.TestCase):
         # Already Cancelled: must not attempt a redundant transition.
         self.assertEqual(len([c for c in calls if c[0] == "POST" and c[1].endswith("/transitions")]), 0)
 
+    def test_merge_pco_tickets_needs_check_when_duplicate_link_points_other_way(self):
+        calls = []
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: {"ok": True}
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if method == "GET" and path == "/rest/api/3/issue/PCO-301?fields=issuelinks":
+                # Reverse relation: PCO-286 is recorded as the duplicate of PCO-301.
+                return {
+                    "fields": {
+                        "issuelinks": [
+                            {"type": {"name": "Duplicate"}, "outwardIssue": {"key": "PCO-286"}}
+                        ]
+                    }
+                }
+            return {}
+
+        self.module._request_json = fake_request
+
+        result = self.module.merge_pco_tickets("PCO-301", "PCO-286")
+
+        self.assertEqual(result["confidence"], "needs-check")
+        self.assertIn("opposite direction", result["caveat"])
+        # Must not mutate: no link creation and no source cancellation.
+        self.assertEqual(len([c for c in calls if c[0] == "POST" and c[1] == "/rest/api/3/issueLink"]), 0)
+        self.assertEqual(len([c for c in calls if c[0] == "POST" and c[1].endswith("/transitions")]), 0)
+
     def test_merge_pco_tickets_rejects_non_pco_and_self_merge(self):
         self.assertEqual(self.module.merge_pco_tickets("KER-1", "PCO-2")["confidence"], "blocked")
         self.assertEqual(self.module.merge_pco_tickets("PCO-1", "SCHE-2")["confidence"], "blocked")
