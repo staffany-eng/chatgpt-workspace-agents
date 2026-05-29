@@ -899,6 +899,284 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertEqual(result["confidence"], "blocked")
         self.assertIn("must differ", result["caveat"])
 
+    def test_merge_pco_tickets_links_copies_comments_and_cancels_source(self):
+        calls = []
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: {"ok": True}
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if method == "GET" and path == "/rest/api/3/issue/PCO-301?fields=issuelinks":
+                return {"fields": {"issuelinks": []}}
+            if method == "GET" and path == "/rest/api/3/issue/PCO-301/remotelink":
+                return [
+                    {"object": {"url": "https://staffany.slack.com/archives/C1/p100", "title": "Slack thread"}}
+                ]
+            if method == "GET" and path == "/rest/api/3/issue/PCO-286/remotelink":
+                return []
+            if method == "GET" and path.endswith("/transitions"):
+                return {"transitions": [{"id": "9", "name": "Cancelled", "to": {"name": "Cancelled"}}]}
+            return {}
+
+        self.module._request_json = fake_request
+
+        result = self.module.merge_pco_tickets("PCO-301", "PCO-286")
+
+        self.assertEqual(result["confidence"], "verified")
+        answer = result["answer"]
+        self.assertEqual(answer["link_type"], "Duplicate")
+        self.assertFalse(answer["link_already_exists"])
+        self.assertTrue(answer["source_cancelled"])
+        self.assertEqual(answer["copied_slack_links"], ["https://staffany.slack.com/archives/C1/p100"])
+        self.assertIn("Merged", answer["slack_reply"])
+
+        link_posts = [c for c in calls if c[0] == "POST" and c[1] == "/rest/api/3/issueLink"]
+        self.assertEqual(len(link_posts), 1)
+        self.assertEqual(link_posts[0][2]["type"], {"name": "Duplicate"})
+        self.assertEqual(link_posts[0][2]["outwardIssue"], {"key": "PCO-301"})
+        self.assertEqual(link_posts[0][2]["inwardIssue"], {"key": "PCO-286"})
+
+        copy_posts = [c for c in calls if c[0] == "POST" and c[1] == "/rest/api/3/issue/PCO-286/remotelink"]
+        self.assertEqual(len(copy_posts), 1)
+        self.assertEqual(copy_posts[0][2]["object"]["url"], "https://staffany.slack.com/archives/C1/p100")
+
+        self.assertTrue(any(c[0] == "POST" and c[1] == "/rest/servicedeskapi/request/PCO-286/comment" for c in calls))
+        self.assertTrue(any(c[0] == "POST" and c[1] == "/rest/api/3/issue/PCO-301/transitions" for c in calls))
+
+    def test_merge_pco_tickets_falls_back_to_relates_without_duplicate_link_type(self):
+        link_post_count = {"n": 0}
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: {"ok": True}
+
+        def fake_request(method, path, body=None):
+            if method == "GET" and path.endswith("?fields=issuelinks"):
+                return {"fields": {"issuelinks": []}}
+            if method == "GET" and path.endswith("/remotelink"):
+                return []
+            if method == "GET" and path.endswith("/transitions"):
+                return {"transitions": [{"id": "9", "name": "Cancelled", "to": {"name": "Cancelled"}}]}
+            if method == "POST" and path == "/rest/api/3/issueLink":
+                link_post_count["n"] += 1
+                if body["type"]["name"] == "Duplicate":
+                    raise self.module.JiraError(
+                        "Jira API failed: HTTP 404 No issue link type with name 'Duplicate' found."
+                    )
+                return {}
+            return {}
+
+        self.module._request_json = fake_request
+
+        result = self.module.merge_pco_tickets("PCO-301", "PCO-286")
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["answer"]["link_type"], "Relates")
+        self.assertTrue(any("no duplicate link type" in w.lower() for w in result["answer"]["warnings"]))
+        self.assertEqual(link_post_count["n"], 2)
+
+    def test_merge_pco_tickets_is_idempotent_when_already_linked(self):
+        calls = []
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: {"ok": True}
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if method == "GET" and path == "/rest/api/3/issue/PCO-301?fields=issuelinks":
+                return {
+                    "fields": {
+                        "issuelinks": [
+                            {"type": {"name": "Duplicate"}, "inwardIssue": {"key": "PCO-286"}}
+                        ]
+                    }
+                }
+            if method == "GET" and path.endswith("/remotelink"):
+                return []
+            if method == "GET" and path.endswith("/transitions"):
+                return {"transitions": [{"id": "9", "name": "Cancelled", "to": {"name": "Cancelled"}}]}
+            return {}
+
+        self.module._request_json = fake_request
+
+        result = self.module.merge_pco_tickets("PCO-301", "PCO-286")
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertTrue(result["answer"]["link_already_exists"])
+        self.assertEqual(len([c for c in calls if c[0] == "POST" and c[1] == "/rest/api/3/issueLink"]), 0)
+
+    def test_merge_pco_tickets_needs_check_when_source_cancel_fails(self):
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: {"ok": True}
+
+        def fake_request(method, path, body=None):
+            if method == "GET" and path.endswith("?fields=issuelinks"):
+                return {"fields": {"issuelinks": []}}
+            if method == "GET" and path.endswith("/remotelink"):
+                return []
+            if method == "GET" and "/search/jql" in path:
+                # Source still active (not Cancelled).
+                return {"issues": [{"key": "PCO-301", "fields": {"summary": "dup", "status": {"name": "Open"}}}]}
+            if method == "GET" and path.endswith("/transitions"):
+                # No Cancelled transition available -> transition_pco_task is blocked.
+                return {"transitions": [{"id": "1", "name": "Open", "to": {"name": "Open"}}]}
+            return {}
+
+        self.module._request_json = fake_request
+
+        result = self.module.merge_pco_tickets("PCO-301", "PCO-286")
+
+        self.assertEqual(result["confidence"], "needs-check")
+        self.assertFalse(result["answer"]["source_cancelled"])
+        self.assertIn("still active", result["caveat"])
+        self.assertIn("still open (cancel failed)", result["answer"]["slack_reply"])
+
+    def test_merge_pco_tickets_treats_already_cancelled_source_as_done(self):
+        calls = []
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: {"ok": True}
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if method == "GET" and path.endswith("?fields=issuelinks"):
+                return {"fields": {"issuelinks": []}}
+            if method == "GET" and path.endswith("/remotelink"):
+                return []
+            if method == "GET" and "/search/jql" in path:
+                return {"issues": [{"key": "PCO-301", "fields": {"summary": "dup", "status": {"name": "Cancelled"}}}]}
+            if method == "GET" and path.endswith("/transitions"):
+                return {"transitions": [{"id": "9", "name": "Cancelled", "to": {"name": "Cancelled"}}]}
+            return {}
+
+        self.module._request_json = fake_request
+
+        result = self.module.merge_pco_tickets("PCO-301", "PCO-286")
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertTrue(result["answer"]["source_cancelled"])
+        # Already Cancelled: must not attempt a redundant transition.
+        self.assertEqual(len([c for c in calls if c[0] == "POST" and c[1].endswith("/transitions")]), 0)
+
+    def test_merge_pco_tickets_needs_check_when_duplicate_link_points_other_way(self):
+        calls = []
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: {"ok": True}
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if method == "GET" and path == "/rest/api/3/issue/PCO-301?fields=issuelinks":
+                # Reverse relation: PCO-286 is recorded as the duplicate of PCO-301.
+                return {
+                    "fields": {
+                        "issuelinks": [
+                            {"type": {"name": "Duplicate"}, "outwardIssue": {"key": "PCO-286"}}
+                        ]
+                    }
+                }
+            return {}
+
+        self.module._request_json = fake_request
+
+        result = self.module.merge_pco_tickets("PCO-301", "PCO-286")
+
+        self.assertEqual(result["confidence"], "needs-check")
+        self.assertIn("opposite direction", result["caveat"])
+        # Must not mutate: no link creation and no source cancellation.
+        self.assertEqual(len([c for c in calls if c[0] == "POST" and c[1] == "/rest/api/3/issueLink"]), 0)
+        self.assertEqual(len([c for c in calls if c[0] == "POST" and c[1].endswith("/transitions")]), 0)
+
+    def test_merge_pco_tickets_rejects_non_pco_and_self_merge(self):
+        self.assertEqual(self.module.merge_pco_tickets("KER-1", "PCO-2")["confidence"], "blocked")
+        self.assertEqual(self.module.merge_pco_tickets("PCO-1", "SCHE-2")["confidence"], "blocked")
+        self_merge = self.module.merge_pco_tickets("PCO-1", "PCO-1")
+        self.assertEqual(self_merge["confidence"], "blocked")
+        self.assertIn("must differ", self_merge["caveat"])
+
+    def test_find_duplicate_pco_candidates_suggests_merge_into_seed(self):
+        self.module._search_issues = lambda jql, fields, limit: [
+            {"key": "PCO-286", "fields": {"summary": "Acme - payroll export bug", "status": {"name": "Open"}}}
+        ]
+        self.module.search_pco_tickets = lambda **kwargs: {
+            "answer": {
+                "matches": [
+                    {"issue_key": "PCO-286", "summary": "Acme - payroll export bug", "match_score": 95},
+                    {"issue_key": "PCO-301", "summary": "Acme payroll export broken", "match_score": 80},
+                    {"issue_key": "PCO-999", "summary": "Acme onboarding", "match_score": 40},
+                ]
+            },
+            "confidence": "verified",
+        }
+
+        result = self.module.find_duplicate_pco_candidates(issue_key="PCO-286")
+
+        self.assertEqual(result["confidence"], "verified")
+        answer = result["answer"]
+        candidate_keys = [c["issue_key"] for c in answer["candidates"]]
+        self.assertNotIn("PCO-286", candidate_keys)
+        mergeable = {c["issue_key"]: c["mergeable"] for c in answer["candidates"]}
+        self.assertTrue(mergeable["PCO-301"])
+        self.assertFalse(mergeable["PCO-999"])
+        self.assertEqual(
+            answer["suggested_merge"],
+            {"source_issue_key": "PCO-301", "target_issue_key": "PCO-286"},
+        )
+        self.assertEqual(answer["suggested_command"], "merge PCO-301 into PCO-286")
+
+    def test_find_duplicate_pco_candidates_customer_only_falls_back_to_customer_query(self):
+        captured = {}
+
+        def fake_search(**kwargs):
+            captured.update(kwargs)
+            return {
+                "answer": {
+                    "matches": [
+                        {"issue_key": "PCO-310", "summary": "Acme payroll bug", "match_score": 80},
+                        {"issue_key": "PCO-311", "summary": "Acme payroll broken", "match_score": 78},
+                    ]
+                },
+                "confidence": "verified",
+            }
+
+        self.module.search_pco_tickets = fake_search
+
+        result = self.module.find_duplicate_pco_candidates(customer="Acme")
+
+        # Customer-only input must reach search_pco_tickets with a non-empty query.
+        self.assertEqual(captured["query"], "Acme")
+        self.assertEqual(result["confidence"], "verified")
+        candidate_keys = [c["issue_key"] for c in result["answer"]["candidates"]]
+        self.assertIn("PCO-310", candidate_keys)
+
+    def test_is_slack_permalink_requires_canonical_archive_shape(self):
+        self.assertTrue(
+            self.module._is_slack_permalink("https://staffany.slack.com/archives/C0123ABCD/p1700000000000000")
+        )
+        # Reject archive URLs that aren't a canonical /archives/<channel>/p<ts> permalink.
+        self.assertFalse(self.module._is_slack_permalink("https://staffany.slack.com/archives/C0123ABCD"))
+        self.assertFalse(self.module._is_slack_permalink("https://staffany.slack.com/archives/"))
+        self.assertFalse(self.module._is_slack_permalink("https://evil.example.com/archives/C0123ABCD/p1700000000000000"))
+
+    def test_find_duplicate_pco_candidates_does_not_forward_slack_thread_when_keyword_search_available(self):
+        self.module._search_issues = lambda jql, fields, limit: [
+            {"key": "PCO-286", "fields": {"summary": "Acme - payroll export bug", "status": {"name": "Open"}}}
+        ]
+        captured = {}
+
+        def fake_search(**kwargs):
+            captured.update(kwargs)
+            return {
+                "answer": {"matches": [{"issue_key": "PCO-301", "summary": "Acme payroll export broken", "match_score": 80}]},
+                "confidence": "verified",
+            }
+
+        self.module.search_pco_tickets = fake_search
+
+        result = self.module.find_duplicate_pco_candidates(
+            issue_key="PCO-286",
+            slack_thread_url="https://staffany.slack.com/archives/C1/p100",
+        )
+
+        # Seed summary drives the keyword search; the Slack thread must not short-circuit it.
+        self.assertEqual(captured["query"], "Acme - payroll export bug")
+        self.assertEqual(captured["slack_thread_url"], "")
+        self.assertIn("PCO-301", [c["issue_key"] for c in result["answer"]["candidates"]])
+
+    def test_find_duplicate_pco_candidates_blocks_bad_seed_key(self):
+        result = self.module.find_duplicate_pco_candidates(issue_key="KER-1")
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("PCO-123", result["caveat"])
+
     def test_find_engineering_issue_searches_ker_with_safe_fields_and_compact_variant(self):
         calls = []
 

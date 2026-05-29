@@ -64,6 +64,7 @@
         "resolve_customer_channel_org",
         "list_my_pco_tasks",
         "search_pco_tickets",
+        "find_duplicate_pco_candidates",
         "find_ticket_by_slack_thread",
         "find_roi_ticket_by_slack_thread",
         "create_roi_ticket_from_slack",
@@ -80,6 +81,7 @@
         "set_pco_ps_team",
         "link_pco_to_engineering_issue",
         "link_pco_to_pco_issue",
+        "merge_pco_tickets",
         "set_pco_reminder",
         "list_due_pco_reminders"
       ]

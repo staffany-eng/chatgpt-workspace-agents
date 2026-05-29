@@ -150,6 +150,14 @@ For ROI urgency fields, match the field's configured options exactly. If the req
 - The link is idempotent: re-running the tool returns `already_exists=true` instead of duplicating the link or surfacing the raw Jira error.
 - Use this primarily for the AA link-to-existing flow; do not link speculatively.
 
+## Duplicate Ticket Merge
+
+- Use `find_duplicate_pco_candidates(issue_key|query|customer|slack_thread_url)` (read-only) to surface likely duplicates and a `suggested_merge` before any merge. It excludes the seed issue and only flags active candidates as mergeable.
+- Use `merge_pco_tickets(source_issue_key, target_issue_key, slack_thread_url, reason)` only after explicit approval (`merge PCO-X into PCO-Y` or same-thread confirmation). Both keys must match `PCO-\d+` and differ.
+- The merge marks the source as a duplicate of the target with a `Duplicate` issue link, falling back to `Relates` only when Jira lacks the `Duplicate` link type (recorded in the merge comment).
+- The source is transitioned to `Cancelled`, never deleted. The target gains the source's validated Slack permalink web links and an internal merge comment.
+- The merge is idempotent: re-running detects the existing link and a cancelled source instead of duplicating work or erroring.
+
 ## ROI Customer-Loop Tracker Links
 
 - Use `create_or_link_pco_roi_tracker` only after an ROI ticket has been created or reused.

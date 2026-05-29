@@ -62,6 +62,7 @@ if (!existsSync(manifestPath)) {
       "resolve_customer_channel_org",
       "list_my_pco_tasks",
       "search_pco_tickets",
+      "find_duplicate_pco_candidates",
       "find_ticket_by_slack_thread",
       "find_roi_ticket_by_slack_thread",
       "create_roi_ticket_from_slack",
@@ -78,6 +79,7 @@ if (!existsSync(manifestPath)) {
       "set_pco_ps_team",
       "link_pco_to_engineering_issue",
       "link_pco_to_pco_issue",
+      "merge_pco_tickets",
       "set_pco_reminder",
       "list_due_pco_reminders"
     ];
@@ -310,6 +312,7 @@ for (const requiredText of [
     "classify_roi_ticket_request",
   "find_engineering_issue",
   "search_pco_tickets",
+  "find_duplicate_pco_candidates",
   "validate_roi_jira_configuration",
   "create_roi_ticket_from_slack",
   "create_or_link_pco_roi_tracker",
@@ -322,6 +325,7 @@ for (const requiredText of [
   "append_ps_wee_ticket_update",
   "set_pco_ps_team",
   "link_pco_to_engineering_issue",
+  "merge_pco_tickets",
   "psm_jira",
   "psm_c360",
   "psm_google_calendar",
@@ -331,6 +335,21 @@ for (const requiredText of [
   "calendar.readonly"
 ]) {
   if (!configText.includes(requiredText)) fail(`config.template.yaml missing required text: ${requiredText}`);
+}
+
+// Exact parity: the psm_jira tool_allowlist must match the manifest expected_tools (order-independent).
+if (existsSync(manifestPath)) {
+  const expectedJiraTools = readJson(manifestPath)?.mcp?.psm_jira?.expected_tools || [];
+  const allowlistStart = configText.indexOf("tool_allowlist:", configText.indexOf("  psm_jira:"));
+  const nextServer = configText.slice(allowlistStart).search(/\n {2}[a-z0-9_]+:/);
+  const allowlistBlock = configText.slice(allowlistStart, nextServer === -1 ? undefined : allowlistStart + nextServer);
+  const allowlistTools = [...allowlistBlock.matchAll(/-\s*"([^"]+)"/g)].map((m) => m[1]);
+  for (const tool of expectedJiraTools) {
+    if (!allowlistTools.includes(tool)) fail(`config.template.yaml psm_jira tool_allowlist missing: ${tool}`);
+  }
+  for (const tool of allowlistTools) {
+    if (!expectedJiraTools.includes(tool)) fail(`config.template.yaml psm_jira tool_allowlist has unexpected tool: ${tool}`);
+  }
 }
 
 const soulText = textOf(appRoot, "profile/SOUL.md");
@@ -501,7 +520,7 @@ if (!psmOpsProfileBlock) {
     "systemd_unit: hermes-gateway-psmopsbot.service",
     "bot_name: ps_wee_manager",
     "open_channel_mode: true",
-    "psm_jira: 26",
+    "psm_jira: 28",
     "psm_c360: 3",
     "psmopsbot due-date reminders",
     "psmopsbot assignment hygiene",
