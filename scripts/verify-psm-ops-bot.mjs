@@ -683,6 +683,14 @@ for (const requiredText of [
   if (!healthCheckText.includes(requiredText)) fail(`Health check script missing required text: ${requiredText}`);
 }
 
+// The health-check expected psm_jira tool count must match the manifest, or post-deploy audits drift.
+if (existsSync(manifestPath)) {
+  const expectedJiraCount = (readJson(manifestPath)?.mcp?.psm_jira?.expected_tools || []).length;
+  if (!healthCheckText.includes(`psm_jira) expected=${expectedJiraCount}`)) {
+    fail(`check-health.sh psm_jira expected tool count must be ${expectedJiraCount} (matching manifest expected_tools)`);
+  }
+}
+
 const joinPublicChannelsText = textOf(appRoot, "runtime/scripts/psm_ops_join_public_channels.py");
 for (const requiredText of [
   "conversations.list",
