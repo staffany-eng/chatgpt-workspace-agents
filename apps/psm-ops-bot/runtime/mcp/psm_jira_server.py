@@ -3541,8 +3541,9 @@ def find_duplicate_pco_candidates(
         return _blocked(str(error), scope)
 
     # Ask for one extra result so excluding the seed still leaves enough candidates.
+    # Fall back to the customer name so customer-only discovery isn't blocked by search_pco_tickets.
     result = search_pco_tickets(
-        query=search_query,
+        query=search_query or normalized_customer,
         slack_thread_url=scope["slack_thread_url"],
         customer=normalized_customer,
         ps_team=ps_team,
@@ -4487,7 +4488,7 @@ def _is_slack_permalink(url: str) -> bool:
     return bool(
         parsed.scheme == "https"
         and (host == "slack.com" or host.endswith(".slack.com"))
-        and "/archives/" in parsed.path
+        and re.fullmatch(r"/archives/[A-Z0-9]+/p\d+", parsed.path or "")
     )
 
 

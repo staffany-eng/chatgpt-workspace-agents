@@ -1036,6 +1036,40 @@ class PsmJiraServerTest(unittest.TestCase):
         )
         self.assertEqual(answer["suggested_command"], "merge PCO-301 into PCO-286")
 
+    def test_find_duplicate_pco_candidates_customer_only_falls_back_to_customer_query(self):
+        captured = {}
+
+        def fake_search(**kwargs):
+            captured.update(kwargs)
+            return {
+                "answer": {
+                    "matches": [
+                        {"issue_key": "PCO-310", "summary": "Acme payroll bug", "match_score": 80},
+                        {"issue_key": "PCO-311", "summary": "Acme payroll broken", "match_score": 78},
+                    ]
+                },
+                "confidence": "verified",
+            }
+
+        self.module.search_pco_tickets = fake_search
+
+        result = self.module.find_duplicate_pco_candidates(customer="Acme")
+
+        # Customer-only input must reach search_pco_tickets with a non-empty query.
+        self.assertEqual(captured["query"], "Acme")
+        self.assertEqual(result["confidence"], "verified")
+        candidate_keys = [c["issue_key"] for c in result["answer"]["candidates"]]
+        self.assertIn("PCO-310", candidate_keys)
+
+    def test_is_slack_permalink_requires_canonical_archive_shape(self):
+        self.assertTrue(
+            self.module._is_slack_permalink("https://staffany.slack.com/archives/C0123ABCD/p1700000000000000")
+        )
+        # Reject archive URLs that aren't a canonical /archives/<channel>/p<ts> permalink.
+        self.assertFalse(self.module._is_slack_permalink("https://staffany.slack.com/archives/C0123ABCD"))
+        self.assertFalse(self.module._is_slack_permalink("https://staffany.slack.com/archives/"))
+        self.assertFalse(self.module._is_slack_permalink("https://evil.example.com/archives/C0123ABCD/p1700000000000000"))
+
     def test_find_duplicate_pco_candidates_blocks_bad_seed_key(self):
         result = self.module.find_duplicate_pco_candidates(issue_key="KER-1")
         self.assertEqual(result["confidence"], "blocked")
