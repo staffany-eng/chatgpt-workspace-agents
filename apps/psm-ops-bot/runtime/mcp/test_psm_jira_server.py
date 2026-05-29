@@ -999,6 +999,56 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertTrue(result["answer"]["link_already_exists"])
         self.assertEqual(len([c for c in calls if c[0] == "POST" and c[1] == "/rest/api/3/issueLink"]), 0)
 
+    def test_merge_pco_tickets_needs_check_when_source_cancel_fails(self):
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: {"ok": True}
+
+        def fake_request(method, path, body=None):
+            if method == "GET" and path.endswith("?fields=issuelinks"):
+                return {"fields": {"issuelinks": []}}
+            if method == "GET" and path.endswith("/remotelink"):
+                return []
+            if method == "GET" and "/search/jql" in path:
+                # Source still active (not Cancelled).
+                return {"issues": [{"key": "PCO-301", "fields": {"summary": "dup", "status": {"name": "Open"}}}]}
+            if method == "GET" and path.endswith("/transitions"):
+                # No Cancelled transition available -> transition_pco_task is blocked.
+                return {"transitions": [{"id": "1", "name": "Open", "to": {"name": "Open"}}]}
+            return {}
+
+        self.module._request_json = fake_request
+
+        result = self.module.merge_pco_tickets("PCO-301", "PCO-286")
+
+        self.assertEqual(result["confidence"], "needs-check")
+        self.assertFalse(result["answer"]["source_cancelled"])
+        self.assertIn("still active", result["caveat"])
+        self.assertIn("still open (cancel failed)", result["answer"]["slack_reply"])
+
+    def test_merge_pco_tickets_treats_already_cancelled_source_as_done(self):
+        calls = []
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: {"ok": True}
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if method == "GET" and path.endswith("?fields=issuelinks"):
+                return {"fields": {"issuelinks": []}}
+            if method == "GET" and path.endswith("/remotelink"):
+                return []
+            if method == "GET" and "/search/jql" in path:
+                return {"issues": [{"key": "PCO-301", "fields": {"summary": "dup", "status": {"name": "Cancelled"}}}]}
+            if method == "GET" and path.endswith("/transitions"):
+                return {"transitions": [{"id": "9", "name": "Cancelled", "to": {"name": "Cancelled"}}]}
+            return {}
+
+        self.module._request_json = fake_request
+
+        result = self.module.merge_pco_tickets("PCO-301", "PCO-286")
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertTrue(result["answer"]["source_cancelled"])
+        # Already Cancelled: must not attempt a redundant transition.
+        self.assertEqual(len([c for c in calls if c[0] == "POST" and c[1].endswith("/transitions")]), 0)
+
     def test_merge_pco_tickets_rejects_non_pco_and_self_merge(self):
         self.assertEqual(self.module.merge_pco_tickets("KER-1", "PCO-2")["confidence"], "blocked")
         self.assertEqual(self.module.merge_pco_tickets("PCO-1", "SCHE-2")["confidence"], "blocked")
@@ -1069,6 +1119,31 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertFalse(self.module._is_slack_permalink("https://staffany.slack.com/archives/C0123ABCD"))
         self.assertFalse(self.module._is_slack_permalink("https://staffany.slack.com/archives/"))
         self.assertFalse(self.module._is_slack_permalink("https://evil.example.com/archives/C0123ABCD/p1700000000000000"))
+
+    def test_find_duplicate_pco_candidates_does_not_forward_slack_thread_when_keyword_search_available(self):
+        self.module._search_issues = lambda jql, fields, limit: [
+            {"key": "PCO-286", "fields": {"summary": "Acme - payroll export bug", "status": {"name": "Open"}}}
+        ]
+        captured = {}
+
+        def fake_search(**kwargs):
+            captured.update(kwargs)
+            return {
+                "answer": {"matches": [{"issue_key": "PCO-301", "summary": "Acme payroll export broken", "match_score": 80}]},
+                "confidence": "verified",
+            }
+
+        self.module.search_pco_tickets = fake_search
+
+        result = self.module.find_duplicate_pco_candidates(
+            issue_key="PCO-286",
+            slack_thread_url="https://staffany.slack.com/archives/C1/p100",
+        )
+
+        # Seed summary drives the keyword search; the Slack thread must not short-circuit it.
+        self.assertEqual(captured["query"], "Acme - payroll export bug")
+        self.assertEqual(captured["slack_thread_url"], "")
+        self.assertIn("PCO-301", [c["issue_key"] for c in result["answer"]["candidates"]])
 
     def test_find_duplicate_pco_candidates_blocks_bad_seed_key(self):
         result = self.module.find_duplicate_pco_candidates(issue_key="KER-1")

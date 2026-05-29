@@ -3540,11 +3540,14 @@ def find_duplicate_pco_candidates(
     except JiraError as error:
         return _blocked(str(error), scope)
 
+    # Fall back to customer so customer-only discovery isn't blocked by search_pco_tickets.
+    effective_query = search_query or normalized_customer
+    # Drop the Slack thread when we have keyword content, else its exact-match short-circuits the search.
+    search_slack_thread = "" if effective_query else scope["slack_thread_url"]
     # Ask for one extra result so excluding the seed still leaves enough candidates.
-    # Fall back to the customer name so customer-only discovery isn't blocked by search_pco_tickets.
     result = search_pco_tickets(
-        query=search_query or normalized_customer,
-        slack_thread_url=scope["slack_thread_url"],
+        query=effective_query,
+        slack_thread_url=search_slack_thread,
         customer=normalized_customer,
         ps_team=ps_team,
         include_done=False,
@@ -5031,14 +5034,19 @@ def merge_pco_tickets(
         if comment_result.get("confidence") != "verified":
             warnings.append(f"Merged but could not add the merge comment to {target_key}: {comment_result.get('caveat')}")
 
-        # 4. Cancel source so the duplicate leaves the active board.
-        source_comment = f"Merged into {target_key} as a duplicate."
-        if note:
-            source_comment += f" Reason: {note}"
-        transition_result = transition_pco_task(source_key, "Cancelled", slack_user_email, source_comment)
-        source_cancelled = transition_result.get("confidence") == "verified"
-        if not source_cancelled:
-            warnings.append(f"Linked and copied, but could not cancel {source_key}: {transition_result.get('caveat')}")
+        # 4. Cancel source so the duplicate leaves the active board (idempotent if already Cancelled).
+        source_issues = _search_issues(f"project = {_project_key()} AND key = {source_key}", _search_fields(), 1)
+        source_status = (_safe_issue(source_issues[0]).get("status") if source_issues else "") or ""
+        if source_status.strip().lower() == "cancelled":
+            source_cancelled = True
+        else:
+            source_comment = f"Merged into {target_key} as a duplicate."
+            if note:
+                source_comment += f" Reason: {note}"
+            transition_result = transition_pco_task(source_key, "Cancelled", slack_user_email, source_comment)
+            source_cancelled = transition_result.get("confidence") == "verified"
+            if not source_cancelled:
+                warnings.append(f"Linked and copied, but could not cancel {source_key}: {transition_result.get('caveat')}")
     except JiraError as error:
         return _blocked(str(error), scope)
 
@@ -5071,6 +5079,14 @@ def merge_pco_tickets(
         jira_payload=answer,
         extra={"subsystem": "jira_pco_merge", "source_issue_key": source_key},
     )
+    if not source_cancelled:
+        # Linked and copied, but the duplicate is still active; don't claim a clean merge.
+        return _needs_check(
+            answer,
+            scope,
+            f"Recorded the duplicate link and copied Slack links, but {source_key} is still active — "
+            f"cancel it manually so the duplicate leaves the board.",
+        )
     return _verified(
         answer,
         scope,
