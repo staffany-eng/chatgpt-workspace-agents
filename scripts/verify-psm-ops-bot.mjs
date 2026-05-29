@@ -337,6 +337,21 @@ for (const requiredText of [
   if (!configText.includes(requiredText)) fail(`config.template.yaml missing required text: ${requiredText}`);
 }
 
+// Exact parity: the psm_jira tool_allowlist must match the manifest expected_tools (order-independent).
+if (existsSync(manifestPath)) {
+  const expectedJiraTools = readJson(manifestPath)?.mcp?.psm_jira?.expected_tools || [];
+  const allowlistStart = configText.indexOf("tool_allowlist:", configText.indexOf("  psm_jira:"));
+  const nextServer = configText.slice(allowlistStart).search(/\n {2}[a-z0-9_]+:/);
+  const allowlistBlock = configText.slice(allowlistStart, nextServer === -1 ? undefined : allowlistStart + nextServer);
+  const allowlistTools = [...allowlistBlock.matchAll(/-\s*"([^"]+)"/g)].map((m) => m[1]);
+  for (const tool of expectedJiraTools) {
+    if (!allowlistTools.includes(tool)) fail(`config.template.yaml psm_jira tool_allowlist missing: ${tool}`);
+  }
+  for (const tool of allowlistTools) {
+    if (!expectedJiraTools.includes(tool)) fail(`config.template.yaml psm_jira tool_allowlist has unexpected tool: ${tool}`);
+  }
+}
+
 const soulText = textOf(appRoot, "profile/SOUL.md");
 for (const requiredText of [
   "Task creation is preview first",
