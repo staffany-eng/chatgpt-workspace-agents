@@ -231,7 +231,7 @@
           "Confidence:"
         ],
         "must_not_include": [
-          "Reply \"create ticket\" to open the PS WEE intake ticket.",
+          "Reply \"@PS WEE create ticket\" to open the PS WEE intake ticket.",
           "A few quick questions"
         ]
       },
@@ -247,14 +247,14 @@
             "path": "profile/SOUL.md",
             "must_contain": [
               "Event AA turns are always ticket-first.",
-              "never reply with create-ready offers, `Reply \"create ticket\"`, or clarifying questions before creation."
+              "never reply with create-ready offers, `Reply \"@PS WEE create ticket\"`, or clarifying questions before creation."
             ]
           },
           {
             "path": "tests/regression-cases.md",
             "must_contain": [
               "PS WEE Event AA Warm Lead Still Tickets",
-              "Does not ask `Reply 'create ticket' to open the PS WEE intake ticket.` in the AA channel."
+              "Does not ask `Reply '@PS WEE create ticket' to open the PS WEE intake ticket.` in the AA channel."
             ]
           }
         ]
@@ -398,7 +398,7 @@
         "must_include": [
           "Answer: Not ticketed yet.",
           "Ticket seed:",
-          "Reply \"create ticket\" to open the PS WEE intake ticket.",
+          "Reply \"@PS WEE create ticket\" to open the PS WEE intake ticket.",
           "Source: Jira PCO",
           "Confidence: verified",
           "Caveat:"
@@ -419,7 +419,7 @@
           {
             "path": "profile/SOUL.md",
             "must_contain": [
-              "Reply \"create ticket\" to open the PS WEE intake ticket.",
+              "Reply \"@PS WEE create ticket\" to open the PS WEE intake ticket.",
               "Say `bounded keyword search`, never `full keyword search`."
             ]
           },
@@ -439,7 +439,7 @@
           }
         ],
         "answer_fixture": {
-          "output": "Answer: Not ticketed yet. I searched the current Slack thread permalink and bounded keyword search candidates in Jira PCO.\nTicket seed: Customer: Ren Bakery. Issue: recurring app errors/lag reported by Nathania. Impact/risk: churn risk. Evidence: current Slack thread.\nReply \"create ticket\" to open the PS WEE intake ticket.\nSource: Jira PCO\nScope: current Slack thread; ticket status check\nConfidence: verified\nCaveat: I did not create a ticket because this was a tracking-status question, not a create/log/file request."
+          "output": "Answer: Not ticketed yet. I searched the current Slack thread permalink and bounded keyword search candidates in Jira PCO.\nTicket seed: Customer: Ren Bakery. Issue: recurring app errors/lag reported by Nathania. Impact/risk: churn risk. Evidence: current Slack thread.\nReply \"@PS WEE create ticket\" to open the PS WEE intake ticket.\nSource: Jira PCO\nScope: current Slack thread; ticket status check\nConfidence: verified\nCaveat: I did not create a ticket because this was a tracking-status question, not a create/log/file request."
         }
       }
     },
@@ -448,7 +448,7 @@
       "bot": "PSM Ops Hermes Bot",
       "surface": "slack:#team-rev-account-management",
       "lane": "tool-trace",
-      "input": "Previous same-thread bot reply was a create-ready offer for Ren Bakery with ticket seed: Nathania reported recurring app errors/lag and churn risk. User replies: yes, create it",
+      "input": "Previous same-thread bot reply was a create-ready offer for Ren Bakery with ticket seed: Nathania reported recurring app errors/lag and churn risk. User replies: @PS WEE yes, create it",
       "setup": {
         "after_create_ready_offer": true,
         "stub_tools": true
@@ -483,20 +483,20 @@
         "drop prior ticket seed facts",
         "draft instead of ticket-first intake"
       ],
-      "grade_notes": "A same-thread yes/create response after a create-ready offer is explicit PS WEE ticketing approval.",
+      "grade_notes": "A same-thread direct PS WEE mention with yes/create after a create-ready offer is explicit ticketing approval.",
       "assertions": {
         "source_files": [
           {
             "path": "profile/SOUL.md",
             "must_contain": [
-              "If the user replies in the same thread with `create ticket`, `open ticket`, `log it`, or `yes, create it` after a create-ready offer",
+              "If the user replies in the same thread with a direct PS WEE mention plus `create ticket`, `open ticket`, `log it`, or `yes, create it` after a create-ready offer",
               "passing whatever ticket seed facts are already known"
             ]
           },
           {
             "path": "skills/psm-ops-bot/SKILL.md",
             "must_contain": [
-              "If the user replies in the same thread with `create ticket`, `open ticket`, `log it`, or `yes, create it` after a create-ready offer",
+              "If the user replies in the same thread with a direct PS WEE mention plus `create ticket`, `open ticket`, `log it`, or `yes, create it` after a create-ready offer",
               "pass whatever prior ticket seed facts are already known"
             ]
           }
@@ -880,7 +880,7 @@
         "must_not_include": [
           "please confirm the exact company name",
           "C360 returned no match",
-          "Reply \"create ticket\""
+          "Reply \"@PS WEE create ticket\""
         ]
       },
       "forbidden_behavior": [
@@ -945,7 +945,7 @@
         ],
         "must_not_include": [
           "which one did you meet",
-          "Reply \"create ticket\"",
+          "Reply \"@PS WEE create ticket\"",
           "C360 found 2"
         ]
       },
@@ -1078,13 +1078,13 @@
         ],
         "must_not_include": [
           "No existing PCO ticket",
-          "Reply \"create ticket\" to open the PS WEE intake ticket.",
+          "Reply \"@PS WEE create ticket\" to open the PS WEE intake ticket.",
           "A few quick questions"
         ]
       },
       "forbidden_behavior": [
         "use the create-ready-offer flow inside the AA channel",
-        "ask Reply 'create ticket' in the AA channel",
+        "ask Reply '@PS WEE create ticket' in the AA channel",
         "treat a Q3-followup note as needing confirmation before ticketing"
       ],
       "grade_notes": "AA-channel turns are always ticket-first regardless of the wording. A Q3-followup note is a ticket ask by virtue of being tagged in the AA channel. Guard: line-113 positive rule 'Perceived message intent is never a reason to block.' Retires SKILL.md anti-example (b).",

@@ -32,33 +32,22 @@ function scanForSecretPatterns(relPath) {
   sharedScanForSecretPatterns(appRoot, relPath, fail);
 }
 
-function readYaml(path, label) {
-  const result = spawnSync("python3", [
-    "-c",
-    [
-      "import json",
-      "import sys",
-      "try:",
-      "    import yaml",
-      "except Exception as exc:",
-      "    print(f'pyyaml-unavailable:{exc.__class__.__name__}', file=sys.stderr)",
-      "    raise SystemExit(1)",
-      "with open(sys.argv[1], 'r', encoding='utf-8') as handle:",
-      "    data = yaml.safe_load(handle) or {}",
-      "print(json.dumps(data))"
-    ].join("\n"),
-    path
-  ], { encoding: "utf8" });
-  if (result.status !== 0) {
-    fail(`${label} YAML parse failed: ${(result.stderr || result.stdout || "unknown error").trim()}`);
-    return null;
+function topLevelYamlBlock(text, blockName) {
+  const lines = text.split(/\r?\n/);
+  const start = lines.findIndex((line) => new RegExp(`^${blockName}:\\s*(?:#.*)?$`).test(line));
+  if (start === -1) return "";
+  const block = [];
+  for (const line of lines.slice(start + 1)) {
+    if (/^\S/.test(line)) break;
+    block.push(line);
   }
-  try {
-    return JSON.parse(result.stdout);
-  } catch (error) {
-    fail(`${label} YAML parse returned invalid JSON: ${error.message}`);
-    return null;
-  }
+  return block.join("\n");
+}
+
+function activeYamlBooleanInBlock(text, blockName, key) {
+  const block = topLevelYamlBlock(text, blockName);
+  const match = block.match(new RegExp(`^\\s+${key}:\\s*(true|false)\\s*(?:#.*)?$`, "m"));
+  return match ? match[1] === "true" : undefined;
 }
 
 function profileBlock(profilesText, profileName) {
@@ -297,14 +286,11 @@ if (!existsSync(deployScriptPath)) {
 }
 
 const configText = textOf(appRoot, "profile/config.template.yaml");
-const configTemplate = readYaml(join(appRoot, "profile/config.template.yaml"), "config.template.yaml");
-if (configTemplate) {
-  if (configTemplate.slack?.require_mention !== true) {
-    fail("config.template.yaml slack.require_mention must be true");
-  }
-  if (configTemplate.slack?.strict_mention !== true) {
-    fail("config.template.yaml slack.strict_mention must be true");
-  }
+if (activeYamlBooleanInBlock(configText, "slack", "require_mention") !== true) {
+  fail("config.template.yaml slack.require_mention must be an active true boolean");
+}
+if (activeYamlBooleanInBlock(configText, "slack", "strict_mention") !== true) {
+  fail("config.template.yaml slack.strict_mention must be an active true boolean");
 }
 if (configText.includes('      - "list_google_calendar_events"')) {
   fail("config.template.yaml must not expose broad list_google_calendar_events");

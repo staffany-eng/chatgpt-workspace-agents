@@ -54,7 +54,7 @@ Thread in Slack channel `C0B5H2YE5T2` (configured by `PSM_OPS_AA_CHANNEL_ID`):
 - Maps PSM wording to request type: `deep dive`/`advanced` → `ps_follow_up` (`123`); `troubleshooting`/`bug`/`lag`/`negative feedback` → `cs_follow_up` (`124`); `re-training`/`webinar`/`basic training` → `adhoc_ops` (`118`); `cross sell`/`upsell`/`expansion`/`PayrollAny`/`EngageAny`/`HRAny` → `rev_cross_sell` (`120`); `ATS`/`AI agents`/`PDT`/`discovery`/`feature`/`features` → `pdt_discovery` (`125`); `ClubAny`/`MKT` → `mkt_clubany` (`126`); anything else or unclear → `feedback` (`122`).
 - When the PSM's intent is unclear, defaults to `feedback` so the ticket still lands in the Event AA queue. Does not block to ask.
 - MCP enforces the same `feedback` default defensively when the source Slack thread is in the AA channel but the caller passes a non-Event-AA `request_type_key`.
-- Inside the AA channel, creates first and never replies with `Reply "create ticket"` or pre-create clarifying questions.
+- Inside the AA channel, creates first and never replies with `Reply "@PS WEE create ticket"` or pre-create clarifying questions.
 - Outside the AA channel, generic PS WEE intakes still default to `customer_next_action`; the 7 Event AA request types are only used when the PSM explicitly asks.
 - Posts the returned ticket link in-thread. Does not ask follow-up questions to fill ticket fields.
 - Posts a `PSM Ops automation:` central audit copy with `event: AA` in the extra payload.
@@ -102,7 +102,7 @@ Thread in Slack channel `C0B5H2YE5T2`:
 
 - Calls `create_ps_wee_intake_ticket` immediately with `customer="Mr Bean Da Wei"` and `request_type_key="feedback"` (no follow-up category named).
 - Does not reply with "Got it … A few quick questions to help route this …".
-- Does not ask `Reply 'create ticket' to open the PS WEE intake ticket.` in the AA channel.
+- Does not ask `Reply '@PS WEE create ticket' to open the PS WEE intake ticket.` in the AA channel.
 - Adds the `AA-SG-2026` label.
 
 ## PS WEE Event AA Feature Request Maps To PDT
@@ -220,15 +220,15 @@ Thread:
 - Calls `search_pco_tickets` with the current thread context before saying `not ticketed yet`.
 - Does not call `create_ps_wee_intake_ticket`, `draft_pco_task`, or `create_approved_pco_task` for the tracking-status question.
 - If no match is found, returns a compact ticket seed with customer, issue, impact/risk, and evidence/source thread.
-- Ends with `Reply "create ticket" to open the PS WEE intake ticket.`
+- Ends with `Reply "@PS WEE create ticket" to open the PS WEE intake ticket.`
 - Says `bounded keyword search`, not `full keyword search`.
 - Caveat says no ticket was created because the user asked for tracking status, not creation.
 
 Follow-up:
 
-`yes, create it`
+`@PS WEE yes, create it`
 
-- Treats the follow-up as explicit PS WEE ticketing approval only because it follows the create-ready offer in the same thread.
+- Treats the follow-up as explicit PS WEE ticketing approval only because it directly mentions PS WEE and follows the create-ready offer in the same thread.
 - Calls `find_ticket_by_slack_thread`, then `search_pco_tickets`, then `create_ps_wee_intake_ticket`.
 - Passes Ren Bakery, Nathania, recurring app errors/lag, churn risk, and the Slack thread evidence into the ticket tool.
 
