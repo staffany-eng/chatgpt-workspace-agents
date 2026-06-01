@@ -371,3 +371,23 @@ Expected reply behavior:
 - If any `<@U...>` appears in the reply, it must reference Izzat (the current Slack sender / tagger). Never `<@Kai Yi>`, `<@Ega>`, `<@Lucky>`, `<@Josica>`, or any other non-tagger, even though they appear elsewhere in the thread or on PCO-31.
 - Referring to a non-tagger person uses plain text (e.g., "PCO-31 is assigned to Kai Yi") with no `<@...>` wrapper.
 - The bot still appends the internal follow-up comment to PCO-31, posts the link, and the standard Source/Scope/Confidence/Caveat footer — none of which add extra `<@...>` mentions.
+
+## Strict Mention Opt-In
+
+Thread (Beatrice Clothing pattern from SCHE-19906):
+
+```text
+Damba: @PS WEE can you create 1 PCO ticket for the thing i need to follow up?
+PS WEE: Created first so this won't be missed: PCO-477.
+Lucky: I found this older ticket; the payroll error was already fixed.
+Damba: Thanks Lucky, did you find May payroll report?
+Lucky: We did multiple follow ups but they're not replying to our chats.
+```
+
+Expected reply behavior:
+
+- The bot replies to Damba's tagged create request.
+- The bot does not reply to Lucky's untagged follow-up, Damba's untagged question to Lucky, or Lucky's later untagged clarification.
+- The bot does not sync untagged follow-up context to Jira unless a later message directly @-mentions PS WEE / this bot.
+- Runtime config has `slack.strict_mention: true`, so Hermes ignores remembered thread mentions, bot-message replies, and active thread sessions as Slack triggers.
+- A "stay quiet" / "stop commenting" signal in the thread keeps the bot silent until a later direct @-mention.

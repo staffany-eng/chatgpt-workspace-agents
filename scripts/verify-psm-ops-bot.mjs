@@ -151,6 +151,9 @@ if (!existsSync(manifestPath)) {
     if (manifest.slack?.allowed_channels_expected_empty !== true) {
       fail("Manifest Slack contract must require empty SLACK_ALLOWED_CHANNELS for open public-channel mode");
     }
+    if (manifest.slack?.strict_mention !== true) {
+      fail("Manifest Slack config must require strict_mention=true");
+    }
     if (manifest.slack?.join_public_channels_script !== "runtime/scripts/psm_ops_join_public_channels.py") {
       fail("Manifest Slack contract must point to psm_ops_join_public_channels.py");
     }
@@ -273,6 +276,8 @@ const slackRuntimeText = textOf(appRoot, "runtime/slack.md");
 for (const requiredText of [
   "channels:join",
   "conversations.join",
+  "Set `slack.strict_mention=true`",
+  "Untagged same-thread replies after a previous bot response are silent",
   "psm_ops_join_public_channels.py --dry-run",
   "psm_ops_join_public_channels.py --apply",
   "Do not use Kai Yi's user token or the Slack connector to invite or post as a workaround"
@@ -298,6 +303,7 @@ for (const requiredText of [
   "CUSTOMER360_INTERNAL_API_TOKEN",
   "SLACK_BOT_TOKEN",
   'allow_bots: "mentions"',
+  "strict_mention: true",
   "socket_raw_fallback: true",
   "resolve_slack_user_identity",
     "PSM_OPS_CENTRAL_SLACK_CHANNEL_ID",
@@ -377,6 +383,13 @@ for (const requiredText of [
 ]) {
   if (!soulText.includes(requiredText)) fail(`SOUL.md missing required text: ${requiredText}`);
 }
+for (const requiredText of [
+  "Strict opt-in",
+  "prior same-thread mentions",
+  "stay silent until a later message directly @-mentions the bot again"
+]) {
+  if (!soulText.includes(requiredText)) fail(`SOUL.md missing strict opt-in text: ${requiredText}`);
+}
 
 const skillText = textOf(appRoot, "skills/psm-ops-bot/SKILL.md");
 for (const requiredText of [
@@ -413,6 +426,13 @@ for (const requiredText of [
   "calendar.readonly"
 ]) {
   if (!skillText.includes(requiredText)) fail(`Skill missing required text: ${requiredText}`);
+}
+for (const requiredText of [
+  "Strict opt-in comes before workflow routing",
+  "Do not answer untagged same-thread replies",
+  "until the bot is directly @-mentioned again"
+]) {
+  if (!skillText.includes(requiredText)) fail(`Skill missing strict opt-in text: ${requiredText}`);
 }
 
 const jiraMcpText = textOf(appRoot, "runtime/mcp/psm_jira_server.py");
@@ -520,6 +540,8 @@ if (!psmOpsProfileBlock) {
     "systemd_unit: hermes-gateway-psmopsbot.service",
     "bot_name: ps_wee_manager",
     "open_channel_mode: true",
+    "require_mention: true",
+    "strict_mention: true",
     "psm_jira: 28",
     "psm_c360: 3",
     "psmopsbot due-date reminders",
@@ -670,6 +692,7 @@ for (const requiredText of [
   "slack-display:tool-progress-not-off",
   "slack-display:streaming-not-disabled",
   "slack:reactions-not-disabled",
+  "slack:strict-mention-not-enabled",
   "conversations.join",
   "slack:public-channel-join-scope-missing",
   "auxiliary:title-generation-provider-not-anthropic",

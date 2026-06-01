@@ -10,7 +10,7 @@ This runbook deploys PSM Ops Bot on company cloud infrastructure. Do not run the
 - VM: `hermes-psm-ops-bot-poc`
 - Profile: `psmopsbot`
 - Gateway service: `hermes-gateway-psmopsbot.service`
-- Slack channel mode: public/open channels, mention required
+- Slack channel mode: public/open channels, strict @-mention opt-in
 - Local profile policy: cloud-only. Do not create or run `~/.hermes/profiles/psmopsbot` on a Mac operator host.
 
 ## Secrets
@@ -32,7 +32,7 @@ Store these in Secret Manager and load them into the profile `.env` on the cloud
 `scope=roi-jira`. It stores the approved `PSM_OPS_ROI_*` Jira routing and field
 configuration only; do not copy those values into this repo.
 
-Thin POC does not require `SLACK_ALLOWED_USERS`, `SLACK_ALLOWED_CHANNELS`, or a PSM Ops access-policy file. The bot resolves the caller by fetching Slack users, canonicalizing profile email/name, and matching that identity to Jira `PS Team`. Jira user search is optional best-effort attribution, not the task-owner filter. Keep `slack.require_mention=true` so public/open-channel usage does not become free-response mode.
+Thin POC does not require `SLACK_ALLOWED_USERS`, `SLACK_ALLOWED_CHANNELS`, or a PSM Ops access-policy file. The bot resolves the caller by fetching Slack users, canonicalizing profile email/name, and matching that identity to Jira `PS Team`. Jira user search is optional best-effort attribution, not the task-owner filter. Keep `slack.require_mention=true` and `slack.strict_mention=true` so public/open-channel usage does not become free-response mode or same-thread auto-engagement.
 
 Required Slack bot scopes for public/open-channel mode:
 

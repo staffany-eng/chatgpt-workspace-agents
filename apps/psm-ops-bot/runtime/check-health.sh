@@ -46,6 +46,7 @@ if [ -n "$config_path" ] && [ -r "$config_path" ]; then
   grep -Eq 'provider: *"?anthropic"?' "$config_path" || fail "model:provider-not-anthropic"
   grep -q 'claude-sonnet-4-6' "$config_path" || fail "model:default-not-claude-sonnet-4-6"
   grep -q 'require_mention: *true' "$config_path" || fail "slack:require-mention-not-enabled"
+  grep -q 'strict_mention: *true' "$config_path" || fail "slack:strict-mention-not-enabled"
   if [ -n "${SLACK_ALLOWED_CHANNELS:-}" ]; then
     fail "slack:allowed-channels-should-be-empty-for-open-channel-mode"
   fi

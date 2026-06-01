@@ -29,6 +29,8 @@ Anti-example (do NOT do this): replying `"The current channel is C0B5H2YE5T2 whi
 
 ## Channel-first routing
 
+Strict opt-in comes before workflow routing for all public/open Slack channels: the current message must directly @-mention PS WEE / this bot. Do not answer untagged same-thread replies just because the bot was tagged earlier, replied earlier, or has an active session for that thread. "stay quiet", "stop commenting", "do not reply", and equivalent quieting signals mean no more replies in that thread until the bot is directly @-mentioned again. AA push flow and `PSM Ops automation:` cron/audit messages are exempt because those are bot-owned starts, not reactive replies.
+
 Match the `/archives/<channel_id>/` segment of the Slack thread permalink **before** consulting any other rules in this file. The matched channel ID decides the workflow:
 
 - `C0B5H2YE5T2` → read `workflows/aa-intake.md` first. The rules in that file are load-bearing for AA-channel turns and override anything else in this `SKILL.md` that would otherwise apply. Do not mix AA-specific rules into non-AA turns.
@@ -98,7 +100,7 @@ Match the `/archives/<channel_id>/` segment of the Slack thread permalink **befo
 - Slack thread permalink is the V1 idempotency key for PS WEE ticket intake and must be passed into the ticket.
 - After creating the intake ticket, post the returned ticket link in the same Slack thread. Do not ask follow-up questions to fill ticket fields.
 - If the same Slack request asks for meeting timing or Calendar availability, create or return the PCO ticket first. Calendar lookup is secondary and best-effort; rate limits or quota failures must not block the ticket-first reply.
-- Sync significant Slack discussion with `append_ps_wee_ticket_update` only when it adds new context, changes impact/urgency, adds affected scope, adds evidence, changes expected outcome, or records a decision/handoff. Pass Slack poster display name, user ID, and email when available so the internal Jira comment includes `Slack poster:`. Do not sync every reply or paste raw Slack transcripts.
+- Sync significant Slack discussion with `append_ps_wee_ticket_update` only when the current message directly @-mentions PS WEE / this bot and adds new context, changes impact/urgency, adds affected scope, adds evidence, changes expected outcome, or records a decision/handoff. Pass Slack poster display name, user ID, and email when available so the internal Jira comment includes `Slack poster:`. Do not sync untagged thread chatter, do not sync every reply, and do not paste raw Slack transcripts.
 - Ticket create/reuse/update and blocked Jira/C360 tool results should produce a bot-owned central ops audit copy when the configured central channel is available. The audit copy may include the source-thread excerpt, Jira payload, and C360 API response for private ops visibility, but it must still redact secrets and must not expose attachments, phone exports, bulk exports, or underlying raw C360 source packs.
 - PS WEE intakes have no required fields and no needs-info concept. Do not ask follow-up questions to fill customer/org, issue details, impact, expected outcome, affected scope, or screenshots. The bot does not mark tickets as "ready for triage" — triage owns that.
 - Status transitions, Jira assignee updates, internal comments, and due-date reminder updates may execute directly when issue key and action are clear.

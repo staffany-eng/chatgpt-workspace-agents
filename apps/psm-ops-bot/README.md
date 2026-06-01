@@ -8,7 +8,7 @@ Alias note: `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` refer to this 
 
 - Runtime: Hermes Agent
 - Profile: `psmopsbot` on cloud host only; do not create or run a Mac-local `psmopsbot` profile.
-- Slack surface: mention-required usage in public/open StaffAny Slack channels
+- Slack surface: strict @-mention opt-in usage in public/open StaffAny Slack channels
 - Model: Anthropic provider, `claude-sonnet-4-6`
 - Jira scope: PCO Jira Service Management for PS/customer work; ROI Jira Service Management for RevOps, BD Ops, NYSS, and ROI-board work
 - Task ownership: Jira `PS Team`, matched from Slack users/profile identity

@@ -140,6 +140,8 @@ profiles:
       home_channel_id: C0B2VT50YT1
       home_channel_name: ps-weeman-bot-test
       open_channel_mode: true
+      require_mention: true
+      strict_mention: true
       allowed_channel_ids: []
       report_prefix: "PSM Ops automation:"
     required_mcp:

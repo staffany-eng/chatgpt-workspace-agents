@@ -27,6 +27,68 @@
   },
   "evals": [
     {
+      "id": "psm-static-strict-mention-opt-in",
+      "bot": "PSM Ops Hermes Bot",
+      "surface": "slack",
+      "lane": "static",
+      "input": "Thread: Damba tags @PS WEE to create PCO-477, PS WEE replies. Lucky then replies without tagging PS WEE with more payroll context. Damba asks Lucky a follow-up without tagging PS WEE. Expected behavior?",
+      "setup": {
+        "same_thread_after_bot_reply": true,
+        "current_message_mentions_bot": false,
+        "live_tools": "disabled"
+      },
+      "expected_tool_trace": {
+        "must_call": [],
+        "must_not_call": [
+          "append_ps_wee_ticket_update",
+          "create_ps_wee_intake_ticket",
+          "find_ticket_by_slack_thread",
+          "search_pco_tickets"
+        ]
+      },
+      "expected_answer_contract": {
+        "must_include": [
+          "[SILENT]"
+        ],
+        "must_not_include": [
+          "PCO-477 updated",
+          "Source:",
+          "Confidence:"
+        ]
+      },
+      "forbidden_behavior": [
+        "reply to untagged same-thread follow-up",
+        "sync untagged human discussion to Jira",
+        "treat prior bot reply as consent to keep participating",
+        "treat active thread session as consent to keep participating"
+      ],
+      "grade_notes": "SCHE-19906: strict opt-in means every reactive public/open-channel message must directly @-mention PS WEE. Untagged same-thread human discussion is silent even after the bot created a ticket earlier.",
+      "assertions": {
+        "source_files": [
+          {
+            "path": "profile/config.template.yaml",
+            "must_contain": [
+              "strict_mention: true"
+            ]
+          },
+          {
+            "path": "runtime/slack.md",
+            "must_contain": [
+              "Set `slack.strict_mention=true`",
+              "Untagged same-thread replies after a previous bot response are silent"
+            ]
+          },
+          {
+            "path": "tests/regression-cases.md",
+            "must_contain": [
+              "Strict Mention Opt-In",
+              "The bot does not reply to Lucky's untagged follow-up"
+            ]
+          }
+        ]
+      }
+    },
+    {
       "id": "psm-static-ps-wee-alias-existing-bot",
       "bot": "PSM Ops Hermes Bot",
       "surface": "slack",

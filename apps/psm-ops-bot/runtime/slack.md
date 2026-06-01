@@ -1,12 +1,15 @@
 # Slack Runtime
 
-The Slack surface is mention-required usage in public/open StaffAny Slack channels.
+The Slack surface is strict @-mention opt-in usage in public/open StaffAny Slack channels.
 
 `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` are aliases for this same PSM Ops Bot Slack surface.
 
 ## Required Behavior
 
-- Mention-only in public/open channels.
+- Strict mention-only in public/open channels: every reactive channel message must directly @-mention PS WEE / this bot before Hermes may answer.
+- Set `slack.strict_mention=true` so Hermes does not auto-engage from remembered thread mentions, bot-message replies, or active same-thread sessions.
+- Untagged same-thread replies after a previous bot response are silent, including human follow-up context, thanks/ok acknowledgements, and questions directed at another human.
+- If a user says "stay quiet", "stop commenting", "do not reply", or equivalent, stay silent in that thread until a later direct @-mention.
 - Use the PSM Ops bot identity for all visible replies.
 - Do not send Slack replies as Kai Yi or through a human user token.
 - Keep Slack output quiet: no streaming drafts, no tool progress, no status reactions.
@@ -115,6 +118,7 @@ Runtime config must allow open-channel usage:
 ```yaml
 slack:
   require_mention: true
+  strict_mention: true
   allowed_channels: ""
 
 gateway:
@@ -122,4 +126,4 @@ gateway:
     channel: "#ps-weeman-bot-test"
 ```
 
-Do not set `SLACK_ALLOWED_CHANNELS` for this app when it is expected to answer in any public/open channel. Keep `require_mention=true`; private channels still require explicit membership and approved Slack scopes.
+Do not set `SLACK_ALLOWED_CHANNELS` for this app when it is expected to answer in any public/open channel. Keep both `require_mention=true` and `strict_mention=true`; private channels still require explicit membership and approved Slack scopes.
