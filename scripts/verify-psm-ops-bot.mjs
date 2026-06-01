@@ -32,6 +32,35 @@ function scanForSecretPatterns(relPath) {
   sharedScanForSecretPatterns(appRoot, relPath, fail);
 }
 
+function readYaml(path, label) {
+  const result = spawnSync("python3", [
+    "-c",
+    [
+      "import json",
+      "import sys",
+      "try:",
+      "    import yaml",
+      "except Exception as exc:",
+      "    print(f'pyyaml-unavailable:{exc.__class__.__name__}', file=sys.stderr)",
+      "    raise SystemExit(1)",
+      "with open(sys.argv[1], 'r', encoding='utf-8') as handle:",
+      "    data = yaml.safe_load(handle) or {}",
+      "print(json.dumps(data))"
+    ].join("\n"),
+    path
+  ], { encoding: "utf8" });
+  if (result.status !== 0) {
+    fail(`${label} YAML parse failed: ${(result.stderr || result.stdout || "unknown error").trim()}`);
+    return null;
+  }
+  try {
+    return JSON.parse(result.stdout);
+  } catch (error) {
+    fail(`${label} YAML parse returned invalid JSON: ${error.message}`);
+    return null;
+  }
+}
+
 function profileBlock(profilesText, profileName) {
   const marker = `  - name: ${profileName}`;
   const start = profilesText.indexOf(marker);
@@ -268,6 +297,15 @@ if (!existsSync(deployScriptPath)) {
 }
 
 const configText = textOf(appRoot, "profile/config.template.yaml");
+const configTemplate = readYaml(join(appRoot, "profile/config.template.yaml"), "config.template.yaml");
+if (configTemplate) {
+  if (configTemplate.slack?.require_mention !== true) {
+    fail("config.template.yaml slack.require_mention must be true");
+  }
+  if (configTemplate.slack?.strict_mention !== true) {
+    fail("config.template.yaml slack.strict_mention must be true");
+  }
+}
 if (configText.includes('      - "list_google_calendar_events"')) {
   fail("config.template.yaml must not expose broad list_google_calendar_events");
 }
@@ -303,7 +341,6 @@ for (const requiredText of [
   "CUSTOMER360_INTERNAL_API_TOKEN",
   "SLACK_BOT_TOKEN",
   'allow_bots: "mentions"',
-  "strict_mention: true",
   "socket_raw_fallback: true",
   "resolve_slack_user_identity",
     "PSM_OPS_CENTRAL_SLACK_CHANNEL_ID",
