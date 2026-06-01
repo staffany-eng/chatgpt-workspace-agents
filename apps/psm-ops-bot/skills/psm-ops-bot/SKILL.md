@@ -25,8 +25,6 @@ Hardcoded in the deployed config. Do NOT invent channel roles from training cont
 - `C0B5H2YE5T2` — **Event AA channel** (`PSM_OPS_AA_CHANNEL_ID`). Treat every trigger here as a ticket ask and always call `create_ps_wee_intake_ticket`; the MCP decides server-side whether to skip a non-actionable message. Load `workflows/aa-intake.md` and apply only those rules; AA rules override anything else in this file.
 - `C0B2VT50YT1` — **Central audit channel** `#ps-weeman-bot-test` (`PSM_OPS_CENTRAL_SLACK_CHANNEL_ID`). Bot-owned audit copies go here; do NOT ticket from this channel.
 
-Anti-example (do NOT do this): replying `"The current channel is C0B5H2YE5T2 which is the bot-test channel (not the AA channel)"`. `C0B5H2YE5T2` IS the AA channel; the bot-test/audit channel is `C0B2VT50YT1`. The Slack thread permalink's `/archives/<channel_id>/` segment is the channel ID — match it against the two IDs above before deciding flow, and never assert a channel-ID-to-role mapping from memory.
-
 ## Channel-first routing
 
 Strict opt-in comes before workflow routing for all public/open Slack channels: the current message must directly @-mention PS WEE / this bot. Do not answer untagged same-thread replies just because the bot was tagged earlier, replied earlier, or has an active session for that thread. "stay quiet", "stop commenting", "do not reply", and equivalent quieting signals mean no more replies in that thread until the bot is directly @-mentioned again. AA push flow and `PSM Ops automation:` cron/audit messages are exempt because those are bot-owned starts, not reactive replies.
