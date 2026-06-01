@@ -46,7 +46,10 @@ function topLevelYamlBlock(text, blockName) {
 
 function activeYamlBooleanInBlock(text, blockName, key) {
   const block = topLevelYamlBlock(text, blockName);
-  const match = block.match(new RegExp(`^\\s+${key}:\\s*(true|false)\\s*(?:#.*)?$`, "m"));
+  const childLine = block.split(/\r?\n/).find((line) => line.trim() && !line.trimStart().startsWith("#"));
+  const childIndent = childLine?.match(/^ */)?.[0] ?? "  ";
+  const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = block.match(new RegExp(`^${childIndent}${escapedKey}:\\s*(true|false)\\s*(?:#.*)?$`, "m"));
   return match ? match[1] === "true" : undefined;
 }
 

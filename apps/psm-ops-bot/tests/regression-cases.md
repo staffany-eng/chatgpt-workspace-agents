@@ -239,7 +239,14 @@ Thread:
 `@PSM Ops is Walta Tech on headcount or section limit? did they reach out?`
 `Yes, they reached out via Intercom <support thread link>`
 
-- Treats the support confirmation as a ticket-first PS WEE intake trigger.
+- Treats the untagged support confirmation as silent under strict mention mode.
+- Does not create or update Jira from the untagged confirmation.
+
+Tagged follow-up:
+
+`@PS WEE yes, they reached out via Intercom <support thread link>`
+
+- Treats the tagged support confirmation as a ticket-first PS WEE intake trigger.
 - Calls `find_ticket_by_slack_thread`.
 - Creates the PCO intake immediately with `create_ps_wee_intake_ticket` when no same-thread ticket exists.
 - Includes the Slack thread permalink and support evidence link in Jira.
