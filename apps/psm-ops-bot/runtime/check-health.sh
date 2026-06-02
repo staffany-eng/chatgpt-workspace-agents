@@ -45,7 +45,6 @@ config_path="$(hermes -p "$PROFILE" config path 2>/dev/null || true)"
 if [ -n "$config_path" ] && [ -r "$config_path" ]; then
   grep -Eq 'provider: *"?anthropic"?' "$config_path" || fail "model:provider-not-anthropic"
   grep -q 'claude-sonnet-4-6' "$config_path" || fail "model:default-not-claude-sonnet-4-6"
-  grep -q 'require_mention: *true' "$config_path" || fail "slack:require-mention-not-enabled"
   if [ -n "${SLACK_ALLOWED_CHANNELS:-}" ]; then
     fail "slack:allowed-channels-should-be-empty-for-open-channel-mode"
   fi
@@ -66,6 +65,14 @@ except Exception as exc:
 
 with open(config_path, "r", encoding="utf-8") as handle:
     config = yaml.safe_load(handle) or {}
+
+slack = config.get("slack") or {}
+if slack.get("require_mention") is not True:
+    print("slack:require-mention-not-enabled")
+    raise SystemExit(1)
+if slack.get("strict_mention") is not True:
+    print("slack:strict-mention-not-enabled")
+    raise SystemExit(1)
 
 display = config.get("display") or {}
 if display.get("interim_assistant_messages") is not False:

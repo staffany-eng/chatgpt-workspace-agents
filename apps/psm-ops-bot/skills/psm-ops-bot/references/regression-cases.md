@@ -198,19 +198,19 @@ Expected:
 - Calls `search_pco_tickets` with the current thread context before saying `not ticketed yet`.
 - Does not call `create_ps_wee_intake_ticket`, `draft_pco_task`, or `create_approved_pco_task` for the tracking-status question.
 - If no match is found, returns a compact ticket seed with customer, issue, impact/risk, and evidence/source thread.
-- Ends with `Reply "create ticket" to open the PS WEE intake ticket.`
+- Ends with `Reply "@PS WEE create ticket" to open the PS WEE intake ticket.`
 - Says `bounded keyword search`, not `full keyword search`.
 - Caveat says no ticket was created because the user asked for tracking status, not creation.
 
 Follow-up:
 
 ```text
-yes, create it
+@PS WEE yes, create it
 ```
 
 Expected:
 
-- Treats the follow-up as explicit PS WEE ticketing approval only because it follows the create-ready offer in the same thread.
+- Treats the follow-up as explicit PS WEE ticketing approval only because it directly mentions PS WEE and follows the create-ready offer in the same thread.
 - Calls `find_ticket_by_slack_thread`, then `search_pco_tickets`, then `create_ps_wee_intake_ticket`.
 - Passes Ren Bakery, Nathania, recurring app errors/lag, churn risk, and the Slack thread evidence into the ticket tool.
 
@@ -222,11 +222,13 @@ Thread:
 PSM: is Walta Tech on headcount or section limit? did they reach out?
 Bot: C360 cannot confirm limit usage. Did they reach out about hitting the limit?
 Teammate: Yes, they reached out via Intercom <support thread link>
+Teammate: @PS WEE yes, they reached out via Intercom <support thread link>
 ```
 
 Expected:
 
-- Treats the teammate confirmation plus Intercom/support link as a PS WEE intake trigger.
+- Treats the untagged teammate confirmation as silent under strict mention mode.
+- Treats the tagged teammate confirmation plus Intercom/support link as a PS WEE intake trigger.
 - Calls `find_ticket_by_slack_thread` with the current Slack thread permalink.
 - If no ticket exists for that Slack thread, calls `create_ps_wee_intake_ticket` immediately without asking "do you want me to log a ticket?".
 - Creates a PCO intake using whatever facts are available: customer, section/headcount limit context, evidence link.
@@ -428,4 +430,4 @@ Expected:
 - Routes to `request_type_key="rev_cross_sell"` (warm referral lead → expansion-ish), or `feedback` when the routing is genuinely unclear — never blocks asking which entity.
 - Drive selfie ingest runs best-effort against the attached image and never blocks the create.
 - Slack reply names the created PCO key first, then surfaces the disambiguation as a *post-create* question ("Two `Nasty Cookie` entities in C360 — which one for the org link?"), never as a precondition.
-- Does NOT emit any of: "C360 found 2 ... which one did you meet?", "Reply 'create ticket' once you confirm the entity.", or "No ticket was created because this was a field-update note, not an explicit ticket creation request." for an AA-channel turn.
+- Does NOT emit any of: "C360 found 2 ... which one did you meet?", "Reply '@PS WEE create ticket' once you confirm the entity.", or "No ticket was created because this was a field-update note, not an explicit ticket creation request." for an AA-channel turn.

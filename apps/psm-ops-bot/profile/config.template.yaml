@@ -48,6 +48,10 @@ kanban:
 
 slack:
   require_mention: true
+  # Strict opt-in: every public/open-channel message must mention PS WEE.
+  # This disables same-thread auto-engagement from prior mentions, bot-message
+  # replies, or active thread sessions.
+  strict_mention: true
   # Smoke/API-authored checks may arrive with bot_id; accept only explicit
   # mentions so generic bot chatter still cannot trigger PS WEE.
   allow_bots: "mentions"

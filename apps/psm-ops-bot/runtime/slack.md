@@ -1,18 +1,21 @@
 # Slack Runtime
 
-The Slack surface is mention-required usage in public/open StaffAny Slack channels.
+The Slack surface is strict @-mention opt-in usage in public/open StaffAny Slack channels.
 
 `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` are aliases for this same PSM Ops Bot Slack surface.
 
 ## Required Behavior
 
-- Mention-only in public/open channels.
+- Strict mention-only in public/open channels: every reactive channel message must directly @-mention PS WEE / this bot before Hermes may answer.
+- Set `slack.strict_mention=true` so Hermes does not auto-engage from remembered thread mentions, bot-message replies, or active same-thread sessions.
+- Untagged same-thread replies after a previous bot response are silent, including human follow-up context, thanks/ok acknowledgements, and questions directed at another human.
+- If a user says "stay quiet", "stop commenting", "do not reply", or equivalent, stay silent in that thread until a later direct @-mention.
 - Use the PSM Ops bot identity for all visible replies.
 - Do not send Slack replies as Kai Yi or through a human user token.
 - Keep Slack output quiet: no streaming drafts, no tool progress, no status reactions.
 - Route non-critical `auxiliary.title_generation` through the pinned short-timeout Haiku auxiliary config so title-generation overloads do not become visible Slack follow-up noise.
 - Suppress gateway lifecycle notices in the pilot channel with `platforms.slack.gateway_restart_notification=false`.
-- Task creation is preview first. Same-thread `create`, `approve create`, or `create this` approves the previously shown draft.
+- Task creation is preview first. In public/open channels, approval must directly mention PS WEE, for example `@PS WEE create`, `@PS WEE approve create`, or `@PS WEE create this`, because strict mention mode ignores untagged same-thread replies.
 - ROI-direct requests are ticket-first and must create or reuse ROI JSM first. When PS Wee is asked to create, add, log, handle, ticket, task, or board work for ROI, RevOps, BD Ops, bdops, NYSS, n y s s, invoice/billing, renewal invoices, discounts, HC/deal checks, Stripe invoices, HubSpot deals, ERP dashboards/data issues, linked BE, accessible invoices, MRR mismatch, SLA dashboards, or asset sync, call `classify_roi_ticket_request`, then `find_roi_ticket_by_slack_thread`, then `create_roi_ticket_from_slack` if no same-thread ROI ticket exists.
 - For resolved PS Team callers, billing/invoice/renewal billing asks default to customer-loop tracking. If `classify_roi_ticket_request` returns `pco_tracker_default=true`, call `create_or_link_pco_roi_tracker` after ROI create/reuse so the linked PCO tracker appears in `Waiting Internal`.
 - Do not trigger ROI creation for casual `@nyss`, BD Ops, or RevOps questions unless the user asks PS Wee to create, add, log, handle, ticket, task, or board the work.
@@ -20,11 +23,11 @@ The Slack surface is mention-required usage in public/open StaffAny Slack channe
 - Do not create duplicate PCO execution wrappers for ROI work. The PCO ROI tracker is allowed only for customer-loop visibility; ROI remains internal-team execution truth.
 - PS WEE ticketing requests are ticket-first. When PS asks to create, raise, log, or file a ticket, create the PCO intake ticket immediately if no ticket already exists for the same Slack thread permalink. Pass known facts into the Jira tool, paste its returned ticket reply exactly, and do not add numbered follow-up questionnaires.
 - PCO tracking checks must use `search_pco_tickets` before saying no PCO ticket exists. The same rule applies before saying `not ticketed yet`. Exact Slack-thread lookup alone is not enough because manually-created board tickets may omit Slack source links.
-- If `search_pco_tickets` returns `not_found` for a tracking-status question, do not auto-create. Return a create-ready offer with a compact ticket seed: customer, issue, impact/risk, and evidence/source thread. End with exactly `Reply "create ticket" to open the PS WEE intake ticket.` The caveat must say no ticket was created because the user asked for tracking status, not creation. Say `bounded keyword search`, never `full keyword search`.
-- Same-thread replies `create ticket`, `open ticket`, `log it`, or `yes, create it` after a create-ready offer count as explicit PS WEE ticketing approval. Run `find_ticket_by_slack_thread`, then `search_pco_tickets`, then `create_ps_wee_intake_ticket`, passing the prior ticket seed facts.
+- If `search_pco_tickets` returns `not_found` for a tracking-status question, do not auto-create. Return a create-ready offer with a compact ticket seed: customer, issue, impact/risk, and evidence/source thread. End with exactly `Reply "@PS WEE create ticket" to open the PS WEE intake ticket.` The caveat must say no ticket was created because the user asked for tracking status, not creation. Say `bounded keyword search`, never `full keyword search`.
+- Same-thread replies that directly @-mention PS WEE with `create ticket`, `open ticket`, `log it`, or `yes, create it` after a create-ready offer count as explicit PS WEE ticketing approval. Untagged approvals are silent under strict mention mode. Run `find_ticket_by_slack_thread`, then `search_pco_tickets`, then `create_ps_wee_intake_ticket`, passing the prior ticket seed facts.
 - For create/open/tag requests, run same-thread dedupe first, then use `search_pco_tickets` as the broader duplicate guard before creating a new PCO intake ticket. If the search returns `needs-check`, ask the user to choose the PCO key before updating or creating.
 - Operational task-list requests are ticket-first. When PS asks to `add to <person/team> task list`, `add to Jo/Jos/Josica`, `put on backlog`, `add to follow-up list`, or equivalent, create or return the PCO intake ticket.
-- A confirmed customer reach-out in a PS WEE/customer-ops thread is ticket-first even if nobody says "create ticket". Examples: "did they reach out?" followed by "yes, via Intercom", a support-thread permalink, an admin screenshot showing a limit hit, or a teammate confirming impact. Create or return the same-thread PCO intake ticket.
+- A confirmed customer reach-out in a PS WEE/customer-ops thread is ticket-first only when the confirmation message directly @-mentions PS WEE / this bot. Examples: `@PS WEE yes, via Intercom`, `@PS WEE support thread here: <link>`, or `@PS WEE screenshot shows the limit hit`. Untagged confirmations are silent under strict mention mode and must not create or update Jira.
 - Customer-specific Slack channels auto-tag only through reviewed channel mappings. If the mapped channel customer conflicts with the message customer, block ticket creation and ask for confirmation.
 - If the same request asks for meeting timing, handle the Jira ticket first and treat Calendar lookup as best-effort follow-up. Calendar quota/rate-limit errors must not block the ticket link.
 - Post the created or existing ticket link in the same Slack thread. Do not ask follow-up questions to fill ticket fields.
@@ -60,7 +63,7 @@ Duplicate check: <candidate issues or none found>
 Source: Jira PCO draft + Customer 360 context
 Scope: <customer/caller>
 Confidence: <verified | needs-check | blocked>
-Caveat: Reply "create" to create this task.
+Caveat: Reply "@PS WEE create" to create this task.
 ```
 
 ROI ticket output:
@@ -115,6 +118,7 @@ Runtime config must allow open-channel usage:
 ```yaml
 slack:
   require_mention: true
+  strict_mention: true
   allowed_channels: ""
 
 gateway:
@@ -122,4 +126,4 @@ gateway:
     channel: "#ps-weeman-bot-test"
 ```
 
-Do not set `SLACK_ALLOWED_CHANNELS` for this app when it is expected to answer in any public/open channel. Keep `require_mention=true`; private channels still require explicit membership and approved Slack scopes.
+Do not set `SLACK_ALLOWED_CHANNELS` for this app when it is expected to answer in any public/open channel. Keep both `require_mention=true` and `strict_mention=true`; private channels still require explicit membership and approved Slack scopes.

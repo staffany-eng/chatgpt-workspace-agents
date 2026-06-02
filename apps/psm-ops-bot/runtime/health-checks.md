@@ -12,7 +12,7 @@ PSM Ops Bot needs deterministic cloud health checks because prompt correctness d
 - Model route is pinned to `anthropic` / `claude-sonnet-4-6`.
 - Slack quiet settings are enforced: `display.interim_assistant_messages=false`, Slack `tool_progress=off`, Slack `streaming=false`, and `slack.reactions=false`.
 - Non-critical `auxiliary.title_generation` is pinned to `anthropic` / `claude-haiku-4-5` with a short timeout so title-generation overloads are less likely to leak into Slack as visible auxiliary warnings.
-- Slack gateway is mention-required and not restricted to a single public/open channel.
+- Slack gateway is mention-required, strict-mention gated for every reactive channel message, and not restricted to a single public/open channel.
 - Slack bot token can call `users.list` with profile emails for `PS Team` identity matching.
 - Slack bot token can call `conversations.join` on the public join-smoke channel, proving the app has `channels:join` for public/open-channel membership repair.
 - If `PSM_OPS_CENTRAL_SLACK_CHANNEL_ID` is configured, the Slack bot token can inspect that channel and the bot is a member.

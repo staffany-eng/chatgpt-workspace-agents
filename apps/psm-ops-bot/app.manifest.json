@@ -187,6 +187,7 @@
   "slack": {
     "surface": "public_open_channels",
     "require_mention": true,
+    "strict_mention": true,
     "allowed_channels_env": "SLACK_ALLOWED_CHANNELS",
     "allowed_channels_expected_empty": true,
     "required_bot_scopes": [

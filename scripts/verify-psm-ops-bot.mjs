@@ -32,6 +32,27 @@ function scanForSecretPatterns(relPath) {
   sharedScanForSecretPatterns(appRoot, relPath, fail);
 }
 
+function topLevelYamlBlock(text, blockName) {
+  const lines = text.split(/\r?\n/);
+  const start = lines.findIndex((line) => new RegExp(`^${blockName}:\\s*(?:#.*)?$`).test(line));
+  if (start === -1) return "";
+  const block = [];
+  for (const line of lines.slice(start + 1)) {
+    if (/^\S/.test(line)) break;
+    block.push(line);
+  }
+  return block.join("\n");
+}
+
+function activeYamlBooleanInBlock(text, blockName, key) {
+  const block = topLevelYamlBlock(text, blockName);
+  const childLine = block.split(/\r?\n/).find((line) => line.trim() && !line.trimStart().startsWith("#"));
+  const childIndent = childLine?.match(/^ */)?.[0] ?? "  ";
+  const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = block.match(new RegExp(`^${childIndent}${escapedKey}:\\s*(true|false)\\s*(?:#.*)?$`, "m"));
+  return match ? match[1] === "true" : undefined;
+}
+
 function profileBlock(profilesText, profileName) {
   const marker = `  - name: ${profileName}`;
   const start = profilesText.indexOf(marker);
@@ -151,6 +172,9 @@ if (!existsSync(manifestPath)) {
     if (manifest.slack?.allowed_channels_expected_empty !== true) {
       fail("Manifest Slack contract must require empty SLACK_ALLOWED_CHANNELS for open public-channel mode");
     }
+    if (manifest.slack?.strict_mention !== true) {
+      fail("Manifest Slack config must require strict_mention=true");
+    }
     if (manifest.slack?.join_public_channels_script !== "runtime/scripts/psm_ops_join_public_channels.py") {
       fail("Manifest Slack contract must point to psm_ops_join_public_channels.py");
     }
@@ -265,6 +289,12 @@ if (!existsSync(deployScriptPath)) {
 }
 
 const configText = textOf(appRoot, "profile/config.template.yaml");
+if (activeYamlBooleanInBlock(configText, "slack", "require_mention") !== true) {
+  fail("config.template.yaml slack.require_mention must be an active true boolean");
+}
+if (activeYamlBooleanInBlock(configText, "slack", "strict_mention") !== true) {
+  fail("config.template.yaml slack.strict_mention must be an active true boolean");
+}
 if (configText.includes('      - "list_google_calendar_events"')) {
   fail("config.template.yaml must not expose broad list_google_calendar_events");
 }
@@ -273,6 +303,8 @@ const slackRuntimeText = textOf(appRoot, "runtime/slack.md");
 for (const requiredText of [
   "channels:join",
   "conversations.join",
+  "Set `slack.strict_mention=true`",
+  "Untagged same-thread replies after a previous bot response are silent",
   "psm_ops_join_public_channels.py --dry-run",
   "psm_ops_join_public_channels.py --apply",
   "Do not use Kai Yi's user token or the Slack connector to invite or post as a workaround"
@@ -377,6 +409,13 @@ for (const requiredText of [
 ]) {
   if (!soulText.includes(requiredText)) fail(`SOUL.md missing required text: ${requiredText}`);
 }
+for (const requiredText of [
+  "Strict opt-in",
+  "prior same-thread mentions",
+  "stay silent until a later message directly @-mentions the bot again"
+]) {
+  if (!soulText.includes(requiredText)) fail(`SOUL.md missing strict opt-in text: ${requiredText}`);
+}
 
 const skillText = textOf(appRoot, "skills/psm-ops-bot/SKILL.md");
 for (const requiredText of [
@@ -413,6 +452,13 @@ for (const requiredText of [
   "calendar.readonly"
 ]) {
   if (!skillText.includes(requiredText)) fail(`Skill missing required text: ${requiredText}`);
+}
+for (const requiredText of [
+  "Strict opt-in comes before workflow routing",
+  "Do not answer untagged same-thread replies",
+  "until the bot is directly @-mentioned again"
+]) {
+  if (!skillText.includes(requiredText)) fail(`Skill missing strict opt-in text: ${requiredText}`);
 }
 
 const jiraMcpText = textOf(appRoot, "runtime/mcp/psm_jira_server.py");
@@ -520,6 +566,8 @@ if (!psmOpsProfileBlock) {
     "systemd_unit: hermes-gateway-psmopsbot.service",
     "bot_name: ps_wee_manager",
     "open_channel_mode: true",
+    "require_mention: true",
+    "strict_mention: true",
     "psm_jira: 28",
     "psm_c360: 3",
     "psmopsbot due-date reminders",
@@ -670,6 +718,7 @@ for (const requiredText of [
   "slack-display:tool-progress-not-off",
   "slack-display:streaming-not-disabled",
   "slack:reactions-not-disabled",
+  "slack:strict-mention-not-enabled",
   "conversations.join",
   "slack:public-channel-join-scope-missing",
   "auxiliary:title-generation-provider-not-anthropic",
