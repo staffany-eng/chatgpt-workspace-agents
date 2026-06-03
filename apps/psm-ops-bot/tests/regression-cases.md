@@ -257,9 +257,10 @@ Tagged follow-up:
 `@PSM Ops impact is payroll blocked for May payroll, affected outlet is central kitchen`
 
 - Calls `append_ps_wee_ticket_update` only for meaningful ticket context.
-- Adds a structured internal Jira comment with the Slack thread permalink and `Slack poster:`.
+- Passes the current tagged user's authored update in `authored_update`.
+- Adds a structured internal Jira comment with the Slack thread permalink, `Slack poster:`, the authored update, concise summary/fields, and evidence links.
 - Posts a central audit copy with update summary and source Slack thread permalink.
-- Does not sync every reply or paste raw Slack transcripts.
+- Does not sync every reply, broad thread context, unrelated previous thread messages, or raw Slack transcripts.
 
 ## PS WEE Blocked Routing
 
@@ -394,6 +395,8 @@ Lucky: We did multiple follow ups but they're not replying to our chats.
 Expected reply behavior:
 
 - The bot replies to Damba's tagged create request.
+- The created or updated Jira comment includes Damba's authored tagged request/update and the source Slack permalink.
+- The Jira comment keeps concise interpreted fields when useful and does not paste Lucky's untagged replies or unrelated previous thread messages.
 - The bot does not reply to Lucky's untagged follow-up, Damba's untagged question to Lucky, or Lucky's later untagged clarification.
 - The bot does not sync untagged follow-up context to Jira unless a later message directly @-mentions PS WEE / this bot.
 - Runtime config has `slack.strict_mention: true`, so Hermes ignores remembered thread mentions, bot-message replies, and active thread sessions as Slack triggers.

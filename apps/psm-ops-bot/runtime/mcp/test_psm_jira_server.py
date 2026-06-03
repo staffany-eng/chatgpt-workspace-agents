@@ -1517,6 +1517,51 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertEqual(audit_calls[0][1]["source_thread_url"], "https://staffany.slack.com/archives/C0B2VT50YT1/p1778205303989579")
         self.assertEqual(audit_calls[0][1]["issue_key"], "PCO-789")
 
+    def test_ps_wee_intake_comment_uses_authored_request_not_thread_dump(self):
+        calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if method == "GET" and path.startswith("/rest/api/3/search/jql?"):
+                return {"issues": []}
+            if path == "/rest/servicedeskapi/request":
+                return {"issueKey": "PCO-790", "requestTypeId": "101"}
+            if path.endswith("/comment"):
+                return {"id": "comment-790"}
+            return {}
+
+        self.module._request_json = fake_request
+        self.module._slack_users = lambda: [
+            {
+                "id": "U03P4FU4CHG",
+                "name": "damba",
+                "real_name": "Damba CSE",
+                "profile": {"email": "damba@staffany.com", "real_name": "Damba CSE", "display_name": "Damba"},
+            }
+        ]
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: {"ok": True}
+
+        result = self.module.create_ps_wee_intake_ticket(
+            slack_user_email="damba@staffany.com",
+            slack_thread_url="https://staffany.slack.com/archives/C08SDJR03N1/p1779165560193699",
+            customer="Ren Bakery",
+            issue_summary="May payroll follow-up",
+            authored_request="Damba: @PS WEE can you create 1 PCO ticket for the May payroll follow-up?",
+            known_details=(
+                "Damba: @PS WEE can you create 1 PCO ticket for the May payroll follow-up?\n"
+                "Lucky: I found this older ticket; the payroll error was already fixed.\n"
+                "Lucky: We did multiple follow ups but they're not replying to our chats."
+            ),
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        comment_body = next(call[2]["body"] for call in calls if call[1].endswith("/comment"))
+        self.assertIn("Source Slack thread: https://staffany.slack.com/archives/C08SDJR03N1/p1779165560193699", comment_body)
+        self.assertIn("Slack poster: Damba CSE <@U03P4FU4CHG> damba@staffany.com", comment_body)
+        self.assertIn("Authored request: Damba: @PS WEE can you create 1 PCO ticket for the May payroll follow-up?", comment_body)
+        self.assertNotIn("Lucky:", comment_body)
+        self.assertNotIn("Known details:", comment_body)
+
     def test_add_slack_thread_web_link_skips_empty_url(self):
         calls = []
         self.module._request_json = lambda method, path, body=None: calls.append((method, path)) or {}
@@ -3653,6 +3698,42 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertFalse(calls[0][2]["public"])
         self.assertEqual(audit_calls[0][0], "ticket_update_synced")
         self.assertEqual(audit_calls[0][1]["source_thread_url"], "https://staffany.slack.com/archives/C0B2VT50YT1/p1778205303989579")
+
+    def test_append_ps_wee_ticket_update_prefers_authored_update_over_thread_dump(self):
+        calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, body))
+            return {"id": "comment-791"}
+
+        self.module._request_json = fake_request
+        self.module._slack_users = lambda: [
+            {
+                "id": "U03P4FU4CHG",
+                "name": "damba",
+                "real_name": "Damba CSE",
+                "profile": {"email": "damba@staffany.com", "real_name": "Damba CSE", "display_name": "Damba"},
+            }
+        ]
+        self.module.post_ps_wee_audit = lambda event_type, **kwargs: {"ok": True}
+
+        result = self.module.append_ps_wee_ticket_update(
+            issue_key="PCO-789",
+            slack_thread_url="https://staffany.slack.com/archives/C08SDJR03N1/p1779165560193699",
+            authored_update="Damba: @PS WEE customer confirmed payroll is blocked for May.",
+            update_summary=(
+                "Damba: @PS WEE customer confirmed payroll is blocked for May.\n"
+                "Lucky: I found this older ticket; the payroll error was already fixed.\n"
+                "Lucky: We did multiple follow ups but they're not replying to our chats."
+            ),
+            slack_user_email="damba@staffany.com",
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        body = calls[0][2]["body"]
+        self.assertIn("Authored update: Damba: @PS WEE customer confirmed payroll is blocked for May.", body)
+        self.assertNotIn("Lucky:", body)
+        self.assertNotIn("Summary:", body)
 
     def test_ps_wee_blocked_path_posts_central_audit_when_thread_is_present(self):
         audit_calls = []

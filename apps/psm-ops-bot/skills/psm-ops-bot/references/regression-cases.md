@@ -244,9 +244,10 @@ impact is payroll blocked for May payroll, affected outlet is central kitchen
 
 Expected:
 
-- Calls `append_ps_wee_ticket_update` only because the reply adds meaningful ticket context.
-- Adds a structured internal Jira comment with the Slack thread permalink, `Slack poster:`, and updated fields.
-- Does not sync every casual acknowledgement or paste raw Slack transcript text.
+- Calls `append_ps_wee_ticket_update` only because the reply directly mentions PS WEE and adds meaningful ticket context.
+- Passes the current tagged user's authored update in `authored_update`.
+- Adds a structured internal Jira comment with the Slack thread permalink, `Slack poster:`, authored update, concise summary/fields, and evidence links.
+- Does not sync every casual acknowledgement, untagged replies, broad thread context, unrelated previous thread messages, or raw Slack transcript text.
 
 ## Status Transition
 
