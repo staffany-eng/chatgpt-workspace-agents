@@ -4495,7 +4495,47 @@ def verify_drive_oauth() -> dict[str, Any]:
     return _needs_check(answer, scope, report.get("reason") or "Drive health-check failed.")
 
 
-THREAD_SPEAKER_LINE_RE = re.compile(r"(?m)^\s*(?:[A-Z][\w .'-]{0,40}|<@[UW][A-Z0-9]+>)\s*:\s+\S")
+THREAD_SPEAKER_LINE_RE = re.compile(r"(?m)^\s*(?P<label>[A-Za-z][\w .'-]{0,40}|<@[UW][A-Z0-9]+>)\s*:\s+\S")
+STRUCTURED_COMMENT_LABELS = {
+    "action",
+    "action type",
+    "affected scope",
+    "assignee",
+    "authored request",
+    "authored update",
+    "background",
+    "context",
+    "creator",
+    "customer",
+    "details",
+    "due date",
+    "evidence",
+    "evidence link",
+    "evidence links",
+    "expected outcome",
+    "impact",
+    "issue",
+    "known details",
+    "notes",
+    "owner",
+    "owner psm",
+    "pic",
+    "priority",
+    "reason",
+    "request",
+    "requester",
+    "risk",
+    "risk reason",
+    "scope",
+    "slack poster",
+    "source",
+    "source slack thread",
+    "status",
+    "summary",
+    "ticket seed",
+    "updated fields",
+    "url",
+}
 
 
 def _is_probable_thread_dump(value: str) -> bool:
@@ -4505,7 +4545,16 @@ def _is_probable_thread_dump(value: str) -> bool:
     lowered = raw.lower()
     if "slack transcript" in lowered or "thread transcript" in lowered:
         return True
-    return len(THREAD_SPEAKER_LINE_RE.findall(raw)) >= 2
+    speaker_lines = 0
+    for match in THREAD_SPEAKER_LINE_RE.finditer(raw):
+        label = match.group("label").strip()
+        if label.startswith("<@"):
+            speaker_lines += 1
+            continue
+        normalized_label = re.sub(r"\s+", " ", label.lower())
+        if normalized_label not in STRUCTURED_COMMENT_LABELS:
+            speaker_lines += 1
+    return speaker_lines >= 2
 
 
 def _concise_jira_comment_value(value: Any, *, max_chars: int = 1600) -> str:

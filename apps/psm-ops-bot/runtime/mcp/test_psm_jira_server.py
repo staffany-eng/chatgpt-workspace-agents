@@ -1546,7 +1546,11 @@ class PsmJiraServerTest(unittest.TestCase):
             slack_thread_url="https://staffany.slack.com/archives/C08SDJR03N1/p1779165560193699",
             customer="Ren Bakery",
             issue_summary="May payroll follow-up",
-            authored_request="Damba: @PS WEE can you create 1 PCO ticket for the May payroll follow-up?",
+            authored_request=(
+                "Damba: @PS WEE can you create 1 PCO ticket for the May payroll follow-up?\n"
+                "Issue: May payroll follow-up is still blocked.\n"
+                "Impact: Customer cannot close payroll."
+            ),
             known_details=(
                 "Damba: @PS WEE can you create 1 PCO ticket for the May payroll follow-up?\n"
                 "Lucky: I found this older ticket; the payroll error was already fixed.\n"
@@ -1559,6 +1563,8 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertIn("Source Slack thread: https://staffany.slack.com/archives/C08SDJR03N1/p1779165560193699", comment_body)
         self.assertIn("Slack poster: Damba CSE <@U03P4FU4CHG> damba@staffany.com", comment_body)
         self.assertIn("Authored request: Damba: @PS WEE can you create 1 PCO ticket for the May payroll follow-up?", comment_body)
+        self.assertIn("Issue: May payroll follow-up is still blocked.", comment_body)
+        self.assertIn("Impact: Customer cannot close payroll.", comment_body)
         self.assertNotIn("Lucky:", comment_body)
         self.assertNotIn("Known details:", comment_body)
 
@@ -3720,7 +3726,11 @@ class PsmJiraServerTest(unittest.TestCase):
         result = self.module.append_ps_wee_ticket_update(
             issue_key="PCO-789",
             slack_thread_url="https://staffany.slack.com/archives/C08SDJR03N1/p1779165560193699",
-            authored_update="Damba: @PS WEE customer confirmed payroll is blocked for May.",
+            authored_update=(
+                "Damba: @PS WEE customer confirmed payroll is blocked for May.\n"
+                "Issue: Payroll is still blocked.\n"
+                "Impact: May payroll cannot be closed."
+            ),
             update_summary=(
                 "Damba: @PS WEE customer confirmed payroll is blocked for May.\n"
                 "Lucky: I found this older ticket; the payroll error was already fixed.\n"
@@ -3732,6 +3742,8 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertEqual(result["confidence"], "verified")
         body = calls[0][2]["body"]
         self.assertIn("Authored update: Damba: @PS WEE customer confirmed payroll is blocked for May.", body)
+        self.assertIn("Issue: Payroll is still blocked.", body)
+        self.assertIn("Impact: May payroll cannot be closed.", body)
         self.assertNotIn("Lucky:", body)
         self.assertNotIn("Summary:", body)
 
