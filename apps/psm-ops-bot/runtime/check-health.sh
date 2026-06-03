@@ -21,18 +21,32 @@ fail() {
   exit 1
 }
 
+is_unresolved_placeholder() {
+  [[ "$1" =~ ^\$\{[A-Za-z_][A-Za-z0-9_]*\}$ ]]
+}
+
+env_value() {
+  local value="${!1:-}"
+  if is_unresolved_placeholder "$value"; then
+    printf ''
+  else
+    printf '%s' "$value"
+  fi
+}
+
 if command -v systemctl >/dev/null 2>&1; then
   active="$(systemctl --user is-active "$GATEWAY_SERVICE_NAME" 2>/dev/null || true)"
   [ "$active" = "active" ] || fail "gateway_service:not-active:$GATEWAY_SERVICE_NAME"
 fi
 
 if command -v hermes >/dev/null 2>&1; then
-  for server in psm_jira psm_c360 psm_google_calendar; do
+  for server in psm_jira psm_c360 psm_google_calendar psm_google_geocode; do
     out="$(hermes -p "$PROFILE" mcp test "$server" 2>&1 || true)"
     case "$server" in
       psm_jira) expected=28 ;;
       psm_c360) expected=3 ;;
       psm_google_calendar) expected=1 ;;
+      psm_google_geocode) expected=2 ;;
     esac
     count="$(printf '%s\n' "$out" | sed -nE 's/.*Tools discovered: ([0-9]+).*/\1/p' | tail -1)"
     [ "$count" = "$expected" ] || fail "mcp:$server:tools=${count:-unavailable}:expected=$expected"
@@ -125,6 +139,33 @@ done
 [ "${GOOGLE_CALENDAR_ACCOUNT_EMAIL:-team@staffany.com}" = "team@staffany.com" ] || fail "google_calendar:account-not-team"
 [ -r "${GOOGLE_CALENDAR_TOKEN_FILE:-}" ] || fail "google_calendar:token-file-unreadable"
 [ -r "${GOOGLE_CALENDAR_CLIENT_SECRET_FILE:-}" ] || fail "google_calendar:client-secret-file-unreadable"
+
+google_geocoding_api_key="$(env_value GOOGLE_GEOCODING_API_KEY)"
+geocode_credentials_file="$(env_value PSM_OPS_GOOGLE_GEOCODE_CREDENTIALS_FILE)"
+if [ -z "$geocode_credentials_file" ]; then
+  geocode_credentials_file="$(env_value GEOCODE_CREDENTIALS_FILE)"
+fi
+if [ -z "$geocode_credentials_file" ]; then
+  geocode_credentials_file="$HOME/.staffany/google-geocode/credentials.json"
+fi
+if [ -z "$google_geocoding_api_key" ]; then
+  [ -r "$geocode_credentials_file" ] || fail "google_geocode:credentials-file-unreadable"
+  python3 - "$geocode_credentials_file" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+try:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+except Exception:
+    print("google_geocode:credentials-json-invalid")
+    raise SystemExit(1)
+if not str(payload.get("google_geocoding_api_key") or "").strip():
+    print("google_geocode:api-key-missing")
+    raise SystemExit(1)
+PY
+fi
 
 if [ -n "${BQ_BIN:-}" ]; then
   [ -x "$BQ_BIN" ] || fail "bigquery:bq-bin-not-executable"

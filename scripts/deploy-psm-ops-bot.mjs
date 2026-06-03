@@ -302,6 +302,7 @@ tar -xzf "$archive" -C "$deploy_dir"
 test -f "$deploy_dir/package.json" || { echo "deploy:error:package-json-missing"; exit 1; }
 test -f "$deploy_dir/scripts/verify-psm-ops-bot.mjs" || { echo "deploy:error:verify-script-missing"; exit 1; }
 test -d "$deploy_dir/apps/psm-ops-bot" || { echo "deploy:error:app-packet-missing"; exit 1; }
+test -f "$deploy_dir/apps/psm-ops-bot/runtime/mcp/psm_google_geocode_server.py" || { echo "deploy:error:psm_google_geocode-missing"; exit 1; }
 test -f "$deploy_dir/apps/psm-ops-bot/runtime/sql/psm_ops_churn_projection_dashboard_292.sql" || { echo "deploy:error:churn-projection-dashboard-292-sql-missing"; exit 1; }
 
 deploy_sha=$(cat "$sha_file")

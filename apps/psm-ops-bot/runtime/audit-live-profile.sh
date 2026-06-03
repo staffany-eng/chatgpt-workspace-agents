@@ -25,6 +25,7 @@ fail() {
 
 cmp -s "$SOURCE_DIR/profile/SOUL.md" "$PROFILE_DIR/SOUL.md" || fail "profile:soul-drift"
 diff -qr "$SOURCE_DIR/skills/psm-ops-bot" "$PROFILE_DIR/skills/psm-ops-bot" >/dev/null || fail "profile:skill-drift"
+diff -qr -x __pycache__ "$SOURCE_DIR/runtime/mcp" "$PROFILE_DIR/runtime/mcp" >/dev/null || fail "profile:mcp-drift"
 cmp -s "$SOURCE_DIR/runtime/check-health.sh" "$PROFILE_DIR/scripts/psmopsbot-check-health.sh" || fail "profile:health-script-drift"
 cmp -s "$SOURCE_DIR/runtime/check-cloud-heartbeat.sh" "$PROFILE_DIR/scripts/psmopsbot-check-cloud-heartbeat.sh" || fail "profile:cloud-heartbeat-script-drift"
 diff -qr -x __pycache__ "$SOURCE_DIR/runtime/hooks/psm-ops-adoption-telemetry" "$PROFILE_DIR/hooks/psm-ops-adoption-telemetry" >/dev/null || fail "profile:adoption-hook-drift"

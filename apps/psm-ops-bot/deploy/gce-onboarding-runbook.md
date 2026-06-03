@@ -41,10 +41,12 @@ Required Slack bot scopes for public/open-channel mode:
 - `channels:history`
 - `channels:join`
 - `chat:write`
+- `files:write`
 - `users:read`
 - `users:read.email`
 
 `channels:join` is required so the bot can repair membership for public/open channels through bot-owned auth. If the app is missing this scope, `conversations.join` fails with `missing_scope` and the bot cannot read or reply in unjoined public channels. Reinstall the Slack app after scope changes, then run the public-channel join repair script from the cloud profile.
+`files:write` is required so geocoded address rows can be uploaded as `.tsv` files instead of pasted into Slack messages.
 
 Thin POC Jira IDs must also be present in the profile `.env`:
 
@@ -58,6 +60,7 @@ Thin POC Jira IDs must also be present in the profile `.env`:
 - `GOOGLE_CALENDAR_TOKEN_FILE=/home/leekaiyi/.hermes/profiles/psmopsbot/google-calendar-token.json`
 - `GOOGLE_CALENDAR_CLIENT_SECRET_FILE=/home/leekaiyi/.hermes/profiles/psmopsbot/google-calendar-client-secret.json`
 - `GOOGLE_CALENDAR_ACCOUNT_EMAIL=team@staffany.com`
+- `PSM_OPS_GOOGLE_GEOCODE_CREDENTIALS_FILE=/home/leekaiyi/.staffany/google-geocode/credentials.json` or `GOOGLE_GEOCODING_API_KEY`
 - `PSM_OPS_CENTRAL_SLACK_CHANNEL_ID` for bot-owned PS WEE central audit copies
 - `PSM_OPS_CENTRAL_FETCH_SLACK_THREAD=true` if bounded source-thread transcript excerpts should be included
 - `PSM_OPS_ADOPTION_METRICS_ENABLED=true` or `PSM_OPS_ADOPTION_METRICS_PATH` for adoption telemetry
@@ -171,7 +174,7 @@ chmod 755 ~/.hermes/profiles/psmopsbot/scripts/psm_ops_adoption_digest.py \
   ~/.hermes/profiles/psmopsbot/scripts/psm_ops_join_public_channels.py
 ```
 
-Write the approved `team@staffany.com` OAuth files from Secret Manager to the paths configured above. Do not commit or paste those JSON files into the repo.
+Write the approved `team@staffany.com` OAuth files from Secret Manager to the paths configured above. Write the Google Geocoding key either as `GOOGLE_GEOCODING_API_KEY` in the profile `.env` or as runtime-user JSON at `PSM_OPS_GOOGLE_GEOCODE_CREDENTIALS_FILE` with the `google_geocoding_api_key` field. Do not commit or paste those JSON files into the repo.
 
 Configure model:
 
@@ -306,9 +309,10 @@ Cloud smoke:
 5. Run `psm_ops_due_date_reminders.py --mode morning --dry-run`, `psm_ops_pco_assignment_hygiene.py --dry-run`, `psm_ops_due_date_reminders.py --mode eod --dry-run`, `psm_ops_roi_tracker_sync.py --dry-run`, and `psm_ops_churn_reporting_chase.py --as-of 2026-05-25 --dry-run`; verify they output Slack-safe mrkdwn, optional reviewed PS lead / PS Team mentions, reviewed customer-channel mentions from source links only, safe Jira issue summaries, BigQuery churn rows for `26Q2`, `26Q3`, and `26Q4`, and `[SILENT]` when empty.
 6. Ask for Rock Productions from a channel-style hint such as `proj-cs-rockproductions`; verify the bot finds `Rock Productions Pte Ltd`, shows the searched variants safely, and does not say a generic customer cannot be found.
 7. Ask one calendar follow-up question and verify `psm_google_calendar.read_customer_calendar_context` returns bounded event metadata from `team@staffany.com` without descriptions, attendee emails, raw guest lists, or conference links.
-8. Ask one C360 customer question and verify a C360 link/citation appears.
-9. Create a PS WEE intake ticket from a non-home public channel and verify the same Slack thread gets the ticket link while the central ops channel gets a `PSM Ops automation:` audit copy with the source thread permalink.
-10. Run `hermes -p psmopsbot insights --days 30 --source slack` and `hermes -p psmopsbot sessions stats` for native Hermes adoption checks.
+8. Ask one geocode question with explicit address rows and verify `psm_google_geocode.geocode_slack_addresses` uploads a `.tsv` file with address, latitude, longitude, `geocode_status`, and formatted address without printing the API key or pasting raw coordinates in the Slack message.
+9. Ask one C360 customer question and verify a C360 link/citation appears.
+10. Create a PS WEE intake ticket from a non-home public channel and verify the same Slack thread gets the ticket link while the central ops channel gets a `PSM Ops automation:` audit copy with the source thread permalink.
+11. Run `hermes -p psmopsbot insights --days 30 --source slack` and `hermes -p psmopsbot sessions stats` for native Hermes adoption checks.
 
 Before step 1, verify and repair public/open-channel membership after Slack app install or scope changes:
 

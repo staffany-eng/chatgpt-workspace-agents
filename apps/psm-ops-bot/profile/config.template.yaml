@@ -213,6 +213,14 @@ psm_ops:
     client_secret_file_env: "GOOGLE_CALENDAR_CLIENT_SECRET_FILE"
     required_scope: "https://www.googleapis.com/auth/calendar.readonly"
     read_only: true
+  google_geocode:
+    credential_file_env: "PSM_OPS_GOOGLE_GEOCODE_CREDENTIALS_FILE"
+    api_key_env: "GOOGLE_GEOCODING_API_KEY"
+    default_credentials_file: "~/.staffany/google-geocode/credentials.json"
+    expected_credentials_json_key: "google_geocoding_api_key"
+    max_addresses_per_call: 25
+    default_region_bias: "sg"
+    stores_address_rows: false
 
 mcp_servers:
   psm_jira:
@@ -272,6 +280,18 @@ mcp_servers:
       GOOGLE_CALENDAR_ACCOUNT_EMAIL: "team@staffany.com"
     tool_allowlist:
       - "read_customer_calendar_context"
+  psm_google_geocode:
+    description: "Google Geocoding adapter for explicit address rows in tagged PSM Ops Slack requests."
+    command: "/Users/leekaiyi/.hermes/hermes-agent/venv/bin/python"
+    args:
+      - "/Users/leekaiyi/workspace/agent builder/apps/psm-ops-bot/runtime/mcp/psm_google_geocode_server.py"
+    timeout: 60
+    env:
+      PSM_OPS_GOOGLE_GEOCODE_CREDENTIALS_FILE: "${PSM_OPS_GOOGLE_GEOCODE_CREDENTIALS_FILE}"
+      GOOGLE_GEOCODING_API_KEY: "${GOOGLE_GEOCODING_API_KEY}"
+    tool_allowlist:
+      - "check_google_geocode_access"
+      - "geocode_slack_addresses"
 
 gateway:
   slack:
