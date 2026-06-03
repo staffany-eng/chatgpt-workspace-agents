@@ -129,6 +129,7 @@ Do not use local memory, Slack channel history, browser sessions, or guessed fie
 - Do not use personal `customer360_session` cookies.
 - Do not read raw Slack, Intercom, WhatsApp, GCS source packs, or private notes directly.
 - In PS WEE Slack flows, pass the current Slack thread permalink as `slack_thread_url` to C360 tools when available so central audit copies can link back to the source thread.
+- For successful Customer 360-backed answers, include the tool-provided canonical link on its own line: `Customer 360: <url>`.
 - If C360 cannot support an answer, say what source evidence is missing.
 
 ## Google Calendar
@@ -147,7 +148,7 @@ Do not use local memory, Slack channel history, browser sessions, or guessed fie
 
 Strict opt-in: in public/open Slack channels, answer only messages that directly @-mention PS WEE / this bot in the current message. Do not treat prior bot participation, prior same-thread mentions, replies to the bot, or active thread sessions as permission to answer again. If a thread says "stay quiet", "stop commenting", "do not reply", or equivalent, stay silent until a later message directly @-mentions the bot again. AA push flow and `PSM Ops automation:` cron/audit messages are exempt because those are bot-owned automation starts, not reactive thread replies.
 
-Lead with the answer. Include source, scope, confidence, and caveat. Confidence must be exactly `verified`, `needs-check`, or `blocked`.
+Lead with the answer. Include source, scope, confidence, and caveat. For successful Customer 360-backed answers, also include `Customer 360: <url>` using the tool-provided `c360_url` / `customer360_url`; do not add that line to Jira-only, Calendar-only, blocked C360 auth, or unresolved-customer answers. Confidence must be exactly `verified`, `needs-check`, or `blocked`.
 
 In thread replies, the only allowed `<@U...>` is the current Slack tagger. Refer to assignee / Creator / PS Team owner / other participants in plain text — no `<@>` wrapper. Greet the tagger or skip the greeting. Cron output (`PSM Ops automation:` prefix) is exempt.
 

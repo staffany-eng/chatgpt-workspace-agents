@@ -333,6 +333,74 @@ def _canonical_c360_customer_key(value: str) -> str:
     return re.sub(r"^customer-", "", (value or "").strip(), count=1, flags=re.IGNORECASE)
 
 
+def _customer360_company_url(customer_key: Any) -> str:
+    key = _canonical_c360_customer_key(str(customer_key or ""))
+    if not key:
+        return ""
+    return f"{_base_url()}/companies/{urllib.parse.quote(key, safe='')}"
+
+
+def _absolute_c360_url(value: Any) -> str:
+    url = str(value or "").strip()
+    if not url:
+        return ""
+
+    base = _base_url()
+    base_parts = urllib.parse.urlparse(base)
+    if base_parts.scheme not in {"http", "https"} or not base_parts.netloc:
+        return ""
+
+    raw_parts = urllib.parse.urlparse(url)
+    if raw_parts.scheme or raw_parts.netloc:
+        if raw_parts.scheme not in {"http", "https"}:
+            return ""
+        if raw_parts.netloc.lower() != base_parts.netloc.lower():
+            return ""
+        resolved_parts = raw_parts
+    else:
+        resolved = urllib.parse.urljoin(f"{base}/", url)
+        resolved_parts = urllib.parse.urlparse(resolved)
+        if resolved_parts.netloc.lower() != base_parts.netloc.lower():
+            return ""
+
+    path = re.sub(r"/{2,}", "/", resolved_parts.path or "")
+    if not path.startswith("/companies/"):
+        return ""
+    return urllib.parse.urlunparse((base_parts.scheme, base_parts.netloc, path, "", "", ""))
+
+
+def _group_c360_url(group: Any) -> str:
+    if not isinstance(group, dict):
+        return ""
+    for key in ("c360Url", "customer360Url", "href", "url"):
+        url = _absolute_c360_url(group.get(key))
+        if url:
+            return url
+    for key in (
+        "customerKey",
+        "customer_key",
+        "routeKey",
+        "route_key",
+        "hubspotCompanyId",
+    ):
+        url = _customer360_company_url(group.get(key))
+        if url:
+            return url
+    return ""
+
+
+def _enrich_c360_group_links(group: Any) -> Any:
+    if not isinstance(group, dict):
+        return group
+    url = _group_c360_url(group)
+    if not url:
+        return group
+    enriched = {**group}
+    enriched["c360_url"] = url
+    enriched["customer360_url"] = url
+    return enriched
+
+
 def _group_dedupe_keys(group: Any) -> list[str]:
     if not isinstance(group, dict):
         return [f"payload:{json.dumps(group, sort_keys=True, default=str)}"]
@@ -476,7 +544,7 @@ def search_c360_customers(query: str, limit: int = 8, slack_thread_url: str = ""
 
     groups = _dedupe_c360_groups(groups)
     missing_mapping = len(groups) == 0
-    answer = groups[:search_limit]
+    answer = [_enrich_c360_group_links(group) for group in groups[:search_limit]]
     central_copy = _post_c360_audit(
         "c360_search",
         scope,
@@ -546,6 +614,7 @@ def get_c360_account_context(customer_key: str, format: str = "markdown", slack_
         return _blocked(str(error), scope)
 
     answer = payload.get("data", payload) if isinstance(payload, dict) else payload
+    customer360_url = _customer360_company_url(key)
     central_copy = _post_c360_audit(
         "c360_account_context",
         scope,
@@ -559,6 +628,9 @@ def get_c360_account_context(customer_key: str, format: str = "markdown", slack_
         "confidence": "verified",
         "caveat": "Context is compact and cited; raw source packs are not exposed.",
     }
+    if customer360_url:
+        result["c360_url"] = customer360_url
+        result["customer360_url"] = customer360_url
     if central_copy is not None:
         result["central_copy"] = central_copy
     return result
@@ -596,6 +668,7 @@ def ask_c360_customer_context(customer_key: str, question: str, slack_thread_url
         return _blocked(str(error), scope)
 
     data = payload.get("data", payload) if isinstance(payload, dict) else payload
+    customer360_url = _customer360_company_url(key)
     confidence = "verified"
     caveat = "Answer is constrained to compiled Customer 360 wiki and cited account context."
     if isinstance(data, dict) and data.get("citationRefs") == []:
@@ -614,6 +687,9 @@ def ask_c360_customer_context(customer_key: str, question: str, slack_thread_url
         "confidence": confidence,
         "caveat": caveat,
     }
+    if customer360_url:
+        result["c360_url"] = customer360_url
+        result["customer360_url"] = customer360_url
     if central_copy is not None:
         result["central_copy"] = central_copy
     return result
