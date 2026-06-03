@@ -201,6 +201,8 @@
     ],
     "max_addresses_per_call": 25,
     "default_region_bias": "sg",
+    "uploads_tsv_to_slack": true,
+    "raw_slack_message_rows": false,
     "stores_address_rows": false,
     "prints_api_key": false,
     "uses_slack_connector": false
@@ -220,6 +222,7 @@
       "channels:history",
       "channels:join",
       "chat:write",
+      "files:write",
       "users:read",
       "users:read.email"
     ],

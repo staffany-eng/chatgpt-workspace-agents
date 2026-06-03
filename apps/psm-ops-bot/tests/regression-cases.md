@@ -208,9 +208,11 @@ Tanjong Pagar - 10 Anson Road, Singapore 079903
 
 - Extracts only the explicit postal address rows from the tagged Slack message.
 - Calls `geocode_slack_addresses` with `region_bias="sg"`.
-- Returns a compact table containing address, latitude, longitude, `geocode_status`, and formatted address.
+- Uploads a `.tsv` file in the same Slack thread containing address, latitude, longitude, `geocode_status`, and formatted address.
+- Replies only with upload status/counts; does not paste latitude/longitude rows as raw Slack message text.
 - Does not call Jira, Customer 360, or Google Calendar for geocoding-only requests.
 - Does not print the API key, credential file contents, raw Google API payloads, or store address rows.
+- If Slack file upload is missing `files:write`, blocks instead of dumping coordinates into Slack.
 - If only a customer name, outlet name, person name, phone number, or vague location hint is provided, asks for the exact address instead of calling Google Geocoding.
 
 ## PS WEE PCO Board Search

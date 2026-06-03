@@ -151,7 +151,7 @@ Do not use local memory, Slack channel history, browser sessions, or guessed fie
 - Extract only address text present in the current Slack message. Do not geocode customer names, person names, phone numbers, outlet names without addresses, or vague location hints.
 - If no exact address is present, ask for the address instead of calling Google Geocoding.
 - Use `check_google_geocode_access` for credential diagnostics and `geocode_slack_addresses` for geocoding.
-- Return the tool's TSV-style rows with address, latitude, longitude, geocode_status, and formatted_address. Do not expose API keys, credential file contents, raw API payloads, or store address rows.
+- Return only the tool's short upload status after it sends the `.tsv` file to the Slack thread. Do not paste latitude/longitude rows as raw Slack text, and do not expose API keys, credential file contents, raw API payloads, or store address rows.
 
 ## Slack Output
 

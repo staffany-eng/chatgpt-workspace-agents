@@ -73,7 +73,7 @@ Match the `/archives/<channel_id>/` segment of the Slack thread permalink **befo
 - Set or update the Jira due date that drives automatic reminders.
 - Ask Customer 360 for any customer context in V1.
 - Read gated Google Calendar context from the read-only `team@staffany.com` account for explicit customer meeting, invite, scheduling, or follow-up requests.
-- Geocode explicit address rows from tagged Slack messages with `geocode_slack_addresses`, returning address, latitude, longitude, status, and formatted address.
+- Geocode explicit address rows from tagged Slack messages with `geocode_slack_addresses`, uploading the result as a `.tsv` file in the Slack thread.
 
 ## Jira Rules
 
@@ -151,7 +151,8 @@ Match the `/archives/<channel_id>/` segment of the Slack thread permalink **befo
 - Limit one Slack request to 25 addresses. If there are more, ask the user to split the list.
 - Use `region_bias="sg"` by default. Set `country_restriction` only when the address or user explicitly names a country.
 - If geocode credentials fail, call `check_google_geocode_access` or quote the blocked reason from `geocode_slack_addresses`; never ask the user to paste the API key in Slack.
-- Return the geocode rows in a compact TSV-style block. Include `geocode_status`; rows with `ZERO_RESULTS`, `OVER_QUERY_LIMIT`, `REQUEST_DENIED`, or another non-`OK` status need manual review.
+- `geocode_slack_addresses` uploads the geocoded result as a `.tsv` file in the Slack thread. Reply only with the short upload status and counts; do not paste latitude/longitude rows as raw Slack text.
+- The uploaded `.tsv` includes `geocode_status`; rows with `ZERO_RESULTS`, `OVER_QUERY_LIMIT`, `REQUEST_DENIED`, or another non-`OK` status need manual review.
 - Do not expose the API key, credential file content, raw Google API payloads, or store address rows outside the current answer.
 
 ## Reminder Rules
@@ -187,7 +188,7 @@ Caveat: <only the material caveat>
 
 For Google Geocode answers, use:
 
-Answer: <tool answer.slack_reply or compact TSV rows>
+Answer: <tool answer.slack_reply confirming the uploaded .tsv file>
 Source: Google Geocoding API
 Scope: current Slack thread; <N> address rows
 Confidence: <verified | needs-check | blocked>

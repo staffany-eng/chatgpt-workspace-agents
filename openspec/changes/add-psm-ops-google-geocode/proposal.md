@@ -2,7 +2,7 @@
 
 ## Summary
 
-Add a bounded Google Geocoding capability to PSM Ops Bot so tagged Slack requests can return latitude/longitude rows for explicit addresses.
+Add a bounded Google Geocoding capability to PSM Ops Bot so tagged Slack requests can upload `.tsv` latitude/longitude rows for explicit addresses.
 
 ## Problem
 

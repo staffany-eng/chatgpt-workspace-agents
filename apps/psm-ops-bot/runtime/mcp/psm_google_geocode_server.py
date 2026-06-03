@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import socket
 import time
 import urllib.error
@@ -22,20 +23,33 @@ load_profile_env()
 
 GOOGLE_GEOCODE_URL = "https://maps.googleapis.com/maps/api/geocode/json"
 GOOGLE_GEOCODE_USER_AGENT = "StaffAny-PSMOps-Geocode/1.0 (+https://staffany.com)"
+SLACK_API_BASE_URL = "https://slack.com/api"
 DEFAULT_CREDENTIALS_FILE = "~/.staffany/google-geocode/credentials.json"
 MAX_ADDRESSES_PER_CALL = 25
 MAX_ADDRESS_CHARS = 500
 REQUEST_TIMEOUT_SECONDS = 15
 TRANSIENT_STATUSES = {"OVER_QUERY_LIMIT", "UNKNOWN_ERROR"}
 MAX_ATTEMPTS = 3
+UNRESOLVED_PLACEHOLDER_RE = re.compile(r"^\$\{[A-Za-z_][A-Za-z0-9_]*\}$")
+PHONE_ONLY_RE = re.compile(r"^[+\d\s().-]{7,}$")
+POSTAL_CODE_RE = re.compile(r"\b\d{5,6}\b")
+STREET_SIGNAL_RE = re.compile(
+    r"\b("
+    r"address|avenue|ave|block|blk|boulevard|blvd|building|bldg|close|"
+    r"crescent|drive|dr|floor|fl|hospital|jalan|jln|lane|ln|lorong|lor|"
+    r"mall|parkway|place|pl|road|rd|street|st|tower|unit|way|walk"
+    r")\b",
+    re.IGNORECASE,
+)
+VAGUE_LOCATION_PREFIX_RE = re.compile(r"^(near|nearby|around|beside|opposite|close to|somewhere near)\b", re.IGNORECASE)
 
 
 mcp = FastMCP(
     "psm_google_geocode",
     instructions=(
         "Google Geocoding API access for PSM Ops Bot. Use only explicit address "
-        "text from the current Slack request, return latitude/longitude rows, and "
-        "never expose API keys or store address data."
+        "text from the current Slack request, upload latitude/longitude rows as a "
+        ".tsv file, and never expose API keys or store address data."
     ),
 )
 
@@ -44,17 +58,24 @@ class GoogleGeocodeError(RuntimeError):
     pass
 
 
+def _env_value(name: str) -> str:
+    value = os.environ.get(name, "").strip()
+    if UNRESOLVED_PLACEHOLDER_RE.fullmatch(value):
+        return ""
+    return value
+
+
 def _credentials_file() -> Path:
     value = (
-        os.environ.get("PSM_OPS_GOOGLE_GEOCODE_CREDENTIALS_FILE", "").strip()
-        or os.environ.get("GEOCODE_CREDENTIALS_FILE", "").strip()
+        _env_value("PSM_OPS_GOOGLE_GEOCODE_CREDENTIALS_FILE")
+        or _env_value("GEOCODE_CREDENTIALS_FILE")
         or DEFAULT_CREDENTIALS_FILE
     )
     return Path(value).expanduser()
 
 
 def _load_api_key() -> tuple[str, str]:
-    api_key = os.environ.get("GOOGLE_GEOCODING_API_KEY", "").strip()
+    api_key = _env_value("GOOGLE_GEOCODING_API_KEY")
     if api_key:
         return api_key, "env:GOOGLE_GEOCODING_API_KEY"
 
@@ -79,6 +100,13 @@ def _load_api_key() -> tuple[str, str]:
     return api_key, f"file:{path}"
 
 
+def _slack_token() -> str:
+    token = _env_value("SLACK_BOT_TOKEN")
+    if not token:
+        raise GoogleGeocodeError("SLACK_BOT_TOKEN is not configured, so the TSV file cannot be uploaded.")
+    return token
+
+
 def _clean_text(value: Any, *, max_chars: int = MAX_ADDRESS_CHARS) -> str:
     text = " ".join(str(value or "").replace("\t", " ").split())
     return text[:max_chars]
@@ -97,6 +125,21 @@ def _address_from_item(item: Any) -> dict[str, str]:
     return {"address": _clean_text(item), "label": "", "source": ""}
 
 
+def _looks_like_explicit_address(address: str) -> bool:
+    text = _clean_text(address)
+    if not text:
+        return False
+    if PHONE_ONLY_RE.fullmatch(text) and sum(char.isdigit() for char in text) >= 7:
+        return False
+    if VAGUE_LOCATION_PREFIX_RE.search(text) and not POSTAL_CODE_RE.search(text):
+        return False
+    if POSTAL_CODE_RE.search(text):
+        return True
+    has_digit = any(char.isdigit() for char in text)
+    has_street_signal = bool(STREET_SIGNAL_RE.search(text))
+    return has_digit and has_street_signal
+
+
 def _normalize_address_rows(addresses: list[Any] | None) -> list[dict[str, str]]:
     if not isinstance(addresses, list) or not addresses:
         raise GoogleGeocodeError("Pass explicit address rows extracted from the current Slack message.")
@@ -111,12 +154,16 @@ def _normalize_address_rows(addresses: list[Any] | None) -> list[dict[str, str]]
         key = address.lower()
         if not address:
             continue
+        if not _looks_like_explicit_address(address):
+            continue
         if key in seen:
             continue
         seen.add(key)
         rows.append(row)
     if not rows:
-        raise GoogleGeocodeError("No explicit address text was provided.")
+        raise GoogleGeocodeError(
+            "No explicit postal address text was provided. Send full street addresses or postal-code rows, not customer names, phone numbers, or vague location hints."
+        )
     return rows
 
 
@@ -203,19 +250,124 @@ def _geocode_one(
     }
 
 
-def _format_rows_for_slack(rows: list[dict[str, Any]]) -> str:
-    headers = ["address", "latitude", "longitude", "geocode_status", "formatted_address"]
+def _tsv_text(rows: list[dict[str, Any]]) -> str:
+    headers = ["label", "address", "latitude", "longitude", "geocode_status", "formatted_address", "place_id", "partial_match", "error"]
     lines = ["\t".join(headers)]
     for row in rows:
         values = [
+            str(row.get("label") or ""),
             str(row.get("address") or ""),
             "" if row.get("latitude") is None else str(row.get("latitude")),
             "" if row.get("longitude") is None else str(row.get("longitude")),
             str(row.get("geocode_status") or ""),
             str(row.get("formatted_address") or ""),
+            str(row.get("place_id") or ""),
+            "true" if row.get("partial_match") else "false",
+            str(row.get("error") or ""),
         ]
         lines.append("\t".join(value.replace("\n", " ").replace("\t", " ") for value in values))
-    return "Geocoded address rows:\n```" + "\n".join(lines) + "```"
+    return "\n".join(lines) + "\n"
+
+
+def _slack_thread_target(slack_thread_url: str) -> tuple[str, str]:
+    match = re.search(r"/archives/([A-Z0-9]+)/p(\d{10})(\d{6})", slack_thread_url or "")
+    if not match:
+        raise GoogleGeocodeError("A valid Slack thread permalink is required to upload the geocoded TSV file.")
+    channel_id = match.group(1)
+    thread_ts = f"{match.group(2)}.{match.group(3)}"
+    return channel_id, thread_ts
+
+
+def _slack_api_post(method: str, token: str, params: dict[str, str]) -> dict[str, Any]:
+    data = urllib.parse.urlencode(params).encode("utf-8")
+    request = urllib.request.Request(
+        f"{SLACK_API_BASE_URL}/{method}",
+        data=data,
+        headers={
+            "authorization": f"Bearer {token}",
+            "content-type": "application/x-www-form-urlencoded",
+            "accept": "application/json",
+            "user-agent": GOOGLE_GEOCODE_USER_AGENT,
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT_SECONDS) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except (urllib.error.URLError, socket.timeout, TimeoutError) as error:
+        reason = getattr(error, "reason", error)
+        raise GoogleGeocodeError(f"Slack file upload API request timed out or failed: {reason}") from error
+    if not payload.get("ok"):
+        error = str(payload.get("error") or "unknown_error")
+        if error == "missing_scope":
+            raise GoogleGeocodeError("Slack file upload is missing the files:write bot scope.")
+        raise GoogleGeocodeError(f"Slack file upload failed: {error}")
+    return payload
+
+
+def _upload_bytes(upload_url: str, content: bytes) -> None:
+    request = urllib.request.Request(
+        upload_url,
+        data=content,
+        headers={
+            "content-type": "text/tab-separated-values; charset=utf-8",
+            "content-length": str(len(content)),
+            "user-agent": GOOGLE_GEOCODE_USER_AGENT,
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT_SECONDS) as response:
+            if response.status >= 400:
+                raise GoogleGeocodeError(f"Slack file upload URL failed: HTTP {response.status}")
+    except urllib.error.HTTPError as error:
+        raise GoogleGeocodeError(f"Slack file upload URL failed: HTTP {error.code}") from error
+    except (urllib.error.URLError, socket.timeout, TimeoutError) as error:
+        reason = getattr(error, "reason", error)
+        raise GoogleGeocodeError(f"Slack file upload URL timed out or failed: {reason}") from error
+
+
+def _upload_tsv_to_slack(rows: list[dict[str, Any]], slack_thread_url: str, *, ok_count: int) -> dict[str, str]:
+    channel_id, thread_ts = _slack_thread_target(slack_thread_url)
+    token = _slack_token()
+    content = _tsv_text(rows).encode("utf-8")
+    timestamp = time.strftime("%Y%m%d-%H%M%S", time.gmtime())
+    filename = f"psm-ops-geocoded-addresses-{timestamp}.tsv"
+    upload = _slack_api_post(
+        "files.getUploadURLExternal",
+        token,
+        {"filename": filename, "length": str(len(content))},
+    )
+    upload_url = str(upload.get("upload_url") or "")
+    file_id = str(upload.get("file_id") or "")
+    if not upload_url or not file_id:
+        raise GoogleGeocodeError("Slack file upload did not return upload_url and file_id.")
+    _upload_bytes(upload_url, content)
+    complete = _slack_api_post(
+        "files.completeUploadExternal",
+        token,
+        {
+            "files": json.dumps([{"id": file_id, "title": filename}]),
+            "channel_id": channel_id,
+            "thread_ts": thread_ts,
+            "initial_comment": f"Geocoded {ok_count}/{len(rows)} address rows. See attached TSV.",
+        },
+    )
+    return {
+        "file_id": file_id,
+        "filename": filename,
+        "channel_id": channel_id,
+        "thread_ts": thread_ts,
+        "permalink": str((complete.get("file") or {}).get("permalink") or ""),
+    }
+
+
+def _status_counts(rows: list[dict[str, Any]]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for row in rows:
+        status = str(row.get("geocode_status") or "UNKNOWN_ERROR")
+        counts[status] = counts.get(status, 0) + 1
+    return counts
 
 
 def _blocked(message: str, scope: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -266,18 +418,23 @@ def geocode_slack_addresses(
             )
             for row in rows
         ]
+        ok_count = sum(1 for row in geocoded_rows if row.get("geocode_status") == "OK")
+        upload = _upload_tsv_to_slack(geocoded_rows, slack_thread_url, ok_count=ok_count)
     except GoogleGeocodeError as error:
         return _blocked(str(error), {"slack_thread_url": slack_thread_url})
 
-    ok_count = sum(1 for row in geocoded_rows if row.get("geocode_status") == "OK")
     confidence = "verified" if ok_count == len(geocoded_rows) else "needs-check"
     return {
         "answer": {
             "status": "ok" if ok_count else "needs-check",
             "ok_count": ok_count,
             "total_count": len(geocoded_rows),
-            "rows": geocoded_rows,
-            "slack_reply": _format_rows_for_slack(geocoded_rows),
+            "status_counts": _status_counts(geocoded_rows),
+            "file": upload,
+            "slack_reply": (
+                f"Uploaded geocoded TSV file: {upload['filename']} "
+                f"({ok_count}/{len(geocoded_rows)} OK)."
+            ),
         },
         "source": "Google Geocoding API",
         "scope": {

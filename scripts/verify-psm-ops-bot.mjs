@@ -182,6 +182,12 @@ if (!existsSync(manifestPath)) {
     if (manifest.google_geocode?.stores_address_rows !== false) {
       fail("Manifest Google Geocode stores_address_rows must be false");
     }
+    if (manifest.google_geocode?.uploads_tsv_to_slack !== true) {
+      fail("Manifest Google Geocode uploads_tsv_to_slack must be true");
+    }
+    if (manifest.google_geocode?.raw_slack_message_rows !== false) {
+      fail("Manifest Google Geocode raw_slack_message_rows must be false");
+    }
     if (manifest.google_geocode?.prints_api_key !== false) {
       fail("Manifest Google Geocode prints_api_key must be false");
     }
@@ -191,6 +197,7 @@ if (!existsSync(manifestPath)) {
       "channels:history",
       "channels:join",
       "chat:write",
+      "files:write",
       "users:read",
       "users:read.email"
     ];
@@ -496,7 +503,8 @@ for (const requiredText of [
   "calendar.readonly",
   "geocode_slack_addresses",
   "explicit address rows",
-  "Do not geocode customer names"
+  "Do not geocode customer names",
+  "do not paste latitude/longitude rows as raw Slack text"
 ]) {
   if (!skillText.includes(requiredText)) fail(`Skill missing required text: ${requiredText}`);
 }
@@ -705,7 +713,9 @@ for (const requiredText of [
   "PSM_OPS_GOOGLE_GEOCODE_CREDENTIALS_FILE",
   "google_geocoding_api_key",
   "Max addresses per Slack request: 25",
-  "Do not geocode customer names"
+  "Do not geocode customer names",
+  "files:write",
+  "Do not paste the geocoded rows into the Slack message body"
 ]) {
   if (!googleGeocodeText.includes(requiredText)) fail(`runtime/google-geocode.md missing required text: ${requiredText}`);
 }
@@ -720,7 +730,10 @@ for (const requiredText of [
   "check_google_geocode_access",
   "geocode_slack_addresses",
   "Google Geocoding API",
-  "never expose API keys"
+  "never expose API keys",
+  "files.getUploadURLExternal",
+  "files.completeUploadExternal",
+  "files:write"
 ]) {
   if (!googleGeocodeMcpText.includes(requiredText)) fail(`psm_google_geocode_server.py missing required text: ${requiredText}`);
 }
