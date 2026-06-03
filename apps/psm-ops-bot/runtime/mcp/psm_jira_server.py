@@ -1883,6 +1883,52 @@ def _slack_user_email(user: dict[str, Any]) -> str:
     return str(profile.get("email") or "").strip().lower()
 
 
+def _slack_user_display_name(user: dict[str, Any]) -> str:
+    profile = user.get("profile") or {}
+    return (
+        str(profile.get("real_name") or "").strip()
+        or str(user.get("real_name") or "").strip()
+        or str(profile.get("display_name") or "").strip()
+        or str(user.get("name") or "").strip()
+    )
+
+
+def _clean_slack_user_id(value: str) -> str:
+    raw = (value or "").strip()
+    if raw.startswith("<@") and raw.endswith(">"):
+        raw = raw[2:-1]
+    return raw
+
+
+def _slack_poster_text(
+    *,
+    lookup_value: str = "",
+    name: str = "",
+    user_id: str = "",
+    email: str = "",
+    fallback_name: str = "",
+) -> str:
+    poster_name = (name or "").strip()
+    poster_user_id = _clean_slack_user_id(user_id)
+    poster_email = (email or "").strip().lower()
+    if lookup_value and (not poster_name or not poster_user_id or not poster_email):
+        slack_user = _resolve_slack_user(lookup_value)
+        if slack_user:
+            poster_name = poster_name or _slack_user_display_name(slack_user)
+            poster_user_id = poster_user_id or str(slack_user.get("id") or "").strip()
+            poster_email = poster_email or _slack_user_email(slack_user)
+        poster_email = poster_email or _normalize_slack_email(lookup_value)
+    poster_name = poster_name or (fallback_name or "").strip()
+    poster_parts = []
+    if poster_name:
+        poster_parts.append(poster_name)
+    if poster_user_id:
+        poster_parts.append(f"<@{poster_user_id}>")
+    if poster_email:
+        poster_parts.append(poster_email)
+    return " ".join(poster_parts)
+
+
 def _slack_user_identity_keys(user: dict[str, Any]) -> set[str]:
     profile = user.get("profile") or {}
     values = [
@@ -3830,6 +3876,7 @@ def create_ps_wee_intake_ticket(
     ps_team: str = "",
     creator_slack_user_email: str = "",
     pic: str = "",
+    authored_request: str = "",
 ) -> dict[str, Any]:
     """Create an immediate PCO intake ticket for PS WEE/PSM Manager Ops requests.
 
@@ -4122,6 +4169,11 @@ def create_ps_wee_intake_ticket(
         "approval_required": False,
         "mode": _jira_mode(),
         "slack_thread_url": source,
+        "slack_poster": _slack_poster_text(
+            lookup_value=slack_user_email,
+            fallback_name=str(caller.get("display_name") or ""),
+        ),
+        "authored_request": (authored_request or "").strip(),
         "known_details": (known_details or "").strip(),
         "impact": (impact or "").strip(),
         "affected_scope": (affected_scope or "").strip(),
@@ -4443,8 +4495,86 @@ def verify_drive_oauth() -> dict[str, Any]:
     return _needs_check(answer, scope, report.get("reason") or "Drive health-check failed.")
 
 
+THREAD_SPEAKER_LINE_RE = re.compile(r"(?m)^\s*(?P<label>[A-Za-z][\w .'-]{0,40}|<@[UW][A-Z0-9]+>)\s*:\s+\S")
+STRUCTURED_COMMENT_LABELS = {
+    "action",
+    "action type",
+    "affected scope",
+    "assignee",
+    "authored request",
+    "authored update",
+    "background",
+    "context",
+    "creator",
+    "customer",
+    "details",
+    "due date",
+    "evidence",
+    "evidence link",
+    "evidence links",
+    "expected outcome",
+    "impact",
+    "issue",
+    "known details",
+    "notes",
+    "owner",
+    "owner psm",
+    "pic",
+    "priority",
+    "reason",
+    "request",
+    "requester",
+    "risk",
+    "risk reason",
+    "scope",
+    "slack poster",
+    "source",
+    "source slack thread",
+    "status",
+    "summary",
+    "ticket seed",
+    "updated fields",
+    "url",
+}
+
+
+def _is_probable_thread_dump(value: str) -> bool:
+    raw = (value or "").strip()
+    if not raw:
+        return False
+    lowered = raw.lower()
+    if "slack transcript" in lowered or "thread transcript" in lowered:
+        return True
+    speaker_lines = 0
+    for match in THREAD_SPEAKER_LINE_RE.finditer(raw):
+        label = match.group("label").strip()
+        if label.startswith("<@"):
+            speaker_lines += 1
+            continue
+        normalized_label = re.sub(r"\s+", " ", label.lower())
+        if normalized_label not in STRUCTURED_COMMENT_LABELS:
+            speaker_lines += 1
+    return speaker_lines >= 2
+
+
+def _concise_jira_comment_value(value: Any, *, max_chars: int = 1600) -> str:
+    raw = str(value or "").strip()
+    if not raw or _is_probable_thread_dump(raw):
+        return ""
+    if len(raw) <= max_chars:
+        return raw
+    return raw[: max_chars - 3].rstrip() + "..."
+
+
 def _metadata_comment_from_draft(draft: dict[str, Any]) -> str:
+    source = _concise_jira_comment_value(draft.get("slack_thread_url"))
+    poster = _concise_jira_comment_value(draft.get("slack_poster"))
+    authored_request = _concise_jira_comment_value(draft.get("authored_request"))
     metadata = [
+        ("Source Slack thread", source),
+        ("Slack poster", poster),
+        ("Authored request", authored_request),
+        ("Summary", draft.get("summary")),
         ("Customer", draft.get("customer")),
         ("Creator", draft.get("creator_display")),
         ("PIC", draft.get("pic")),
@@ -4454,7 +4584,6 @@ def _metadata_comment_from_draft(draft: dict[str, Any]) -> str:
         ("Priority", draft.get("priority")),
         ("Action type", draft.get("action_type")),
         ("Risk reason", draft.get("risk_reason")),
-        ("Source Slack thread", draft.get("slack_thread_url")),
         ("Known details", draft.get("known_details")),
         ("Impact", draft.get("impact")),
         ("Affected scope", draft.get("affected_scope")),
@@ -4468,7 +4597,11 @@ def _metadata_comment_from_draft(draft: dict[str, Any]) -> str:
         ("Customer channel name", draft.get("customer_channel_name")),
         ("Customer 360 customer key", draft.get("customer_channel_customer_key")),
     ]
-    lines = [f"{label}: {value}" for label, value in metadata if value]
+    lines = [
+        f"{label}: {clean_value}"
+        for label, value in metadata
+        if (clean_value := _concise_jira_comment_value(value))
+    ]
     if not lines:
         return ""
     header = "PS WEE ticket intake from Slack:" if draft.get("slack_thread_url") else "PSM Ops metadata from Slack-approved task creation:"
@@ -5202,6 +5335,7 @@ def append_ps_wee_ticket_update(
     update_summary: str,
     updated_fields: dict[str, Any] | None = None,
     evidence_links: list[str] | None = None,
+    authored_update: str = "",
     slack_poster_name: str = "",
     slack_poster_user_id: str = "",
     slack_poster_email: str = "",
@@ -5212,48 +5346,36 @@ def append_ps_wee_ticket_update(
     key = (issue_key or "").strip().upper()
     source = (slack_thread_url or "").strip()
     summary = (update_summary or "").strip()
+    authored = (authored_update or "").strip()
+    authored_for_comment = _concise_jira_comment_value(authored)
+    summary_for_comment = _concise_jira_comment_value(summary)
     fields = updated_fields or {}
     links = [str(link).strip() for link in (evidence_links or []) if str(link).strip()]
     scope = {"issue_key": key, "slack_thread_url": source, "caller": (slack_user_email or "").strip().lower()}
     if not key or not source:
         return _blocked("Issue key and Slack thread URL are required for PS WEE ticket updates.", scope)
-    if not summary and not fields and not links:
+    if not authored_for_comment and not summary_for_comment and not fields and not links:
         return _blocked("A meaningful update summary, updated fields, or evidence link is required.", scope)
 
     lines = ["PS WEE Slack ticket update:", f"Source Slack thread: {source}"]
-    poster_name = slack_poster_name.strip()
-    poster_user_id = slack_poster_user_id.strip()
-    if poster_user_id.startswith("<@") and poster_user_id.endswith(">"):
-        poster_user_id = poster_user_id[2:-1]
-    poster_email = slack_poster_email.strip().lower()
-    if slack_user_email.strip() and (not poster_name or not poster_user_id or not poster_email):
-        slack_user = _resolve_slack_user(slack_user_email)
-        if slack_user:
-            profile = slack_user.get("profile") or {}
-            poster_name = poster_name or (
-                str(profile.get("real_name") or "").strip()
-                or str(slack_user.get("real_name") or "").strip()
-                or str(profile.get("display_name") or "").strip()
-            )
-            poster_user_id = poster_user_id or str(slack_user.get("id") or "").strip()
-            poster_email = poster_email or _slack_user_email(slack_user)
-        poster_email = poster_email or _normalize_slack_email(slack_user_email)
-    poster_parts = []
-    if poster_name:
-        poster_parts.append(poster_name)
-    if poster_user_id:
-        poster_parts.append(f"<@{poster_user_id}>")
-    if poster_email:
-        poster_parts.append(poster_email)
-    if poster_parts:
-        lines.append(f"Slack poster: {' '.join(poster_parts)}")
-    if summary:
-        lines.append(f"Summary: {summary}")
+    poster = _slack_poster_text(
+        lookup_value=slack_user_email,
+        name=slack_poster_name,
+        user_id=slack_poster_user_id,
+        email=slack_poster_email,
+    )
+    if poster:
+        lines.append(f"Slack poster: {poster}")
+    if authored_for_comment:
+        lines.append(f"Authored update: {authored_for_comment}")
+    if summary_for_comment:
+        lines.append(f"Summary: {summary_for_comment}")
     if fields:
         lines.append("Updated fields:")
         for field, value in fields.items():
-            if value:
-                lines.append(f"- {field}: {value}")
+            clean_value = _concise_jira_comment_value(value)
+            if clean_value:
+                lines.append(f"- {field}: {clean_value}")
     if links:
         lines.append("Evidence links:")
         lines.extend(f"- {link}" for link in links)

@@ -82,7 +82,9 @@
             "path": "tests/regression-cases.md",
             "must_contain": [
               "Strict Mention Opt-In",
-              "The bot does not reply to Lucky's untagged follow-up"
+              "The bot does not reply to Lucky's untagged follow-up",
+              "The created or updated Jira comment includes Damba's authored tagged request/update",
+              "does not paste Lucky's untagged replies"
             ]
           }
         ]
