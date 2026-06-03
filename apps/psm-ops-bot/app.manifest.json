@@ -28,10 +28,12 @@
     "jira_runtime": "runtime/jira.md",
     "c360_runtime": "runtime/c360.md",
     "google_calendar_runtime": "runtime/google-calendar.md",
+    "google_geocode_runtime": "runtime/google-geocode.md",
     "slack_runtime": "runtime/slack.md",
     "psm_jira_mcp": "runtime/mcp/psm_jira_server.py",
     "psm_c360_mcp": "runtime/mcp/psm_c360_server.py",
     "psm_google_calendar_mcp": "runtime/mcp/psm_google_calendar_server.py",
+    "psm_google_geocode_mcp": "runtime/mcp/psm_google_geocode_server.py",
     "health_checks": "runtime/health-checks.md",
     "health_check_script": "runtime/check-health.sh",
     "cloud_heartbeat_script": "runtime/check-cloud-heartbeat.sh",
@@ -99,6 +101,13 @@
       "command_env": "PSM_OPS_PYTHON",
       "expected_tools": [
         "read_customer_calendar_context"
+      ]
+    },
+    "psm_google_geocode": {
+      "command_env": "PSM_OPS_PYTHON",
+      "expected_tools": [
+        "check_google_geocode_access",
+        "geocode_slack_addresses"
       ]
     }
   },
@@ -180,6 +189,21 @@
     "event_mutations": false,
     "attendee_exports": false,
     "private_field_exports": false
+  },
+  "google_geocode": {
+    "credential_file_env_var": "PSM_OPS_GOOGLE_GEOCODE_CREDENTIALS_FILE",
+    "api_key_env_var": "GOOGLE_GEOCODING_API_KEY",
+    "default_credentials_file": "~/.staffany/google-geocode/credentials.json",
+    "expected_credentials_json_key": "google_geocoding_api_key",
+    "expected_tools": [
+      "check_google_geocode_access",
+      "geocode_slack_addresses"
+    ],
+    "max_addresses_per_call": 25,
+    "default_region_bias": "sg",
+    "stores_address_rows": false,
+    "prints_api_key": false,
+    "uses_slack_connector": false
   },
   "channels": [
     "Slack public/open channels with mention-required gateway"

@@ -20,7 +20,9 @@ PSM Ops Bot needs deterministic cloud health checks because prompt correctness d
 - `psm_jira` MCP lists exactly the expected tools.
 - `psm_c360` MCP lists exactly the expected tools.
 - `psm_google_calendar` MCP lists exactly `read_customer_calendar_context` when Google Calendar is enabled.
+- `psm_google_geocode` MCP lists exactly `check_google_geocode_access` and `geocode_slack_addresses`.
 - Google Calendar OAuth is configured for `team@staffany.com` with `calendar.readonly`, returns bounded event metadata, and exposes no mutation or attendee-export tools.
+- Google Geocoding credentials are available through `GOOGLE_GEOCODING_API_KEY`, `PSM_OPS_GOOGLE_GEOCODE_CREDENTIALS_FILE`, or `~/.staffany/google-geocode/credentials.json`; the health check never prints the key.
 - `validate_jira_configuration` reports thin POC defaults or full configured fields and request types, including `PS Team`.
 - `validate_roi_jira_configuration` reports exactly one ROI project key, service desk ID, request type ID, and mapped required request fields before ROI-direct creation is enabled.
 - C360 internal API token is configured.

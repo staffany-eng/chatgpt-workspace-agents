@@ -14,6 +14,7 @@ Read these first for app work:
 - `skills/psm-ops-bot/SKILL.md`
 - `runtime/jira.md`
 - `runtime/c360.md`
+- `runtime/google-geocode.md`
 - `runtime/slack.md`
 - `runtime/health-checks.md`
 

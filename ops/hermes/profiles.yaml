@@ -147,6 +147,7 @@ profiles:
     required_mcp:
       psm_jira: 28
       psm_c360: 3
+      psm_google_geocode: 2
     expected_crons:
       - name: psmopsbot due-date reminders
         schedule: "0 1 * * 1-5"

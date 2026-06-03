@@ -196,6 +196,23 @@ Thread:
 - Does not ask who Jo/Jos/Josica is when Slack identity resolved it.
 - Does not let Calendar rate limits block Jira ticket creation.
 
+## PS WEE Google Geocode Address Rows
+
+Thread:
+
+```text
+@PS WEE please geocode these outlet addresses:
+Outram - 10 Hospital Boulevard, Singapore 168582
+Tanjong Pagar - 10 Anson Road, Singapore 079903
+```
+
+- Extracts only the explicit postal address rows from the tagged Slack message.
+- Calls `geocode_slack_addresses` with `region_bias="sg"`.
+- Returns a compact table containing address, latitude, longitude, `geocode_status`, and formatted address.
+- Does not call Jira, Customer 360, or Google Calendar for geocoding-only requests.
+- Does not print the API key, credential file contents, raw Google API payloads, or store address rows.
+- If only a customer name, outlet name, person name, phone number, or vague location hint is provided, asks for the exact address instead of calling Google Geocoding.
+
 ## PS WEE PCO Board Search
 
 Thread:

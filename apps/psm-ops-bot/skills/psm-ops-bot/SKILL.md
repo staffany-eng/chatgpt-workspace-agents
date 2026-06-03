@@ -45,6 +45,7 @@ Match the `/archives/<channel_id>/` segment of the Slack thread permalink **befo
 6. `psm_jira` MCP for live PCO task reads/writes and ROI-direct JSM ticket creation.
 7. `psm_c360` MCP for live Customer 360 search/context/Q&A.
 8. `psm_google_calendar` MCP for read-only `team@staffany.com` scheduling context only through the gated `read_customer_calendar_context` tool.
+9. `psm_google_geocode` MCP for latitude/longitude of explicit address rows only through `geocode_slack_addresses`.
 
 ## Capabilities
 
@@ -72,6 +73,7 @@ Match the `/archives/<channel_id>/` segment of the Slack thread permalink **befo
 - Set or update the Jira due date that drives automatic reminders.
 - Ask Customer 360 for any customer context in V1.
 - Read gated Google Calendar context from the read-only `team@staffany.com` account for explicit customer meeting, invite, scheduling, or follow-up requests.
+- Geocode explicit address rows from tagged Slack messages with `geocode_slack_addresses`, returning address, latitude, longitude, status, and formatted address.
 
 ## Jira Rules
 
@@ -141,6 +143,17 @@ Match the `/archives/<channel_id>/` segment of the Slack thread permalink **befo
 - Do not mutate calendar data. Do not expose event descriptions, attendee emails, raw guest lists, conference links, phone numbers, or private calendar metadata.
 - Calendar is scheduling context only; Jira PCO remains task truth.
 
+## Google Geocode Rules
+
+- Use `geocode_slack_addresses` only when the current tagged Slack request asks to geocode, locate, map, or fetch latitude/longitude for explicit address rows.
+- Do not geocode customer names, person names, phone numbers, outlet names without addresses, or vague hints like `near Orchard` unless the user provides a full address to send to Google.
+- If the Slack message contains a table or list, extract each address as one row. Preserve the user's label/customer/outlet name as metadata when helpful, but send the actual postal address in the `address` field.
+- Limit one Slack request to 25 addresses. If there are more, ask the user to split the list.
+- Use `region_bias="sg"` by default. Set `country_restriction` only when the address or user explicitly names a country.
+- If geocode credentials fail, call `check_google_geocode_access` or quote the blocked reason from `geocode_slack_addresses`; never ask the user to paste the API key in Slack.
+- Return the geocode rows in a compact TSV-style block. Include `geocode_status`; rows with `ZERO_RESULTS`, `OVER_QUERY_LIMIT`, `REQUEST_DENIED`, or another non-`OK` status need manual review.
+- Do not expose the API key, credential file content, raw Google API payloads, or store address rows outside the current answer.
+
 ## Reminder Rules
 
 - Reminder source of truth is Jira `duedate`.
@@ -172,6 +185,14 @@ Scope: <caller, issue key, customer, time window>
 Confidence: <verified | needs-check | blocked>
 Caveat: <only the material caveat>
 
+For Google Geocode answers, use:
+
+Answer: <tool answer.slack_reply or compact TSV rows>
+Source: Google Geocoding API
+Scope: current Slack thread; <N> address rows
+Confidence: <verified | needs-check | blocked>
+Caveat: Rows with non-OK geocode_status need manual address review.
+
 ## Common Pitfalls
 
 1. Creating a Jira task without a preview and approval.
@@ -186,3 +207,4 @@ Caveat: <only the material caveat>
 8. Using Jira assignee or a guessed Slack email as the source of truth for "my tasks" instead of Jira `PS Team`.
 9. Letting Calendar lookup run before Jira ticket creation when one Slack request asks for both scheduling and task-list work.
 10. Treating Google Calendar as customer or task truth instead of bounded scheduling context.
+11. Geocoding customer names or vague place hints instead of explicit address rows.

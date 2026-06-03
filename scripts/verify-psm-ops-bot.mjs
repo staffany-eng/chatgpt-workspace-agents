@@ -156,6 +156,35 @@ if (!existsSync(manifestPath)) {
     if (manifest.google_calendar?.private_field_exports !== false) {
       fail("Manifest Google Calendar private_field_exports must be false");
     }
+    const expectedGoogleGeocodeTools = [
+      "check_google_geocode_access",
+      "geocode_slack_addresses"
+    ];
+    const actualGoogleGeocodeTools = manifest.mcp?.psm_google_geocode?.expected_tools || [];
+    for (const tool of expectedGoogleGeocodeTools) {
+      if (!actualGoogleGeocodeTools.includes(tool)) fail(`Manifest missing psm_google_geocode tool: ${tool}`);
+    }
+    for (const tool of actualGoogleGeocodeTools) {
+      if (!expectedGoogleGeocodeTools.includes(tool)) fail(`Manifest has unexpected psm_google_geocode tool: ${tool}`);
+    }
+    if (manifest.google_geocode?.credential_file_env_var !== "PSM_OPS_GOOGLE_GEOCODE_CREDENTIALS_FILE") {
+      fail("Manifest Google Geocode credential_file_env_var must be PSM_OPS_GOOGLE_GEOCODE_CREDENTIALS_FILE");
+    }
+    if (manifest.google_geocode?.api_key_env_var !== "GOOGLE_GEOCODING_API_KEY") {
+      fail("Manifest Google Geocode api_key_env_var must be GOOGLE_GEOCODING_API_KEY");
+    }
+    if (manifest.google_geocode?.expected_credentials_json_key !== "google_geocoding_api_key") {
+      fail("Manifest Google Geocode expected_credentials_json_key must be google_geocoding_api_key");
+    }
+    if (manifest.google_geocode?.max_addresses_per_call !== 25) {
+      fail("Manifest Google Geocode max_addresses_per_call must be 25");
+    }
+    if (manifest.google_geocode?.stores_address_rows !== false) {
+      fail("Manifest Google Geocode stores_address_rows must be false");
+    }
+    if (manifest.google_geocode?.prints_api_key !== false) {
+      fail("Manifest Google Geocode prints_api_key must be false");
+    }
     const expectedSlackScopes = [
       "app_mentions:read",
       "channels:read",
@@ -195,6 +224,7 @@ const filesToScan = [
   "runtime/jira.md",
   "runtime/c360.md",
   "runtime/google-calendar.md",
+  "runtime/google-geocode.md",
   "runtime/health-checks.md",
   "runtime/check-health.sh",
   "runtime/check-cloud-heartbeat.sh",
@@ -212,6 +242,7 @@ const filesToScan = [
   "runtime/mcp/psm_c360_server.py",
   "runtime/mcp/google_oauth.py",
   "runtime/mcp/psm_google_calendar_server.py",
+  "runtime/mcp/psm_google_geocode_server.py",
   "runtime/hooks/psm-ops-adoption-telemetry/HOOK.yaml",
   "runtime/hooks/psm-ops-adoption-telemetry/handler.py",
   "runtime/hooks/psm-ops-mention-guard/HOOK.yaml",
@@ -270,6 +301,7 @@ if (!existsSync(deployScriptPath)) {
     "psm_ops_churn_reporting_chase.py",
     "runtime/sql",
     "psm_ops_churn_projection_dashboard_292.sql",
+    "psm_google_geocode",
     "psm-ops-adoption-telemetry",
     "psm-ops-mention-guard",
     "smoke-rock-productions-c360.sh",
@@ -362,10 +394,15 @@ for (const requiredText of [
   "psm_jira",
   "psm_c360",
   "psm_google_calendar",
+  "psm_google_geocode",
   "GOOGLE_CALENDAR_TOKEN_FILE",
   "GOOGLE_CALENDAR_CLIENT_SECRET_FILE",
   "team@staffany.com",
-  "calendar.readonly"
+  "calendar.readonly",
+  "PSM_OPS_GOOGLE_GEOCODE_CREDENTIALS_FILE",
+  "GOOGLE_GEOCODING_API_KEY",
+  "google_geocoding_api_key",
+  "geocode_slack_addresses"
 ]) {
   if (!configText.includes(requiredText)) fail(`config.template.yaml missing required text: ${requiredText}`);
 }
@@ -405,6 +442,10 @@ for (const requiredText of [
   "Google Calendar",
   "team@staffany.com",
   "read_customer_calendar_context",
+  "Google Geocode",
+  "psm_google_geocode",
+  "geocode_slack_addresses",
+  "explicit address rows",
   "Do not use personal `customer360_session` cookies",
   "Customer 360: <url>",
   "PSM Ops automation:"
@@ -452,7 +493,10 @@ for (const requiredText of [
   "Customer 360: <url, only for successful C360-backed answers>",
   "read_customer_calendar_context",
   "team@staffany.com",
-  "calendar.readonly"
+  "calendar.readonly",
+  "geocode_slack_addresses",
+  "explicit address rows",
+  "Do not geocode customer names"
 ]) {
   if (!skillText.includes(requiredText)) fail(`Skill missing required text: ${requiredText}`);
 }
@@ -587,6 +631,7 @@ if (!psmOpsProfileBlock) {
     "strict_mention: true",
     "psm_jira: 28",
     "psm_c360: 3",
+    "psm_google_geocode: 2",
     "psmopsbot due-date reminders",
     "psmopsbot assignment hygiene",
     "psmopsbot due-date eod catch-up",
@@ -651,6 +696,35 @@ for (const requiredText of [
   if (!googleCalendarMcpText.includes(requiredText)) fail(`psm_google_calendar_server.py missing required text: ${requiredText}`);
 }
 
+const googleGeocodeText = textOf(appRoot, "runtime/google-geocode.md");
+for (const requiredText of [
+  "psm_google_geocode",
+  "check_google_geocode_access",
+  "geocode_slack_addresses",
+  "GOOGLE_GEOCODING_API_KEY",
+  "PSM_OPS_GOOGLE_GEOCODE_CREDENTIALS_FILE",
+  "google_geocoding_api_key",
+  "Max addresses per Slack request: 25",
+  "Do not geocode customer names"
+]) {
+  if (!googleGeocodeText.includes(requiredText)) fail(`runtime/google-geocode.md missing required text: ${requiredText}`);
+}
+
+const googleGeocodeMcpText = textOf(appRoot, "runtime/mcp/psm_google_geocode_server.py");
+for (const requiredText of [
+  "GOOGLE_GEOCODE_URL",
+  "PSM_OPS_GOOGLE_GEOCODE_CREDENTIALS_FILE",
+  "GOOGLE_GEOCODING_API_KEY",
+  "google_geocoding_api_key",
+  "MAX_ADDRESSES_PER_CALL = 25",
+  "check_google_geocode_access",
+  "geocode_slack_addresses",
+  "Google Geocoding API",
+  "never expose API keys"
+]) {
+  if (!googleGeocodeMcpText.includes(requiredText)) fail(`psm_google_geocode_server.py missing required text: ${requiredText}`);
+}
+
 const notifierText = textOf(appRoot, "runtime/mcp/psm_slack_notifier.py");
 for (const requiredText of [
   "SLACK_BOT_TOKEN",
@@ -686,6 +760,9 @@ for (const requiredText of [
   "preserves runtime secrets/state",
   "GOOGLE_CALENDAR_TOKEN_FILE",
   "team@staffany.com",
+  "PSM_OPS_GOOGLE_GEOCODE_CREDENTIALS_FILE",
+  "GOOGLE_GEOCODING_API_KEY",
+  "psm_google_geocode.geocode_slack_addresses",
   "psm_ops_roi_tracker_sync.py",
   "psm_ops_churn_reporting_chase.py",
   "psm_ops_pco_assignment_hygiene.py",
@@ -720,6 +797,7 @@ for (const requiredText of [
 const auditText = textOf(appRoot, "runtime/audit-live-profile.sh");
 for (const requiredText of [
   "profile:health-script-drift",
+  "profile:mcp-drift",
   "profile:public-channel-join-script-drift",
   "profile:assignment-hygiene-script-drift",
   "profile:churn-reporting-chase-script-drift",
@@ -744,7 +822,10 @@ for (const requiredText of [
   "bigquery:bq-not-found",
   "psmopsbot churn reporting chase",
   "psm_ops_churn_reporting_chase.py",
-  "slack:auth-test-missing-user-id"
+  "slack:auth-test-missing-user-id",
+  "psm_google_geocode) expected=2",
+  "google_geocode:credentials-file-unreadable",
+  "google_geocode:api-key-missing"
 ]) {
   if (!healthCheckText.includes(requiredText)) fail(`Health check script missing required text: ${requiredText}`);
 }
@@ -930,6 +1011,7 @@ const pyCompile = spawnSync("python3", [
   join(appRoot, "runtime/mcp/psm_c360_server.py"),
   join(appRoot, "runtime/mcp/google_oauth.py"),
   join(appRoot, "runtime/mcp/psm_google_calendar_server.py"),
+  join(appRoot, "runtime/mcp/psm_google_geocode_server.py"),
   join(appRoot, "runtime/hooks/psm-ops-adoption-telemetry/handler.py"),
   join(appRoot, "runtime/hooks/psm-ops-mention-guard/handler.py"),
   join(appRoot, "runtime/psm_ops_adoption_digest.py"),

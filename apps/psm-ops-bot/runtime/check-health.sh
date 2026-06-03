@@ -27,12 +27,13 @@ if command -v systemctl >/dev/null 2>&1; then
 fi
 
 if command -v hermes >/dev/null 2>&1; then
-  for server in psm_jira psm_c360 psm_google_calendar; do
+  for server in psm_jira psm_c360 psm_google_calendar psm_google_geocode; do
     out="$(hermes -p "$PROFILE" mcp test "$server" 2>&1 || true)"
     case "$server" in
       psm_jira) expected=28 ;;
       psm_c360) expected=3 ;;
       psm_google_calendar) expected=1 ;;
+      psm_google_geocode) expected=2 ;;
     esac
     count="$(printf '%s\n' "$out" | sed -nE 's/.*Tools discovered: ([0-9]+).*/\1/p' | tail -1)"
     [ "$count" = "$expected" ] || fail "mcp:$server:tools=${count:-unavailable}:expected=$expected"
@@ -125,6 +126,26 @@ done
 [ "${GOOGLE_CALENDAR_ACCOUNT_EMAIL:-team@staffany.com}" = "team@staffany.com" ] || fail "google_calendar:account-not-team"
 [ -r "${GOOGLE_CALENDAR_TOKEN_FILE:-}" ] || fail "google_calendar:token-file-unreadable"
 [ -r "${GOOGLE_CALENDAR_CLIENT_SECRET_FILE:-}" ] || fail "google_calendar:client-secret-file-unreadable"
+
+geocode_credentials_file="${PSM_OPS_GOOGLE_GEOCODE_CREDENTIALS_FILE:-$HOME/.staffany/google-geocode/credentials.json}"
+if [ -z "${GOOGLE_GEOCODING_API_KEY:-}" ]; then
+  [ -r "$geocode_credentials_file" ] || fail "google_geocode:credentials-file-unreadable"
+  python3 - "$geocode_credentials_file" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+try:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+except Exception:
+    print("google_geocode:credentials-json-invalid")
+    raise SystemExit(1)
+if not str(payload.get("google_geocoding_api_key") or "").strip():
+    print("google_geocode:api-key-missing")
+    raise SystemExit(1)
+PY
+fi
 
 if [ -n "${BQ_BIN:-}" ]; then
   [ -x "$BQ_BIN" ] || fail "bigquery:bq-bin-not-executable"
