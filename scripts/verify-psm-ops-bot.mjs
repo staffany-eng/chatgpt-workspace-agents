@@ -839,6 +839,8 @@ for (const requiredText of [
   "psm_ops_churn_reporting_chase.py",
   "slack:auth-test-missing-user-id",
   "psm_google_geocode) expected=2",
+  "is_unresolved_placeholder",
+  "GEOCODE_CREDENTIALS_FILE",
   "google_geocode:credentials-file-unreadable",
   "google_geocode:api-key-missing"
 ]) {

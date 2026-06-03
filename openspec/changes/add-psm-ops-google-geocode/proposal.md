@@ -12,12 +12,12 @@ PSM Ops users may paste address lists in Slack and need latitude/longitude for d
 
 - Add a narrow `psm_google_geocode` MCP server.
 - Read the API key from runtime-only env or credential file paths.
-- Return address rows with latitude, longitude, status, formatted address, and place ID.
+- Upload address rows as a Slack thread `.tsv` with latitude, longitude, status, formatted address, and place ID.
 - Document Slack behavior and safety boundaries.
 - Wire manifest, config template, profile inventory, health checks, and verifier checks.
 
 ## Non-Goals
 
-- No Slack file upload or Google Sheets creation.
+- No Google Sheets creation or Slack destinations outside the source thread.
 - No storage of address rows or geocoding history.
 - No geocoding of customer names or vague location hints.

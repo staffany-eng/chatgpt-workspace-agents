@@ -300,7 +300,34 @@ def _slack_api_post(method: str, token: str, params: dict[str, str]) -> dict[str
     return payload
 
 
+def _require_https_upload_url(upload_url: str) -> None:
+    parsed = urllib.parse.urlparse(upload_url)
+    if parsed.scheme != "https" or not parsed.netloc:
+        raise GoogleGeocodeError("Slack file upload URL must use https.")
+
+
+def _request_slack_upload_target(token: str, filename: str, content_length: int) -> tuple[str, str]:
+    upload = _slack_api_post(
+        "files.getUploadURLExternal",
+        token,
+        {"filename": filename, "length": str(content_length)},
+    )
+    upload_url = str(upload.get("upload_url") or "")
+    file_id = str(upload.get("file_id") or "")
+    if not upload_url or not file_id:
+        raise GoogleGeocodeError("Slack file upload did not return upload_url and file_id.")
+    _require_https_upload_url(upload_url)
+    return upload_url, file_id
+
+
+def _preflight_slack_upload(slack_thread_url: str) -> None:
+    _slack_thread_target(slack_thread_url)
+    token = _slack_token()
+    _request_slack_upload_target(token, "psm-ops-geocode-upload-preflight.tsv", 1)
+
+
 def _upload_bytes(upload_url: str, content: bytes) -> None:
+    _require_https_upload_url(upload_url)
     request = urllib.request.Request(
         upload_url,
         data=content,
@@ -328,15 +355,7 @@ def _upload_tsv_to_slack(rows: list[dict[str, Any]], slack_thread_url: str, *, o
     content = _tsv_text(rows).encode("utf-8")
     timestamp = time.strftime("%Y%m%d-%H%M%S", time.gmtime())
     filename = f"psm-ops-geocoded-addresses-{timestamp}.tsv"
-    upload = _slack_api_post(
-        "files.getUploadURLExternal",
-        token,
-        {"filename": filename, "length": str(len(content))},
-    )
-    upload_url = str(upload.get("upload_url") or "")
-    file_id = str(upload.get("file_id") or "")
-    if not upload_url or not file_id:
-        raise GoogleGeocodeError("Slack file upload did not return upload_url and file_id.")
+    upload_url, file_id = _request_slack_upload_target(token, filename, len(content))
     _upload_bytes(upload_url, content)
     complete = _slack_api_post(
         "files.completeUploadExternal",
@@ -407,6 +426,7 @@ def geocode_slack_addresses(
     try:
         rows = _normalize_address_rows(addresses)
         api_key, key_source = _load_api_key()
+        _preflight_slack_upload(slack_thread_url)
         geocoded_rows = [
             _geocode_one(
                 row,

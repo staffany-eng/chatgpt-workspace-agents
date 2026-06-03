@@ -141,6 +141,11 @@ class PsmGoogleGeocodeServerTest(unittest.TestCase):
         self.assertNotIn("secret-key", json.dumps(result))
         self.assertNotIn("xoxb-secret", json.dumps(result))
         geocode_url = next(url for url in captured_urls if "maps.googleapis.com" in url)
+        self.assertEqual(sum(1 for url in captured_urls if "files.getUploadURLExternal" in url), 2)
+        self.assertLess(
+            next(index for index, url in enumerate(captured_urls) if "files.getUploadURLExternal" in url),
+            captured_urls.index(geocode_url),
+        )
         parsed = urllib.parse.parse_qs(urllib.parse.urlparse(geocode_url).query)
         self.assertEqual(parsed["region"], ["sg"])
         self.assertEqual(parsed["components"], ["country:SG"])
@@ -189,7 +194,10 @@ class PsmGoogleGeocodeServerTest(unittest.TestCase):
         self.assertIn(b"\ttrue\t", uploaded_bodies[0])
 
     def test_geocode_slack_addresses_blocks_instead_of_raw_reply_when_slack_upload_missing_scope(self):
+        captured_urls: list[str] = []
+
         def fake_urlopen(request, timeout=None):
+            captured_urls.append(request.full_url)
             if "files.getUploadURLExternal" in request.full_url:
                 return self._response({"ok": False, "error": "missing_scope"})
             return self._response(
@@ -215,6 +223,38 @@ class PsmGoogleGeocodeServerTest(unittest.TestCase):
         self.assertEqual(result["confidence"], "blocked")
         self.assertIn("files:write", result["answer"]["message"])
         self.assertNotIn("1.2847", json.dumps(result))
+        self.assertFalse(any("maps.googleapis.com" in url for url in captured_urls))
+
+    def test_geocode_slack_addresses_rejects_non_https_upload_url_before_google_call(self):
+        captured_urls: list[str] = []
+
+        def fake_urlopen(request, timeout=None):
+            captured_urls.append(request.full_url)
+            if "files.getUploadURLExternal" in request.full_url:
+                return self._response({"ok": True, "upload_url": "http://upload.slack.test/file", "file_id": "F123"})
+            return self._response(
+                {
+                    "status": "OK",
+                    "results": [
+                        {
+                            "formatted_address": "1 Raffles Pl, Singapore",
+                            "place_id": "place-1",
+                            "geometry": {"location": {"lat": 1.2847, "lng": 103.851}},
+                        }
+                    ],
+                }
+            )
+
+        with patch.dict(os.environ, {"GOOGLE_GEOCODING_API_KEY": "secret-key", "SLACK_BOT_TOKEN": "xoxb-secret"}, clear=False):
+            with patch.object(self.module.urllib.request, "urlopen", side_effect=fake_urlopen):
+                result = self.module.geocode_slack_addresses(
+                    [{"address": "1 Raffles Place, Singapore"}],
+                    slack_thread_url="https://staffany.slack.com/archives/C123/p1234567890123456",
+                )
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("https", result["answer"]["message"])
+        self.assertFalse(any("maps.googleapis.com" in url for url in captured_urls))
 
     def test_check_google_geocode_access_does_not_call_api(self):
         with patch.dict(os.environ, {"GOOGLE_GEOCODING_API_KEY": "secret-key"}, clear=False):

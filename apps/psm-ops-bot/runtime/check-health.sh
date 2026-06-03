@@ -21,6 +21,19 @@ fail() {
   exit 1
 }
 
+is_unresolved_placeholder() {
+  [[ "$1" =~ ^\$\{[A-Za-z_][A-Za-z0-9_]*\}$ ]]
+}
+
+env_value() {
+  local value="${!1:-}"
+  if is_unresolved_placeholder "$value"; then
+    printf ''
+  else
+    printf '%s' "$value"
+  fi
+}
+
 if command -v systemctl >/dev/null 2>&1; then
   active="$(systemctl --user is-active "$GATEWAY_SERVICE_NAME" 2>/dev/null || true)"
   [ "$active" = "active" ] || fail "gateway_service:not-active:$GATEWAY_SERVICE_NAME"
@@ -127,8 +140,15 @@ done
 [ -r "${GOOGLE_CALENDAR_TOKEN_FILE:-}" ] || fail "google_calendar:token-file-unreadable"
 [ -r "${GOOGLE_CALENDAR_CLIENT_SECRET_FILE:-}" ] || fail "google_calendar:client-secret-file-unreadable"
 
-geocode_credentials_file="${PSM_OPS_GOOGLE_GEOCODE_CREDENTIALS_FILE:-$HOME/.staffany/google-geocode/credentials.json}"
-if [ -z "${GOOGLE_GEOCODING_API_KEY:-}" ]; then
+google_geocoding_api_key="$(env_value GOOGLE_GEOCODING_API_KEY)"
+geocode_credentials_file="$(env_value PSM_OPS_GOOGLE_GEOCODE_CREDENTIALS_FILE)"
+if [ -z "$geocode_credentials_file" ]; then
+  geocode_credentials_file="$(env_value GEOCODE_CREDENTIALS_FILE)"
+fi
+if [ -z "$geocode_credentials_file" ]; then
+  geocode_credentials_file="$HOME/.staffany/google-geocode/credentials.json"
+fi
+if [ -z "$google_geocoding_api_key" ]; then
   [ -r "$geocode_credentials_file" ] || fail "google_geocode:credentials-file-unreadable"
   python3 - "$geocode_credentials_file" <<'PY'
 import json
