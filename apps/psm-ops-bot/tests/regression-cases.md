@@ -331,7 +331,7 @@ Weekday 09:15 SGT no-agent cron:
 `@PSM Ops what is going on with Fei Siong payroll?`
 
 - Calls C360 tools.
-- Includes C360 source, citation refs or missing-data caveat, and customer link.
+- Includes C360 source, citation refs or missing-data caveat, and a dedicated `Customer 360: <url>` line.
 
 ## Calendar Follow-Up
 

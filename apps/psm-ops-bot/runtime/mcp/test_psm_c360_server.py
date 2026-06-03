@@ -47,6 +47,14 @@ class PsmC360ServerTest(unittest.TestCase):
         self.assertEqual(calls, [("GET", "/api/companies?q=Fei", None)])
         self.assertEqual(result["confidence"], "verified")
         self.assertEqual(result["answer"][0]["companyName"], "Fei Siong")
+        self.assertEqual(
+            result["answer"][0]["c360_url"],
+            "https://c360.example/companies/1991281569",
+        )
+        self.assertEqual(
+            result["answer"][0]["customer360_url"],
+            "https://c360.example/companies/1991281569",
+        )
 
     def test_headers_use_custom_internal_token_header(self):
         headers = self.module._headers()
@@ -124,6 +132,42 @@ class PsmC360ServerTest(unittest.TestCase):
         )
         self.assertIn("StaffAny org", result["answer"][0]["matchedFields"])
         self.assertIn("Rock Productions Pte Ltd", result["searched_variants"])
+        self.assertEqual(
+            result["answer"][0]["c360_url"],
+            "https://c360.example/companies/rock-productions",
+        )
+        self.assertEqual(
+            result["answer"][0]["customer360_url"],
+            "https://c360.example/companies/rock-productions",
+        )
+
+    def test_search_customers_prefers_existing_c360_url(self):
+        def fake_http(method, path, body=None):
+            return {
+                "status": "ok",
+                "search": {
+                    "groups": [
+                        {
+                            "customerKey": "fei-siong-group",
+                            "companyName": "Fei Siong",
+                            "c360Url": "/companies/fei-siong-route",
+                        }
+                    ]
+                },
+            }
+
+        self.module._http_json = fake_http
+
+        result = self.module.search_c360_customers("Fei", limit=1)
+
+        self.assertEqual(
+            result["answer"][0]["c360_url"],
+            "https://c360.example/companies/fei-siong-route",
+        )
+        self.assertEqual(
+            result["answer"][0]["customer360_url"],
+            "https://c360.example/companies/fei-siong-route",
+        )
 
     def test_search_customers_reports_missing_mapping_for_no_match(self):
         def fake_http(method, path, body=None):
@@ -175,6 +219,14 @@ class PsmC360ServerTest(unittest.TestCase):
         )
         self.assertEqual(result["confidence"], "verified")
         self.assertEqual(result["answer"]["answer"], "Payroll context.")
+        self.assertEqual(
+            result["c360_url"],
+            "https://c360.example/companies/fei-siong-group",
+        )
+        self.assertEqual(
+            result["customer360_url"],
+            "https://c360.example/companies/fei-siong-group",
+        )
         self.assertEqual(result["central_copy"]["ok"], True)
         self.assertEqual(audit_calls[0][0], "c360_customer_answer")
         self.assertEqual(audit_calls[0][1]["source_thread_url"], "https://staffany.slack.com/archives/C0B2VT50YT1/p1778205303989579")
@@ -211,6 +263,37 @@ class PsmC360ServerTest(unittest.TestCase):
         )
         self.assertEqual(result["scope"]["customer_key"], "9003781770")
         self.assertEqual(result["source"], "Customer 360 /api/companies/9003781770/ask")
+        self.assertEqual(result["c360_url"], "https://c360.example/companies/9003781770")
+        self.assertEqual(
+            result["customer360_url"],
+            "https://c360.example/companies/9003781770",
+        )
+
+    def test_get_account_context_includes_canonical_customer360_link(self):
+        calls = []
+
+        def fake_http(method, path, body=None):
+            calls.append((method, path, body))
+            return {"status": "ok", "data": "## Fei Siong\nCompiled context."}
+
+        self.module._http_json = fake_http
+
+        result = self.module.get_c360_account_context("customer-fei-siong-group")
+
+        self.assertEqual(
+            calls,
+            [("GET", "/api/companies/fei-siong-group/context?format=markdown", None)],
+        )
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["scope"]["customer_key"], "fei-siong-group")
+        self.assertEqual(
+            result["c360_url"],
+            "https://c360.example/companies/fei-siong-group",
+        )
+        self.assertEqual(
+            result["customer360_url"],
+            "https://c360.example/companies/fei-siong-group",
+        )
 
     def test_missing_token_blocks(self):
         with patch.dict(os.environ, {"CUSTOMER360_INTERNAL_API_TOKEN": "", "CUSTOMER_360_INTERNAL_API_TOKEN": ""}, clear=False):

@@ -124,6 +124,8 @@ Match the `/archives/<channel_id>/` segment of the Slack thread permalink **befo
 - Use `search_c360_customers` before answering when the customer key is ambiguous.
 - Use `get_c360_account_context` for compact account facts and `ask_c360_customer_context` for natural-language wiki questions.
 - In PS WEE Slack flows, pass the current Slack thread permalink as `slack_thread_url` to C360 tools when available so central audit copies keep source traceability.
+- Successful C360 search/context/Q&A tool results include `c360_url` and `customer360_url`; for final C360-backed answers, include `Customer 360: <url>` on its own line.
+- Do not add a Customer 360 link line to Jira-only, Calendar-only, blocked C360 auth, or unresolved-customer answers.
 - Do not use a personal browser session or `customer360_session` cookie.
 - Do not read raw GCS source packs, raw Slack, raw Intercom, or raw WhatsApp rows.
 
@@ -164,6 +166,7 @@ For PCO ROI tracker creation, if `create_or_link_pco_roi_tracker` returns `answe
 Final answers must use plain labelled lines:
 
 Answer: <result or blocked reason>
+Customer 360: <url, only for successful C360-backed answers>
 Source: <Jira PCO | Customer 360 | tool used>
 Scope: <caller, issue key, customer, time window>
 Confidence: <verified | needs-check | blocked>

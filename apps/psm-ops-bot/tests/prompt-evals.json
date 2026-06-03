@@ -710,6 +710,67 @@
       }
     },
     {
+      "id": "psm-answer-contract-c360-link-fixture",
+      "bot": "PSM Ops Hermes Bot",
+      "surface": "slack",
+      "lane": "answer-contract",
+      "input": "stub: ask_c360_customer_context returned c360_url",
+      "setup": {
+        "stub_output": "c360_customer_answer_with_url"
+      },
+      "expected_tool_trace": {
+        "must_call": [
+          "ask_c360_customer_context"
+        ],
+        "must_not_call": [
+          "create_ps_wee_intake_ticket",
+          "read_customer_calendar_context"
+        ]
+      },
+      "expected_answer_contract": {
+        "must_include": [
+          "Answer:",
+          "Customer 360: https://customer-360-qv4r5xkisq-as.a.run.app/companies/fei-siong-group",
+          "Source: Customer 360",
+          "Scope:",
+          "Confidence: verified",
+          "Caveat:"
+        ],
+        "must_not_include": [
+          "raw C360 source pack",
+          "raw Slack transcript"
+        ]
+      },
+      "forbidden_behavior": [
+        "omit Customer 360 link for successful C360-backed answers",
+        "add Customer 360 link to Jira-only or Calendar-only answers",
+        "invent Customer 360 link for unresolved customers"
+      ],
+      "grade_notes": "SCHE-19985: successful Customer 360-backed Slack answers include the canonical company link line from c360_url/customer360_url.",
+      "assertions": {
+        "answer_fixture": {
+          "output": "Answer: Fei Siong payroll context is available in the compiled Customer 360 answer.\nCustomer 360: https://customer-360-qv4r5xkisq-as.a.run.app/companies/fei-siong-group\nSource: Customer 360\nScope: Fei Siong; compiled customer wiki Q&A\nConfidence: verified\nCaveat: Answer is constrained to compiled Customer 360 wiki and cited account context."
+        },
+        "source_files": [
+          {
+            "path": "runtime/slack.md",
+            "must_contain": [
+              "Customer 360: <url, only for successful C360-backed answers>",
+              "Do not include it for Jira-only answers, Calendar-only answers, blocked C360 auth, or unresolved-customer answers."
+            ]
+          },
+          {
+            "path": "runtime/mcp/psm_c360_server.py",
+            "must_contain": [
+              "def _customer360_company_url",
+              "c360_url",
+              "customer360_url"
+            ]
+          }
+        ]
+      }
+    },
+    {
       "id": "psm-tooltrace-aa-photo-followup-no-follow-up-signal-skips",
       "bot": "PSM Ops Hermes Bot",
       "surface": "slack:#event-aa",

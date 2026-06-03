@@ -305,6 +305,7 @@ for (const requiredText of [
   "conversations.join",
   "Set `slack.strict_mention=true`",
   "Untagged same-thread replies after a previous bot response are silent",
+  "Customer 360: <url, only for successful C360-backed answers>",
   "psm_ops_join_public_channels.py --dry-run",
   "psm_ops_join_public_channels.py --apply",
   "Do not use Kai Yi's user token or the Slack connector to invite or post as a workaround"
@@ -405,6 +406,7 @@ for (const requiredText of [
   "team@staffany.com",
   "read_customer_calendar_context",
   "Do not use personal `customer360_session` cookies",
+  "Customer 360: <url>",
   "PSM Ops automation:"
 ]) {
   if (!soulText.includes(requiredText)) fail(`SOUL.md missing required text: ${requiredText}`);
@@ -447,6 +449,7 @@ for (const requiredText of [
   "Public customer-visible comments are blocked",
   "Reminder source of truth is Jira",
   "Use `search_c360_customers`",
+  "Customer 360: <url, only for successful C360-backed answers>",
   "read_customer_calendar_context",
   "team@staffany.com",
   "calendar.readonly"
@@ -511,6 +514,10 @@ for (const requiredText of [
   "search_c360_customers",
   "get_c360_account_context",
   "ask_c360_customer_context",
+  "def _customer360_company_url",
+  "def _enrich_c360_group_links",
+  "c360_url",
+  "customer360_url",
   "CUSTOMER360_INTERNAL_API_TOKEN",
   "X-Customer360-Internal-Token",
   "searched_variants",
@@ -518,6 +525,16 @@ for (const requiredText of [
   "No Customer 360 customer/org mapping"
 ]) {
   if (!c360McpText.includes(requiredText)) fail(`psm_c360_server.py missing required text: ${requiredText}`);
+}
+
+const c360RuntimeText = textOf(appRoot, "runtime/c360.md");
+for (const requiredText of [
+  "Successful C360 tool results expose a canonical company link",
+  "`search_c360_customers` adds `c360_url` and `customer360_url`",
+  "`get_c360_account_context` and `ask_c360_customer_context` add top-level `c360_url` and `customer360_url`",
+  "Unresolved, blocked, and AA-channel redirect responses do not invent a Customer 360 link"
+]) {
+  if (!c360RuntimeText.includes(requiredText)) fail(`runtime/c360.md missing required text: ${requiredText}`);
 }
 
 const rockProductionsSmokeText = textOf(appRoot, "runtime/smoke-rock-productions-c360.sh");

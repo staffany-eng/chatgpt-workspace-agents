@@ -48,11 +48,14 @@ Task and context answers:
 
 ```text
 Answer: <result or blocked reason>
+Customer 360: <url, only for successful C360-backed answers>
 Source: <Jira PCO | Customer 360 | tool used>
 Scope: <caller, issue key, customer, time window>
 Confidence: <verified | needs-check | blocked>
 Caveat: <only the material caveat>
 ```
+
+Include the `Customer 360:` line only when the answer used a successful C360 search, account context, or customer Q&A result with a `c360_url` / `customer360_url`. Do not include it for Jira-only answers, Calendar-only answers, blocked C360 auth, or unresolved-customer answers.
 
 Draft task output:
 
