@@ -193,6 +193,45 @@ class PsmGoogleGeocodeServerTest(unittest.TestCase):
         self.assertIn("partial_match=true", result["caveat"])
         self.assertIn(b"\ttrue\t", uploaded_bodies[0])
 
+    def test_geocode_slack_addresses_marks_ok_without_coordinates_for_review(self):
+        uploaded_bodies: list[bytes] = []
+
+        def fake_urlopen(request, timeout=None):
+            if "files.getUploadURLExternal" in request.full_url:
+                return self._response({"ok": True, "upload_url": "https://upload.slack.test/file", "file_id": "F123"})
+            if "upload.slack.test" in request.full_url:
+                uploaded_bodies.append(request.data)
+                return self._response({})
+            if "files.completeUploadExternal" in request.full_url:
+                body = urllib.parse.parse_qs(request.data.decode("utf-8"))
+                self.assertIn("Geocoded 0/1 address rows", body["initial_comment"][0])
+                return self._response({"ok": True, "file": {"permalink": "https://slack/file/F123"}})
+            return self._response(
+                {
+                    "status": "OK",
+                    "results": [
+                        {
+                            "formatted_address": "1 Raffles Pl, Singapore",
+                            "place_id": "place-1",
+                        }
+                    ],
+                }
+            )
+
+        with patch.dict(os.environ, {"GOOGLE_GEOCODING_API_KEY": "secret-key", "SLACK_BOT_TOKEN": "xoxb-secret"}, clear=False):
+            with patch.object(self.module.urllib.request, "urlopen", side_effect=fake_urlopen):
+                result = self.module.geocode_slack_addresses(
+                    [{"address": "1 Raffles Place, Singapore"}],
+                    slack_thread_url="https://staffany.slack.com/archives/C123/p1234567890123456",
+                )
+
+        self.assertEqual(result["confidence"], "needs-check")
+        self.assertEqual(result["answer"]["status"], "needs-check")
+        self.assertEqual(result["answer"]["ok_count"], 0)
+        self.assertEqual(result["answer"]["status_counts"], {"OK": 1})
+        self.assertIn("(0/1 OK)", result["answer"]["slack_reply"])
+        self.assertIn(b"1 Raffles Place, Singapore\t\t\tOK", uploaded_bodies[0])
+
     def test_geocode_slack_addresses_blocks_instead_of_raw_reply_when_slack_upload_missing_scope(self):
         captured_urls: list[str] = []
 

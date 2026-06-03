@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 import socket
@@ -384,8 +385,22 @@ def _status_counts(rows: list[dict[str, Any]]) -> dict[str, int]:
     return counts
 
 
+def _is_valid_coordinate(value: Any) -> bool:
+    if isinstance(value, bool):
+        return False
+    try:
+        return math.isfinite(float(value))
+    except (TypeError, ValueError):
+        return False
+
+
 def _is_reviewable_ok(row: dict[str, Any]) -> bool:
-    return row.get("geocode_status") == "OK" and not row.get("partial_match")
+    return (
+        row.get("geocode_status") == "OK"
+        and not row.get("partial_match")
+        and _is_valid_coordinate(row.get("latitude"))
+        and _is_valid_coordinate(row.get("longitude"))
+    )
 
 
 def _blocked(message: str, scope: dict[str, Any] | None = None) -> dict[str, Any]:
