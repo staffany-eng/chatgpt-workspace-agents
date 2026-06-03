@@ -169,6 +169,75 @@ class PsmC360ServerTest(unittest.TestCase):
             "https://c360.example/companies/fei-siong-route",
         )
 
+    def test_search_customers_normalizes_same_host_c360_url(self):
+        def fake_http(method, path, body=None):
+            return {
+                "status": "ok",
+                "search": {
+                    "groups": [
+                        {
+                            "customerKey": "fei-siong-group",
+                            "companyName": "Fei Siong",
+                            "c360Url": "http://c360.example/companies//fei-siong-route?tab=health",
+                        }
+                    ]
+                },
+            }
+
+        self.module._http_json = fake_http
+
+        result = self.module.search_c360_customers("Fei", limit=1)
+
+        self.assertEqual(
+            result["answer"][0]["c360_url"],
+            "https://c360.example/companies/fei-siong-route",
+        )
+
+    def test_search_customers_rejects_external_c360_url_and_falls_back_to_key(self):
+        def fake_http(method, path, body=None):
+            return {
+                "status": "ok",
+                "search": {
+                    "groups": [
+                        {
+                            "customerKey": "fei-siong-group",
+                            "companyName": "Fei Siong",
+                            "c360Url": "https://evil.example/companies/fei-siong-route",
+                        }
+                    ]
+                },
+            }
+
+        self.module._http_json = fake_http
+
+        result = self.module.search_c360_customers("Fei", limit=1)
+
+        self.assertEqual(
+            result["answer"][0]["c360_url"],
+            "https://c360.example/companies/fei-siong-group",
+        )
+
+    def test_search_customers_drops_unresolved_bad_c360_url(self):
+        def fake_http(method, path, body=None):
+            return {
+                "status": "ok",
+                "search": {
+                    "groups": [
+                        {
+                            "companyName": "Fei Siong",
+                            "c360Url": "https://evil.example/companies/fei-siong-route",
+                        }
+                    ]
+                },
+            }
+
+        self.module._http_json = fake_http
+
+        result = self.module.search_c360_customers("Fei", limit=1)
+
+        self.assertNotIn("c360_url", result["answer"][0])
+        self.assertNotIn("customer360_url", result["answer"][0])
+
     def test_search_customers_reports_missing_mapping_for_no_match(self):
         def fake_http(method, path, body=None):
             return {"status": "ok", "search": {"groups": []}}

@@ -344,9 +344,29 @@ def _absolute_c360_url(value: Any) -> str:
     url = str(value or "").strip()
     if not url:
         return ""
-    if url.startswith("/"):
-        return f"{_base_url()}{url}"
-    return url
+
+    base = _base_url()
+    base_parts = urllib.parse.urlparse(base)
+    if base_parts.scheme not in {"http", "https"} or not base_parts.netloc:
+        return ""
+
+    raw_parts = urllib.parse.urlparse(url)
+    if raw_parts.scheme or raw_parts.netloc:
+        if raw_parts.scheme not in {"http", "https"}:
+            return ""
+        if raw_parts.netloc.lower() != base_parts.netloc.lower():
+            return ""
+        resolved_parts = raw_parts
+    else:
+        resolved = urllib.parse.urljoin(f"{base}/", url)
+        resolved_parts = urllib.parse.urlparse(resolved)
+        if resolved_parts.netloc.lower() != base_parts.netloc.lower():
+            return ""
+
+    path = re.sub(r"/{2,}", "/", resolved_parts.path or "")
+    if not path.startswith("/companies/"):
+        return ""
+    return urllib.parse.urlunparse((base_parts.scheme, base_parts.netloc, path, "", "", ""))
 
 
 def _group_c360_url(group: Any) -> str:
