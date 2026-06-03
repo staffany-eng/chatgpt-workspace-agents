@@ -239,7 +239,7 @@ Expected:
 Prompt:
 
 ```text
-impact is payroll blocked for May payroll, affected outlet is central kitchen
+@PS WEE impact is payroll blocked for May payroll, affected outlet is central kitchen
 ```
 
 Expected:
