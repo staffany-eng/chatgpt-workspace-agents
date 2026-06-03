@@ -13,7 +13,7 @@ PSM Ops Bot SHALL geocode explicit address rows from a tagged Slack request.
 - WHEN the bot handles the request
 - THEN it SHALL call `geocode_slack_addresses`
 - AND it SHALL upload a `.tsv` file containing latitude and longitude for rows with `geocode_status = OK`
-- AND it SHALL preserve non-OK rows for manual review.
+- AND it SHALL preserve non-OK rows and `partial_match=true` rows for manual review.
 - AND it SHALL NOT paste latitude/longitude rows as raw Slack message text.
 
 #### Scenario: Slack file upload is unavailable

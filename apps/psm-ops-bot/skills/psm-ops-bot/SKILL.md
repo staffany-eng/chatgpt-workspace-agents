@@ -152,7 +152,7 @@ Match the `/archives/<channel_id>/` segment of the Slack thread permalink **befo
 - Use `region_bias="sg"` by default. Set `country_restriction` only when the address or user explicitly names a country.
 - If geocode credentials fail, call `check_google_geocode_access` or quote the blocked reason from `geocode_slack_addresses`; never ask the user to paste the API key in Slack.
 - `geocode_slack_addresses` uploads the geocoded result as a `.tsv` file in the Slack thread. Reply only with the short upload status and counts; do not paste latitude/longitude rows as raw Slack text.
-- The uploaded `.tsv` includes `geocode_status`; rows with `ZERO_RESULTS`, `OVER_QUERY_LIMIT`, `REQUEST_DENIED`, or another non-`OK` status need manual review.
+- The uploaded `.tsv` includes `geocode_status` and `partial_match`; rows with `ZERO_RESULTS`, `OVER_QUERY_LIMIT`, `REQUEST_DENIED`, another non-`OK` status, or `partial_match=true` need manual review.
 - Do not expose the API key, credential file content, raw Google API payloads, or store address rows outside the current answer.
 
 ## Reminder Rules
@@ -192,7 +192,7 @@ Answer: <tool answer.slack_reply confirming the uploaded .tsv file>
 Source: Google Geocoding API
 Scope: current Slack thread; <N> address rows
 Confidence: <verified | needs-check | blocked>
-Caveat: Rows with non-OK geocode_status need manual address review.
+Caveat: Rows with non-OK geocode_status or partial_match=true need manual address review.
 
 ## Common Pitfalls
 

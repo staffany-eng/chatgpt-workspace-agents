@@ -147,18 +147,13 @@ def _normalize_address_rows(addresses: list[Any] | None) -> list[dict[str, str]]
         raise GoogleGeocodeError(f"Geocode at most {MAX_ADDRESSES_PER_CALL} addresses per Slack request.")
 
     rows: list[dict[str, str]] = []
-    seen: set[str] = set()
     for item in addresses:
         row = _address_from_item(item)
         address = row["address"]
-        key = address.lower()
         if not address:
             continue
         if not _looks_like_explicit_address(address):
             continue
-        if key in seen:
-            continue
-        seen.add(key)
         rows.append(row)
     if not rows:
         raise GoogleGeocodeError(
@@ -370,6 +365,10 @@ def _status_counts(rows: list[dict[str, Any]]) -> dict[str, int]:
     return counts
 
 
+def _is_reviewable_ok(row: dict[str, Any]) -> bool:
+    return row.get("geocode_status") == "OK" and not row.get("partial_match")
+
+
 def _blocked(message: str, scope: dict[str, Any] | None = None) -> dict[str, Any]:
     return {
         "answer": {"status": "blocked", "message": message},
@@ -418,15 +417,16 @@ def geocode_slack_addresses(
             )
             for row in rows
         ]
-        ok_count = sum(1 for row in geocoded_rows if row.get("geocode_status") == "OK")
+        ok_count = sum(1 for row in geocoded_rows if _is_reviewable_ok(row))
         upload = _upload_tsv_to_slack(geocoded_rows, slack_thread_url, ok_count=ok_count)
     except GoogleGeocodeError as error:
         return _blocked(str(error), {"slack_thread_url": slack_thread_url})
 
-    confidence = "verified" if ok_count == len(geocoded_rows) else "needs-check"
+    all_rows_ok = ok_count == len(geocoded_rows)
+    confidence = "verified" if all_rows_ok else "needs-check"
     return {
         "answer": {
-            "status": "ok" if ok_count else "needs-check",
+            "status": "ok" if all_rows_ok else "needs-check",
             "ok_count": ok_count,
             "total_count": len(geocoded_rows),
             "status_counts": _status_counts(geocoded_rows),
@@ -446,7 +446,7 @@ def geocode_slack_addresses(
             "key_source": key_source,
         },
         "confidence": confidence,
-        "caveat": "Rows with non-OK geocode_status need manual address review.",
+        "caveat": "Rows with non-OK geocode_status or partial_match=true need manual address review.",
     }
 
 

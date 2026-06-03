@@ -77,7 +77,7 @@ Answer: Uploaded geocoded TSV file: <filename>.tsv (<OK count>/<total count> OK)
 Source: Google Geocoding API
 Scope: current Slack thread; <N> address rows
 Confidence: verified | needs-check | blocked
-Caveat: Rows with non-OK geocode_status need manual address review.
+Caveat: Rows with non-OK geocode_status or partial_match=true need manual address review.
 ```
 
 ROI ticket output:

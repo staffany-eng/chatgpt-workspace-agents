@@ -714,6 +714,7 @@ for (const requiredText of [
   "google_geocoding_api_key",
   "Max addresses per Slack request: 25",
   "Do not geocode customer names",
+  "partial_match=true",
   "files:write",
   "Do not paste the geocoded rows into the Slack message body"
 ]) {
@@ -733,6 +734,7 @@ for (const requiredText of [
   "never expose API keys",
   "files.getUploadURLExternal",
   "files.completeUploadExternal",
+  "partial_match",
   "files:write"
 ]) {
   if (!googleGeocodeMcpText.includes(requiredText)) fail(`psm_google_geocode_server.py missing required text: ${requiredText}`);
