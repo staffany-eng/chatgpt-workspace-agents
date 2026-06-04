@@ -31,3 +31,14 @@ PSM Ops Bot SHALL geocode explicit address rows from a CSV or TSV file attached 
 - WHEN the bot handles the request
 - THEN it SHALL return a blocked response naming the missing supported input
 - AND it SHALL NOT call Google Geocoding.
+
+#### Scenario: Attachment metadata is absent from the model prompt
+
+- GIVEN a Slack message directly mentions PS WEE
+- AND the message asks to geocode "these addresses" or "these address"
+- AND no address rows or attachment metadata are visible in the model prompt
+- AND the current Slack thread permalink is available
+- WHEN the bot handles the request
+- THEN it SHALL call `geocode_slack_address_file` with the current Slack thread permalink before asking the user to paste addresses
+- AND it SHALL let the MCP inspect the Slack thread for a supported CSV/TSV file
+- AND it SHALL NOT call `geocode_slack_addresses` with an empty or guessed address list.

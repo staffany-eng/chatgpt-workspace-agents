@@ -147,6 +147,7 @@ Match the `/archives/<channel_id>/` segment of the Slack thread permalink **befo
 
 - Use `geocode_slack_addresses` only when the current tagged Slack request asks to geocode, locate, map, or fetch latitude/longitude for explicit address rows.
 - If the tagged geocode request has an attached `.csv` or `.tsv` file, call `geocode_slack_address_file` instead of asking the user to paste the file contents. The file must contain an `address` column.
+- If the current tagged geocode request has no visible address rows but asks to geocode "these addresses", "these address", "the attached file", or equivalent file/list wording, call `geocode_slack_address_file` with the current Slack thread permalink before asking the user to paste addresses. Hermes may omit attachment metadata from the message text; the MCP inspects the thread and blocks cleanly when no supported CSV/TSV exists.
 - Do not geocode customer names, person names, phone numbers, outlet names without addresses, or vague hints like `near Orchard` unless the user provides a full address to send to Google.
 - If the Slack message contains a table or list, extract each address as one row. Preserve the user's label/customer/outlet name as metadata when helpful, but send the actual postal address in the `address` field.
 - Limit one Slack request to 25 addresses. If there are more, ask the user to split the list.

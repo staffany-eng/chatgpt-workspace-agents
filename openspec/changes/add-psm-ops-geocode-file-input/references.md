@@ -5,6 +5,9 @@
 - Slack thread: `https://staffany.slack.com/archives/C0B665H9GDT/p1780542254312329`
   - Showed a tagged `PS Wee Manager` geocode request with an attached `psm-ops-geocode-smoke-sample.tsv`.
   - Bot response showed the current `psm_google_geocode` flow could not read the attached TSV and asked for pasted address rows instead.
+- Slack thread: `https://staffany.slack.com/archives/C0B665H9GDT/p1780547750379809`
+  - Live PSM Ops session saw only `[Jason] geocode these address` in the model prompt while Slack API showed attached file `psm-ops-geocode-smoke-sample.tsv` with mimetype `text/tab-separated-values`.
+  - Non-mutating MCP checks selected and parsed the Slack TSV successfully from the thread permalink, proving the routing defect was the missing tool call rather than `files:read` or TSV parsing.
 - GitHub PR review: `https://github.com/staffany-eng/chatgpt-workspace-agents/pull/84`
   - CodeRabbit review called out attachment download hardening, source-column preservation, blank address row validation, and OpenSpec traceability.
 

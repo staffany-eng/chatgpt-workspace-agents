@@ -231,6 +231,21 @@ Attachment: `.csv` or `.tsv` file with an `address` column.
 - Uploads a geocoded `.tsv` result in the same Slack thread.
 - If the file is unsupported or missing an `address` column, blocks before calling Google Geocoding.
 
+## PS WEE Google Geocode Hidden Attachment Metadata
+
+Thread:
+
+```text
+@PS WEE geocode these address
+```
+
+Hermes prompt input includes the current Slack thread permalink but does not include attachment metadata. The Slack thread itself has `psm-ops-geocode-smoke-sample.tsv` with an `address` column.
+
+- Calls `geocode_slack_address_file` with the current Slack thread permalink before asking the user to paste addresses.
+- Lets the MCP inspect the Slack thread for supported `.csv`/`.tsv` files instead of relying on attachment metadata in the model prompt.
+- Does not reply "I don't see any addresses" until `geocode_slack_address_file` has returned a blocked reason that no supported CSV/TSV address file exists.
+- Does not call `geocode_slack_addresses` with an empty or guessed address list.
+
 ## PS WEE PCO Board Search
 
 Thread:

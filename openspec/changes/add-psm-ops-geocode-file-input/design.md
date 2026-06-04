@@ -14,6 +14,8 @@ The tool rejects unsupported file types, missing files, missing `address` column
 
 For tagged requests such as `@PS Wee Manager geocode these addresses` with an attached `.csv` or `.tsv`, the bot should call `geocode_slack_address_file` instead of asking the user to paste rows.
 
+Hermes Slack gateway prompts can omit attachment metadata even when the Slack thread has a file. Therefore, if the tagged request asks to geocode "these addresses", "these address", "the attached file", or equivalent file/list wording and no address rows are visible in message text, the bot should still call `geocode_slack_address_file` with the current Slack thread permalink before asking for pasted addresses. The MCP owns thread inspection and returns a blocked response when no supported file exists.
+
 The result remains an uploaded geocoded `.tsv` file in the same thread. Slack replies must only include the short upload status and the normal source/scope/confidence/caveat lines.
 
 ## Safety
