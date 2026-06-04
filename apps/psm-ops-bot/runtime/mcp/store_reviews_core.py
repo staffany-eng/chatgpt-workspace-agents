@@ -469,12 +469,17 @@ def list_store_reviews(
             elif current_store == "app_store":
                 app_id = app_ref or app_store_app_id()
                 token = app_store_connect_token()
-                next_url = f"{APP_STORE_CONNECT_BASE_URL}/apps/{urllib.parse.quote(app_id, safe='')}/customerReviews"
-                params: dict[str, Any] | None = {
-                    "limit": max(1, min(int(limit or 20), 200)),
-                    "sort": "-createdDate",
-                    "fields[customerReviews]": "rating,title,body,reviewerNickname,createdDate,territory,appVersionString",
-                }
+                start_page = str(page_token or "").strip()
+                if start_page:
+                    next_url = start_page
+                    params = None
+                else:
+                    next_url = f"{APP_STORE_CONNECT_BASE_URL}/apps/{urllib.parse.quote(app_id, safe='')}/customerReviews"
+                    params: dict[str, Any] | None = {
+                        "limit": max(1, min(int(limit or 20), 200)),
+                        "sort": "-createdDate",
+                        "fields[customerReviews]": "rating,title,body,reviewerNickname,createdDate,territory,appVersionString",
+                    }
                 for _page in range(safe_max_pages):
                     payload = _request_json("GET", next_url, access_token=token, params=params)
                     for item in payload.get("data") or []:
@@ -1029,7 +1034,21 @@ def load_state(path: str = "") -> dict[str, Any]:
 def save_state(state: dict[str, Any], path: str = "") -> None:
     state_file = _state_path(path)
     state_file.parent.mkdir(parents=True, exist_ok=True)
-    state_file.write_text(json.dumps(state, ensure_ascii=True, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    payload = json.dumps(state, ensure_ascii=True, indent=2, sort_keys=True) + "\n"
+    temp_path = ""
+    try:
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=state_file.parent, delete=False) as handle:
+            temp_path = handle.name
+            handle.write(payload)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temp_path, state_file)
+    finally:
+        if temp_path:
+            try:
+                Path(temp_path).unlink(missing_ok=True)
+            except OSError:
+                pass
 
 
 def review_state_key(review: dict[str, Any]) -> str:

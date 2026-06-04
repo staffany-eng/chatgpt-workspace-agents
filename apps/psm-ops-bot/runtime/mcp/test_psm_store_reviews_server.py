@@ -138,6 +138,28 @@ class PsmStoreReviewsServerTest(unittest.TestCase):
         reviews = result["answer"]["reviews"]
         self.assertEqual({review["store"] for review in reviews}, {"google_play", "app_store"})
 
+    def test_list_reviews_app_store_honors_page_token(self):
+        calls = []
+
+        def fake_request(method, url, **kwargs):
+            calls.append({"url": url, "params": kwargs.get("params")})
+            return {"data": [APP_STORE_REVIEW]}
+
+        with patch.object(self.core, "app_store_connect_token", return_value="token"), patch.object(
+            self.core, "_request_json", side_effect=fake_request
+        ):
+            result = self.server.list_store_reviews(
+                store="app_store",
+                app_ref="1360658903",
+                limit=5,
+                page_token="https://api.appstoreconnect.apple.com/v1/customerReviews?page=2",
+                lookback_days=30,
+            )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(calls[0]["url"], "https://api.appstoreconnect.apple.com/v1/customerReviews?page=2")
+        self.assertIsNone(calls[0]["params"])
+
     def test_list_reviews_returns_partial_results_when_one_store_fails(self):
         def fake_request(method, url, **kwargs):
             if "androidpublisher" in url:
