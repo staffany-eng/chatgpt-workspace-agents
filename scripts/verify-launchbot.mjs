@@ -989,6 +989,10 @@ for (const requiredText of [
   "profile-drift:support-watch-monitor-script",
   "profile-drift:support-watch-whatsapp-refresh-sql",
   "profile-drift:help-article-video-registry",
+  "profile-drift:indonesia-tax-source-skill",
+  "profile-drift:indonesia-tax-profile-skill",
+  "profile-drift:indonesia-tax-updater-skill",
+  "profile-drift:indonesia-tax-validator",
   "sessions:stale-system-prompt",
   "sessions:active-session-json-missing",
 ]) {
@@ -1116,6 +1120,13 @@ for (const requiredText of [
 
 const launchbotHealthText = textOf("runtime/check-health.sh");
 for (const requiredText of [
+  "tax-skill:$label:root-skill-missing",
+  "tax-skill:$label:root-index-missing-indonesia-payroll-tax",
+  "tax-skill:$label:root-index-missing-pph21",
+  "tax-skill:$label:root-index-missing-ebupot",
+  "tax-skill:$label:root-index-missing-hipajak",
+  "tax-skill:profile:knowledge-bank-invalid",
+  "INDONESIA_TAX_PROFILE_SKILL_DIR",
   "slack:scope-missing:",
   "channels:read",
   "channels:history",
@@ -1436,6 +1447,9 @@ const packageJson = existsSync(join(repoRoot, "package.json"))
   ? sharedReadJson(join(repoRoot, "package.json"), fail)
   : null;
 if (packageJson) {
+  if (!packageJson.scripts?.["launchbot:deploy"]?.includes("scripts/deploy-launchbot.mjs")) {
+    fail("package.json missing script launchbot:deploy");
+  }
   const intercomRuntimeScripts = [
     "intercom:format:pull",
     "intercom:format:profile",
@@ -1456,6 +1470,30 @@ if (packageJson) {
   }
   if (!packageJson.scripts?.["launchbot:with-secrets"]?.includes("launchbot-with-secrets.mjs")) {
     fail("package.json missing script launchbot:with-secrets");
+  }
+}
+
+const launchbotDeployPath = join(repoRoot, "scripts", "deploy-launchbot.mjs");
+if (!existsSync(launchbotDeployPath)) {
+  fail("Missing scripts/deploy-launchbot.mjs");
+} else {
+  const deployText = readFileSync(launchbotDeployPath, "utf8");
+  for (const requiredText of [
+    "Preparing LaunchBot deploy",
+    "run(process.execPath, [\"scripts/verify-launchbot.mjs\"])",
+    "run(process.execPath, [\"scripts/run-prompt-evals.mjs\", \"--app\", \"launchbot\", \"--mode\", \"all\"])",
+    "const gcloudCommand = args.apply",
+    "copy_dir \"$deploy_dir/apps/launchbot\" \"$profile/source/launchbot\"",
+    "copy_file \"$deploy_dir/apps/launchbot/profile/SOUL.md\" \"$profile/SOUL.md\"",
+    "for skill_dir in \"$deploy_dir/apps/launchbot/skills\"/*",
+    "copy_dir \"$skill_dir\" \"$profile/skills/$(basename \"$skill_dir\")\"",
+    "launchbot-check-health.sh",
+    "launchbot-audit-live-profile.sh",
+    "systemctl --user restart \"$service\"",
+    "run_post_deploy_check audit",
+    "run_post_deploy_check health",
+  ]) {
+    if (!deployText.includes(requiredText)) fail(`deploy-launchbot.mjs missing required text: ${requiredText}`);
   }
 }
 

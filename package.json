@@ -22,6 +22,7 @@
     "nurtureany-sales-bot:ssh": "node scripts/nurtureany-prod-ssh.mjs",
     "launchbot:verify": "node scripts/verify-launchbot.mjs",
     "launchbot:prompt-evals": "node scripts/run-prompt-evals.mjs --app launchbot --mode all",
+    "launchbot:deploy": "node scripts/deploy-launchbot.mjs",
     "launchbot:with-secrets": "node scripts/launchbot-with-secrets.mjs",
     "hermes-caretaker:test": "node --test ops/hermes/test/*.test.mjs",
     "hermes-caretaker:dry-run": "node ops/hermes/caretaker.mjs --dry-run --json",

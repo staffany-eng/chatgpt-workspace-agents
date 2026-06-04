@@ -47,6 +47,10 @@ cmp -s "$APP_ROOT/runtime/mcp/launchbot_support_watch_core.py" "$PROFILE_DIR/sou
 cmp -s "$APP_ROOT/runtime/mcp/launchbot_support_watch_server.py" "$PROFILE_DIR/source/launchbot/runtime/mcp/launchbot_support_watch_server.py" || fail "profile-drift:support-watch-mcp"
 cmp -s "$APP_ROOT/runtime/mcp/launchbot_help_article_server.py" "$PROFILE_DIR/source/launchbot/runtime/mcp/launchbot_help_article_server.py" || fail "profile-drift:help-article-mcp"
 cmp -s "$APP_ROOT/skills/help-article-generator/references/video-placement-registry.json" "$PROFILE_DIR/source/launchbot/skills/help-article-generator/references/video-placement-registry.json" || fail "profile-drift:help-article-video-registry"
+cmp -s "$APP_ROOT/skills/staffany-indonesia-payroll-tax-grimoire/SKILL.md" "$PROFILE_DIR/source/launchbot/skills/staffany-indonesia-payroll-tax-grimoire/SKILL.md" || fail "profile-drift:indonesia-tax-source-skill"
+cmp -s "$APP_ROOT/skills/staffany-indonesia-payroll-tax-grimoire/SKILL.md" "$PROFILE_DIR/skills/staffany-indonesia-payroll-tax-grimoire/SKILL.md" || fail "profile-drift:indonesia-tax-profile-skill"
+cmp -s "$APP_ROOT/skills/staffany-indonesia-payroll-tax-grimoire/skills/indonesia-tax-knowledge-updater/SKILL.md" "$PROFILE_DIR/skills/staffany-indonesia-payroll-tax-grimoire/skills/indonesia-tax-knowledge-updater/SKILL.md" || fail "profile-drift:indonesia-tax-updater-skill"
+cmp -s "$APP_ROOT/skills/staffany-indonesia-payroll-tax-grimoire/skills/indonesia-tax-knowledge-updater/scripts/validate_knowledge_bank.rb" "$PROFILE_DIR/skills/staffany-indonesia-payroll-tax-grimoire/skills/indonesia-tax-knowledge-updater/scripts/validate_knowledge_bank.rb" || fail "profile-drift:indonesia-tax-validator"
 
 "$HERMES_PYTHON" - "$PROFILE_DIR" <<'PY' || exit 1
 import json

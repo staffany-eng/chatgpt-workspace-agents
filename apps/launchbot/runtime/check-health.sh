@@ -36,6 +36,8 @@ PANTHEON_STATUS_MAX_AGE_SECONDS="${LAUNCHBOT_PANTHEON_STATUS_MAX_AGE_SECONDS:-17
 HELP_ARTICLE_VIDEO_REGISTRY_PATH="${LAUNCHBOT_VIDEO_PLACEMENT_REGISTRY:-$PROFILE_DIR/source/launchbot/skills/help-article-generator/references/video-placement-registry.json}"
 FEATURE_INTAKE_MONITOR_SCRIPT="${LAUNCHBOT_FEATURE_INTAKE_MONITOR_SCRIPT:-$PROFILE_DIR/scripts/launchbot-monitor-feature-intake.py}"
 SUPPORT_WATCH_MONITOR_SCRIPT="${LAUNCHBOT_SUPPORT_WATCH_MONITOR_SCRIPT:-$PROFILE_DIR/scripts/launchbot-monitor-support-watch.py}"
+INDONESIA_TAX_SOURCE_SKILL_DIR="${LAUNCHBOT_INDONESIA_TAX_SOURCE_SKILL_DIR:-$PROFILE_DIR/source/launchbot/skills/staffany-indonesia-payroll-tax-grimoire}"
+INDONESIA_TAX_PROFILE_SKILL_DIR="${LAUNCHBOT_INDONESIA_TAX_PROFILE_SKILL_DIR:-$PROFILE_DIR/skills/staffany-indonesia-payroll-tax-grimoire}"
 
 fail() {
   printf '%s\n' "$1" >&2
@@ -76,11 +78,29 @@ need_command() {
 need_command hermes
 need_command git
 need_command bq
+need_command ruby
 config_path="$(hermes -p "$PROFILE" config path 2>/dev/null)" || fail "hermes:config-path-failed"
 [ -r "$config_path" ] || fail "hermes:config-unreadable"
 hermes -p "$PROFILE" config check >/dev/null 2>&1 || fail "hermes:config-check-failed"
 hermes_python="$HERMES_AGENT_DIR/venv/bin/python"
 [ -x "$hermes_python" ] || fail "hermes:python-not-found"
+
+check_tax_skill_dir() {
+  label="$1"
+  skill_dir="$2"
+  [ -r "$skill_dir/SKILL.md" ] || fail "tax-skill:$label:root-skill-missing"
+  [ -r "$skill_dir/skills/indonesia-payroll-tax-advisor/SKILL.md" ] || fail "tax-skill:$label:advisor-skill-missing"
+  [ -r "$skill_dir/skills/indonesia-tax-knowledge-updater/SKILL.md" ] || fail "tax-skill:$label:updater-skill-missing"
+  [ -r "$skill_dir/skills/indonesia-tax-knowledge-updater/scripts/validate_knowledge_bank.rb" ] || fail "tax-skill:$label:validator-missing"
+  grep -Fq "Indonesia payroll tax" "$skill_dir/SKILL.md" || fail "tax-skill:$label:root-index-missing-indonesia-payroll-tax"
+  grep -Fq "PPh21" "$skill_dir/SKILL.md" || fail "tax-skill:$label:root-index-missing-pph21"
+  grep -Fq "e-Bupot" "$skill_dir/SKILL.md" || fail "tax-skill:$label:root-index-missing-ebupot"
+  grep -Fq "Hipajak" "$skill_dir/SKILL.md" || fail "tax-skill:$label:root-index-missing-hipajak"
+}
+
+check_tax_skill_dir source "$INDONESIA_TAX_SOURCE_SKILL_DIR"
+check_tax_skill_dir profile "$INDONESIA_TAX_PROFILE_SKILL_DIR"
+(cd "$INDONESIA_TAX_PROFILE_SKILL_DIR" && ruby skills/indonesia-tax-knowledge-updater/scripts/validate_knowledge_bank.rb >/dev/null) || fail "tax-skill:profile:knowledge-bank-invalid"
 
 case "$(uname -s)" in
   Darwin)

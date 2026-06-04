@@ -89,6 +89,14 @@ Canonical Hermes app packet for the Launchbot Slack profile.
 16. Confirm no Mac-local `launchbot` profile or gateway exists before live Slack testing. Only the cloud Launchbot runtime should be connected to Slack, otherwise stale local profile state can answer first.
 17. Treat the restore as verified only after the health check passes and the Slack smoke replies from Launchbot's bot identity in `#launch-bot-testing`.
 
+Preferred deploy path:
+
+```bash
+npm run launchbot:deploy -- --apply --ref origin/main
+```
+
+The deploy script syncs the app packet into `~/.hermes/profiles/launchbot/source/launchbot`, copies every bundled skill into `~/.hermes/profiles/launchbot/skills/`, restarts `hermes-gateway-launchbot.service`, and runs live audit plus health checks. This prevents repo-only skill merges where Launchbot's live skill index stays stale.
+
 ## Launch Workflow Skill
 
 Launchbot is the app. The Launch Superpower handoff is represented here as a Launchbot skill and workflow capability, not as a separate app identity.
