@@ -4,6 +4,7 @@ import json
 import os
 import tempfile
 import unittest
+from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
 
@@ -18,7 +19,7 @@ APPFOLLOW_REVIEW = {
     "title": "Missing Store Clock-In Section",
     "content": "The store clock-in section is missing.",
     "author": "staffany user",
-    "date": "2026-05-16T10:00:00Z",
+    "date": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
     "country": "MY",
     "lang": "en",
     "version": "1.164.0",
@@ -85,12 +86,19 @@ class PsmStoreReviewsServerTest(unittest.TestCase):
         self.assertEqual(app_refs, ["1360658903"])
 
     def test_list_reviews_blocks_without_appfollow_credentials(self):
-        with patch.dict(
-            os.environ,
-            self.appfollow_env(APPFOLLOW_API_TOKEN="", APPFOLLOW_EXT_IDS="", APPFOLLOW_COLLECTION_NAME="", PSM_OPS_APPFOLLOW_CREDENTIALS_FILE="/tmp/missing-appfollow.json"),
-            clear=False,
-        ):
-            result = self.server.list_store_reviews(limit=5, lookback_days=30)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            missing_path = str(Path(tmpdir) / "missing-appfollow.json")
+            with patch.dict(
+                os.environ,
+                self.appfollow_env(
+                    APPFOLLOW_API_TOKEN="",
+                    APPFOLLOW_EXT_IDS="",
+                    APPFOLLOW_COLLECTION_NAME="",
+                    PSM_OPS_APPFOLLOW_CREDENTIALS_FILE=missing_path,
+                ),
+                clear=False,
+            ):
+                result = self.server.list_store_reviews(limit=5, lookback_days=30)
 
         self.assertEqual(result["confidence"], "blocked")
         self.assertIn("AppFollow credentials file is missing", result["caveat"])

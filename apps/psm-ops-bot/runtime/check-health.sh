@@ -182,6 +182,7 @@ if [ -z "$appfollow_api_token" ]; then
   [ -r "$appfollow_credentials_file" ] || fail "store_reviews:appfollow-credentials-file-unreadable"
   python3 - "$appfollow_credentials_file" <<'PY'
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -194,7 +195,15 @@ except Exception:
 if not str(payload.get("appfollow_api_token") or "").strip():
     print("store_reviews:appfollow-api-token-missing")
     raise SystemExit(1)
-if not (payload.get("ext_ids") or payload.get("app_ext_ids") or payload.get("collection_name")):
+env_ext_ids = str(os.environ.get("APPFOLLOW_EXT_IDS") or "").strip()
+env_collection = str(os.environ.get("APPFOLLOW_COLLECTION_NAME") or "").strip()
+if not (
+    payload.get("ext_ids")
+    or payload.get("app_ext_ids")
+    or payload.get("collection_name")
+    or env_ext_ids
+    or env_collection
+):
     print("store_reviews:appfollow-app-refs-missing")
     raise SystemExit(1)
 PY
