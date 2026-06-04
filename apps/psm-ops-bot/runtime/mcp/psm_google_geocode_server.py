@@ -42,6 +42,7 @@ SUPPORTED_INPUT_MIME_TYPES = {
     "text/plain",
     "text/tab-separated-values",
 }
+TRUSTED_SLACK_FILE_HOSTS = {"files.slack.com"}
 UNRESOLVED_PLACEHOLDER_RE = re.compile(r"^\$\{[A-Za-z_][A-Za-z0-9_]*\}$")
 PHONE_ONLY_RE = re.compile(r"^[+\d\s().-]{7,}$")
 POSTAL_CODE_RE = re.compile(r"\b\d{5,6}\b")
@@ -258,11 +259,23 @@ def _geocode_one(
 
 
 def _tsv_text(rows: list[dict[str, Any]]) -> str:
-    headers = ["label", "address", "latitude", "longitude", "geocode_status", "formatted_address", "place_id", "partial_match", "error"]
+    headers = [
+        "label",
+        "source",
+        "address",
+        "latitude",
+        "longitude",
+        "geocode_status",
+        "formatted_address",
+        "place_id",
+        "partial_match",
+        "error",
+    ]
     lines = ["\t".join(headers)]
     for row in rows:
         values = [
             str(row.get("label") or ""),
+            str(row.get("source") or ""),
             str(row.get("address") or ""),
             "" if row.get("latitude") is None else str(row.get("latitude")),
             "" if row.get("longitude") is None else str(row.get("longitude")),
@@ -429,8 +442,10 @@ def _select_slack_address_file(
 
 
 def _download_slack_file(url_private: str) -> bytes:
-    if not url_private.startswith("https://"):
-        raise GoogleGeocodeError("Slack file download URL must use https.")
+    parsed = urllib.parse.urlparse(url_private)
+    host = parsed.netloc.lower()
+    if parsed.scheme != "https" or host not in TRUSTED_SLACK_FILE_HOSTS:
+        raise GoogleGeocodeError("Slack file download URL must use a trusted Slack file host over https.")
     token = _slack_token()
     request = urllib.request.Request(
         url_private,
@@ -510,7 +525,9 @@ def _parse_address_file(content: bytes, *, filename: str, mimetype: str = "") ->
     for index, raw_row in enumerate(reader, start=2):
         address = _clean_text(raw_row.get(address_key))
         if not address:
-            continue
+            raise GoogleGeocodeError(
+                f"CSV/TSV address files must not contain an empty address row ({filename}: row {index})."
+            )
         label = _first_present(raw_row, lookup, ["label", "customer", "outlet", "name"])
         source = _first_present(raw_row, lookup, ["source", "source_line"])
         if not source:

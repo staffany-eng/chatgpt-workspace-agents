@@ -92,6 +92,13 @@ class PsmGoogleGeocodeServerTest(unittest.TestCase):
         with self.assertRaisesRegex(self.module.GoogleGeocodeError, "address column"):
             self.module._parse_address_file(b"customer\tpostal\nA\t1 Raffles Place, Singapore\n", filename="sample.tsv")
 
+    def test_parse_address_file_rejects_empty_address_row(self):
+        with self.assertRaisesRegex(self.module.GoogleGeocodeError, "sample.tsv: row 3"):
+            self.module._parse_address_file(
+                b"customer\taddress\nOutlet A\t1 Raffles Place, Singapore\nOutlet B\t\n",
+                filename="sample.tsv",
+            )
+
     def test_parse_address_file_preserves_metadata(self):
         rows = self.module._parse_address_file(
             b"customer\taddress\tsource\nOutlet A\t1 Raffles Place, Singapore\trow-a\n",
@@ -99,6 +106,11 @@ class PsmGoogleGeocodeServerTest(unittest.TestCase):
             mimetype="text/tab-separated-values",
         )
         self.assertEqual(rows, [{"address": "1 Raffles Place, Singapore", "label": "Outlet A", "source": "row-a"}])
+
+    def test_download_slack_file_rejects_untrusted_hosts_before_token_lookup(self):
+        with patch.object(self.module, "_slack_token", side_effect=AssertionError("token lookup should not run")):
+            with self.assertRaisesRegex(self.module.GoogleGeocodeError, "trusted Slack file host"):
+                self.module._download_slack_file("https://example.com/addresses.tsv")
 
     def test_ambiguous_address_inputs_block_before_external_api(self):
         with patch.dict(os.environ, {"GOOGLE_GEOCODING_API_KEY": "secret-key", "SLACK_BOT_TOKEN": "xoxb-secret"}, clear=False):
@@ -155,7 +167,7 @@ class PsmGoogleGeocodeServerTest(unittest.TestCase):
         self.assertNotIn("rows", result["answer"])
         self.assertEqual(result["answer"]["file"]["file_id"], "F123")
         self.assertEqual(result["answer"]["status_counts"], {"OK": 1})
-        self.assertIn(b"address\tlatitude\tlongitude\tgeocode_status", uploaded_bodies[0])
+        self.assertIn(b"label\tsource\taddress\tlatitude\tlongitude\tgeocode_status", uploaded_bodies[0])
         self.assertIn(b"1.2847\t103.851\tOK", uploaded_bodies[0])
         self.assertNotIn("secret-key", json.dumps(result))
         self.assertNotIn("xoxb-secret", json.dumps(result))
@@ -379,6 +391,7 @@ class PsmGoogleGeocodeServerTest(unittest.TestCase):
         self.assertEqual(result["answer"]["input_file"]["name"], "addresses.tsv")
         self.assertIn("Uploaded geocoded TSV file", result["answer"]["slack_reply"])
         self.assertIn(b"Outlet A", uploaded_bodies[0])
+        self.assertIn(b"addresses.tsv: row 2", uploaded_bodies[0])
         self.assertIn(b"1.2847\t103.851\tOK", uploaded_bodies[0])
         self.assertNotIn("secret-key", json.dumps(result))
         self.assertEqual(sum(1 for url in captured_urls if "maps.googleapis.com" in url), 1)

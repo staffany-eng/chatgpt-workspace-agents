@@ -6,4 +6,5 @@
 - [x] Add focused unit tests for CSV/TSV success and blocked cases.
 - [x] Run focused MCP tests.
 - [x] Run `pnpm psm-ops-bot:verify`.
+- [ ] Strict OpenSpec validation gate: treat `psm_google_geocode` implementation and manifest wiring as OpenSpec-incomplete until `openspec validate add-psm-ops-geocode-file-input --strict` has run and passed.
 - [ ] Run `openspec validate add-psm-ops-geocode-file-input --strict` once the OpenSpec CLI is available.

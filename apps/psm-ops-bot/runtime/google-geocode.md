@@ -25,7 +25,7 @@ Secrets live only in Secret Manager, the live profile `.env`, or the runtime use
 - Do not geocode customer names, person names, phone numbers, or vague location hints as if they were addresses.
 - Max addresses per Slack request: 25.
 - Default `region_bias` is `sg`; set `country_restriction` only when the user or address clearly specifies the country.
-- The uploaded `.tsv` contains rows with `address`, `latitude`, `longitude`, `geocode_status`, `formatted_address`, `place_id`, and `partial_match`.
+- The uploaded `.tsv` contains rows with `label`, `source`, `address`, `latitude`, `longitude`, `geocode_status`, `formatted_address`, `place_id`, and `partial_match`.
 - Preserve non-`OK` rows and `partial_match=true` rows in the output so PSMs can fix bad or ambiguous addresses.
 - Download supported input files through Slack `url_private` with the bot token, which requires `files:read`, then upload the generated `.tsv` through Slack `files.getUploadURLExternal` and `files.completeUploadExternal`.
 - If Slack upload is unavailable or missing `files:write`, block instead of pasting latitude/longitude rows as raw Slack text.
