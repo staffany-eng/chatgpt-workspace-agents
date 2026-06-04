@@ -515,6 +515,7 @@ for (const requiredText of [
   "geocode_slack_addresses",
   "geocode_slack_address_file",
   "explicit address rows",
+  "call `geocode_slack_address_file` with the current Slack thread permalink before asking the user to paste addresses",
   "Do not geocode customer names",
   "do not paste latitude/longitude rows as raw Slack text"
 ]) {
@@ -730,6 +731,7 @@ for (const requiredText of [
   "partial_match=true",
   "files:read",
   "files:write",
+  "Hermes Slack gateway prompts may not expose attachment metadata to the model",
   "Do not paste the geocoded rows into the Slack message body"
 ]) {
   if (!googleGeocodeText.includes(requiredText)) fail(`runtime/google-geocode.md missing required text: ${requiredText}`);
@@ -751,7 +753,8 @@ for (const requiredText of [
   "files.completeUploadExternal",
   "partial_match",
   "files:read",
-  "files:write"
+  "files:write",
+  "Hermes may omit attachment metadata"
 ]) {
   if (!googleGeocodeMcpText.includes(requiredText)) fail(`psm_google_geocode_server.py missing required text: ${requiredText}`);
 }

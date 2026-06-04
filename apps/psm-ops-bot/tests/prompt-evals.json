@@ -1279,6 +1279,87 @@
       }
     },
     {
+      "id": "psm-tooltrace-geocode-file-hidden-attachment-metadata",
+      "bot": "PSM Ops Hermes Bot",
+      "surface": "slack",
+      "lane": "tool-trace",
+      "input": "@PS WEE geocode these address",
+      "setup": {
+        "after_user_request": true,
+        "stub_tools": true,
+        "slack_thread_permalink": "https://staffany.slack.com/archives/C0B665H9GDT/p1780547750379809",
+        "message_prompt_attachment_metadata_visible": false,
+        "thread_has_file": {
+          "filename": "psm-ops-geocode-smoke-sample.tsv",
+          "mimetype": "text/tab-separated-values",
+          "columns": [
+            "label",
+            "address",
+            "source"
+          ]
+        }
+      },
+      "expected_tool_trace": {
+        "must_call": [
+          "geocode_slack_address_file"
+        ],
+        "must_not_call": [
+          "geocode_slack_addresses",
+          "check_google_geocode_access",
+          "search_c360_customers",
+          "read_customer_calendar_context",
+          "create_ps_wee_intake_ticket"
+        ],
+        "argument_shape": {
+          "slack_thread_permalink": "required"
+        }
+      },
+      "expected_answer_contract": {
+        "must_include": [
+          "Source: Google Geocoding API",
+          "Scope: current Slack thread",
+          "Confidence:"
+        ],
+        "must_not_include": [
+          "I don't see any addresses",
+          "please paste",
+          "please share the addresses"
+        ]
+      },
+      "forbidden_behavior": [
+        "ask user to paste addresses before checking the Slack thread file",
+        "ignore file input because attachment metadata is absent from the prompt",
+        "call geocode_slack_addresses with an empty or guessed address list",
+        "route geocoding-only requests to Jira, Customer 360, or Calendar"
+      ],
+      "grade_notes": "Regression for p1780547750379809: Hermes passed only the message text to the model while Slack had a TSV attachment. The agent must call geocode_slack_address_file using the thread permalink so the MCP can inspect files through bot-owned Slack APIs before asking for pasted rows.",
+      "assertions": {
+        "source_files": [
+          {
+            "path": "profile/SOUL.md",
+            "must_contain": [
+              "Hermes may omit attachment metadata from the message text",
+              "call `geocode_slack_address_file` with the current Slack thread permalink before asking the user to paste addresses"
+            ]
+          },
+          {
+            "path": "skills/psm-ops-bot/SKILL.md",
+            "must_contain": [
+              "Hermes may omit attachment metadata from the message text",
+              "call `geocode_slack_address_file` with the current Slack thread permalink before asking the user to paste addresses"
+            ]
+          },
+          {
+            "path": "tests/regression-cases.md",
+            "must_contain": [
+              "PS WEE Google Geocode Hidden Attachment Metadata",
+              "Does not reply \"I don't see any addresses\" until `geocode_slack_address_file` has returned a blocked reason"
+            ]
+          }
+        ]
+      }
+    },
+    {
       "id": "psm-live-smoke-ticket-first-intake",
       "bot": "PSM Ops Hermes Bot",
       "surface": "slack:#ps-weeman-bot-test",

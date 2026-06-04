@@ -22,6 +22,7 @@ Secrets live only in Secret Manager, the live profile `.env`, or the runtime use
 
 - Use only address text explicitly present in the current Slack request.
 - For attached `.csv`/`.tsv` input, require an `address` column and parse with the MCP, not model text extraction.
+- Hermes Slack gateway prompts may not expose attachment metadata to the model. When a tagged geocode request has no visible address rows but asks to geocode "these addresses", "these address", "the attached file", or equivalent file/list wording, the bot must call `geocode_slack_address_file` with the current Slack thread permalink before asking for pasted addresses. The MCP inspects the Slack thread and blocks cleanly when no supported CSV/TSV file is present.
 - Do not geocode customer names, person names, phone numbers, or vague location hints as if they were addresses.
 - Max addresses per Slack request: 25.
 - Default `region_bias` is `sg`; set `country_restriction` only when the user or address clearly specifies the country.

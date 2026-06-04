@@ -761,7 +761,14 @@ def geocode_slack_address_file(
     country_restriction: str = "",
     language: str = "en",
 ) -> dict[str, Any]:
-    """Geocode address rows from a CSV/TSV attachment in the current Slack thread."""
+    """Geocode address rows from a CSV/TSV attachment in the current Slack thread.
+
+    Use this when the tagged Slack request asks to geocode an attached file or
+    says "these addresses" / "these address" but no address rows are visible in
+    the model prompt. Hermes may omit attachment metadata; this tool inspects
+    the Slack thread permalink for supported CSV/TSV files and blocks cleanly
+    when none exists.
+    """
     try:
         selected_file = _select_slack_address_file(slack_thread_url, file_id=file_id, filename=filename)
         content = _download_slack_file(selected_file["url_private"])
