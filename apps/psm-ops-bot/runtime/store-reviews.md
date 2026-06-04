@@ -57,7 +57,8 @@ hermes -p psmopsbot cron create "0 * * * *" \
 
 The poller lists recent reviews with a 7-day lookback, classifies theme and
 severity, emits `PSM Ops automation: Store review triage` only for new or
-meaningfully changed reviews, and stores runtime state outside git. If there are
+meaningfully changed reviews, and stores runtime state outside git. Cron/no-arg
+runs persist state so duplicate polls do not repost the same review. If there are
 no new reviews, it prints `[SILENT]`.
 
 Manual dry-run:
@@ -65,7 +66,8 @@ Manual dry-run:
 ```bash
 ~/.hermes/profiles/psmopsbot/scripts/psm_ops_store_review_poll.py \
   --store app_store \
-  --limit 5
+  --limit 5 \
+  --dry-run
 ```
 
 Apply/persist mode:
@@ -76,6 +78,13 @@ Apply/persist mode:
   --limit 5 \
   --apply
 ```
+
+`--apply` is explicit but optional because persistence is the default for
+cron/no-arg runs. Use `--dry-run` whenever previewing candidate Slack output.
+
+When one store source fails and another responds, the poller should keep triaging
+available reviews and emit a partial `PSM Ops automation:` caveat instead of
+blocking all store review polling.
 
 ## Public Reply Guard
 

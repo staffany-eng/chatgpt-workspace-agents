@@ -138,6 +138,52 @@ class PsmStoreReviewsServerTest(unittest.TestCase):
         reviews = result["answer"]["reviews"]
         self.assertEqual({review["store"] for review in reviews}, {"google_play", "app_store"})
 
+    def test_list_reviews_returns_partial_results_when_one_store_fails(self):
+        def fake_request(method, url, **kwargs):
+            if "androidpublisher" in url:
+                raise self.core.StoreReviewError("Google Play permission denied", 403)
+            return {"data": [APP_STORE_REVIEW]}
+
+        with patch.object(self.core, "google_play_access_token", return_value="token"), patch.object(
+            self.core, "app_store_connect_token", return_value="token"
+        ), patch.object(self.core, "_request_json", side_effect=fake_request):
+            result = self.server.list_store_reviews(limit=5, lookback_days=30)
+
+        self.assertEqual(result["confidence"], "needs-check")
+        self.assertEqual([review["store"] for review in result["answer"]["reviews"]], ["app_store"])
+        self.assertEqual(result["answer"]["store_errors"][0]["store"], "google_play")
+
+    def test_list_reviews_paginates_google_play_until_token_absent(self):
+        calls = []
+        second_review = {
+            **GOOGLE_REVIEW,
+            "reviewId": "gp-review-2",
+            "comments": [
+                {
+                    "userComment": {
+                        **GOOGLE_REVIEW["comments"][0]["userComment"],
+                        "text": "App is still slow.",
+                    }
+                }
+            ],
+        }
+
+        def fake_request(method, url, **kwargs):
+            calls.append(kwargs.get("params") or {})
+            if len(calls) == 1:
+                return {"reviews": [GOOGLE_REVIEW], "tokenPagination": {"nextPageToken": "next-page"}}
+            return {"reviews": [second_review]}
+
+        with patch.object(self.core, "google_play_access_token", return_value="token"), patch.object(
+            self.core, "_request_json", side_effect=fake_request
+        ):
+            result = self.server.list_store_reviews(store="google_play", limit=5, lookback_days=30)
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual([review["review_id"] for review in result["answer"]["reviews"]], ["gp-review-1", "gp-review-2"])
+        self.assertEqual(calls[0]["token"], "")
+        self.assertEqual(calls[1]["token"], "next-page")
+
     def test_draft_reply_uses_private_support_email_cta_without_public_reference_code(self):
         result = self.server.draft_store_review_reply(
             review={

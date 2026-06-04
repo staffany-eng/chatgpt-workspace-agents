@@ -44,6 +44,7 @@ def list_store_reviews(
     limit: int = 20,
     page_token: str = "",
     lookback_days: int = 7,
+    max_pages: int = 5,
 ) -> dict[str, Any]:
     """List recent App Store / Google Play reviews using direct store APIs."""
 
@@ -53,6 +54,7 @@ def list_store_reviews(
         limit=limit,
         page_token=page_token,
         lookback_days=lookback_days,
+        max_pages=max_pages,
     )
 
 

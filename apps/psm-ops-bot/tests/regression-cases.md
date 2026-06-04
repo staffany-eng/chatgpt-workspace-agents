@@ -278,6 +278,8 @@ Hourly direct store review poll finds a new App Store / Google Play review:
 - Uses direct Google Play Developer API and App Store Connect API, not a review aggregator.
 - Replies with `PSM Ops automation: Store review triage`.
 - Keeps runtime state keyed by `store + app_ref + review_id`.
+- Cron/no-arg polling persists triage state; manual preview must use `--dry-run`.
+- If one store source fails but another responds, triages available reviews and emits a partial caveat instead of blocking all store review polling.
 - Draft reply asks the reviewer to email `support@staffany.com` privately with StaffAny account email or phone number plus company/outlet.
 - Does not ask the reviewer to post email or phone in the public review.
 - Does not make `REV-<review_id>` the main customer action.

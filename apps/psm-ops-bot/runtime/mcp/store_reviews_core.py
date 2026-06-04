@@ -29,6 +29,7 @@ STORE_REVIEWS_SOURCE = "Direct App Store Connect + Google Play APIs"
 USER_AGENT = "StaffAny-PSMOps/1.0 (+https://staffany.com)"
 TIMEOUT_SECONDS = 20
 DEFAULT_LOOKBACK_DAYS = 7
+DEFAULT_MAX_PAGES = 5
 DEFAULT_STATE_PATH = "~/.hermes/profiles/psmopsbot/state/store_reviews.json"
 STATE_KEY_DESCRIPTION = "store + app_ref + review_id"
 STAFFANY_SUPPORT_EMAIL = "support@staffany.com"
@@ -432,54 +433,75 @@ def list_store_reviews(
     limit: int = 20,
     page_token: str = "",
     lookback_days: int = DEFAULT_LOOKBACK_DAYS,
+    max_pages: int = DEFAULT_MAX_PAGES,
 ) -> dict[str, Any]:
     stores = [store] if store else ["google_play", "app_store"]
     reviews: list[dict[str, Any]] = []
     next_page_tokens: dict[str, str] = {}
-    scope = {"stores": stores, "limit": limit, "lookback_days": lookback_days}
+    store_errors: list[dict[str, Any]] = []
+    safe_limit = max(1, min(int(limit or 20), 100))
+    safe_max_pages = max(1, min(int(max_pages or DEFAULT_MAX_PAGES), 10))
+    scope = {"stores": stores, "limit": safe_limit, "lookback_days": lookback_days, "max_pages": safe_max_pages}
     for current_store in stores:
         current_store = normalize_store(current_store)
+        if current_store not in {"google_play", "app_store"}:
+            return blocked(f"Unsupported store: {current_store}", scope)
         try:
             if current_store == "google_play":
                 package = app_ref or google_package_name()
                 token = google_play_access_token()
-                payload = _request_json(
-                    "GET",
-                    f"{GOOGLE_ANDROID_PUBLISHER_BASE_URL}/applications/{urllib.parse.quote(package, safe='')}/reviews",
-                    access_token=token,
-                    params={"maxResults": max(1, min(int(limit or 20), 100)), "token": page_token},
-                )
-                for item in payload.get("reviews") or []:
-                    if isinstance(item, dict):
-                        reviews.append(normalize_google_play_review(item, package))
-                if payload.get("tokenPagination", {}).get("nextPageToken"):
-                    next_page_tokens["google_play"] = payload["tokenPagination"]["nextPageToken"]
+                token_value = page_token
+                for _page in range(safe_max_pages):
+                    payload = _request_json(
+                        "GET",
+                        f"{GOOGLE_ANDROID_PUBLISHER_BASE_URL}/applications/{urllib.parse.quote(package, safe='')}/reviews",
+                        access_token=token,
+                        params={"maxResults": safe_limit, "token": token_value},
+                    )
+                    for item in payload.get("reviews") or []:
+                        if isinstance(item, dict):
+                            reviews.append(normalize_google_play_review(item, package))
+                    token_value = str((payload.get("tokenPagination") or {}).get("nextPageToken") or "").strip()
+                    if not token_value:
+                        break
+                if token_value:
+                    next_page_tokens["google_play"] = token_value
             elif current_store == "app_store":
                 app_id = app_ref or app_store_app_id()
                 token = app_store_connect_token()
-                payload = _request_json(
-                    "GET",
-                    f"{APP_STORE_CONNECT_BASE_URL}/apps/{urllib.parse.quote(app_id, safe='')}/customerReviews",
-                    access_token=token,
-                    params={
-                        "limit": max(1, min(int(limit or 20), 200)),
-                        "sort": "-createdDate",
-                        "fields[customerReviews]": "rating,title,body,reviewerNickname,createdDate,territory,appVersionString",
-                    },
-                )
-                for item in payload.get("data") or []:
-                    if isinstance(item, dict):
-                        reviews.append(normalize_app_store_review(item, app_id))
-            else:
-                return blocked(f"Unsupported store: {current_store}", scope)
+                next_url = f"{APP_STORE_CONNECT_BASE_URL}/apps/{urllib.parse.quote(app_id, safe='')}/customerReviews"
+                params: dict[str, Any] | None = {
+                    "limit": max(1, min(int(limit or 20), 200)),
+                    "sort": "-createdDate",
+                    "fields[customerReviews]": "rating,title,body,reviewerNickname,createdDate,territory,appVersionString",
+                }
+                for _page in range(safe_max_pages):
+                    payload = _request_json("GET", next_url, access_token=token, params=params)
+                    for item in payload.get("data") or []:
+                        if isinstance(item, dict):
+                            reviews.append(normalize_app_store_review(item, app_id))
+                    next_url = str(((payload.get("links") or {}) if isinstance(payload, dict) else {}).get("next") or "").strip()
+                    params = None
+                    if not next_url:
+                        break
+                if next_url:
+                    next_page_tokens["app_store"] = next_url
         except StoreReviewError as error:
-            return blocked(str(error), {**scope, "store": current_store, "app_ref": app_ref})
+            store_errors.append({"store": current_store, "app_ref": app_ref, "message": str(error), "status_code": error.status_code})
+            continue
+    if store_errors and len(store_errors) == len([normalize_store(item) for item in stores]):
+        return blocked("All configured store review sources failed.", {**scope, "store_errors": store_errors})
     cutoff = datetime.now(timezone.utc) - timedelta(days=max(1, int(lookback_days or DEFAULT_LOOKBACK_DAYS)))
     bounded = [review for review in reviews if _within_lookback(review, cutoff)]
     return tool_result(
-        {"status": "ok", "reviews": bounded, "next_page_tokens": next_page_tokens},
+        {"status": "ok", "reviews": bounded, "next_page_tokens": next_page_tokens, "store_errors": store_errors},
         scope,
-        confidence="verified",
+        confidence="needs-check" if store_errors else "verified",
+        caveat=(
+            "One or more store review sources failed; available reviews are from the stores that responded."
+            if store_errors
+            else "Direct store APIs are review truth. Slack remains the PS Wee triage surface."
+        ),
     )
 
 
@@ -1076,7 +1098,9 @@ def poll_new_reviews(*, store: str = "", limit: int = 20, lookback_days: int = D
     result = list_store_reviews(store=store, limit=limit, lookback_days=lookback_days)
     if result.get("confidence") == "blocked":
         return result
-    reviews = ((result.get("answer") or {}) if isinstance(result, dict) else {}).get("reviews") or []
+    answer = (result.get("answer") or {}) if isinstance(result, dict) else {}
+    reviews = answer.get("reviews") or []
+    store_errors = answer.get("store_errors") or []
     candidates: list[dict[str, Any]] = []
     skipped: list[str] = []
     for review in reviews:
@@ -1089,9 +1113,14 @@ def poll_new_reviews(*, store: str = "", limit: int = 20, lookback_days: int = D
             continue
         candidates.append({**review, "state_key": summary["key"], "changed_since_last_triage": summary["changed"]})
     return tool_result(
-        {"status": "ok", "reviews": candidates, "skipped_duplicate_keys": skipped},
+        {"status": "ok", "reviews": candidates, "skipped_duplicate_keys": skipped, "store_errors": store_errors},
         {"store": store or "all", "limit": limit, "lookback_days": lookback_days, "state_key": STATE_KEY_DESCRIPTION},
-        confidence="verified",
+        confidence="needs-check" if store_errors else "verified",
+        caveat=(
+            "One or more store review sources failed; available reviews are from the stores that responded."
+            if store_errors
+            else "Direct store APIs are review truth. Slack remains the PS Wee triage surface."
+        ),
     )
 
 

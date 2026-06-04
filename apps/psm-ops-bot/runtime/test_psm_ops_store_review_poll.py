@@ -42,7 +42,7 @@ class StoreReviewPollScriptTest(unittest.TestCase):
             with patch.object(script, "poll_new_reviews", return_value={"confidence": "verified", "answer": {"reviews": [review]}}), patch(
                 "sys.stdout", new_callable=StringIO
             ) as stdout:
-                code = script.main(["--state-path", state_path])
+                code = script.main(["--state-path", state_path, "--dry-run"])
 
             self.assertEqual(code, 0)
             output = stdout.getvalue()
@@ -50,6 +50,30 @@ class StoreReviewPollScriptTest(unittest.TestCase):
             self.assertIn("PSM Ops automation: Store review triage", output)
             self.assertIn("identity_requested_private", output)
             self.assertFalse(Path(state_path).exists())
+
+    def test_default_run_persists_candidate_payload_for_cron(self):
+        script = load_script()
+        review = {
+            "store": "app_store",
+            "app_ref": "1360658903",
+            "review_id": "345030591",
+            "rating": 3,
+            "title": "Missing Store Clock-In Section",
+            "body": "The store clock-in section is missing.",
+            "review_url": "https://apps.apple.com/app/id1360658903",
+        }
+        with tempfile.TemporaryDirectory() as tmpdir:
+            state_path = str(Path(tmpdir) / "store_reviews.json")
+            with patch.object(script, "poll_new_reviews", return_value={"confidence": "verified", "answer": {"reviews": [review]}}), patch(
+                "sys.stdout", new_callable=StringIO
+            ) as stdout:
+                code = script.main(["--state-path", state_path])
+
+            self.assertEqual(code, 0)
+            output = stdout.getvalue()
+            self.assertNotIn("store_review_poll:dry_run", output)
+            self.assertIn('"status": "stored"', output)
+            self.assertTrue(Path(state_path).exists())
 
     def test_no_new_reviews_is_silent(self):
         script = load_script()
@@ -60,6 +84,26 @@ class StoreReviewPollScriptTest(unittest.TestCase):
 
         self.assertEqual(code, 0)
         self.assertIn("[SILENT] PSM Ops automation: store review poll no new reviews", stdout.getvalue())
+
+    def test_partial_store_failure_is_not_silent(self):
+        script = load_script()
+        with patch.object(
+            script,
+            "poll_new_reviews",
+            return_value={
+                "confidence": "needs-check",
+                "answer": {
+                    "reviews": [],
+                    "skipped_duplicate_keys": [],
+                    "store_errors": [{"store": "google_play", "message": "permission denied"}],
+                },
+            },
+        ), patch("sys.stdout", new_callable=StringIO) as stdout:
+            code = script.main([])
+
+        self.assertEqual(code, 1)
+        self.assertIn("PSM Ops automation: Store review poll partial", stdout.getvalue())
+        self.assertIn("google_play", stdout.getvalue())
 
 
 if __name__ == "__main__":

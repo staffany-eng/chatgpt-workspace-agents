@@ -286,12 +286,13 @@ hermes -p psmopsbot cron create "0 2 * * 1-5" \
   --deliver "slack:#ps-weeman-bot-test"
 ```
 
-The GCE host runs UTC, so `0 1 * * 1-5` is 09:00 Asia/Singapore on weekdays, `15 1 * * 1-5` is 09:15 Asia/Singapore on weekdays, `0 9 * * 1-5` is 17:00 Asia/Singapore on weekdays, `*/30 1-10 * * 1-5` checks ROI trackers every 30 minutes during Singapore workdays, and `0 * * * *` checks direct store reviews hourly. The EOD cron uses the same source script copied under an `eod` filename because Hermes cron does not pass script flags to no-agent scripts.
+The GCE host runs UTC, so `0 1 * * 1-5` is 09:00 Asia/Singapore on weekdays, `15 1 * * 1-5` is 09:15 Asia/Singapore on weekdays, `0 9 * * 1-5` is 17:00 Asia/Singapore on weekdays, `*/30 1-10 * * 1-5` checks ROI trackers every 30 minutes during Singapore workdays, and `0 * * * *` checks direct store reviews hourly. The EOD cron uses the same source script copied under an `eod` filename because Hermes cron does not pass script flags to no-agent scripts. Store review cron/no-arg runs persist triage state by default; use `--dry-run` for manual preview.
 
 ```bash
 ~/.hermes/profiles/psmopsbot/scripts/psm_ops_store_review_poll.py \
   --store app_store \
-  --limit 5
+  --limit 5 \
+  --dry-run
 ~/.hermes/profiles/psmopsbot/scripts/psm_ops_store_review_poll.py \
   --store google_play \
   --limit 5 \
@@ -332,7 +333,7 @@ Cloud smoke:
 10. Run `list_store_reviews` for Google Play and App Store with `limit=5`.
 11. Run `get_store_review` for one known direct store review id after credentials are proven.
 12. Draft the public reply and verify it asks the reviewer to email `support@staffany.com` privately with account email/phone plus company/outlet, without exposing a public `REV-<review_id>` code as the main CTA.
-13. Run `psm_ops_store_review_poll.py --limit 5` without `--apply`; verify it reports candidate Slack payload or `[SILENT]` and does not persist state.
+13. Run `psm_ops_store_review_poll.py --limit 5 --dry-run`; verify it reports candidate Slack payload or `[SILENT]` and does not persist state. Run without `--dry-run` only when intentionally persisting triage state.
 14. Test `suggest_store_review_identity_candidates` with a private support email/phone claim; exact email can verify only when Customer 360/HubSpot candidate evidence matches, while phone-only stays candidate.
 15. Keep public reply publishing absent in V1.
 15. Ask one C360 customer question and verify a C360 link/citation appears.

@@ -3,7 +3,7 @@
 
 Hermes cron delivers stdout to Slack. This script prints one bot-owned
 `PSM Ops automation: Store review triage` block only when a new or changed review is found.
-Dry runs never persist state.
+Cron/no-arg runs persist state; dry runs never persist state.
 """
 
 from __future__ import annotations
@@ -41,7 +41,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--limit", type=int, default=20, help="Max reviews per store to inspect.")
     parser.add_argument("--lookback-days", type=int, default=7, help="Review updated/created lookback window.")
     parser.add_argument("--state-path", default="", help="Override PSM_OPS_STORE_REVIEWS_STATE_PATH for tests.")
-    parser.add_argument("--apply", action="store_true", help="Persist triage state. Cron should use this.")
+    parser.add_argument("--apply", action="store_true", help="Persist triage state. This is the default and is kept for explicit operator runs.")
+    parser.add_argument("--dry-run", action="store_true", help="Preview Slack output without persisting triage state.")
     parser.add_argument("--include-changed", action="store_true", default=True, help="Also triage reviews whose content changed.")
     return parser.parse_args(argv)
 
@@ -63,22 +64,32 @@ def main(argv: list[str]) -> int:
 
     answer = result.get("answer") or {}
     reviews = answer.get("reviews") or []
+    store_errors = answer.get("store_errors") or []
     if not reviews:
+        if store_errors:
+            print("PSM Ops automation: Store review poll partial")
+            print("Caveat: one or more store review sources failed; no new reviews were returned by available stores.")
+            print(_json_line({"status": "partial", "store_errors": store_errors, "skipped_duplicate_keys": answer.get("skipped_duplicate_keys", [])}))
+            return 1
         print("[SILENT] PSM Ops automation: store review poll no new reviews")
         print(_json_line({"status": "no_new_reviews", "skipped_duplicate_keys": answer.get("skipped_duplicate_keys", [])}))
         return 0
 
     messages: list[str] = []
     stored: list[dict[str, Any]] = []
+    dry_run = bool(args.dry_run)
     for review in reviews:
         summary = state_summary(review, state_path=args.state_path)
         messages.append(build_slack_triage_text(review, changed=bool(summary.get("changed"))))
-        stored.append(mark_triaged(review, state_path=args.state_path, dry_run=not args.apply))
+        stored.append(mark_triaged(review, state_path=args.state_path, dry_run=dry_run))
 
-    if not args.apply:
+    if dry_run:
         print("store_review_poll:dry_run")
+    if store_errors:
+        print("PSM Ops automation: Store review poll partial")
+        print("Caveat: one or more store review sources failed; available triage below is from stores that responded.")
     print("\n\n".join(messages))
-    print(_json_line({"status": "stored" if args.apply else "preview", "state": stored}))
+    print(_json_line({"status": "preview" if dry_run else "stored", "state": stored, "store_errors": store_errors}))
     return 0
 
 
