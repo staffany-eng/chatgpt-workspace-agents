@@ -95,7 +95,7 @@ if [ "$(uname -s)" = "Darwin" ] && command -v launchctl >/dev/null 2>&1; then
 fi
 
 if command -v hermes >/dev/null 2>&1; then
-  for server in slack_nurtureany staffany_bigquery hubspot_nurtureany aircall_nurtureany google_calendar_nurtureany google_drive_nurtureany eazybe_nurtureany luma_nurtureany public_research_nurtureany lusha_nurtureany prospeo_nurtureany exa_nurtureany near_me_nurtureany; do
+  for server in slack_nurtureany staffany_bigquery hubspot_nurtureany aircall_nurtureany demo_sources_nurtureany google_calendar_nurtureany google_drive_nurtureany google_sheets_nurtureany eazybe_nurtureany luma_nurtureany public_research_nurtureany lusha_nurtureany prospeo_nurtureany exa_nurtureany apify_nurtureany near_me_nurtureany; do
     out="$(hermes -p "$PROFILE" mcp test "$server" 2>&1 || true)"
     count="$(printf '%s\n' "$out" | sed -nE 's/.*Tools discovered: ([0-9]+).*/\1/p' | tail -1)"
     if [ -n "$count" ]; then

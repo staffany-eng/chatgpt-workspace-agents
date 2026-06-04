@@ -48,6 +48,10 @@ kanban:
 
 slack:
   require_mention: true
+  # Strict opt-in: every public/open-channel message must mention PS WEE.
+  # This disables same-thread auto-engagement from prior mentions, bot-message
+  # replies, or active thread sessions.
+  strict_mention: true
   # Smoke/API-authored checks may arrive with bot_id; accept only explicit
   # mentions so generic bot chatter still cannot trigger PS WEE.
   allow_bots: "mentions"
@@ -69,6 +73,24 @@ psm_ops:
     fetch_slack_thread_env: "PSM_OPS_CENTRAL_FETCH_SLACK_THREAD"
     adoption_metrics_path_env: "PSM_OPS_ADOPTION_METRICS_PATH"
     default_channel_name: "#ps-weeman-bot-test"
+  churn_reporting:
+    delivery: "account_management_channel"
+    schedule: "0 1 * * 1"
+    script: "psm_ops_churn_reporting_chase.py"
+    slack_channel_id_env: "PSM_OPS_CHURN_REPORTING_CHANNEL_ID"
+    default_slack_channel_id: "C019RVCR4S1"
+    bigquery_project_env: "PSM_OPS_CHURN_REPORTING_BQ_PROJECT"
+    bigquery_project_default: "staffany-warehouse"
+    bigquery_dataset_env: "PSM_OPS_CHURN_REPORTING_BQ_DATASET"
+    bigquery_dataset_default: "analytics"
+    source_table: "staffany-warehouse.analytics.fct_upcoming_renewal_cycles"
+    revenue_context_table: "staffany-warehouse.analytics.fct_company_revenue_snapshot"
+    churn_context_table: "staffany-warehouse.analytics.fct_churnmrrbymonth"
+    dashboard_292_sql: "runtime/sql/psm_ops_churn_projection_dashboard_292.sql"
+    dashboard_292_source: "Metabase card 2446 backing dashboard 292"
+    churn_projection_dashboard_url_env: "PSM_OPS_CHURN_REPORTING_CHURN_DASHBOARD_URL"
+    upcoming_renewals_dashboard_url_env: "PSM_OPS_CHURN_REPORTING_RENEWALS_DASHBOARD_URL"
+    no_sheet_runtime_access: true
   reminders:
     delivery: "central_digest_only"
     source_of_truth: "jira_duedate"
@@ -93,8 +115,17 @@ psm_ops:
       customer_next_action_request_type: "81"
       onboarding_task_request_type: "82"
       data_hygiene_request_type: "83"
+      ps_follow_up_request_type: "123"
+      cs_follow_up_request_type: "124"
+      adhoc_ops_request_type: "118"
+      rev_cross_sell_request_type: "120"
+      pdt_discovery_request_type: "125"
+      mkt_clubany_request_type: "126"
+      feedback_request_type: "122"
+      photo_follow_up_request_type: "127"
       staffany_orgs_field: "customfield_10667"
       ps_team_field: "customfield_10876"
+      creator_field: "customfield_10914"
       handoff_package: "disabled_until_request_type_exists"
       reminders: "automatic_from_duedate_central_digest_0900_1700_sgt_weekdays"
     request_type_envs:
@@ -102,6 +133,37 @@ psm_ops:
       onboarding_task: "PSM_OPS_JIRA_REQUEST_TYPE_ONBOARDING_TASK"
       data_hygiene: "PSM_OPS_JIRA_REQUEST_TYPE_DATA_HYGIENE"
       handoff_package: "PSM_OPS_JIRA_REQUEST_TYPE_HANDOFF_PACKAGE"
+      ps_follow_up: "PSM_OPS_JIRA_REQUEST_TYPE_PS_FOLLOW_UP"
+      cs_follow_up: "PSM_OPS_JIRA_REQUEST_TYPE_CS_FOLLOW_UP"
+      adhoc_ops: "PSM_OPS_JIRA_REQUEST_TYPE_ADHOC_OPS"
+      rev_cross_sell: "PSM_OPS_JIRA_REQUEST_TYPE_REV_CROSS_SELL"
+      pdt_discovery: "PSM_OPS_JIRA_REQUEST_TYPE_PDT_DISCOVERY"
+      mkt_clubany: "PSM_OPS_JIRA_REQUEST_TYPE_MKT_CLUBANY"
+      feedback: "PSM_OPS_JIRA_REQUEST_TYPE_FEEDBACK"
+      photo_follow_up: "PSM_OPS_JIRA_REQUEST_TYPE_PHOTO_FOLLOW_UP"
+    event_aa:
+      channel_id_env: "PSM_OPS_AA_CHANNEL_ID"
+      default_request_type_key: "feedback"
+      label: "AA-SG-2026"
+      allowed_request_type_keys:
+        - "ps_follow_up"
+        - "cs_follow_up"
+        - "adhoc_ops"
+        - "rev_cross_sell"
+        - "pdt_discovery"
+        - "mkt_clubany"
+        - "feedback"
+        - "photo_follow_up"
+      image_trigger_request_type_key: "photo_follow_up"
+      ps_team_by_category:
+        cs_follow_up: "Ega"
+        adhoc_ops: "PS Ops"
+      selfie_drive:
+        folder_id_env: "PSM_OPS_AA_SELFIE_DRIVE_FOLDER_ID"
+        default_folder_id: "1hxeLDkyLLoVwuKCBPTjLK7ypnZTB9xHc"
+        token_file_env: "PSM_OPS_DRIVE_TOKEN_FILE"
+        client_secret_file_env: "PSM_OPS_DRIVE_CLIENT_SECRET_FILE"
+        filename_pattern: "{company}_{pic}.{ext}"
     fields:
       customer: "PSM_OPS_JIRA_FIELD_CUSTOMER"
       staffany_orgs: "PSM_OPS_JIRA_FIELD_STAFFANY_ORGS"
@@ -112,6 +174,7 @@ psm_ops:
       source_links: "PSM_OPS_JIRA_FIELD_SOURCE_LINKS"
       reminder_at: "PSM_OPS_JIRA_FIELD_REMINDER_AT"
       ps_team: "PSM_OPS_JIRA_FIELD_PS_TEAM"
+      creator: "PSM_OPS_JIRA_FIELD_CREATOR"
     roi_direct:
       project_key_env: "PSM_OPS_ROI_JIRA_PROJECT_KEY"
       service_desk_id_env: "PSM_OPS_ROI_JIRA_SERVICE_DESK_ID"
@@ -150,6 +213,14 @@ psm_ops:
     client_secret_file_env: "GOOGLE_CALENDAR_CLIENT_SECRET_FILE"
     required_scope: "https://www.googleapis.com/auth/calendar.readonly"
     read_only: true
+  google_geocode:
+    credential_file_env: "PSM_OPS_GOOGLE_GEOCODE_CREDENTIALS_FILE"
+    api_key_env: "GOOGLE_GEOCODING_API_KEY"
+    default_credentials_file: "~/.staffany/google-geocode/credentials.json"
+    expected_credentials_json_key: "google_geocoding_api_key"
+    max_addresses_per_call: 25
+    default_region_bias: "sg"
+    stores_address_rows: false
   store_reviews:
     source_of_truth: "google_play_developer_api_and_app_store_connect_api"
     event_mode: "scheduled_direct_polling"
@@ -188,13 +259,15 @@ mcp_servers:
       - "resolve_customer_channel_org"
       - "list_my_pco_tasks"
       - "search_pco_tickets"
+      - "find_duplicate_pco_candidates"
       - "find_ticket_by_slack_thread"
       - "find_roi_ticket_by_slack_thread"
       - "create_roi_ticket_from_slack"
       - "create_or_link_pco_roi_tracker"
       - "create_ps_wee_intake_ticket"
+      - "attach_aa_selfie_to_thread"
+      - "verify_drive_oauth"
       - "append_ps_wee_ticket_update"
-      - "mark_ps_wee_ticket_ready"
       - "draft_pco_task"
       - "create_approved_pco_task"
       - "transition_pco_task"
@@ -202,6 +275,8 @@ mcp_servers:
       - "set_pco_assignee"
       - "set_pco_ps_team"
       - "link_pco_to_engineering_issue"
+      - "link_pco_to_pco_issue"
+      - "merge_pco_tickets"
       - "set_pco_reminder"
       - "list_due_pco_reminders"
   psm_c360:
@@ -226,6 +301,19 @@ mcp_servers:
       GOOGLE_CALENDAR_ACCOUNT_EMAIL: "team@staffany.com"
     tool_allowlist:
       - "read_customer_calendar_context"
+  psm_google_geocode:
+    description: "Google Geocoding adapter for explicit address rows in tagged PSM Ops Slack requests."
+    command: "/Users/leekaiyi/.hermes/hermes-agent/venv/bin/python"
+    args:
+      - "/Users/leekaiyi/workspace/agent builder/apps/psm-ops-bot/runtime/mcp/psm_google_geocode_server.py"
+    timeout: 60
+    env:
+      PSM_OPS_GOOGLE_GEOCODE_CREDENTIALS_FILE: "${PSM_OPS_GOOGLE_GEOCODE_CREDENTIALS_FILE}"
+      GOOGLE_GEOCODING_API_KEY: "${GOOGLE_GEOCODING_API_KEY}"
+    tool_allowlist:
+      - "check_google_geocode_access"
+      - "geocode_slack_addresses"
+      - "geocode_slack_address_file"
   psm_store_reviews:
     description: "Direct Google Play Developer API and App Store Connect review adapter for PSM Ops Bot."
     command: "/Users/leekaiyi/.hermes/hermes-agent/venv/bin/python"

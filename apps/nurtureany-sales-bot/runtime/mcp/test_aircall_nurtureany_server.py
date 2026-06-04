@@ -62,6 +62,50 @@ class AircallNurtureAnyServerTest(unittest.TestCase):
             "caveat": "audio-native tone not checked.",
         }
 
+    def _valid_demo_coaching_payload(self):
+        return {
+            "answer": "The demo had useful context but needed stronger before/after framing.",
+            "overall_grade": "11/18, partial.",
+            "scorecard": [
+                {
+                    "dimension": dimension,
+                    "score": 1,
+                    "evidence": f"{dimension} evidence at 00:10.",
+                    "timestamp": "00:10",
+                    "segment_ref": "seg_1",
+                }
+                for dimension in self.module.DEMO_CALL_COACH_SCORE_DIMENSIONS
+            ],
+            "coachable_moments": [
+                {
+                    "timestamp": "00:10",
+                    "segment_ref": "seg_1",
+                    "note": "Rep moved into product screens before confirming payroll pain.",
+                    "coaching_point": "Anchor the workflow to the customer's current process first.",
+                }
+            ],
+            "better_talk_tracks": [
+                {
+                    "timestamp": "00:10",
+                    "segment_ref": "seg_1",
+                    "current_pattern": "Let me show you scheduling.",
+                    "better_talk_track": "Before I show scheduling, let's pin down where changes break today.",
+                    "why": "It earns a contextual demo instead of a feature tour.",
+                }
+            ],
+            "manager_coaching_note": {
+                "praise": "Good job keeping the conversation moving.",
+                "correction": "Do not demo features before I-C-BANT is clear.",
+                "practice_assignment": "Practice a 30-second before/after setup.",
+                "next_action": "Run one mock demo using the same account context.",
+            },
+            "next_practice": "Practice opening with current process, pain, impact, then one workflow.",
+            "source": "Selected demo transcript/timing evidence.",
+            "scope": "selected demo",
+            "confidence": "verified",
+            "caveat": "caption/timing only.",
+        }
+
     def test_find_calls_blocks_missing_aircall_credentials(self):
         with patch.dict(os.environ, {}, clear=True):
             result = self.module.find_aircall_calls("eugene@staffany.com")
@@ -463,6 +507,30 @@ class AircallNurtureAnyServerTest(unittest.TestCase):
         self.assertIn("showed friction", sanitized["answer"])
         self.assertEqual(sanitized["interaction_cues"]["tone_audio_cues"], "audio-native tone not checked")
 
+    def test_validate_demo_coaching_payload_requires_demo_dimensions_and_talk_tracks(self):
+        payload = self._valid_demo_coaching_payload()
+
+        sanitized = self.module._validate_coaching_payload(
+            payload,
+            expected_dimensions=self.module.DEMO_CALL_COACH_SCORE_DIMENSIONS,
+            call_type="demo",
+        )
+
+        self.assertEqual(sanitized["confidence"], "verified")
+        self.assertEqual(len(sanitized["scorecard"]), 9)
+        self.assertIn("better_talk_tracks", sanitized)
+
+    def test_validate_demo_coaching_payload_rejects_score_out_of_bounds(self):
+        payload = self._valid_demo_coaching_payload()
+        payload["scorecard"][0]["score"] = 3
+
+        with self.assertRaises(self.module.AircallError):
+            self.module._validate_coaching_payload(
+                payload,
+                expected_dimensions=self.module.DEMO_CALL_COACH_SCORE_DIMENSIONS,
+                call_type="demo",
+            )
+
     def test_openai_call_coach_uses_responses_structured_outputs(self):
         captured = {}
         response_body = {
@@ -511,6 +579,55 @@ class AircallNurtureAnyServerTest(unittest.TestCase):
         self.assertEqual(captured["payload"]["text"]["format"]["type"], "json_schema")
         self.assertTrue(captured["payload"]["text"]["format"]["strict"])
         self.assertEqual(captured["timeout"], 120)
+
+    def test_openai_call_coach_uses_demo_schema_when_call_type_demo(self):
+        captured = {}
+        response_body = {
+            "output": [
+                {
+                    "content": [
+                        {
+                            "type": "output_text",
+                            "text": json.dumps(self._valid_demo_coaching_payload()),
+                        }
+                    ]
+                }
+            ]
+        }
+
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+            def read(self):
+                return json.dumps(response_body).encode("utf-8")
+
+        def fake_urlopen(request, timeout):
+            captured["payload"] = json.loads(request.data.decode("utf-8"))
+            return FakeResponse()
+
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "test-openai-key"}, clear=True), patch(
+            "urllib.request.urlopen", side_effect=fake_urlopen
+        ):
+            result = self.module._openai_call_coach(
+                "redacted transcript",
+                [],
+                {"interaction_cue_status": "Interaction cues checked from transcript/timing"},
+                {"hubspot_company_id": "123"},
+                "gpt-5.5",
+                call_type="demo",
+                score_dimensions=self.module.DEMO_CALL_COACH_SCORE_DIMENSIONS,
+            )
+
+        schema = captured["payload"]["text"]["format"]["schema"]
+        self.assertEqual(result["overall_grade"], "11/18, partial.")
+        self.assertEqual(captured["payload"]["text"]["format"]["name"], "nurtureany_demo_coaching")
+        self.assertIn("overall_grade", schema["properties"])
+        self.assertEqual(schema["properties"]["scorecard"]["minItems"], 9)
+        self.assertIn("demo", captured["payload"]["input"][1]["content"][0]["text"])
 
     def test_analyze_call_coaching_returns_safe_json_and_deletes_temp_audio(self):
         with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as handle:
@@ -579,6 +696,52 @@ class AircallNurtureAnyServerTest(unittest.TestCase):
         self.assertNotIn("8123", str(result))
         self.assertNotIn("recordings.example", str(result))
         self.assertNotIn("frustrated", str(result).lower())
+
+    def test_analyze_call_coaching_supports_demo_call_type(self):
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as handle:
+            temp_path = Path(handle.name)
+            handle.write(b"fake-audio")
+
+        call_payload = {
+            "call": {
+                "id": 790,
+                "duration": 179,
+                "recording": "https://recordings.example.test/790.mp3",
+                "user": {"id": 8, "name": "Jeremy", "email": "jeremy@example.com"},
+            }
+        }
+        transcript_payload = {
+            "text": "We can show scheduling. What happens after payroll?",
+            "segments": [
+                {
+                    "speaker": "rep",
+                    "start": 0.0,
+                    "end": 8.0,
+                    "text": "Before I show scheduling, what breaks today?",
+                }
+            ],
+        }
+
+        with (
+            patch.dict(os.environ, {"OPENAI_API_KEY": "test-openai-key"}, clear=True),
+            patch.object(self.module, "_aircall_get", return_value=call_payload),
+            patch.object(self.module, "_download_recording", return_value=(temp_path, 10, "audio/mpeg")),
+            patch.object(self.module, "_openai_transcribe", return_value=transcript_payload),
+            patch.object(self.module, "_openai_call_coach", return_value=self._valid_demo_coaching_payload()) as coach,
+        ):
+            result = self.module.analyze_aircall_call_coaching(
+                "kaiyi@staffany.com",
+                "790",
+                call_type="demo",
+            )
+
+        self.assertFalse(temp_path.exists())
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["scope"]["call_type"], "demo")
+        self.assertEqual(result["answer"]["coaching"]["overall_grade"], "11/18, partial.")
+        self.assertEqual(len(result["answer"]["coaching"]["scorecard"]), 9)
+        self.assertEqual(coach.call_args.kwargs["call_type"], "demo")
+        self.assertEqual(coach.call_args.kwargs["score_dimensions"], self.module.DEMO_CALL_COACH_SCORE_DIMENSIONS)
 
 
 if __name__ == "__main__":

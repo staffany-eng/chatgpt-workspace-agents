@@ -47,9 +47,9 @@ Expected:
 - Treats `PS WEE` / `PS Wee Manager` as this PSM Ops Bot, not a separate app/profile.
 - Calls `find_ticket_by_slack_thread` with the current Slack thread permalink.
 - If no ticket exists for that Slack thread, calls `create_ps_wee_intake_ticket` immediately without preview approval.
-- Creates `[Needs info] Fei Siong - payroll readiness` style PCO intake ticket.
+- Creates a `Fei Siong - payroll readiness` style PCO intake ticket. Title carries no `[Needs info]` prefix; the `needs-info` label is never applied.
 - Includes `Source Slack thread: <permalink>` in Jira.
-- Posts the ticket link in the same Slack thread and asks for missing info.
+- Posts the ticket link in the same Slack thread. Does not ask follow-up questions to fill ticket fields.
 - Does not paste the raw Slack transcript into Jira.
 
 ## PS WEE Compact Missing Info
@@ -67,7 +67,7 @@ Expected:
 - Passes known customer, issue details, affected staff/profile, and workaround context into the tool.
 - Does not ask for customer/org or issue details again.
 - Does not add a numbered follow-up questionnaire after the tool reply.
-- Slack-facing missing info is capped at two fields; full needs-info metadata may stay in Jira/audit.
+- Does not ask for any ticket fields; a Slack thread permalink alone is enough.
 
 ## PS WEE ROI Direct Intake
 
@@ -148,7 +148,7 @@ Expected:
 - Calls `find_ticket_by_slack_thread` with the current Slack thread permalink before any Calendar lookup.
 - If no ticket exists for that Slack thread, calls `search_pco_tickets` before creating a likely duplicate.
 - Calls `create_ps_wee_intake_ticket` immediately without preview approval only when no existing or likely PCO ticket exists.
-- Creates a needs-info PCO intake for the Rock Productions / big-customer change-request process.
+- Creates a PCO intake for the Rock Productions / big-customer change-request process.
 - Posts the ticket link in the same Slack thread first, then reports Calendar availability as secondary or blocked.
 - Does not let Calendar quota/rate-limit errors block the PCO ticket link.
 
@@ -198,19 +198,19 @@ Expected:
 - Calls `search_pco_tickets` with the current thread context before saying `not ticketed yet`.
 - Does not call `create_ps_wee_intake_ticket`, `draft_pco_task`, or `create_approved_pco_task` for the tracking-status question.
 - If no match is found, returns a compact ticket seed with customer, issue, impact/risk, and evidence/source thread.
-- Ends with `Reply "create ticket" to open the PS WEE intake ticket.`
+- Ends with `Reply "@PS WEE create ticket" to open the PS WEE intake ticket.`
 - Says `bounded keyword search`, not `full keyword search`.
 - Caveat says no ticket was created because the user asked for tracking status, not creation.
 
 Follow-up:
 
 ```text
-yes, create it
+@PS WEE yes, create it
 ```
 
 Expected:
 
-- Treats the follow-up as explicit PS WEE ticketing approval only because it follows the create-ready offer in the same thread.
+- Treats the follow-up as explicit PS WEE ticketing approval only because it directly mentions PS WEE and follows the create-ready offer in the same thread.
 - Calls `find_ticket_by_slack_thread`, then `search_pco_tickets`, then `create_ps_wee_intake_ticket`.
 - Passes Ren Bakery, Nathania, recurring app errors/lag, churn risk, and the Slack thread evidence into the ticket tool.
 
@@ -222,43 +222,32 @@ Thread:
 PSM: is Walta Tech on headcount or section limit? did they reach out?
 Bot: C360 cannot confirm limit usage. Did they reach out about hitting the limit?
 Teammate: Yes, they reached out via Intercom <support thread link>
+Teammate: @PS WEE yes, they reached out via Intercom <support thread link>
 ```
 
 Expected:
 
-- Treats the teammate confirmation plus Intercom/support link as a PS WEE intake trigger.
+- Treats the untagged teammate confirmation as silent under strict mention mode.
+- Treats the tagged teammate confirmation plus Intercom/support link as a PS WEE intake trigger.
 - Calls `find_ticket_by_slack_thread` with the current Slack thread permalink.
 - If no ticket exists for that Slack thread, calls `create_ps_wee_intake_ticket` immediately without asking "do you want me to log a ticket?".
-- Creates a needs-info PCO intake using the known facts: customer, section/headcount limit context, evidence link, and missing impact/expected outcome.
-- Posts the ticket link in the same Slack thread and asks only for the missing fields.
+- Creates a PCO intake using whatever facts are available: customer, section/headcount limit context, evidence link.
+- Posts the ticket link in the same Slack thread. Does not ask follow-up questions to fill ticket fields.
 
 ## PS WEE Meaningful Slack Update
 
 Prompt:
 
 ```text
-impact is payroll blocked for May payroll, affected outlet is central kitchen
+@PS WEE impact is payroll blocked for May payroll, affected outlet is central kitchen
 ```
 
 Expected:
 
-- Calls `append_ps_wee_ticket_update` only because the reply adds meaningful ticket context.
-- Adds a structured internal Jira comment with the Slack thread permalink, `Slack poster:`, and updated fields.
-- Does not sync every casual acknowledgement or paste raw Slack transcript text.
-
-## PS WEE Ready For Triage
-
-Prompt:
-
-```text
-all details are there, mark it ready
-```
-
-Expected:
-
-- Calls `mark_ps_wee_ticket_ready` after customer/org, issue details, impact/urgency, affected scope, expected outcome, and evidence are complete.
-- Adds an internal ready-for-triage comment.
-- Removes `needs-info` when Jira allows it.
+- Calls `append_ps_wee_ticket_update` only because the reply directly mentions PS WEE and adds meaningful ticket context.
+- Passes the current tagged user's authored update in `authored_update`.
+- Adds a structured internal Jira comment with the Slack thread permalink, `Slack poster:`, authored update, concise summary/fields, and evidence links.
+- Does not sync every casual acknowledgement, untagged replies, broad thread context, unrelated previous thread messages, or raw Slack transcript text.
 
 ## Status Transition
 
@@ -424,3 +413,22 @@ Expected:
 - No `read_customer_calendar_context` call.
 - Asks for attendee emails or named attendees needed for availability lookup.
 - Keeps the PCO ticket path Jira-first if the same request also asks to create/add a task.
+
+## Event AA C360 Multi-Match Does Not Block
+
+Thread (in `PSM_OPS_AA_CHANNEL_ID`):
+
+```text
+@PS Wee Manager Met nasty cookie owner, happy with service wants to refer a friend
+```
+
+C360 returns two entities for `Nasty Cookie` (e.g. `Nasty Cookie` and `Nasty Cookie MY`).
+
+Expected:
+
+- Calls `create_ps_wee_intake_ticket` exactly once for this trigger message — multi-match must not block.
+- Passes the bare `customer="Nasty Cookie"` as written in the Slack message and omits `staffany_orgs` entirely.
+- Routes to `request_type_key="rev_cross_sell"` (warm referral lead → expansion-ish), or `feedback` when the routing is genuinely unclear — never blocks asking which entity.
+- Drive selfie ingest runs best-effort against the attached image and never blocks the create.
+- Slack reply names the created PCO key first, then surfaces the disambiguation as a *post-create* question ("Two `Nasty Cookie` entities in C360 — which one for the org link?"), never as a precondition.
+- Does NOT emit any of: "C360 found 2 ... which one did you meet?", "Reply '@PS WEE create ticket' once you confirm the entity.", or "No ticket was created because this was a field-update note, not an explicit ticket creation request." for an AA-channel turn.

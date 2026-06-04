@@ -85,6 +85,14 @@
       "active": true
     }
   ],
+  "partnerships_viewers": [
+    {
+      "email": "example.partnerships@example.invalid",
+      "countries": ["Singapore", "Malaysia"],
+      "label": "Partnerships",
+      "active": true
+    }
+  ],
   "disabled": [
     {
       "email": "former.rep@example.invalid"

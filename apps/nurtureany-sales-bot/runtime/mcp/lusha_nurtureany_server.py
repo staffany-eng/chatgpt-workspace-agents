@@ -35,6 +35,7 @@ MAX_SEARCH_COMPANIES = 5
 MAX_CANDIDATES_PER_COMPANY = 5
 MAX_LINKEDIN_URLS = 10
 MAX_CANDIDATES_PER_LINKEDIN_URL = 5
+MAX_NAME_LOOKUPS = 10
 MAX_REVEAL_CONTACTS = 3
 USAGE_CACHE_TTL_SECONDS = 12
 USAGE_MIN_INTERVAL_SECONDS = 12
@@ -346,6 +347,29 @@ def _linkedin_search_payload(linkedin_url: str, limit_per_url: int) -> dict[str,
     }
 
 
+def _split_person_name(name: str) -> tuple[str, str]:
+    parts = [part for part in str(name or "").replace(",", " ").split() if part]
+    if len(parts) < 2:
+        return "", ""
+    return parts[0], " ".join(parts[1:])
+
+
+def _name_search_path(name: str, company: dict[str, str]) -> str:
+    first_name, last_name = _split_person_name(name)
+    query = {
+        "firstName": first_name,
+        "lastName": last_name,
+        "companyName": company["name"],
+        "companyDomain": company["domain"],
+        "refreshJobInfo": "true",
+        "partialProfile": "true",
+        "revealEmails": "false",
+        "revealPhones": "false",
+    }
+    params = {key: value for key, value in query.items() if value}
+    return f"/v2/person?{urllib.parse.urlencode(params)}"
+
+
 def _search_payload(company: dict[str, str], limit_per_company: int) -> dict[str, Any]:
     company_include: dict[str, Any] = {
         "locations": [{"country": company["country"]}],
@@ -431,6 +455,22 @@ def _extract_contacts(payload: dict[str, Any]) -> list[dict[str, Any]]:
     return []
 
 
+def _extract_single_person_contacts(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    contacts = _extract_contacts(payload)
+    if contacts:
+        return contacts
+    data = payload.get("data")
+    if isinstance(data, dict):
+        for key in ("contact", "person", "profile"):
+            value = data.get(key)
+            if isinstance(value, dict):
+                return [value]
+        return [data]
+    if any(payload.get(key) for key in ("id", "contactId", "firstName", "lastName", "fullName", "name")):
+        return [payload]
+    return []
+
+
 def _linkedin_candidate(contact: dict[str, Any], request_id: str, input_url: str, rank: int) -> dict[str, Any]:
     returned_linkedin = _normalize_linkedin_url(_linkedin_from_contact(contact))
     warnings: list[str] = []
@@ -447,6 +487,34 @@ def _linkedin_candidate(contact: dict[str, Any], request_id: str, input_url: str
         "inferred_title": _title_from_contact(contact),
         "lusha_contact_id": contact.get("contactId") or contact.get("id") or contact.get("lushaContactId") or "",
         "linkedin_url": returned_linkedin or input_url,
+        "confidence_band": "high" if not warnings or warnings == ["missing_title"] else "needs-check",
+        "decision_maker_match": _is_decision_maker_title(_title_from_contact(contact)),
+        "quality_warnings": warnings,
+    }
+
+
+def _name_candidate(contact: dict[str, Any], input_name: str, company: dict[str, str]) -> dict[str, Any]:
+    returned_company = contact.get("companyName") or contact.get("company_name") or ""
+    returned_domain = _clean_domain(str(contact.get("companyDomain") or contact.get("fqdn") or contact.get("company_domain") or ""))
+    warnings: list[str] = []
+    if not _name_from_contact(contact):
+        warnings.append("missing_name")
+    if not _title_from_contact(contact):
+        warnings.append("missing_title")
+    if company["domain"] and returned_domain and returned_domain != company["domain"]:
+        warnings.append("returned_company_domain_differs_from_input")
+    if company["name"] and returned_company and company["name"].lower() not in returned_company.lower():
+        warnings.append("returned_company_name_differs_from_input")
+
+    return {
+        "input_name": input_name,
+        "input_company": company,
+        "inferred_name": _name_from_contact(contact) or input_name,
+        "inferred_title": _title_from_contact(contact),
+        "lusha_contact_id": contact.get("contactId") or contact.get("id") or contact.get("lushaContactId") or "",
+        "company_name": returned_company,
+        "company_domain": returned_domain,
+        "linkedin_url": _normalize_linkedin_url(_linkedin_from_contact(contact)),
         "confidence_band": "high" if not warnings or warnings == ["missing_title"] else "needs-check",
         "decision_maker_match": _is_decision_maker_title(_title_from_contact(contact)),
         "quality_warnings": warnings,
@@ -720,6 +788,105 @@ def search_lusha_candidates_by_linkedin_urls(
         "scope": scope,
         "confidence": "needs-check",
         "caveat": "LinkedIn URL lookup returns candidate IDs only. Email and phone require selected reveal approval.",
+        "credit_report": report,
+    }
+
+
+@mcp.tool()
+def search_lusha_candidates_by_names(
+    slack_user_email: str,
+    candidate_names: list[str],
+    company: dict[str, Any],
+) -> dict[str, Any]:
+    """Search Lusha by candidate names plus one scoped HubSpot company, without revealing PII."""
+
+    raw_names = [str(name or "").strip() for name in (candidate_names or []) if str(name or "").strip()]
+    selected_names: list[str] = []
+    invalid_names: list[str] = []
+    for name in raw_names[:MAX_NAME_LOOKUPS]:
+        first_name, last_name = _split_person_name(name)
+        if first_name and last_name:
+            normalized = " ".join(name.split())
+            if normalized not in selected_names:
+                selected_names.append(normalized)
+        else:
+            invalid_names.append(name)
+
+    raw_company = company if isinstance(company, dict) else {}
+    scope = _scope(
+        slack_user_email,
+        {
+            "requested_name_count": len(candidate_names or []),
+            "max_name_lookup_count": MAX_NAME_LOOKUPS,
+            "invalid_names": invalid_names,
+            "company_id": str(raw_company.get("company_id") or raw_company.get("id") or "").strip(),
+        },
+    )
+    scoped_error = _scoped_company_error([raw_company] if raw_company else [])
+    if scoped_error:
+        return _blocked(scoped_error, scope)
+    if not selected_names:
+        return _blocked("At least one full candidate name with first and last name is required.", scope)
+
+    selected_company = _company_input(raw_company)
+    if not selected_company["name"] and not selected_company["domain"]:
+        return _blocked("Lusha name fallback requires a scoped company name or domain.", scope)
+
+    try:
+        _token()
+    except LushaError as error:
+        return _blocked(str(error), scope)
+
+    before, before_status = _usage_snapshot()
+    headers: dict[str, str] = {}
+    estimated_credits = 0
+    lookup_results: list[dict[str, Any]] = []
+    all_candidates: list[dict[str, Any]] = []
+
+    try:
+        for name in selected_names:
+            path = _name_search_path(name, selected_company)
+            response, headers = _request_json("GET", path)
+            contacts = _extract_single_person_contacts(response)
+            estimated_credits += 1
+            candidates = [_name_candidate(contact, name, selected_company) for contact in contacts[:1] if contact]
+            all_candidates.extend(candidates)
+            lookup_results.append(
+                {
+                    "input_name": name,
+                    "returned_results": len(contacts),
+                    "candidates": candidates,
+                }
+            )
+    except LushaError as error:
+        after, _ = _usage_snapshot()
+        report = _credit_report(
+            estimated_credits or "unavailable",
+            before,
+            after,
+            headers,
+            f"Name fallback stopped early. Usage before status: {before_status}.",
+        )
+        return _blocked(str(error), scope, report)
+
+    after, after_status = _usage_snapshot()
+    report = _credit_report(
+        estimated_credits,
+        before,
+        after,
+        headers,
+        f"Name fallback only; no email or phone was revealed. Usage snapshots: before={before_status}, after={after_status}.",
+    )
+    return {
+        "answer": {
+            "candidates": all_candidates,
+            "lookup_results": lookup_results,
+            "invalid_names": invalid_names,
+        },
+        "source": "Lusha Single Person Lookup Name Fallback",
+        "scope": scope,
+        "confidence": "needs-check",
+        "caveat": "Name fallback returns candidate identity only. Email and phone require selected reveal approval.",
         "credit_report": report,
     }
 

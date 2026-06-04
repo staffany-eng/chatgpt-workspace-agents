@@ -11,15 +11,18 @@ EXPECT_MODEL_PROVIDER="${EXPECT_MODEL_PROVIDER:-anthropic}"
 EXPECT_MODEL_DEFAULT="${EXPECT_MODEL_DEFAULT:-claude-sonnet-4-6}"
 EXPECT_SLACK_INTENT_TOOLS="${EXPECT_SLACK_INTENT_TOOLS:-5}"
 EXPECT_STAFFANY_BIGQUERY_TOOLS="${EXPECT_STAFFANY_BIGQUERY_TOOLS:-4}"
-EXPECT_HUBSPOT_TOOLS="${EXPECT_HUBSPOT_TOOLS:-56}"
+EXPECT_HUBSPOT_TOOLS="${EXPECT_HUBSPOT_TOOLS:-65}"
 EXPECT_AIRCALL_TOOLS="${EXPECT_AIRCALL_TOOLS:-4}"
+EXPECT_DEMO_SOURCES_TOOLS="${EXPECT_DEMO_SOURCES_TOOLS:-1}"
 EXPECT_GOOGLE_CALENDAR_TOOLS="${EXPECT_GOOGLE_CALENDAR_TOOLS:-2}"
 EXPECT_GOOGLE_DRIVE_TOOLS="${EXPECT_GOOGLE_DRIVE_TOOLS:-5}"
+EXPECT_GOOGLE_SHEETS_TOOLS="${EXPECT_GOOGLE_SHEETS_TOOLS:-2}"
 EXPECT_EAZYBE_TOOLS="${EXPECT_EAZYBE_TOOLS:-4}"
 EXPECT_LUMA_TOOLS="${EXPECT_LUMA_TOOLS:-3}"
-EXPECT_LUSHA_TOOLS="${EXPECT_LUSHA_TOOLS:-4}"
+EXPECT_LUSHA_TOOLS="${EXPECT_LUSHA_TOOLS:-5}"
 EXPECT_PROSPEO_TOOLS="${EXPECT_PROSPEO_TOOLS:-4}"
 EXPECT_EXA_TOOLS="${EXPECT_EXA_TOOLS:-1}"
+EXPECT_APIFY_TOOLS="${EXPECT_APIFY_TOOLS:-7}"
 EXPECT_PUBLIC_RESEARCH_TOOLS="${EXPECT_PUBLIC_RESEARCH_TOOLS:-2}"
 EXPECT_NEAR_ME_TOOLS="${EXPECT_NEAR_ME_TOOLS:-6}"
 EXPECT_C360_SALES_PACKET="${EXPECT_C360_SALES_PACKET:-1}"
@@ -277,10 +280,19 @@ expected_servers = {
         "build_pre_demo_game_plans",
         "find_sales_case_studies",
         "build_singapore_lead_enrichment_plan",
+        "resolve_company_enrichment_target",
+        "create_company_enrichment_artifact",
+        "update_company_enrichment_artifact",
+        "read_company_enrichment_artifact",
+        "summarize_company_enrichment_artifact",
         "list_active_deals_missing_next_meeting",
         "list_sales_followup_tasks",
         "list_due_hubspot_sales_task_reminders",
+        "build_sales_whatsapp_window_report",
         "count_owner_whatsapp_sent_today",
+        "save_sales_whatsapp_window_report_schedule",
+        "run_sales_whatsapp_window_report_schedule",
+        "post_generated_sales_report",
         "check_account_followup_status",
         "check_event_followup_status",
         "score_nurture_accounts",
@@ -305,6 +317,7 @@ expected_servers = {
         "plan_hubspot_writeback",
     ],
     "aircall_nurtureany": ["find_aircall_calls", "resolve_aircall_call_for_coaching", "transcribe_aircall_recording", "analyze_aircall_call_coaching"],
+    "demo_sources_nurtureany": ["extract_demo_transcript_evidence"],
     "google_calendar_nurtureany": ["list_google_calendar_events", "audit_google_calendar_meeting_quality"],
     "google_drive_nurtureany": [
         "list_drive_folder_images",
@@ -313,6 +326,7 @@ expected_servers = {
         "read_nurture_material_registry",
         "read_indonesia_event_registration_attendance",
     ],
+    "google_sheets_nurtureany": ["preview_analysis_sheet_export", "apply_analysis_sheet_export"],
     "eazybe_nurtureany": [
         "preview_eazybe_template_messages",
         "send_approved_eazybe_messages",
@@ -320,9 +334,18 @@ expected_servers = {
     ],
     "luma_nurtureany": ["list_luma_events", "get_luma_event_match_keys", "get_luma_event_context"],
     "public_research_nurtureany": ["research_public_company_signals", "find_brand_parent_candidates"],
-    "lusha_nurtureany": ["search_lusha_decision_maker_candidates", "search_lusha_candidates_by_linkedin_urls", "reveal_lusha_contact_details", "get_lusha_credit_usage"],
+    "lusha_nurtureany": ["search_lusha_decision_maker_candidates", "search_lusha_candidates_by_linkedin_urls", "search_lusha_candidates_by_names", "reveal_lusha_contact_details", "get_lusha_credit_usage"],
     "prospeo_nurtureany": ["search_prospeo_decision_maker_candidates", "search_prospeo_candidates_by_linkedin_urls", "reveal_prospeo_contact_details", "get_prospeo_credit_usage"],
     "exa_nurtureany": ["search_exa_people_candidates"],
+    "apify_nurtureany": [
+        "search-actors",
+        "fetch-actor-details",
+        "call-actor",
+        "get-actor-run",
+        "get-actor-output",
+        "search-apify-docs",
+        "fetch-apify-docs",
+    ],
     "near_me_nurtureany": [
         "resolve_known_area_for_near_me",
         "build_near_me_outlet_matches_query",
@@ -351,6 +374,15 @@ for name, expected_tools in expected_servers.items():
 near_me_env = ((servers.get("near_me_nurtureany") or {}).get("env") or {})
 if "GOOGLE_PLACES_API_KEY" not in near_me_env:
     print("mcp:near_me_nurtureany:missing-google-places-env")
+    raise SystemExit(1)
+apify_auth = ((servers.get("apify_nurtureany") or {}).get("auth_metadata") or {})
+if apify_auth.get("env") != "APIFY_TOKEN":
+    print("mcp:apify_nurtureany:missing-apify-token-env")
+    raise SystemExit(1)
+apify_env = ((servers.get("apify_nurtureany") or {}).get("env") or {})
+apify_headers = ((servers.get("apify_nurtureany") or {}).get("headers") or {})
+if "APIFY_TOKEN" not in apify_env or "APIFY_TOKEN" not in str(apify_headers.get("Authorization") or ""):
+    print("mcp:apify_nurtureany:missing-apify-token-header")
     raise SystemExit(1)
 PY
 then
@@ -484,6 +516,12 @@ for entry in raw_policy.get("sales_reps", []):
     owner_email = str(entry.get("hubspot_owner_email") or "").strip().lower()
     if slack_email and slack_email not in disabled and owner_email not in disabled:
         policy_emails.append(slack_email)
+for entry in raw_policy.get("partnerships_viewers", []):
+    if not isinstance(entry, dict) or entry.get("active") is False:
+        continue
+    email = entry_email(entry)
+    if email and email not in disabled:
+        policy_emails.append(email)
 policy_emails = [email for email in policy_emails if email and email not in disabled]
 
 allowed_ids = {value.strip() for value in allowed_users_raw.split(",") if value.strip()}
@@ -765,14 +803,17 @@ mcp_test slack_nurtureany "$EXPECT_SLACK_INTENT_TOOLS"
 mcp_test staffany_bigquery "$EXPECT_STAFFANY_BIGQUERY_TOOLS"
 mcp_test hubspot_nurtureany "$EXPECT_HUBSPOT_TOOLS"
 mcp_test aircall_nurtureany "$EXPECT_AIRCALL_TOOLS"
+mcp_test demo_sources_nurtureany "$EXPECT_DEMO_SOURCES_TOOLS"
 mcp_test google_calendar_nurtureany "$EXPECT_GOOGLE_CALENDAR_TOOLS"
 mcp_test google_drive_nurtureany "$EXPECT_GOOGLE_DRIVE_TOOLS"
+mcp_test google_sheets_nurtureany "$EXPECT_GOOGLE_SHEETS_TOOLS"
 mcp_test eazybe_nurtureany "$EXPECT_EAZYBE_TOOLS"
 mcp_test luma_nurtureany "$EXPECT_LUMA_TOOLS"
 mcp_test public_research_nurtureany "$EXPECT_PUBLIC_RESEARCH_TOOLS"
 mcp_test lusha_nurtureany "$EXPECT_LUSHA_TOOLS"
 mcp_test prospeo_nurtureany "$EXPECT_PROSPEO_TOOLS"
 mcp_test exa_nurtureany "$EXPECT_EXA_TOOLS"
+mcp_test apify_nurtureany "$EXPECT_APIFY_TOOLS"
 mcp_test near_me_nurtureany "$EXPECT_NEAR_ME_TOOLS"
 
 if [ "$EXPECT_C360_SALES_PACKET" = "1" ]; then

@@ -65,12 +65,15 @@ if (!manifest) {
   if (!manifest.channels?.includes("Slack #all-product-questions")) {
     fail("Manifest channels must include #all-product-questions for read-only KER lookup");
   }
+  if (!manifest.channels?.includes("Slack #all-bugs-production")) {
+    fail("Manifest channels must include #all-bugs-production for support-watch output");
+  }
   for (const eventName of ["app_mention", "message.channels"]) {
     if (!manifest.slack?.required_bot_events?.includes(eventName)) {
       fail(`Manifest Slack required bot events missing ${eventName}`);
     }
   }
-  for (const scopeName of ["app_mentions:read", "channels:history", "channels:read", "chat:write"]) {
+  for (const scopeName of ["app_mentions:read", "channels:history", "channels:read", "channels:join", "chat:write"]) {
     if (!manifest.slack?.required_oauth_scopes?.includes(scopeName)) {
       fail(`Manifest Slack required OAuth scopes missing ${scopeName}`);
     }
@@ -175,15 +178,7 @@ if (!manifest) {
   if (helpMcp.video?.provider !== "loom") fail("Manifest help article MCP must be Loom-only");
   if (helpMcp.video?.reject_raw_video_files !== true) fail("Manifest help article MCP must reject raw video files");
   if (helpMcp.video?.reject_slack_file_urls !== true) fail("Manifest help article MCP must reject Slack file URLs");
-  for (const channelId of ["C0B32M34J3W", "C0AJAUNCEL8", "C01RZ7SHC8K", "CF8PK6V4J"]) {
-    if (!manifest.slack?.allowed_channel_ids?.includes(channelId)) {
-      fail(`Manifest Slack allowed channel IDs missing ${channelId}`);
-    }
-  }
   const kerMcp = manifest.mcp?.launchbot_ker || {};
-  if (!kerMcp.slack_context?.default_channel_ids?.includes("C01RZ7SHC8K")) {
-    fail("Manifest KER MCP default channels must include all-product-questions C01RZ7SHC8K");
-  }
   const ifiMcp = manifest.mcp?.launchbot_ifi || {};
   if (ifiMcp.mode !== "preview_first_confirmed_jira_mutation") fail("Manifest IFI MCP must be preview-first confirmed Jira mutation");
   const ifiTools = new Set(ifiMcp.tools || []);
@@ -215,9 +210,6 @@ if (!manifest) {
   if (productCommitmentMcp.slack_context?.configured_channel_ids_env_var !== "LAUNCHBOT_PRODUCT_COMMITMENT_ALLOWED_CHANNEL_IDS") {
     fail("Manifest product commitment MCP must use LAUNCHBOT_PRODUCT_COMMITMENT_ALLOWED_CHANNEL_IDS");
   }
-  if (!productCommitmentMcp.slack_context?.default_channel_ids?.includes("C01RZ7SHC8K")) {
-    fail("Manifest product commitment MCP default channels must include C01RZ7SHC8K");
-  }
   if (productCommitmentMcp.slack_context?.raw_transcript_persistence !== false) {
     fail("Manifest product commitment MCP must not persist raw Slack transcripts");
   }
@@ -240,9 +232,6 @@ if (!manifest) {
   if (featureIntakeMcp.slack_context?.configured_channel_ids_env_var !== "LAUNCHBOT_FEATURE_INTAKE_ALLOWED_CHANNEL_IDS") {
     fail("Manifest feature intake MCP must use LAUNCHBOT_FEATURE_INTAKE_ALLOWED_CHANNEL_IDS");
   }
-  if (!featureIntakeMcp.slack_context?.default_channel_ids?.includes("CF8PK6V4J")) {
-    fail("Manifest feature intake MCP default channels must include CF8PK6V4J");
-  }
   if (featureIntakeMcp.slack_context?.raw_transcript_persistence !== false) {
     fail("Manifest feature intake MCP must not persist raw Slack transcripts");
   }
@@ -260,6 +249,62 @@ if (!manifest) {
   if (featureIntakeMcp.confirmation?.phrase !== "create intake") {
     fail("Manifest feature intake MCP confirmation phrase must be create intake");
   }
+  const supportWatchMcp = manifest.mcp?.launchbot_support_watch || {};
+  if (supportWatchMcp.mode !== "read_only_weekly_support_watch") fail("Manifest support watch MCP must be read-only weekly support watch");
+  const supportWatchTools = new Set(supportWatchMcp.tools || []);
+  if (!supportWatchTools.has("preview_weekly_support_watch_report")) {
+    fail("Manifest support watch MCP missing tool: preview_weekly_support_watch_report");
+  }
+  if (supportWatchMcp.intercom?.tickets_api || supportWatchMcp.intercom?.access_token_env_var) {
+    fail("Manifest support watch must not use Intercom Tickets API credentials");
+  }
+  const supportWatchBigQuery = supportWatchMcp.bigquery || {};
+  if (supportWatchBigQuery.default_source !== "bigquery") fail("Manifest support watch must use BigQuery source");
+  if (supportWatchBigQuery.project_env_var !== "LAUNCHBOT_SUPPORT_WATCH_INTERCOM_PROJECT") fail("Manifest support watch BigQuery project env unexpected");
+  if (supportWatchBigQuery.default_project !== "staffany-warehouse") fail("Manifest support watch BigQuery project unexpected");
+  if (supportWatchBigQuery.intercom_dataset_env_var !== "LAUNCHBOT_SUPPORT_WATCH_INTERCOM_DATASET") fail("Manifest support watch Intercom dataset env unexpected");
+  if (!supportWatchBigQuery.intercom_tables?.includes("conversations") || !supportWatchBigQuery.intercom_tables?.includes("conversation_parts")) {
+    fail("Manifest support watch must use Intercom conversations and conversation_parts tables");
+  }
+  if (supportWatchBigQuery.analytics_dataset_env_var !== "LAUNCHBOT_SUPPORT_WATCH_ANALYTICS_DATASET") fail("Manifest support watch analytics dataset env unexpected");
+  if (supportWatchBigQuery.bq_timeout_seconds_env_var !== "LAUNCHBOT_SUPPORT_WATCH_BQ_TIMEOUT_SECONDS") fail("Manifest support watch BigQuery timeout env unexpected");
+  if (supportWatchBigQuery.default_bq_timeout_seconds !== 240) fail("Manifest support watch BigQuery timeout unexpected");
+  if (supportWatchBigQuery.org_mapping_table !== "dim_org_company") fail("Manifest support watch must document dim_org_company mapping");
+  if (supportWatchBigQuery.include_whatsapp_env_var !== "LAUNCHBOT_SUPPORT_WATCH_INCLUDE_WHATSAPP") fail("Manifest support watch WhatsApp include env unexpected");
+  if (supportWatchBigQuery.whatsapp_view_env_var !== "LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_VIEW") fail("Manifest support watch WhatsApp view env unexpected");
+  if (supportWatchBigQuery.default_whatsapp_view !== "analytics.support_watch_whatsapp_ticket_logs") fail("Manifest support watch WhatsApp view unexpected");
+  if (supportWatchBigQuery.default_whatsapp_view?.startsWith("gsheets.")) fail("Manifest support watch WhatsApp runtime source must not be Drive-backed gsheets");
+  if (supportWatchBigQuery.whatsapp_source_view_env_var !== "LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_SOURCE_VIEW") fail("Manifest support watch WhatsApp source view env unexpected");
+  if (supportWatchBigQuery.default_whatsapp_source_view !== "gsheets.cs_tickets_logs_all_view") fail("Manifest support watch WhatsApp source view unexpected");
+  if (supportWatchBigQuery.whatsapp_refresh_transfer_name_env_var !== "LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_REFRESH_TRANSFER_NAME") fail("Manifest support watch WhatsApp refresh transfer env unexpected");
+  if (supportWatchBigQuery.default_whatsapp_refresh_transfer_name !== "Launchbot support watch WhatsApp native mirror refresh") fail("Manifest support watch WhatsApp refresh transfer name unexpected");
+  if (supportWatchBigQuery.whatsapp_refresh_schedule_utc_env_var !== "LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_REFRESH_SCHEDULE_UTC") fail("Manifest support watch WhatsApp refresh schedule env unexpected");
+  if (supportWatchBigQuery.default_whatsapp_refresh_schedule_utc !== "every day 00:30") fail("Manifest support watch WhatsApp refresh schedule unexpected");
+  if (supportWatchBigQuery.whatsapp_max_staleness_hours_env_var !== "LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_MAX_STALENESS_HOURS") fail("Manifest support watch WhatsApp staleness env unexpected");
+  if (supportWatchBigQuery.default_whatsapp_max_staleness_hours !== 36) fail("Manifest support watch WhatsApp staleness unexpected");
+  if (supportWatchMcp.slack_context?.default_output_channel_name !== "all-bugs-production") {
+    fail("Manifest support watch default output channel must be all-bugs-production");
+  }
+  if (supportWatchMcp.slack_context?.dedupe_channel_names_env_var !== "LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_NAMES") {
+    fail("Manifest support watch dedupe channel names env unexpected");
+  }
+  if (supportWatchMcp.slack_context?.mcp_posts_slack !== false) fail("Manifest support watch MCP must not post Slack");
+  if (supportWatchMcp.jira?.default_edt_jql !== 'project = PCO AND "PS Team" = "Eng Duty" AND statusCategory != Done ORDER BY updated DESC') {
+    fail("Manifest support watch default EDT JQL unexpected");
+  }
+  for (const key of ["mutations", "comments", "transitions", "assignments"]) {
+    if (supportWatchMcp.jira?.[key] !== false) fail(`Manifest support watch MCP must forbid Jira ${key}`);
+  }
+  for (const forbiddenAction of ["linear_ticket_create", "jira_ticket_create", "engineer_tag", "owner_assignment"]) {
+    if (!supportWatchMcp.v1_forbidden_actions?.includes(forbiddenAction)) {
+      fail(`Manifest support watch missing forbidden action: ${forbiddenAction}`);
+    }
+  }
+  const supportWatchWhatsappRefresh = (manifest.expected_crons || []).find((cron) => cron.name === "Launchbot support watch WhatsApp native mirror refresh");
+  if (supportWatchWhatsappRefresh?.schedule !== "every day 00:30") fail("Manifest must define WhatsApp native mirror scheduled query");
+  if (supportWatchWhatsappRefresh?.mode !== "bigquery-scheduled-query") fail("Manifest WhatsApp native mirror refresh must be a BigQuery scheduled query");
+  if (supportWatchWhatsappRefresh?.source !== "staffany-warehouse.gsheets.cs_tickets_logs_all_view") fail("Manifest WhatsApp native mirror source unexpected");
+  if (supportWatchWhatsappRefresh?.target !== "staffany-warehouse.analytics.support_watch_whatsapp_ticket_logs") fail("Manifest WhatsApp native mirror target unexpected");
   const healthCron = (manifest.expected_crons || []).find((cron) => cron.name === "launchbot health check");
   if (healthCron?.schedule !== "*/5 * * * *") fail("Manifest must define Launchbot health check cron");
   if (healthCron?.mode !== "no-agent") fail("Manifest health check cron must be no-agent");
@@ -284,6 +329,85 @@ if (!manifest) {
   if (monitor.raw_transcript_persistence !== false) fail("Manifest monitor must not persist raw transcripts");
   if (monitor.posts_slack_previews !== true) fail("Manifest monitor must post Launchbot-owned previews");
   if (monitor.slack_reply_prefix !== "Launchbot automation:") fail("Manifest monitor must use Launchbot automation prefix");
+  const supportWatchCron = (manifest.expected_crons || []).find((cron) => cron.name === "launchbot support watch");
+  if (supportWatchCron?.schedule !== "0 1 * * 4") fail("Manifest must define support watch cron");
+  if (supportWatchCron?.mode !== "no-agent") fail("Manifest support watch cron must be no-agent");
+  const supportWatchMonitor = manifest.support_watch_monitor || {};
+  if (supportWatchMonitor.mode !== "no_agent_weekly_report") fail("Manifest support watch monitor mode must be no_agent_weekly_report");
+  if (supportWatchMonitor.default_output_channel_name !== "all-bugs-production") fail("Manifest support watch output must be all-bugs-production");
+  if (supportWatchMonitor.output_channel_name_env_var !== "LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME") fail("Manifest support watch channel name env unexpected");
+  if (supportWatchMonitor.output_channel_id_env_var !== "LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_ID") fail("Manifest support watch channel ID env unexpected");
+  if (supportWatchMonitor.dedupe_channel_ids_env_var !== "LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_IDS") fail("Manifest support watch dedupe env unexpected");
+  if (supportWatchMonitor.dedupe_channel_names_env_var !== "LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_NAMES") fail("Manifest support watch dedupe names env unexpected");
+  if (supportWatchMonitor.default_dedupe_channel_names !== "team-cs-eng-duty") fail("Manifest support watch default dedupe channel name unexpected");
+  if (supportWatchMonitor.edt_jql_env_var !== "LAUNCHBOT_SUPPORT_WATCH_EDT_JQL") fail("Manifest support watch EDT JQL env unexpected");
+  if (supportWatchMonitor.default_state_path !== "~/.hermes/profiles/launchbot/runtime/support-watch-state.json") fail("Manifest support watch state path unexpected");
+  if (supportWatchMonitor.default_lookback_days !== 7) fail("Manifest support watch lookback default unexpected");
+  if (supportWatchMonitor.default_max_tickets !== 100) fail("Manifest support watch max tickets default unexpected");
+  if (supportWatchMonitor.default_source !== "bigquery") fail("Manifest support watch monitor source unexpected");
+  if (supportWatchMonitor.default_intercom_project !== "staffany-warehouse") fail("Manifest support watch monitor project unexpected");
+  if (supportWatchMonitor.default_intercom_dataset !== "intercom") fail("Manifest support watch monitor dataset unexpected");
+  if (supportWatchMonitor.bq_timeout_seconds_env_var !== "LAUNCHBOT_SUPPORT_WATCH_BQ_TIMEOUT_SECONDS") fail("Manifest support watch monitor BigQuery timeout env unexpected");
+  if (supportWatchMonitor.default_bq_timeout_seconds !== 240) fail("Manifest support watch monitor BigQuery timeout unexpected");
+  if (supportWatchMonitor.default_include_whatsapp !== true) fail("Manifest support watch monitor must include WhatsApp by default");
+  if (supportWatchMonitor.default_whatsapp_view !== "analytics.support_watch_whatsapp_ticket_logs") fail("Manifest support watch monitor WhatsApp view unexpected");
+  if (supportWatchMonitor.default_whatsapp_view?.startsWith("gsheets.")) fail("Manifest support watch monitor WhatsApp runtime source must not be Drive-backed gsheets");
+  if (supportWatchMonitor.default_whatsapp_source_view !== "gsheets.cs_tickets_logs_all_view") fail("Manifest support watch monitor WhatsApp source view unexpected");
+  if (supportWatchMonitor.default_whatsapp_refresh_transfer_name !== "Launchbot support watch WhatsApp native mirror refresh") fail("Manifest support watch monitor WhatsApp refresh transfer unexpected");
+  if (supportWatchMonitor.default_whatsapp_refresh_schedule_utc !== "every day 00:30") fail("Manifest support watch monitor WhatsApp refresh schedule unexpected");
+  if (supportWatchMonitor.default_whatsapp_max_staleness_hours !== 36) fail("Manifest support watch monitor WhatsApp max staleness unexpected");
+  if (supportWatchMonitor.raw_transcript_persistence !== false) fail("Manifest support watch must not persist raw transcripts");
+  if (supportWatchMonitor.posts_slack_reports !== true) fail("Manifest support watch must post reports from monitor");
+  if (supportWatchMonitor.slack_reply_prefix !== "Launchbot automation:") fail("Manifest support watch must use Launchbot automation prefix");
+  for (const key of ["ticket_creation", "engineer_tags", "owner_assignment"]) {
+    if (supportWatchMonitor[key] !== false) fail(`Manifest support watch monitor must forbid ${key}`);
+  }
+  const taxAdvisory = manifest.tax_advisory || {};
+  if (taxAdvisory.mode !== "source_backed_indonesia_payroll_tax_answers") {
+    fail("Manifest tax_advisory mode must be source_backed_indonesia_payroll_tax_answers");
+  }
+  if (taxAdvisory.skill !== "skills/staffany-indonesia-payroll-tax-grimoire/SKILL.md") {
+    fail("Manifest tax_advisory must point to the Indonesia payroll tax grimoire skill");
+  }
+  if (taxAdvisory.regulation_update_skill !== "skills/staffany-indonesia-payroll-tax-grimoire/skills/indonesia-tax-knowledge-updater/SKILL.md") {
+    fail("Manifest tax_advisory must point to the Indonesia tax knowledge updater skill");
+  }
+  if (taxAdvisory.knowledge_bank_validator !== "skills/staffany-indonesia-payroll-tax-grimoire/skills/indonesia-tax-knowledge-updater/scripts/validate_knowledge_bank.rb") {
+    fail("Manifest tax_advisory must point to the Indonesia tax knowledge-bank validator");
+  }
+  for (const topic of ["PPh21", "SPT Masa PPh 21/26", "Formulir 1721-A1 / BPA1", "BPMP", "BP21"]) {
+    if (!taxAdvisory.topics?.includes(topic)) fail(`Manifest tax_advisory missing topic: ${topic}`);
+  }
+  for (const contractField of [
+    "Direct answer",
+    "Regulatory basis",
+    "StaffAny system behavior",
+    "Gap / risk / not validated",
+    "Sources checked",
+    "Confidence",
+  ]) {
+    if (!taxAdvisory.answer_contract?.includes(contractField)) {
+      fail(`Manifest tax_advisory answer contract missing: ${contractField}`);
+    }
+  }
+  if (!taxAdvisory.current_fact_policy?.includes("official online sources")) {
+    fail("Manifest tax_advisory must require official online checks for current facts");
+  }
+  if (!taxAdvisory.current_fact_policy?.includes("regulation update skill workflow")) {
+    fail("Manifest tax_advisory must require the regulation update workflow before current-law answers");
+  }
+  if (!taxAdvisory.pre_final_validation_policy?.includes("knowledge-bank validator")) {
+    fail("Manifest tax_advisory must require knowledge-bank validation before final answers when knowledge changes");
+  }
+  if (!taxAdvisory.staffany_behavior_policy?.includes("Pantheon code")) {
+    fail("Manifest tax_advisory must require Pantheon/code evidence for StaffAny behavior");
+  }
+  if (!taxAdvisory.bpjs_scope?.includes("outside the core tax skill")) {
+    fail("Manifest tax_advisory must label BPJS-only scope");
+  }
+  if (!taxAdvisory.sensitive_data_policy?.includes("NPWP")) {
+    fail("Manifest tax_advisory must include sensitive payroll data policy");
+  }
 }
 
 for (const relPath of [
@@ -296,6 +420,9 @@ for (const relPath of [
   "runtime/update-pantheon-repo.sh",
   "runtime/monitor-feature-intake.py",
   "runtime/test_monitor_feature_intake.py",
+  "runtime/monitor-support-watch.py",
+  "runtime/test_monitor_support_watch.py",
+  "runtime/support-watch-whatsapp-refresh.sql",
   "runtime/intercom-format-gate.mjs",
   "runtime/intercom-format-gate.test.mjs",
   "runtime/mcp/profile_env.py",
@@ -304,11 +431,14 @@ for (const relPath of [
   "runtime/mcp/launchbot_product_commitment_server.py",
   "runtime/mcp/launchbot_feature_intake_core.py",
   "runtime/mcp/launchbot_feature_intake_server.py",
+  "runtime/mcp/launchbot_support_watch_core.py",
+  "runtime/mcp/launchbot_support_watch_server.py",
   "runtime/mcp/launchbot_help_article_server.py",
   "runtime/mcp/test_helpers.py",
   "runtime/mcp/test_launchbot_ker_server.py",
   "runtime/mcp/test_launchbot_ifi_server.py",
   "runtime/mcp/test_launchbot_feature_intake_server.py",
+  "runtime/mcp/test_launchbot_support_watch_server.py",
   "runtime/mcp/test_launchbot_help_article_server.py",
   "runtime/mcp/fixtures/help_article_video_fixtures.json",
   "skills/help-article-generator/SKILL.md",
@@ -317,6 +447,15 @@ for (const relPath of [
   "skills/help-article-generator/references/article-planning-profile.json",
   "skills/help-article-generator/references/intercom-article-inventory.json",
   "skills/help-article-generator/references/video-placement-registry.json",
+  "skills/weekly-support-watch/SKILL.md",
+  "skills/staffany-indonesia-payroll-tax-grimoire/SKILL.md",
+  "skills/staffany-indonesia-payroll-tax-grimoire/skills/indonesia-payroll-tax-advisor/SKILL.md",
+  "skills/staffany-indonesia-payroll-tax-grimoire/skills/indonesia-payroll-tax-advisor/references/reporting.md",
+  "skills/staffany-indonesia-payroll-tax-grimoire/skills/indonesia-payroll-tax-advisor/references/pph21.md",
+  "skills/staffany-indonesia-payroll-tax-grimoire/skills/indonesia-payroll-tax-advisor/references/source-quality.md",
+  "skills/staffany-indonesia-payroll-tax-grimoire/skills/indonesia-tax-knowledge-updater/SKILL.md",
+  "skills/staffany-indonesia-payroll-tax-grimoire/skills/indonesia-tax-knowledge-updater/scripts/validate_knowledge_bank.rb",
+  "skills/staffany-indonesia-payroll-tax-grimoire/skills/pph21-settings-explainer/SKILL.md",
   "runtime/launch-workflow.md",
   "runtime/launchbot_e2e.py",
   "tests/launch-workflow-regression-cases.md",
@@ -338,8 +477,6 @@ for (const requiredText of [
   "reactions: false",
   "gateway_restart_notification: false",
   "C0B32M34J3W",
-  "C0AJAUNCEL8",
-  "C01RZ7SHC8K",
   "CF8PK6V4J",
   "launchbot_ker",
   "launchbot_ifi",
@@ -374,6 +511,34 @@ for (const requiredText of [
   "feature_intake_monitor",
   "no_agent_slack_poll",
   "no_raw_transcript_persistence: true",
+  "launchbot_support_watch",
+  "preview_weekly_support_watch_report",
+  "support_watch_monitor",
+  "no_agent_weekly_report",
+  "LAUNCHBOT_SUPPORT_WATCH_SOURCE",
+  "LAUNCHBOT_SUPPORT_WATCH_INTERCOM_PROJECT",
+  "LAUNCHBOT_SUPPORT_WATCH_INTERCOM_DATASET",
+  "LAUNCHBOT_SUPPORT_WATCH_ANALYTICS_DATASET",
+  "LAUNCHBOT_SUPPORT_WATCH_BQ_TIMEOUT_SECONDS",
+  "LAUNCHBOT_SUPPORT_WATCH_INCLUDE_WHATSAPP",
+  "LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_VIEW",
+  "LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_SOURCE_VIEW",
+  "LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_REFRESH_TRANSFER_NAME",
+  "LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_REFRESH_SCHEDULE_UTC",
+  "LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_MAX_STALENESS_HOURS",
+  "LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME",
+  "LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_ID",
+  "LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_IDS",
+  "LAUNCHBOT_SUPPORT_WATCH_EDT_JQL",
+  "LAUNCHBOT_SUPPORT_WATCH_STATE_PATH",
+  "LAUNCHBOT_SUPPORT_WATCH_LOOKBACK_DAYS",
+  "LAUNCHBOT_SUPPORT_WATCH_MAX_TICKETS",
+  "all-bugs-production",
+  "0 1 * * 4",
+  "read_only_weekly_support_watch",
+  "no_ticket_creation: true",
+  "no_engineer_tags: true",
+  "no_owner_assignment: true",
   "confirmed_jpd_intake_create",
   "required_confirmation: \"create intake\"",
   "LAUNCH_STEP3_INTERCOM_ACCESS_TOKEN",
@@ -382,6 +547,7 @@ for (const requiredText of [
   "allow_delete: false",
   "allow_tag_mutation: false",
   "allow_collection_mutation: false",
+  'allowed_channels: ""',
   "/home/leekaiyi/.hermes/profiles/launchbot/source/launchbot",
   "sources:",
   "pantheon:",
@@ -411,7 +577,9 @@ if (!launchbotProfileBlock) {
     "launchbot_ifi:",
     "launchbot_product_commitment:",
     "launchbot feature intake monitor",
+    "launchbot support watch",
     "launchbot_feature_intake:",
+    "launchbot_support_watch:",
     "launchbot_help_article:",
   ]) {
     if (!launchbotProfileBlock.includes(requiredText)) {
@@ -449,6 +617,14 @@ for (const requiredText of [
   "no-agent monitor",
   "Broad channel monitoring must run through the no-agent feature-intake monitor",
   "It must not store raw Slack transcripts",
+  "weekly report-only support watch",
+  "preview_weekly_support_watch_report",
+  "Weekly Support Watch",
+  "#all-bugs-production",
+  "LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME",
+  "LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_IDS",
+  "No new findings means no Slack post",
+  "no ticket creation, owner assignment, or engineer tags",
   "KER-2109",
   "cached Intercom article planning",
   "Pantheon-grounded help article drafts",
@@ -468,6 +644,20 @@ for (const requiredText of [
   "read-only product-commitment / KER lookup",
   "cloud-primary",
   "Launchbot's bot identity",
+  "every Slack turn must include an explicit `@Launch Bot` mention",
+  "applies inside threads too",
+  "Never print a `Router:` line in normal Slack replies.",
+  "do not redirect users to another bot. Execute the workflow directly in Launchbot.",
+  "Do not tell users to `Ping @Product Ops Bot`",
+  "Use `skills/staffany-indonesia-payroll-tax-grimoire/SKILL.md` first.",
+  "For StaffAny product capability claims, inspect Pantheon code",
+  "For current laws, rates, forms, deadlines, filing channels, or regulator platform changes, verify against official online sources",
+  "use `skills/indonesia-tax-knowledge-updater/SKILL.md` inside the grimoire before the final answer.",
+  "run `skills/indonesia-tax-knowledge-updater/scripts/validate_knowledge_bank.rb` before the final answer",
+  "BPJS-only questions are outside the core tax skill",
+  "Regulatory basis:",
+  "StaffAny system behavior:",
+  "Gap / risk / not validated:",
 ]) {
   if (!soulText.includes(requiredText)) fail(`SOUL.md missing required text: ${requiredText}`);
 }
@@ -485,8 +675,6 @@ for (const requiredText of [
   "will_mutate_jira",
   "will_post_message",
   "transcript_persisted",
-  "C0AJAUNCEL8",
-  "C01RZ7SHC8K",
 ]) {
   if (!mcpText.includes(requiredText)) fail(`launchbot_ker_server.py missing required text: ${requiredText}`);
 }
@@ -530,7 +718,6 @@ for (const requiredText of [
   "check_product_commitment_from_slack_thread",
   "LAUNCHBOT_PRODUCT_COMMITMENT_ALLOWED_CHANNEL_IDS",
   "LAUNCHBOT_PRODUCT_COMMITMENT_FIELD_IDS",
-  "C01RZ7SHC8K",
   "fixVersions",
   "will_mutate_jira",
   "will_post_message",
@@ -572,7 +759,6 @@ for (const requiredText of [
   "CONFIRMATION_PHRASES",
   "create intake",
   "customfield_10080",
-  "CF8PK6V4J",
   "will_mutate_jira",
   "will_post_message",
   "transcript_persisted",
@@ -602,6 +788,99 @@ for (const requiredText of [
   if (!featureIntakeMonitorText.includes(requiredText)) fail(`monitor-feature-intake.py missing required text: ${requiredText}`);
 }
 
+const supportWatchMcpText = textOf("runtime/mcp/launchbot_support_watch_server.py");
+for (const requiredText of [
+  "launchbot_support_watch",
+  "preview_weekly_support_watch_report",
+  "Read-only Launchbot support-watch preview adapter",
+  "never sends Slack messages",
+  "creates Jira/Linear tickets",
+  "tags engineers",
+  "persists raw support transcripts",
+]) {
+  if (!supportWatchMcpText.includes(requiredText)) fail(`launchbot_support_watch_server.py missing required text: ${requiredText}`);
+}
+for (const forbiddenText of ["chat.postMessage", "method=\"PUT\"", "method='PUT'", "DELETE"]) {
+  if (supportWatchMcpText.includes(forbiddenText)) fail(`launchbot_support_watch_server.py must not contain forbidden mutation surface: ${forbiddenText}`);
+}
+
+const supportWatchCoreText = textOf("runtime/mcp/launchbot_support_watch_core.py");
+for (const requiredText of [
+  "LAUNCHBOT_SUPPORT_WATCH_SOURCE",
+  "LAUNCHBOT_SUPPORT_WATCH_INTERCOM_PROJECT",
+  "LAUNCHBOT_SUPPORT_WATCH_INTERCOM_DATASET",
+  "LAUNCHBOT_SUPPORT_WATCH_ANALYTICS_DATASET",
+  "LAUNCHBOT_SUPPORT_WATCH_INCLUDE_WHATSAPP",
+  "LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_VIEW",
+  "build_intercom_conversations_query",
+  "conversation_parts",
+  "support_watch_whatsapp_ticket_logs",
+  "build_intercom_counts_query",
+  "build_whatsapp_counts_query",
+  "candidate_score",
+  "total_matching_rows",
+  "source_status",
+  "LAUNCHBOT_SUPPORT_WATCH_BQ_TIMEOUT_SECONDS",
+  "start_new_session=True",
+  "os.killpg",
+  "conversations.history",
+  "public_channel",
+  "/rest/api/3/search/jql",
+  "LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_IDS",
+  "LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_NAMES",
+  "LAUNCHBOT_SUPPORT_WATCH_EDT_JQL",
+  "LAUNCHBOT_PANTHEON_REPO_DIR",
+  "preview_weekly_support_watch_report",
+  "will_post_message",
+  "will_create_ticket",
+  "will_tag_engineer",
+  "raw_transcript_persisted",
+  "Launchbot automation:",
+  "all-bugs-production",
+]) {
+  if (!supportWatchCoreText.includes(requiredText)) fail(`launchbot_support_watch_core.py missing required text: ${requiredText}`);
+}
+for (const forbiddenText of ["chat.postMessage", "/tickets/search", "Intercom-Version", "transitionIssue", "/comment", "/transitions", "/rest/api/3/issue?notifyUsers=false", "method=\"PUT\"", "method='PUT'", "DELETE"]) {
+  if (supportWatchCoreText.includes(forbiddenText)) fail(`launchbot_support_watch_core.py must not contain forbidden mutation surface: ${forbiddenText}`);
+}
+if (supportWatchCoreText.includes("public_channel,private_channel")) {
+  fail("launchbot_support_watch_core.py must not request private-channel scope for public channel resolution");
+}
+
+const supportWatchWhatsappRefreshSql = textOf("runtime/support-watch-whatsapp-refresh.sql");
+for (const requiredText of [
+  "CREATE OR REPLACE TABLE `staffany-warehouse.analytics.support_watch_whatsapp_ticket_logs`",
+  "PARTITION BY reported_date",
+  "FROM `staffany-warehouse.gsheets.cs_tickets_logs_all_view`",
+]) {
+  if (!supportWatchWhatsappRefreshSql.includes(requiredText)) fail(`support-watch-whatsapp-refresh.sql missing required text: ${requiredText}`);
+}
+
+const supportWatchMonitorText = textOf("runtime/monitor-support-watch.py");
+for (const requiredText of [
+  "chat.postMessage",
+  "LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME",
+  "LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_ID",
+  "LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_IDS",
+  "LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_NAMES",
+  "LAUNCHBOT_SUPPORT_WATCH_EDT_JQL",
+  "LAUNCHBOT_SUPPORT_WATCH_STATE_PATH",
+  "LAUNCHBOT_SUPPORT_WATCH_LOOKBACK_DAYS",
+  "LAUNCHBOT_SUPPORT_WATCH_MAX_TICKETS",
+  "source_status",
+  "all-bugs-production",
+  "0 1 * * 4",
+  "Launchbot automation:",
+  "no-new-findings",
+  "duplicate-report-signature",
+  "will_post_message",
+  "will_create_ticket",
+  "will_tag_engineer",
+  "transcript_persisted",
+]) {
+  if (!supportWatchMonitorText.includes(requiredText)) fail(`monitor-support-watch.py missing required text: ${requiredText}`);
+}
+
 const helpArticleMcpText = textOf("runtime/mcp/launchbot_help_article_server.py");
 for (const requiredText of [
   "LAUNCH_STEP3_INTERCOM_ACCESS_TOKEN",
@@ -625,8 +904,16 @@ const healthText = textOf("runtime/check-health.sh");
 for (const requiredText of [
   "pantheon:checkout-missing",
   "pantheon:remote-unexpected",
+  "pantheon:ssh-access-denied",
+  "git ls-remote",
+  "LAUNCHBOT_PANTHEON_SSH_KEY",
   "pantheon:status-stale",
   "platforms:slack:gateway-restart-notification-not-disabled",
+  "slack:allowed-channels-static-not-empty",
+  "MCP_TEST_ATTEMPTS",
+  "MCP_TEST_TIMEOUT_SECONDS",
+  'MCP_TEST_TIMEOUT_SECONDS="${MCP_TEST_TIMEOUT_SECONDS:-60}"',
+  "timeout \"${MCP_TEST_TIMEOUT_SECONDS}s\" hermes",
   "LAUNCHBOT_PANTHEON_REPO_DIR",
   "mcp:launchbot_ifi",
   "mcp:launchbot_help_article",
@@ -648,18 +935,48 @@ for (const requiredText of [
   "feature-intake-monitor:raw-transcript-persistence-not-disabled",
   "LAUNCHBOT_FEATURE_INTAKE_MONITOR_CHANNEL_IDS",
   "launchbot_feature_intake_core",
+  "mcp:launchbot_support_watch",
+  "support-watch-monitor:script-missing",
+  "support-watch-monitor:py-compile-failed",
+  "support-watch-monitor:raw-transcript-persistence-not-disabled",
+  "support-watch-monitor:bq-timeout-env-unexpected",
+  "support-watch-monitor:bq-timeout-unexpected",
+  "support-watch-monitor:whatsapp-refresh-transfer-name-unexpected",
+  "support-watch-monitor:whatsapp-refresh-schedule-unexpected",
+  "support-watch-monitor:whatsapp-max-staleness-unexpected",
+  "support-watch:whatsapp-table-metadata-missing",
+  "support-watch:whatsapp-table-stale",
+  "support-watch:whatsapp-runtime-source-drive-backed",
+  "__TABLES__",
+  "timeout=120",
+  "LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME",
+  "LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_ID",
+  "LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_IDS",
+  "LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_NAMES",
+  "LAUNCHBOT_SUPPORT_WATCH_EDT_JQL",
+  "LAUNCHBOT_SUPPORT_WATCH_STATE_PATH",
+  "launchbot_support_watch_core",
   "LAUNCH_STEP3_INTERCOM_ACCESS_TOKEN",
   "help-article-video-registry",
 ]) {
   if (!healthText.includes(requiredText)) fail(`check-health.sh missing required Pantheon health text: ${requiredText}`);
+}
+for (const forbiddenText of ["EXPECT_ALLOWED_CHANNELS", "slack:allowed-channel-missing"]) {
+  if (healthText.includes(forbiddenText)) {
+    fail(`check-health.sh must not enforce static normal-reply Slack allowlists: ${forbiddenText}`);
+  }
 }
 
 const auditText = textOf("runtime/audit-live-profile.sh");
 for (const requiredText of [
   "cron:health-check-missing",
   "cron:feature-intake-monitor-missing",
+  "cron:support-watch-missing",
+  "bigquery:whatsapp-refresh-transfer-missing",
   "cron:pantheon-repo-update-missing",
   "cron:pantheon-repo-update-present-without-github-ssh",
+  "LAUNCHBOT_PANTHEON_SSH_KEY",
+  "GIT_SSH_COMMAND",
   "GIT_TERMINAL_PROMPT=0 git ls-remote",
   "profile-drift:help-article-mcp",
   "profile-drift:ifi-mcp",
@@ -667,7 +984,15 @@ for (const requiredText of [
   "profile-drift:feature-intake-mcp",
   "profile-drift:feature-intake-core",
   "profile-drift:feature-intake-monitor-script",
+  "profile-drift:support-watch-mcp",
+  "profile-drift:support-watch-core",
+  "profile-drift:support-watch-monitor-script",
+  "profile-drift:support-watch-whatsapp-refresh-sql",
   "profile-drift:help-article-video-registry",
+  "profile-drift:indonesia-tax-source-skill",
+  "profile-drift:indonesia-tax-profile-skill",
+  "profile-drift:indonesia-tax-updater-skill",
+  "profile-drift:indonesia-tax-validator",
   "sessions:stale-system-prompt",
   "sessions:active-session-json-missing",
 ]) {
@@ -676,9 +1001,12 @@ for (const requiredText of [
 
 const pantheonUpdateText = textOf("runtime/update-pantheon-repo.sh");
 for (const requiredText of [
+  "git ls-remote",
   "git clone --branch",
   "pull --ff-only",
   "pantheon:updated",
+  "pantheon:ssh-access-denied",
+  "GIT_TERMINAL_PROMPT=0",
   "LAUNCHBOT_PANTHEON_REPO_URL",
   "LAUNCHBOT_PANTHEON_SSH_KEY",
   "GIT_SSH_COMMAND",
@@ -724,6 +1052,95 @@ for (const requiredText of [
 }
 if (/^<div|^<br|^\s*<[^>]+style=|^\s*<[^>]+align=/m.test(skillText)) {
   fail("Help article skill must not include raw HTML formatting examples");
+}
+
+const supportWatchSkillText = textOf("skills/weekly-support-watch/SKILL.md");
+for (const requiredText of [
+  "Launchbot Weekly Support Watch",
+  "0 1 * * 4",
+  "all-bugs-production",
+  "team-cs-eng-duty",
+  "preview_weekly_support_watch_report",
+  "runtime/monitor-support-watch.py",
+  "LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME",
+  "LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_ID",
+  "LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_IDS",
+  "LAUNCHBOT_SUPPORT_WATCH_EDT_JQL",
+  "problem-keyword scoring",
+  "Do not create Linear/Jira tickets",
+  "Launchbot automation:",
+  "No new findings",
+]) {
+  if (!supportWatchSkillText.includes(requiredText)) fail(`Weekly support-watch skill missing required text: ${requiredText}`);
+}
+
+const indonesiaTaxSkillText = textOf("skills/staffany-indonesia-payroll-tax-grimoire/SKILL.md");
+for (const requiredText of [
+  "StaffAny Indonesia Payroll Tax Grimoire",
+  "skills/indonesia-payroll-tax-advisor/SKILL.md",
+  "skills/pph21-settings-explainer/SKILL.md",
+  "Direct answer",
+  "Regulatory basis",
+  "StaffAny system behavior",
+  "Gap / risk / not validated",
+  "Sources checked",
+  "Confidence",
+  "Formulir 1721-A1 / BPA1",
+  "Browse official sources for current law, reporting forms, rates, filing processes, and Coretax/DJP template changes.",
+  "Protect sensitive payroll data",
+]) {
+  if (!indonesiaTaxSkillText.includes(requiredText)) {
+    fail(`Indonesia payroll tax grimoire missing required text: ${requiredText}`);
+  }
+}
+const indonesiaTaxReportingText = textOf("skills/staffany-indonesia-payroll-tax-grimoire/skills/indonesia-payroll-tax-advisor/references/reporting.md");
+for (const requiredText of [
+  "SPT Masa PPh 21/26",
+  "e-Bupot 21/26",
+  "BPA1",
+  "Coretax can generate/download 1721-A1",
+  "StaffAny Behavior Map",
+]) {
+  if (!indonesiaTaxReportingText.includes(requiredText)) {
+    fail(`Indonesia payroll tax reporting reference missing required text: ${requiredText}`);
+  }
+}
+const indonesiaTaxUpdaterText = textOf("skills/staffany-indonesia-payroll-tax-grimoire/skills/indonesia-tax-knowledge-updater/SKILL.md");
+for (const requiredText of [
+  "Indonesia Tax Knowledge Updater",
+  "Verify current regulator facts against official sources before writing them into the knowledge bank.",
+  "Record source title, publisher, URL, effective period, last checked date, topics, status, confidence, and notes.",
+  "validate_knowledge_bank.rb",
+  "Required Source Fields",
+]) {
+  if (!indonesiaTaxUpdaterText.includes(requiredText)) {
+    fail(`Indonesia tax knowledge updater missing required text: ${requiredText}`);
+  }
+}
+
+const launchbotHealthText = textOf("runtime/check-health.sh");
+for (const requiredText of [
+  "tax-skill:$label:root-skill-missing",
+  "tax-skill:$label:root-index-missing-indonesia-payroll-tax",
+  "tax-skill:$label:root-index-missing-pph21",
+  "tax-skill:$label:root-index-missing-ebupot",
+  "tax-skill:$label:root-index-missing-hipajak",
+  "tax-skill:profile:knowledge-bank-invalid",
+  "INDONESIA_TAX_PROFILE_SKILL_DIR",
+  "slack:scope-missing:",
+  "channels:read",
+  "channels:history",
+  "channels:join",
+  "chat:write",
+  "conversations.info",
+  "conversations.join",
+  "support-watch:output-channel-unresolved",
+  "support-watch:output-channel-join-failed",
+  "support-watch:output-channel-not-member",
+  "support-watch:dedupe-channel-join-failed",
+  "support-watch:dedupe-channel-unresolved",
+]) {
+  if (!launchbotHealthText.includes(requiredText)) fail(`Launchbot health check missing support-watch Slack validation text: ${requiredText}`);
 }
 
 const skeletonText = textOf("skills/help-article-generator/references/help-article-skeleton.md");
@@ -822,6 +1239,14 @@ for (const requiredText of [
   "create_help_article_video_update_draft",
   "replace_next_video_after_anchor",
   "raw `.mp4`, Slack file URLs",
+  "Weekly Support Watch",
+  "preview_weekly_support_watch_report",
+  "runtime/monitor-support-watch.py",
+  "0 1 * * 4",
+  "Thursday 09:00 SGT",
+  "LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME",
+  "LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_IDS",
+  "Do not create Linear/Jira tickets",
 ]) {
   if (!workflowText.includes(requiredText)) fail(`Launch workflow doc missing required text: ${requiredText}`);
 }
@@ -996,6 +1421,11 @@ for (const requiredText of [
   "Feature Intake Channel Monitor",
   "Launchbot automation: Potential KER intake detected.",
   "create KER intake",
+  "Weekly Support Watch",
+  "#all-bugs-production",
+  "#team-cs-eng-duty",
+  "No new findings means no Slack post",
+  "raw support transcripts",
   "IFI Feature Request Tracking",
   "preview_ifi_feature_request_tracking",
   "preview_ifi_feature_request_from_bd_note",
@@ -1017,6 +1447,9 @@ const packageJson = existsSync(join(repoRoot, "package.json"))
   ? sharedReadJson(join(repoRoot, "package.json"), fail)
   : null;
 if (packageJson) {
+  if (!packageJson.scripts?.["launchbot:deploy"]?.includes("scripts/deploy-launchbot.mjs")) {
+    fail("package.json missing script launchbot:deploy");
+  }
   const intercomRuntimeScripts = [
     "intercom:format:pull",
     "intercom:format:profile",
@@ -1040,6 +1473,30 @@ if (packageJson) {
   }
 }
 
+const launchbotDeployPath = join(repoRoot, "scripts", "deploy-launchbot.mjs");
+if (!existsSync(launchbotDeployPath)) {
+  fail("Missing scripts/deploy-launchbot.mjs");
+} else {
+  const deployText = readFileSync(launchbotDeployPath, "utf8");
+  for (const requiredText of [
+    "Preparing LaunchBot deploy",
+    "run(process.execPath, [\"scripts/verify-launchbot.mjs\"])",
+    "run(process.execPath, [\"scripts/run-prompt-evals.mjs\", \"--app\", \"launchbot\", \"--mode\", \"all\"])",
+    "const gcloudCommand = args.apply",
+    "copy_dir \"$deploy_dir/apps/launchbot\" \"$profile/source/launchbot\"",
+    "copy_file \"$deploy_dir/apps/launchbot/profile/SOUL.md\" \"$profile/SOUL.md\"",
+    "for skill_dir in \"$deploy_dir/apps/launchbot/skills\"/*",
+    "copy_dir \"$skill_dir\" \"$profile/skills/$(basename \"$skill_dir\")\"",
+    "launchbot-check-health.sh",
+    "launchbot-audit-live-profile.sh",
+    "systemctl --user restart \"$service\"",
+    "run_post_deploy_check audit",
+    "run_post_deploy_check health",
+  ]) {
+    if (!deployText.includes(requiredText)) fail(`deploy-launchbot.mjs missing required text: ${requiredText}`);
+  }
+}
+
 const testRun = spawnSync("python3", ["-m", "unittest", "discover", "-s", join(appRoot, "runtime", "mcp"), "-p", "test_*.py"], {
   cwd: repoRoot,
   encoding: "utf8",
@@ -1054,6 +1511,22 @@ const monitorTestRun = spawnSync("python3", ["-m", "unittest", join(appRoot, "ru
 });
 if (monitorTestRun.status !== 0) {
   fail(`Launchbot feature intake monitor tests failed:\n${monitorTestRun.stdout || ""}${monitorTestRun.stderr || ""}`);
+}
+
+const supportWatchMonitorTestRun = spawnSync("python3", ["-m", "unittest", join(appRoot, "runtime", "test_monitor_support_watch.py")], {
+  cwd: repoRoot,
+  encoding: "utf8",
+});
+if (supportWatchMonitorTestRun.status !== 0) {
+  fail(`Launchbot support watch monitor tests failed:\n${supportWatchMonitorTestRun.stdout || ""}${supportWatchMonitorTestRun.stderr || ""}`);
+}
+
+const pantheonUpdateTestRun = spawnSync("python3", ["-m", "unittest", join(appRoot, "runtime", "test_update_pantheon_repo.py")], {
+  cwd: repoRoot,
+  encoding: "utf8",
+});
+if (pantheonUpdateTestRun.status !== 0) {
+  fail(`Launchbot Pantheon update tests failed:\n${pantheonUpdateTestRun.stdout || ""}${pantheonUpdateTestRun.stderr || ""}`);
 }
 
 if (failures.length > 0) {

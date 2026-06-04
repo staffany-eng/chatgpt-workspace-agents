@@ -1,0 +1,42 @@
+{
+  "audit_result": {
+    "answer": {
+      "audit_rows": [
+        {
+          "alert_id": "hubspot:thread-fixture-1",
+          "hubspot_thread_id": "thread-fixture-1",
+          "alert_time": "2026-05-17T04:00:00Z",
+          "assigned_owner": "jeremy.wong@staffany.com",
+          "first_customer_touch_time": "",
+          "first_touch_source": "missing",
+          "sla_status": "miss",
+          "ack_sla_status": "needs-check",
+          "first_touch_sla_status": "miss",
+          "duplicate_group": "thread:thread-fixture-1",
+          "lead_context": {
+            "company_name": "Fixture Cafe",
+            "contact_role": "Owner",
+            "email_domain": "fixture.example",
+            "context_status": "provided"
+          },
+          "hubspot_gaps": [],
+          "hubspot_context": {
+            "companies": [
+              {
+                "company_id": "company-fixture-1",
+                "name": "Fixture Cafe",
+                "account_status": "prospect"
+              }
+            ]
+          }
+        }
+      ],
+      "duplicate_summary": [],
+      "will_mutate_hubspot": false,
+      "external_message_sending": false
+    },
+    "source": "HubSpot Conversations, HubSpot CRM activity, and supplied safe Slack alert metadata",
+    "confidence": "needs-check",
+    "caveat": "Fixture dry run; no HubSpot mutation or external message send was performed."
+  }
+}

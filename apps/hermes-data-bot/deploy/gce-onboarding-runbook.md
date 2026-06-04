@@ -14,6 +14,7 @@ This runbook sets up the Hermes runtime StaffAny Data Bot on company infra. For 
 - Slack rollout: `#da-ta-hermz-testing` (`C0AU19E6T0C`), mention-only
 - Selected public/source-thread reads: configured channel IDs only through `staffany_slack_context`, using the bot token.
 - Customer 360 current-customer universe reads: `staffany_c360`, using `X-Customer360-Internal-Token`.
+- Reviewed learning candidates: `staffany_data_learning`, runtime-only lesson capture plus human-gated status updates; no active behavior change until repo promotion, deploy, and live verification.
 
 ## Current Multi-Bot VM Topology
 
@@ -304,6 +305,38 @@ mcp_servers:
       write_operations: false
     tool_allowlist:
       - list_current_customer_orgs
+  staffany_data_learning:
+    command: "/home/leekaiyi/.hermes/hermes-agent/venv/bin/python"
+    args:
+      - "/home/leekaiyi/.hermes/profiles/staffanydatabot/source/hermes-data-bot/runtime/mcp/staffany_data_learning_server.py"
+    env:
+      HERMES_PROFILE: "staffanydatabot"
+      STAFFANY_DATA_LEARNING_CANDIDATES_DIR: "/home/leekaiyi/.hermes/profiles/staffanydatabot/runtime/lesson-candidates"
+    access_policy:
+      mode: reviewed_learning_candidates_runtime_only
+      record_status: pending_review
+      valid_statuses:
+        - pending_review
+        - needs_more_evidence
+        - approved_for_repo_promotion
+        - rejected
+        - promoted
+      review_status_tool: update_staffany_data_lesson_candidate_status
+      review_approval_marker: human reviewed lesson
+      auto_behavior_change: false
+      self_approval: false
+      honcho_used_as_source_of_truth: false
+      raw_slack_transcript_persistence: false
+      raw_query_row_persistence: false
+      sensitive_data_persistence: false
+      kanban_dispatch: false
+      persistent_goal_continuation: false
+      self_evolution_gepa: false
+    tool_allowlist:
+      - record_staffany_data_lesson_candidate
+      - list_staffany_data_lesson_candidates
+      - read_staffany_data_lesson_candidate
+      - update_staffany_data_lesson_candidate_status
   staffany_google_sheets:
     command: "/home/leekaiyi/.hermes/hermes-agent/venv/bin/python"
     args:
@@ -336,10 +369,11 @@ Verify:
 hermes -p staffanydatabot mcp test staffany_bigquery
 hermes -p staffanydatabot mcp test staffany_slack_context
 hermes -p staffanydatabot mcp test staffany_c360
+hermes -p staffanydatabot mcp test staffany_data_learning
 hermes -p staffanydatabot mcp test staffany_google_sheets
 ```
 
-Expected result: BigQuery connected with 4 tools, Slack context with 2 tools, C360 with 1 tool, and Google Sheets output with 2 tools.
+Expected result: BigQuery connected with 4 tools, Slack context with 2 tools, C360 with 1 tool, reviewed learning with 4 tools, and Google Sheets output with 2 tools.
 
 ## Jira Release Registry Sync
 
@@ -416,6 +450,7 @@ Use profile-local Honcho config with:
       "aiPeer": "staffanydatabot",
       "recallMode": "tools",
       "saveMessages": false,
+      "contextTokens": 2000,
       "sessionStrategy": "per-session"
     }
   }
@@ -489,7 +524,9 @@ hermes -p staffanydatabot gateway status
 - `hermes -p staffanydatabot mcp test staffany_bigquery` discovers 4 tools
 - `hermes -p staffanydatabot mcp test staffany_slack_context` discovers 2 tools
 - `hermes -p staffanydatabot mcp test staffany_c360` discovers 1 tool
+- `hermes -p staffanydatabot mcp test staffany_data_learning` discovers 4 tools
 - `hermes -p staffanydatabot mcp test staffany_google_sheets` discovers 2 tools
+- `apps/hermes-data-bot/runtime/report-staffany-data-learning.py --stale-days 14` prints only safe counts and `lesson_candidates_content:omitted`
 - `apps/hermes-data-bot/runtime/check-health.sh` prints nothing and exits 0 when gateway, MCP, redaction, and Honcho are healthy
 - Direct MCP `execute_sql_readonly` probe with `SELECT 1 AS ok` returns a JSON-RPC result and no error
 - `hermes -p staffanydatabot gateway status` is active after Slack and model auth are ready
@@ -505,9 +542,14 @@ Install the health script as a silent Hermes watchdog on the VM:
 ```bash
 mkdir -p ~/.hermes/scripts
 cp apps/hermes-data-bot/runtime/check-health.sh ~/.hermes/profiles/staffanydatabot/scripts/staffanydatabot-check-health.sh
+cp apps/hermes-data-bot/runtime/report-staffany-data-learning.py ~/.hermes/profiles/staffanydatabot/scripts/staffanydatabot-report-data-learning.py
 hermes -p staffanydatabot cron create "0 1 * * 1-5" \
   --name "staffanydatabot health check" \
   --script staffanydatabot-check-health.sh \
+  --no-agent
+hermes -p staffanydatabot cron create "0 2 * * 1" \
+  --name "staffanydatabot reviewed learning report" \
+  --script staffanydatabot-report-data-learning.py \
   --no-agent
 hermes -p staffanydatabot cron status
 hermes -p staffanydatabot cron list

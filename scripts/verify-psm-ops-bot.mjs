@@ -32,6 +32,27 @@ function scanForSecretPatterns(relPath) {
   sharedScanForSecretPatterns(appRoot, relPath, fail);
 }
 
+function topLevelYamlBlock(text, blockName) {
+  const lines = text.split(/\r?\n/);
+  const start = lines.findIndex((line) => new RegExp(`^${blockName}:\\s*(?:#.*)?$`).test(line));
+  if (start === -1) return "";
+  const block = [];
+  for (const line of lines.slice(start + 1)) {
+    if (/^\S/.test(line)) break;
+    block.push(line);
+  }
+  return block.join("\n");
+}
+
+function activeYamlBooleanInBlock(text, blockName, key) {
+  const block = topLevelYamlBlock(text, blockName);
+  const childLine = block.split(/\r?\n/).find((line) => line.trim() && !line.trimStart().startsWith("#"));
+  const childIndent = childLine?.match(/^ */)?.[0] ?? "  ";
+  const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = block.match(new RegExp(`^${childIndent}${escapedKey}:\\s*(true|false)\\s*(?:#.*)?$`, "m"));
+  return match ? match[1] === "true" : undefined;
+}
+
 function profileBlock(profilesText, profileName) {
   const marker = `  - name: ${profileName}`;
   const start = profilesText.indexOf(marker);
@@ -62,13 +83,15 @@ if (!existsSync(manifestPath)) {
       "resolve_customer_channel_org",
       "list_my_pco_tasks",
       "search_pco_tickets",
+      "find_duplicate_pco_candidates",
       "find_ticket_by_slack_thread",
       "find_roi_ticket_by_slack_thread",
       "create_roi_ticket_from_slack",
       "create_or_link_pco_roi_tracker",
       "create_ps_wee_intake_ticket",
+      "attach_aa_selfie_to_thread",
+      "verify_drive_oauth",
       "append_ps_wee_ticket_update",
-      "mark_ps_wee_ticket_ready",
       "draft_pco_task",
       "create_approved_pco_task",
       "transition_pco_task",
@@ -76,6 +99,8 @@ if (!existsSync(manifestPath)) {
       "set_pco_assignee",
       "set_pco_ps_team",
       "link_pco_to_engineering_issue",
+      "link_pco_to_pco_issue",
+      "merge_pco_tickets",
       "set_pco_reminder",
       "list_due_pco_reminders"
     ];
@@ -131,6 +156,45 @@ if (!existsSync(manifestPath)) {
     if (manifest.google_calendar?.private_field_exports !== false) {
       fail("Manifest Google Calendar private_field_exports must be false");
     }
+    const expectedGoogleGeocodeTools = [
+      "check_google_geocode_access",
+      "geocode_slack_addresses",
+      "geocode_slack_address_file"
+    ];
+    const actualGoogleGeocodeTools = manifest.mcp?.psm_google_geocode?.expected_tools || [];
+    for (const tool of expectedGoogleGeocodeTools) {
+      if (!actualGoogleGeocodeTools.includes(tool)) fail(`Manifest missing psm_google_geocode tool: ${tool}`);
+    }
+    for (const tool of actualGoogleGeocodeTools) {
+      if (!expectedGoogleGeocodeTools.includes(tool)) fail(`Manifest has unexpected psm_google_geocode tool: ${tool}`);
+    }
+    if (manifest.google_geocode?.credential_file_env_var !== "PSM_OPS_GOOGLE_GEOCODE_CREDENTIALS_FILE") {
+      fail("Manifest Google Geocode credential_file_env_var must be PSM_OPS_GOOGLE_GEOCODE_CREDENTIALS_FILE");
+    }
+    if (manifest.google_geocode?.api_key_env_var !== "GOOGLE_GEOCODING_API_KEY") {
+      fail("Manifest Google Geocode api_key_env_var must be GOOGLE_GEOCODING_API_KEY");
+    }
+    if (manifest.google_geocode?.expected_credentials_json_key !== "google_geocoding_api_key") {
+      fail("Manifest Google Geocode expected_credentials_json_key must be google_geocoding_api_key");
+    }
+    if (manifest.google_geocode?.max_addresses_per_call !== 25) {
+      fail("Manifest Google Geocode max_addresses_per_call must be 25");
+    }
+    if (manifest.google_geocode?.stores_address_rows !== false) {
+      fail("Manifest Google Geocode stores_address_rows must be false");
+    }
+    if (manifest.google_geocode?.uploads_tsv_to_slack !== true) {
+      fail("Manifest Google Geocode uploads_tsv_to_slack must be true");
+    }
+    if (manifest.google_geocode?.raw_slack_message_rows !== false) {
+      fail("Manifest Google Geocode raw_slack_message_rows must be false");
+    }
+    if (manifest.google_geocode?.accepts_csv_tsv_input_files !== true) {
+      fail("Manifest Google Geocode accepts_csv_tsv_input_files must be true");
+    }
+    if (manifest.google_geocode?.prints_api_key !== false) {
+      fail("Manifest Google Geocode prints_api_key must be false");
+    }
     const expectedStoreReviewTools = [
       "list_store_review_apps",
       "list_store_reviews",
@@ -147,16 +211,22 @@ if (!existsSync(manifestPath)) {
       if (!expectedStoreReviewTools.includes(tool)) fail(`Manifest has unexpected psm_store_reviews tool: ${tool}`);
     }
     if (manifest.store_reviews?.google_play_package_name !== "com.staffany.pixie") {
-      fail("Manifest store_reviews.google_play_package_name must be com.staffany.pixie");
+      fail("Manifest Store Reviews google_play_package_name must be com.staffany.pixie");
     }
     if (manifest.store_reviews?.app_store_app_id !== "1360658903") {
-      fail("Manifest store_reviews.app_store_app_id must be 1360658903");
+      fail("Manifest Store Reviews app_store_app_id must be 1360658903");
+    }
+    if (manifest.store_reviews?.google_play_service_account_file_env_var !== "GOOGLE_PLAY_SERVICE_ACCOUNT_FILE") {
+      fail("Manifest Store Reviews google_play_service_account_file_env_var must be GOOGLE_PLAY_SERVICE_ACCOUNT_FILE");
+    }
+    if (manifest.store_reviews?.app_store_connect_config_file_env_var !== "APP_STORE_CONNECT_CONFIG_FILE") {
+      fail("Manifest Store Reviews app_store_connect_config_file_env_var must be APP_STORE_CONNECT_CONFIG_FILE");
     }
     if (manifest.store_reviews?.state_key !== "store + app_ref + review_id") {
-      fail("Manifest store_reviews state_key must be store + app_ref + review_id");
+      fail("Manifest Store Reviews state_key must be store + app_ref + review_id");
     }
     if (manifest.store_reviews?.public_reply_publish_v1 !== false) {
-      fail("Manifest store_reviews must keep public_reply_publish_v1=false");
+      fail("Manifest Store Reviews public_reply_publish_v1 must be false");
     }
     const expectedSlackScopes = [
       "app_mentions:read",
@@ -164,6 +234,8 @@ if (!existsSync(manifestPath)) {
       "channels:history",
       "channels:join",
       "chat:write",
+      "files:read",
+      "files:write",
       "users:read",
       "users:read.email"
     ];
@@ -173,6 +245,9 @@ if (!existsSync(manifestPath)) {
     }
     if (manifest.slack?.allowed_channels_expected_empty !== true) {
       fail("Manifest Slack contract must require empty SLACK_ALLOWED_CHANNELS for open public-channel mode");
+    }
+    if (manifest.slack?.strict_mention !== true) {
+      fail("Manifest Slack config must require strict_mention=true");
     }
     if (manifest.slack?.join_public_channels_script !== "runtime/scripts/psm_ops_join_public_channels.py") {
       fail("Manifest Slack contract must point to psm_ops_join_public_channels.py");
@@ -194,6 +269,7 @@ const filesToScan = [
   "runtime/jira.md",
   "runtime/c360.md",
   "runtime/google-calendar.md",
+  "runtime/google-geocode.md",
   "runtime/store-reviews.md",
   "runtime/health-checks.md",
   "runtime/check-health.sh",
@@ -204,24 +280,29 @@ const filesToScan = [
   "runtime/scripts/psm_ops_due_date_reminders.py",
   "runtime/scripts/psm_ops_pco_assignment_hygiene.py",
   "runtime/scripts/psm_ops_roi_tracker_sync.py",
-  "runtime/scripts/psm_ops_pco_assignment_hygiene.py",
-  "runtime/scripts/psm_ops_join_public_channels.py",
+  "runtime/scripts/psm_ops_churn_reporting_chase.py",
   "runtime/scripts/psm_ops_store_review_poll.py",
+  "runtime/sql/psm_ops_churn_projection_dashboard_292.sql",
+  "runtime/scripts/psm_ops_join_public_channels.py",
   "runtime/mcp/psm_slack_notifier.py",
   "runtime/mcp/psm_jira_server.py",
   "runtime/mcp/psm_c360_server.py",
   "runtime/mcp/google_oauth.py",
   "runtime/mcp/psm_google_calendar_server.py",
+  "runtime/mcp/psm_google_geocode_server.py",
   "runtime/mcp/store_reviews_core.py",
   "runtime/mcp/psm_store_reviews_server.py",
   "runtime/hooks/psm-ops-adoption-telemetry/HOOK.yaml",
   "runtime/hooks/psm-ops-adoption-telemetry/handler.py",
+  "runtime/hooks/psm-ops-mention-guard/HOOK.yaml",
+  "runtime/hooks/psm-ops-mention-guard/handler.py",
+  "runtime/hooks/psm-ops-mention-guard/test_handler.py",
   "runtime/test_psm_ops_due_date_reminders.py",
   "runtime/test_psm_ops_pco_assignment_hygiene.py",
   "runtime/test_psm_ops_roi_tracker_sync.py",
-  "runtime/test_psm_ops_join_public_channels.py",
-  "runtime/mcp/test_psm_store_reviews_server.py",
+  "runtime/test_psm_ops_churn_reporting_chase.py",
   "runtime/test_psm_ops_store_review_poll.py",
+  "runtime/test_psm_ops_join_public_channels.py",
   "deploy/gce-onboarding-runbook.md",
   "tests/regression-cases.md",
   "tests/prompt-evals.json"
@@ -267,8 +348,15 @@ if (!existsSync(deployScriptPath)) {
     "psm_ops_due_date_reminders_eod.py",
     "psm_ops_pco_assignment_hygiene.py",
     "psm_ops_join_public_channels.py",
+    "psm_ops_churn_reporting_chase.py",
     "psm_ops_store_review_poll.py",
+    "runtime/sql",
+    "psm_ops_churn_projection_dashboard_292.sql",
+    "psm_google_geocode",
+    "psm_store_reviews",
+    "store review poll",
     "psm-ops-adoption-telemetry",
+    "psm-ops-mention-guard",
     "smoke-rock-productions-c360.sh",
     "rock_productions_c360",
     "hermes-gateway-$profile_name.service",
@@ -286,6 +374,12 @@ if (!existsSync(deployScriptPath)) {
 }
 
 const configText = textOf(appRoot, "profile/config.template.yaml");
+if (activeYamlBooleanInBlock(configText, "slack", "require_mention") !== true) {
+  fail("config.template.yaml slack.require_mention must be an active true boolean");
+}
+if (activeYamlBooleanInBlock(configText, "slack", "strict_mention") !== true) {
+  fail("config.template.yaml slack.strict_mention must be an active true boolean");
+}
 if (configText.includes('      - "list_google_calendar_events"')) {
   fail("config.template.yaml must not expose broad list_google_calendar_events");
 }
@@ -294,8 +388,14 @@ const slackRuntimeText = textOf(appRoot, "runtime/slack.md");
 for (const requiredText of [
   "channels:join",
   "conversations.join",
+  "Set `slack.strict_mention=true`",
+  "Untagged same-thread replies after a previous bot response are silent",
+  "Customer 360: <url, only for successful C360-backed answers>",
   "psm_ops_join_public_channels.py --dry-run",
   "psm_ops_join_public_channels.py --apply",
+  "psm_ops_store_review_poll.py",
+  "PSM Ops automation: Store review triage",
+  "support@staffany.com",
   "Do not use Kai Yi's user token or the Slack connector to invite or post as a workaround"
 ]) {
   if (!slackRuntimeText.includes(requiredText)) fail(`runtime/slack.md missing required text: ${requiredText}`);
@@ -323,6 +423,9 @@ for (const requiredText of [
   "resolve_slack_user_identity",
     "PSM_OPS_CENTRAL_SLACK_CHANNEL_ID",
     "PSM_OPS_ADOPTION_METRICS_PATH",
+    "PSM_OPS_CHURN_REPORTING_CHANNEL_ID",
+    "PSM_OPS_CHURN_REPORTING_BQ_PROJECT",
+    "PSM_OPS_CHURN_REPORTING_BQ_DATASET",
     "PSM_OPS_REMINDER_MENTION_MAP_PATH",
     "assignment_hygiene:",
     "ps_leads.Josica",
@@ -330,6 +433,7 @@ for (const requiredText of [
     "classify_roi_ticket_request",
   "find_engineering_issue",
   "search_pco_tickets",
+  "find_duplicate_pco_candidates",
   "validate_roi_jira_configuration",
   "create_roi_ticket_from_slack",
   "create_or_link_pco_roi_tracker",
@@ -340,33 +444,69 @@ for (const requiredText of [
   "create_ps_wee_intake_ticket",
   "find_ticket_by_slack_thread",
   "append_ps_wee_ticket_update",
-  "mark_ps_wee_ticket_ready",
   "set_pco_ps_team",
   "link_pco_to_engineering_issue",
+  "merge_pco_tickets",
   "psm_jira",
   "psm_c360",
   "psm_google_calendar",
+  "psm_google_geocode",
   "psm_store_reviews",
   "GOOGLE_CALENDAR_TOKEN_FILE",
   "GOOGLE_CALENDAR_CLIENT_SECRET_FILE",
   "team@staffany.com",
   "calendar.readonly",
+  "PSM_OPS_GOOGLE_GEOCODE_CREDENTIALS_FILE",
+  "GOOGLE_GEOCODING_API_KEY",
+  "google_geocoding_api_key",
+  "geocode_slack_addresses",
+  "geocode_slack_address_file",
+  "PSM_OPS_GOOGLE_PLAY_PACKAGE_NAME",
   "GOOGLE_PLAY_SERVICE_ACCOUNT_FILE",
   "GOOGLE_PLAY_SERVICE_ACCOUNT_JSON",
-  "https://www.googleapis.com/auth/androidpublisher",
+  "PSM_OPS_APP_STORE_APP_ID",
   "APP_STORE_CONNECT_CONFIG_FILE",
   "APP_STORE_CONNECT_CONFIG_JSON",
-  "PSM_OPS_STORE_REVIEWS_STATE_PATH",
-  "polling_cron: \"0 * * * *\"",
-  "publish_replies_v1: false",
+  "APP_STORE_CONNECT_ISSUER_ID",
+  "APP_STORE_CONNECT_KEY_ID",
+  "APP_STORE_CONNECT_PRIVATE_KEY_FILE",
+  "APP_STORE_CONNECT_PRIVATE_KEY",
   "list_store_review_apps",
   "list_store_reviews",
-  "get_store_review",
   "draft_store_review_reply",
   "suggest_store_review_identity_candidates",
   "confirm_store_review_identity"
 ]) {
   if (!configText.includes(requiredText)) fail(`config.template.yaml missing required text: ${requiredText}`);
+}
+
+// Exact parity: the psm_jira tool_allowlist must match the manifest expected_tools (order-independent).
+if (existsSync(manifestPath)) {
+  const expectedJiraTools = readJson(manifestPath)?.mcp?.psm_jira?.expected_tools || [];
+  const allowlistStart = configText.indexOf("tool_allowlist:", configText.indexOf("  psm_jira:"));
+  const nextServer = configText.slice(allowlistStart).search(/\n {2}[a-z0-9_]+:/);
+  const allowlistBlock = configText.slice(allowlistStart, nextServer === -1 ? undefined : allowlistStart + nextServer);
+  const allowlistTools = [...allowlistBlock.matchAll(/-\s*"([^"]+)"/g)].map((m) => m[1]);
+  for (const tool of expectedJiraTools) {
+    if (!allowlistTools.includes(tool)) fail(`config.template.yaml psm_jira tool_allowlist missing: ${tool}`);
+  }
+  for (const tool of allowlistTools) {
+    if (!expectedJiraTools.includes(tool)) fail(`config.template.yaml psm_jira tool_allowlist has unexpected tool: ${tool}`);
+  }
+}
+
+if (existsSync(manifestPath)) {
+  const expectedStoreReviewTools = readJson(manifestPath)?.mcp?.psm_store_reviews?.expected_tools || [];
+  const allowlistStart = configText.indexOf("tool_allowlist:", configText.indexOf("  psm_store_reviews:"));
+  const nextServer = configText.slice(allowlistStart).search(/\n {2}[a-z0-9_]+:/);
+  const allowlistBlock = configText.slice(allowlistStart, nextServer === -1 ? undefined : allowlistStart + nextServer);
+  const allowlistTools = [...allowlistBlock.matchAll(/-\s*"([^"]+)"/g)].map((m) => m[1]);
+  for (const tool of expectedStoreReviewTools) {
+    if (!allowlistTools.includes(tool)) fail(`config.template.yaml psm_store_reviews tool_allowlist missing: ${tool}`);
+  }
+  for (const tool of allowlistTools) {
+    if (!expectedStoreReviewTools.includes(tool)) fail(`config.template.yaml psm_store_reviews tool_allowlist has unexpected tool: ${tool}`);
+  }
 }
 
 const soulText = textOf(appRoot, "profile/SOUL.md");
@@ -382,6 +522,10 @@ for (const requiredText of [
   "task list",
   "Calendar",
   "Slack poster",
+  "authored_request",
+  "authored_update",
+  "Do not pass a whole Slack thread transcript or unrelated prior/follow-up chatter as ticket metadata",
+  "raw Slack transcripts or whole-thread dumps",
   "Slack profile email/name",
   "Slack sender ID/mention",
   "past due date",
@@ -389,16 +533,28 @@ for (const requiredText of [
   "Google Calendar",
   "team@staffany.com",
   "read_customer_calendar_context",
+  "Google Geocode",
+  "psm_google_geocode",
+  "geocode_slack_addresses",
+  "geocode_slack_address_file",
   "Store Reviews",
-  "list_store_review_apps",
+  "psm_store_reviews",
+  "list_store_reviews",
   "draft_store_review_reply",
   "support@staffany.com",
-  "store + app_ref + review_id",
-  "No direct public App Store / Google Play reply publishing tool is exposed.",
+  "explicit address rows",
   "Do not use personal `customer360_session` cookies",
+  "Customer 360: <url>",
   "PSM Ops automation:"
 ]) {
   if (!soulText.includes(requiredText)) fail(`SOUL.md missing required text: ${requiredText}`);
+}
+for (const requiredText of [
+  "Strict opt-in",
+  "prior same-thread mentions",
+  "stay silent until a later message directly @-mentions the bot again"
+]) {
+  if (!soulText.includes(requiredText)) fail(`SOUL.md missing strict opt-in text: ${requiredText}`);
 }
 
 const skillText = textOf(appRoot, "skills/psm-ops-bot/SKILL.md");
@@ -431,21 +587,30 @@ for (const requiredText of [
   "Public customer-visible comments are blocked",
   "Reminder source of truth is Jira",
   "Use `search_c360_customers`",
+  "Customer 360: <url, only for successful C360-backed answers>",
   "read_customer_calendar_context",
   "team@staffany.com",
   "calendar.readonly",
-  "psm_store_reviews",
+  "geocode_slack_addresses",
+  "geocode_slack_address_file",
   "Store Review Rules",
-  "list_store_review_apps",
+  "psm_store_reviews",
   "list_store_reviews",
-  "get_store_review",
   "draft_store_review_reply",
-  "suggest_store_review_identity_candidates",
-  "confirm_store_review_identity",
-  "store + app_ref + review_id",
-  "V1 is draft-only"
+  "support@staffany.com",
+  "explicit address rows",
+  "call `geocode_slack_address_file` with the current Slack thread permalink before asking the user to paste addresses",
+  "Do not geocode customer names",
+  "do not paste latitude/longitude rows as raw Slack text"
 ]) {
   if (!skillText.includes(requiredText)) fail(`Skill missing required text: ${requiredText}`);
+}
+for (const requiredText of [
+  "Strict opt-in comes before workflow routing",
+  "Do not answer untagged same-thread replies",
+  "until the bot is directly @-mentioned again"
+]) {
+  if (!skillText.includes(requiredText)) fail(`Skill missing strict opt-in text: ${requiredText}`);
 }
 
 const jiraMcpText = textOf(appRoot, "runtime/mcp/psm_jira_server.py");
@@ -468,7 +633,6 @@ for (const requiredText of [
   "create_ps_wee_intake_ticket",
   "append_ps_wee_ticket_update",
   "Slack poster",
-  "mark_ps_wee_ticket_ready",
   "create_approved_pco_task",
   "transition_pco_task",
   "add_internal_pco_comment",
@@ -499,6 +663,10 @@ for (const requiredText of [
   "search_c360_customers",
   "get_c360_account_context",
   "ask_c360_customer_context",
+  "def _customer360_company_url",
+  "def _enrich_c360_group_links",
+  "c360_url",
+  "customer360_url",
   "CUSTOMER360_INTERNAL_API_TOKEN",
   "X-Customer360-Internal-Token",
   "searched_variants",
@@ -506,6 +674,16 @@ for (const requiredText of [
   "No Customer 360 customer/org mapping"
 ]) {
   if (!c360McpText.includes(requiredText)) fail(`psm_c360_server.py missing required text: ${requiredText}`);
+}
+
+const c360RuntimeText = textOf(appRoot, "runtime/c360.md");
+for (const requiredText of [
+  "Successful C360 tool results expose a canonical company link",
+  "`search_c360_customers` adds `c360_url` and `customer360_url`",
+  "`get_c360_account_context` and `ask_c360_customer_context` add top-level `c360_url` and `customer360_url`",
+  "Unresolved, blocked, and AA-channel redirect responses do not invent a Customer 360 link"
+]) {
+  if (!c360RuntimeText.includes(requiredText)) fail(`runtime/c360.md missing required text: ${requiredText}`);
 }
 
 const rockProductionsSmokeText = textOf(appRoot, "runtime/smoke-rock-productions-c360.sh");
@@ -554,19 +732,23 @@ if (!psmOpsProfileBlock) {
     "systemd_unit: hermes-gateway-psmopsbot.service",
     "bot_name: ps_wee_manager",
     "open_channel_mode: true",
-    "psm_jira: 24",
+    "require_mention: true",
+    "strict_mention: true",
+    "psm_jira: 28",
     "psm_c360: 3",
-    "psm_google_calendar: 1",
+    "psm_google_geocode: 3",
     "psm_store_reviews: 6",
     "psmopsbot due-date reminders",
     "psmopsbot assignment hygiene",
     "psmopsbot due-date eod catch-up",
     "psmopsbot roi tracker sync",
+    "psmopsbot churn reporting chase",
     "psmopsbot store review poll",
-    "psmopsbot assignment hygiene",
+    "psmopsbot store review poll",
     "psm_ops_roi_tracker_sync.py",
+    "psm_ops_churn_reporting_chase.py",
     "psm_ops_store_review_poll.py",
-    "psm_ops_pco_assignment_hygiene.py",
+    "psm_ops_store_review_poll.py",
     "psm_ops_due_date_reminders.py",
     "psm_ops_pco_assignment_hygiene.py",
     "psm_ops_due_date_reminders_eod.py",
@@ -624,7 +806,49 @@ for (const requiredText of [
   if (!googleCalendarMcpText.includes(requiredText)) fail(`psm_google_calendar_server.py missing required text: ${requiredText}`);
 }
 
-const storeReviewsRuntimeText = textOf(appRoot, "runtime/store-reviews.md");
+const googleGeocodeText = textOf(appRoot, "runtime/google-geocode.md");
+for (const requiredText of [
+  "psm_google_geocode",
+  "check_google_geocode_access",
+  "geocode_slack_addresses",
+  "geocode_slack_address_file",
+  "GOOGLE_GEOCODING_API_KEY",
+  "PSM_OPS_GOOGLE_GEOCODE_CREDENTIALS_FILE",
+  "google_geocoding_api_key",
+  "Max addresses per Slack request: 25",
+  "Do not geocode customer names",
+  "partial_match=true",
+  "files:read",
+  "files:write",
+  "Hermes Slack gateway prompts may not expose attachment metadata to the model",
+  "Do not paste the geocoded rows into the Slack message body"
+]) {
+  if (!googleGeocodeText.includes(requiredText)) fail(`runtime/google-geocode.md missing required text: ${requiredText}`);
+}
+
+const googleGeocodeMcpText = textOf(appRoot, "runtime/mcp/psm_google_geocode_server.py");
+for (const requiredText of [
+  "GOOGLE_GEOCODE_URL",
+  "PSM_OPS_GOOGLE_GEOCODE_CREDENTIALS_FILE",
+  "GOOGLE_GEOCODING_API_KEY",
+  "google_geocoding_api_key",
+  "MAX_ADDRESSES_PER_CALL = 25",
+  "check_google_geocode_access",
+  "geocode_slack_addresses",
+  "geocode_slack_address_file",
+  "Google Geocoding API",
+  "never expose API keys",
+  "files.getUploadURLExternal",
+  "files.completeUploadExternal",
+  "partial_match",
+  "files:read",
+  "files:write",
+  "Hermes may omit attachment metadata"
+]) {
+  if (!googleGeocodeMcpText.includes(requiredText)) fail(`psm_google_geocode_server.py missing required text: ${requiredText}`);
+}
+
+const storeReviewsText = textOf(appRoot, "runtime/store-reviews.md");
 for (const requiredText of [
   "psm_store_reviews",
   "list_store_review_apps",
@@ -633,67 +857,47 @@ for (const requiredText of [
   "draft_store_review_reply",
   "suggest_store_review_identity_candidates",
   "confirm_store_review_identity",
-  "store + app_ref + review_id",
-  "psm_ops_store_review_poll.py",
-  "0 * * * *",
-  "support@staffany.com",
-  "V1 is draft-only",
-  "GOOGLE_PLAY_SERVICE_ACCOUNT_FILE",
-  "APP_STORE_CONNECT_CONFIG_FILE",
-  "openssl"
-]) {
-  if (!storeReviewsRuntimeText.includes(requiredText)) fail(`runtime/store-reviews.md missing required text: ${requiredText}`);
-}
-
-const storeReviewsCoreText = textOf(appRoot, "runtime/mcp/store_reviews_core.py");
-for (const requiredText of [
-  "GOOGLE_ANDROID_PUBLISHER_BASE_URL",
-  "APP_STORE_CONNECT_BASE_URL",
   "GOOGLE_PLAY_SERVICE_ACCOUNT_FILE",
   "GOOGLE_PLAY_SERVICE_ACCOUNT_JSON",
   "APP_STORE_CONNECT_CONFIG_FILE",
   "APP_STORE_CONNECT_CONFIG_JSON",
-  "https://www.googleapis.com/auth/androidpublisher",
-  "PSM_OPS_STORE_REVIEWS_STATE_PATH",
-  "store + app_ref + review_id",
+  "psm_ops_store_review_poll.py",
   "support@staffany.com",
-  "identity_requested_private",
-  "suggest_store_review_identity_candidates",
-  "confirm_store_review_identity",
-  "normalize_google_play_review",
-  "normalize_app_store_review",
-  "classify_store_review",
-  "build_slack_triage_text",
-  "poll_new_reviews"
+  "V1 is draft-only",
+  "store + app_ref + review_id"
 ]) {
-  if (!storeReviewsCoreText.includes(requiredText)) fail(`store_reviews_core.py missing required text: ${requiredText}`);
+  if (!storeReviewsText.includes(requiredText)) fail(`runtime/store-reviews.md missing required text: ${requiredText}`);
 }
 
 const storeReviewsMcpText = textOf(appRoot, "runtime/mcp/psm_store_reviews_server.py");
 for (const requiredText of [
-  "@mcp.tool()",
+  "psm_store_reviews",
   "list_store_review_apps",
   "list_store_reviews",
   "get_store_review",
   "draft_store_review_reply",
   "suggest_store_review_identity_candidates",
-  "confirm_store_review_identity",
-  "do not publish public"
+  "confirm_store_review_identity"
 ]) {
   if (!storeReviewsMcpText.includes(requiredText)) fail(`psm_store_reviews_server.py missing required text: ${requiredText}`);
 }
 
-const storeReviewPollText = textOf(appRoot, "runtime/scripts/psm_ops_store_review_poll.py");
+const storeReviewsCoreText = textOf(appRoot, "runtime/mcp/store_reviews_core.py");
 for (const requiredText of [
-  "PSM Ops automation: Store review triage",
-  "[SILENT] PSM Ops automation",
-  "poll_new_reviews",
-  "build_slack_triage_text",
-  "mark_triaged",
-  "--apply",
-  "--lookback-days"
+  "GOOGLE_PLAY_SERVICE_ACCOUNT_JSON",
+  "GOOGLE_PLAY_SERVICE_ACCOUNT_FILE",
+  "APP_STORE_CONNECT_CONFIG_JSON",
+  "APP_STORE_CONNECT_CONFIG_FILE",
+  "APP_STORE_CONNECT_ISSUER_ID",
+  "APP_STORE_CONNECT_KEY_ID",
+  "APP_STORE_CONNECT_PRIVATE_KEY_FILE",
+  "APP_STORE_CONNECT_PRIVATE_KEY",
+  "support@staffany.com",
+  "identity_requested_private",
+  "confirm_store_review_identity",
+  "store_errors"
 ]) {
-  if (!storeReviewPollText.includes(requiredText)) fail(`psm_ops_store_review_poll.py missing required text: ${requiredText}`);
+  if (!storeReviewsCoreText.includes(requiredText)) fail(`store_reviews_core.py missing required text: ${requiredText}`);
 }
 
 const notifierText = textOf(appRoot, "runtime/mcp/psm_slack_notifier.py");
@@ -726,21 +930,26 @@ for (const requiredText of [
   "public/open channels",
   "channels:join",
   "psm_ops_join_public_channels.py --apply",
-  "npm run psm-ops-bot:deploy",
+  "pnpm psm-ops-bot:deploy",
   "psm-ops-origin-main-<sha>.tar.gz",
   "preserves runtime secrets/state",
   "GOOGLE_CALENDAR_TOKEN_FILE",
   "team@staffany.com",
-  "psm_ops_roi_tracker_sync.py",
-  "psmopsbot roi tracker sync",
-  "psm_ops_pco_assignment_hygiene.py",
-  "psmopsbot assignment hygiene",
+  "PSM_OPS_GOOGLE_GEOCODE_CREDENTIALS_FILE",
+  "GOOGLE_GEOCODING_API_KEY",
+  "psm_google_geocode.geocode_slack_addresses",
+  "psm_google_geocode.geocode_slack_address_file",
   "GOOGLE_PLAY_SERVICE_ACCOUNT_FILE",
+  "GOOGLE_PLAY_SERVICE_ACCOUNT_JSON",
   "APP_STORE_CONNECT_CONFIG_FILE",
-  "PSM_OPS_STORE_REVIEWS_STATE_PATH",
+  "APP_STORE_CONNECT_CONFIG_JSON",
+  "psm_store_reviews",
   "psm_ops_store_review_poll.py",
   "psmopsbot store review poll",
-  "V1 is draft-only"
+  "psm_ops_roi_tracker_sync.py",
+  "psm_ops_churn_reporting_chase.py",
+  "psm_ops_pco_assignment_hygiene.py",
+  "psmopsbot roi tracker sync"
 ]) {
   if (!runbookText.includes(requiredText)) fail(`GCE runbook missing required text: ${requiredText}`);
 }
@@ -752,14 +961,12 @@ for (const requiredText of [
     "psmopsbot assignment hygiene",
     "psmopsbot due-date eod catch-up",
     "psmopsbot roi tracker sync",
-    "psmopsbot store review poll",
-    "psmopsbot assignment hygiene",
+    "psmopsbot churn reporting chase",
     "psm_ops_due_date_reminders.py",
     "psm_ops_pco_assignment_hygiene.py",
     "psm_ops_due_date_reminders_eod.py",
     "psm_ops_roi_tracker_sync.py",
-    "psm_ops_store_review_poll.py",
-    "psm_ops_pco_assignment_hygiene.py",
+    "psm_ops_churn_reporting_chase.py",
     "psmopsbot local cloud heartbeat",
     "psmopsbot adoption digest",
     "EXPECTED_ENABLED_CRON_COUNT",
@@ -773,12 +980,14 @@ for (const requiredText of [
 const auditText = textOf(appRoot, "runtime/audit-live-profile.sh");
 for (const requiredText of [
   "profile:health-script-drift",
+  "profile:mcp-drift",
   "profile:public-channel-join-script-drift",
   "profile:assignment-hygiene-script-drift",
+  "profile:churn-reporting-chase-script-drift",
   "profile:store-review-poll-script-drift",
-  "psm_ops_join_public_channels.py",
-  "psm_ops_pco_assignment_hygiene.py",
-  "psm_ops_store_review_poll.py"
+  "cron:churn-reporting-chase-missing",
+  "cron:store-review-poll-missing",
+  "psm_ops_join_public_channels.py"
 ]) {
   if (!auditText.includes(requiredText)) fail(`Audit script missing required text: ${requiredText}`);
 }
@@ -789,17 +998,39 @@ for (const requiredText of [
   "slack-display:tool-progress-not-off",
   "slack-display:streaming-not-disabled",
   "slack:reactions-not-disabled",
+  "slack:strict-mention-not-enabled",
   "conversations.join",
   "slack:public-channel-join-scope-missing",
-  "psm_store_reviews",
-  "GOOGLE_PLAY_SERVICE_ACCOUNT_FILE",
-  "APP_STORE_CONNECT_CONFIG_FILE",
-  "dependency:openssl:not-found",
   "auxiliary:title-generation-provider-not-anthropic",
   "auxiliary:title-generation-model-not-haiku",
-  "auxiliary:title-generation-timeout-too-high"
+  "auxiliary:title-generation-timeout-too-high",
+  "bigquery:bq-not-found",
+  "psmopsbot churn reporting chase",
+  "psm_ops_churn_reporting_chase.py",
+  "slack:auth-test-missing-user-id",
+  "psm_google_geocode) expected=3",
+  "psm_store_reviews) expected=6",
+  "is_unresolved_placeholder",
+  "GEOCODE_CREDENTIALS_FILE",
+  "google_geocode:credentials-file-unreadable",
+  "google_geocode:api-key-missing",
+  "dependency:openssl:not-found",
+  "GOOGLE_PLAY_SERVICE_ACCOUNT_FILE",
+  "APP_STORE_CONNECT_CONFIG_FILE",
+  "store_reviews:google-play-credentials-missing",
+  "store_reviews:app-store-private-key-missing",
+  "psmopsbot store review poll",
+  "psm_ops_store_review_poll.py"
 ]) {
   if (!healthCheckText.includes(requiredText)) fail(`Health check script missing required text: ${requiredText}`);
+}
+
+// The health-check expected psm_jira tool count must match the manifest, or post-deploy audits drift.
+if (existsSync(manifestPath)) {
+  const expectedJiraCount = (readJson(manifestPath)?.mcp?.psm_jira?.expected_tools || []).length;
+  if (!healthCheckText.includes(`psm_jira) expected=${expectedJiraCount}`)) {
+    fail(`check-health.sh psm_jira expected tool count must be ${expectedJiraCount} (matching manifest expected_tools)`);
+  }
 }
 
 const joinPublicChannelsText = textOf(appRoot, "runtime/scripts/psm_ops_join_public_channels.py");
@@ -859,7 +1090,6 @@ for (const requiredText of [
   "assignee is EMPTY",
   "duedate is EMPTY",
   "customfield_10876",
-  "central digest only",
   "Needs PS lead triage",
   "Needs due date by PS Team",
   "Lead mention gap:",
@@ -890,6 +1120,57 @@ for (const requiredText of [
   "comment"
 ]) {
   if (!roiTrackerSyncText.includes(requiredText)) fail(`ROI tracker sync script missing required text: ${requiredText}`);
+}
+
+const churnReportingChaseText = textOf(appRoot, "runtime/scripts/psm_ops_churn_reporting_chase.py");
+for (const requiredText of [
+  "PSM Ops automation: Weekly churn reporting chase",
+  "[SILENT] PSM Ops automation",
+  "psm_ops_churn_projection_dashboard_292.sql",
+  "Dashboard 292 SQL",
+  "1-Actualized",
+  "company_churn_reason_bucket",
+  "renewal_assessment_reason",
+  "fct_upcoming_renewal_cycles",
+  "fct_company_revenue_snapshot",
+  "fct_churnmrrbymonth",
+  "PSM_OPS_CHURN_REPORTING_CHANNEL_ID",
+  "C019RVCR4S1",
+  "current quarter plus next two quarters",
+  "renewal status, churn reason/category, evidence link",
+  "No writes are ever performed"
+]) {
+  if (!churnReportingChaseText.includes(requiredText)) fail(`Churn reporting chase script missing required text: ${requiredText}`);
+}
+const churnProjectionDashboard292SqlText = textOf(appRoot, "runtime/sql/psm_ops_churn_projection_dashboard_292.sql");
+for (const requiredText of [
+  "Metabase card 2446",
+  "get_churn_class",
+  "churn_class",
+  "weighted_churn_mrr",
+  "company_churn_reason_bucket",
+  "renewal_assessment_reason",
+  "fct_alldealsmrr",
+  "stg_hubspot__companies"
+]) {
+  if (!churnProjectionDashboard292SqlText.includes(requiredText)) {
+    fail(`Dashboard 292 SQL missing required text: ${requiredText}`);
+  }
+}
+for (const forbiddenText of [
+  "13UjJOZpkyngN_5oo4LtzeJWfqhc7PAD8hR1E_aU6gP0",
+  "spreadsheets.values",
+  "googleapis.com/sheets",
+  "gspread",
+  "SLACK_USER_TOKEN",
+  "xoxp-"
+]) {
+  if (churnReportingChaseText.includes(forbiddenText)) {
+    fail(`Churn reporting chase script must not include forbidden runtime source/token text: ${forbiddenText}`);
+  }
+  if (churnProjectionDashboard292SqlText.includes(forbiddenText)) {
+    fail(`Dashboard 292 SQL must not include forbidden runtime source/token text: ${forbiddenText}`);
+  }
 }
 
 const shellCheck = spawnSync("bash", [
@@ -925,16 +1206,18 @@ const pyCompile = spawnSync("python3", [
   join(appRoot, "runtime/mcp/psm_c360_server.py"),
   join(appRoot, "runtime/mcp/google_oauth.py"),
   join(appRoot, "runtime/mcp/psm_google_calendar_server.py"),
+  join(appRoot, "runtime/mcp/psm_google_geocode_server.py"),
   join(appRoot, "runtime/mcp/store_reviews_core.py"),
   join(appRoot, "runtime/mcp/psm_store_reviews_server.py"),
   join(appRoot, "runtime/hooks/psm-ops-adoption-telemetry/handler.py"),
+  join(appRoot, "runtime/hooks/psm-ops-mention-guard/handler.py"),
   join(appRoot, "runtime/psm_ops_adoption_digest.py"),
   join(appRoot, "runtime/scripts/psm_ops_due_date_reminders.py"),
   join(appRoot, "runtime/scripts/psm_ops_pco_assignment_hygiene.py"),
   join(appRoot, "runtime/scripts/psm_ops_roi_tracker_sync.py"),
-  join(appRoot, "runtime/scripts/psm_ops_pco_assignment_hygiene.py"),
-  join(appRoot, "runtime/scripts/psm_ops_join_public_channels.py"),
-  join(appRoot, "runtime/scripts/psm_ops_store_review_poll.py")
+  join(appRoot, "runtime/scripts/psm_ops_churn_reporting_chase.py"),
+  join(appRoot, "runtime/scripts/psm_ops_store_review_poll.py"),
+  join(appRoot, "runtime/scripts/psm_ops_join_public_channels.py")
 ], {
   cwd: repoRoot,
   env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1" },
@@ -987,6 +1270,32 @@ if (roiTrackerScriptUnitCheck.status !== 0) {
   fail(`ROI tracker sync unit tests failed: ${roiTrackerScriptUnitCheck.stderr || roiTrackerScriptUnitCheck.stdout}`);
 }
 
+const churnReportingChaseScriptUnitCheck = spawnSync("python3", [
+  "-m",
+  "unittest",
+  join(appRoot, "runtime/test_psm_ops_churn_reporting_chase.py")
+], {
+  cwd: repoRoot,
+  env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1" },
+  encoding: "utf8"
+});
+if (churnReportingChaseScriptUnitCheck.status !== 0) {
+  fail(`Churn reporting chase unit tests failed: ${churnReportingChaseScriptUnitCheck.stderr || churnReportingChaseScriptUnitCheck.stdout}`);
+}
+
+const storeReviewPollScriptUnitCheck = spawnSync("python3", [
+  "-m",
+  "unittest",
+  join(appRoot, "runtime/test_psm_ops_store_review_poll.py")
+], {
+  cwd: repoRoot,
+  env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1" },
+  encoding: "utf8"
+});
+if (storeReviewPollScriptUnitCheck.status !== 0) {
+  fail(`Store review poll unit tests failed: ${storeReviewPollScriptUnitCheck.stderr || storeReviewPollScriptUnitCheck.stdout}`);
+}
+
 const assignmentHygieneScriptUnitCheck = spawnSync("python3", [
   "-m",
   "unittest",
@@ -1000,19 +1309,6 @@ if (assignmentHygieneScriptUnitCheck.status !== 0) {
   fail(`Assignment hygiene unit tests failed: ${assignmentHygieneScriptUnitCheck.stderr || assignmentHygieneScriptUnitCheck.stdout}`);
 }
 
-const storeReviewPollUnitCheck = spawnSync("python3", [
-  "-m",
-  "unittest",
-  join(appRoot, "runtime/test_psm_ops_store_review_poll.py")
-], {
-  cwd: repoRoot,
-  env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1" },
-  encoding: "utf8"
-});
-if (storeReviewPollUnitCheck.status !== 0) {
-  fail(`Store review poll unit tests failed: ${storeReviewPollUnitCheck.stderr || storeReviewPollUnitCheck.stdout}`);
-}
-
 const joinPublicChannelsUnitCheck = spawnSync("python3", [
   "-m",
   "unittest",
@@ -1024,6 +1320,17 @@ const joinPublicChannelsUnitCheck = spawnSync("python3", [
 });
 if (joinPublicChannelsUnitCheck.status !== 0) {
   fail(`Public-channel join unit tests failed: ${joinPublicChannelsUnitCheck.stderr || joinPublicChannelsUnitCheck.stdout}`);
+}
+
+const mentionGuardUnitCheck = spawnSync("python3", [
+  join(appRoot, "runtime/hooks/psm-ops-mention-guard/test_handler.py")
+], {
+  cwd: repoRoot,
+  env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1" },
+  encoding: "utf8"
+});
+if (mentionGuardUnitCheck.status !== 0) {
+  fail(`Mention-guard hook unit tests failed: ${mentionGuardUnitCheck.stderr || mentionGuardUnitCheck.stdout}`);
 }
 
 if (failures.length > 0) {

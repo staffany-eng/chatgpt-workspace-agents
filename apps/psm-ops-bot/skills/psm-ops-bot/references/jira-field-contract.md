@@ -31,6 +31,19 @@ The live profile must configure these environment variables before the gateway i
 | Onboarding Task request type | `PSM_OPS_JIRA_REQUEST_TYPE_ONBOARDING_TASK` |
 | Data Hygiene request type | `PSM_OPS_JIRA_REQUEST_TYPE_DATA_HYGIENE` |
 | Handoff Package request type | `PSM_OPS_JIRA_REQUEST_TYPE_HANDOFF_PACKAGE` |
+| Adhoc Ops request type (Event AA) | `PSM_OPS_JIRA_REQUEST_TYPE_ADHOC_OPS` (live PCO ID `118`) |
+| REV Cross Sell request type (Event AA) | `PSM_OPS_JIRA_REQUEST_TYPE_REV_CROSS_SELL` (live PCO ID `120`) |
+| Feedback request type (Event AA) | `PSM_OPS_JIRA_REQUEST_TYPE_FEEDBACK` (live PCO ID `122`) |
+| PS Follow Up request type (Event AA) | `PSM_OPS_JIRA_REQUEST_TYPE_PS_FOLLOW_UP` (live PCO ID `123`) |
+| CS Follow Up request type (Event AA) | `PSM_OPS_JIRA_REQUEST_TYPE_CS_FOLLOW_UP` (live PCO ID `124`) |
+| PDT Discovery request type (Event AA) | `PSM_OPS_JIRA_REQUEST_TYPE_PDT_DISCOVERY` (live PCO ID `125`) |
+| MKT ClubAny Interest request type (Event AA) | `PSM_OPS_JIRA_REQUEST_TYPE_MKT_CLUBANY` (live PCO ID `126`) |
+| Photo Follow Up request type (Event AA, image-trigger) | `PSM_OPS_JIRA_REQUEST_TYPE_PHOTO_FOLLOW_UP` (live PCO ID `127`) |
+| Event AA Slack channel ID | `PSM_OPS_AA_CHANNEL_ID` (live channel `C0B5H2YE5T2`) |
+| Event AA selfie Drive folder | `PSM_OPS_AA_SELFIE_DRIVE_FOLDER_ID` (defaults to live folder `1hxeLDkyLLoVwuKCBPTjLK7ypnZTB9xHc`) |
+| Event AA Drive OAuth token file | `PSM_OPS_DRIVE_TOKEN_FILE` (path to the OAuth refresh-token JSON minted via `InstalledAppFlow`; user-account credential with the `https://www.googleapis.com/auth/drive.file` scope; defaults to `~/.hermes/profiles/psmopsbot/drive-token.json`) |
+| Event AA Drive OAuth client secret file | `PSM_OPS_DRIVE_CLIENT_SECRET_FILE` (path to the OAuth desktop-client JSON downloaded from Google Cloud Console; defaults to `~/.hermes/profiles/psmopsbot/drive-client-secret.json`; see `deploy/gce-onboarding-runbook.md` for the one-time setup) |
+| Creator field | `PSM_OPS_JIRA_FIELD_CREATOR`; in thin POC this defaults to `customfield_10914` |
 | Customer field | `PSM_OPS_JIRA_FIELD_CUSTOMER` |
 | StaffAny Org(s) field | `PSM_OPS_JIRA_FIELD_STAFFANY_ORGS` |
 | Owner PSM field | `PSM_OPS_JIRA_FIELD_OWNER_PSM` |
@@ -72,6 +85,39 @@ For ROI urgency fields, match the field's configured options exactly. If the req
 - `CS duty`, `cs duty`, and equivalent spelling variants mean Jira `PS Team = CS Duty`.
 - `Eng duty` means Jira `PS Team = Eng Duty`.
 - These are PS Team values, not Jira person assignees. Do not ask who is on duty when the user asked for `CS duty`.
+- Current PS Team person options (in addition to the queue values like `CS Duty`, `Eng Duty`, `PS Ops`): `Josica`, `Damba`, `Izzat`, `Priska`, `May`, `Alya`, `Ega`, `Lucky`, `Jason`, `Kai Yi`, `Abel`, `Vanessa`, `Barra`, `Davin`, `Anis`, `Eric`, `Albert`, `Jan-E`, `Jeffrey`, `Wong Man Zhong`, `Jolene`, `Siti`, `Jeremy`, `Edeline`, `Kerren`, `Will`, `Janson`, `Eugene`. The MCP reads the live dropdown from Jira at call time, so this list is informational — the canonical source of truth is the `PS Team` field metadata. When a Slack tagger's display name matches one of these options (substring-tolerant, case-insensitive), the agent should pass it directly into `ps_team`; otherwise fall back to `CS Duty` or omit and let triage assign.
+
+## Event AA Intake Routing
+
+- The Event AA Slack channel is configured by `PSM_OPS_AA_CHANNEL_ID`. The live channel ID is `C0B5H2YE5T2`.
+- Allowed request type keys for Event AA intake tickets: `ps_follow_up`, `cs_follow_up`, `adhoc_ops`, `rev_cross_sell`, `pdt_discovery`, `mkt_clubany`, `feedback`, `photo_follow_up`. The old `cross_sell` and `churn_revival` keys are no longer wired through the bot. `photo_follow_up` (live PCO request type ID `127`) is reserved for the image-trigger rule below and is never picked by keyword routing.
+- The Event AA Jira queue filters by Request Type in (PS Follow Up, CS Follow Up, Adhoc Ops, REV Cross Sell, PDT Discovery, MKT ClubAny Interest, Feedback, Photo Follow Up) and by label `AA-SG-2026`.
+- When `create_ps_wee_intake_ticket` is called with a `slack_thread_url` whose channel matches `PSM_OPS_AA_CHANNEL_ID`:
+  - If `request_type_key` is one of the 7 allowed keys, use it as-is.
+  - Otherwise, default `request_type_key` to `feedback` so the ticket still lands in the Event AA queue. Triage can retag.
+  - The literal label `AA-SG-2026` is added to every AA ticket via Jira's standard `labels` field (best-effort post-create; failure surfaces as a warning, not a block).
+  - The `Creator` single-select field (`PSM_OPS_JIRA_FIELD_CREATOR`; thin POC default `customfield_10914`) is best-effort. The matcher resolves the Slack tagger (or the optional `creator_slack_user_email` override) and normalizes the display name against the field's options (substring tolerant, case-insensitive). When no option matches, the field is omitted and the ticket still creates — never blocked on creator resolution.
+  - `pic` is the person-in-charge name the PSM met. The MCP stores it in the internal metadata comment and uses it in the selfie filename.
+  - Multiple categories in one Slack message: the agent calls `create_ps_wee_intake_ticket` once per category. Idempotency is scoped to `(slack_thread_url, request_type, customer)` so different categories — and different customers in the same thread+category (e.g. two booth meetings logged in one message) — do not collide.
+  - Link-to-existing: when the PSM mentions an issue the customer has likely raised before, the agent calls `search_pco_tickets` for that customer to look for an open PCO ticket on the same topic. The per-category AA ticket is still created (event-trace record), then linked to the prior issue via `link_pco_to_pco_issue(source_issue_key=<new AA key>, target_issue_key=<existing PCO key>)`. The link is always `Relates`. No linking when no clear match exists.
+- Outside the AA channel, the 7 Event AA request types stay available for explicit asks; do not auto-route to them and do not enforce the creator field or the `AA-SG-2026` label.
+- Routing cues from the PSM's Slack message:
+  - `deep dive`, `advanced`, `PS follow up` → `ps_follow_up`
+  - `troubleshooting`, `bug`, `lag`, `negative feedback`, `CS follow up` → `cs_follow_up`
+  - `re-training`, `retraining`, `webinar`, `basic training`, `adhoc ops` → `adhoc_ops`
+  - `cross sell`, `upsell`, `expansion`, `PayrollAny`, `EngageAny`, `HRAny` → `rev_cross_sell`
+  - `ATS`, `AI agents`, `PDT`, `discovery`, `feature`, `features` → `pdt_discovery`
+  - `ClubAny`, `club any`, `MKT` → `mkt_clubany`
+  - anything else (or unclear) → `feedback`
+  - **Image presence is not a routing cue for text bullets.** `photo_follow_up` is added as an additional ticket per the image-trigger rule below; bullet routing is unaffected.
+- Event AA image-trigger photo follow-up ticket: when the trigger Slack message in the AA channel has at least one `image/*` attachment, the agent calls `create_ps_wee_intake_ticket(request_type_key="photo_follow_up", ...)` **once** for the same `(customer, pic)` in addition to the per-bullet tickets. This is a canonical Photo Follow Up ticket (PCO request type id `127`) for easier tracking of the selfie/photo evidence. The MCP's normal AA selfie pipeline (`_download_slack_images_for_drive` + `upload_aa_selfies_detailed` + `_attach_image_files_to_issue`) runs for the photo_follow_up call too, so the image is uploaded to Drive and attached to the photo_follow_up Jira issue. Idempotency for the photo_follow_up ticket is the same `(slack_thread_url, request_type, customer)` triple as other categories, so re-runs on the same thread reuse the existing photo_follow_up ticket rather than duplicating. Follow-up reply images (handled by `attach_aa_selfie_to_thread`) do not open a new photo_follow_up ticket — they attach to the AA tickets already created for the thread.
+- PS Team auto-route by category (AA only): `cs_follow_up` → `Ega`; `adhoc_ops` → `PS Ops`; all other categories → the Slack tagger. Explicit `ps_team` overrides the auto-route.
+- Company name lands in **both** the text customer field and the StaffAny Organisation object field (`PSM_OPS_JIRA_FIELD_STAFFANY_ORGS`; thin POC default `customfield_10667`) when the company resolves through the reviewed customer-channel map. `customfield_10667` is a Jira Assets (CMDB) object reference. The wire shape is an **array of `{"id": "<workspaceId>:<numericObjectId>"}` objects** — Jira rejects raw strings with `"expected Object"`, and other variants (`{"key": "..."}`, `{"objectId": "..."}`, `{"workspaceId": ..., "objectId": ...}`) return HTTP 204 without persisting the value, so the composite globalId is the only reliable write format. The MCP resolves each supplied org name to its Assets numeric `id` by running progressively more permissive AQL queries against the Assets workspace, stopping at the first unique match: (1) `Name = "<supplied>"` exact, (2) `Name = "<stripped>"` after dropping trailing legal-entity tokens like `Pte Ltd` / `Sdn Bhd` / `Pty Ltd` / `Inc` / `Ltd` (handles the common C360-canonicalised "Acme Pte Ltd" → Assets "Acme" case), (3) `Name like "<supplied>"` substring, (4) `Name like "<stripped>"` substring. Substring matches are accepted only when they return exactly one Assets object, so an ambiguous lookup never picks the wrong customer. Names that still don't resolve uniquely are dropped from the payload and surfaced as a warning so triage can assign manually; the ticket still lands. Agents should prefer to call `search_c360_customers` first and pass the canonical `orgMatches[].matchedValue` as `staffany_orgs` to maximize the asset match rate.
+- For Event AA intakes only, the MCP fetches `image/*` files attached to the trigger Slack message, uploads them to the configured Google Drive folder (`PSM_OPS_AA_SELFIE_DRIVE_FOLDER_ID`) with filename `{slugified_company}_{slugified_pic}__{slack_file_id}{ext}`, **and** attaches the same image(s) to the newly-created Jira ticket so the selfie lives on the issue itself. Non-image files are skipped. The download+upload is best-effort: never blocks ticket creation. The `create_ps_wee_intake_ticket` response surfaces `drive_status` ∈ {`ok`, `missing_folder_id`, `missing_token`, `auth_failed`, `upload_failed`, `no_downloads`}, `drive_reason`, `drive_failure_count`, `attached_images`, and `drive_selfies`. The Slack reply lists Drive saved count and Jira attached count separately. When `drive_status` is anything other than `ok`, the agent must quote `drive_reason` verbatim (not invent an OAuth/folder cause) and may call `verify_drive_oauth` for a deeper diagnosis. Implemented by `_download_slack_images_for_drive` + `upload_aa_selfies_detailed` + `_attach_image_files_to_issue` (`aa_selfie_drive.py` / `psm_jira_server.py`).
+- For follow-up selfies sent as a *reply* in an existing AA thread (after `create_ps_wee_intake_ticket` has already created the per-category tickets), call `attach_aa_selfie_to_thread(slack_thread_url, customer, pic)`. The `slack_thread_url` must be the permalink of the *specific message* that has the new image attachment — the tool reads only that one message via `conversations.history` (no thread scan, no Drive list lookup) and uploads any `image/*` files via `upload_aa_selfies_detailed`. The tool also fans out to **every AA ticket already opened for the thread** (via `_ticket_by_slack_thread` across the permalink variants of `slack_thread_url`, so tickets created against the parent-thread URL are still found when the caller forwards the reply URL) and attaches the selfie to each Jira issue. Re-uploads of the same Slack file are allowed; Drive accepts duplicate filenames as separate objects and "duplicate selfie" is preferable to "missing selfie". The tool returns `drive_status` (same enum as the intake path), `drive_reason`, `saved_count`, `jira_attached_count`, `jira_ticket_count`, `jira_attachments`, `jira_attach_errors` (per-ticket Jira POST failure reasons), and a human-readable `caveat`. It returns `needs-check` when Slack auth/network errors prevent reading the message, when ingest is partial (some images downloaded or uploaded, others didn't), or when any Jira attach POST raises (401/403 are surfaced in `jira_attach_errors` rather than silently swallowed). `aa_selfie_drive.configuration_status()` is the pre-flight check; `verify_drive_oauth` is the deeper diagnostic for `refresh_failed` / `api_unauthorized` / `api_failed` cases.
+- For Drive OAuth diagnostics, call `verify_drive_oauth` (read-only, no upload). Runs `configuration_status` → token refresh → `GET https://www.googleapis.com/drive/v3/about?fields=user,storageQuota` to confirm the refreshed token actually works against Drive. Returns `drive_status` ∈ {`ok`, `missing_folder_id`, `missing_token`, `refresh_failed`, `api_unauthorized`, `api_failed`}, `drive_reason`, `folder_id`, `token_path`, `user_email` (when the `/about` call succeeds), `scopes`, and `last_error`. Use after any AA selfie reply that reports a non-`ok` `drive_status` to distinguish refresh-side vs API-side failures instead of guessing — the tool's `drive_reason`/`last_error` should be quoted verbatim back to the thread.
+- Filename slugify rules (`aa_selfie_drive._slugify`): runs of non-alphanumeric ASCII characters (whitespace, punctuation, Unicode) are replaced with a single `-`, leading/trailing dashes are stripped, and the result is lowercased. Empty results fall back to `unknown`. Example: `Kopi Janji (SG) Pte Ltd` → `kopi-janji-sg-pte-ltd`. The extension comes from the original Slack filename when present, otherwise from the mime-type map (`image/jpeg`→`.jpg`, `image/png`→`.png`, etc.; fallback `.jpg`). The Slack file id is suffixed (`__{slack_file_id}`) before the extension so distinct selfies for the same `(company, pic)` never share a filename. If `slack_file_id` is missing (callers outside the Slack ingest path), the function falls back to a `-{n}` numeric suffix on the second and later files in the same call. No length capping is applied — Drive accepts long names.
+- Bahasa-to-English translation applies only to Event AA intakes. When the trigger Slack message is fully or partially in Indonesian, the agent (not the MCP) writes the Jira `summary` and `description` in clear English before calling `create_ps_wee_intake_ticket`. Customer names, outlet names, dates, numbers, and product terms are preserved verbatim. The untranslated original is appended to the description under an `**Original (Bahasa):**` heading so the team can verify the translation. Mixed-language messages translate Indonesian portions only and leave English/product terms as-is. Outside the AA channel, both the Jira `summary` and `description` remain in the language the PSM used (no auto-translation).
 
 ## Customer Channel Routing
 
@@ -79,7 +125,7 @@ For ROI urgency fields, match the field's configured options exactly. If the req
 - Each reviewed mapping must include `channel_id`, `channel_name`, `customer_key`, `customer_name`, `staffany_orgs`, and `status=reviewed`.
 - Use `resolve_customer_channel_org` for customer-specific Slack channels before creating a PS WEE intake ticket.
 - If the message names a different customer from the reviewed channel mapping, fail closed and ask for confirmation before creating the ticket.
-- Unmapped general Slack channels keep the existing needs-info intake behavior.
+- Unmapped general Slack channels still create an intake without org auto-tagging.
 
 ## Jira Assignee
 
@@ -96,6 +142,21 @@ For ROI urgency fields, match the field's configured options exactly. If the req
 - `Relates` is allowed as a fallback only when Jira does not support the standard Blocks link type.
 - Reject non-PCO source issues and non-KER/non-SCHE targets.
 - Do not expose raw engineering issue descriptions, comments, attachments, or Jira bulk exports.
+
+## PCO-to-PCO Issue Links
+
+- Use `link_pco_to_pco_issue(source_issue_key, target_issue_key)` when an AA event ticket should reference a previously-tracked PCO ticket for the same customer issue. The link type is always `Relates`.
+- Both keys must match `PCO-\d+`; mismatched or identical keys are blocked.
+- The link is idempotent: re-running the tool returns `already_exists=true` instead of duplicating the link or surfacing the raw Jira error.
+- Use this primarily for the AA link-to-existing flow; do not link speculatively.
+
+## Duplicate Ticket Merge
+
+- Use `find_duplicate_pco_candidates(issue_key|query|customer|slack_thread_url)` (read-only) to surface likely duplicates and a `suggested_merge` before any merge. It excludes the seed issue and only flags active candidates as mergeable.
+- Use `merge_pco_tickets(source_issue_key, target_issue_key, slack_thread_url, reason)` only after explicit approval (`merge PCO-X into PCO-Y` or same-thread confirmation). Both keys must match `PCO-\d+` and differ.
+- The merge marks the source as a duplicate of the target with a `Duplicate` issue link, falling back to `Relates` only when Jira lacks the `Duplicate` link type (recorded in the merge comment).
+- The source is transitioned to `Cancelled`, never deleted. The target gains the source's validated Slack permalink web links and an internal merge comment.
+- The merge is idempotent: re-running detects the existing link and a cancelled source instead of duplicating work or erroring.
 
 ## ROI Customer-Loop Tracker Links
 

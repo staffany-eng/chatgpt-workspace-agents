@@ -21,20 +21,35 @@ fail() {
   exit 1
 }
 
+is_unresolved_placeholder() {
+  [[ "$1" =~ ^\$\{[A-Za-z_][A-Za-z0-9_]*\}$ ]]
+}
+
+env_value() {
+  local value="${!1:-}"
+  if is_unresolved_placeholder "$value"; then
+    printf ''
+  else
+    printf '%s' "$value"
+  fi
+}
+
+command -v python3 >/dev/null 2>&1 || fail "dependency:python3:not-found"
+command -v openssl >/dev/null 2>&1 || fail "dependency:openssl:not-found"
+
 if command -v systemctl >/dev/null 2>&1; then
   active="$(systemctl --user is-active "$GATEWAY_SERVICE_NAME" 2>/dev/null || true)"
   [ "$active" = "active" ] || fail "gateway_service:not-active:$GATEWAY_SERVICE_NAME"
 fi
 
-command -v openssl >/dev/null 2>&1 || fail "dependency:openssl:not-found"
-
 if command -v hermes >/dev/null 2>&1; then
-  for server in psm_jira psm_c360 psm_google_calendar psm_store_reviews; do
+  for server in psm_jira psm_c360 psm_google_calendar psm_google_geocode psm_store_reviews; do
     out="$(hermes -p "$PROFILE" mcp test "$server" 2>&1 || true)"
     case "$server" in
-      psm_jira) expected=24 ;;
+      psm_jira) expected=28 ;;
       psm_c360) expected=3 ;;
       psm_google_calendar) expected=1 ;;
+      psm_google_geocode) expected=3 ;;
       psm_store_reviews) expected=6 ;;
     esac
     count="$(printf '%s\n' "$out" | sed -nE 's/.*Tools discovered: ([0-9]+).*/\1/p' | tail -1)"
@@ -48,7 +63,6 @@ config_path="$(hermes -p "$PROFILE" config path 2>/dev/null || true)"
 if [ -n "$config_path" ] && [ -r "$config_path" ]; then
   grep -Eq 'provider: *"?anthropic"?' "$config_path" || fail "model:provider-not-anthropic"
   grep -q 'claude-sonnet-4-6' "$config_path" || fail "model:default-not-claude-sonnet-4-6"
-  grep -q 'require_mention: *true' "$config_path" || fail "slack:require-mention-not-enabled"
   if [ -n "${SLACK_ALLOWED_CHANNELS:-}" ]; then
     fail "slack:allowed-channels-should-be-empty-for-open-channel-mode"
   fi
@@ -69,6 +83,14 @@ except Exception as exc:
 
 with open(config_path, "r", encoding="utf-8") as handle:
     config = yaml.safe_load(handle) or {}
+
+slack = config.get("slack") or {}
+if slack.get("require_mention") is not True:
+    print("slack:require-mention-not-enabled")
+    raise SystemExit(1)
+if slack.get("strict_mention") is not True:
+    print("slack:strict-mention-not-enabled")
+    raise SystemExit(1)
 
 display = config.get("display") or {}
 if display.get("interim_assistant_messages") is not False:
@@ -118,24 +140,66 @@ for key in \
   [ -n "$value" ] || fail "env:$key:missing"
 done
 
-if [ -z "${GOOGLE_PLAY_SERVICE_ACCOUNT_JSON:-}" ]; then
-  [ -r "${GOOGLE_PLAY_SERVICE_ACCOUNT_FILE:-}" ] || fail "store_reviews:google-play-service-account-missing"
-fi
-if [ -z "${APP_STORE_CONNECT_CONFIG_JSON:-}" ]; then
-  if [ -n "${APP_STORE_CONNECT_CONFIG_FILE:-}" ]; then
-    [ -r "$APP_STORE_CONNECT_CONFIG_FILE" ] || fail "store_reviews:app-store-connect-config-missing"
-  else
-    [ -n "${APP_STORE_CONNECT_ISSUER_ID:-}" ] || fail "store_reviews:app-store-connect-issuer-missing"
-    [ -n "${APP_STORE_CONNECT_KEY_ID:-}" ] || fail "store_reviews:app-store-connect-key-id-missing"
-    if [ -z "${APP_STORE_CONNECT_PRIVATE_KEY:-}" ]; then
-      [ -r "${APP_STORE_CONNECT_PRIVATE_KEY_FILE:-}" ] || fail "store_reviews:app-store-connect-private-key-missing"
-    fi
-  fi
-fi
-
 [ "${GOOGLE_CALENDAR_ACCOUNT_EMAIL:-team@staffany.com}" = "team@staffany.com" ] || fail "google_calendar:account-not-team"
 [ -r "${GOOGLE_CALENDAR_TOKEN_FILE:-}" ] || fail "google_calendar:token-file-unreadable"
 [ -r "${GOOGLE_CALENDAR_CLIENT_SECRET_FILE:-}" ] || fail "google_calendar:client-secret-file-unreadable"
+
+google_geocoding_api_key="$(env_value GOOGLE_GEOCODING_API_KEY)"
+geocode_credentials_file="$(env_value PSM_OPS_GOOGLE_GEOCODE_CREDENTIALS_FILE)"
+if [ -z "$geocode_credentials_file" ]; then
+  geocode_credentials_file="$(env_value GEOCODE_CREDENTIALS_FILE)"
+fi
+if [ -z "$geocode_credentials_file" ]; then
+  geocode_credentials_file="$HOME/.staffany/google-geocode/credentials.json"
+fi
+if [ -z "$google_geocoding_api_key" ]; then
+  [ -r "$geocode_credentials_file" ] || fail "google_geocode:credentials-file-unreadable"
+  python3 - "$geocode_credentials_file" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+try:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+except Exception:
+    print("google_geocode:credentials-json-invalid")
+    raise SystemExit(1)
+if not str(payload.get("google_geocoding_api_key") or "").strip():
+    print("google_geocode:api-key-missing")
+    raise SystemExit(1)
+PY
+fi
+
+google_play_service_account_json="$(env_value GOOGLE_PLAY_SERVICE_ACCOUNT_JSON)"
+google_play_service_account_file="$(env_value GOOGLE_PLAY_SERVICE_ACCOUNT_FILE)"
+if [ -z "$google_play_service_account_json" ]; then
+  [ -n "$google_play_service_account_file" ] || fail "store_reviews:google-play-credentials-missing"
+  [ -r "$google_play_service_account_file" ] || fail "store_reviews:google-play-service-account-file-unreadable"
+fi
+
+app_store_config_json="$(env_value APP_STORE_CONNECT_CONFIG_JSON)"
+app_store_config_file="$(env_value APP_STORE_CONNECT_CONFIG_FILE)"
+app_store_issuer_id="$(env_value APP_STORE_CONNECT_ISSUER_ID)"
+app_store_key_id="$(env_value APP_STORE_CONNECT_KEY_ID)"
+app_store_private_key="$(env_value APP_STORE_CONNECT_PRIVATE_KEY)"
+app_store_private_key_file="$(env_value APP_STORE_CONNECT_PRIVATE_KEY_FILE)"
+if [ -n "$app_store_config_file" ]; then
+  [ -r "$app_store_config_file" ] || fail "store_reviews:app-store-config-file-unreadable"
+elif [ -z "$app_store_config_json" ]; then
+  [ -n "$app_store_issuer_id" ] || fail "store_reviews:app-store-issuer-id-missing"
+  [ -n "$app_store_key_id" ] || fail "store_reviews:app-store-key-id-missing"
+  if [ -z "$app_store_private_key" ]; then
+    [ -n "$app_store_private_key_file" ] || fail "store_reviews:app-store-private-key-missing"
+    [ -r "$app_store_private_key_file" ] || fail "store_reviews:app-store-private-key-file-unreadable"
+  fi
+fi
+
+if [ -n "${BQ_BIN:-}" ]; then
+  [ -x "$BQ_BIN" ] || fail "bigquery:bq-bin-not-executable"
+elif ! command -v bq >/dev/null 2>&1; then
+  fail "bigquery:bq-not-found"
+fi
 
 python3 - <<'PY'
 import json
@@ -145,6 +209,23 @@ import urllib.parse
 import urllib.request
 
 token = os.environ.get("SLACK_BOT_TOKEN", "").strip()
+# mention-guard needs to know its own user ID to suppress self-references.
+auth_request = urllib.request.Request(
+    "https://slack.com/api/auth.test",
+    headers={"Authorization": f"Bearer {token}"},
+)
+try:
+    with urllib.request.urlopen(auth_request, timeout=20) as response:
+        auth_payload = json.loads(response.read().decode("utf-8"))
+except Exception:
+    print("slack:auth-test-unavailable")
+    sys.exit(1)
+if not auth_payload.get("ok"):
+    print(f"slack:auth-test:{auth_payload.get('error', 'unknown_error')}")
+    sys.exit(1)
+if not str(auth_payload.get("user_id") or "").strip():
+    print("slack:auth-test-missing-user-id")
+    sys.exit(1)
 query = urllib.parse.urlencode({"limit": "20"})
 request = urllib.request.Request(
     f"https://slack.com/api/users.list?{query}",
@@ -231,7 +312,7 @@ enabled = [job for job in jobs if isinstance(job, dict) and job.get("enabled") i
 names = {str(job.get("name") or "") for job in enabled}
 missing = [
     name
-    for name in ["psmopsbot due-date reminders", "psmopsbot assignment hygiene", "psmopsbot due-date eod catch-up", "psmopsbot roi tracker sync"]
+    for name in ["psmopsbot due-date reminders", "psmopsbot assignment hygiene", "psmopsbot due-date eod catch-up", "psmopsbot roi tracker sync", "psmopsbot churn reporting chase", "psmopsbot store review poll"]
     if name not in names
 ]
 scripts = {str(job.get("name") or ""): job for job in enabled}
@@ -240,6 +321,8 @@ for name, expected_script in {
     "psmopsbot assignment hygiene": "psm_ops_pco_assignment_hygiene.py",
     "psmopsbot due-date eod catch-up": "psm_ops_due_date_reminders_eod.py",
     "psmopsbot roi tracker sync": "psm_ops_roi_tracker_sync.py",
+    "psmopsbot churn reporting chase": "psm_ops_churn_reporting_chase.py",
+    "psmopsbot store review poll": "psm_ops_store_review_poll.py",
 }.items():
     job = scripts.get(name)
     if not job:
@@ -250,6 +333,9 @@ for name, expected_script in {
     if job.get("no_agent") is not True:
         print(f"cron:{name}:mode-unexpected")
         sys.exit(1)
+if scripts.get("psmopsbot churn reporting chase", {}).get("deliver") != "slack:#team-rev-account-management":
+    print("cron:psmopsbot churn reporting chase:delivery-unexpected")
+    sys.exit(1)
 if os.environ.get("PSM_OPS_ADOPTION_METRICS_ENABLED", "").strip().lower() in {"1", "true", "yes", "on"}:
     if "psmopsbot adoption digest" not in names:
         missing.append("psmopsbot adoption digest")
@@ -265,4 +351,12 @@ if [ -d "$hook_dir" ]; then
   [ -r "$hook_dir/handler.py" ] || fail "hook:adoption:missing-handler.py"
 elif [ "${PSM_OPS_ADOPTION_METRICS_ENABLED:-}" = "true" ] || [ "${PSM_OPS_ADOPTION_METRICS_ENABLED:-}" = "1" ]; then
   fail "hook:adoption:missing"
+fi
+
+mention_guard_dir="$PROFILE_DIR/hooks/psm-ops-mention-guard"
+if [ -d "$mention_guard_dir" ]; then
+  [ -r "$mention_guard_dir/HOOK.yaml" ] || fail "hook:mention-guard:missing-HOOK.yaml"
+  [ -r "$mention_guard_dir/handler.py" ] || fail "hook:mention-guard:missing-handler.py"
+else
+  fail "hook:mention-guard:missing"
 fi

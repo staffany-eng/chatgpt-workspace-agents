@@ -1,0 +1,7 @@
+interface:
+  display_name: "PPh21 Settings Explainer"
+  short_description: "Map settings that affect PPh21"
+  default_prompt: "Use $pph21-settings-explainer to explain which employee settings and tax parameters affect PPh21, and which ones do not."
+
+policy:
+  allow_implicit_invocation: true

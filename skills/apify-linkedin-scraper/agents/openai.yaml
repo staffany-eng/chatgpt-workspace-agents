@@ -1,0 +1,12 @@
+interface:
+  display_name: "Apify LinkedIn Scraper"
+  short_description: "Scrape public LinkedIn data via Apify"
+  default_prompt: "Use $apify-linkedin-scraper to collect public LinkedIn data with Apify and summarize the dataset output."
+
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "apify"
+      description: "Apify MCP server for Actor discovery, Actor calls, and dataset retrieval"
+      transport: "streamable_http"
+      url: "https://mcp.apify.com"

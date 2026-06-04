@@ -320,7 +320,7 @@ if "cron" in template:
 
 template_servers = template.get("mcp_servers") or {}
 config_servers = config.setdefault("mcp_servers", {})
-for server_name in ("staffany_bigquery", "staffany_slack_context", "staffany_c360", "staffany_google_sheets"):
+for server_name in ("staffany_bigquery", "staffany_slack_context", "staffany_c360", "staffany_data_learning", "staffany_google_sheets"):
     expected = template_servers.get(server_name)
     if expected is None:
         continue
@@ -347,6 +347,7 @@ copy_file "$deploy_dir/apps/hermes-data-bot/runtime/check-health.sh" "$profile/s
 copy_file "$deploy_dir/apps/hermes-data-bot/runtime/check-cloud-heartbeat.sh" "$profile/scripts/staffanydatabot-check-cloud-heartbeat.sh" 0755
 copy_file "$deploy_dir/apps/hermes-data-bot/runtime/audit-live-profile.sh" "$profile/scripts/staffanydatabot-audit-live-profile.sh" 0755
 copy_file "$deploy_dir/apps/hermes-data-bot/runtime/staffanydatabot-cloud-doctor.sh" "$profile/scripts/staffanydatabot-cloud-doctor.sh" 0755
+copy_file "$deploy_dir/apps/hermes-data-bot/runtime/report-staffany-data-learning.py" "$profile/scripts/staffanydatabot-report-data-learning.py" 0755
 copy_file "$deploy_dir/apps/hermes-data-bot/runtime/backup-honcho.sh" "$profile/scripts/staffanydatabot-honcho-backup.sh" 0755
 copy_file "$deploy_dir/apps/hermes-data-bot/runtime/review-honcho-memory.sh" "$profile/scripts/staffanydatabot-review-honcho-memory.sh" 0755
 

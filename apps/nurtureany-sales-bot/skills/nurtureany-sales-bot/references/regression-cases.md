@@ -69,6 +69,22 @@ Mutation/send/reveal expected behavior:
 - Requires explicit preview approval, `approval_marker`, or approved reveal selection depending on the workflow.
 - Does not send WhatsApp, mutate HubSpot, reveal Lusha/Prospeo, or use paid/public deep research on the first mention.
 
+Single-company enrichment prompt:
+
+```text
+@NurtureAny enrich Tung Lok for Singapore
+```
+
+Expected behavior:
+
+- Resolves scoped HubSpot companies first with `resolve_company_enrichment_target`.
+- Creates an artifact with `create_company_enrichment_artifact` only after exactly one SG/MY/ID scoped company is selected.
+- Ambiguous matches ask for exact `company_id`; no-match cases can use `find_brand_parent_candidates` only for identity resolution before re-querying HubSpot.
+- Artifact updates append Tavily, standalone public search, Exa, Lusha, and Prospeo outputs into the same artifact, default reads redact raw email/phone/mobile, and summaries return HubSpot contact-format preview rows with `will_mutate_hubspot=false` plus `waterfall_state`.
+- Tavily public results are read through with extract where supported; standalone public people/contact search runs before Exa across official pages, public directory/event/speaker evidence, careers pages, public social/company pages where allowed, and public job boards such as Indeed, JobStreet, Glints, MyCareersFuture, Maukerja, Ricebowl, Kalibrr, and Dealls where relevant by country.
+- Exa people URLs are used after public search as fallback or corroboration and read through only via safe public snippets/pages, never gated LinkedIn or social scraping.
+- The bot must not claim a full waterfall unless `waterfall_state.can_claim_full_waterfall=true`; Lusha/Prospeo reveal requires manual approval.
+
 ## AE Queue
 
 Prompt:
@@ -184,6 +200,24 @@ Expected behavior:
 - Does not claim Gong integration, call Gong APIs, mention Gong credentials/MCP/webhooks, imply Gong parity, return raw transcript/audio/recording URLs, expose phone numbers, claim ElevenLabs integration, or infer hidden emotions.
 - Uses local transcript/timing metrics for talk ratio, longest monologue, turn count, question count, objections, next-step clarity, and customer reaction moments.
 - If transcript/timing-only evidence is available, says `Interaction cues checked from transcript/timing` and `Tone/audio cues: audio-native tone not checked`; if approved audio-native analysis exists later, says `Tone/audio cues checked from recording` and describes only observable cues.
+
+## Selected Loom Demo Review Scorecard
+
+Prompt:
+
+```text
+@NurtureAny https://www.loom.com/share/e63d65ea325b4408abd9a756564e36f6 analyze and grade this meeting
+```
+
+Expected behavior:
+
+- First response is plan-only unless quick-autorun is fully satisfied.
+- Route after `run`: `get_selected_slack_thread_context` only if needed to identify the selected source/context -> `extract_demo_transcript_evidence` -> internal demo grading -> optional `preview_analysis_sheet_export` / `apply_analysis_sheet_export` only if the user asked for history/trend export.
+- Uses the demo rubric from `sales-best-practices.md`, with 9 scorecard dimensions scored 0/1/2: Control and conversational opening; Discovery and I-C-BANT; Consultative/contextual demo; Before/after value framing; Benefits over features; Product knowledge accuracy; Objection and negotiation handling; Customer engagement and interaction cues; Next step and post-demo follow-up quality.
+- Final answer uses `Answer:`, `Overall grade:`, `Scorecard:`, `Coachable moments:`, `Better talk tracks:`, `Manager coaching note:`, `Next practice:`, `Source:`, `Scope:`, `Confidence:`, and `Caveat:`.
+- Does not create or call a separate `demo_review_nurtureany` MCP.
+- Does not return raw transcript dumps, signed Loom media URLs, Loom MP4/HLS/audio/video bytes, phone numbers, full emails, or private demo content in Sheets.
+- If captions are unavailable, private, blocked, or malformed, returns `Confidence: blocked` and asks for captions or transcript input.
 
 Prompt:
 
@@ -594,6 +628,25 @@ Expected behavior:
 - Treats attendance as `checked_in_at` present. RSVP status alone is not attendance.
 - Does not expose unmatched guests, raw registration answers, raw match-key lists, message bodies, raw guest lists, Luma mutations, HubSpot mutations, external sends, or attendee exports.
 - Uses `Confidence: needs-check` for company-name candidate matches or truncated event/guest reads.
+
+### Regional Event RSVP Breakdown With Sheets Preview
+
+Prompt from `jan-e@staffany.com`:
+
+```text
+@NurtureAny analyze this Luma event for total RSVPs, clients vs prospects, and invited by: https://luma.com/06d6szo3
+```
+
+Expected behavior:
+
+- First response is plan-only unless quick-autorun is clearly satisfied.
+- Preflight says the run will prepare a sanitized Sheet preview in addition to the Slack summary.
+- After `run`, resolves Jan-E as `scope_kind=event_operator` with configured country scope and no manager/admin escalation.
+- Route: `list_luma_events` or selected Luma event lookup -> `get_luma_event_match_keys(include_contact_pii=true)` -> `find_target_accounts_by_luma_match_keys` for SG/MY with returned `event_match_action_inputs` as `attendee_records` -> `get_luma_event_context` only for scoped matched candidate companies when needed -> `preview_analysis_sheet_export`.
+- Output uses `event_action_pack.summary`: RSVP truth, attendee-level match truth, action buckets, owner load, and caveat. It does not compute unmatched attendees by subtracting matched account count from RSVP count.
+- Sheet preview uses one tab named `Event Match Action Queue`, safe HubSpot company/contact links, match level/confidence, root cause, next action, action owner, due date, status, and source permalink. `apply_analysis_sheet_export` runs only after explicit Sheet approval in the same thread.
+- Slack final answer includes short answer, key counts, Sheet preview/write status, source, scope, confidence, and caveat.
+- Does not mutate HubSpot, dump raw guest lists, expose phone numbers/full attendee emails/raw registration answers, run manager/coaching audits, or inspect raw WhatsApp/task/note bodies.
 
 ## Post-Event Follow-Up Status
 
@@ -1070,3 +1123,21 @@ Expected behavior:
 - `truecaller_manual_lookup` stays candidate evidence unless paired with `nurtureany_phone_verification_status=called_connected`.
 - Returns field-level HubSpot mismatch reasons when rollups and associated contacts disagree.
 - Returns KNS talking points only; no HubSpot mutation, Lusha/Prospeo reveal, automated Truecaller lookup, raw phone-number export, or WhatsApp send.
+
+### SG/MY WhatsApp Morning Report Primitive
+
+Prompt:
+
+```text
+@NurtureAny build the SG/MY WhatsApp morning report for today
+```
+
+Expected behavior:
+
+- After `run`, calls `build_sales_whatsapp_window_report` with Singapore then Malaysia, 09:30-10:30 owner-local time, target 30, and `include_kns=false`.
+- Resolves owner, country, and timezone from `NURTUREANY_ACCESS_POLICY_PATH` through `resolve_sales_owners`; no Slack-memory roster fixes and no silent SGT fallback.
+- Final answer uses `answer.slack_markdown` or only the returned `answer.country_rows` for `answer.countries`; it does not add Indonesia/admin-scope expansion notes, owner rows, or timezone gaps unless the primitive returned them.
+- Ad hoc reruns such as `9:45-10:45 today` call `build_sales_whatsapp_window_report` only and do not call `save_sales_whatsapp_window_report_schedule`.
+- Saved schedule changes use `save_sales_whatsapp_window_report_schedule` only on explicit schedule intent and store profile-runtime state outside the repo.
+- Approved report posting uses `post_generated_sales_report` with generated markdown, allowlisted `NURTUREANY_REPORT_DELIVERY_CHANNEL_IDS`, approval marker, idempotency key, and operation-ledger checkpoints. It blocks duplicates and returns `not_in_channel` remediation without user-token or Slack connector fallback.
+- No raw WhatsApp bodies, phone numbers, raw Slack transcripts, raw HubSpot rows, HubSpot mutation, or external WhatsApp sending.

@@ -80,6 +80,29 @@ if (!existsSync(manifestPath)) {
     if (manifest.c360_mcp?.auth_header !== "X-Customer360-Internal-Token") fail("Manifest C360 MCP must use custom internal auth header");
     if (manifest.c360_mcp?.uses_browser_cookie !== false) fail("Manifest C360 MCP must not use browser cookies");
     if (manifest.c360_mcp?.uses_personal_customer360_session !== false) fail("Manifest C360 MCP must not use personal customer360_session");
+    const dataLearningTools = manifest.data_learning_mcp?.expected_tools || [];
+    for (const tool of [
+      "record_staffany_data_lesson_candidate",
+      "list_staffany_data_lesson_candidates",
+      "read_staffany_data_lesson_candidate",
+      "update_staffany_data_lesson_candidate_status"
+    ]) {
+      if (!dataLearningTools.includes(tool)) fail(`Manifest missing data learning MCP tool: ${tool}`);
+    }
+    for (const status of ["pending_review", "needs_more_evidence", "approved_for_repo_promotion", "rejected", "promoted"]) {
+      if (!manifest.data_learning_mcp?.valid_statuses?.includes(status)) fail(`Manifest data learning MCP missing status: ${status}`);
+    }
+    if (manifest.data_learning_mcp?.review_status_tool !== "update_staffany_data_lesson_candidate_status") fail("Manifest data learning MCP missing review status tool");
+    if (manifest.data_learning_mcp?.review_approval_marker !== "human reviewed lesson") fail("Manifest data learning MCP missing human review marker");
+    if (manifest.data_learning_mcp?.writes_runtime_candidates_only !== true) fail("Manifest data learning MCP must write runtime candidates only");
+    if (manifest.data_learning_mcp?.active_behavior_change !== false) fail("Manifest data learning MCP must not change active behavior");
+    if (manifest.data_learning_mcp?.self_approval !== false) fail("Manifest data learning MCP must not allow self approval");
+    if (manifest.data_learning_mcp?.honcho_source_of_truth !== false) fail("Manifest data learning MCP must not use Honcho as source of truth");
+    if (manifest.data_learning_mcp?.stores_raw_slack_transcripts !== false) fail("Manifest data learning MCP must not store raw Slack transcripts");
+    if (manifest.data_learning_mcp?.stores_raw_query_rows !== false) fail("Manifest data learning MCP must not store raw query rows");
+    if (manifest.data_learning_mcp?.stores_sensitive_data !== false) fail("Manifest data learning MCP must not store sensitive data");
+    if (manifest.data_learning_review_report?.prints_safe_counts_only !== true) fail("Manifest data learning report must print safe counts only");
+    if (manifest.data_learning_review_report?.prints_raw_lesson_content !== false) fail("Manifest data learning report must not print raw lesson content");
     const googleSheetsTools = manifest.google_sheets_output_mcp?.expected_tools || [];
     for (const tool of ["check_google_sheets_output_access", "create_spreadsheet_from_rows"]) {
       if (!googleSheetsTools.includes(tool)) fail(`Manifest missing Google Sheets output MCP tool: ${tool}`);
@@ -120,14 +143,17 @@ const filesToScan = [
   "skills/staffany-data-bot/references/staffany-product-lookup-registry.md",
   "skills/staffany-data-bot/references/staffany-release-feature-registry.md",
   "skills/staffany-data-bot/references/rbac-access-levels.md",
+  "skills/staffany-data-bot/references/reviewed-lessons.md",
   "skills/staffany-data-bot/references/regression-cases.md",
   "runtime/mcp/staffany-bigquery.md",
   "runtime/mcp/staffany_slack_context_server.py",
   "runtime/mcp/staffany_c360_server.py",
+  "runtime/mcp/staffany_data_learning_server.py",
   "runtime/mcp/profile_env.py",
   "runtime/mcp/test_helpers.py",
   "runtime/mcp/test_staffany_slack_context_server.py",
   "runtime/mcp/test_staffany_c360_server.py",
+  "runtime/mcp/test_staffany_data_learning_server.py",
   "runtime/jira-release-sync.md",
   "runtime/sync-jira-release-registry.sh",
   "runtime/high-priority-feature-digest.md",
@@ -138,6 +164,7 @@ const filesToScan = [
   "runtime/check-health.sh",
   "runtime/check-cloud-heartbeat.sh",
   "runtime/staffanydatabot-cloud-doctor.sh",
+  "runtime/report-staffany-data-learning.py",
   "runtime/audit-live-profile.sh",
   "runtime/backup-honcho.sh",
   "runtime/review-honcho-memory.sh",
@@ -203,6 +230,31 @@ for (const requiredText of [
   "write_operations: false"
 ]) {
   if (!configText.includes(requiredText)) fail(`config.template.yaml missing C360 contract: ${requiredText}`);
+}
+for (const requiredText of [
+  "staffany_data_learning",
+  "staffany_data_learning_server.py",
+  "STAFFANY_DATA_LEARNING_CANDIDATES_DIR",
+  "reviewed_learning_candidates_runtime_only",
+  "record_status: \"pending_review\"",
+  "needs_more_evidence",
+  "review_status_tool: \"update_staffany_data_lesson_candidate_status\"",
+  "review_approval_marker: \"human reviewed lesson\"",
+  "auto_behavior_change: false",
+  "self_approval: false",
+  "honcho_used_as_source_of_truth: false",
+  "raw_slack_transcript_persistence: false",
+  "raw_query_row_persistence: false",
+  "sensitive_data_persistence: false",
+  "kanban_dispatch: false",
+  "persistent_goal_continuation: false",
+  "self_evolution_gepa: false",
+  "record_staffany_data_lesson_candidate",
+  "list_staffany_data_lesson_candidates",
+  "read_staffany_data_lesson_candidate",
+  "update_staffany_data_lesson_candidate_status"
+]) {
+  if (!configText.includes(requiredText)) fail(`config.template.yaml missing data learning contract: ${requiredText}`);
 }
 for (const requiredText of [
   "staffany_google_sheets",
@@ -312,9 +364,37 @@ for (const requiredText of [
   'staffany_google_sheets.create_spreadsheet_from_rows',
   'Google Sheets output',
   'Do not edit existing spreadsheets in v1',
-  'Do not say the bot has no direct Google Sheets integration'
+  'Do not say the bot has no direct Google Sheets integration',
+  'references/reviewed-lessons.md',
+  'record_staffany_data_lesson_candidate',
+  'update_staffany_data_lesson_candidate_status',
+  'approval_marker="human reviewed lesson"',
+  'Runtime candidates do not change behavior by themselves.',
+  'Same-session caveat',
+  'runtime-created or Curator-patched skills'
 ]) {
   if (!skillText.includes(requiredText)) fail(`staffany-data-bot skill missing required guardrail text: ${requiredText}`);
+}
+
+const reviewedLessonsText = existsSync(join(appRoot, "skills", "staffany-data-bot", "references", "reviewed-lessons.md"))
+  ? readFileSync(join(appRoot, "skills", "staffany-data-bot", "references", "reviewed-lessons.md"), "utf8")
+  : "";
+for (const requiredText of [
+  "Reviewed lessons are the only approved V1 path",
+  "Hermes Learning Primitives",
+  "`record_staffany_data_lesson_candidate` writes only `pending_review` candidates.",
+  "update_staffany_data_lesson_candidate_status",
+  "needs_more_evidence",
+  "approval_marker=\"human reviewed lesson\"",
+  "recallMode=tools",
+  "saveMessages=false",
+  "sessionStrategy=per-session",
+  "runtime-created or Curator-patched skills are review artifacts only",
+  "runtime/report-staffany-data-learning.py --stale-days 14",
+  "Self-evolution/GEPA",
+  "candidate recorded"
+]) {
+  if (!reviewedLessonsText.includes(requiredText)) fail(`reviewed-lessons.md missing required text: ${requiredText}`);
 }
 
 const releaseRegistryText = existsSync(join(appRoot, "skills", "staffany-data-bot", "references", "staffany-release-feature-registry.md"))
@@ -455,6 +535,34 @@ if (shellCheck.status !== 0) {
   fail(`Shell syntax check failed: ${shellCheck.stderr || shellCheck.stdout}`);
 }
 
+const pythonCompile = spawnSync("python3", [
+  "-m",
+  "py_compile",
+  join(appRoot, "runtime", "mcp", "staffany_data_learning_server.py"),
+  join(appRoot, "runtime", "report-staffany-data-learning.py")
+], {
+  cwd: repoRoot,
+  encoding: "utf8"
+});
+if (pythonCompile.status !== 0) {
+  fail(`Python compile failed: ${pythonCompile.stderr || pythonCompile.stdout}`);
+}
+
+const dataLearningServerText = existsSync(join(appRoot, "runtime", "mcp", "staffany_data_learning_server.py"))
+  ? readFileSync(join(appRoot, "runtime", "mcp", "staffany_data_learning_server.py"), "utf8")
+  : "";
+for (const requiredText of [
+  "update_staffany_data_lesson_candidate_status",
+  "LESSON_CANDIDATE_REVIEW_MARKER = \"human reviewed lesson\"",
+  "needs_more_evidence",
+  "approved_for_repo_promotion",
+  "min(max(0, int(limit)), 100)",
+  "\\b{re.escape(marker)}\\b",
+  "promoted requires live_verified_at and live_verification_summary"
+]) {
+  if (!dataLearningServerText.includes(requiredText)) fail(`staffany_data_learning_server.py missing required review workflow text: ${requiredText}`);
+}
+
 const deployScriptText = existsSync(join(repoRoot, "scripts", "deploy-hermes-data-bot.mjs"))
   ? readFileSync(join(repoRoot, "scripts", "deploy-hermes-data-bot.mjs"), "utf8")
   : "";
@@ -468,7 +576,9 @@ for (const requiredText of [
   "VERSION",
   "staffany_slack_context",
   "staffany_c360",
+  "staffany_data_learning",
   "staffany_google_sheets",
+  "staffanydatabot-report-data-learning.py",
   "hermes-shared/google-sheets-output",
   "staffany-google-sheets-output"
 ]) {
@@ -486,7 +596,11 @@ for (const requiredText of [
   "check_mcp_tools \"staffany_bigquery\"",
   "check_mcp_tools \"staffany_slack_context\"",
   "check_mcp_tools \"staffany_c360\"",
+  "check_mcp_tools \"staffany_data_learning\"",
+  "EXPECTED_DATA_LEARNING_MCP_TOOLS=\"${EXPECTED_DATA_LEARNING_MCP_TOOLS:-4}\"",
   "check_mcp_tools \"staffany_google_sheets\"",
+  "staffany_data_learning_review_report:ok",
+  "lesson_candidates_content:omitted",
   "slack:selected-thread:ok",
   "C0A0V39AK44"
 ]) {
@@ -498,6 +612,7 @@ const mcpTest = spawnSync("python3", [
   "unittest",
   "apps/hermes-data-bot/runtime/mcp/test_staffany_slack_context_server.py",
   "apps/hermes-data-bot/runtime/mcp/test_staffany_c360_server.py",
+  "apps/hermes-data-bot/runtime/mcp/test_staffany_data_learning_server.py",
   "apps/hermes-shared/google-sheets-output/runtime/mcp/test_staffany_google_sheets_server.py"
 ], {
   cwd: repoRoot,

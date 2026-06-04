@@ -118,7 +118,6 @@ def main() -> int:
             "roi_ticket_reused",
             "roi_tracker_linked",
             "ticket_update_synced",
-            "ticket_ready",
         ]
     })
     c360_events = Counter({

@@ -1,0 +1,7 @@
+interface:
+  display_name: "Indonesia Payroll Tax Advisor"
+  short_description: "Map Indonesia payroll tax rules to StaffAny behavior"
+  default_prompt: "Use $indonesia-payroll-tax-advisor to answer Indonesia payroll tax or reporting questions with regulator sources and StaffAny system evidence."
+
+policy:
+  allow_implicit_invocation: true

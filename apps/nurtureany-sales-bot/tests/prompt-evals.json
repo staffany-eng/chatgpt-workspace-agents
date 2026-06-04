@@ -67,8 +67,11 @@
           {
             "path": "profile/SOUL.md",
             "must_contain": [
+              "Singapore batch/planner lead-enrichment",
               "MUST plan and run `build_singapore_lead_enrichment_plan`",
-              "Do not route these prompts through `find_contact_gaps`, `score_nurture_accounts`, `generate_free_search_tasks`, Exa, or Lusha directly",
+              "one-company enrichment requests",
+              "The internal router intent should be `single_company_lead_enrichment`, not `sg_single_company_lead_enrichment`",
+              "Do not route these batch/planner prompts through `find_contact_gaps`, `score_nurture_accounts`, `generate_free_search_tasks`, Exa, or Lusha directly",
               "output_mode=\"compact\""
             ]
           },
@@ -494,6 +497,151 @@
         "answer_fixture": {
           "output": "Answer: Podcast social posts had aggregate HubSpot social clicks in the returned window.\nChecked: HubSpot SOCIAL_BROADCAST aggregate social metrics.\nNot checked: QO / closed-won attribution was not checked in this run.\nNext check: Run get_marketing_campaign_attribution if you want QO, QO Met, closed-won, pipeline, or revenue linkage.\nSource: get_campaign_social_effectiveness\nScope: selected campaign social assets only\nConfidence: needs-check\nCaveat: Social clicks are engagement evidence, not revenue attribution."
         }
+      }
+    },
+    {
+      "id": "nurtureany-tooltrace-partnerships-luma-sheets-export",
+      "bot": "NurtureAny Sales Bot",
+      "surface": "slack",
+      "lane": "tool-trace",
+      "input": "@NurtureAny analyze this Luma event for total RSVPs, clients vs prospects, and invited by: https://luma.com/06d6szo3",
+      "setup": {
+        "caller_email": "jan-e@staffany.com",
+        "first_slack_mention": true,
+        "after_run": "regional_event_luma_action_pack_preview"
+      },
+      "expected_tool_trace": {
+        "must_call_after_run": [
+          "resolve_nurture_scope",
+          "list_luma_events",
+          "get_luma_event_match_keys",
+          "find_target_accounts_by_luma_match_keys",
+          "get_luma_event_context",
+          "preview_analysis_sheet_export"
+        ],
+        "must_not_call": [
+          "build_friday_sales_review",
+          "build_ae_coaching_audit",
+          "audit_owner_whatsapp_kns_window",
+          "plan_hubspot_writeback",
+          "send_approved_eazybe_messages",
+          "apply_analysis_sheet_export"
+        ]
+      },
+      "expected_answer_contract": {
+        "must_include": [
+          "Sheet preview:",
+          "Action buckets:",
+          "Source:",
+          "Scope:",
+          "Confidence:",
+          "Caveat:"
+        ]
+      },
+      "forbidden_behavior": [
+        "raw guest list",
+        "full attendee email",
+        "phone-number export",
+        "HubSpot mutation",
+        "manager coaching audit"
+      ],
+      "grade_notes": "Regional event breakdowns use scoped target-account classification and preview sanitized Event Match Action Queue rows. Sheet apply requires explicit approval.",
+      "assertions": {
+        "source_files": [
+          {
+            "path": "skills/nurtureany-sales-bot/references/regression-cases.md",
+            "must_contain": [
+              "Regional Event RSVP Breakdown With Sheets Preview"
+            ]
+          },
+          {
+            "path": "skills/nurtureany-sales-bot/SKILL.md",
+            "must_contain": [
+              "preview_analysis_sheet_export",
+              "apply_analysis_sheet_export"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "nurtureany-tooltrace-loom-demo-grade",
+      "bot": "NurtureAny Sales Bot",
+      "surface": "slack",
+      "lane": "tool-trace",
+      "input": "@NurtureAny https://www.loom.com/share/e63d65ea325b4408abd9a756564e36f6 analyze and grade this meeting",
+      "setup": {
+        "after_run": true,
+        "stub_tools": true
+      },
+      "expected_tool_trace": {
+        "must_call": [
+          "extract_demo_transcript_evidence"
+        ],
+        "allowed_tools": [
+          "get_selected_slack_thread_context",
+          "preview_analysis_sheet_export",
+          "apply_analysis_sheet_export"
+        ],
+        "forbidden_tools": [
+          "demo_review_nurtureany",
+          "loom_media_download",
+          "manual_raw_transcript_dump"
+        ],
+        "argument_shape": {
+          "source_type": "auto_or_loom",
+          "raw_transcript": "forbidden",
+          "signed_loom_media_url": "forbidden"
+        }
+      },
+      "expected_answer_contract": {
+        "must_include": [
+          "Answer:",
+          "Overall grade:",
+          "Scorecard:",
+          "Coachable moments:",
+          "Better talk tracks:",
+          "Manager coaching note:",
+          "Next practice:",
+          "Source:",
+          "Scope:",
+          "Confidence:",
+          "Caveat:"
+        ],
+        "must_not_include": [
+          "raw transcript",
+          ".vtt?",
+          "Signature="
+        ]
+      },
+      "forbidden_behavior": [
+        "separate demo-review MCP",
+        "Loom MP4/HLS download",
+        "signed Loom media URL leak",
+        "raw transcript dump",
+        "phone-number export",
+        "full email export"
+      ],
+      "grade_notes": "Loom/demo review should reuse the shared demo rubric and the narrow caption evidence primitive.",
+      "assertions": {
+        "source_files": [
+          {
+            "path": "skills/nurtureany-sales-bot/SKILL.md",
+            "must_contain": [
+              "extract_demo_transcript_evidence",
+              "Overall grade",
+              "Better talk tracks"
+            ]
+          },
+          {
+            "path": "runtime/demo-sources.md",
+            "must_contain": [
+              "V1 supports Loom share pages only when captions/VTT are available",
+              "raw_transcript_returned=false",
+              "signed_loom_media_urls_returned=false"
+            ]
+          }
+        ]
       }
     },
     {

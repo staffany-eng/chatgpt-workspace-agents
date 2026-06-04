@@ -28,6 +28,12 @@
     "feature_intake_mcp_tests": "runtime/mcp/test_launchbot_feature_intake_server.py",
     "feature_intake_monitor": "runtime/monitor-feature-intake.py",
     "feature_intake_monitor_tests": "runtime/test_monitor_feature_intake.py",
+    "support_watch_core": "runtime/mcp/launchbot_support_watch_core.py",
+    "support_watch_mcp_server": "runtime/mcp/launchbot_support_watch_server.py",
+    "support_watch_mcp_tests": "runtime/mcp/test_launchbot_support_watch_server.py",
+    "support_watch_monitor": "runtime/monitor-support-watch.py",
+    "support_watch_monitor_tests": "runtime/test_monitor_support_watch.py",
+    "support_watch_whatsapp_refresh_sql": "runtime/support-watch-whatsapp-refresh.sql",
     "help_article_mcp_server": "runtime/mcp/launchbot_help_article_server.py",
     "help_article_mcp_tests": "runtime/mcp/test_launchbot_help_article_server.py",
     "help_article_video_fixtures": "runtime/mcp/fixtures/help_article_video_fixtures.json",
@@ -41,6 +47,13 @@
     "article_planning_profile": "skills/help-article-generator/references/article-planning-profile.json",
     "intercom_article_inventory": "skills/help-article-generator/references/intercom-article-inventory.json",
     "help_article_video_registry": "skills/help-article-generator/references/video-placement-registry.json",
+    "support_watch_skill": "skills/weekly-support-watch/SKILL.md",
+    "indonesia_payroll_tax_skill": "skills/staffany-indonesia-payroll-tax-grimoire/SKILL.md",
+    "indonesia_tax_knowledge_updater_skill": "skills/staffany-indonesia-payroll-tax-grimoire/skills/indonesia-tax-knowledge-updater/SKILL.md",
+    "indonesia_tax_knowledge_validator": "skills/staffany-indonesia-payroll-tax-grimoire/skills/indonesia-tax-knowledge-updater/scripts/validate_knowledge_bank.rb",
+    "indonesia_payroll_tax_reporting_reference": "skills/staffany-indonesia-payroll-tax-grimoire/skills/indonesia-payroll-tax-advisor/references/reporting.md",
+    "indonesia_payroll_tax_pph21_reference": "skills/staffany-indonesia-payroll-tax-grimoire/skills/indonesia-payroll-tax-advisor/references/pph21.md",
+    "indonesia_payroll_tax_source_quality_reference": "skills/staffany-indonesia-payroll-tax-grimoire/skills/indonesia-payroll-tax-advisor/references/source-quality.md",
     "launch_workflow_regression_cases": "tests/launch-workflow-regression-cases.md",
     "prompt_evals": "tests/prompt-evals.json"
   },
@@ -48,7 +61,8 @@
     "Slack #launch-bot-testing",
     "Slack #proj-cs-seonggong-seorae",
     "Slack #all-product-questions",
-    "Slack #input-features-ux"
+    "Slack #input-features-ux",
+    "Slack #all-bugs-production"
   ],
   "slack": {
     "home_channel_id": "C0B32M34J3W",
@@ -71,6 +85,7 @@
       "app_mentions:read",
       "channels:history",
       "channels:read",
+      "channels:join",
       "chat:write"
     ],
     "event_subscription_drift_guard": "Launchbot Socket Mode must subscribe to message.channels or channel mentions/replies will not reach the Hermes gateway."
@@ -101,6 +116,98 @@
       "schedule": "* * * * *",
       "mode": "no-agent"
     }
+  },
+  "support_watch_monitor": {
+    "mode": "no_agent_weekly_report",
+    "default_output_channel_name": "all-bugs-production",
+    "output_channel_name_env_var": "LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME",
+    "output_channel_id_env_var": "LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_ID",
+    "dedupe_channel_ids_env_var": "LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_IDS",
+    "dedupe_channel_names_env_var": "LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_NAMES",
+    "edt_jql_env_var": "LAUNCHBOT_SUPPORT_WATCH_EDT_JQL",
+    "state_path_env_var": "LAUNCHBOT_SUPPORT_WATCH_STATE_PATH",
+    "default_state_path": "~/.hermes/profiles/launchbot/runtime/support-watch-state.json",
+    "lookback_days_env_var": "LAUNCHBOT_SUPPORT_WATCH_LOOKBACK_DAYS",
+    "default_lookback_days": 7,
+    "max_tickets_env_var": "LAUNCHBOT_SUPPORT_WATCH_MAX_TICKETS",
+    "default_max_tickets": 100,
+    "default_edt_jql": "project = PCO AND \"PS Team\" = \"Eng Duty\" AND statusCategory != Done ORDER BY updated DESC",
+    "source_env_var": "LAUNCHBOT_SUPPORT_WATCH_SOURCE",
+    "default_source": "bigquery",
+    "intercom_project_env_var": "LAUNCHBOT_SUPPORT_WATCH_INTERCOM_PROJECT",
+    "default_intercom_project": "staffany-warehouse",
+    "intercom_dataset_env_var": "LAUNCHBOT_SUPPORT_WATCH_INTERCOM_DATASET",
+    "default_intercom_dataset": "intercom",
+    "bq_timeout_seconds_env_var": "LAUNCHBOT_SUPPORT_WATCH_BQ_TIMEOUT_SECONDS",
+    "default_bq_timeout_seconds": 240,
+    "include_whatsapp_env_var": "LAUNCHBOT_SUPPORT_WATCH_INCLUDE_WHATSAPP",
+    "default_include_whatsapp": true,
+    "whatsapp_view_env_var": "LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_VIEW",
+    "default_whatsapp_view": "analytics.support_watch_whatsapp_ticket_logs",
+    "whatsapp_source_view_env_var": "LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_SOURCE_VIEW",
+    "default_whatsapp_source_view": "gsheets.cs_tickets_logs_all_view",
+    "whatsapp_refresh_transfer_name_env_var": "LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_REFRESH_TRANSFER_NAME",
+    "default_whatsapp_refresh_transfer_name": "Launchbot support watch WhatsApp native mirror refresh",
+    "whatsapp_refresh_schedule_utc_env_var": "LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_REFRESH_SCHEDULE_UTC",
+    "default_whatsapp_refresh_schedule_utc": "every day 00:30",
+    "whatsapp_max_staleness_hours_env_var": "LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_MAX_STALENESS_HOURS",
+    "default_whatsapp_max_staleness_hours": 36,
+    "dedupe_channel_name": "team-cs-eng-duty",
+    "default_dedupe_channel_names": "team-cs-eng-duty",
+    "normal_gateway_require_mention": true,
+    "raw_transcript_persistence": false,
+    "posts_slack_reports": true,
+    "slack_reply_prefix": "Launchbot automation:",
+    "ticket_creation": false,
+    "engineer_tags": false,
+    "owner_assignment": false,
+    "cron": {
+      "name": "launchbot support watch",
+      "schedule": "0 1 * * 4",
+      "timezone": "UTC",
+      "local_time": "Thursday 09:00 SGT",
+      "mode": "no-agent"
+    }
+  },
+  "tax_advisory": {
+    "mode": "source_backed_indonesia_payroll_tax_answers",
+    "skill": "skills/staffany-indonesia-payroll-tax-grimoire/SKILL.md",
+    "regulation_update_skill": "skills/staffany-indonesia-payroll-tax-grimoire/skills/indonesia-tax-knowledge-updater/SKILL.md",
+    "knowledge_bank_validator": "skills/staffany-indonesia-payroll-tax-grimoire/skills/indonesia-tax-knowledge-updater/scripts/validate_knowledge_bank.rb",
+    "topics": [
+      "PPh21",
+      "PPh26",
+      "TER",
+      "PTKP",
+      "DTP",
+      "SPT Masa PPh 21/26",
+      "e-Bupot 21/26",
+      "bukti potong",
+      "Formulir 1721-A1 / BPA1",
+      "BPMP",
+      "BP21",
+      "BP26",
+      "StaffAny Indonesia payroll-tax settings"
+    ],
+    "answer_contract": [
+      "Direct answer",
+      "Regulatory basis",
+      "StaffAny system behavior",
+      "Gap / risk / not validated",
+      "Sources checked",
+      "Confidence"
+    ],
+    "source_priority": [
+      "official_regulator_sources",
+      "official_djp_guidance",
+      "staffany_code_or_data_evidence",
+      "secondary_consultant_guidance"
+    ],
+    "current_fact_policy": "Before final answers about current laws, rates, forms, deadlines, or regulator platform changes, use the regulation update skill workflow to verify official online sources and record source title, publisher, URL, effective period, last checked date, status, and confidence.",
+    "pre_final_validation_policy": "If regulator knowledge is refreshed or added, run the knowledge-bank validator before final answer; if validation cannot run, say so and lower confidence.",
+    "staffany_behavior_policy": "Inspect Pantheon code, models, seeded references, or verified read-only query facts before claiming StaffAny product support.",
+    "bpjs_scope": "BPJS is outside the core tax skill unless it affects payroll-tax/reporting; answer BPJS-only questions from official BPJS/government sources and label the scope.",
+    "sensitive_data_policy": "Do not expose full NPWP, NIK, bank account, credentials, or unrelated employee payroll details."
   },
   "mcp": {
     "launchbot_ker": {
@@ -238,6 +345,76 @@
         "preview_first": true
       }
     },
+    "launchbot_support_watch": {
+      "mode": "read_only_weekly_support_watch",
+      "tools": [
+        "preview_weekly_support_watch_report"
+      ],
+      "bigquery": {
+        "source_env_var": "LAUNCHBOT_SUPPORT_WATCH_SOURCE",
+        "default_source": "bigquery",
+        "project_env_var": "LAUNCHBOT_SUPPORT_WATCH_INTERCOM_PROJECT",
+        "default_project": "staffany-warehouse",
+        "intercom_dataset_env_var": "LAUNCHBOT_SUPPORT_WATCH_INTERCOM_DATASET",
+        "default_intercom_dataset": "intercom",
+        "intercom_tables": [
+          "conversations",
+          "conversation_parts"
+        ],
+        "analytics_dataset_env_var": "LAUNCHBOT_SUPPORT_WATCH_ANALYTICS_DATASET",
+        "default_analytics_dataset": "analytics",
+        "bq_timeout_seconds_env_var": "LAUNCHBOT_SUPPORT_WATCH_BQ_TIMEOUT_SECONDS",
+        "default_bq_timeout_seconds": 240,
+        "org_mapping_table": "dim_org_company",
+        "include_whatsapp_env_var": "LAUNCHBOT_SUPPORT_WATCH_INCLUDE_WHATSAPP",
+        "default_include_whatsapp": true,
+        "whatsapp_view_env_var": "LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_VIEW",
+        "default_whatsapp_view": "analytics.support_watch_whatsapp_ticket_logs",
+        "whatsapp_source_view_env_var": "LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_SOURCE_VIEW",
+        "default_whatsapp_source_view": "gsheets.cs_tickets_logs_all_view",
+        "whatsapp_refresh_transfer_name_env_var": "LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_REFRESH_TRANSFER_NAME",
+        "default_whatsapp_refresh_transfer_name": "Launchbot support watch WhatsApp native mirror refresh",
+        "whatsapp_refresh_schedule_utc_env_var": "LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_REFRESH_SCHEDULE_UTC",
+        "default_whatsapp_refresh_schedule_utc": "every day 00:30",
+        "whatsapp_max_staleness_hours_env_var": "LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_MAX_STALENESS_HOURS",
+        "default_whatsapp_max_staleness_hours": 36,
+        "raw_transcript_persistence": false
+      },
+      "slack_context": {
+        "token_env_var": "SLACK_BOT_TOKEN",
+        "dedupe_channel_ids_env_var": "LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_IDS",
+        "dedupe_channel_names_env_var": "LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_NAMES",
+        "dedupe_channel_name": "team-cs-eng-duty",
+        "output_channel_name_env_var": "LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME",
+        "output_channel_id_env_var": "LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_ID",
+        "default_output_channel_name": "all-bugs-production",
+        "raw_transcript_persistence": false,
+        "user_token_fallback": false,
+        "slack_connector_fallback": false,
+        "mcp_posts_slack": false
+      },
+      "jira": {
+        "base_url_env_var": "JIRA_BASE_URL",
+        "email_env_var": "JIRA_EMAIL",
+        "api_token_env_var": "JIRA_API_TOKEN",
+        "edt_jql_env_var": "LAUNCHBOT_SUPPORT_WATCH_EDT_JQL",
+        "default_edt_jql": "project = PCO AND \"PS Team\" = \"Eng Duty\" AND statusCategory != Done ORDER BY updated DESC",
+        "mutations": false,
+        "comments": false,
+        "transitions": false,
+        "assignments": false
+      },
+      "pantheon": {
+        "checkout_env_var": "LAUNCHBOT_PANTHEON_REPO_DIR",
+        "trace_mode": "local_read_only_heuristic"
+      },
+      "v1_forbidden_actions": [
+        "linear_ticket_create",
+        "jira_ticket_create",
+        "engineer_tag",
+        "owner_assignment"
+      ]
+    },
     "launchbot_help_article": {
       "mode": "draft_only_registered_video_slots",
       "tools": [
@@ -283,6 +460,13 @@
   },
   "expected_crons": [
     {
+      "name": "Launchbot support watch WhatsApp native mirror refresh",
+      "schedule": "every day 00:30",
+      "mode": "bigquery-scheduled-query",
+      "source": "staffany-warehouse.gsheets.cs_tickets_logs_all_view",
+      "target": "staffany-warehouse.analytics.support_watch_whatsapp_ticket_logs"
+    },
+    {
       "name": "launchbot health check",
       "schedule": "*/5 * * * *",
       "mode": "no-agent"
@@ -291,6 +475,12 @@
       "name": "launchbot feature intake monitor",
       "schedule": "* * * * *",
       "mode": "no-agent"
+    },
+    {
+      "name": "launchbot support watch",
+      "schedule": "0 1 * * 4",
+      "mode": "no-agent",
+      "local_time": "Thursday 09:00 SGT"
     },
     {
       "name": "launchbot pantheon repo update",
@@ -367,6 +557,19 @@
       "LAUNCHBOT_FEATURE_INTAKE_MONITOR_MAX_MESSAGES_PER_RUN",
       "LAUNCHBOT_FEATURE_INTAKE_MONITOR_OVERLAP_SECONDS",
       "LAUNCHBOT_FEATURE_INTAKE_APPROVER_USER_IDS",
+      "LAUNCHBOT_SUPPORT_WATCH_SOURCE",
+      "LAUNCHBOT_SUPPORT_WATCH_INTERCOM_PROJECT",
+      "LAUNCHBOT_SUPPORT_WATCH_INTERCOM_DATASET",
+      "LAUNCHBOT_SUPPORT_WATCH_ANALYTICS_DATASET",
+      "LAUNCHBOT_SUPPORT_WATCH_INCLUDE_WHATSAPP",
+      "LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_VIEW",
+      "LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME",
+      "LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_ID",
+      "LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_IDS",
+      "LAUNCHBOT_SUPPORT_WATCH_EDT_JQL",
+      "LAUNCHBOT_SUPPORT_WATCH_STATE_PATH",
+      "LAUNCHBOT_SUPPORT_WATCH_LOOKBACK_DAYS",
+      "LAUNCHBOT_SUPPORT_WATCH_MAX_TICKETS",
       "LAUNCH_PANTHEON_REPO",
       "LAUNCH_PANTHEON_APPS",
       "LAUNCH_GOOGLE_AUTH_JSON",

@@ -20,12 +20,15 @@ Hermes Data Bot needs deterministic runtime health checks because prompt correct
 - `staffany_slack_context` MCP lists only `get_current_slack_thread_context` and `get_selected_slack_thread_context`.
 - `staffany_c360` MCP lists only `list_current_customer_orgs` and uses `X-Customer360-Internal-Token`, not browser cookies or personal `customer360_session`.
 - `staffany_google_sheets` MCP lists only `check_google_sheets_output_access` and `create_spreadsheet_from_rows`, uses `team@staffany.com`, requires an output folder or share target, and cannot edit existing spreadsheets.
+- `staffany_data_learning` MCP lists only `record_staffany_data_lesson_candidate`, `list_staffany_data_lesson_candidates`, `read_staffany_data_lesson_candidate`, and `update_staffany_data_lesson_candidate_status`; it writes runtime-only candidates, requires `approval_marker="human reviewed lesson"` for review status updates, blocks bot/automation reviewers, requires deploy/live proof before `promoted`, and cannot self-approve, self-promote, use Honcho as source of truth, dispatch Kanban, start persistent goals, or run self-evolution.
+- The reviewed-learning no-agent report script prints safe counts/staleness only and `lesson_candidates_content:omitted`.
 - Selected Slack-thread smoke can read a configured public/source thread with the bot token and returns only message counts/safe snippets/permalinks.
 - A tiny read-only BigQuery smoke query succeeds.
 - `hermes -p staffanydatabot auth status anthropic` reports logged in.
 - For Codex fallback experiments only, `hermes -p staffanydatabot auth list` should have no `openai-codex` credential entries marked `auth failed`, `token_invalidated`, or `re-auth`.
 - Honcho API health returns OK when external memory is enabled.
 - `hermes -p staffanydatabot memory status` reports `Provider: honcho` and `Status: available` when Honcho is expected to be active.
+- Honcho config keeps `recallMode=tools`, `saveMessages=false`, `sessionStrategy=per-session`, and bounded context when auto context is configured.
 - Healthy checks print nothing and exit 0.
 - VM-local cloud heartbeat cron is enabled every 15 minutes with local delivery disabled.
 - Optional deployment audit can check the high-priority feature usage digest cron after it is enabled.
@@ -70,7 +73,9 @@ Default checks:
 - `hermes -p staffanydatabot mcp test staffany_bigquery` with 4 expected tools
 - `hermes -p staffanydatabot mcp test staffany_slack_context` with 2 expected tools
 - `hermes -p staffanydatabot mcp test staffany_c360` with 1 expected tool
+- `hermes -p staffanydatabot mcp test staffany_data_learning` with 4 expected tools
 - `hermes -p staffanydatabot mcp test staffany_google_sheets` with 2 expected tools
+- `~/.hermes/profiles/staffanydatabot/scripts/staffanydatabot-report-data-learning.py --stale-days 14`
 - `curl -fsS http://localhost:8000/health`
 - `hermes -p staffanydatabot memory status`
 - `redact_secrets: true` in the live profile config
@@ -102,6 +107,12 @@ cp apps/hermes-data-bot/runtime/check-cloud-heartbeat.sh ~/.hermes/profiles/staf
 hermes -p staffanydatabot cron create "*/15 * * * *" \
   --name "staffanydatabot local cloud heartbeat" \
   --script staffanydatabot-check-cloud-heartbeat.sh \
+  --no-agent
+
+cp apps/hermes-data-bot/runtime/report-staffany-data-learning.py ~/.hermes/profiles/staffanydatabot/scripts/staffanydatabot-report-data-learning.py
+hermes -p staffanydatabot cron create "0 2 * * 1" \
+  --name "staffanydatabot reviewed learning report" \
+  --script staffanydatabot-report-data-learning.py \
   --no-agent
 ```
 

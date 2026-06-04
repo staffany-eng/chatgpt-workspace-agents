@@ -8,6 +8,7 @@ LAUNCHBOT_GATEWAY_SERVICE="${LAUNCHBOT_GATEWAY_SERVICE:-hermes-gateway-launchbot
 EXPECTED_BIGQUERY_MCP_TOOLS="${EXPECTED_BIGQUERY_MCP_TOOLS:-4}"
 EXPECTED_SLACK_CONTEXT_MCP_TOOLS="${EXPECTED_SLACK_CONTEXT_MCP_TOOLS:-2}"
 EXPECTED_C360_MCP_TOOLS="${EXPECTED_C360_MCP_TOOLS:-1}"
+EXPECTED_DATA_LEARNING_MCP_TOOLS="${EXPECTED_DATA_LEARNING_MCP_TOOLS:-4}"
 EXPECTED_GOOGLE_SHEETS_MCP_TOOLS="${EXPECTED_GOOGLE_SHEETS_MCP_TOOLS:-2}"
 EXPECTED_ENABLED_CRON_COUNT="${EXPECTED_ENABLED_CRON_COUNT:-3}"
 SLACK_CONTEXT_SMOKE_PERMALINK="${STAFFANY_DATA_BOT_SLACK_CONTEXT_SMOKE_PERMALINK:-https://staffany.slack.com/archives/C0A0V39AK44/p1778814810682959}"
@@ -102,17 +103,32 @@ unsafe_send = sum(
     if isinstance(job.get("prompt"), str) and "chat.postMessage" in job.get("prompt", "")
 )
 print(
-    f"cron:enabled={len(enabled)}:expected={expected_count}:deliver_null={deliver_null}:"
+    f"cron:enabled={len(enabled)}:expected_min={expected_count}:deliver_null={deliver_null}:"
     f"missing_timezone={missing_timezone}:unsafe_send_message={unsafe_send}"
 )
-if len(enabled) != int(expected_count) or deliver_null or unsafe_send:
+if len(enabled) < int(expected_count) or deliver_null or unsafe_send:
     raise SystemExit(1)
 PY
 
 check_mcp_tools "staffany_bigquery" "$EXPECTED_BIGQUERY_MCP_TOOLS"
 check_mcp_tools "staffany_slack_context" "$EXPECTED_SLACK_CONTEXT_MCP_TOOLS"
 check_mcp_tools "staffany_c360" "$EXPECTED_C360_MCP_TOOLS"
+check_mcp_tools "staffany_data_learning" "$EXPECTED_DATA_LEARNING_MCP_TOOLS"
 check_mcp_tools "staffany_google_sheets" "$EXPECTED_GOOGLE_SHEETS_MCP_TOOLS"
+
+report_script="$PROFILE_DIR/scripts/staffanydatabot-report-data-learning.py"
+if [ -x "$report_script" ]; then
+  report_out="$(mktemp)"
+  "$report_script" --stale-days 14 >"$report_out"
+  grep -q "staffany_data_learning_review_report:ok" "$report_out" || fail "reviewed_learning:report-missing-ok"
+  grep -q "lesson_candidates_content:omitted" "$report_out" || fail "reviewed_learning:report-may-print-content"
+  while IFS= read -r report_line; do
+    line "reviewed_learning:$report_line"
+  done <"$report_out"
+  rm -f "$report_out"
+else
+  fail "reviewed_learning:report-script-missing"
+fi
 
 python3 - "$PROFILE_DIR/.env" "$SLACK_CONTEXT_SMOKE_PERMALINK" <<'PY'
 import json

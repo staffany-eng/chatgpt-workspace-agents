@@ -33,6 +33,19 @@ For any Hermes runtime bot work on Da Ta Hermz, NurtureAny, or Launchbot, also r
 - Official OpenClaw docs are primary for OpenClaw design intent.
 - `openclaw-kaiyi` is secondary implementation evidence for what Kai Yi already set up.
 
+## OpenSpec Workflow
+
+Use OpenSpec as the default change contract for non-trivial features, product changes, runtime behavior changes, and Plan Mode feature specs. OpenSpec does not replace repo or app `AGENTS.md`, app packets, runtime docs, source hierarchy, or verification scripts; those remain higher priority when they conflict.
+
+- Start new feature work with `openspec new change <kebab-name>` from the repo root.
+- Each change should include `proposal.md`, `design.md`, `tasks.md`, and delta specs under `specs/<capability>/spec.md`.
+- Add `references.md` when source evidence, docs, Slack/GitHub findings, external API docs, or live/runtime observations materially shape the plan.
+- Run `openspec validate <change> --strict` before implementation and again before archive.
+- During implementation, use `openspec instructions apply --change <change> --json` as the source of task context and progress; do not rely on custom task-count parsing.
+- Read all context files returned by the apply instructions before editing, work through tasks in order, and mark checkboxes only after verified completion.
+- Archive only after tasks are done, strict validation passes, and any desired spec sync decision is explicit.
+- Do not force baseline durable `openspec/specs/` for this repo. Let active change specs lead first, then sync or promote durable specs when archive/review makes the target behavior stable.
+
 ## Verification
 
 For Hermes Data Bot packet changes:

@@ -1,11 +1,11 @@
 ---
 name: help-article-generator
-description: Creates or updates StaffAny help articles with code-grounded accuracy, consistent formatting, and docx-ready output. Use when the user needs a new help article, an update suggestion across existing help center articles, or a review-ready draft with structured headings, lists, and FAQ.
+description: Creates or updates StaffAny help articles with Pantheon-grounded feature evidence, StaffAny Help Center structure, Google Docs-ready exports, and Launchbot Intercom staging gates. Use when the user needs a new help article, an update suggestion across existing help center articles, or a review-ready draft with structured headings, lists, and FAQ.
 ---
 
 # Help Article Generator
 
-Use this skill to produce help articles in a repeatable format that is ready for internal review and Google Docs editing.
+Use this skill to produce help articles in a repeatable format that is ready for internal review, Google Docs editing, and Launchbot's existing Intercom staging workflow.
 
 ## Inputs
 
@@ -19,6 +19,7 @@ Use this skill to produce help articles in a repeatable format that is ready for
   - PRD
   - Repo hint (`pantheon` / `manticore`)
   - Existing help center context
+  - Audience, country, plan/tier, platform, tone, or terminology preferences
 
 ## Intake Workflow
 
@@ -35,6 +36,10 @@ Use this skill to produce help articles in a repeatable format that is ready for
    - Search live Intercom articles first using `npm run intercom:affected -- --topic "<topic>"`.
    - Scan English help center content under `https://help.staffany.com/en/` only as public fallback context.
    - Propose which article(s)/section(s) should be edited.
+   - Treat the existing article as the base content. Do not generate a replacement article from scratch unless the user explicitly asks for a rewrite.
+   - Preserve all existing sections, steps, FAQs, screenshots, videos, notes, and wording that are not contradicted by the new feature evidence.
+   - Apply the smallest complete update: insert new sections, update the guide outline, add or adjust only directly affected steps/FAQ, and leave unrelated valid content intact.
+   - If the full existing article body is unavailable, fetch it before showing a "whole article" draft. If it cannot be fetched, return a patch-style update with insertion points instead of reconstructing the full article.
 5. If `Update -> Video-only update`:
    - Treat this as a sub-mode of `Update`, not as a separate skill.
    - Accept only Loom share/embed URLs.
@@ -79,6 +84,32 @@ Use this skill to produce help articles in a repeatable format that is ready for
 8. If Pantheon is missing, dirty, ambiguous, stale, or conflicts with Jira/PRD/Intercom, mark the draft `needs-check` and do not stage it for Intercom.
 9. Keep assumptions explicit outside the publishable article body when evidence is incomplete.
 
+## Article Generation Assets
+
+- Use `templates/help-article-template.md` as the base article shape for new drafts.
+- Read `references/staffany-help-center-style.md` before drafting. Treat it as style guidance only; Pantheon code and explicit user requirements remain the authority for product behavior.
+- Use `scripts/feature_context.sh` to build a local code context pack when the Launchbot npm evidence scanner is unavailable or when a focused feature scan is useful:
+
+```bash
+bash apps/launchbot/skills/help-article-generator/scripts/feature_context.sh \
+  --feature "<feature>" \
+  --repo "$LAUNCH_PANTHEON_REPO" \
+  --max 80
+```
+
+- Optional deep scan:
+
+```bash
+ENABLE_BACKEND_SCAN=1 ENABLE_HELP_REF_SCAN=1 \
+bash apps/launchbot/skills/help-article-generator/scripts/feature_context.sh \
+  --feature "<feature>" \
+  --repo "$LAUNCH_PANTHEON_REPO" \
+  --max 80
+```
+
+- Use `scripts/export_help_article.sh` only after internal evidence notes are removed from the publishable body. It can create Google Docs copy formats and optional `.docx` output.
+- Use `scripts/publish_help_article_gdocs.sh` only when the user explicitly wants a Google Doc and valid Google credentials are available. Never commit OAuth credentials or token caches.
+
 ## Launchbot Planning Rules
 
 - Handoff-upgraded rules in this Launchbot skill override the older Grimoire help-article skill where they conflict.
@@ -111,6 +142,9 @@ Use this skill to produce help articles in a repeatable format that is ready for
 - Start from `help-article:plan`, not the user's intake form.
 - Treat `needs-intake` as a normal planning stop: answer the concise questions, then rerun `help-article:plan` with the supplied `--surface`, `--audience`, `--outcome`, `--change`, `--jira`, `--prd`, `--release-state`, `--feature-flag`, `--reviewer`, or `--screenshot-owner` flags as relevant.
 - Prefer updating an existing article when live Intercom already has the same audience, platform, and workflow.
+- For existing article updates, preserve-by-default. Existing article content remains valid unless the new feature evidence directly makes it wrong, duplicate, or misleading.
+- Never shrink, summarize, or omit original article sections merely because they are not touched by the new change.
+- When asked to "generate the whole article" for an update, first load the full current article, merge the approved changes into it, and show the merged result. If only a proposed update draft is available, say so and show only the update patch.
 - Split articles when audiences perform different jobs, such as admin setup vs employee action.
 - Split articles when platform flows differ materially, such as Web owner setup vs Mobile staff redemption.
 - Split marketplace or multi-sided workflows by actor view.
@@ -213,26 +247,41 @@ Follow this exact high-level order:
   - `Product: PayrollAny`
   - `Platform: Web`
   - `Access Level: Owner`
-- After generating the draft, ask the user: `Are Product: PayrollAny, Platform: Web, and Access Level: Owner correct for this article?`
+- Continue with draft generation, review artifacts, and staging without pausing only to validate these default applicability values, unless the user flags them as uncertain or asks to review them.
 - Add a quick explanation of the feature before the guide outline.
 - The outline under `This guide will cover how to:` must list every section header in article order.
 - Section headers must start with a simple present-tense verb + noun. Order sections from setting up or explaining the feature first, then using or managing it.
 - Each section must use numbered user steps. Start with where the user goes in StaffAny, for example `Go to Settings > Payroll > ...`.
 - Keep step text simple present tense, verb + noun where practical. Use feature conditions inside the relevant section steps instead of separating them into unrelated notes.
 - Use the StaffAny help center references for structure: `Create and Manage Disbursement` for the new PayrollAny article pattern, and `Create and Manage Leave Types` for setup, edit, delete, recalculation, and condition examples.
+- Use `references/staffany-help-center-style.md` for current StaffAny Help Center conventions. The style reference must not override code evidence or explicit user requirements.
+- Insert screenshots, videos, or tables immediately after the step they support when assets are available. When screenshots are not available, use screenshot placeholders only where a reviewer can realistically supply the asset.
 
 ## Output Requirements
 
 1. Show draft text in-chat first.
-2. Ask whether `Product: PayrollAny`, `Platform: Web`, and `Access Level: Owner` are correct for the article.
-3. Generate `.docx` output for review.
-4. Ensure `.docx` preserves:
+2. Include "Evidence Used" notes and "Gaps/Assumptions" notes outside the public article body.
+3. Generate Google Docs copy artifacts or `.docx` output when the user or Launchbot flow asks for review artifacts.
+4. Ensure generated review artifacts preserve:
    - title/heading hierarchy
    - bold text
    - centered audience block
    - correctly indented nested bullets
    - numbered lists that restart per subsection
 5. Return only the requested article draft or structure. Do not add meta commentary such as "Structure complete" after the article body.
+
+For normal `Update` mode, output one of these explicit shapes:
+
+1. Patch-style update when the full existing article has not been loaded:
+   - target article
+   - sections to add
+   - sections to modify
+   - FAQ additions
+   - unchanged sections that should be preserved
+2. Full merged article only after reading the current full article body:
+   - preserve unchanged original content verbatim where practical
+   - mark only the inserted or changed sections in the review notes, not inside the publishable body
+   - do not remove original content unless listing a specific reason in "Gaps/Assumptions" or review notes
 
 For `Update -> Video-only update`, replace the normal article drafting output with:
 
@@ -285,4 +334,5 @@ Before finalizing:
 - FAQ has bold `Q:` questions and normal answers
 - Internal appendix is not in the publishable body
 - Tone is natural, concise, and user-centered
+- For existing article updates, full-article output was merged from the current article body rather than reconstructed from partial notes
 - For video-only updates, the patch touches exactly one registered Loom iframe and the Intercom payload uses `state: "draft"` only

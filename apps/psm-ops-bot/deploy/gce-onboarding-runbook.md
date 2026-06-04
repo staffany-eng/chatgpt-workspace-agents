@@ -10,7 +10,7 @@ This runbook deploys PSM Ops Bot on company cloud infrastructure. Do not run the
 - VM: `hermes-psm-ops-bot-poc`
 - Profile: `psmopsbot`
 - Gateway service: `hermes-gateway-psmopsbot.service`
-- Slack channel mode: public/open channels, mention required
+- Slack channel mode: public/open channels, strict @-mention opt-in
 - Local profile policy: cloud-only. Do not create or run `~/.hermes/profiles/psmopsbot` on a Mac operator host.
 
 ## Secrets
@@ -23,18 +23,18 @@ Store these in Secret Manager and load them into the profile `.env` on the cloud
 - `customer-360-jira-email`
 - `customer-360-jira-api-token`
 - `customer-360-internal-api-token`
-- Google Play service account JSON for `com.staffany.pixie`
-- App Store Connect API key config for app `1360658903`
 - `hermes-data-bot-anthropic-api-key`
 - Google Calendar OAuth JSON for `team@staffany.com` with `https://www.googleapis.com/auth/calendar.readonly`
 - Google Calendar OAuth client secret JSON for the same StaffAny OAuth client
+- Google Play service-account JSON with Android Publisher review access for `com.staffany.pixie`
+- App Store Connect API key config for StaffAny iOS app `1360658903`
 
 `psm-ops-bot-roi-jira-env` is a dotenv-formatted Secret Manager secret in project
 `staffany-warehouse`, labeled `app=psm-ops-bot`, `env=prod`, `format=dotenv`, and
 `scope=roi-jira`. It stores the approved `PSM_OPS_ROI_*` Jira routing and field
 configuration only; do not copy those values into this repo.
 
-Thin POC does not require `SLACK_ALLOWED_USERS`, `SLACK_ALLOWED_CHANNELS`, or a PSM Ops access-policy file. The bot resolves the caller by fetching Slack users, canonicalizing profile email/name, and matching that identity to Jira `PS Team`. Jira user search is optional best-effort attribution, not the task-owner filter. Keep `slack.require_mention=true` so public/open-channel usage does not become free-response mode.
+Thin POC does not require `SLACK_ALLOWED_USERS`, `SLACK_ALLOWED_CHANNELS`, or a PSM Ops access-policy file. The bot resolves the caller by fetching Slack users, canonicalizing profile email/name, and matching that identity to Jira `PS Team`. Jira user search is optional best-effort attribution, not the task-owner filter. Keep `slack.require_mention=true` and `slack.strict_mention=true` so public/open-channel usage does not become free-response mode or same-thread auto-engagement.
 
 Required Slack bot scopes for public/open-channel mode:
 
@@ -43,10 +43,13 @@ Required Slack bot scopes for public/open-channel mode:
 - `channels:history`
 - `channels:join`
 - `chat:write`
+- `files:read`
+- `files:write`
 - `users:read`
 - `users:read.email`
 
 `channels:join` is required so the bot can repair membership for public/open channels through bot-owned auth. If the app is missing this scope, `conversations.join` fails with `missing_scope` and the bot cannot read or reply in unjoined public channels. Reinstall the Slack app after scope changes, then run the public-channel join repair script from the cloud profile.
+`files:read` is required so attached CSV/TSV address files can be downloaded by the bot, and `files:write` is required so geocoded address rows can be uploaded as `.tsv` files instead of pasted into Slack messages.
 
 Thin POC Jira IDs must also be present in the profile `.env`:
 
@@ -60,16 +63,15 @@ Thin POC Jira IDs must also be present in the profile `.env`:
 - `GOOGLE_CALENDAR_TOKEN_FILE=/home/leekaiyi/.hermes/profiles/psmopsbot/google-calendar-token.json`
 - `GOOGLE_CALENDAR_CLIENT_SECRET_FILE=/home/leekaiyi/.hermes/profiles/psmopsbot/google-calendar-client-secret.json`
 - `GOOGLE_CALENDAR_ACCOUNT_EMAIL=team@staffany.com`
+- `PSM_OPS_GOOGLE_GEOCODE_CREDENTIALS_FILE=/home/leekaiyi/.staffany/google-geocode/credentials.json` or `GOOGLE_GEOCODING_API_KEY`
+- `PSM_OPS_GOOGLE_PLAY_PACKAGE_NAME=com.staffany.pixie`
+- `GOOGLE_PLAY_SERVICE_ACCOUNT_FILE=/home/leekaiyi/.hermes/profiles/psmopsbot/google-play-service-account.json` or `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`
+- `PSM_OPS_APP_STORE_APP_ID=1360658903`
+- `APP_STORE_CONNECT_CONFIG_FILE=/home/leekaiyi/.hermes/profiles/psmopsbot/app-store-connect.json` or `APP_STORE_CONNECT_CONFIG_JSON`
+- alternatively for App Store Connect: `APP_STORE_CONNECT_ISSUER_ID`, `APP_STORE_CONNECT_KEY_ID`, and `APP_STORE_CONNECT_PRIVATE_KEY_FILE` or `APP_STORE_CONNECT_PRIVATE_KEY`
 - `PSM_OPS_CENTRAL_SLACK_CHANNEL_ID` for bot-owned PS WEE central audit copies
 - `PSM_OPS_CENTRAL_FETCH_SLACK_THREAD=true` if bounded source-thread transcript excerpts should be included
 - `PSM_OPS_ADOPTION_METRICS_ENABLED=true` or `PSM_OPS_ADOPTION_METRICS_PATH` for adoption telemetry
-- `PSM_OPS_GOOGLE_PLAY_PACKAGE_NAME=com.staffany.pixie`
-- `GOOGLE_PLAY_SERVICE_ACCOUNT_FILE=/home/leekaiyi/.hermes/profiles/psmopsbot/google-play-service-account.json` or `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`
-- Google Play service account must have Android Publisher review access, including `Reply to reviews`, even though V1 is draft-only
-- `PSM_OPS_APP_STORE_APP_ID=1360658903`
-- `APP_STORE_CONNECT_CONFIG_FILE=/home/leekaiyi/.hermes/profiles/psmopsbot/app-store-connect.json` or `APP_STORE_CONNECT_CONFIG_JSON`
-- App Store Connect API key role should be `Customer Support` or `Admin`
-- `PSM_OPS_STORE_REVIEWS_STATE_PATH=/home/leekaiyi/.hermes/profiles/psmopsbot/state/store_reviews.json`
 
 ROI-direct Jira IDs must also be present before enabling RevOps / BD Ops / NYSS routing:
 
@@ -157,30 +159,32 @@ hermes -p psmopsbot config set terminal.cwd "$HOME/agent-builder/apps/psm-ops-bo
 Copy packet files:
 
 ```bash
-mkdir -p ~/.hermes/profiles/psmopsbot/skills ~/.hermes/profiles/psmopsbot/hooks ~/.hermes/profiles/psmopsbot/scripts
+mkdir -p ~/.hermes/profiles/psmopsbot/skills ~/.hermes/profiles/psmopsbot/hooks ~/.hermes/profiles/psmopsbot/scripts ~/.hermes/profiles/psmopsbot/runtime/sql
 cp apps/psm-ops-bot/profile/SOUL.md ~/.hermes/profiles/psmopsbot/SOUL.md
 rsync -a --delete apps/psm-ops-bot/skills/psm-ops-bot/ ~/.hermes/profiles/psmopsbot/skills/psm-ops-bot/
 rsync -a apps/psm-ops-bot/runtime/mcp/ ~/.hermes/profiles/psmopsbot/runtime/mcp/
+rsync -a --delete apps/psm-ops-bot/runtime/sql/ ~/.hermes/profiles/psmopsbot/runtime/sql/
 rsync -a apps/psm-ops-bot/runtime/hooks/psm-ops-adoption-telemetry/ ~/.hermes/profiles/psmopsbot/hooks/psm-ops-adoption-telemetry/
+rsync -a apps/psm-ops-bot/runtime/hooks/psm-ops-mention-guard/ ~/.hermes/profiles/psmopsbot/hooks/psm-ops-mention-guard/
 cp apps/psm-ops-bot/runtime/psm_ops_adoption_digest.py ~/.hermes/profiles/psmopsbot/scripts/psm_ops_adoption_digest.py
 cp apps/psm-ops-bot/runtime/scripts/psm_ops_due_date_reminders.py ~/.hermes/profiles/psmopsbot/scripts/psm_ops_due_date_reminders.py
 cp apps/psm-ops-bot/runtime/scripts/psm_ops_due_date_reminders.py ~/.hermes/profiles/psmopsbot/scripts/psm_ops_due_date_reminders_eod.py
 cp apps/psm-ops-bot/runtime/scripts/psm_ops_pco_assignment_hygiene.py ~/.hermes/profiles/psmopsbot/scripts/psm_ops_pco_assignment_hygiene.py
 cp apps/psm-ops-bot/runtime/scripts/psm_ops_roi_tracker_sync.py ~/.hermes/profiles/psmopsbot/scripts/psm_ops_roi_tracker_sync.py
-cp apps/psm-ops-bot/runtime/scripts/psm_ops_pco_assignment_hygiene.py ~/.hermes/profiles/psmopsbot/scripts/psm_ops_pco_assignment_hygiene.py
-cp apps/psm-ops-bot/runtime/scripts/psm_ops_join_public_channels.py ~/.hermes/profiles/psmopsbot/scripts/psm_ops_join_public_channels.py
+cp apps/psm-ops-bot/runtime/scripts/psm_ops_churn_reporting_chase.py ~/.hermes/profiles/psmopsbot/scripts/psm_ops_churn_reporting_chase.py
 cp apps/psm-ops-bot/runtime/scripts/psm_ops_store_review_poll.py ~/.hermes/profiles/psmopsbot/scripts/psm_ops_store_review_poll.py
+cp apps/psm-ops-bot/runtime/scripts/psm_ops_join_public_channels.py ~/.hermes/profiles/psmopsbot/scripts/psm_ops_join_public_channels.py
 chmod 755 ~/.hermes/profiles/psmopsbot/scripts/psm_ops_adoption_digest.py \
   ~/.hermes/profiles/psmopsbot/scripts/psm_ops_due_date_reminders.py \
   ~/.hermes/profiles/psmopsbot/scripts/psm_ops_due_date_reminders_eod.py \
   ~/.hermes/profiles/psmopsbot/scripts/psm_ops_pco_assignment_hygiene.py \
   ~/.hermes/profiles/psmopsbot/scripts/psm_ops_roi_tracker_sync.py \
-  ~/.hermes/profiles/psmopsbot/scripts/psm_ops_pco_assignment_hygiene.py \
-  ~/.hermes/profiles/psmopsbot/scripts/psm_ops_join_public_channels.py \
-  ~/.hermes/profiles/psmopsbot/scripts/psm_ops_store_review_poll.py
+  ~/.hermes/profiles/psmopsbot/scripts/psm_ops_churn_reporting_chase.py \
+  ~/.hermes/profiles/psmopsbot/scripts/psm_ops_store_review_poll.py \
+  ~/.hermes/profiles/psmopsbot/scripts/psm_ops_join_public_channels.py
 ```
 
-Write the approved `team@staffany.com` OAuth files from Secret Manager to the paths configured above. Do not commit or paste those JSON files into the repo.
+Write the approved `team@staffany.com` OAuth files from Secret Manager to the paths configured above. Write the Google Geocoding key either as `GOOGLE_GEOCODING_API_KEY` in the profile `.env` or as runtime-user JSON at `PSM_OPS_GOOGLE_GEOCODE_CREDENTIALS_FILE` with the `google_geocoding_api_key` field. Write Google Play and App Store Connect review API credentials to the direct store review paths above or expose the matching JSON env vars. Do not commit or paste those JSON files into the repo.
 
 Configure model:
 
@@ -212,13 +216,13 @@ systemctl --user restart hermes-gateway-psmopsbot.service
 Routine deploys should use the source-controlled deploy script from the repo root. Without `--apply`, it performs preflight and prints the target/SHA without uploading, syncing, restarting, or running prod checks.
 
 ```bash
-npm run psm-ops-bot:deploy
+pnpm psm-ops-bot:deploy
 ```
 
 Deploy exact `origin/main` to the PSM Ops cloud host:
 
 ```bash
-npm run psm-ops-bot:deploy -- --apply
+pnpm psm-ops-bot:deploy --apply
 ```
 
 The script:
@@ -231,17 +235,16 @@ The script:
 - restarts only `hermes-gateway-psmopsbot.service`
 - runs live profile audit, health check, cloud heartbeat, and service status
 - runs the Rock Productions C360 lookup smoke against the live Customer 360 API
+- syncs `psm_ops_store_review_poll.py`, preserves the hourly store review poll cron, and verifies `psm_store_reviews`
 - preserves and verifies the PS WEE no-agent adoption digest cron
-- preserves and verifies the PS WEE no-agent PCO assignment hygiene cron
-- copies `psm_ops_store_review_poll.py` for direct App Store / Google Play review polling
 - stamps `$profile/VERSION` with the deployed SHA, branch, and UTC timestamp
 
 Useful options:
 
 ```bash
-npm run psm-ops-bot:deploy -- --apply --verbose
-npm run psm-ops-bot:deploy -- --apply --skip-upload
-npm run psm-ops-bot:deploy -- --apply --skip-restart
+pnpm psm-ops-bot:deploy --apply --verbose
+pnpm psm-ops-bot:deploy --apply --skip-upload
+pnpm psm-ops-bot:deploy --apply --skip-restart
 ```
 
 ## Cron
@@ -273,6 +276,12 @@ hermes -p psmopsbot cron create "*/30 1-10 * * 1-5" \
   --no-agent \
   --deliver "slack:#ps-weeman-bot-test"
 
+hermes -p psmopsbot cron create "0 1 * * 1" \
+  --name "psmopsbot churn reporting chase" \
+  --script psm_ops_churn_reporting_chase.py \
+  --no-agent \
+  --deliver "slack:#team-rev-account-management"
+
 hermes -p psmopsbot cron create "0 * * * *" \
   --name "psmopsbot store review poll" \
   --script psm_ops_store_review_poll.py \
@@ -286,18 +295,7 @@ hermes -p psmopsbot cron create "0 2 * * 1-5" \
   --deliver "slack:#ps-weeman-bot-test"
 ```
 
-The GCE host runs UTC, so `0 1 * * 1-5` is 09:00 Asia/Singapore on weekdays, `15 1 * * 1-5` is 09:15 Asia/Singapore on weekdays, `0 9 * * 1-5` is 17:00 Asia/Singapore on weekdays, `*/30 1-10 * * 1-5` checks ROI trackers every 30 minutes during Singapore workdays, and `0 * * * *` checks direct store reviews hourly. The EOD cron uses the same source script copied under an `eod` filename because Hermes cron does not pass script flags to no-agent scripts. Store review cron/no-arg runs persist triage state by default; use `--dry-run` for manual preview.
-
-```bash
-~/.hermes/profiles/psmopsbot/scripts/psm_ops_store_review_poll.py \
-  --store app_store \
-  --limit 5 \
-  --dry-run
-~/.hermes/profiles/psmopsbot/scripts/psm_ops_store_review_poll.py \
-  --store google_play \
-  --limit 5 \
-  --apply
-```
+The GCE host runs UTC, so `0 1 * * 1-5` is 09:00 Asia/Singapore on weekdays, `15 1 * * 1-5` is 09:15 Asia/Singapore on weekdays, `0 9 * * 1-5` is 17:00 Asia/Singapore on weekdays, and `*/30 1-10 * * 1-5` checks ROI trackers every 30 minutes during Singapore workdays. The EOD cron uses the same source script copied under an `eod` filename because Hermes cron does not pass script flags to no-agent scripts.
 
 Install the no-agent PS WEE adoption digest:
 
@@ -313,7 +311,7 @@ hermes -p psmopsbot cron create "0 2 * * 1-5" \
 ## Verification
 
 ```bash
-npm run psm-ops-bot:verify
+pnpm psm-ops-bot:verify
 apps/psm-ops-bot/runtime/check-health.sh
 apps/psm-ops-bot/runtime/audit-live-profile.sh
 apps/psm-ops-bot/runtime/smoke-rock-productions-c360.sh
@@ -325,20 +323,13 @@ Cloud smoke:
 2. Draft and approve-create one PCO test task.
 3. Transition it to Scheduled.
 4. Add an internal comment.
-5. Run `psm_ops_due_date_reminders.py --mode morning --dry-run`, `psm_ops_pco_assignment_hygiene.py --dry-run`, `psm_ops_due_date_reminders.py --mode eod --dry-run`, and `psm_ops_roi_tracker_sync.py --dry-run`; verify they output Slack-safe mrkdwn, optional reviewed PS lead / PS Team mentions, reviewed customer-channel mentions from source links only, safe Jira issue summaries, and `[SILENT]` when empty.
+5. Run `psm_ops_due_date_reminders.py --mode morning --dry-run`, `psm_ops_pco_assignment_hygiene.py --dry-run`, `psm_ops_due_date_reminders.py --mode eod --dry-run`, `psm_ops_roi_tracker_sync.py --dry-run`, `psm_ops_churn_reporting_chase.py --as-of 2026-05-25 --dry-run`, and `psm_ops_store_review_poll.py --dry-run`; verify they output Slack-safe mrkdwn, optional reviewed PS lead / PS Team mentions, reviewed customer-channel mentions from source links only, safe Jira issue summaries, BigQuery churn rows for `26Q2`, `26Q3`, and `26Q4`, direct store review triage, and `[SILENT]` when empty.
 6. Ask for Rock Productions from a channel-style hint such as `proj-cs-rockproductions`; verify the bot finds `Rock Productions Pte Ltd`, shows the searched variants safely, and does not say a generic customer cannot be found.
 7. Ask one calendar follow-up question and verify `psm_google_calendar.read_customer_calendar_context` returns bounded event metadata from `team@staffany.com` without descriptions, attendee emails, raw guest lists, or conference links.
-8. Run `hermes -p psmopsbot mcp test psm_store_reviews` and verify it discovers 6 tools.
-9. Run `list_store_review_apps` and confirm Google Play package `com.staffany.pixie` plus App Store app `1360658903`.
-10. Run `list_store_reviews` for Google Play and App Store with `limit=5`.
-11. Run `get_store_review` for one known direct store review id after credentials are proven.
-12. Draft the public reply and verify it asks the reviewer to email `support@staffany.com` privately with account email/phone plus company/outlet, without exposing a public `REV-<review_id>` code as the main CTA.
-13. Run `psm_ops_store_review_poll.py --limit 5 --dry-run`; verify it reports candidate Slack payload or `[SILENT]` and does not persist state. Run without `--dry-run` only when intentionally persisting triage state.
-14. Test `suggest_store_review_identity_candidates` with a private support email/phone claim; exact email can verify only when Customer 360/HubSpot candidate evidence matches, while phone-only stays candidate.
-15. Keep public reply publishing absent in V1.
-15. Ask one C360 customer question and verify a C360 link/citation appears.
-16. Create a PS WEE intake ticket from a non-home public channel and verify the same Slack thread gets the ticket link while the central ops channel gets a `PSM Ops automation:` audit copy with the source thread permalink.
-17. Run `hermes -p psmopsbot insights --days 30 --source slack` and `hermes -p psmopsbot sessions stats` for native Hermes adoption checks.
+8. Ask one geocode question with explicit address rows and one with an attached CSV/TSV `address` column, then verify `psm_google_geocode.geocode_slack_addresses` and `psm_google_geocode.geocode_slack_address_file` upload `.tsv` files with address, latitude, longitude, `geocode_status`, and formatted address without printing the API key or pasting raw coordinates in the Slack message.
+9. Ask one C360 customer question and verify a C360 link/citation appears.
+10. Create a PS WEE intake ticket from a non-home public channel and verify the same Slack thread gets the ticket link while the central ops channel gets a `PSM Ops automation:` audit copy with the source thread permalink.
+11. Run `hermes -p psmopsbot insights --days 30 --source slack` and `hermes -p psmopsbot sessions stats` for native Hermes adoption checks.
 
 Before step 1, verify and repair public/open-channel membership after Slack app install or scope changes:
 

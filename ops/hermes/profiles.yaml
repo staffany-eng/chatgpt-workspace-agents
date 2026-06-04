@@ -65,7 +65,7 @@ profiles:
     required_mcp:
       slack_nurtureany: 5
       staffany_bigquery: 4
-      hubspot_nurtureany: 56
+      hubspot_nurtureany: 60
       google_calendar_nurtureany: 2
       google_drive_nurtureany: 5
       eazybe_nurtureany: 4
@@ -106,9 +106,10 @@ profiles:
         deliver: slack:C0B2UGK4DB6
       - name: ID WhatsApp Morning Blitz Report
         schedule: "35 3 * * 1-5"
-        mode: agent
-        owner: eugene@staffany.com
-        deliver: slack:C04MSJ1BGF9
+        mode: no-agent
+        script: nurtureany_sales_whatsapp_report_runner.py
+        deliver: local
+        delivery_channel: slack:C04MSJ1BGF9
     unsafe_cron_name_prefixes: [event-roi-]
     checks:
       health_command: apps/nurtureany-sales-bot/runtime/check-health.sh
@@ -139,12 +140,14 @@ profiles:
       home_channel_id: C0B2VT50YT1
       home_channel_name: ps-weeman-bot-test
       open_channel_mode: true
+      require_mention: true
+      strict_mention: true
       allowed_channel_ids: []
       report_prefix: "PSM Ops automation:"
     required_mcp:
-      psm_jira: 24
+      psm_jira: 28
       psm_c360: 3
-      psm_google_calendar: 1
+      psm_google_geocode: 3
       psm_store_reviews: 6
     expected_crons:
       - name: psmopsbot due-date reminders
@@ -167,15 +170,16 @@ profiles:
         mode: no-agent
         script: psm_ops_roi_tracker_sync.py
         deliver: slack:#ps-weeman-bot-test
+      - name: psmopsbot churn reporting chase
+        schedule: "0 1 * * 1"
+        mode: no-agent
+        script: psm_ops_churn_reporting_chase.py
+        deliver: slack:#team-rev-account-management
+        source_sql: runtime/sql/psm_ops_churn_projection_dashboard_292.sql
       - name: psmopsbot store review poll
         schedule: "0 * * * *"
         mode: no-agent
         script: psm_ops_store_review_poll.py
-        deliver: slack:#ps-weeman-bot-test
-      - name: psmopsbot assignment hygiene
-        schedule: "15 1 * * 1-5"
-        mode: no-agent
-        script: psm_ops_pco_assignment_hygiene.py
         deliver: slack:#ps-weeman-bot-test
       - name: psmopsbot local cloud heartbeat
         schedule: "*/15 * * * *"
@@ -222,6 +226,8 @@ profiles:
         tools: 1
       launchbot_feature_intake:
         tools: 2
+      launchbot_support_watch:
+        tools: 1
       launchbot_help_article:
         tools: 2
     expected_crons:
@@ -230,6 +236,9 @@ profiles:
         mode: no-agent
       - name: launchbot feature intake monitor
         schedule: "* * * * *"
+        mode: no-agent
+      - name: launchbot support watch
+        schedule: "0 1 * * 4"
         mode: no-agent
       - name: launchbot pantheon repo update
         schedule: "0 22 * * *"

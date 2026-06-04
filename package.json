@@ -6,18 +6,23 @@
     "inventory": "bun research/tools/build-source-inventories.ts",
     "audit": "bun research/tools/audit-agent-ingest.ts",
     "hooks:install": "git config core.hooksPath .githooks",
+    "openspec:list": "openspec list --json",
+    "openspec:specs": "openspec list --specs --json",
+    "openspec:validate": "openspec validate --all --strict --json",
     "hermes-bot:onboard-access": "node scripts/onboard-hermes-bot-access.mjs",
     "hermes-bot:onboard-access:test": "node --test scripts/onboard-hermes-bot-access.test.mjs",
     "hermes-bot:onboard-access:verify": "node scripts/verify-hermes-bot-onboarding.mjs",
     "hermes-data-bot:verify": "node scripts/verify-hermes-data-bot.mjs",
     "hermes-data-bot:prompt-evals": "node scripts/run-prompt-evals.mjs --app hermes-data-bot --mode all",
     "hermes-data-bot:deploy": "node scripts/deploy-hermes-data-bot.mjs",
+    "product-ops-bot:verify": "node scripts/verify-product-ops-bot.mjs",
     "nurtureany-sales-bot:verify": "node scripts/verify-nurtureany-sales-bot.mjs",
     "nurtureany-sales-bot:prompt-evals": "node scripts/run-prompt-evals.mjs --app nurtureany-sales-bot --mode all",
     "nurtureany-sales-bot:deploy": "node scripts/deploy-nurtureany-sales-bot.mjs",
     "nurtureany-sales-bot:ssh": "node scripts/nurtureany-prod-ssh.mjs",
     "launchbot:verify": "node scripts/verify-launchbot.mjs",
     "launchbot:prompt-evals": "node scripts/run-prompt-evals.mjs --app launchbot --mode all",
+    "launchbot:deploy": "node scripts/deploy-launchbot.mjs",
     "launchbot:with-secrets": "node scripts/launchbot-with-secrets.mjs",
     "hermes-caretaker:test": "node --test ops/hermes/test/*.test.mjs",
     "hermes-caretaker:dry-run": "node ops/hermes/caretaker.mjs --dry-run --json",
@@ -38,6 +43,7 @@
     "slack-automation-identity:verify": "node scripts/verify-slack-automation-identity.mjs",
     "prompt-evals": "node scripts/run-prompt-evals.mjs --app all --mode all",
     "research:audit": "bash -lc 'set -euo pipefail; for f in research/wiki/sources/*.md; do bun research/tools/audit-agent-ingest.ts --wiki \"$f\" --fail-under 10; done'",
-    "verify": "bash -lc 'set -euo pipefail; node scripts/verify-slack-automation-identity.mjs; node scripts/verify-hermes-bot-onboarding.mjs; node --test scripts/onboard-hermes-bot-access.test.mjs; node scripts/run-prompt-evals.mjs --app all --mode all; node scripts/verify-hermes-data-bot.mjs; node scripts/verify-nurtureany-sales-bot.mjs; node scripts/verify-launchbot.mjs; node --test ops/hermes/test/*.test.mjs; node scripts/verify-psm-ops-bot.mjs; bun research/tools/build-source-inventories.ts; for f in research/wiki/sources/*.md; do bun research/tools/audit-agent-ingest.ts --wiki \"$f\" --fail-under 10; done; node --test apps/bq-mcp-proxy/test/*.test.js'"
+    "verify": "bash -lc 'set -euo pipefail; node scripts/verify-slack-automation-identity.mjs; node scripts/verify-hermes-bot-onboarding.mjs; node --test scripts/onboard-hermes-bot-access.test.mjs; node scripts/run-prompt-evals.mjs --app all --mode all; node scripts/verify-hermes-data-bot.mjs; node scripts/verify-product-ops-bot.mjs; node scripts/verify-nurtureany-sales-bot.mjs; node scripts/verify-launchbot.mjs; node --test ops/hermes/test/*.test.mjs; node scripts/verify-psm-ops-bot.mjs; bun research/tools/build-source-inventories.ts; for f in research/wiki/sources/*.md; do bun research/tools/audit-agent-ingest.ts --wiki \"$f\" --fail-under 10; done; node --test apps/bq-mcp-proxy/test/*.test.js'",
+    "product-ops-bot:deploy": "node scripts/deploy-product-ops-bot.mjs"
   }
 }

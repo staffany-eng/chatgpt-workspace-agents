@@ -16,7 +16,7 @@ platforms:
     gateway_restart_notification: false
 slack:
   require_mention: true
-  allowed_channels: "C0B32M34J3W,C0AJAUNCEL8,C01RZ7SHC8K,CF8PK6V4J"
+  allowed_channels: ""
   reactions: false
 cron:
   max_parallel_jobs: 1
@@ -40,6 +40,48 @@ feature_intake_monitor:
   required_confirmation: "create intake"
   no_raw_transcript_persistence: true
   normal_gateway_require_mention: true
+support_watch_monitor:
+  mode: "no_agent_weekly_report"
+  script: "/home/leekaiyi/.hermes/profiles/launchbot/scripts/launchbot-monitor-support-watch.py"
+  source_env: "LAUNCHBOT_SUPPORT_WATCH_SOURCE"
+  source: "bigquery"
+  intercom_project_env: "LAUNCHBOT_SUPPORT_WATCH_INTERCOM_PROJECT"
+  intercom_project: "staffany-warehouse"
+  intercom_dataset_env: "LAUNCHBOT_SUPPORT_WATCH_INTERCOM_DATASET"
+  intercom_dataset: "intercom"
+  analytics_dataset_env: "LAUNCHBOT_SUPPORT_WATCH_ANALYTICS_DATASET"
+  analytics_dataset: "analytics"
+  bq_timeout_seconds_env: "LAUNCHBOT_SUPPORT_WATCH_BQ_TIMEOUT_SECONDS"
+  bq_timeout_seconds: "240"
+  include_whatsapp_env: "LAUNCHBOT_SUPPORT_WATCH_INCLUDE_WHATSAPP"
+  include_whatsapp: true
+  whatsapp_view_env: "LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_VIEW"
+  whatsapp_view: "analytics.support_watch_whatsapp_ticket_logs"
+  whatsapp_source_view_env: "LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_SOURCE_VIEW"
+  whatsapp_source_view: "gsheets.cs_tickets_logs_all_view"
+  whatsapp_refresh_transfer_name_env: "LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_REFRESH_TRANSFER_NAME"
+  whatsapp_refresh_transfer_name: "Launchbot support watch WhatsApp native mirror refresh"
+  whatsapp_refresh_schedule_utc_env: "LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_REFRESH_SCHEDULE_UTC"
+  whatsapp_refresh_schedule_utc: "every day 00:30"
+  whatsapp_max_staleness_hours_env: "LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_MAX_STALENESS_HOURS"
+  whatsapp_max_staleness_hours: "36"
+  output_channel_name_env: "LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME"
+  output_channel_id_env: "LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_ID"
+  dedupe_channel_ids_env: "LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_IDS"
+  dedupe_channel_names_env: "LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_NAMES"
+  edt_jql_env: "LAUNCHBOT_SUPPORT_WATCH_EDT_JQL"
+  state_path_env: "LAUNCHBOT_SUPPORT_WATCH_STATE_PATH"
+  lookback_days_env: "LAUNCHBOT_SUPPORT_WATCH_LOOKBACK_DAYS"
+  max_tickets_env: "LAUNCHBOT_SUPPORT_WATCH_MAX_TICKETS"
+  schedule_utc: "0 1 * * 4"
+  local_time: "Thursday 09:00 SGT"
+  no_raw_transcript_persistence: true
+  output_channel_name: "all-bugs-production"
+  dedupe_channel_names: "team-cs-eng-duty"
+  report_prefix: "Launchbot automation:"
+  no_ticket_creation: true
+  no_engineer_tags: true
+  no_owner_assignment: true
 kanban:
   dispatch_in_gateway: false
 model:
@@ -178,6 +220,50 @@ mcp_servers:
       no_jira_assignment: true
       no_slack_connector_fallback: true
       no_user_token_fallback: true
+  launchbot_support_watch:
+    description: "Read-only BigQuery Intercom-conversation weekly watch preview for Launchbot."
+    command: "/home/leekaiyi/.hermes/hermes-agent/venv/bin/python"
+    args:
+      - "/home/leekaiyi/.hermes/profiles/launchbot/source/launchbot/runtime/mcp/launchbot_support_watch_server.py"
+    timeout: 180
+    tool_allowlist:
+      - "preview_weekly_support_watch_report"
+    auth_metadata:
+      bigquery:
+        type: "service_account_or_adc"
+        project_env: "LAUNCHBOT_SUPPORT_WATCH_INTERCOM_PROJECT"
+        default_project: "staffany-warehouse"
+      slack:
+        type: "bot_token_env"
+        env: "SLACK_BOT_TOKEN"
+      jira:
+        type: "basic_auth_env"
+        base_url_env: "JIRA_BASE_URL"
+        email_env: "JIRA_EMAIL"
+        api_token_env: "JIRA_API_TOKEN"
+    access_policy:
+      mode: "read_only_weekly_support_watch"
+      source: "bigquery"
+      source_env: "LAUNCHBOT_SUPPORT_WATCH_SOURCE"
+      intercom_project_env: "LAUNCHBOT_SUPPORT_WATCH_INTERCOM_PROJECT"
+      intercom_dataset_env: "LAUNCHBOT_SUPPORT_WATCH_INTERCOM_DATASET"
+      analytics_dataset_env: "LAUNCHBOT_SUPPORT_WATCH_ANALYTICS_DATASET"
+      include_whatsapp_env: "LAUNCHBOT_SUPPORT_WATCH_INCLUDE_WHATSAPP"
+      whatsapp_view_env: "LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_VIEW"
+      output_channel_name: "all-bugs-production"
+      output_channel_name_env: "LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME"
+      output_channel_id_env: "LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_ID"
+      dedupe_channel_ids_env: "LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_IDS"
+      dedupe_channel_names_env: "LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_NAMES"
+      edt_jql_env: "LAUNCHBOT_SUPPORT_WATCH_EDT_JQL"
+      default_edt_jql: "project = PCO AND \"PS Team\" = \"Eng Duty\" AND statusCategory != Done ORDER BY updated DESC"
+      no_slack_post_from_mcp: true
+      no_ticket_creation: true
+      no_engineer_tags: true
+      no_owner_assignment: true
+      no_raw_support_transcript_persistence: true
+      no_slack_connector_fallback: true
+      no_user_token_fallback: true
   launchbot_help_article:
     description: "Draft-only registered video-slot updater for StaffAny help articles."
     command: "/home/leekaiyi/.hermes/hermes-agent/venv/bin/python"
@@ -218,5 +304,24 @@ LAUNCHBOT_FEATURE_INTAKE_MONITOR_CHANNEL_IDS: "CF8PK6V4J"
 LAUNCHBOT_FEATURE_INTAKE_MONITOR_STATE_PATH: "~/.hermes/profiles/launchbot/runtime/feature-intake-monitor-state.json"
 LAUNCHBOT_FEATURE_INTAKE_MONITOR_MAX_MESSAGES_PER_RUN: "100"
 LAUNCHBOT_FEATURE_INTAKE_MONITOR_OVERLAP_SECONDS: "600"
+LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME: "all-bugs-production"
+LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_ID: ""
+LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_IDS: ""
+LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_NAMES: "team-cs-eng-duty"
+LAUNCHBOT_SUPPORT_WATCH_EDT_JQL: "project = PCO AND \"PS Team\" = \"Eng Duty\" AND statusCategory != Done ORDER BY updated DESC"
+LAUNCHBOT_SUPPORT_WATCH_STATE_PATH: "~/.hermes/profiles/launchbot/runtime/support-watch-state.json"
+LAUNCHBOT_SUPPORT_WATCH_LOOKBACK_DAYS: "7"
+LAUNCHBOT_SUPPORT_WATCH_SOURCE: "bigquery"
+LAUNCHBOT_SUPPORT_WATCH_INTERCOM_PROJECT: "staffany-warehouse"
+LAUNCHBOT_SUPPORT_WATCH_INTERCOM_DATASET: "intercom"
+LAUNCHBOT_SUPPORT_WATCH_ANALYTICS_DATASET: "analytics"
+LAUNCHBOT_SUPPORT_WATCH_BQ_TIMEOUT_SECONDS: "240"
+LAUNCHBOT_SUPPORT_WATCH_INCLUDE_WHATSAPP: "true"
+LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_VIEW: "analytics.support_watch_whatsapp_ticket_logs"
+LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_SOURCE_VIEW: "gsheets.cs_tickets_logs_all_view"
+LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_REFRESH_TRANSFER_NAME: "Launchbot support watch WhatsApp native mirror refresh"
+LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_REFRESH_SCHEDULE_UTC: "every day 00:30"
+LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_MAX_STALENESS_HOURS: "36"
+LAUNCHBOT_SUPPORT_WATCH_MAX_TICKETS: "100"
 JIRA_IFI_HUBSPOT_COMPANY_ID_FIELD_ID: "customfield_10881"
 HUBSPOT_PORTAL_ID: "4137076"

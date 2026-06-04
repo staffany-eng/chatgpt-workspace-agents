@@ -1,0 +1,30 @@
+{
+  "bundle_name": "staffany-indonesia-payroll-tax-grimoire",
+  "version": "1.0.0",
+  "description": "Indonesia payroll tax workflow bundle: PPh21/PPh26, TER, PTKP, DTP, SPT Masa PPh 21/26, e-Bupot/Coretax, A1/BPMP/BP21, StaffAny payroll tax settings, and knowledge-bank updates.",
+  "skills": [
+    {
+      "name": "indonesia-payroll-tax-advisor",
+      "path": "skills/indonesia-payroll-tax-advisor",
+      "required": true
+    },
+    {
+      "name": "indonesia-tax-knowledge-updater",
+      "path": "skills/indonesia-tax-knowledge-updater",
+      "required": true
+    },
+    {
+      "name": "pph21-settings-explainer",
+      "path": "skills/pph21-settings-explainer",
+      "required": true
+    },
+    {
+      "name": "employee-payroll-breakdown",
+      "path": "skills/employee-payroll-breakdown",
+      "required": false
+    }
+  ],
+  "entrypoint_skill": "staffany-indonesia-payroll-tax-grimoire",
+  "entrypoint_path": "SKILL.md",
+  "catalog_path": "apps/grimoire/catalog/product/staffany-indonesia-payroll-tax-grimoire"
+}

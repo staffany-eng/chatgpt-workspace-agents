@@ -1,0 +1,49 @@
+{
+  "app_name": "Product Ops Bot",
+  "app_slug": "product-ops-bot",
+  "kind": "hermes-runtime-app",
+  "canonical": true,
+  "runtime": "Hermes Agent",
+  "profile_name": "productopsbot",
+  "rollout_stage": "Safe defaults: Slack mention-only + Jira read-first",
+  "model_provider": "anthropic",
+  "model": "claude-sonnet-4-6",
+  "paths": {
+    "soul": "profile/SOUL.md",
+    "config_template": "profile/config.template.yaml",
+    "skill": "skills/product-ops-bot/SKILL.md",
+    "main_flow_skill": "skills/product-ops-intake-linking/SKILL.md",
+    "delivery_workflow_skill": "skills/staffany-product-delivery-workflow/SKILL.md",
+    "references": [
+      "skills/product-ops-bot/references/workflow-contract.md",
+      "skills/product-ops-bot/references/regression-cases.md"
+    ],
+    "slack_runtime": "runtime/slack.md",
+    "jira_runtime": "runtime/jira.md",
+    "health_checks": "runtime/health-checks.md",
+    "health_check_script": "runtime/check-health.sh",
+    "live_profile_audit_script": "runtime/audit-live-profile.sh",
+    "mcp_runtime": "runtime/mcp/README.md",
+    "deploy_runbook": "deploy/gce-onboarding-runbook.md",
+    "regression_cases": "tests/regression-cases.md"
+  },
+  "systems": {
+    "slack": "enabled",
+    "jira": "enabled",
+    "notion": "disabled",
+    "google_docs": "disabled"
+  },
+  "write_policy": {
+    "default_mode": "read_first",
+    "jira_writes": "approval_gated_same_thread_run"
+  },
+  "skill_routing": {
+    "primary": "product-ops-intake-linking",
+    "supporting": [
+      "staffany-product-delivery-workflow",
+      "product-ops-bot"
+    ]
+  },
+  "channels": ["Slack product-ops pilot channel"],
+  "secrets_copied": false
+}

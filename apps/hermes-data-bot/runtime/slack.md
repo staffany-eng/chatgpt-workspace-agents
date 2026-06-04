@@ -10,6 +10,7 @@ Hermes Data Bot's first runtime surface is Slack POC usage in `#da-ta-hermz-test
 - Do not use the Slack connector or Kai Yi's user token for Slack inspection when the Hermes bot token exists.
 - User token or Slack UI evidence is allowed only for explicit human-authored smoke tests where a bot token cannot trigger the gateway; keep that evidence separate from bot-token checks.
 - First tool-backed data requests are plan-first.
+- Explicit reusable learning requests can use `staffany_data_learning.record_staffany_data_lesson_candidate` only for safe behavior-level summaries. The result starts as `pending_review` and is not active behavior until human review, repo promotion, verification, deploy, and live smoke. Review status updates require `update_staffany_data_lesson_candidate_status` with `approval_marker="human reviewed lesson"` and must never be bot self-approval.
 - `get_current_slack_thread_context` and `get_selected_slack_thread_context` may read one explicitly selected public/source thread before `run` only to interpret the request or write the preflight. They must use `SLACK_BOT_TOKEN`, configured channel IDs only, cap output at 50 messages, return safe redacted snippets/permalinks only, and persist no raw transcript.
 - The selected-thread tools must not post Slack messages, search workspace history, list users broadly, react, pin, join channels, read private channels by bypass, use a human token, or fall back to the Slack connector.
 - The bot should ask for `run` before the first confirmed plan.
@@ -22,6 +23,7 @@ Hermes Data Bot's first runtime surface is Slack POC usage in `#da-ta-hermz-test
 - The mark-as-done pattern belongs only to explicit task workflows with an assignee and completion state. It is not part of StaffAny data Q&A.
 - Do not expose streaming drafts, tool progress, or interim assistant messages in Slack. Set `display.interim_assistant_messages=false`, `display.platforms.slack.tool_progress="off"`, and `display.platforms.slack.streaming=false`; otherwise partial answers, internal tool calls, or draft text can leak into Slack threads.
 - Disable Slack status reactions for this POC with `slack.reactions=false`; the answer message itself is the status signal.
+- Do not treat Honcho memory, runtime-created skills, Curator patches, or lesson candidates as Slack source of truth. They are review/recall signals until promoted into `apps/hermes-data-bot`.
 
 ## Slack Scopes
 

@@ -9,9 +9,11 @@ fi
 EXPECT_MODEL_PROVIDER="${EXPECT_MODEL_PROVIDER:-anthropic}"
 EXPECT_MODEL_DEFAULT="${EXPECT_MODEL_DEFAULT:-claude-sonnet-4-6}"
 EXPECT_HOME_CHANNEL="${EXPECT_HOME_CHANNEL:-C0B32M34J3W}"
-EXPECT_ALLOWED_CHANNELS="${EXPECT_ALLOWED_CHANNELS:-C0B32M34J3W,C0AJAUNCEL8,C01RZ7SHC8K,CF8PK6V4J}"
 EXPECT_KER_ALLOWED_CHANNELS="${EXPECT_KER_ALLOWED_CHANNELS:-C0B32M34J3W,C0AJAUNCEL8,C01RZ7SHC8K}"
 EXPECT_PRODUCT_COMMITMENT_ALLOWED_CHANNELS="${EXPECT_PRODUCT_COMMITMENT_ALLOWED_CHANNELS:-C0B32M34J3W,C01RZ7SHC8K}"
+EXPECT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME="${EXPECT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME:-all-bugs-production}"
+MCP_TEST_ATTEMPTS="${MCP_TEST_ATTEMPTS:-3}"
+MCP_TEST_TIMEOUT_SECONDS="${MCP_TEST_TIMEOUT_SECONDS:-60}"
 GATEWAY_LAUNCHD_LABEL="${LAUNCHBOT_GATEWAY_LAUNCHD_LABEL:-ai.hermes.gateway-$PROFILE}"
 GATEWAY_SERVICE_NAME="${LAUNCHBOT_GATEWAY_SERVICE_NAME:-hermes-gateway-$PROFILE.service}"
 HERMES_AGENT_DIR="${HERMES_AGENT_DIR:-$HOME/.hermes/hermes-agent}"
@@ -28,10 +30,14 @@ fi
 EXPECT_PANTHEON_REPO_URL="${EXPECT_PANTHEON_REPO_URL:-git@github.com:staffany-eng/pantheon.git}"
 EXPECT_PANTHEON_BRANCH="${EXPECT_PANTHEON_BRANCH:-develop}"
 PANTHEON_REPO_DIR="${LAUNCHBOT_PANTHEON_REPO_DIR:-$PROFILE_DIR/source/pantheon}"
+PANTHEON_SSH_KEY="${LAUNCHBOT_PANTHEON_SSH_KEY:-$PROFILE_DIR/ssh/pantheon_deploy_key}"
 PANTHEON_STATUS_PATH="${LAUNCHBOT_PANTHEON_STATUS_PATH:-$PROFILE_DIR/runtime/pantheon-repo-status.json}"
 PANTHEON_STATUS_MAX_AGE_SECONDS="${LAUNCHBOT_PANTHEON_STATUS_MAX_AGE_SECONDS:-172800}"
 HELP_ARTICLE_VIDEO_REGISTRY_PATH="${LAUNCHBOT_VIDEO_PLACEMENT_REGISTRY:-$PROFILE_DIR/source/launchbot/skills/help-article-generator/references/video-placement-registry.json}"
 FEATURE_INTAKE_MONITOR_SCRIPT="${LAUNCHBOT_FEATURE_INTAKE_MONITOR_SCRIPT:-$PROFILE_DIR/scripts/launchbot-monitor-feature-intake.py}"
+SUPPORT_WATCH_MONITOR_SCRIPT="${LAUNCHBOT_SUPPORT_WATCH_MONITOR_SCRIPT:-$PROFILE_DIR/scripts/launchbot-monitor-support-watch.py}"
+INDONESIA_TAX_SOURCE_SKILL_DIR="${LAUNCHBOT_INDONESIA_TAX_SOURCE_SKILL_DIR:-$PROFILE_DIR/source/launchbot/skills/staffany-indonesia-payroll-tax-grimoire}"
+INDONESIA_TAX_PROFILE_SKILL_DIR="${LAUNCHBOT_INDONESIA_TAX_PROFILE_SKILL_DIR:-$PROFILE_DIR/skills/staffany-indonesia-payroll-tax-grimoire}"
 
 fail() {
   printf '%s\n' "$1" >&2
@@ -42,16 +48,27 @@ check_mcp_server() {
   server_name="$1"
   expected_count="$2"
   server_file="$3"
-  mcp_out="$(hermes -p "$PROFILE" mcp test "$server_name" 2>&1)" && {
-    count="$(printf '%s\n' "$mcp_out" | sed -nE 's/.*Tools discovered: ([0-9]+).*/\1/p' | tail -1)"
-    [ "$count" = "$expected_count" ] || fail "mcp:$server_name:tools=${count:-unavailable}:expected=$expected_count"
-    return 0
-  }
-  if printf '%s\n' "$mcp_out" | grep -Fq "StdioServerParameters"; then
-    "$hermes_python" -m py_compile "$PROFILE_DIR/source/launchbot/runtime/mcp/$server_file" || fail "mcp:$server_name:py-compile-failed"
-    return 0
-  fi
-  fail "mcp:$server_name:test-failed"
+  attempt=1
+  mcp_out=""
+  count=""
+  while [ "$attempt" -le "$MCP_TEST_ATTEMPTS" ]; do
+    if command -v timeout >/dev/null 2>&1; then
+      mcp_command=(timeout "${MCP_TEST_TIMEOUT_SECONDS}s" hermes -p "$PROFILE" mcp test "$server_name")
+    else
+      mcp_command=(hermes -p "$PROFILE" mcp test "$server_name")
+    fi
+    if mcp_out="$("${mcp_command[@]}" 2>&1)"; then
+      count="$(printf '%s\n' "$mcp_out" | sed -nE 's/.*Tools discovered: ([0-9]+).*/\1/p' | tail -1)"
+      [ "$count" = "$expected_count" ] && return 0
+    elif printf '%s\n' "$mcp_out" | grep -Fq "StdioServerParameters"; then
+      "$hermes_python" -m py_compile "$PROFILE_DIR/source/launchbot/runtime/mcp/$server_file" || fail "mcp:$server_name:py-compile-failed"
+      return 0
+    fi
+    attempt=$((attempt + 1))
+    [ "$attempt" -le "$MCP_TEST_ATTEMPTS" ] && sleep 2
+  done
+  [ -n "$count" ] && fail "mcp:$server_name:tools=$count:expected=$expected_count"
+  fail "mcp:$server_name:tools=unavailable:expected=$expected_count"
 }
 
 need_command() {
@@ -60,11 +77,30 @@ need_command() {
 
 need_command hermes
 need_command git
+need_command bq
+need_command ruby
 config_path="$(hermes -p "$PROFILE" config path 2>/dev/null)" || fail "hermes:config-path-failed"
 [ -r "$config_path" ] || fail "hermes:config-unreadable"
 hermes -p "$PROFILE" config check >/dev/null 2>&1 || fail "hermes:config-check-failed"
 hermes_python="$HERMES_AGENT_DIR/venv/bin/python"
 [ -x "$hermes_python" ] || fail "hermes:python-not-found"
+
+check_tax_skill_dir() {
+  label="$1"
+  skill_dir="$2"
+  [ -r "$skill_dir/SKILL.md" ] || fail "tax-skill:$label:root-skill-missing"
+  [ -r "$skill_dir/skills/indonesia-payroll-tax-advisor/SKILL.md" ] || fail "tax-skill:$label:advisor-skill-missing"
+  [ -r "$skill_dir/skills/indonesia-tax-knowledge-updater/SKILL.md" ] || fail "tax-skill:$label:updater-skill-missing"
+  [ -r "$skill_dir/skills/indonesia-tax-knowledge-updater/scripts/validate_knowledge_bank.rb" ] || fail "tax-skill:$label:validator-missing"
+  grep -Fq "Indonesia payroll tax" "$skill_dir/SKILL.md" || fail "tax-skill:$label:root-index-missing-indonesia-payroll-tax"
+  grep -Fq "PPh21" "$skill_dir/SKILL.md" || fail "tax-skill:$label:root-index-missing-pph21"
+  grep -Fq "e-Bupot" "$skill_dir/SKILL.md" || fail "tax-skill:$label:root-index-missing-ebupot"
+  grep -Fq "Hipajak" "$skill_dir/SKILL.md" || fail "tax-skill:$label:root-index-missing-hipajak"
+}
+
+check_tax_skill_dir source "$INDONESIA_TAX_SOURCE_SKILL_DIR"
+check_tax_skill_dir profile "$INDONESIA_TAX_PROFILE_SKILL_DIR"
+(cd "$INDONESIA_TAX_PROFILE_SKILL_DIR" && ruby skills/indonesia-tax-knowledge-updater/scripts/validate_knowledge_bank.rb >/dev/null) || fail "tax-skill:profile:knowledge-bank-invalid"
 
 case "$(uname -s)" in
   Darwin)
@@ -80,14 +116,14 @@ case "$(uname -s)" in
     ;;
 esac
 
-"$hermes_python" - "$config_path" "$EXPECT_MODEL_PROVIDER" "$EXPECT_MODEL_DEFAULT" "$EXPECT_HOME_CHANNEL" "$EXPECT_ALLOWED_CHANNELS" "$EXPECT_KER_ALLOWED_CHANNELS" "$EXPECT_PRODUCT_COMMITMENT_ALLOWED_CHANNELS" <<'PY' || exit 1
+"$hermes_python" - "$config_path" "$EXPECT_MODEL_PROVIDER" "$EXPECT_MODEL_DEFAULT" "$EXPECT_HOME_CHANNEL" "$EXPECT_KER_ALLOWED_CHANNELS" "$EXPECT_PRODUCT_COMMITMENT_ALLOWED_CHANNELS" "$EXPECT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME" <<'PY' || exit 1
 import os
 import sys
 from pathlib import Path
 
 import yaml
 
-config_path, expected_provider, expected_model, expected_home_channel, expected_allowed_channels, expected_ker_channels, expected_commitment_channels = sys.argv[1:8]
+config_path, expected_provider, expected_model, expected_home_channel, expected_ker_channels, expected_commitment_channels, expected_support_watch_output = sys.argv[1:8]
 config = yaml.safe_load(Path(config_path).read_text(encoding="utf-8")) or {}
 
 def fail(message: str) -> None:
@@ -125,9 +161,8 @@ if slack.get("reactions") is not False:
 if str(config.get("SLACK_HOME_CHANNEL") or "").strip('"') != expected_home_channel:
     fail("slack:home-channel-unexpected")
 allowed = str(slack.get("allowed_channels") or "")
-for channel_id in [item.strip() for item in expected_allowed_channels.split(",") if item.strip()]:
-    if channel_id not in allowed:
-        fail(f"slack:allowed-channel-missing:{channel_id}")
+if allowed.strip():
+    fail("slack:allowed-channels-static-not-empty")
 
 monitor = config.get("feature_intake_monitor") or {}
 if monitor.get("mode") != "no_agent_slack_poll":
@@ -150,6 +185,84 @@ if str(config.get("LAUNCHBOT_FEATURE_INTAKE_MONITOR_MAX_MESSAGES_PER_RUN") or ""
     fail("feature-intake-monitor:max-messages-unexpected")
 if str(config.get("LAUNCHBOT_FEATURE_INTAKE_MONITOR_OVERLAP_SECONDS") or "").strip('"') != "600":
     fail("feature-intake-monitor:overlap-unexpected")
+
+support_watch_monitor = config.get("support_watch_monitor") or {}
+if support_watch_monitor.get("mode") != "no_agent_weekly_report":
+    fail("support-watch-monitor:mode-unexpected")
+if support_watch_monitor.get("source") != "bigquery":
+    fail("support-watch-monitor:source-unexpected")
+if support_watch_monitor.get("source_env") != "LAUNCHBOT_SUPPORT_WATCH_SOURCE":
+    fail("support-watch-monitor:source-env-unexpected")
+if support_watch_monitor.get("intercom_project_env") != "LAUNCHBOT_SUPPORT_WATCH_INTERCOM_PROJECT":
+    fail("support-watch-monitor:intercom-project-env-unexpected")
+if support_watch_monitor.get("intercom_dataset_env") != "LAUNCHBOT_SUPPORT_WATCH_INTERCOM_DATASET":
+    fail("support-watch-monitor:intercom-dataset-env-unexpected")
+if support_watch_monitor.get("analytics_dataset_env") != "LAUNCHBOT_SUPPORT_WATCH_ANALYTICS_DATASET":
+    fail("support-watch-monitor:analytics-dataset-env-unexpected")
+if support_watch_monitor.get("bq_timeout_seconds_env") != "LAUNCHBOT_SUPPORT_WATCH_BQ_TIMEOUT_SECONDS":
+    fail("support-watch-monitor:bq-timeout-env-unexpected")
+if support_watch_monitor.get("include_whatsapp_env") != "LAUNCHBOT_SUPPORT_WATCH_INCLUDE_WHATSAPP":
+    fail("support-watch-monitor:include-whatsapp-env-unexpected")
+if support_watch_monitor.get("whatsapp_view_env") != "LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_VIEW":
+    fail("support-watch-monitor:whatsapp-view-env-unexpected")
+if support_watch_monitor.get("whatsapp_source_view_env") != "LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_SOURCE_VIEW":
+    fail("support-watch-monitor:whatsapp-source-view-env-unexpected")
+if support_watch_monitor.get("whatsapp_refresh_transfer_name_env") != "LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_REFRESH_TRANSFER_NAME":
+    fail("support-watch-monitor:whatsapp-refresh-transfer-name-env-unexpected")
+if support_watch_monitor.get("whatsapp_refresh_schedule_utc_env") != "LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_REFRESH_SCHEDULE_UTC":
+    fail("support-watch-monitor:whatsapp-refresh-schedule-env-unexpected")
+if support_watch_monitor.get("whatsapp_max_staleness_hours_env") != "LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_MAX_STALENESS_HOURS":
+    fail("support-watch-monitor:whatsapp-max-staleness-env-unexpected")
+if support_watch_monitor.get("output_channel_name_env") != "LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME":
+    fail("support-watch-monitor:output-channel-name-env-unexpected")
+if support_watch_monitor.get("output_channel_id_env") != "LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_ID":
+    fail("support-watch-monitor:output-channel-id-env-unexpected")
+if support_watch_monitor.get("dedupe_channel_ids_env") != "LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_IDS":
+    fail("support-watch-monitor:dedupe-channel-env-unexpected")
+if support_watch_monitor.get("dedupe_channel_names_env") != "LAUNCHBOT_SUPPORT_WATCH_DEDUPE_CHANNEL_NAMES":
+    fail("support-watch-monitor:dedupe-channel-names-env-unexpected")
+if support_watch_monitor.get("edt_jql_env") != "LAUNCHBOT_SUPPORT_WATCH_EDT_JQL":
+    fail("support-watch-monitor:edt-jql-env-unexpected")
+if support_watch_monitor.get("state_path_env") != "LAUNCHBOT_SUPPORT_WATCH_STATE_PATH":
+    fail("support-watch-monitor:state-path-env-unexpected")
+if support_watch_monitor.get("schedule_utc") != "0 1 * * 4":
+    fail("support-watch-monitor:schedule-unexpected")
+if support_watch_monitor.get("no_raw_transcript_persistence") is not True:
+    fail("support-watch-monitor:raw-transcript-persistence-not-disabled")
+if support_watch_monitor.get("no_ticket_creation") is not True:
+    fail("support-watch-monitor:ticket-creation-not-disabled")
+if support_watch_monitor.get("no_engineer_tags") is not True:
+    fail("support-watch-monitor:engineer-tags-not-disabled")
+if str(config.get("LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME") or "").strip('"') != expected_support_watch_output:
+    fail("support-watch-monitor:output-channel-name-unexpected")
+if str(config.get("LAUNCHBOT_SUPPORT_WATCH_STATE_PATH") or "").strip('"') != "~/.hermes/profiles/launchbot/runtime/support-watch-state.json":
+    fail("support-watch-monitor:state-path-unexpected")
+if str(config.get("LAUNCHBOT_SUPPORT_WATCH_LOOKBACK_DAYS") or "").strip('"') != "7":
+    fail("support-watch-monitor:lookback-unexpected")
+if str(config.get("LAUNCHBOT_SUPPORT_WATCH_SOURCE") or "").strip('"') != "bigquery":
+    fail("support-watch-monitor:source-config-unexpected")
+if str(config.get("LAUNCHBOT_SUPPORT_WATCH_INTERCOM_PROJECT") or "").strip('"') != "staffany-warehouse":
+    fail("support-watch-monitor:intercom-project-unexpected")
+if str(config.get("LAUNCHBOT_SUPPORT_WATCH_INTERCOM_DATASET") or "").strip('"') != "intercom":
+    fail("support-watch-monitor:intercom-dataset-unexpected")
+if str(config.get("LAUNCHBOT_SUPPORT_WATCH_ANALYTICS_DATASET") or "").strip('"') != "analytics":
+    fail("support-watch-monitor:analytics-dataset-unexpected")
+if str(config.get("LAUNCHBOT_SUPPORT_WATCH_BQ_TIMEOUT_SECONDS") or "").strip('"') != "240":
+    fail("support-watch-monitor:bq-timeout-unexpected")
+if str(config.get("LAUNCHBOT_SUPPORT_WATCH_INCLUDE_WHATSAPP") or "").strip('"') != "true":
+    fail("support-watch-monitor:include-whatsapp-unexpected")
+if str(config.get("LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_VIEW") or "").strip('"') != "analytics.support_watch_whatsapp_ticket_logs":
+    fail("support-watch-monitor:whatsapp-view-unexpected")
+if str(config.get("LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_SOURCE_VIEW") or "").strip('"') != "gsheets.cs_tickets_logs_all_view":
+    fail("support-watch-monitor:whatsapp-source-view-unexpected")
+if str(config.get("LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_REFRESH_TRANSFER_NAME") or "").strip('"') != "Launchbot support watch WhatsApp native mirror refresh":
+    fail("support-watch-monitor:whatsapp-refresh-transfer-name-unexpected")
+if str(config.get("LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_REFRESH_SCHEDULE_UTC") or "").strip('"') != "every day 00:30":
+    fail("support-watch-monitor:whatsapp-refresh-schedule-unexpected")
+if str(config.get("LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_MAX_STALENESS_HOURS") or "").strip('"') != "36":
+    fail("support-watch-monitor:whatsapp-max-staleness-unexpected")
+if str(config.get("LAUNCHBOT_SUPPORT_WATCH_MAX_TICKETS") or "").strip('"') != "100":
+    fail("support-watch-monitor:max-tickets-unexpected")
 
 mcp_servers = config.get("mcp_servers") or {}
 launchbot_ker = mcp_servers.get("launchbot_ker") or {}
@@ -226,6 +339,22 @@ for key in ["no_slack_post_from_mcp", "no_jira_comments", "no_jira_transitions",
     if feature_intake_policy.get(key) is not True:
         fail(f"mcp:launchbot_feature_intake:{key}:must-be-true")
 
+launchbot_support_watch = mcp_servers.get("launchbot_support_watch") or {}
+support_watch_tools = set(launchbot_support_watch.get("tool_allowlist") or [])
+expected_support_watch_tools = {"preview_weekly_support_watch_report"}
+if support_watch_tools != expected_support_watch_tools:
+    fail("mcp:launchbot_support_watch:tool-allowlist-unexpected")
+support_watch_policy = launchbot_support_watch.get("access_policy") or {}
+if support_watch_policy.get("mode") != "read_only_weekly_support_watch":
+    fail("mcp:launchbot_support_watch:mode-unexpected")
+if support_watch_policy.get("source") != "bigquery":
+    fail("mcp:launchbot_support_watch:source-unexpected")
+if support_watch_policy.get("output_channel_name") != expected_support_watch_output:
+    fail("mcp:launchbot_support_watch:output-channel-unexpected")
+for key in ["no_slack_post_from_mcp", "no_ticket_creation", "no_engineer_tags", "no_owner_assignment", "no_raw_support_transcript_persistence", "no_slack_connector_fallback", "no_user_token_fallback"]:
+    if support_watch_policy.get(key) is not True:
+        fail(f"mcp:launchbot_support_watch:{key}:must-be-true")
+
 launchbot_help_article = mcp_servers.get("launchbot_help_article") or {}
 video_tools = set(launchbot_help_article.get("tool_allowlist") or [])
 expected_video_tools = {"preview_help_article_video_update", "create_help_article_video_update_draft"}
@@ -256,11 +385,208 @@ check_mcp_server launchbot_ker 2 launchbot_ker_server.py
 check_mcp_server launchbot_ifi 4 launchbot_ifi_server.py
 check_mcp_server launchbot_product_commitment 1 launchbot_product_commitment_server.py
 check_mcp_server launchbot_feature_intake 2 launchbot_feature_intake_server.py
+check_mcp_server launchbot_support_watch 1 launchbot_support_watch_server.py
 check_mcp_server launchbot_help_article 2 launchbot_help_article_server.py
 
 [ -r "$FEATURE_INTAKE_MONITOR_SCRIPT" ] || fail "feature-intake-monitor:script-missing"
 "$hermes_python" -m py_compile "$FEATURE_INTAKE_MONITOR_SCRIPT" || fail "feature-intake-monitor:py-compile-failed"
 "$hermes_python" -m py_compile "$PROFILE_DIR/source/launchbot/runtime/mcp/launchbot_feature_intake_core.py" || fail "mcp:launchbot_feature_intake_core:py-compile-failed"
+[ -r "$SUPPORT_WATCH_MONITOR_SCRIPT" ] || fail "support-watch-monitor:script-missing"
+"$hermes_python" -m py_compile "$SUPPORT_WATCH_MONITOR_SCRIPT" || fail "support-watch-monitor:py-compile-failed"
+"$hermes_python" -m py_compile "$PROFILE_DIR/source/launchbot/runtime/mcp/launchbot_support_watch_core.py" || fail "mcp:launchbot_support_watch_core:py-compile-failed"
+
+[ "${LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME:-all-bugs-production}" = "all-bugs-production" ] || fail "env:LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME:unexpected"
+[ -n "${LAUNCHBOT_SUPPORT_WATCH_EDT_JQL:-}" ] || fail "env:LAUNCHBOT_SUPPORT_WATCH_EDT_JQL:missing"
+"$hermes_python" - "$PROFILE_DIR" <<'PY' || exit 1
+import json
+import os
+import sys
+import urllib.parse
+import urllib.request
+from pathlib import Path
+
+profile_dir = Path(sys.argv[1])
+mcp_dir = profile_dir / "source" / "launchbot" / "runtime" / "mcp"
+sys.path.insert(0, str(mcp_dir))
+
+import launchbot_support_watch_core as support_watch  # noqa: E402
+
+
+def fail(message: str) -> None:
+    print(message, file=sys.stderr)
+    raise SystemExit(1)
+
+
+token = os.environ.get("SLACK_BOT_TOKEN", "").strip()
+if not token:
+    fail("env:SLACK_BOT_TOKEN:missing")
+
+request = urllib.request.Request(
+    urllib.parse.urljoin(support_watch.SLACK_API_BASE_URL, "auth.test"),
+    data=urllib.parse.urlencode({}).encode("utf-8"),
+    headers={
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Accept": "application/json",
+        "User-Agent": support_watch.USER_AGENT,
+    },
+    method="POST",
+)
+try:
+    with urllib.request.urlopen(request, timeout=20) as response:
+        payload = json.loads(response.read().decode("utf-8"))
+        scopes = {item.strip() for item in (response.headers.get("x-oauth-scopes") or "").split(",") if item.strip()}
+except Exception as error:
+    fail(f"slack:auth-test-failed:{support_watch.safe_error(str(error))}")
+if not payload.get("ok"):
+    fail(f"slack:auth-test-not-ok:{support_watch.safe_error(str(payload.get('error') or 'unknown_error'))}")
+for scope in ("channels:read", "channels:history", "channels:join", "chat:write"):
+    if scope not in scopes:
+        fail(f"slack:scope-missing:{scope}")
+
+
+def slack_post(method: str, body: dict[str, str]) -> dict:
+    request = urllib.request.Request(
+        urllib.parse.urljoin(support_watch.SLACK_API_BASE_URL, method),
+        data=urllib.parse.urlencode(body).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Accept": "application/json",
+            "User-Agent": support_watch.USER_AGENT,
+        },
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=20) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+SUPPORT_WATCH_CHANNEL_FAILURES = {
+    ("output", "info-failed"): "support-watch:output-channel-info-failed",
+    ("output", "join-failed"): "support-watch:output-channel-join-failed",
+    ("output", "not-member"): "support-watch:output-channel-not-member",
+    ("dedupe", "info-failed"): "support-watch:dedupe-channel-info-failed",
+    ("dedupe", "join-failed"): "support-watch:dedupe-channel-join-failed",
+    ("dedupe", "not-member"): "support-watch:dedupe-channel-not-member",
+}
+
+
+def fail_support_watch_channel(label: str, failure: str, detail: str) -> None:
+    prefix = SUPPORT_WATCH_CHANNEL_FAILURES.get((label, failure))
+    if prefix is None:
+        prefix = f"support-watch:{label}-channel-{failure}"
+    fail(f"{prefix}:{support_watch.safe_error(detail)}")
+
+
+def ensure_public_channel_membership(label: str, channel_id: str) -> None:
+    try:
+        info = support_watch.slack_api("conversations.info", {"channel": channel_id})
+    except Exception as error:
+        fail_support_watch_channel(label, "info-failed", str(error))
+    channel = info.get("channel") or {}
+    if channel.get("is_member") is not True:
+        try:
+            join_payload = slack_post("conversations.join", {"channel": channel_id})
+        except Exception as error:
+            fail_support_watch_channel(label, "join-failed", str(error))
+        if not join_payload.get("ok"):
+            fail_support_watch_channel(label, "join-failed", str(join_payload.get("error") or "unknown_error"))
+        info = support_watch.slack_api("conversations.info", {"channel": channel_id})
+        channel = info.get("channel") or {}
+    if channel.get("is_member") is not True:
+        fail_support_watch_channel(label, "not-member", channel_id)
+
+
+output_name = os.environ.get("LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME", support_watch.OUTPUT_CHANNEL_NAME).strip().lstrip("#")
+output_id = os.environ.get("LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_ID", "").strip() or support_watch.resolve_slack_channel_id(output_name)
+if not output_id:
+    fail(f"support-watch:output-channel-unresolved:{output_name}")
+try:
+    output_info = support_watch.slack_api("conversations.info", {"channel": output_id})
+except Exception as error:
+    fail(f"support-watch:output-channel-info-failed:{support_watch.safe_error(str(error))}")
+output_channel = output_info.get("channel") or {}
+if output_channel.get("name") != output_name:
+    fail(f"support-watch:output-channel-name-mismatch:{output_id}")
+ensure_public_channel_membership("output", output_id)
+
+dedupe_ids = support_watch.dedupe_channel_ids()
+if not dedupe_ids:
+    fail("support-watch:dedupe-channel-unresolved")
+for channel_id in dedupe_ids:
+    ensure_public_channel_membership("dedupe", channel_id)
+PY
+
+"$hermes_python" - <<'PY' || exit 1
+import json
+import os
+import subprocess
+import time
+import sys
+
+
+def fail(message: str) -> None:
+    print(message, file=sys.stderr)
+    raise SystemExit(1)
+
+
+project = os.environ.get("LAUNCHBOT_SUPPORT_WATCH_INTERCOM_PROJECT", "staffany-warehouse").strip() or "staffany-warehouse"
+table = os.environ.get("LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_VIEW", "analytics.support_watch_whatsapp_ticket_logs").strip().strip("`")
+max_staleness_hours = int(os.environ.get("LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_MAX_STALENESS_HOURS", "36"))
+if table.startswith("gsheets."):
+    fail("support-watch:whatsapp-runtime-source-drive-backed")
+parts = table.split(".")
+if len(parts) == 2:
+    dataset, table_id = parts
+elif len(parts) == 3:
+    project = parts[0]
+    dataset, table_id = parts[1], parts[2]
+else:
+    fail("support-watch:whatsapp-table-ref-invalid")
+metadata_query = (
+    f"SELECT row_count, last_modified_time, type "
+    f"FROM `{project}.{dataset}.__TABLES__` "
+    f"WHERE table_id = '{table_id}'"
+)
+try:
+    result = subprocess.run(
+        [
+            "bq",
+            "--project_id",
+            project,
+            "query",
+            "--use_legacy_sql=false",
+            "--format=json",
+            "--max_rows=10",
+            metadata_query,
+        ],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=120,
+        check=False,
+    )
+except Exception as error:
+    fail(f"support-watch:whatsapp-table-metadata-failed:{error}")
+if result.returncode != 0:
+    detail = (result.stderr or result.stdout or "").strip()[:300]
+    fail(f"support-watch:whatsapp-table-metadata-failed:{detail}")
+try:
+    payload = json.loads(result.stdout)
+except Exception:
+    fail("support-watch:whatsapp-table-metadata-invalid-json")
+if not isinstance(payload, list) or not payload:
+    fail("support-watch:whatsapp-table-metadata-missing")
+metadata = payload[0]
+if str(metadata.get("type") or "") != "1":
+    fail("support-watch:whatsapp-table-not-native")
+if int(metadata.get("row_count") or 0) <= 0:
+    fail("support-watch:whatsapp-table-empty")
+last_modified_ms = int(metadata.get("last_modified_time") or 0)
+age_hours = (time.time() - (last_modified_ms / 1000)) / 3600
+if age_hours > max_staleness_hours:
+    fail(f"support-watch:whatsapp-table-stale:{age_hours:.1f}h")
+PY
 
 [ -r "$HELP_ARTICLE_VIDEO_REGISTRY_PATH" ] || fail "help-article-video-registry:missing"
 "$hermes_python" - "$HELP_ARTICLE_VIDEO_REGISTRY_PATH" <<'PY' || exit 1
@@ -306,6 +632,15 @@ pantheon_branch="$(git -C "$PANTHEON_REPO_DIR" rev-parse --abbrev-ref HEAD 2>/de
 [ "$pantheon_branch" = "$EXPECT_PANTHEON_BRANCH" ] || fail "pantheon:branch-unexpected"
 pantheon_status="$(git -C "$PANTHEON_REPO_DIR" status --porcelain=v1 2>/dev/null)" || fail "pantheon:status-unreadable"
 [ -z "$pantheon_status" ] || fail "pantheon:dirty-checkout"
+if [ -r "$PANTHEON_SSH_KEY" ]; then
+  export GIT_SSH_COMMAND="ssh -i $PANTHEON_SSH_KEY -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+fi
+pantheon_access_out="$(GIT_TERMINAL_PROMPT=0 git ls-remote "$EXPECT_PANTHEON_REPO_URL" "refs/heads/$EXPECT_PANTHEON_BRANCH" 2>&1)" || {
+  if printf '%s\n' "$pantheon_access_out" | grep -Fq "Permission denied (publickey)"; then
+    fail "pantheon:ssh-access-denied"
+  fi
+  fail "pantheon:ssh-access-check-failed"
+}
 [ -r "$PANTHEON_STATUS_PATH" ] || fail "pantheon:status-json-missing"
 
 "$hermes_python" - "$PANTHEON_STATUS_PATH" "$EXPECT_PANTHEON_REPO_URL" "$EXPECT_PANTHEON_BRANCH" "$PANTHEON_REPO_DIR" "$PANTHEON_STATUS_MAX_AGE_SECONDS" <<'PY' || exit 1

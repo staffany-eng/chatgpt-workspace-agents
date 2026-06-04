@@ -1,0 +1,134 @@
+# Indonesia payroll tax source index.
+# Add one entry per source. Keep this file small and structured so teammates can update it safely.
+
+sources:
+  - id: djp_spt_masa_pph21_26_guide_2024
+    title: "Pelaporan SPT Masa PPh Pasal 21 atau 26"
+    publisher: "Direktorat Jenderal Pajak"
+    regulator_type: "official_guidance"
+    url: "https://www.pajak.go.id/panduan-layanan-pajak/konten/pelaporan/2024/orang-pribadi/pelaporan-spt-masa-pph-pasal-21-atau-26"
+    effective_period: "2024 guidance; verify for current filing period"
+    last_checked: "2026-05-06"
+    topics:
+      - spt-masa-pph21-26
+      - reporting
+      - e-bupot
+    status: "seeded"
+    confidence: "high"
+    notes: "Official DJP service guide for SPT Masa PPh Pasal 21/26 reporting."
+
+  - id: djp_ebupot_21_26_ter_article_2024
+    title: "Era Baru Pajak Penghasilan: Digitalisasi dan Inovasi Pemotongan PPh 21/26"
+    publisher: "Direktorat Jenderal Pajak"
+    regulator_type: "official_article"
+    url: "https://pajak.go.id/id/artikel/era-baru-pajak-penghasilan-digitalisasi-dan-inovasi-pemotongan-pph-2126"
+    effective_period: "2024 article; verify against underlying PP/PMK/PER for legal text"
+    last_checked: "2026-05-06"
+    topics:
+      - e-bupot
+      - pph21
+      - pph26
+      - ter
+      - reporting
+    status: "seeded"
+    confidence: "medium"
+    notes: "Official DJP explanatory article. Use for orientation, then verify legal details in regulation text."
+
+  - id: kemenkeu_pmk_168_2023
+    title: "PMK Nomor 168 Tahun 2023"
+    publisher: "Kementerian Keuangan / JDIH"
+    regulator_type: "official_regulation"
+    url: "https://jdih.kemenkeu.go.id/"
+    effective_period: "Effective from 2024 for PPh 21/26 withholding implementation; verify exact article and attachment before quoting"
+    last_checked: "2026-05-06"
+    topics:
+      - pph21
+      - pph26
+      - ter
+      - withholding
+    status: "placeholder"
+    confidence: "medium"
+    notes: "Replace URL with the exact JDIH regulation detail page when adding article-level rules."
+
+  - id: pp_58_2023
+    title: "PP Nomor 58 Tahun 2023"
+    publisher: "Government of Indonesia"
+    regulator_type: "official_regulation"
+    url: "https://peraturan.bpk.go.id/"
+    effective_period: "Effective from 2024 for average effective rate approach; verify exact article and attachment before quoting"
+    last_checked: "2026-05-06"
+    topics:
+      - pph21
+      - ter
+      - withholding-rate
+    status: "placeholder"
+    confidence: "medium"
+    notes: "Replace URL with the exact official regulation detail page when adding article-level rules."
+
+  - id: per_2_pj_2024
+    title: "PER-2/PJ/2024"
+    publisher: "Direktorat Jenderal Pajak"
+    regulator_type: "official_regulation"
+    url: "https://www.pajak.go.id/"
+    effective_period: "2024; verify exact effective date and article before quoting"
+    last_checked: "2026-05-06"
+    topics:
+      - e-bupot
+      - pph21
+      - pph26
+      - bukti-potong
+      - spt-masa
+    status: "placeholder"
+    confidence: "medium"
+    notes: "Replace URL with exact DJP/JDIH regulation page. Use DJP guidance until exact text is linked."
+
+  - id: kemenkeu_pmk_105_2025_dtp_2026
+    title: "PMK Nomor 105 Tahun 2025 tentang Pajak Penghasilan Pasal 21 atas Penghasilan Tertentu yang Ditanggung Pemerintah dalam Rangka Stimulus Ekonomi Tahun Anggaran 2026"
+    publisher: "Kementerian Keuangan / JDIH"
+    regulator_type: "official_regulation"
+    url: "https://jdih.kemenkeu.go.id/dok/pmk-105-tahun-2025"
+    effective_period: "Berlaku 31 Desember 2025; primary DTP reference for Tahun Anggaran 2026"
+    last_checked: "2026-05-11"
+    topics:
+      - pph21
+      - dtp
+      - stimulus-2026
+      - withholding
+    status: "active"
+    confidence: "high"
+    notes: "Use as the main reference for 2026 PPh21 DTP questions. BPK mirror: https://peraturan.bpk.go.id/Details/341778/pmk-no-105-tahun-2025."
+
+  - id: hipajak_consultant_tax_knowledge_bank_2026_05
+    title: "Tax Knowledge Bank - Hipajak Consultant Answers"
+    publisher: "Hipajak consultant via StaffAny user-provided workbook"
+    regulator_type: "secondary"
+    url: "https://www.hipajak.id/"
+    effective_period: "Consultant answers provided 2026-05-18; use as secondary guidance only"
+    last_checked: "2026-05-18"
+    topics:
+      - pph21
+      - pph26
+      - dtp
+      - e-bupot
+      - coretax
+      - reporting
+      - ptkp
+      - a1
+    status: "active"
+    confidence: "low"
+    notes: "Source material is a StaffAny user-provided workbook named `Tax Knowledge Bank.xlsx`, sheet `Ask Hipajak`, 36 Q&A rows. The URL is the publisher homepage, not a public copy of the workbook. Treat answers as consultant/vendor guidance; verify customer-facing regulatory claims against DJP/JDIH/BPK official sources before relying on them."
+
+entry_template:
+  id: "short_unique_source_id"
+  title: "Official source title"
+  publisher: "Regulator or publisher"
+  regulator_type: "official_regulation | official_guidance | official_article | secondary"
+  url: "https://..."
+  effective_period: "Tax year, start date, or historical period"
+  last_checked: "YYYY-MM-DD"
+  topics:
+    - pph21
+    - reporting
+  status: "active | historical | placeholder | superseded | seeded"
+  confidence: "high | medium | low"
+  notes: "What this source is useful for and any verification caveats."

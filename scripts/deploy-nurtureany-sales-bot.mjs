@@ -382,7 +382,12 @@ sudo chown "$runtime_owner:$runtime_owner" "$profile/scripts" "$profile/source" 
 copy_dir "$deploy_dir/apps/nurtureany-sales-bot" "$profile/source/nurtureany-sales-bot"
 sudo install -o "$runtime_owner" -g "$runtime_owner" -m 0644 "$deploy_dir/apps/nurtureany-sales-bot/profile/SOUL.md" "$profile/SOUL.md"
 copy_dir "$deploy_dir/apps/nurtureany-sales-bot/skills/nurtureany-sales-bot" "$profile/skills/nurtureany-sales-bot"
+copy_dir "$deploy_dir/apps/nurtureany-sales-bot/skills/company-enrichment" "$profile/skills/company-enrichment"
+copy_dir "$deploy_dir/apps/nurtureany-sales-bot/skills/apify-linkedin-scraper" "$profile/skills/apify-linkedin-scraper"
+copy_dir "$deploy_dir/apps/nurtureany-sales-bot/skills/apify-instagram-scraper" "$profile/skills/apify-instagram-scraper"
+copy_dir "$deploy_dir/apps/nurtureany-sales-bot/skills/apify-facebook-scraper" "$profile/skills/apify-facebook-scraper"
 copy_dir "$deploy_dir/apps/nurtureany-sales-bot/skills/target-account-news-scout" "$profile/skills/target-account-news-scout"
+copy_dir "$deploy_dir/apps/nurtureany-sales-bot/skills/publish-analysis-to-sheets" "$profile/skills/publish-analysis-to-sheets"
 copy_dir "$deploy_dir/apps/nurtureany-sales-bot/runtime/mcp" "$profile/runtime/mcp"
 copy_dir "$deploy_dir/apps/nurtureany-sales-bot/runtime/data" "$profile/runtime/data"
 copy_dir "$deploy_dir/apps/nurtureany-sales-bot/runtime/jobs" "$profile/runtime/jobs"
@@ -403,6 +408,33 @@ template_servers = template.get("mcp_servers") or {}
 config_servers = config.setdefault("mcp_servers", {})
 template_nurtureany = template.get("nurtureany") or {}
 config_nurtureany = config.setdefault("nurtureany", {})
+profile_dir = config_path.parent
+source_app_dir = profile_dir / "source" / "nurtureany-sales-bot"
+runtime_mcp_dir = profile_dir / "runtime" / "mcp"
+runtime_python = ""
+for existing_server in config_servers.values():
+    if isinstance(existing_server, dict) and existing_server.get("command"):
+        runtime_python = str(existing_server.get("command"))
+        break
+if not runtime_python:
+    runtime_python = str(profile_dir.parent.parent / "hermes-agent" / "venv" / "bin" / "python")
+
+def live_server_from_template(template_server):
+    server = copy.deepcopy(template_server)
+    server.setdefault("enabled", True)
+    if server.get("command"):
+        server["command"] = runtime_python
+    rewritten_args = []
+    for arg in server.get("args") or []:
+        text = str(arg)
+        if text.startswith("/Users/leekaiyi/workspace/agent builder/apps/nurtureany-sales-bot/runtime/mcp/"):
+            text = str(runtime_mcp_dir / Path(text).name)
+        elif text.startswith("/Users/leekaiyi/workspace/agent builder/apps/nurtureany-sales-bot/"):
+            text = str(source_app_dir / text.split("/apps/nurtureany-sales-bot/", 1)[1])
+        rewritten_args.append(text)
+    if rewritten_args:
+        server["args"] = rewritten_args
+    return server
 
 changed = False
 for key in ("quick_autorun", "honcho", "reviewed_lessons"):
@@ -418,21 +450,28 @@ for server_name, template_server in template_servers.items():
         continue
     config_server = config_servers.get(server_name)
     if not isinstance(config_server, dict):
-        config_server = copy.deepcopy(template_server)
+        config_server = live_server_from_template(template_server)
         config_servers[server_name] = config_server
         print(f"deploy:config-added-mcp-server:{server_name}")
+        changed = True
+    if config_server.get("enabled") is not True:
+        config_server["enabled"] = True
         changed = True
     config_tools = config_server.setdefault("tools", {})
     if config_tools.get("include") != expected:
         config_tools["include"] = list(expected)
         changed = True
+    for key in ("resources", "prompts"):
+        if config_tools.get(key) is not False:
+            config_tools[key] = False
+            changed = True
     if config_server.pop("tool_allowlist", None) is not None:
         changed = True
     for key in ("resources", "prompts"):
         if key in template_tools and config_tools.get(key) != template_tools[key]:
             config_tools[key] = template_tools[key]
             changed = True
-    for key in ("auth_metadata", "access_policy", "env"):
+    for key in ("auth_metadata", "access_policy", "env", "headers"):
         expected_mapping = template_server.get(key)
         if isinstance(expected_mapping, dict):
             current_mapping = config_server.setdefault(key, {})
@@ -464,6 +503,57 @@ sudo install -o "$runtime_owner" -g "$runtime_owner" -m 0755 "$deploy_dir/apps/n
 sudo install -o "$runtime_owner" -g "$runtime_owner" -m 0755 "$deploy_dir/apps/nurtureany-sales-bot/runtime/scripts/nurtureany_slack_access_repair.py" "$profile/scripts/nurtureany_slack_access_repair.py"
 sudo install -o "$runtime_owner" -g "$runtime_owner" -m 0755 "$deploy_dir/apps/nurtureany-sales-bot/runtime/scripts/nurtureany_sales_task_reminders.py" "$profile/scripts/nurtureany_sales_task_reminders.py"
 sudo install -o "$runtime_owner" -g "$runtime_owner" -m 0755 "$deploy_dir/apps/nurtureany-sales-bot/runtime/scripts/nurtureany_sales_task_reminders_eod.py" "$profile/scripts/nurtureany_sales_task_reminders_eod.py"
+sudo install -o "$runtime_owner" -g "$runtime_owner" -m 0755 "$deploy_dir/apps/nurtureany-sales-bot/runtime/scripts/nurtureany_inbound_monitor.py" "$profile/scripts/nurtureany_inbound_monitor.py"
+sudo install -o "$runtime_owner" -g "$runtime_owner" -m 0755 "$deploy_dir/apps/nurtureany-sales-bot/runtime/scripts/nurtureany_sales_whatsapp_report_runner.py" "$profile/scripts/nurtureany_sales_whatsapp_report_runner.py"
+
+sudo -H -u "$runtime_owner" python3 - "$profile/cron/jobs.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+jobs_path = Path(sys.argv[1])
+expected_names = {
+    "nurtureanysalesbot health check",
+    "nurtureanysalesbot live profile audit",
+    "nurtureanysalesbot Slack socket watchdog",
+    "nurtureanysalesbot local cloud heartbeat",
+    "nurtureanysalesbot HubSpot task reminders",
+    "nurtureanysalesbot HubSpot task EOD catch-up",
+    "nurtureanysalesbot HubSpot inbound monitor",
+    "SG MY WhatsApp Morning Blitz Report",
+    "ID Morning WhatsApp Blitz Report",
+    "ID WhatsApp Morning Blitz Report",
+}
+
+if not jobs_path.exists():
+    raise SystemExit(0)
+payload = json.loads(jobs_path.read_text(encoding="utf-8"))
+jobs = payload.get("jobs") if isinstance(payload, dict) else payload
+if not isinstance(jobs, list):
+    raise SystemExit(0)
+changed = 0
+for job in jobs:
+    if not isinstance(job, dict):
+        continue
+    schedule = job.get("schedule") if isinstance(job.get("schedule"), dict) else {}
+    if job.get("enabled") is True and schedule.get("kind") != "once" and job.get("name") in expected_names and not job.get("timezone"):
+        job["timezone"] = "Asia/Singapore"
+        changed += 1
+    if job.get("name") == "ID WhatsApp Morning Blitz Report":
+        expected = {
+            "script": "nurtureany_sales_whatsapp_report_runner.py",
+            "no_agent": True,
+            "deliver": "local",
+            "prompt": "",
+        }
+        for key, value in expected.items():
+            if job.get(key) != value:
+                job[key] = value
+                changed += 1
+if changed:
+    jobs_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\\n", encoding="utf-8")
+print(f"deploy:cron-timezone-repaired={changed}")
+PY
 
 printf '%s | %s | %s\\n' "$deploy_sha" "$deploy_branch" "$deploy_timestamp" | sudo tee "$profile/VERSION" >/dev/null
 sudo chown "$runtime_owner:$runtime_owner" "$profile/VERSION"
@@ -522,7 +612,16 @@ run_post_deploy_check audit sudo -H -u "$runtime_owner" HERMES_PROFILE_DIR="$pro
 health_warmup_seconds="\${NURTUREANY_DEPLOY_HEALTH_WARMUP_SECONDS:-120}"
 if [ "$health_warmup_seconds" -gt 0 ]; then
   echo "deploy:check:health=warmup:$health_warmup_seconds"
-  sleep "$health_warmup_seconds"
+  remaining="$health_warmup_seconds"
+  while [ "$remaining" -gt 0 ]; do
+    step=30
+    if [ "$remaining" -lt "$step" ]; then
+      step="$remaining"
+    fi
+    sleep "$step"
+    remaining=$((remaining - step))
+    echo "deploy:check:health=warmup-remaining:$remaining"
+  done
 fi
 run_post_deploy_check health sudo -H -u "$runtime_owner" HERMES_PROFILE_DIR="$profile" HERMES_HOME="$profile" XDG_RUNTIME_DIR="/run/user/$uid" "$profile/scripts/nurtureanysalesbot-check-health.sh"
 run_post_deploy_check cloud_doctor sudo -H -u "$runtime_owner" HERMES_PROFILE_DIR="$profile" HERMES_HOME="$profile" XDG_RUNTIME_DIR="/run/user/$uid" "$profile/scripts/nurtureanysalesbot-cloud-doctor.sh"

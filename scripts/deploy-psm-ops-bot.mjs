@@ -67,7 +67,7 @@ const shaPath = join(tmpRoot, shaName);
 
 if (!args.apply) {
   log("Dry run only. No archive upload, remote sync, gateway restart, or production health checks were run.");
-  log(`Use \`npm run psm-ops-bot:deploy -- --apply --ref ${args.ref}\` to deploy this exact ${args.ref} SHA.`);
+  log(`Use \`pnpm psm-ops-bot:deploy --apply --ref ${args.ref}\` to deploy this exact ${args.ref} SHA.`);
   printSummary({
     deploySha,
     deployRef: args.ref,
@@ -302,6 +302,10 @@ tar -xzf "$archive" -C "$deploy_dir"
 test -f "$deploy_dir/package.json" || { echo "deploy:error:package-json-missing"; exit 1; }
 test -f "$deploy_dir/scripts/verify-psm-ops-bot.mjs" || { echo "deploy:error:verify-script-missing"; exit 1; }
 test -d "$deploy_dir/apps/psm-ops-bot" || { echo "deploy:error:app-packet-missing"; exit 1; }
+test -f "$deploy_dir/apps/psm-ops-bot/runtime/mcp/psm_google_geocode_server.py" || { echo "deploy:error:psm_google_geocode-missing"; exit 1; }
+test -f "$deploy_dir/apps/psm-ops-bot/runtime/mcp/psm_store_reviews_server.py" || { echo "deploy:error:psm_store_reviews-missing"; exit 1; }
+test -f "$deploy_dir/apps/psm-ops-bot/runtime/scripts/psm_ops_store_review_poll.py" || { echo "deploy:error:store-review-poll-script-missing"; exit 1; }
+test -f "$deploy_dir/apps/psm-ops-bot/runtime/sql/psm_ops_churn_projection_dashboard_292.sql" || { echo "deploy:error:churn-projection-dashboard-292-sql-missing"; exit 1; }
 
 deploy_sha=$(cat "$sha_file")
 [ "$deploy_sha" = "$deploy_sha_expected" ] || { echo "deploy:error:sha-mismatch:$deploy_sha:$deploy_sha_expected"; exit 1; }
@@ -336,7 +340,7 @@ copy_dir "$deploy_dir/ops/hermes" "$remote_source_dir/ops/hermes"
 copy_dir "$deploy_dir/apps/psm-ops-bot" "$source_app"
 
 copy_dir "$deploy_dir/apps/psm-ops-bot" "$profile/source/psm-ops-bot"
-python3 - "$deploy_dir/apps/psm-ops-bot/profile/config.template.yaml" "$profile/config.yaml" "$runtime_owner" "$remote_source_dir" <<'PY'
+sudo python3 - "$deploy_dir/apps/psm-ops-bot/profile/config.template.yaml" "$profile/config.yaml" "$runtime_owner" "$remote_source_dir" <<'PY'
 import sys
 from pathlib import Path
 
@@ -354,7 +358,9 @@ sudo chmod 0644 "$profile/config.yaml"
 copy_file "$deploy_dir/apps/psm-ops-bot/profile/SOUL.md" "$profile/SOUL.md" 0644
 copy_dir "$deploy_dir/apps/psm-ops-bot/skills/psm-ops-bot" "$profile/skills/psm-ops-bot"
 copy_dir "$deploy_dir/apps/psm-ops-bot/runtime/mcp" "$profile/runtime/mcp"
+copy_dir "$deploy_dir/apps/psm-ops-bot/runtime/sql" "$profile/runtime/sql"
 copy_dir "$deploy_dir/apps/psm-ops-bot/runtime/hooks/psm-ops-adoption-telemetry" "$profile/hooks/psm-ops-adoption-telemetry"
+copy_dir "$deploy_dir/apps/psm-ops-bot/runtime/hooks/psm-ops-mention-guard" "$profile/hooks/psm-ops-mention-guard"
 
 copy_file "$deploy_dir/apps/psm-ops-bot/runtime/check-health.sh" "$profile/scripts/psmopsbot-check-health.sh" 0755
 copy_file "$deploy_dir/apps/psm-ops-bot/runtime/check-cloud-heartbeat.sh" "$profile/scripts/psmopsbot-check-cloud-heartbeat.sh" 0755
@@ -365,9 +371,9 @@ copy_file "$deploy_dir/apps/psm-ops-bot/runtime/scripts/psm_ops_due_date_reminde
 copy_file "$deploy_dir/apps/psm-ops-bot/runtime/scripts/psm_ops_due_date_reminders.py" "$profile/scripts/psm_ops_due_date_reminders_eod.py" 0755
 copy_file "$deploy_dir/apps/psm-ops-bot/runtime/scripts/psm_ops_pco_assignment_hygiene.py" "$profile/scripts/psm_ops_pco_assignment_hygiene.py" 0755
 copy_file "$deploy_dir/apps/psm-ops-bot/runtime/scripts/psm_ops_roi_tracker_sync.py" "$profile/scripts/psm_ops_roi_tracker_sync.py" 0755
-copy_file "$deploy_dir/apps/psm-ops-bot/runtime/scripts/psm_ops_pco_assignment_hygiene.py" "$profile/scripts/psm_ops_pco_assignment_hygiene.py" 0755
-copy_file "$deploy_dir/apps/psm-ops-bot/runtime/scripts/psm_ops_join_public_channels.py" "$profile/scripts/psm_ops_join_public_channels.py" 0755
+copy_file "$deploy_dir/apps/psm-ops-bot/runtime/scripts/psm_ops_churn_reporting_chase.py" "$profile/scripts/psm_ops_churn_reporting_chase.py" 0755
 copy_file "$deploy_dir/apps/psm-ops-bot/runtime/scripts/psm_ops_store_review_poll.py" "$profile/scripts/psm_ops_store_review_poll.py" 0755
+copy_file "$deploy_dir/apps/psm-ops-bot/runtime/scripts/psm_ops_join_public_channels.py" "$profile/scripts/psm_ops_join_public_channels.py" 0755
 
 uid=$(id -u "$runtime_owner")
 hermes_python="/home/$runtime_owner/.hermes/hermes-agent/venv/bin/python"
@@ -456,6 +462,7 @@ ensure_no_agent_cron "psmopsbot due-date reminders" "0 1 * * 1-5" "psm_ops_due_d
 ensure_no_agent_cron "psmopsbot assignment hygiene" "15 1 * * 1-5" "psm_ops_pco_assignment_hygiene.py" "slack:#ps-weeman-bot-test"
 ensure_no_agent_cron "psmopsbot due-date eod catch-up" "0 9 * * 1-5" "psm_ops_due_date_reminders_eod.py" "slack:#ps-weeman-bot-test"
 ensure_no_agent_cron "psmopsbot roi tracker sync" "*/30 1-10 * * 1-5" "psm_ops_roi_tracker_sync.py" "slack:#ps-weeman-bot-test"
+ensure_no_agent_cron "psmopsbot churn reporting chase" "0 1 * * 1" "psm_ops_churn_reporting_chase.py" "slack:#team-rev-account-management"
 ensure_no_agent_cron "psmopsbot store review poll" "0 * * * *" "psm_ops_store_review_poll.py" "slack:#ps-weeman-bot-test"
 ensure_no_agent_cron "psmopsbot adoption digest" "0 2 * * 1-5" "psm_ops_adoption_digest.py" "slack:#ps-weeman-bot-test"
 

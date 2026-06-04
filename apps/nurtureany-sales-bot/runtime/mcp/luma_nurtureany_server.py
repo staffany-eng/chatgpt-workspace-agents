@@ -728,6 +728,28 @@ def _guest_match_keys(guests: list[dict[str, Any]], include_contact_pii: bool = 
     return keys
 
 
+def _guest_action_input(guest: dict[str, Any], include_contact_pii: bool = False) -> dict[str, Any]:
+    email = _guest_email(guest)
+    domain = _email_domain(email)
+    company_candidates = _company_candidate_names_from_guest(guest)
+    record = {
+        "attendee_hash": _hash_email(email) if email else "",
+        "has_email": bool(email),
+        "email_domain": domain,
+        "email_domain_type": "personal_or_free_email" if domain and _is_personal_email_domain(domain) else "business_email_domain" if domain else "missing_email_domain",
+        "company_name_candidates": company_candidates[:5],
+        "rsvp_status": _approval_status(guest),
+        "checked_in_at": _checked_in_at(guest),
+    }
+    if include_contact_pii and email:
+        record["contact_email_match_key"] = email
+    return record
+
+
+def _guest_action_inputs(guests: list[dict[str, Any]], include_contact_pii: bool = False) -> list[dict[str, Any]]:
+    return [_guest_action_input(guest, include_contact_pii=include_contact_pii) for guest in guests[:MATCH_KEY_LIMIT]]
+
+
 def _event_is_past(event: dict[str, Any]) -> bool:
     raw_end_at = str(event.get("end_at") or "").strip()
     raw_value = raw_end_at or str(event.get("start_at") or "").strip()
@@ -990,6 +1012,7 @@ def get_luma_event_match_keys(
             past_event = _event_is_past(event)
             key_source_guests = checked_in_guests if past_event else guests
             keys = _guest_match_keys(key_source_guests, include_contact_pii=include_contact_pii)
+            action_inputs = _guest_action_inputs(key_source_guests, include_contact_pii=include_contact_pii)
             key_mode = "checked_in_attendance" if past_event else "rsvp_or_registration"
             next_step = (
                 "No checked-in attendees found for this past event. Do not match RSVP/no-show guests as attended; use a configured manual attendance fallback if available."
@@ -1001,6 +1024,8 @@ def get_luma_event_match_keys(
                 {
                     "event": event,
                     "match_keys": keys,
+                    "event_match_action_inputs": action_inputs if include_contact_pii else [],
+                    "event_match_action_input_count": len(action_inputs),
                     "match_key_mode": key_mode,
                     "total_guest_count": counts["total_guest_count"],
                     "rsvp_counts": counts["rsvp_counts"],
@@ -1026,8 +1051,9 @@ def get_luma_event_match_keys(
         "caveat": (
             "Use these match keys to search HubSpot target accounts, then call "
             "get_luma_event_context with the scoped candidate companies. Contact-email keys are "
-            "for exact HubSpot matching only when explicitly requested; do not expose unmatched "
-            "Luma attendees, registration answers, or key lists in Slack."
+            "for exact HubSpot matching only when explicitly requested; event_match_action_inputs "
+            "are transient handoff records for the HubSpot action-pack resolver only. Do not expose "
+            "unmatched Luma attendees, registration answers, or key lists in Slack."
         ),
     }
 

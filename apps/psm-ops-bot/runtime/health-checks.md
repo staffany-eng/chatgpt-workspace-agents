@@ -12,7 +12,7 @@ PSM Ops Bot needs deterministic cloud health checks because prompt correctness d
 - Model route is pinned to `anthropic` / `claude-sonnet-4-6`.
 - Slack quiet settings are enforced: `display.interim_assistant_messages=false`, Slack `tool_progress=off`, Slack `streaming=false`, and `slack.reactions=false`.
 - Non-critical `auxiliary.title_generation` is pinned to `anthropic` / `claude-haiku-4-5` with a short timeout so title-generation overloads are less likely to leak into Slack as visible auxiliary warnings.
-- Slack gateway is mention-required and not restricted to a single public/open channel.
+- Slack gateway is mention-required, strict-mention gated for every reactive channel message, and not restricted to a single public/open channel.
 - Slack bot token can call `users.list` with profile emails for `PS Team` identity matching.
 - Slack bot token can call `conversations.join` on the public join-smoke channel, proving the app has `channels:join` for public/open-channel membership repair.
 - If `PSM_OPS_CENTRAL_SLACK_CHANNEL_ID` is configured, the Slack bot token can inspect that channel and the bot is a member.
@@ -20,10 +20,12 @@ PSM Ops Bot needs deterministic cloud health checks because prompt correctness d
 - `psm_jira` MCP lists exactly the expected tools.
 - `psm_c360` MCP lists exactly the expected tools.
 - `psm_google_calendar` MCP lists exactly `read_customer_calendar_context` when Google Calendar is enabled.
+- `psm_google_geocode` MCP lists exactly `check_google_geocode_access`, `geocode_slack_addresses`, and `geocode_slack_address_file`.
 - `psm_store_reviews` MCP lists exactly `list_store_review_apps`, `list_store_reviews`, `get_store_review`, `draft_store_review_reply`, `suggest_store_review_identity_candidates`, and `confirm_store_review_identity`.
 - Google Calendar OAuth is configured for `team@staffany.com` with `calendar.readonly`, returns bounded event metadata, and exposes no mutation or attendee-export tools.
-- Direct store review credentials are configured through `GOOGLE_PLAY_SERVICE_ACCOUNT_FILE` or `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`, plus `APP_STORE_CONNECT_CONFIG_FILE` or `APP_STORE_CONNECT_CONFIG_JSON`.
-- `openssl` is available for Google Play service-account and App Store Connect JWT signing.
+- Google Geocoding credentials are available through `GOOGLE_GEOCODING_API_KEY`, `PSM_OPS_GOOGLE_GEOCODE_CREDENTIALS_FILE`, or `~/.staffany/google-geocode/credentials.json`; the health check never prints the key.
+- Direct store review credentials are available through `GOOGLE_PLAY_SERVICE_ACCOUNT_FILE` or `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`, plus `APP_STORE_CONNECT_CONFIG_FILE`, `APP_STORE_CONNECT_CONFIG_JSON`, or separate `APP_STORE_CONNECT_ISSUER_ID`, `APP_STORE_CONNECT_KEY_ID`, and `APP_STORE_CONNECT_PRIVATE_KEY_FILE` / `APP_STORE_CONNECT_PRIVATE_KEY`; the health check requires `openssl` and never prints credential material.
+- Slack bot token has `files:read` and `files:write` before geocode CSV/TSV file input and TSV upload are used in production; missing scope blocks geocode output instead of asking users to paste file rows or pasting raw coordinates.
 - `validate_jira_configuration` reports thin POC defaults or full configured fields and request types, including `PS Team`.
 - `validate_roi_jira_configuration` reports exactly one ROI project key, service desk ID, request type ID, and mapped required request fields before ROI-direct creation is enabled.
 - C360 internal API token is configured.
@@ -35,8 +37,8 @@ PSM Ops Bot needs deterministic cloud health checks because prompt correctness d
 - Reminder Slack mentions use `PSM_OPS_REMINDER_MENTION_MAP_PATH` when configured; unmapped PS Team values remain visible as `Mention gaps` and are not guessed.
 - Reminder customer-team tags use reviewed `PSM_OPS_CUSTOMER_CHANNEL_MAP_PATH` source-link matches only and never cross-post to customer channels.
 - ROI tracker sync cron is enabled in cloud as a no-agent script every 30 minutes during Singapore workdays and watches only linked `ps-wee-roi-tracker` PCO issues.
-- Store review poll cron is enabled hourly as a no-agent direct store review script and reports only new or meaningfully changed reviews.
-- PCO assignment hygiene cron is enabled in cloud as a no-agent script on Singapore workdays and reports missing assignee, `PS Team`, or due date using safe Jira fields only.
+- Churn reporting chase cron is enabled in cloud as a Monday 09:00 SGT no-agent script, reads BigQuery renewal/churn marts only, and delivers to `slack:#team-rev-account-management`.
+- Store review poll cron is enabled in cloud as an hourly no-agent script, reads direct Google Play / App Store Connect APIs, persists duplicate-suppression state by default, and delivers `PSM Ops automation: Store review triage` to `slack:#ps-weeman-bot-test`.
 - VM-local cloud heartbeat cron is enabled every 15 minutes with local delivery disabled.
 - PS WEE adoption digest cron is enabled as a no-agent weekday Slack automation with the `PSM Ops automation:` prefix.
 - PS WEE adoption telemetry hook is installed under the profile hooks directory.
@@ -47,7 +49,7 @@ PSM Ops Bot needs deterministic cloud health checks because prompt correctness d
 Run source-packet verification from the repo root:
 
 ```bash
-npm run psm-ops-bot:verify
+pnpm psm-ops-bot:verify
 ```
 
 Run live health check on the cloud host:
@@ -95,19 +97,22 @@ cp apps/psm-ops-bot/runtime/scripts/psm_ops_pco_assignment_hygiene.py \
   ~/.hermes/profiles/psmopsbot/scripts/psm_ops_pco_assignment_hygiene.py
 cp apps/psm-ops-bot/runtime/scripts/psm_ops_roi_tracker_sync.py \
   ~/.hermes/profiles/psmopsbot/scripts/psm_ops_roi_tracker_sync.py
-cp apps/psm-ops-bot/runtime/scripts/psm_ops_pco_assignment_hygiene.py \
-  ~/.hermes/profiles/psmopsbot/scripts/psm_ops_pco_assignment_hygiene.py
-cp apps/psm-ops-bot/runtime/scripts/psm_ops_join_public_channels.py \
-  ~/.hermes/profiles/psmopsbot/scripts/psm_ops_join_public_channels.py
+cp apps/psm-ops-bot/runtime/scripts/psm_ops_churn_reporting_chase.py \
+  ~/.hermes/profiles/psmopsbot/scripts/psm_ops_churn_reporting_chase.py
 cp apps/psm-ops-bot/runtime/scripts/psm_ops_store_review_poll.py \
   ~/.hermes/profiles/psmopsbot/scripts/psm_ops_store_review_poll.py
+mkdir -p ~/.hermes/profiles/psmopsbot/runtime/sql
+cp apps/psm-ops-bot/runtime/sql/psm_ops_churn_projection_dashboard_292.sql \
+  ~/.hermes/profiles/psmopsbot/runtime/sql/psm_ops_churn_projection_dashboard_292.sql
+cp apps/psm-ops-bot/runtime/scripts/psm_ops_join_public_channels.py \
+  ~/.hermes/profiles/psmopsbot/scripts/psm_ops_join_public_channels.py
 chmod 755 ~/.hermes/profiles/psmopsbot/scripts/psm_ops_due_date_reminders.py \
   ~/.hermes/profiles/psmopsbot/scripts/psm_ops_due_date_reminders_eod.py \
   ~/.hermes/profiles/psmopsbot/scripts/psm_ops_pco_assignment_hygiene.py \
   ~/.hermes/profiles/psmopsbot/scripts/psm_ops_roi_tracker_sync.py \
-  ~/.hermes/profiles/psmopsbot/scripts/psm_ops_pco_assignment_hygiene.py \
-  ~/.hermes/profiles/psmopsbot/scripts/psm_ops_join_public_channels.py \
-  ~/.hermes/profiles/psmopsbot/scripts/psm_ops_store_review_poll.py
+  ~/.hermes/profiles/psmopsbot/scripts/psm_ops_churn_reporting_chase.py \
+  ~/.hermes/profiles/psmopsbot/scripts/psm_ops_store_review_poll.py \
+  ~/.hermes/profiles/psmopsbot/scripts/psm_ops_join_public_channels.py
 
 hermes -p psmopsbot cron create "0 1 * * 1-5" \
   --name "psmopsbot due-date reminders" \
@@ -133,6 +138,12 @@ hermes -p psmopsbot cron create "*/30 1-10 * * 1-5" \
   --no-agent \
   --deliver "slack:#ps-weeman-bot-test"
 
+hermes -p psmopsbot cron create "0 1 * * 1" \
+  --name "psmopsbot churn reporting chase" \
+  --script psm_ops_churn_reporting_chase.py \
+  --no-agent \
+  --deliver "slack:#team-rev-account-management"
+
 hermes -p psmopsbot cron create "0 * * * *" \
   --name "psmopsbot store review poll" \
   --script psm_ops_store_review_poll.py \
@@ -153,7 +164,7 @@ hermes -p psmopsbot cron create "0 2 * * 1-5" \
   --deliver "slack:#ps-weeman-bot-test"
 ```
 
-The GCE host runs UTC, so `0 1 * * 1-5` is 09:00 Asia/Singapore on weekdays, `15 1 * * 1-5` is 09:15 Asia/Singapore on weekdays, `0 9 * * 1-5` is 17:00 Asia/Singapore on weekdays, and `*/30 1-10 * * 1-5` checks ROI trackers every 30 minutes during Singapore workdays. `0 * * * *` checks direct store reviews hourly and persists triage state by default. Hermes cron does not pass script arguments, so the EOD cron uses the same source script copied under an `eod` filename; direct due-date dry runs can still use `--mode morning|eod`, and direct store review previews must use `--dry-run`.
+The GCE host runs UTC, so `0 1 * * 1-5` is 09:00 Asia/Singapore on weekdays, `15 1 * * 1-5` is 09:15 Asia/Singapore on weekdays, `0 9 * * 1-5` is 17:00 Asia/Singapore on weekdays, `*/30 1-10 * * 1-5` checks ROI trackers every 30 minutes during Singapore workdays, `0 1 * * 1` sends the Monday 09:00 Asia/Singapore churn reporting chase, and `0 * * * *` polls store reviews hourly. Hermes cron does not pass script arguments, so the EOD cron uses the same source script copied under an `eod` filename; direct dry runs can still use `--mode morning|eod`. Store review no-arg cron runs persist state; manual preview uses `psm_ops_store_review_poll.py --dry-run`.
 
 Install central audit/adoption telemetry after the profile exists:
 
@@ -161,6 +172,8 @@ Install central audit/adoption telemetry after the profile exists:
 mkdir -p ~/.hermes/profiles/psmopsbot/hooks ~/.hermes/profiles/psmopsbot/scripts
 rsync -a apps/psm-ops-bot/runtime/hooks/psm-ops-adoption-telemetry/ \
   ~/.hermes/profiles/psmopsbot/hooks/psm-ops-adoption-telemetry/
+rsync -a apps/psm-ops-bot/runtime/hooks/psm-ops-mention-guard/ \
+  ~/.hermes/profiles/psmopsbot/hooks/psm-ops-mention-guard/
 cp apps/psm-ops-bot/runtime/psm_ops_adoption_digest.py \
   ~/.hermes/profiles/psmopsbot/scripts/psm_ops_adoption_digest.py
 
@@ -170,6 +183,8 @@ hermes -p psmopsbot cron create "0 2 * * 1-5" \
   --no-agent \
   --deliver "slack:#ps-weeman-bot-test"
 ```
+
+`psm-ops-mention-guard` is observer-only on `agent:end` and posts a one-line warning to `PSM_OPS_CENTRAL_SLACK_CHANNEL_ID` whenever a Slack reply mentions a non-tagger (SCHE-19904). The hook resolves its own Slack user ID via `auth.test` (cached per process) so the bot's `<@>` self-reference is not flagged. `runtime/check-health.sh` smoke-tests `auth.test` at deploy time and fails with `slack:auth-test:<error>` or `slack:auth-test-missing-user-id` if the token cannot identify the bot. The audit alert itself is bot-authored and self-identifies as `PSM Ops mention-guard automation: ...` per the AGENTS.md Slack identity rule, and reports `psm-ops-mention-guard:alert-failed:<slack_error>` on stderr if Slack returns `ok=false` (missing_scope, not_in_channel, channel_not_found).
 
 Set `PSM_OPS_CENTRAL_SLACK_CHANNEL_ID` to the central ops channel ID in the live profile `.env`; prefer the ID over the name.
 

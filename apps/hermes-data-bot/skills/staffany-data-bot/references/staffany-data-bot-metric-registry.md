@@ -130,6 +130,41 @@ Use this file before answering known Da Ta Bot POC metrics. This registry is a c
 - Default caveat:
   - "Fitness customer segment is not owner-verified; using discovered industry/segment values as candidate logic."
 
+## Metric: ATS Applicant Leaderboard
+
+- Metric key: `ats_applicant_leaderboard`
+- Common questions:
+  - Which F&B organizations are the top ATS users by number of applicants?
+  - How many applicants or job openings does an organization have in ATS?
+  - Pull ATS JDs or safe job-opening context for an organization.
+- Product terminology:
+  - Treat ATS applicants as hiring applications in StaffAny ATS/HireAny.
+  - A job opening is the StaffAny ATS `JobOpening` record.
+  - Candidate resumes, candidate names, phone numbers, emails, CV URLs, and raw application answers are PII and must not be surfaced in casual Slack answers.
+- Status: candidate, not owner-verified.
+- Confidence to return: `needs-check` until a product/data owner verifies the ATS leaderboard definition and F&B source mapping.
+- Candidate source path:
+  - Applicant facts: `staffany-warehouse.kraken_rds.JobApplication`.
+  - Job-opening facts: `staffany-warehouse.kraken_rds.JobOpening`.
+  - Organization display and selected org filtering: `staffany-warehouse.analytics.dim_organisations` and `staffany-warehouse.analytics.dim_org_company` after schema inspection.
+  - F&B filtering: HubSpot/company fields such as `stg_hubspot__companies.company_industry_staffAny`, `dim_companies.company_industry_staffany`, `dim_companies.company_industry`, or `dim_companies.industry_group` after discovering actual values.
+- Required grain rule:
+  - Aggregate ATS measures at `organisationid` first.
+  - Applicant count is `COUNT(DISTINCT JobApplication.id)`.
+  - Job-opening count is `COUNT(DISTINCT JobOpening.id)`, joined or aggregated by `JobOpening.organisationid`.
+  - Build industry/company filters as a deduped org set before joining to org-grain ATS facts.
+  - Do not sum org-level applicant/opening counts after joining raw `dim_org_company`, `stg_hubspot__companies`, or other company bridge rows.
+- Fan-out guard:
+  - Before answering a company/industry-scoped leaderboard, check whether bridge rows exceed distinct org IDs.
+  - If a bridge fans out, dedupe to one row per org before returning counts and include the fan-out caveat.
+  - Stripes Australia sanity check: org `-LgO1Np3HFBryRmdDrXQ` must not be reported as 2,048 applicants across 64 openings from the F&B leaderboard path. The reviewed sanity result is 32 applicants across 1 job opening.
+- Safe JD / PII handling:
+  - A scoped JD pull from `JobOpening.name` / `JobOpening.description` is allowed when it does not expose candidate PII.
+  - Candidate resumes, candidate details, `JobApplication.email`, `phonenumber`, `cvurl`, names, and raw `questionsandanswers` are blocked unless an approved PII workflow exists outside this bot.
+  - If a request combines JD plus resumes/application details, execute the safe JD slice when scope is clear and block only the candidate PII slice.
+- Default caveat:
+  - "ATS leaderboard definition and F&B tagging are not owner-verified; ATS measures were aggregated at organisation grain first and company/industry bridge fan-out was deduped."
+
 ## Metric: Club Blue Redemption Usage
 
 - Metric key: `club_blue_redemption_usage`

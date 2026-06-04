@@ -21,17 +21,20 @@
     "skill": "skills/psm-ops-bot/SKILL.md",
     "references": [
       "skills/psm-ops-bot/references/jira-field-contract.md",
+      "skills/psm-ops-bot/references/pco-request-types.md",
       "skills/psm-ops-bot/references/customer-channel-candidates.md",
       "skills/psm-ops-bot/references/regression-cases.md"
     ],
     "jira_runtime": "runtime/jira.md",
     "c360_runtime": "runtime/c360.md",
     "google_calendar_runtime": "runtime/google-calendar.md",
+    "google_geocode_runtime": "runtime/google-geocode.md",
     "store_reviews_runtime": "runtime/store-reviews.md",
     "slack_runtime": "runtime/slack.md",
     "psm_jira_mcp": "runtime/mcp/psm_jira_server.py",
     "psm_c360_mcp": "runtime/mcp/psm_c360_server.py",
     "psm_google_calendar_mcp": "runtime/mcp/psm_google_calendar_server.py",
+    "psm_google_geocode_mcp": "runtime/mcp/psm_google_geocode_server.py",
     "psm_store_reviews_mcp": "runtime/mcp/psm_store_reviews_server.py",
     "store_reviews_core": "runtime/mcp/store_reviews_core.py",
     "health_checks": "runtime/health-checks.md",
@@ -43,12 +46,15 @@
     "due_date_reminder_script": "runtime/scripts/psm_ops_due_date_reminders.py",
     "assignment_hygiene_script": "runtime/scripts/psm_ops_pco_assignment_hygiene.py",
     "roi_tracker_sync_script": "runtime/scripts/psm_ops_roi_tracker_sync.py",
-    "assignment_hygiene_script": "runtime/scripts/psm_ops_pco_assignment_hygiene.py",
+    "churn_reporting_chase_script": "runtime/scripts/psm_ops_churn_reporting_chase.py",
+    "churn_projection_dashboard_292_sql": "runtime/sql/psm_ops_churn_projection_dashboard_292.sql",
     "public_channel_join_script": "runtime/scripts/psm_ops_join_public_channels.py",
     "store_review_poll_script": "runtime/scripts/psm_ops_store_review_poll.py",
     "slack_notifier": "runtime/mcp/psm_slack_notifier.py",
     "adoption_hook": "runtime/hooks/psm-ops-adoption-telemetry/HOOK.yaml",
     "adoption_hook_handler": "runtime/hooks/psm-ops-adoption-telemetry/handler.py",
+    "mention_guard_hook": "runtime/hooks/psm-ops-mention-guard/HOOK.yaml",
+    "mention_guard_hook_handler": "runtime/hooks/psm-ops-mention-guard/handler.py",
     "deploy_runbook": "deploy/gce-onboarding-runbook.md",
     "regression_cases": "tests/regression-cases.md",
     "prompt_evals": "tests/prompt-evals.json"
@@ -65,13 +71,15 @@
         "resolve_customer_channel_org",
         "list_my_pco_tasks",
         "search_pco_tickets",
+        "find_duplicate_pco_candidates",
         "find_ticket_by_slack_thread",
         "find_roi_ticket_by_slack_thread",
         "create_roi_ticket_from_slack",
         "create_or_link_pco_roi_tracker",
         "create_ps_wee_intake_ticket",
+        "attach_aa_selfie_to_thread",
+        "verify_drive_oauth",
         "append_ps_wee_ticket_update",
-        "mark_ps_wee_ticket_ready",
         "draft_pco_task",
         "create_approved_pco_task",
         "transition_pco_task",
@@ -79,6 +87,8 @@
         "set_pco_assignee",
         "set_pco_ps_team",
         "link_pco_to_engineering_issue",
+        "link_pco_to_pco_issue",
+        "merge_pco_tickets",
         "set_pco_reminder",
         "list_due_pco_reminders"
       ]
@@ -95,6 +105,14 @@
       "command_env": "PSM_OPS_PYTHON",
       "expected_tools": [
         "read_customer_calendar_context"
+      ]
+    },
+    "psm_google_geocode": {
+      "command_env": "PSM_OPS_PYTHON",
+      "expected_tools": [
+        "check_google_geocode_access",
+        "geocode_slack_addresses",
+        "geocode_slack_address_file"
       ]
     },
     "psm_store_reviews": {
@@ -126,6 +144,22 @@
     "field_config_required": true,
     "public_comments_default": false,
     "assignment_hygiene_cron": "15 1 * * 1-5",
+    "event_aa": {
+      "channel_id_env_var": "PSM_OPS_AA_CHANNEL_ID",
+      "default_request_type_key": "feedback",
+      "allowed_request_type_keys": ["ps_follow_up", "cs_follow_up", "adhoc_ops", "rev_cross_sell", "pdt_discovery", "mkt_clubany", "feedback", "photo_follow_up"],
+      "image_trigger_request_type_key": "photo_follow_up",
+      "request_type_id_env_vars": {
+        "ps_follow_up": "PSM_OPS_JIRA_REQUEST_TYPE_PS_FOLLOW_UP",
+        "cs_follow_up": "PSM_OPS_JIRA_REQUEST_TYPE_CS_FOLLOW_UP",
+        "adhoc_ops": "PSM_OPS_JIRA_REQUEST_TYPE_ADHOC_OPS",
+        "rev_cross_sell": "PSM_OPS_JIRA_REQUEST_TYPE_REV_CROSS_SELL",
+        "pdt_discovery": "PSM_OPS_JIRA_REQUEST_TYPE_PDT_DISCOVERY",
+        "mkt_clubany": "PSM_OPS_JIRA_REQUEST_TYPE_MKT_CLUBANY",
+        "feedback": "PSM_OPS_JIRA_REQUEST_TYPE_FEEDBACK",
+        "photo_follow_up": "PSM_OPS_JIRA_REQUEST_TYPE_PHOTO_FOLLOW_UP"
+      }
+    },
     "roi_direct": {
       "source_of_truth": true,
       "project_key_env_var": "PSM_OPS_ROI_JIRA_PROJECT_KEY",
@@ -172,6 +206,25 @@
     "attendee_exports": false,
     "private_field_exports": false
   },
+  "google_geocode": {
+    "credential_file_env_var": "PSM_OPS_GOOGLE_GEOCODE_CREDENTIALS_FILE",
+    "api_key_env_var": "GOOGLE_GEOCODING_API_KEY",
+    "default_credentials_file": "~/.staffany/google-geocode/credentials.json",
+    "expected_credentials_json_key": "google_geocoding_api_key",
+    "expected_tools": [
+      "check_google_geocode_access",
+      "geocode_slack_addresses",
+      "geocode_slack_address_file"
+    ],
+    "max_addresses_per_call": 25,
+    "default_region_bias": "sg",
+    "uploads_tsv_to_slack": true,
+    "raw_slack_message_rows": false,
+    "accepts_csv_tsv_input_files": true,
+    "stores_address_rows": false,
+    "prints_api_key": false,
+    "uses_slack_connector": false
+  },
   "store_reviews": {
     "source_of_truth": true,
     "source_of_truth_scope": "app_store_google_play_review_metadata_and_identity_correlation",
@@ -204,6 +257,7 @@
   "slack": {
     "surface": "public_open_channels",
     "require_mention": true,
+    "strict_mention": true,
     "allowed_channels_env": "SLACK_ALLOWED_CHANNELS",
     "allowed_channels_expected_empty": true,
     "required_bot_scopes": [
@@ -212,6 +266,8 @@
       "channels:history",
       "channels:join",
       "chat:write",
+      "files:read",
+      "files:write",
       "users:read",
       "users:read.email"
     ],
@@ -233,15 +289,14 @@
       "roi_ticket_reused",
       "roi_tracker_linked",
       "roi_tracker_sync",
+      "churn_reporting_chase",
+      "store_review_triage",
       "ticket_update_synced",
-      "ticket_ready",
       "blocked",
       "c360_search",
       "c360_account_context",
       "c360_customer_answer",
-      "c360_blocked",
-      "store_review_triaged",
-      "store_review_blocked"
+      "c360_blocked"
     ]
   },
   "secrets_copied": false

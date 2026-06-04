@@ -31,6 +31,7 @@ The adapter sends an explicit `StaffAny-NurtureAny/1.0` User-Agent header so Exa
 - Defaults to 5 candidates per company and caps at 5.
 - Default title targets are StaffAny ICP personas only: Owner, Founder, CEO, Chief Executive Officer, HR Manager, HR Director, Head of HR, People & Culture, People Operations, Chief People Officer, Operations Manager, Head of Operations, Director of Operations, Operations Director, COO, and Chief Operating Officer. Avoid generic `manager`, `director`, store/outlet manager, junior ops, finance-only, or payroll-only titles unless the user explicitly asks.
 - Returns query, Exa request ID, candidate title, URL, source domain, source type, inferred name/title, decision-maker title match, `signal_count`, `confidence_band`, quality signals/warnings, and `cost_report`.
+- The company domain is added as text in the query, not as a hard `includeDomains` filter. LinkedIn result URLs therefore still need public-search corroboration or a scoped-company mention before they can be shown as AE-ready contact rows.
 - Does not send `contents`, `includeDomains`, `excludeDomains`, crawl-date filters, or LinkedIn-specific fetch parameters.
 - Does not reveal email addresses or phone numbers.
 

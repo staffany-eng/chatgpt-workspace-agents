@@ -7,6 +7,7 @@ HERMES_AGENT_DIR="${HERMES_AGENT_DIR:-$HOME/.hermes/hermes-agent}"
 HERMES_PYTHON="${HERMES_PYTHON:-$HERMES_AGENT_DIR/venv/bin/python}"
 HERMES_BIN="${HERMES_BIN:-$HERMES_AGENT_DIR/hermes}"
 EXPECT_PANTHEON_REPO_URL="${EXPECT_PANTHEON_REPO_URL:-git@github.com:staffany-eng/pantheon.git}"
+PANTHEON_SSH_KEY="${LAUNCHBOT_PANTHEON_SSH_KEY:-$PROFILE_DIR/ssh/pantheon_deploy_key}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [ -n "${LAUNCHBOT_APP_ROOT:-}" ]; then
   APP_ROOT="$LAUNCHBOT_APP_ROOT"
@@ -23,6 +24,7 @@ fail() {
 
 command -v cmp >/dev/null 2>&1 || fail "dependency:cmp:not-found"
 command -v git >/dev/null 2>&1 || fail "dependency:git:not-found"
+command -v bq >/dev/null 2>&1 || fail "dependency:bq:not-found"
 [ -x "$HERMES_PYTHON" ] || fail "dependency:hermes-python:not-found"
 [ -f "$HERMES_BIN" ] || fail "dependency:hermes-bin:not-found"
 
@@ -34,13 +36,21 @@ cmp -s "$APP_ROOT/runtime/check-health.sh" "$PROFILE_DIR/scripts/launchbot-check
 cmp -s "$APP_ROOT/runtime/audit-live-profile.sh" "$PROFILE_DIR/scripts/launchbot-audit-live-profile.sh" || fail "profile-drift:audit-script"
 cmp -s "$APP_ROOT/runtime/update-pantheon-repo.sh" "$PROFILE_DIR/scripts/launchbot-update-pantheon-repo.sh" || fail "profile-drift:pantheon-update-script"
 cmp -s "$APP_ROOT/runtime/monitor-feature-intake.py" "$PROFILE_DIR/scripts/launchbot-monitor-feature-intake.py" || fail "profile-drift:feature-intake-monitor-script"
+cmp -s "$APP_ROOT/runtime/monitor-support-watch.py" "$PROFILE_DIR/scripts/launchbot-monitor-support-watch.py" || fail "profile-drift:support-watch-monitor-script"
+cmp -s "$APP_ROOT/runtime/support-watch-whatsapp-refresh.sql" "$PROFILE_DIR/source/launchbot/runtime/support-watch-whatsapp-refresh.sql" || fail "profile-drift:support-watch-whatsapp-refresh-sql"
 cmp -s "$APP_ROOT/runtime/mcp/launchbot_ker_server.py" "$PROFILE_DIR/source/launchbot/runtime/mcp/launchbot_ker_server.py" || fail "profile-drift:ker-mcp"
 cmp -s "$APP_ROOT/runtime/mcp/launchbot_ifi_server.py" "$PROFILE_DIR/source/launchbot/runtime/mcp/launchbot_ifi_server.py" || fail "profile-drift:ifi-mcp"
 cmp -s "$APP_ROOT/runtime/mcp/launchbot_product_commitment_server.py" "$PROFILE_DIR/source/launchbot/runtime/mcp/launchbot_product_commitment_server.py" || fail "profile-drift:product-commitment-mcp"
 cmp -s "$APP_ROOT/runtime/mcp/launchbot_feature_intake_core.py" "$PROFILE_DIR/source/launchbot/runtime/mcp/launchbot_feature_intake_core.py" || fail "profile-drift:feature-intake-core"
 cmp -s "$APP_ROOT/runtime/mcp/launchbot_feature_intake_server.py" "$PROFILE_DIR/source/launchbot/runtime/mcp/launchbot_feature_intake_server.py" || fail "profile-drift:feature-intake-mcp"
+cmp -s "$APP_ROOT/runtime/mcp/launchbot_support_watch_core.py" "$PROFILE_DIR/source/launchbot/runtime/mcp/launchbot_support_watch_core.py" || fail "profile-drift:support-watch-core"
+cmp -s "$APP_ROOT/runtime/mcp/launchbot_support_watch_server.py" "$PROFILE_DIR/source/launchbot/runtime/mcp/launchbot_support_watch_server.py" || fail "profile-drift:support-watch-mcp"
 cmp -s "$APP_ROOT/runtime/mcp/launchbot_help_article_server.py" "$PROFILE_DIR/source/launchbot/runtime/mcp/launchbot_help_article_server.py" || fail "profile-drift:help-article-mcp"
 cmp -s "$APP_ROOT/skills/help-article-generator/references/video-placement-registry.json" "$PROFILE_DIR/source/launchbot/skills/help-article-generator/references/video-placement-registry.json" || fail "profile-drift:help-article-video-registry"
+cmp -s "$APP_ROOT/skills/staffany-indonesia-payroll-tax-grimoire/SKILL.md" "$PROFILE_DIR/source/launchbot/skills/staffany-indonesia-payroll-tax-grimoire/SKILL.md" || fail "profile-drift:indonesia-tax-source-skill"
+cmp -s "$APP_ROOT/skills/staffany-indonesia-payroll-tax-grimoire/SKILL.md" "$PROFILE_DIR/skills/staffany-indonesia-payroll-tax-grimoire/SKILL.md" || fail "profile-drift:indonesia-tax-profile-skill"
+cmp -s "$APP_ROOT/skills/staffany-indonesia-payroll-tax-grimoire/skills/indonesia-tax-knowledge-updater/SKILL.md" "$PROFILE_DIR/skills/staffany-indonesia-payroll-tax-grimoire/skills/indonesia-tax-knowledge-updater/SKILL.md" || fail "profile-drift:indonesia-tax-updater-skill"
+cmp -s "$APP_ROOT/skills/staffany-indonesia-payroll-tax-grimoire/skills/indonesia-tax-knowledge-updater/scripts/validate_knowledge_bank.rb" "$PROFILE_DIR/skills/staffany-indonesia-payroll-tax-grimoire/skills/indonesia-tax-knowledge-updater/scripts/validate_knowledge_bank.rb" || fail "profile-drift:indonesia-tax-validator"
 
 "$HERMES_PYTHON" - "$PROFILE_DIR" <<'PY' || exit 1
 import json
@@ -91,6 +101,13 @@ PY
 cron_out="$("$HERMES_PYTHON" "$HERMES_BIN" -p "$PROFILE" cron list 2>&1)" || fail "cron:list-failed"
 printf '%s\n' "$cron_out" | grep -Fq "launchbot health check" || fail "cron:health-check-missing"
 printf '%s\n' "$cron_out" | grep -Fq "launchbot feature intake monitor" || fail "cron:feature-intake-monitor-missing"
+printf '%s\n' "$cron_out" | grep -Fq "launchbot support watch" || fail "cron:support-watch-missing"
+if [ "$(bq ls --transfer_config --transfer_location=asia-southeast1 --project_id=staffany-warehouse --format=prettyjson 2>/dev/null | grep -F "Launchbot support watch WhatsApp native mirror refresh" | wc -l | tr -d ' ')" = "0" ]; then
+  fail "bigquery:whatsapp-refresh-transfer-missing"
+fi
+if [ -r "$PANTHEON_SSH_KEY" ]; then
+  export GIT_SSH_COMMAND="ssh -i $PANTHEON_SSH_KEY -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+fi
 if GIT_TERMINAL_PROMPT=0 git ls-remote "$EXPECT_PANTHEON_REPO_URL" HEAD >/dev/null 2>&1; then
   printf '%s\n' "$cron_out" | grep -Fq "launchbot pantheon repo update" || fail "cron:pantheon-repo-update-missing"
 elif printf '%s\n' "$cron_out" | grep -Fq "launchbot pantheon repo update"; then

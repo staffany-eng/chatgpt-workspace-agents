@@ -382,6 +382,7 @@ def _tracking_block(
     ker_key = linked_ker_key.strip().upper()
     if ker_key and not KER_RE.fullmatch(ker_key):
         ker_key = ""
+    detailed_problem = str(original_question or "").strip() or "Not provided"
     return "\n".join(
         [
             "Customer context",
@@ -390,11 +391,13 @@ def _tracking_block(
             f"- Requester: {_single_line(requester, 160) or 'Not provided'}",
             f"- Source Slack thread: {slack_permalink.strip() or 'Not provided'}",
             "",
-            "Product request",
+            "Product request summary",
             f"- Feature gap: {_single_line(feature_gap, 180)}",
-            f"- Original question: {_single_line(original_question, 500) or 'Not provided'}",
             f"- APQ classification: {_single_line(apq_classification, 160) or 'needs product review'}",
             f"- Linked KER: {ker_key or 'none yet'}",
+            "",
+            "Detailed request / problem",
+            detailed_problem,
         ]
     )
 
@@ -474,7 +477,7 @@ def _search_existing_ifi(hubspot_company_id: str, feature_gap: str) -> tuple[str
 
 
 def _summary(feature_gap: str, company: dict[str, str]) -> str:
-    return _single_line(f"[Tracked APQ] {_single_line(feature_gap, 120)} - {company['name']}", 240)
+    return _single_line(f"{_single_line(feature_gap, 150)} — {company['name']}", 240)
 
 
 def _build_preview(

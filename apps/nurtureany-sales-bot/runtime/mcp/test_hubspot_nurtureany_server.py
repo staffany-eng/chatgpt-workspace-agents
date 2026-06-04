@@ -421,6 +421,606 @@ class OperationLedgerTest(unittest.TestCase):
         self.assertEqual(loaded["confidence"], "verified")
 
 
+class CompanyEnrichmentArtifactTest(unittest.TestCase):
+    def setUp(self):
+        self.module = load_hubspot_module()
+
+    def _company(self, company_id="123", country="Singapore", name="Noci Bakehouse"):
+        return {
+            "id": company_id,
+            "properties": {
+                "name": name,
+                "domain": "noci.example",
+                "website": "https://noci.example",
+                "hs_is_target_account": "true",
+                "company_country": country,
+                "hubspot_owner_id": "owner-1",
+                "numberofemployees": "80",
+                "industry": "Food & Beverage",
+            },
+        }
+
+    def _context(self, company_id="123", country="Singapore", name="Noci Bakehouse", contacts=None):
+        context = company_context(company_id)
+        context["company"].update(
+            {
+                "company_id": company_id,
+                "name": name,
+                "domain": "noci.example",
+                "website": "https://noci.example",
+                "country": country,
+                "owner_id": "owner-1",
+                "owner_email": "owner@example.com",
+                "owner_name": "Owner Example",
+                "industry": "Food & Beverage",
+                "headcount": "80",
+            }
+        )
+        context["contacts"] = contacts or []
+        context["sales_followup_tasks"] = []
+        return context
+
+    def test_company_artifact_create_read_summary_redacts_revealed_pii_by_default(self):
+        company = self._company()
+        with tempfile.TemporaryDirectory() as artifact_dir, patch.dict(
+            os.environ, {"NURTUREANY_LEAD_ENRICHMENT_ARTIFACTS_DIR": artifact_dir}
+        ), patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
+            self.module, "_get_company", return_value=company
+        ), patch.object(
+            self.module, "_owner_email_by_id", return_value="owner@example.com"
+        ), patch.object(
+            self.module, "_owner_name_by_id", return_value="Owner Example"
+        ), patch.object(
+            self.module, "_company_context", return_value=self._context()
+        ):
+            created = self.module.create_company_enrichment_artifact(
+                "kerren.fong@staffany.com",
+                company_id="123",
+                artifact_id="artifact-1",
+            )
+            updated = self.module.update_company_enrichment_artifact(
+                "artifact-1",
+                source="lusha",
+                candidates=[
+                    {
+                        "name": "Ada Tan",
+                        "title": "HR Director",
+                        "company": "Noci Bakehouse",
+                        "email_available": True,
+                        "lusha_contact_id": "lusha-1",
+                    }
+                ],
+                revealed_contacts=[
+                    {
+                        "name": "Ada Tan",
+                        "title": "HR Director",
+                        "company": "Noci Bakehouse",
+                        "email": "ada@example.com",
+                        "phone": "+6512345678",
+                        "lusha_contact_id": "lusha-1",
+                    }
+                ],
+                approval_marker="approve reveal ada",
+            )
+            redacted = self.module.read_company_enrichment_artifact("artifact-1")
+            included = self.module.read_company_enrichment_artifact(
+                "artifact-1",
+                include_revealed_details=True,
+                approval_marker="approve reveal ada",
+            )
+            summary = self.module.summarize_company_enrichment_artifact("artifact-1")
+
+        self.assertEqual(created["confidence"], "verified")
+        self.assertEqual(updated["confidence"], "verified")
+        self.assertFalse(summary["answer"]["will_mutate_hubspot"])
+        self.assertNotIn("ada@example.com", json.dumps(redacted))
+        self.assertNotIn("+6512345678", json.dumps(redacted))
+        self.assertIn("ada@example.com", json.dumps(included))
+        self.assertEqual(summary["answer"]["hubspot_contact_preview_rows"][0]["will_mutate_hubspot"], False)
+
+    def test_name_resolution_blocks_ambiguous_and_brand_parent_can_resolve(self):
+        company = self._company(name="Tung Lok Group")
+
+        def fake_resolve(name, scope, limit=10):
+            if name == "Tung Lok":
+                return {
+                    "status": "ambiguous",
+                    "candidates": [
+                        {"company_id": "123", "name": "Tung Lok Group"},
+                        {"company_id": "456", "name": "Tung Lok Seafood"},
+                    ],
+                }
+            if name == "Tung Lok Group":
+                return {"status": "resolved", "company_id": "123", "match_type": "exact"}
+            return {"status": "not_found", "candidates": []}
+
+        with tempfile.TemporaryDirectory() as artifact_dir, patch.dict(
+            os.environ, {"NURTUREANY_LEAD_ENRICHMENT_ARTIFACTS_DIR": artifact_dir}
+        ), patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
+            self.module, "_resolve_scoped_company_name", side_effect=fake_resolve
+        ), patch.object(
+            self.module, "_get_company", return_value=company
+        ), patch.object(
+            self.module, "_owner_email_by_id", return_value="owner@example.com"
+        ), patch.object(
+            self.module, "_owner_name_by_id", return_value="Owner Example"
+        ), patch.object(
+            self.module, "_company_context", return_value=self._context(name="Tung Lok Group")
+        ):
+            ambiguous = self.module.resolve_company_enrichment_target(
+                "kerren.fong@staffany.com",
+                company_name="Tung Lok",
+                country="Singapore",
+            )
+            resolved = self.module.create_company_enrichment_artifact(
+                "kerren.fong@staffany.com",
+                company_name="Unknown Brand",
+                country="Singapore",
+                brand_parent_candidates=["Tung Lok Group"],
+                artifact_id="tung-lok",
+            )
+
+        self.assertEqual(ambiguous["confidence"], "blocked")
+        self.assertEqual(ambiguous["answer"]["status"], "ambiguous")
+        self.assertEqual(resolved["confidence"], "verified")
+        self.assertIn("brand_parent", json.dumps(resolved["answer"]["resolution"]))
+
+    def test_out_of_scope_country_blocks_before_artifact_create(self):
+        malaysia_company = self._company(country="Malaysia")
+        with patch.object(self.module, "_caller_scope", return_value={**SCOPE, "countries": ("Singapore",)}), patch.object(
+            self.module, "_get_company", return_value=malaysia_company
+        ), patch.object(
+            self.module, "_owner_email_by_id", return_value="owner@example.com"
+        ), patch.object(
+            self.module, "_owner_name_by_id", return_value="Owner Example"
+        ):
+            result = self.module.create_company_enrichment_artifact(
+                "kerren.fong@staffany.com",
+                company_id="123",
+                country="Singapore",
+            )
+
+        self.assertEqual(result["confidence"], "blocked")
+
+    def test_stop_when_ready_from_existing_hubspot_contact(self):
+        contact = {
+            "contact_id": "contact-1",
+            "display_name": "Ada T.",
+            "persona": "HR Director",
+            "buying_role": "DECISION_MAKER",
+            "is_verified_decision_maker": True,
+            "is_decision_maker": True,
+            "phone_available": True,
+            "is_phone_verified": True,
+            "channel_fit": "whatsapp",
+        }
+        company = self._company()
+        with tempfile.TemporaryDirectory() as artifact_dir, patch.dict(
+            os.environ, {"NURTUREANY_LEAD_ENRICHMENT_ARTIFACTS_DIR": artifact_dir}
+        ), patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
+            self.module, "_get_company", return_value=company
+        ), patch.object(
+            self.module, "_owner_email_by_id", return_value="owner@example.com"
+        ), patch.object(
+            self.module, "_owner_name_by_id", return_value="Owner Example"
+        ), patch.object(
+            self.module, "_company_context", return_value=self._context(contacts=[contact])
+        ):
+            created = self.module.create_company_enrichment_artifact(
+                "kerren.fong@staffany.com",
+                company_id="123",
+                artifact_id="ready-artifact",
+            )
+
+        self.assertTrue(created["answer"]["ready_state"]["minimum_ready"])
+        self.assertEqual(created["answer"]["next_recommended_level"], "level_7_hubspot_contact_preview")
+
+    def test_public_job_board_search_runs_before_exa_lusha_and_prospeo_fallback(self):
+        company = self._company()
+        with tempfile.TemporaryDirectory() as artifact_dir, patch.dict(
+            os.environ, {"NURTUREANY_LEAD_ENRICHMENT_ARTIFACTS_DIR": artifact_dir}
+        ), patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
+            self.module, "_get_company", return_value=company
+        ), patch.object(
+            self.module, "_owner_email_by_id", return_value="owner@example.com"
+        ), patch.object(
+            self.module, "_owner_name_by_id", return_value="Owner Example"
+        ), patch.object(
+            self.module, "_company_context", return_value=self._context()
+        ):
+            self.module.create_company_enrichment_artifact(
+                "kerren.fong@staffany.com",
+                company_id="123",
+                artifact_id="provider-artifact",
+            )
+            self.module.update_company_enrichment_artifact(
+                "provider-artifact",
+                source="tavily",
+                evidence=[{"url": "https://noci.example/careers"}],
+            )
+            after_tavily = self.module.summarize_company_enrichment_artifact("provider-artifact")
+            self.module.update_company_enrichment_artifact(
+                "provider-artifact",
+                source="job_board_search",
+                evidence=[{"source": "JobStreet Singapore", "url": "https://example.test/jobs"}],
+            )
+            after_public = self.module.summarize_company_enrichment_artifact("provider-artifact")
+            self.module.update_company_enrichment_artifact(
+                "provider-artifact",
+                source="exa",
+                candidates=[{"name": "Ben Lee", "title": "Marketing Executive", "company": "Noci Bakehouse"}],
+            )
+            after_exa = self.module.summarize_company_enrichment_artifact("provider-artifact")
+            self.module.update_company_enrichment_artifact(
+                "provider-artifact",
+                source="lusha",
+                candidates=[],
+            )
+            after_lusha = self.module.summarize_company_enrichment_artifact("provider-artifact")
+
+        self.assertEqual(after_tavily["answer"]["next_recommended_level"], "level_3_public_people_job_board_search")
+        self.assertEqual(after_public["answer"]["next_recommended_level"], "level_4_exa_people_search")
+        self.assertEqual(after_exa["answer"]["next_recommended_level"], "level_5_lusha_search")
+        self.assertEqual(after_lusha["answer"]["next_recommended_level"], "level_6_prospeo_fallback_search")
+
+    def test_summary_marks_full_waterfall_incomplete_until_required_levels_are_appended(self):
+        company = self._company()
+        with tempfile.TemporaryDirectory() as artifact_dir, patch.dict(
+            os.environ, {"NURTUREANY_LEAD_ENRICHMENT_ARTIFACTS_DIR": artifact_dir}
+        ), patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
+            self.module, "_get_company", return_value=company
+        ), patch.object(
+            self.module, "_owner_email_by_id", return_value="owner@example.com"
+        ), patch.object(
+            self.module, "_owner_name_by_id", return_value="Owner Example"
+        ), patch.object(
+            self.module, "_company_context", return_value=self._context()
+        ):
+            self.module.create_company_enrichment_artifact(
+                "kerren.fong@staffany.com",
+                company_id="123",
+                artifact_id="waterfall-artifact",
+            )
+            partial = self.module.summarize_company_enrichment_artifact("waterfall-artifact")
+            self.module.update_company_enrichment_artifact(
+                "waterfall-artifact",
+                source="tavily",
+                tool_result={"answer": {"source_evidence": [{"url": "https://noci.example/news", "snippet": "Founder mentioned."}]}},
+            )
+            self.module.update_company_enrichment_artifact(
+                "waterfall-artifact",
+                source="exa",
+                tool_result={
+                    "answer": [
+                        {
+                            "candidates": [
+                                {
+                                    "inferred_name": "Ada Tan",
+                                    "inferred_title": "HR Director",
+                                    "url": "https://linkedin.com/in/ada-tan",
+                                    "company": "Noci Bakehouse",
+                                    "confidence_band": "medium",
+                                    "quality_signals": ["title_match"],
+                                }
+                            ]
+                        }
+                    ]
+                },
+            )
+            self.module.update_company_enrichment_artifact(
+                "waterfall-artifact",
+                source="standalone_public_search",
+                evidence=[{"source": "official team page", "url": "https://noci.example/team"}],
+            )
+            self.module.update_company_enrichment_artifact(
+                "waterfall-artifact",
+                source="lusha_linkedin_url_search",
+                tool_result={"answer": {"candidates": []}},
+            )
+            self.module.update_company_enrichment_artifact(
+                "waterfall-artifact",
+                source="prospeo_linkedin_url_search",
+                tool_result={"answer": {"candidates": []}},
+            )
+            complete = self.module.summarize_company_enrichment_artifact("waterfall-artifact")
+
+        self.assertEqual(partial["confidence"], "needs-check")
+        self.assertFalse(partial["answer"]["waterfall_state"]["can_claim_full_waterfall"])
+        self.assertEqual(partial["answer"]["waterfall_state"]["next_required_level"], "level_2_tavily_public_discovery")
+        self.assertEqual(complete["confidence"], "verified")
+        self.assertTrue(complete["answer"]["waterfall_state"]["can_claim_full_waterfall"])
+        self.assertIn("Ada Tan", json.dumps(complete["answer"]))
+        self.assertIn("HR Director", json.dumps(complete["answer"]))
+
+    def test_waterfall_does_not_count_in_progress_or_empty_public_levels_as_complete(self):
+        company = self._company()
+        with tempfile.TemporaryDirectory() as artifact_dir, patch.dict(
+            os.environ, {"NURTUREANY_LEAD_ENRICHMENT_ARTIFACTS_DIR": artifact_dir}
+        ), patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
+            self.module, "_get_company", return_value=company
+        ), patch.object(
+            self.module, "_owner_email_by_id", return_value="owner@example.com"
+        ), patch.object(
+            self.module, "_owner_name_by_id", return_value="Owner Example"
+        ), patch.object(
+            self.module, "_company_context", return_value=self._context()
+        ):
+            self.module.create_company_enrichment_artifact(
+                "kerren.fong@staffany.com",
+                company_id="123",
+                artifact_id="weak-waterfall",
+            )
+            self.module.update_company_enrichment_artifact(
+                "weak-waterfall",
+                source="tavily",
+                tool_result={"answer": {"source_evidence": [{"url": "https://noci.example/news"}]}},
+                status="in_progress",
+            )
+            self.module.update_company_enrichment_artifact(
+                "weak-waterfall",
+                source="standalone_public_search",
+                tool_result={"answer": {}},
+                notes="No public candidates found.",
+            )
+            summary = self.module.summarize_company_enrichment_artifact("weak-waterfall")
+
+        state = summary["answer"]["waterfall_state"]
+        self.assertFalse(state["can_claim_full_waterfall"])
+        self.assertIn("level_2_tavily_public_discovery", state["missing_levels"])
+        self.assertIn("level_3_public_people_job_board_search", state["missing_levels"])
+        self.assertEqual(state["incomplete_reasons"]["level_2_tavily_public_discovery"], "status=in_progress")
+        self.assertEqual(state["incomplete_reasons"]["level_3_public_people_job_board_search"], "no candidates or evidence ingested")
+
+    def test_uncorroborated_exa_linkedin_candidates_are_suppressed_from_preview(self):
+        company = self._company()
+        with tempfile.TemporaryDirectory() as artifact_dir, patch.dict(
+            os.environ, {"NURTUREANY_LEAD_ENRICHMENT_ARTIFACTS_DIR": artifact_dir}
+        ), patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
+            self.module, "_get_company", return_value=company
+        ), patch.object(
+            self.module, "_owner_email_by_id", return_value="owner@example.com"
+        ), patch.object(
+            self.module, "_owner_name_by_id", return_value="Owner Example"
+        ), patch.object(
+            self.module, "_company_context", return_value=self._context()
+        ):
+            self.module.create_company_enrichment_artifact(
+                "kerren.fong@staffany.com",
+                company_id="123",
+                artifact_id="exa-noise",
+            )
+            self.module.update_company_enrichment_artifact(
+                "exa-noise",
+                source="tavily",
+                evidence=[{"url": "https://noci.example/news"}],
+            )
+            self.module.update_company_enrichment_artifact(
+                "exa-noise",
+                source="standalone_public_search",
+                candidates=[
+                    {
+                        "name": "Mei Tan",
+                        "title": "Founder",
+                        "company": "Noci Bakehouse",
+                        "source_url": "https://example.test/noci-founder",
+                    }
+                ],
+            )
+            self.module.update_company_enrichment_artifact(
+                "exa-noise",
+                source="exa",
+                candidates=[
+                    {
+                        "inferred_name": "Unrelated Person",
+                        "inferred_title": "Founder",
+                        "url": "https://linkedin.com/in/unrelated-person",
+                        "company": "Different Company",
+                    }
+                ],
+            )
+            summary = self.module.summarize_company_enrichment_artifact("exa-noise")
+
+        preview_names = [row.get("full_name") for row in summary["answer"]["hubspot_contact_preview_rows"]]
+        top_names = [candidate.get("name") for candidate in summary["answer"]["top_candidates"]]
+        self.assertIn("Mei Tan", preview_names)
+        self.assertNotIn("Unrelated Person", preview_names)
+        self.assertNotIn("Unrelated Person", top_names)
+        self.assertEqual(summary["answer"]["candidate_counts"]["suppressed_uncorroborated_exa"], 1)
+        self.assertEqual(summary["answer"]["suppressed_candidates"][0]["name"], "Unrelated Person")
+
+    def test_paid_domain_zero_requires_linkedin_url_lookup_when_public_linkedin_candidates_exist(self):
+        company = self._company()
+        with tempfile.TemporaryDirectory() as artifact_dir, patch.dict(
+            os.environ, {"NURTUREANY_LEAD_ENRICHMENT_ARTIFACTS_DIR": artifact_dir}
+        ), patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
+            self.module, "_get_company", return_value=company
+        ), patch.object(
+            self.module, "_owner_email_by_id", return_value="owner@example.com"
+        ), patch.object(
+            self.module, "_owner_name_by_id", return_value="Owner Example"
+        ), patch.object(
+            self.module, "_company_context", return_value=self._context()
+        ):
+            self.module.create_company_enrichment_artifact(
+                "kerren.fong@staffany.com",
+                company_id="123",
+                artifact_id="paid-url-waterfall",
+            )
+            self.module.update_company_enrichment_artifact(
+                "paid-url-waterfall",
+                source="tavily",
+                evidence=[{"url": "https://noci.example/news"}],
+            )
+            self.module.update_company_enrichment_artifact(
+                "paid-url-waterfall",
+                source="exa",
+                candidates=[{"name": "Ben Lee", "title": "Owner", "profile_url": "https://linkedin.com/in/ben-lee"}],
+            )
+            self.module.update_company_enrichment_artifact(
+                "paid-url-waterfall",
+                source="standalone_public_search",
+                evidence=[{"source": "LinkedIn public result", "url": "https://linkedin.com/in/ben-lee"}],
+            )
+            self.module.update_company_enrichment_artifact(
+                "paid-url-waterfall",
+                source="lusha",
+                tool_result={"answer": {"candidates": []}},
+            )
+            self.module.update_company_enrichment_artifact(
+                "paid-url-waterfall",
+                source="prospeo",
+                tool_result={"answer": {"candidates": []}},
+            )
+            domain_only = self.module.summarize_company_enrichment_artifact("paid-url-waterfall")
+            self.module.update_company_enrichment_artifact(
+                "paid-url-waterfall",
+                source="lusha_linkedin_url_search",
+                tool_result={"answer": {"candidates": []}},
+            )
+            self.module.update_company_enrichment_artifact(
+                "paid-url-waterfall",
+                source="prospeo_linkedin_url_search",
+                tool_result={"answer": {"candidates": []}},
+            )
+            url_done = self.module.summarize_company_enrichment_artifact("paid-url-waterfall")
+
+        self.assertFalse(domain_only["answer"]["waterfall_state"]["can_claim_full_waterfall"])
+        self.assertIn("level_5_lusha_search", domain_only["answer"]["waterfall_state"]["missing_levels"])
+        self.assertIn("LinkedIn URL provider lookup", domain_only["answer"]["waterfall_state"]["incomplete_reasons"]["level_5_lusha_search"])
+        self.assertTrue(url_done["answer"]["waterfall_state"]["can_claim_full_waterfall"])
+
+    def test_summary_includes_public_company_channels_from_evidence(self):
+        company = self._company()
+        with tempfile.TemporaryDirectory() as artifact_dir, patch.dict(
+            os.environ, {"NURTUREANY_LEAD_ENRICHMENT_ARTIFACTS_DIR": artifact_dir}
+        ), patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
+            self.module, "_get_company", return_value=company
+        ), patch.object(
+            self.module, "_owner_email_by_id", return_value="owner@example.com"
+        ), patch.object(
+            self.module, "_owner_name_by_id", return_value="Owner Example"
+        ), patch.object(
+            self.module, "_company_context", return_value=self._context()
+        ):
+            self.module.create_company_enrichment_artifact(
+                "kerren.fong@staffany.com",
+                company_id="123",
+                artifact_id="public-channels",
+            )
+            result = self.module.update_company_enrichment_artifact(
+                "public-channels",
+                source="tavily",
+                tool_result={
+                    "public_contact_channels": [
+                        {
+                            "channel_type": "public_company_email",
+                            "value": "info@noci.example",
+                            "source_url": "https://noci.example/contact",
+                        },
+                        {
+                            "channel_type": "public_company_phone",
+                            "value": "+6581234567",
+                            "source_url": "https://noci.example/contact",
+                        },
+                    ]
+                },
+            )
+
+        values = {channel["value"] for channel in result["answer"]["public_company_channels"]}
+        self.assertIn("info@noci.example", values)
+        self.assertIn("+6581234567", values)
+
+    def test_linkedin_public_candidates_are_manual_review_not_confirmed(self):
+        company = self._company()
+        with tempfile.TemporaryDirectory() as artifact_dir, patch.dict(
+            os.environ, {"NURTUREANY_LEAD_ENRICHMENT_ARTIFACTS_DIR": artifact_dir}
+        ), patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
+            self.module, "_get_company", return_value=company
+        ), patch.object(
+            self.module, "_owner_email_by_id", return_value="owner@example.com"
+        ), patch.object(
+            self.module, "_owner_name_by_id", return_value="Owner Example"
+        ), patch.object(
+            self.module, "_company_context", return_value=self._context()
+        ):
+            self.module.create_company_enrichment_artifact(
+                "kerren.fong@staffany.com",
+                company_id="123",
+                artifact_id="linkedin-manual",
+            )
+            updated = self.module.update_company_enrichment_artifact(
+                "linkedin-manual",
+                source="standalone_public_search",
+                candidates=[
+                    {
+                        "name": "Meisin Tan",
+                        "title": "Founder",
+                        "company_match": "exact",
+                        "profile_url": "https://sg.linkedin.com/in/meisin-tan",
+                        "confidence_band": "high",
+                    }
+                ],
+                evidence=[
+                    {
+                        "signals_found": ["founder_confirmed", "decision_maker_confirmed"],
+                        "source_type": "linkedin_public",
+                        "source_url": "https://sg.linkedin.com/in/meisin-tan",
+                    }
+                ],
+            )
+
+        payload = json.dumps(updated["answer"])
+        candidate = next(candidate for candidate in updated["answer"]["top_candidates"] if candidate["name"] == "Meisin Tan")
+        self.assertEqual(candidate["company_match"], "public_snippet_needs_check")
+        self.assertEqual(candidate["provider_confidence"], "needs-check")
+        self.assertEqual(candidate["verification_status"], "manual_review_required")
+        self.assertIn("manual_review_required", payload)
+        self.assertNotIn("founder_confirmed", payload)
+
+    def test_tool_result_ingestion_preserves_exa_inferred_title_and_provider_confidence(self):
+        company = self._company()
+        with tempfile.TemporaryDirectory() as artifact_dir, patch.dict(
+            os.environ, {"NURTUREANY_LEAD_ENRICHMENT_ARTIFACTS_DIR": artifact_dir}
+        ), patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
+            self.module, "_get_company", return_value=company
+        ), patch.object(
+            self.module, "_owner_email_by_id", return_value="owner@example.com"
+        ), patch.object(
+            self.module, "_owner_name_by_id", return_value="Owner Example"
+        ), patch.object(
+            self.module, "_company_context", return_value=self._context()
+        ):
+            self.module.create_company_enrichment_artifact(
+                "kerren.fong@staffany.com",
+                company_id="123",
+                artifact_id="exa-tool-result",
+            )
+            updated = self.module.update_company_enrichment_artifact(
+                "exa-tool-result",
+                source="exa",
+                tool_result={
+                    "answer": {
+                        "candidates": [
+                            {
+                                "inferred_name": "Ben Lee",
+                                "inferred_title": "Operations Director",
+                                "url": "https://linkedin.com/in/ben-lee",
+                                "company": "Noci Bakehouse",
+                                "confidence_band": "medium",
+                                "warnings": ["public snippet only"],
+                            }
+                        ]
+                    }
+                },
+            )
+
+        payload = json.dumps(updated["answer"])
+        self.assertIn("Ben Lee", payload)
+        self.assertIn("Operations Director", payload)
+        self.assertIn("provider_confidence", payload)
+        self.assertIn("public snippet only", payload)
+
+
 class ReviewedLessonCandidateTest(unittest.TestCase):
     def setUp(self):
         self.module = load_hubspot_module()
@@ -752,6 +1352,435 @@ class OwnerWhatsAppSentTodayTest(unittest.TestCase):
 
         self.assertEqual(result["confidence"], "blocked")
         self.assertIn("manager/admin", result["caveat"])
+
+
+class SalesWhatsappWindowReportTest(unittest.TestCase):
+    def setUp(self):
+        self.module = load_hubspot_module()
+
+    def _report_policy(self, nicholas_timezone="Asia/Kuala_Lumpur"):
+        return {
+            "admins": {},
+            "managers": {"kerren.fong@staffany.com": ("Singapore", "Malaysia")},
+            "sales_reps": {
+                "jeremy.wong@staffany.com": {
+                    "hubspot_owner_email": "jeremy.wong@staffany.com",
+                    "countries": ("Singapore",),
+                    "timezone": "Asia/Singapore",
+                },
+                "nicholas@staffany.com": {
+                    "hubspot_owner_email": "nicholas@staffany.com",
+                    "countries": ("Malaysia",),
+                    "timezone": nicholas_timezone,
+                },
+            },
+            "partnerships_viewers": {},
+            "event_operators": {},
+            "disabled": set(),
+            "aliases": {},
+        }
+
+    def _id_report_policy(self):
+        return {
+            "admins": {},
+            "managers": {"sarah@staffany.com": ("Indonesia",)},
+            "sales_reps": {
+                "simone@staffany.com": {
+                    "hubspot_owner_email": "simone@staffany.com",
+                    "countries": ("Indonesia",),
+                    "timezone": "Asia/Jakarta",
+                },
+            },
+            "partnerships_viewers": {},
+            "event_operators": {},
+            "disabled": set(),
+            "aliases": {},
+        }
+
+    def _owner_by_email(self, email):
+        normalized = email.lower()
+        owners = {
+            "jeremy.wong@staffany.com": {"id": "owner-jeremy", "email": "jeremy.wong@staffany.com", "firstName": "Jeremy", "lastName": "Wong"},
+            "nicholas@staffany.com": {"id": "owner-nicholas", "email": "nicholas@staffany.com", "firstName": "Nicholas", "lastName": "Tan"},
+            "simone@staffany.com": {"id": "owner-simone", "email": "simone@staffany.com", "firstName": "Simone", "lastName": "ID"},
+        }
+        return owners.get(normalized)
+
+    def test_report_groups_sg_my_sg_first_and_uses_access_policy_country(self):
+        def fake_object_search(object_type, filters, properties, limit=100, maximum=500, sorts=None):
+            self.assertEqual(object_type, "communications")
+            self.assertNotIn("hs_communication_body", properties)
+            owner_id = next(item["value"] for item in filters if item["propertyName"] == "hubspot_owner_id")
+            count = 30 if owner_id == "owner-jeremy" else 29
+            prefix = "sg" if owner_id == "owner-jeremy" else "my"
+            return {
+                "results": [
+                    {
+                        "id": f"{prefix}-comm-{index}",
+                        "properties": {
+                            "hs_timestamp": f"2026-05-13T0{1 if owner_id == 'owner-jeremy' else 2}:{index % 60:02d}:00Z",
+                            "hubspot_owner_id": owner_id,
+                            "hs_communication_channel_type": "WHATS_APP",
+                            "hs_communication_logged_from": "Eazybe",
+                        },
+                    }
+                    for index in range(count)
+                ],
+                "total": count,
+                "returned_count": count,
+                "has_more": False,
+                "truncated": False,
+            }
+
+        def fake_company_search(filters, limit=100, maximum=500, sorts=None, query=""):
+            owner_id = next(item["value"] for item in filters if item["propertyName"] == "hubspot_owner_id")
+            country = next(item["values"][0] for item in filters if item["propertyName"] == "company_country")
+            company_id = "sg-company" if owner_id == "owner-jeremy" else "my-company"
+            return {
+                "results": [{"id": company_id, "properties": {"name": f"{country} Target", "company_country": country, "hubspot_owner_id": owner_id}}],
+                "total": 1,
+                "returned_count": 1,
+                "has_more": False,
+                "truncated": False,
+            }
+
+        def fake_batch_association_ids(from_type, to_type, ids):
+            if from_type == "companies":
+                return {str(item): [] for item in ids}
+            if from_type == "communications" and to_type == "companies":
+                return {str(item): (["sg-company"] if str(item).startswith("sg-") else ["my-company"]) for item in ids}
+            return {str(item): [] for item in ids}
+
+        with patch.object(self.module, "_access_policy", return_value=self._report_policy()), patch.object(
+            self.module, "_owner_by_email", side_effect=self._owner_by_email
+        ), patch.object(self.module, "_object_search", side_effect=fake_object_search), patch.object(
+            self.module, "_company_search", side_effect=fake_company_search
+        ), patch.object(self.module, "_batch_association_ids", side_effect=fake_batch_association_ids):
+            result = self.module.build_sales_whatsapp_window_report(
+                "kerren.fong@staffany.com",
+                for_date="2026-05-13",
+                window_start_local="09:30",
+                window_end_local="10:30",
+            )
+
+        rows = result["answer"]["country_rows"]
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual([row["country"] for row in rows], ["Singapore", "Malaysia"])
+        self.assertEqual(rows[1]["owner_email"], "nicholas@staffany.com")
+        self.assertEqual(rows[1]["country"], "Malaysia")
+        self.assertEqual(rows[0]["target_account_whatsapp_count"], 30)
+        self.assertEqual(rows[0]["target_status"], "hit")
+        self.assertEqual(rows[1]["target_account_whatsapp_count"], 29)
+        self.assertEqual(rows[1]["target_status"], "miss")
+        self.assertEqual(result["answer"]["target_per_owner"], 30)
+        dumped = json.dumps(result)
+        self.assertNotIn("hs_communication_body", dumped)
+
+    def test_report_supports_indonesia_manager_scope(self):
+        def fake_object_search(object_type, filters, properties, limit=100, maximum=500, sorts=None):
+            self.assertEqual(object_type, "communications")
+            self.assertNotIn("hs_communication_body", properties)
+            owner_id = next(item["value"] for item in filters if item["propertyName"] == "hubspot_owner_id")
+            self.assertEqual(owner_id, "owner-simone")
+            return {
+                "results": [
+                    {
+                        "id": f"id-comm-{index}",
+                        "properties": {
+                            "hs_timestamp": f"2026-05-15T02:{index % 60:02d}:00Z",
+                            "hubspot_owner_id": "owner-simone",
+                            "hs_communication_channel_type": "WHATS_APP",
+                            "hs_communication_logged_from": "Eazybe",
+                        },
+                    }
+                    for index in range(30)
+                ],
+                "total": 30,
+                "returned_count": 30,
+                "has_more": False,
+                "truncated": False,
+            }
+
+        def fake_company_search(filters, limit=100, maximum=500, sorts=None, query=""):
+            country = next(item["values"][0] for item in filters if item["propertyName"] == "company_country")
+            self.assertEqual(country, "Indonesia")
+            return {
+                "results": [{"id": "id-company", "properties": {"name": "ID Target", "company_country": "Indonesia", "hubspot_owner_id": "owner-simone"}}],
+                "total": 1,
+                "returned_count": 1,
+                "has_more": False,
+                "truncated": False,
+            }
+
+        def fake_batch_association_ids(from_type, to_type, ids):
+            if from_type == "companies":
+                return {str(item): [] for item in ids}
+            if from_type == "communications" and to_type == "companies":
+                return {str(item): ["id-company"] for item in ids}
+            return {str(item): [] for item in ids}
+
+        with patch.object(self.module, "_access_policy", return_value=self._id_report_policy()), patch.object(
+            self.module, "_owner_by_email", side_effect=self._owner_by_email
+        ), patch.object(self.module, "_object_search", side_effect=fake_object_search), patch.object(
+            self.module, "_company_search", side_effect=fake_company_search
+        ), patch.object(self.module, "_batch_association_ids", side_effect=fake_batch_association_ids):
+            result = self.module.build_sales_whatsapp_window_report(
+                "sarah@staffany.com",
+                countries=["Indonesia"],
+                country_order=["Indonesia"],
+                for_date="2026-05-15",
+                window_start_local="09:30",
+                window_end_local="10:30",
+            )
+
+        rows = result["answer"]["country_rows"]
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["answer"]["countries"], ["Indonesia"])
+        self.assertEqual([row["country"] for row in rows], ["Indonesia"])
+        self.assertEqual(rows[0]["owner_email"], "simone@staffany.com")
+        self.assertEqual(rows[0]["target_account_whatsapp_count"], 30)
+        self.assertEqual(rows[0]["target_status"], "hit")
+        self.assertIn("*Indonesia*", result["answer"]["slack_markdown"])
+        dumped = json.dumps(result)
+        self.assertNotIn("hs_communication_body", dumped)
+
+    def test_report_scans_full_target_account_pool_for_manager_report(self):
+        def fake_object_search(object_type, filters, properties, limit=100, maximum=500, sorts=None):
+            self.assertEqual(object_type, "communications")
+            self.assertEqual(limit, 500)
+            self.assertEqual(maximum, 1000)
+            return {
+                "results": [
+                    {
+                        "id": "id-comm-late-company",
+                        "properties": {
+                            "hs_timestamp": "2026-05-15T02:15:00Z",
+                            "hubspot_owner_id": "owner-simone",
+                            "hs_communication_channel_type": "WHATS_APP",
+                            "hs_communication_logged_from": "Eazybe",
+                        },
+                    }
+                ],
+                "total": 1,
+                "returned_count": 1,
+                "has_more": False,
+                "truncated": False,
+            }
+
+        def fake_company_search(filters, limit=100, maximum=500, sorts=None, query=""):
+            self.assertEqual(limit, self.module.HUBSPOT_SEARCH_TOTAL_LIMIT)
+            self.assertEqual(maximum, self.module.HUBSPOT_SEARCH_TOTAL_LIMIT)
+            return {
+                "results": [
+                    {
+                        "id": "id-company-beyond-default-cap",
+                        "properties": {"name": "ID Deep Target", "company_country": "Indonesia", "hubspot_owner_id": "owner-simone"},
+                    }
+                ],
+                "total": 1,
+                "returned_count": 1,
+                "has_more": False,
+                "truncated": False,
+            }
+
+        def fake_batch_association_ids(from_type, to_type, ids):
+            if from_type == "companies":
+                return {str(item): [] for item in ids}
+            if from_type == "communications" and to_type == "companies":
+                return {str(item): ["id-company-beyond-default-cap"] for item in ids}
+            return {str(item): [] for item in ids}
+
+        with patch.object(self.module, "_access_policy", return_value=self._id_report_policy()), patch.object(
+            self.module, "_owner_by_email", side_effect=self._owner_by_email
+        ), patch.object(self.module, "_object_search", side_effect=fake_object_search), patch.object(
+            self.module, "_company_search", side_effect=fake_company_search
+        ), patch.object(self.module, "_batch_association_ids", side_effect=fake_batch_association_ids):
+            result = self.module.build_sales_whatsapp_window_report(
+                "sarah@staffany.com",
+                countries=["Indonesia"],
+                country_order=["Indonesia"],
+                for_date="2026-05-15",
+                window_start_local="09:30",
+                window_end_local="10:30",
+            )
+
+        row = result["answer"]["country_rows"][0]
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(row["target_account_count_scanned"], 1)
+        self.assertEqual(row["target_account_whatsapp_count"], 1)
+
+    def test_report_missing_timezone_blocks_before_hubspot_query(self):
+        policy = self._report_policy(nicholas_timezone="")
+        with patch.object(self.module, "_access_policy", return_value=policy), patch.object(
+            self.module, "_owner_by_email", side_effect=self._owner_by_email
+        ), patch.object(self.module, "_object_search", side_effect=AssertionError("should not query without timezone")), patch.object(
+            self.module, "_company_search", side_effect=AssertionError("should not query without timezone")
+        ):
+            result = self.module.build_sales_whatsapp_window_report(
+                "kerren.fong@staffany.com",
+                countries=["Malaysia"],
+                owner_emails=["nicholas@staffany.com"],
+                for_date="2026-05-13",
+            )
+
+        self.assertEqual(result["confidence"], "needs-check")
+        row = result["answer"]["country_rows"][0]
+        self.assertEqual(row["status"], "needs-check")
+        self.assertEqual(row["target_account_whatsapp_count"], "needs-check")
+
+    def test_schedule_state_and_custom_one_off_report_stay_separate(self):
+        with tempfile.TemporaryDirectory() as schedule_dir, patch.dict(
+            os.environ,
+            {
+                "NURTUREANY_REPORT_SCHEDULE_DIR": schedule_dir,
+                "NURTUREANY_REPORT_DELIVERY_CHANNEL_IDS": "C123",
+            },
+        ), patch.object(self.module, "_caller_scope", return_value=SCOPE):
+            saved = self.module.save_sales_whatsapp_window_report_schedule(
+                "kerren.fong@staffany.com",
+                delivery_channel_id="C123",
+                approval_marker="approved report send",
+                source_slack_thread="C0B2UGK4DB6:1778814173.849539",
+            )
+            before = Path(schedule_dir, "sg-my-whatsapp-morning-report.json").read_text(encoding="utf-8")
+            with patch.object(self.module, "_sales_owner_rows_for_scope", return_value=([], [])):
+                report = self.module.build_sales_whatsapp_window_report(
+                    "kerren.fong@staffany.com",
+                    for_date="2026-05-13",
+                    window_start_local="09:45",
+                    window_end_local="10:45",
+                )
+            after = Path(schedule_dir, "sg-my-whatsapp-morning-report.json").read_text(encoding="utf-8")
+
+        self.assertEqual(saved["confidence"], "verified")
+        self.assertEqual(before, after)
+        self.assertFalse(report["answer"]["schedule_mutated"])
+        self.assertEqual(report["answer"]["window_start_local"], "09:45")
+
+    def test_schedule_can_persist_indonesia_report_args(self):
+        with tempfile.TemporaryDirectory() as schedule_dir, patch.dict(
+            os.environ,
+            {
+                "NURTUREANY_REPORT_SCHEDULE_DIR": schedule_dir,
+                "NURTUREANY_REPORT_DELIVERY_CHANNEL_IDS": "C04MSJ1BGF9",
+            },
+        ), patch.object(self.module, "_caller_scope", return_value={"kind": "manager", "email": "sarah@staffany.com", "countries": ("Indonesia",), "owner_id": None}):
+            saved = self.module.save_sales_whatsapp_window_report_schedule(
+                "sarah@staffany.com",
+                schedule_id="id-whatsapp-morning-report",
+                report_args={"countries": ["Indonesia"], "country_order": ["Indonesia"]},
+                runtime_cron_expression="35 3 * * 1-5",
+                delivery_channel_id="C04MSJ1BGF9",
+                approval_marker="approved report send",
+                source_slack_thread="C04MSJ1BGF9:1778822647.171049",
+            )
+
+        self.assertEqual(saved["confidence"], "verified")
+        self.assertEqual(saved["answer"]["schedule_id"], "id-whatsapp-morning-report")
+        self.assertEqual(saved["answer"]["report_args"]["countries"], ["Indonesia"])
+        self.assertEqual(saved["answer"]["runtime_cron_expression"], "35 3 * * 1-5")
+
+    def test_schedule_rejects_non_weekday_default_cron(self):
+        with tempfile.TemporaryDirectory() as schedule_dir, patch.dict(
+            os.environ,
+            {"NURTUREANY_REPORT_SCHEDULE_DIR": schedule_dir, "NURTUREANY_REPORT_DELIVERY_CHANNEL_IDS": "C123"},
+        ), patch.object(self.module, "_caller_scope", return_value=SCOPE):
+            result = self.module.save_sales_whatsapp_window_report_schedule(
+                "kerren.fong@staffany.com",
+                cron_schedule="35 10 * * *",
+                delivery_channel_id="C123",
+                approval_marker="approved report send",
+            )
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("weekday-only", result["caveat"])
+
+
+class SalesReportDeliveryTest(unittest.TestCase):
+    def setUp(self):
+        self.module = load_hubspot_module()
+
+    def _markdown(self, report_id="sales-whatsapp-window-report:2026-05-13:test"):
+        return (
+            f"{self.module.SALES_WHATSAPP_REPORT_PREFIX}\n"
+            f"Report ID: `{report_id}`\n"
+            "Date/window: 2026-05-13 09:30-10:30 local owner time\n"
+            "Summary: 1/1 owner-country rows hit target.\n"
+            "Safety: raw WhatsApp bodies, phone numbers, raw Slack transcripts, and raw HubSpot rows are not returned."
+        )
+
+    def test_delivery_requires_allowlist_marker_prefix_and_is_idempotent(self):
+        report_id = "sales-whatsapp-window-report:2026-05-13:test"
+        with tempfile.TemporaryDirectory() as ledger_dir, patch.dict(
+            os.environ,
+            {
+                "NURTUREANY_OPERATION_LEDGER_DIR": ledger_dir,
+                "NURTUREANY_REPORT_DELIVERY_CHANNEL_IDS": "C123",
+                "SLACK_BOT_TOKEN": "fake-slack-token",
+            },
+        ), patch.object(self.module, "_slack_chat_post_message", return_value={"ok": True, "channel": "C123", "ts": "1778814885.096909"}) as post:
+            first = self.module.post_generated_sales_report(
+                report_id,
+                "C123",
+                "approved report send",
+                "sg-my:2026-05-13:09:30-10:30",
+                self._markdown(report_id),
+            )
+            second = self.module.post_generated_sales_report(
+                report_id,
+                "C123",
+                "approved report send",
+                "sg-my:2026-05-13:09:30-10:30",
+                self._markdown(report_id),
+            )
+
+        self.assertEqual(first["confidence"], "verified")
+        self.assertEqual(first["answer"]["delivery_status"], "posted")
+        self.assertTrue(second["answer"]["already_posted"])
+        self.assertEqual(post.call_count, 1)
+
+    def test_delivery_blocks_not_in_channel_without_fallback(self):
+        report_id = "sales-whatsapp-window-report:2026-05-13:test"
+        with tempfile.TemporaryDirectory() as ledger_dir, patch.dict(
+            os.environ,
+            {
+                "NURTUREANY_OPERATION_LEDGER_DIR": ledger_dir,
+                "NURTUREANY_REPORT_DELIVERY_CHANNEL_IDS": "C123",
+                "SLACK_BOT_TOKEN": "fake-slack-token",
+            },
+        ), patch.object(self.module, "_slack_chat_post_message", return_value={"ok": False, "error": "not_in_channel"}):
+            result = self.module.post_generated_sales_report(
+                report_id,
+                "C123",
+                "approved report send",
+                "sg-my:2026-05-13:09:30-10:30",
+                self._markdown(report_id),
+            )
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertEqual(result["answer"]["delivery_status"], "blocked_not_in_channel")
+        self.assertIn("Invite the NurtureAny Slack bot", result["answer"]["remediation"])
+        self.assertIn("No user-token or Slack connector fallback", result["caveat"])
+
+    def test_delivery_rejects_freeform_raw_or_unallowlisted_payloads(self):
+        report_id = "sales-whatsapp-window-report:2026-05-13:test"
+        with tempfile.TemporaryDirectory() as ledger_dir, patch.dict(
+            os.environ,
+            {"NURTUREANY_OPERATION_LEDGER_DIR": ledger_dir, "NURTUREANY_REPORT_DELIVERY_CHANNEL_IDS": "C123", "SLACK_BOT_TOKEN": "fake-slack-token"},
+        ), patch.object(self.module, "_slack_chat_post_message", side_effect=AssertionError("unsafe payload should not post")):
+            freeform = self.module.post_generated_sales_report(report_id, "C123", "approved", "key-1", "hello team")
+            raw = self.module.post_generated_sales_report(
+                report_id,
+                "C123",
+                "approved",
+                "key-2",
+                self._markdown(report_id) + '\n{"properties": {"hs_communication_body": "hello", "phone": "+65 9123 4567"}}',
+            )
+            channel = self.module.post_generated_sales_report(report_id, "C999", "approved", "key-3", self._markdown(report_id))
+
+        self.assertEqual(freeform["confidence"], "blocked")
+        self.assertEqual(raw["confidence"], "blocked")
+        self.assertEqual(channel["confidence"], "blocked")
 
 
 class HubSpotNurtureAnyServerTest(unittest.TestCase):
@@ -1162,12 +2191,12 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
             "aliases": {},
         }
         calls = [
-            {"id": "call-60", "properties": {"hs_timestamp": "2026-05-14T06:10:00Z", "hubspot_owner_id": "owner-1", "hs_call_status": "COMPLETED", "hs_call_duration": "60000"}},
-            {"id": "call-61", "properties": {"hs_timestamp": "2026-05-14T06:20:00Z", "hubspot_owner_id": "owner-1", "hs_call_status": "COMPLETED", "hs_call_duration": "61000"}},
-            {"id": "call-119", "properties": {"hs_timestamp": "2026-05-14T06:30:00Z", "hubspot_owner_id": "owner-1", "hs_call_status": "COMPLETED", "hs_call_duration": "119000"}},
-            {"id": "call-120", "properties": {"hs_timestamp": "2026-05-14T06:40:00Z", "hubspot_owner_id": "owner-1", "hs_call_status": "COMPLETED", "hs_call_duration": "120000"}},
-            {"id": "call-done", "properties": {"hs_timestamp": "2026-05-14T06:50:00Z", "hubspot_owner_id": "owner-1", "hs_call_status": "DONE", "hs_call_duration": "130000"}},
-            {"id": "call-scheduled", "properties": {"hs_timestamp": "2026-05-14T06:55:00Z", "hubspot_owner_id": "owner-1", "hs_call_status": "SCHEDULED", "hs_call_duration": "300000"}},
+            {"id": "call-60", "properties": {"hs_timestamp": "2026-05-14T06:10:00Z", "hubspot_owner_id": "owner-1", "hs_call_status": "COMPLETED", "hs_call_direction": "OUTBOUND", "hs_call_duration": "60000"}},
+            {"id": "call-61", "properties": {"hs_timestamp": "2026-05-14T06:20:00Z", "hubspot_owner_id": "owner-1", "hs_call_status": "COMPLETED", "hs_call_direction": "OUTBOUND", "hs_call_duration": "61000"}},
+            {"id": "call-119", "properties": {"hs_timestamp": "2026-05-14T06:30:00Z", "hubspot_owner_id": "owner-1", "hs_call_status": "COMPLETED", "hs_call_direction": "OUTBOUND", "hs_call_duration": "119000"}},
+            {"id": "call-120", "properties": {"hs_timestamp": "2026-05-14T06:40:00Z", "hubspot_owner_id": "owner-1", "hs_call_status": "COMPLETED", "hs_call_direction": "OUTBOUND", "hs_call_title": "Discovery call", "hs_call_duration": "120000"}},
+            {"id": "call-done", "properties": {"hs_timestamp": "2026-05-14T06:50:00Z", "hubspot_owner_id": "owner-1", "hs_call_status": "DONE", "hs_call_direction": "OUTBOUND", "hs_call_title": "Follow-up call", "hs_call_duration": "130000"}},
+            {"id": "call-scheduled", "properties": {"hs_timestamp": "2026-05-14T06:55:00Z", "hubspot_owner_id": "owner-1", "hs_call_status": "SCHEDULED", "hs_call_direction": "OUTBOUND", "hs_call_duration": "300000"}},
         ]
 
         def fake_object_search(object_type, filters, *_args, **_kwargs):
@@ -1205,6 +2234,8 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         self.assertEqual(result["answer"]["totals"]["completed_calls_gt_60s"], 4)
         self.assertEqual(result["answer"]["totals"]["completed_calls_exactly_60s_excluded_from_gt_60s"], 1)
         self.assertEqual(result["answer"]["totals"]["connected_calls_120s_guardrail"], 2)
+        self.assertEqual(result["answer"]["totals"]["outbound_connected_calls_120s_guardrail"], 1)
+        self.assertEqual(result["answer"]["totals"]["follow_up_calls_excluded_from_outbound_connected"], 1)
 
     def test_list_sales_call_events_shows_target_account_association_mode(self):
         policy = {
@@ -4386,6 +5417,7 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
             self.assertNotIn("hs_meeting_body", properties)
             if object_type == "calls":
                 self.assertIn("hs_call_external_id", properties)
+                self.assertIn("hs_call_direction", properties)
                 self.assertIn("hs_object_source_detail_1", properties)
                 return [
                     {
@@ -4394,6 +5426,7 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
                             "hs_timestamp": "2026-05-04T02:00:00Z",
                             "hubspot_owner_id": "owner-sales",
                             "hs_call_status": "COMPLETED",
+                            "hs_call_direction": "OUTBOUND",
                             "hs_call_duration": "119000",
                             "hs_call_title": "Call +6512345678",
                         },
@@ -4404,6 +5437,7 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
                             "hs_timestamp": "2026-05-04T03:00:00Z",
                             "hubspot_owner_id": "owner-sales",
                             "hs_call_status": "COMPLETED",
+                            "hs_call_direction": "OUTBOUND",
                             "hs_call_duration": "180000",
                             "hs_call_title": "Discovery call",
                             "hs_call_external_id": "3770565512",
@@ -4417,6 +5451,7 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
                             "hs_timestamp": "2026-05-04T04:00:00Z",
                             "hubspot_owner_id": "owner-sales",
                             "hs_call_status": "SCHEDULED",
+                            "hs_call_direction": "OUTBOUND",
                             "hs_call_duration": "300000",
                         },
                     },
@@ -4465,6 +5500,119 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         self.assertEqual(connected["aircall_call_id"], "3770565512")
         self.assertNotIn("+6512345678", json.dumps(result))
         self.assertNotIn("body", json.dumps(result).lower())
+
+    def test_meaningful_call_touch_requires_outbound_non_follow_up(self):
+        meaningful = {
+            "properties": {
+                "hs_call_status": "COMPLETED",
+                "hs_call_direction": "OUTBOUND",
+                "hs_call_title": "Discovery call",
+            }
+        }
+        inbound = {
+            "properties": {
+                "hs_call_status": "COMPLETED",
+                "hs_call_direction": "INBOUND",
+                "hs_call_title": "Discovery call",
+            }
+        }
+        follow_up = {
+            "properties": {
+                "hs_call_status": "COMPLETED",
+                "hs_call_direction": "OUTBOUND",
+                "hs_call_title": "Follow-up call",
+            }
+        }
+        missing_direction = {"properties": {"hs_call_status": "COMPLETED", "hs_call_title": "Discovery call"}}
+
+        self.assertTrue(self.module._is_meaningful_call_touch(meaningful))
+        self.assertFalse(self.module._is_meaningful_call_touch(inbound))
+        self.assertFalse(self.module._is_meaningful_call_touch(follow_up))
+        self.assertFalse(self.module._is_meaningful_call_touch(missing_direction))
+
+    def test_week_activity_index_uses_bulk_owner_activity_search_for_large_pools(self):
+        companies = [
+            {
+                "id": str(index),
+                "properties": {"name": f"Account {index}", "hubspot_owner_id": "owner-1"},
+            }
+            for index in range(self.module.PRIORITY_ACCOUNT_BULK_ACTIVITY_INDEX_THRESHOLD)
+        ]
+        contact_index = {"10": ["contact-10"]}
+        deal_index = {"20": ["deal-20"]}
+        activities = {
+            "communications": [
+                {
+                    "id": "comm-1",
+                    "properties": {
+                        "hs_timestamp": "2026-05-12T02:00:00Z",
+                        "hubspot_owner_id": "owner-1",
+                        "hs_communication_channel_type": "WHATS_APP",
+                    },
+                }
+            ],
+            "calls": [
+                {
+                    "id": "call-1",
+                    "properties": {
+                        "hs_timestamp": "2026-05-12T03:00:00Z",
+                        "hubspot_owner_id": "owner-1",
+                        "hs_call_status": "COMPLETED",
+                        "hs_call_direction": "OUTBOUND",
+                        "hs_call_duration": "130000",
+                    },
+                }
+            ],
+            "meetings": [
+                {
+                    "id": "meeting-1",
+                    "properties": {
+                        "hs_timestamp": "2026-05-12T04:00:00Z",
+                        "hubspot_owner_id": "owner-1",
+                        "hs_meeting_outcome": "COMPLETED",
+                    },
+                }
+            ],
+        }
+
+        def fake_object_search(object_type, filters, *_args, **_kwargs):
+            self.assertIn({"propertyName": "hubspot_owner_id", "operator": "EQ", "value": "owner-1"}, filters)
+            return {
+                "results": activities.get(object_type, []),
+                "total": len(activities.get(object_type, [])),
+                "requested_limit": 1000,
+                "returned_count": len(activities.get(object_type, [])),
+                "has_more": False,
+                "truncated": False,
+            }
+
+        def fake_batch_associations(from_type, to_type, ids, deadline=None):
+            self.assertNotEqual(from_type, "companies")
+            if (from_type, to_type) == ("communications", "contacts"):
+                return {"comm-1": ["contact-10"]}
+            if (from_type, to_type) == ("calls", "companies"):
+                return {"call-1": ["10"]}
+            if (from_type, to_type) == ("meetings", "deals"):
+                return {"meeting-1": ["deal-20"]}
+            return {str(object_id): [] for object_id in ids}
+
+        with patch.object(self.module, "_object_search", side_effect=fake_object_search), patch.object(
+            self.module, "_batch_association_ids_until", side_effect=fake_batch_associations
+        ):
+            result = self.module._week_activity_index_for_companies(
+                companies,
+                contact_index,
+                deal_index,
+                self.module.datetime.fromisoformat("2026-05-11T00:00:00+00:00"),
+                self.module.datetime.fromisoformat("2026-05-15T23:59:59+00:00"),
+            )
+
+        self.assertEqual(result["10"]["counts"]["touches"], 2)
+        self.assertEqual(result["10"]["counts"]["whatsapp_communications"], 1)
+        self.assertEqual(result["10"]["counts"]["connected_calls"], 1)
+        self.assertEqual(result["20"]["counts"]["touches"], 1)
+        self.assertEqual(result["20"]["counts"]["completed_meetings"], 1)
+        self.assertEqual(result["10"]["confidence"], "verified")
 
     def test_priority_account_coverage_reports_hits_misses_stale_dirty_and_truncation(self):
         companies = [
@@ -4733,6 +5881,206 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         self.assertTrue(result["truncated"])
         self.assertEqual(result["tasks_by_company"], {"1": []})
         self.assertTrue(result["metadata"]["partial_due_to_soft_timeout"])
+
+    def test_priority_account_coverage_returns_owner_rows_on_soft_timeout(self):
+        companies = [
+            {
+                "id": str(index),
+                "properties": {
+                    "name": f"Jeffrey Account {index}",
+                    "hs_is_target_account": "true",
+                    "company_country": "Singapore",
+                    "hubspot_owner_id": "owner-jeffrey",
+                    "nurtureany_priority_score": str(index),
+                },
+            }
+            for index in range(150)
+        ]
+
+        with patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
+            self.module,
+            "_target_owner_id_for_scope",
+            return_value=("owner-jeffrey", "jeffrey@staffany.com"),
+        ), patch.object(
+            self.module,
+            "_hubspot_soft_deadline",
+            return_value=self.module.time.monotonic() - 1,
+        ), patch.object(
+            self.module,
+            "_company_search",
+            return_value={
+                "results": companies,
+                "total": 595,
+                "requested_limit": 150,
+                "returned_count": 150,
+                "has_more": True,
+                "truncated": True,
+            },
+        ), patch.object(
+            self.module,
+            "_batch_read",
+            side_effect=AssertionError("expired deadline should skip batch reads"),
+        ), patch.object(
+            self.module,
+            "_week_activity_index_for_companies",
+            side_effect=AssertionError("expired deadline should skip activity fanout"),
+        ):
+            result = self.module.audit_priority_account_coverage(
+                "eugene@staffany.com",
+                countries=["Singapore", "Malaysia"],
+                owner_email="jeffrey@staffany.com",
+                week_start="2026-05-11",
+                week_end="2026-05-15",
+                limit=150,
+                soft_timeout_seconds=30,
+            )
+
+        self.assertEqual(result["confidence"], "needs-check")
+        self.assertTrue(result["partial_due_to_soft_timeout"])
+        self.assertEqual(result["returned_count"], 150)
+        self.assertEqual(result["total"], 595)
+        self.assertEqual(len(result["answer"]["owners"]), 1)
+        owner = result["answer"]["owners"][0]
+        self.assertEqual(owner["owner_id"], "owner-jeffrey")
+        self.assertEqual(owner["locked_pool_count"], 150)
+        self.assertEqual(owner["evidence_completeness"], "needs-check")
+        self.assertTrue(owner["activity_truncated"])
+
+    def test_priority_account_coverage_selects_deterministic_top_150_per_owner(self):
+        companies = [
+            {
+                "id": f"{index:03d}",
+                "properties": {
+                    "name": f"Account {index:03d}",
+                    "hs_is_target_account": "true",
+                    "company_country": "Singapore",
+                    "hubspot_owner_id": "owner-1",
+                    "numberofemployees": "80",
+                    "nurtureany_priority_score": str(index),
+                },
+            }
+            for index in range(1, 161)
+        ]
+
+        def fake_company_search(filters, limit, **_kwargs):
+            self.assertEqual(limit, self.module.PRIORITY_ACCOUNT_RETURN_LIMIT)
+            self.assertIn({"propertyName": "numberofemployees", "operator": "GTE", "value": "21"}, filters)
+            return {
+                "results": companies,
+                "total": 160,
+                "requested_limit": limit,
+                "returned_count": 160,
+                "has_more": False,
+                "truncated": False,
+            }
+
+        empty_activity = {company["id"]: self.module._empty_week_activity() for company in companies}
+        with patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
+            self.module, "_target_owner_id_for_scope", return_value=("owner-1", "ae@example.com")
+        ), patch.object(self.module, "_company_search", side_effect=fake_company_search), patch.object(
+            self.module, "_batch_association_ids_until", return_value={}
+        ), patch.object(self.module, "_safe_contact_index", return_value={}), patch.object(
+            self.module, "_week_activity_index_for_companies", return_value=empty_activity
+        ), patch.object(
+            self.module,
+            "_sales_followup_task_index_for_company_associations",
+            return_value={"tasks_by_company": {}, "truncated": False, "partial_due_to_soft_timeout": False},
+        ), patch.object(
+            self.module, "_owner_lookup_by_id", return_value={"owner-1": {"id": "owner-1", "email": "ae@example.com", "firstName": "AE"}}
+        ):
+            result = self.module._priority_account_coverage(
+                "eugene@staffany.com",
+                countries=["Singapore"],
+                owner_email="ae@example.com",
+                week_start="2026-05-11",
+                week_end="2026-05-15",
+                limit=150,
+                include_internal=True,
+                headcount_min=21,
+            )
+
+        selected_ids = [company["id"] for company in result["_internal"]["companies"]]
+        self.assertEqual(len(selected_ids), 150)
+        self.assertEqual(selected_ids[0], "160")
+        self.assertEqual(selected_ids[-1], "011")
+        self.assertNotIn("010", selected_ids)
+        self.assertEqual(result["scope"]["target_pool_selection"]["per_owner_limit"], 150)
+        self.assertEqual(result["scope"]["target_pool_selection"]["owners"]["owner-1"]["candidate_count_after_filters"], 160)
+
+    def test_priority_account_coverage_intersects_pipeline_stage_deal_bucket(self):
+        companies = [
+            {
+                "id": "1",
+                "properties": {
+                    "name": "High Priority No Deal",
+                    "hs_is_target_account": "true",
+                    "company_country": "Singapore",
+                    "hubspot_owner_id": "owner-1",
+                    "nurtureany_priority_score": "100",
+                },
+            },
+            {
+                "id": "2",
+                "properties": {
+                    "name": "Lower Priority In Deal Bucket",
+                    "hs_is_target_account": "true",
+                    "company_country": "Singapore",
+                    "hubspot_owner_id": "owner-1",
+                    "nurtureany_priority_score": "1",
+                },
+            },
+        ]
+
+        def fake_deal_search(filters, *_args, **_kwargs):
+            self.assertIn({"propertyName": "hubspot_owner_id", "operator": "EQ", "value": "owner-1"}, filters)
+            self.assertIn({"propertyName": "pipeline", "operator": "IN", "values": ["pipeline-a"]}, filters)
+            self.assertIn({"propertyName": "dealstage", "operator": "IN", "values": ["stage-qo"]}, filters)
+            return {
+                "results": [{"id": "deal-2", "properties": {"hubspot_owner_id": "owner-1", "pipeline": "pipeline-a", "dealstage": "stage-qo"}}],
+                "total": 1,
+                "requested_limit": 1000,
+                "returned_count": 1,
+                "has_more": False,
+                "truncated": False,
+            }
+
+        def fake_associations(from_type, to_type, ids, deadline=None):
+            if (from_type, to_type) == ("deals", "companies"):
+                return {"deal-2": ["2"]}
+            return {str(object_id): [] for object_id in ids}
+
+        with patch.object(self.module, "_caller_scope", return_value=SCOPE), patch.object(
+            self.module, "_target_owner_id_for_scope", return_value=("owner-1", "ae@example.com")
+        ), patch.object(
+            self.module,
+            "_company_search",
+            return_value={"results": companies, "total": 2, "requested_limit": 1000, "returned_count": 2, "has_more": False, "truncated": False},
+        ), patch.object(self.module, "_deal_search", side_effect=fake_deal_search), patch.object(
+            self.module, "_batch_association_ids_until", side_effect=fake_associations
+        ), patch.object(self.module, "_safe_contact_index", return_value={}), patch.object(
+            self.module, "_week_activity_index_for_companies", return_value={"2": self.module._empty_week_activity()}
+        ), patch.object(
+            self.module,
+            "_sales_followup_task_index_for_company_associations",
+            return_value={"tasks_by_company": {}, "truncated": False, "partial_due_to_soft_timeout": False},
+        ), patch.object(
+            self.module, "_owner_lookup_by_id", return_value={"owner-1": {"id": "owner-1", "email": "ae@example.com", "firstName": "AE"}}
+        ):
+            result = self.module._priority_account_coverage(
+                "eugene@staffany.com",
+                countries=["Singapore"],
+                owner_email="ae@example.com",
+                week_start="2026-05-11",
+                week_end="2026-05-15",
+                include_internal=True,
+                pipeline_ids=["pipeline-a"],
+                dealstage_ids=["stage-qo"],
+            )
+
+        self.assertEqual([company["id"] for company in result["_internal"]["companies"]], ["2"])
+        deal_filter = result["scope"]["target_pool_selection"]["owners"]["owner-1"]["deal_filter"]
+        self.assertTrue(deal_filter["applied"])
+        self.assertEqual(deal_filter["company_count"], 1)
 
     def test_ae_can_audit_self_but_not_another_owner(self):
         ae_scope = {"kind": "ae", "email": "ae@staffany.com", "countries": ("Singapore",), "owner_id": "owner-ae"}
@@ -5250,6 +6598,163 @@ class HubSpotNurtureAnyServerTest(unittest.TestCase):
         self.assertNotIn("+6511111111", payload)
         self.assertNotIn("+6599999999", payload)
         self.assertNotIn("company-out", payload)
+
+    def test_luma_match_keys_builds_event_action_pack_from_attendee_records(self):
+        target_company = {
+            "id": "company-contact",
+            "properties": {
+                "name": "Exact Cafe",
+                "domain": "exact.example",
+                "hs_is_target_account": "true",
+                "company_country": "Singapore",
+                "hubspot_owner_id": "owner-sales",
+                "type": "CUSTOMER",
+            },
+        }
+        name_candidate_company = {
+            "id": "company-name",
+            "properties": {
+                "name": "Candidate Cafe",
+                "domain": "candidate.example",
+                "hs_is_target_account": "true",
+                "company_country": "Singapore",
+                "hubspot_owner_id": "owner-sales",
+                "lifecyclestage": "opportunity",
+            },
+        }
+        outside_company = {
+            "id": "company-out",
+            "properties": {
+                "name": "Outside Cafe",
+                "domain": "out.example",
+                "hs_is_target_account": "false",
+                "company_country": "Singapore",
+                "hubspot_owner_id": "owner-sales",
+            },
+        }
+        known_domain_company = {
+            "id": "company-known",
+            "properties": {
+                "name": "Known Domain Existing Company",
+                "domain": "known.example",
+                "hs_is_target_account": "false",
+                "company_country": "Singapore",
+                "hubspot_owner_id": "owner-sales",
+            },
+        }
+        contacts = {
+            "owner@exact.example": [{"id": "contact-1", "properties": {"email": "owner@exact.example"}}],
+            "outside@out.example": [{"id": "contact-out", "properties": {"email": "outside@out.example"}}],
+            "pending@exact.example": [{"id": "contact-pending", "properties": {"email": "pending@exact.example"}}],
+        }
+
+        def fake_contact_search(email, limit=10):
+            return contacts.get(email, [])
+
+        def fake_association_ids(from_type, object_id, to_type, limit=20):
+            return {
+                "contact-1": ["company-contact"],
+                "contact-out": ["company-out"],
+                "contact-pending": ["company-contact"],
+            }.get(object_id, [])
+
+        def fake_get_company(company_id):
+            return {
+                "company-contact": target_company,
+                "company-out": outside_company,
+                "company-known": known_domain_company,
+            }[company_id]
+
+        def fake_company_search(filters, limit=5, after=None, maximum=None, sorts=None, query=None):
+            if any(item.get("propertyName") == "hs_is_target_account" for item in filters):
+                return {
+                    "results": [target_company, name_candidate_company],
+                    "total": 2,
+                    "requested_limit": limit,
+                    "returned_count": 2,
+                    "has_more": False,
+                    "truncated": False,
+                }
+            if {"propertyName": "domain", "operator": "EQ", "value": "known.example"} in filters:
+                return {
+                    "results": [known_domain_company],
+                    "total": 1,
+                    "requested_limit": limit,
+                    "returned_count": 1,
+                    "has_more": False,
+                    "truncated": False,
+                }
+            return {"results": [], "total": 0, "requested_limit": limit, "returned_count": 0, "has_more": False, "truncated": False}
+
+        attendee_records = [
+            {"contact_email_match_key": "owner@exact.example", "email_domain": "exact.example", "rsvp_status": "approved"},
+            {"contact_email_match_key": "outside@out.example", "email_domain": "out.example", "rsvp_status": "approved"},
+            {"email_domain": "known.example", "rsvp_status": "approved"},
+            {
+                "contact_email_match_key": "person@gmail.com",
+                "email_domain": "gmail.com",
+                "email_domain_type": "personal_or_free_email",
+                "company_name_candidates": ["No Match Cafe"],
+                "rsvp_status": "approved",
+            },
+            {"company_name_candidates": ["Candidate Cafe"], "rsvp_status": "approved"},
+            {"contact_email_match_key": "pending@exact.example", "email_domain": "exact.example", "rsvp_status": "pending_approval"},
+        ]
+
+        with patch.object(self.module, "_caller_scope", return_value=EVENT_OPERATOR_SCOPE), patch.object(
+            self.module, "_contact_search_by_email", side_effect=fake_contact_search
+        ), patch.object(
+            self.module, "_association_ids", side_effect=fake_association_ids
+        ), patch.object(
+            self.module, "_get_company", side_effect=fake_get_company
+        ), patch.object(
+            self.module, "_company_search", side_effect=fake_company_search
+        ), patch.object(
+            self.module,
+            "_owner_by_id",
+            return_value={"id": "owner-sales", "email": "sales.owner@staffany.com", "firstName": "Sales", "lastName": "Owner"},
+        ):
+            result = self.module.find_target_accounts_by_luma_match_keys(
+                "jan-e@staffany.com",
+                attendee_records=attendee_records,
+                event={"event_id": "evt-1", "name": "AI Workshop", "end_at": "2030-05-19T13:30:00Z"},
+                countries=["Singapore"],
+                source_run_link="https://staffany.slack.com/archives/C0B2UGK4DB6/p1779057689264659",
+                due_by="2026-05-20",
+            )
+
+        action_pack = result["event_action_pack"]
+        self.assertEqual(action_pack["summary"]["rsvp_truth"]["total"], 6)
+        self.assertEqual(
+            action_pack["summary"]["action_buckets"],
+            {
+                "Follow up now": 1,
+                "CRM cleanup": 1,
+                "Target-account review": 1,
+                "Net-new enrichment": 1,
+                "Defer/exclude": 2,
+            },
+        )
+        self.assertEqual(action_pack["summary"]["match_truth"]["attendee_level_verified_matched_count"], 1)
+        self.assertEqual(action_pack["summary"]["match_truth"]["approved_unmatched_or_needs_action_count"], 4)
+        self.assertIn("not matched-account count subtraction", action_pack["summary"]["match_truth"]["method"])
+        sheet_payload = action_pack["sheet_export_payload"]
+        self.assertEqual(sheet_payload["sheet_tab_name"], "Event Match Action Queue")
+        self.assertEqual(sheet_payload["columns"], self.module.EVENT_MATCH_ACTION_COLUMNS)
+        self.assertEqual(len(sheet_payload["rows"]), 6)
+        exact_row = sheet_payload["rows"][0]
+        self.assertEqual(exact_row["match_level"], "exact_contact_email")
+        self.assertEqual(exact_row["confidence"], "verified")
+        self.assertIn("/record/0-2/company-contact", exact_row["hubspot_company_link"])
+        self.assertIn("/record/0-1/contact-1", exact_row["hubspot_contact_link_if_exact_match"])
+        candidate_row = next(row for row in sheet_payload["rows"] if row["match_level"] == "company_name_candidate")
+        self.assertEqual(candidate_row["confidence"], "needs-check")
+        self.assertEqual(candidate_row["action_owner"], "event operator")
+        serialized_sheet = json.dumps(sheet_payload)
+        self.assertNotIn("owner@exact.example", serialized_sheet)
+        self.assertNotIn("outside@out.example", serialized_sheet)
+        self.assertNotIn("person@gmail.com", serialized_sheet)
+        self.assertNotIn("+65", serialized_sheet)
 
     def test_event_operator_luma_owner_filter_requires_classified_in_country_ae(self):
         captured = {}
