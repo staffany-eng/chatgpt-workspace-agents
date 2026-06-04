@@ -753,7 +753,8 @@ for (const requiredText of [
   "files.completeUploadExternal",
   "partial_match",
   "files:read",
-  "files:write"
+  "files:write",
+  "Hermes may omit attachment metadata"
 ]) {
   if (!googleGeocodeMcpText.includes(requiredText)) fail(`psm_google_geocode_server.py missing required text: ${requiredText}`);
 }
