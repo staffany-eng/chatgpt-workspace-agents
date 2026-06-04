@@ -210,17 +210,23 @@ if (!existsSync(manifestPath)) {
     for (const tool of actualStoreReviewTools) {
       if (!expectedStoreReviewTools.includes(tool)) fail(`Manifest has unexpected psm_store_reviews tool: ${tool}`);
     }
-    if (manifest.store_reviews?.google_play_package_name !== "com.staffany.pixie") {
-      fail("Manifest Store Reviews google_play_package_name must be com.staffany.pixie");
+    if (manifest.store_reviews?.provider !== "appfollow") {
+      fail("Manifest Store Reviews provider must be appfollow");
     }
-    if (manifest.store_reviews?.app_store_app_id !== "1360658903") {
-      fail("Manifest Store Reviews app_store_app_id must be 1360658903");
+    if (manifest.store_reviews?.appfollow_api_token_env_var !== "APPFOLLOW_API_TOKEN") {
+      fail("Manifest Store Reviews appfollow_api_token_env_var must be APPFOLLOW_API_TOKEN");
     }
-    if (manifest.store_reviews?.google_play_service_account_file_env_var !== "GOOGLE_PLAY_SERVICE_ACCOUNT_FILE") {
-      fail("Manifest Store Reviews google_play_service_account_file_env_var must be GOOGLE_PLAY_SERVICE_ACCOUNT_FILE");
+    if (manifest.store_reviews?.appfollow_credentials_file_env_var !== "PSM_OPS_APPFOLLOW_CREDENTIALS_FILE") {
+      fail("Manifest Store Reviews appfollow_credentials_file_env_var must be PSM_OPS_APPFOLLOW_CREDENTIALS_FILE");
     }
-    if (manifest.store_reviews?.app_store_connect_config_file_env_var !== "APP_STORE_CONNECT_CONFIG_FILE") {
-      fail("Manifest Store Reviews app_store_connect_config_file_env_var must be APP_STORE_CONNECT_CONFIG_FILE");
+    if (manifest.store_reviews?.default_appfollow_credentials_file !== "~/.staffany/appfollow/credentials.json") {
+      fail("Manifest Store Reviews default_appfollow_credentials_file must be ~/.staffany/appfollow/credentials.json");
+    }
+    if (manifest.store_reviews?.expected_credentials_json_key !== "appfollow_api_token") {
+      fail("Manifest Store Reviews expected_credentials_json_key must be appfollow_api_token");
+    }
+    if (manifest.store_reviews?.required_permission !== "Read") {
+      fail("Manifest Store Reviews required_permission must be Read");
     }
     if (manifest.store_reviews?.state_key !== "store + app_ref + review_id") {
       fail("Manifest Store Reviews state_key must be store + app_ref + review_id");
@@ -461,16 +467,13 @@ for (const requiredText of [
   "google_geocoding_api_key",
   "geocode_slack_addresses",
   "geocode_slack_address_file",
-  "PSM_OPS_GOOGLE_PLAY_PACKAGE_NAME",
-  "GOOGLE_PLAY_SERVICE_ACCOUNT_FILE",
-  "GOOGLE_PLAY_SERVICE_ACCOUNT_JSON",
-  "PSM_OPS_APP_STORE_APP_ID",
-  "APP_STORE_CONNECT_CONFIG_FILE",
-  "APP_STORE_CONNECT_CONFIG_JSON",
-  "APP_STORE_CONNECT_ISSUER_ID",
-  "APP_STORE_CONNECT_KEY_ID",
-  "APP_STORE_CONNECT_PRIVATE_KEY_FILE",
-  "APP_STORE_CONNECT_PRIVATE_KEY",
+  "appfollow_reviews_api",
+  "APPFOLLOW_API_TOKEN",
+  "PSM_OPS_APPFOLLOW_CREDENTIALS_FILE",
+  "APPFOLLOW_CREDENTIALS_FILE",
+  "APPFOLLOW_EXT_IDS",
+  "APPFOLLOW_COLLECTION_NAME",
+  "appfollow_api_token",
   "list_store_review_apps",
   "list_store_reviews",
   "draft_store_review_reply",
@@ -857,10 +860,14 @@ for (const requiredText of [
   "draft_store_review_reply",
   "suggest_store_review_identity_candidates",
   "confirm_store_review_identity",
-  "GOOGLE_PLAY_SERVICE_ACCOUNT_FILE",
-  "GOOGLE_PLAY_SERVICE_ACCOUNT_JSON",
-  "APP_STORE_CONNECT_CONFIG_FILE",
-  "APP_STORE_CONNECT_CONFIG_JSON",
+  "AppFollow Reviews API",
+  "APPFOLLOW_API_TOKEN",
+  "PSM_OPS_APPFOLLOW_CREDENTIALS_FILE",
+  "APPFOLLOW_CREDENTIALS_FILE",
+  "APPFOLLOW_EXT_IDS",
+  "APPFOLLOW_COLLECTION_NAME",
+  "appfollow_api_token",
+  "Read",
   "psm_ops_store_review_poll.py",
   "support@staffany.com",
   "V1 is draft-only",
@@ -884,14 +891,14 @@ for (const requiredText of [
 
 const storeReviewsCoreText = textOf(appRoot, "runtime/mcp/store_reviews_core.py");
 for (const requiredText of [
-  "GOOGLE_PLAY_SERVICE_ACCOUNT_JSON",
-  "GOOGLE_PLAY_SERVICE_ACCOUNT_FILE",
-  "APP_STORE_CONNECT_CONFIG_JSON",
-  "APP_STORE_CONNECT_CONFIG_FILE",
-  "APP_STORE_CONNECT_ISSUER_ID",
-  "APP_STORE_CONNECT_KEY_ID",
-  "APP_STORE_CONNECT_PRIVATE_KEY_FILE",
-  "APP_STORE_CONNECT_PRIVATE_KEY",
+  "AppFollow Reviews API",
+  "APPFOLLOW_API_TOKEN",
+  "PSM_OPS_APPFOLLOW_CREDENTIALS_FILE",
+  "APPFOLLOW_CREDENTIALS_FILE",
+  "APPFOLLOW_EXT_IDS",
+  "APPFOLLOW_COLLECTION_NAME",
+  "appfollow_api_token",
+  "X-AppFollow-API-Token",
   "support@staffany.com",
   "identity_requested_private",
   "confirm_store_review_identity",
@@ -939,10 +946,11 @@ for (const requiredText of [
   "GOOGLE_GEOCODING_API_KEY",
   "psm_google_geocode.geocode_slack_addresses",
   "psm_google_geocode.geocode_slack_address_file",
-  "GOOGLE_PLAY_SERVICE_ACCOUNT_FILE",
-  "GOOGLE_PLAY_SERVICE_ACCOUNT_JSON",
-  "APP_STORE_CONNECT_CONFIG_FILE",
-  "APP_STORE_CONNECT_CONFIG_JSON",
+  "APPFOLLOW_API_TOKEN",
+  "PSM_OPS_APPFOLLOW_CREDENTIALS_FILE",
+  "APPFOLLOW_EXT_IDS",
+  "APPFOLLOW_COLLECTION_NAME",
+  "appfollow_api_token",
   "psm_store_reviews",
   "psm_ops_store_review_poll.py",
   "psmopsbot store review poll",
@@ -1014,11 +1022,14 @@ for (const requiredText of [
   "GEOCODE_CREDENTIALS_FILE",
   "google_geocode:credentials-file-unreadable",
   "google_geocode:api-key-missing",
-  "dependency:openssl:not-found",
-  "GOOGLE_PLAY_SERVICE_ACCOUNT_FILE",
-  "APP_STORE_CONNECT_CONFIG_FILE",
-  "store_reviews:google-play-credentials-missing",
-  "store_reviews:app-store-private-key-missing",
+  "APPFOLLOW_API_TOKEN",
+  "PSM_OPS_APPFOLLOW_CREDENTIALS_FILE",
+  "APPFOLLOW_CREDENTIALS_FILE",
+  "APPFOLLOW_EXT_IDS",
+  "APPFOLLOW_COLLECTION_NAME",
+  "store_reviews:appfollow-credentials-file-unreadable",
+  "store_reviews:appfollow-api-token-missing",
+  "store_reviews:appfollow-app-refs-missing",
   "psmopsbot store review poll",
   "psm_ops_store_review_poll.py"
 ]) {

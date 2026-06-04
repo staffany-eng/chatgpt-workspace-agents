@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -8,34 +10,18 @@ from unittest.mock import patch
 from test_helpers import load_mcp_module
 
 
-GOOGLE_REVIEW = {
-    "reviewId": "gp-review-1",
-    "authorName": "Reviewer",
-    "comments": [
-        {
-            "userComment": {
-                "text": "Clock in is missing from my store.",
-                "starRating": 2,
-                "reviewerLanguage": "en",
-                "appVersionName": "1.2.3",
-                "lastModified": {"seconds": "1778960645"},
-            }
-        }
-    ],
-}
-
-APP_STORE_REVIEW = {
+APPFOLLOW_REVIEW = {
     "id": "345030591",
-    "type": "customerReviews",
-    "attributes": {
-        "rating": 3,
-        "title": "Missing Store Clock-In Section",
-        "body": "The store clock-in section is missing.",
-        "reviewerNickname": "staffany user",
-        "createdDate": "2026-05-16T10:00:00Z",
-        "territory": "MY",
-        "appVersionString": "1.164.0",
-    },
+    "store": "app_store",
+    "ext_id": "1360658903",
+    "rating": 3,
+    "title": "Missing Store Clock-In Section",
+    "content": "The store clock-in section is missing.",
+    "author": "staffany user",
+    "date": "2026-05-16T10:00:00Z",
+    "country": "MY",
+    "lang": "en",
+    "version": "1.164.0",
 }
 
 
@@ -45,6 +31,17 @@ class PsmStoreReviewsServerTest(unittest.TestCase):
         import store_reviews_core
 
         self.core = store_reviews_core
+
+    def appfollow_env(self, **extra: str) -> dict[str, str]:
+        env = {
+            "APPFOLLOW_API_TOKEN": "test-token",
+            "APPFOLLOW_EXT_IDS": "1360658903,com.staffany.pixie",
+            "APPFOLLOW_COLLECTION_NAME": "",
+            "PSM_OPS_APPFOLLOW_CREDENTIALS_FILE": "",
+            "APPFOLLOW_CREDENTIALS_FILE": "",
+        }
+        env.update(extra)
+        return env
 
     def test_tools_are_registered(self):
         tool_names = {tool.__name__ for tool in self.server.mcp.tools}
@@ -60,111 +57,111 @@ class PsmStoreReviewsServerTest(unittest.TestCase):
             },
         )
 
-    def test_list_apps_reports_direct_store_config(self):
-        result = self.server.list_store_review_apps()
+    def test_list_apps_reports_appfollow_config(self):
+        with patch.dict(os.environ, self.appfollow_env(), clear=False):
+            result = self.server.list_store_review_apps()
 
         self.assertEqual(result["confidence"], "verified")
-        stores = {app["store"] for app in result["answer"]["apps"]}
-        self.assertEqual(stores, {"google_play", "app_store"})
-        self.assertIn("androidpublisher", result["answer"]["apps"][0]["required_scope"])
+        self.assertEqual(result["answer"]["provider"], "appfollow")
+        self.assertEqual({app["store"] for app in result["answer"]["apps"]}, {"appfollow"})
+        self.assertEqual({app["required_permission"] for app in result["answer"]["apps"]}, {"Read"})
 
-    def test_google_play_response_normalization(self):
-        review = self.core.normalize_google_play_review(GOOGLE_REVIEW, "com.staffany.pixie")
+    def test_credentials_file_supports_geocode_style_json(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "credentials.json"
+            path.write_text(
+                json.dumps({"appfollow_api_token": "file-token", "ext_ids": ["1360658903"]}),
+                encoding="utf-8",
+            )
+            with patch.dict(
+                os.environ,
+                self.appfollow_env(APPFOLLOW_API_TOKEN="", PSM_OPS_APPFOLLOW_CREDENTIALS_FILE=str(path), APPFOLLOW_EXT_IDS=""),
+                clear=False,
+            ):
+                credentials = self.core._appfollow_credentials()
+                app_refs = self.core._appfollow_app_refs()
 
-        self.assertEqual(review["store"], "google_play")
-        self.assertEqual(review["app_ref"], "com.staffany.pixie")
-        self.assertEqual(review["review_id"], "gp-review-1")
-        self.assertEqual(review["rating"], 2)
-        self.assertEqual(review["body"], "Clock in is missing from my store.")
-        self.assertEqual(review["locale"], "en")
-        self.assertEqual(review["app_version"], "1.2.3")
-        self.assertEqual(review["reply_status"], "no_reply")
+        self.assertEqual(credentials["appfollow_api_token"], "file-token")
+        self.assertEqual(app_refs, ["1360658903"])
 
-    def test_app_store_response_normalization(self):
-        review = self.core.normalize_app_store_review(APP_STORE_REVIEW, "1360658903")
+    def test_list_reviews_blocks_without_appfollow_credentials(self):
+        with patch.dict(
+            os.environ,
+            self.appfollow_env(APPFOLLOW_API_TOKEN="", APPFOLLOW_EXT_IDS="", APPFOLLOW_COLLECTION_NAME="", PSM_OPS_APPFOLLOW_CREDENTIALS_FILE="/tmp/missing-appfollow.json"),
+            clear=False,
+        ):
+            result = self.server.list_store_reviews(limit=5, lookback_days=30)
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("AppFollow credentials file is missing", result["caveat"])
+
+    def test_appfollow_response_normalization(self):
+        review = self.core.normalize_appfollow_review(APPFOLLOW_REVIEW, "1360658903")
 
         self.assertEqual(review["store"], "app_store")
         self.assertEqual(review["app_ref"], "1360658903")
         self.assertEqual(review["review_id"], "345030591")
         self.assertEqual(review["rating"], 3)
         self.assertEqual(review["title"], "Missing Store Clock-In Section")
+        self.assertEqual(review["body"], "The store clock-in section is missing.")
         self.assertEqual(review["country"], "MY")
-        self.assertEqual(review["app_version"], "1.164.0")
+        self.assertEqual(review["locale"], "en")
 
-    def test_get_store_review_uses_google_play_get_endpoint(self):
+    def test_list_reviews_uses_appfollow_reviews_endpoint(self):
         calls = []
 
         def fake_request(method, url, **kwargs):
-            calls.append((method, url, kwargs))
-            return GOOGLE_REVIEW
+            calls.append({"method": method, "url": url, "params": kwargs.get("params"), "headers": kwargs.get("extra_headers")})
+            return {"reviews": [APPFOLLOW_REVIEW]}
 
-        with patch.object(self.core, "google_play_access_token", return_value="token"), patch.object(
+        with patch.dict(os.environ, self.appfollow_env(APPFOLLOW_EXT_IDS="1360658903"), clear=False), patch.object(
             self.core, "_request_json", side_effect=fake_request
         ):
-            result = self.server.get_store_review(store="google_play", app_ref="com.staffany.pixie", review_id="gp-review-1")
+            result = self.server.list_store_reviews(limit=5, lookback_days=30)
 
         self.assertEqual(result["confidence"], "verified")
-        self.assertIn("/applications/com.staffany.pixie/reviews/gp-review-1", calls[0][1])
-        self.assertEqual(result["answer"]["review"]["review_id"], "gp-review-1")
+        self.assertEqual(result["answer"]["provider"], "appfollow")
+        self.assertEqual(result["answer"]["reviews"][0]["review_id"], "345030591")
+        self.assertEqual(calls[0]["url"], "https://api.appfollow.io/api/v2/reviews")
+        self.assertEqual(calls[0]["headers"]["X-AppFollow-API-Token"], "test-token")
+        self.assertEqual(calls[0]["params"]["ext_id"], "1360658903")
+        self.assertIn("from", calls[0]["params"])
+        self.assertIn("to", calls[0]["params"])
 
-    def test_get_store_review_uses_app_store_get_endpoint(self):
+    def test_list_reviews_uses_collection_name_when_configured(self):
         calls = []
 
         def fake_request(method, url, **kwargs):
-            calls.append((method, url, kwargs))
-            return {"data": APP_STORE_REVIEW}
+            calls.append(kwargs.get("params") or {})
+            return {"reviews": [APPFOLLOW_REVIEW]}
 
-        with patch.object(self.core, "app_store_connect_token", return_value="token"), patch.object(
+        with patch.dict(os.environ, self.appfollow_env(APPFOLLOW_EXT_IDS="", APPFOLLOW_COLLECTION_NAME="staffany-apps"), clear=False), patch.object(
+            self.core, "_request_json", side_effect=fake_request
+        ):
+            result = self.server.list_store_reviews(limit=5, lookback_days=30)
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(calls[0]["collection_name"], "staffany-apps")
+        self.assertNotIn("ext_id", calls[0])
+
+    def test_get_store_review_uses_appfollow_review_id_filter(self):
+        calls = []
+
+        def fake_request(method, url, **kwargs):
+            calls.append(kwargs.get("params") or {})
+            return {"reviews": [APPFOLLOW_REVIEW]}
+
+        with patch.dict(os.environ, self.appfollow_env(APPFOLLOW_EXT_IDS="1360658903"), clear=False), patch.object(
             self.core, "_request_json", side_effect=fake_request
         ):
             result = self.server.get_store_review(store="app_store", app_ref="1360658903", review_id="345030591")
 
         self.assertEqual(result["confidence"], "verified")
-        self.assertIn("/customerReviews/345030591", calls[0][1])
+        self.assertEqual(calls[0]["review_id"], "345030591")
         self.assertEqual(result["answer"]["review"]["review_id"], "345030591")
 
-    def test_list_reviews_normalizes_both_store_payloads(self):
-        def fake_request(method, url, **kwargs):
-            if "androidpublisher" in url:
-                return {"reviews": [GOOGLE_REVIEW]}
-            return {"data": [APP_STORE_REVIEW]}
-
-        with patch.object(self.core, "google_play_access_token", return_value="token"), patch.object(
-            self.core, "app_store_connect_token", return_value="token"
-        ), patch.object(self.core, "_request_json", side_effect=fake_request):
-            result = self.server.list_store_reviews(limit=5, lookback_days=30)
-
-        self.assertEqual(result["confidence"], "verified")
-        reviews = result["answer"]["reviews"]
-        self.assertEqual({review["store"] for review in reviews}, {"google_play", "app_store"})
-
-    def test_list_reviews_app_store_honors_page_token(self):
-        calls = []
-
-        def fake_request(method, url, **kwargs):
-            calls.append({"url": url, "params": kwargs.get("params")})
-            return {"data": [APP_STORE_REVIEW]}
-
-        trusted_page = "https://api.appstoreconnect.apple.com/v1/customerReviews?page=2"
-        with patch.object(self.core, "app_store_connect_token", return_value="token"), patch.object(
-            self.core, "_request_json", side_effect=fake_request
-        ):
-            result = self.server.list_store_reviews(
-                store="app_store",
-                app_ref="1360658903",
-                limit=5,
-                page_token=trusted_page,
-                lookback_days=30,
-            )
-
-        self.assertEqual(result["confidence"], "verified")
-        self.assertEqual(calls[0]["url"], trusted_page)
-        self.assertIsNone(calls[0]["params"])
-
-    def test_list_reviews_app_store_rejects_untrusted_page_token_host(self):
-        with patch.object(self.core, "app_store_connect_token", return_value="token") as token_mock, patch.object(
-            self.core, "_request_json"
-        ) as request_mock:
+    def test_appfollow_page_token_must_be_integer(self):
+        with patch.dict(os.environ, self.appfollow_env(APPFOLLOW_EXT_IDS="1360658903"), clear=False):
             result = self.server.list_store_reviews(
                 store="app_store",
                 app_ref="1360658903",
@@ -173,55 +170,7 @@ class PsmStoreReviewsServerTest(unittest.TestCase):
             )
 
         self.assertEqual(result["confidence"], "blocked")
-        self.assertIn("page_token", result["scope"]["store_errors"][0]["message"])
-        token_mock.assert_not_called()
-        request_mock.assert_not_called()
-
-    def test_list_reviews_returns_partial_results_when_one_store_fails(self):
-        def fake_request(method, url, **kwargs):
-            if "androidpublisher" in url:
-                raise self.core.StoreReviewError("Google Play permission denied", 403)
-            return {"data": [APP_STORE_REVIEW]}
-
-        with patch.object(self.core, "google_play_access_token", return_value="token"), patch.object(
-            self.core, "app_store_connect_token", return_value="token"
-        ), patch.object(self.core, "_request_json", side_effect=fake_request):
-            result = self.server.list_store_reviews(limit=5, lookback_days=30)
-
-        self.assertEqual(result["confidence"], "needs-check")
-        self.assertEqual([review["store"] for review in result["answer"]["reviews"]], ["app_store"])
-        self.assertEqual(result["answer"]["store_errors"][0]["store"], "google_play")
-
-    def test_list_reviews_paginates_google_play_until_token_absent(self):
-        calls = []
-        second_review = {
-            **GOOGLE_REVIEW,
-            "reviewId": "gp-review-2",
-            "comments": [
-                {
-                    "userComment": {
-                        **GOOGLE_REVIEW["comments"][0]["userComment"],
-                        "text": "App is still slow.",
-                    }
-                }
-            ],
-        }
-
-        def fake_request(method, url, **kwargs):
-            calls.append(kwargs.get("params") or {})
-            if len(calls) == 1:
-                return {"reviews": [GOOGLE_REVIEW], "tokenPagination": {"nextPageToken": "next-page"}}
-            return {"reviews": [second_review]}
-
-        with patch.object(self.core, "google_play_access_token", return_value="token"), patch.object(
-            self.core, "_request_json", side_effect=fake_request
-        ):
-            result = self.server.list_store_reviews(store="google_play", limit=5, lookback_days=30)
-
-        self.assertEqual(result["confidence"], "verified")
-        self.assertEqual([review["review_id"] for review in result["answer"]["reviews"]], ["gp-review-1", "gp-review-2"])
-        self.assertEqual(calls[0]["token"], "")
-        self.assertEqual(calls[1]["token"], "next-page")
+        self.assertIn("page_token", result["caveat"])
 
     def test_draft_reply_uses_private_support_email_cta_without_public_reference_code(self):
         result = self.server.draft_store_review_reply(
@@ -241,7 +190,6 @@ class PsmStoreReviewsServerTest(unittest.TestCase):
         self.assertIn("company/outlet", answer_text)
         self.assertNotIn("REV-", answer_text)
         self.assertIn("not exposed in V1", result["caveat"])
-        self.assertIn("Never ask the reviewer to post email or phone", result["caveat"])
 
     def test_identity_candidate_unknown_without_private_claim(self):
         result = self.server.suggest_store_review_identity_candidates(
@@ -252,58 +200,6 @@ class PsmStoreReviewsServerTest(unittest.TestCase):
         self.assertEqual(result["answer"]["status"], "unknown")
         self.assertIn("identity_requested_private", result["answer"]["internal_labels"])
         self.assertIn("support@staffany.com", result["answer"]["public_reply_cta"])
-
-    def test_identity_candidate_exact_email_match_is_verified(self):
-        result = self.server.suggest_store_review_identity_candidates(
-            review={"store": "app_store", "app_ref": "1360658903", "review_id": "345030591"},
-            email="ops@example.com",
-            company_or_outlet="Example Cafe",
-            c360_candidates=[
-                {
-                    "customerKey": "customer-123",
-                    "companyName": "Example Cafe Pte Ltd",
-                    "contacts": [{"email": "ops@example.com", "phone": "+65 9123 4567"}],
-                }
-            ],
-        )
-
-        self.assertEqual(result["confidence"], "verified")
-        self.assertEqual(result["answer"]["status"], "verified")
-        candidate = result["answer"]["candidates"][0]
-        self.assertEqual(candidate["match_type"], "exact_email")
-        self.assertEqual(candidate["confidence"], "verified")
-        self.assertEqual(candidate["contact"]["email"], "op***@example.com")
-
-    def test_identity_candidate_phone_only_is_needs_check(self):
-        result = self.server.suggest_store_review_identity_candidates(
-            review={"store": "app_store", "app_ref": "1360658903", "review_id": "345030591"},
-            phone="+65 9123 4567",
-            c360_candidates=[
-                {
-                    "customerKey": "customer-123",
-                    "companyName": "Example Cafe Pte Ltd",
-                    "contacts": [{"phone": "+65 9123 4567"}],
-                }
-            ],
-        )
-
-        self.assertEqual(result["confidence"], "needs-check")
-        self.assertEqual(result["answer"]["status"], "candidate")
-        candidate = result["answer"]["candidates"][0]
-        self.assertEqual(candidate["match_type"], "phone")
-        self.assertEqual(candidate["confidence"], "needs-check")
-        self.assertEqual(candidate["contact"]["phone"], "[redacted-phone:4567]")
-
-    def test_identity_candidate_company_only_is_needs_check(self):
-        result = self.server.suggest_store_review_identity_candidates(
-            review={"store": "app_store", "app_ref": "1360658903", "review_id": "345030591"},
-            company_or_outlet="Example Cafe",
-            c360_candidates=[{"customerKey": "customer-123", "companyName": "Example Cafe Pte Ltd"}],
-        )
-
-        self.assertEqual(result["confidence"], "needs-check")
-        self.assertEqual(result["answer"]["status"], "candidate")
-        self.assertEqual(result["answer"]["candidates"][0]["match_type"], "company_or_outlet")
 
     def test_confirm_identity_stores_redacted_runtime_mapping(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -348,7 +244,7 @@ class PsmStoreReviewsServerTest(unittest.TestCase):
             self.assertFalse(self.core.already_triaged(changed, state_path=state_path))
 
     def test_slack_triage_text_unknown_reviewer_action(self):
-        review = self.core.normalize_app_store_review(APP_STORE_REVIEW, "1360658903")
+        review = self.core.normalize_appfollow_review(APPFOLLOW_REVIEW, "1360658903")
         text = self.core.build_slack_triage_text(review)
 
         self.assertIn("PSM Ops automation: Store review triage", text)

@@ -35,7 +35,6 @@ env_value() {
 }
 
 command -v python3 >/dev/null 2>&1 || fail "dependency:python3:not-found"
-command -v openssl >/dev/null 2>&1 || fail "dependency:openssl:not-found"
 
 if command -v systemctl >/dev/null 2>&1; then
   active="$(systemctl --user is-active "$GATEWAY_SERVICE_NAME" 2>/dev/null || true)"
@@ -171,28 +170,36 @@ if not str(payload.get("google_geocoding_api_key") or "").strip():
 PY
 fi
 
-google_play_service_account_json="$(env_value GOOGLE_PLAY_SERVICE_ACCOUNT_JSON)"
-google_play_service_account_file="$(env_value GOOGLE_PLAY_SERVICE_ACCOUNT_FILE)"
-if [ -z "$google_play_service_account_json" ]; then
-  [ -n "$google_play_service_account_file" ] || fail "store_reviews:google-play-credentials-missing"
-  [ -r "$google_play_service_account_file" ] || fail "store_reviews:google-play-service-account-file-unreadable"
+appfollow_api_token="$(env_value APPFOLLOW_API_TOKEN)"
+appfollow_credentials_file="$(env_value PSM_OPS_APPFOLLOW_CREDENTIALS_FILE)"
+if [ -z "$appfollow_credentials_file" ]; then
+  appfollow_credentials_file="$(env_value APPFOLLOW_CREDENTIALS_FILE)"
 fi
+if [ -z "$appfollow_credentials_file" ]; then
+  appfollow_credentials_file="$HOME/.staffany/appfollow/credentials.json"
+fi
+if [ -z "$appfollow_api_token" ]; then
+  [ -r "$appfollow_credentials_file" ] || fail "store_reviews:appfollow-credentials-file-unreadable"
+  python3 - "$appfollow_credentials_file" <<'PY'
+import json
+import sys
+from pathlib import Path
 
-app_store_config_json="$(env_value APP_STORE_CONNECT_CONFIG_JSON)"
-app_store_config_file="$(env_value APP_STORE_CONNECT_CONFIG_FILE)"
-app_store_issuer_id="$(env_value APP_STORE_CONNECT_ISSUER_ID)"
-app_store_key_id="$(env_value APP_STORE_CONNECT_KEY_ID)"
-app_store_private_key="$(env_value APP_STORE_CONNECT_PRIVATE_KEY)"
-app_store_private_key_file="$(env_value APP_STORE_CONNECT_PRIVATE_KEY_FILE)"
-if [ -n "$app_store_config_file" ]; then
-  [ -r "$app_store_config_file" ] || fail "store_reviews:app-store-config-file-unreadable"
-elif [ -z "$app_store_config_json" ]; then
-  [ -n "$app_store_issuer_id" ] || fail "store_reviews:app-store-issuer-id-missing"
-  [ -n "$app_store_key_id" ] || fail "store_reviews:app-store-key-id-missing"
-  if [ -z "$app_store_private_key" ]; then
-    [ -n "$app_store_private_key_file" ] || fail "store_reviews:app-store-private-key-missing"
-    [ -r "$app_store_private_key_file" ] || fail "store_reviews:app-store-private-key-file-unreadable"
-  fi
+path = Path(sys.argv[1])
+try:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+except Exception:
+    print("store_reviews:appfollow-credentials-json-invalid")
+    raise SystemExit(1)
+if not str(payload.get("appfollow_api_token") or "").strip():
+    print("store_reviews:appfollow-api-token-missing")
+    raise SystemExit(1)
+if not (payload.get("ext_ids") or payload.get("app_ext_ids") or payload.get("collection_name")):
+    print("store_reviews:appfollow-app-refs-missing")
+    raise SystemExit(1)
+PY
+elif [ -z "$(env_value APPFOLLOW_EXT_IDS)" ] && [ -z "$(env_value APPFOLLOW_COLLECTION_NAME)" ]; then
+  fail "store_reviews:appfollow-app-refs-missing"
 fi
 
 if [ -n "${BQ_BIN:-}" ]; then

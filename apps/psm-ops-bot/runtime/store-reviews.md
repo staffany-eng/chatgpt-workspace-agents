@@ -1,7 +1,7 @@
 # Store Reviews Runtime
 
-Direct Google Play Developer API and App Store Connect API are the PSM Ops
-review sources of truth for App Store and Google Play review metadata.
+AppFollow Reviews API is the PSM Ops review source for App Store and Google Play
+review metadata.
 
 Slack remains the triage surface. Jira PCO is used only when an internal
 StaffAny follow-up task is needed; do not turn every review into a Jira ticket.
@@ -17,27 +17,29 @@ StaffAny follow-up task is needed; do not turn every review into a Jira ticket.
   - `suggest_store_review_identity_candidates`
   - `confirm_store_review_identity`
 - State key: `store + app_ref + review_id`
-- Google Play package: `com.staffany.pixie`
-- App Store app id: `1360658903`
+- Provider: `appfollow`
+- AppFollow permission: `Read`
+- App refs: `APPFOLLOW_EXT_IDS` or `APPFOLLOW_COLLECTION_NAME`
 
-Google Play auth uses a service account JSON with the Android Publisher scope:
+Expose the token through `APPFOLLOW_API_TOKEN`, or through a runtime JSON file
+at `PSM_OPS_APPFOLLOW_CREDENTIALS_FILE`, `APPFOLLOW_CREDENTIALS_FILE`, or the
+default path:
 
 ```text
-https://www.googleapis.com/auth/androidpublisher
+~/.staffany/appfollow/credentials.json
 ```
 
-Expose it through `GOOGLE_PLAY_SERVICE_ACCOUNT_FILE` or
-`GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`. The Play Console service account must have
-app-level review access, including `Reply to reviews`, even though V1 does not
-publish replies.
+Credential JSON shape:
 
-App Store Connect auth uses an API key with `issuer_id`, `key_id`, and the
-`.p8` private key exposed through `APP_STORE_CONNECT_CONFIG_FILE`,
-`APP_STORE_CONNECT_CONFIG_JSON`, or the separate `APP_STORE_CONNECT_*` env vars.
-The API key role should be `Customer Support` or `Admin`.
+```json
+{
+  "appfollow_api_token": "<redacted>",
+  "ext_ids": ["1360658903", "com.staffany.pixie"]
+}
+```
 
-The runtime needs `openssl` for App Store Connect and Google service-account JWT
-signing. Health checks must fail if the signer is unavailable.
+Use `collection_name` instead of `ext_ids` when AppFollow should poll one
+review collection.
 
 ## Polling Flow
 
@@ -55,7 +57,7 @@ hermes -p psmopsbot cron create "0 * * * *" \
   --deliver "slack:#ps-weeman-bot-test"
 ```
 
-The poller lists recent reviews with a 7-day lookback, classifies theme and
+The poller lists recent AppFollow reviews with a 7-day lookback, classifies theme and
 severity, emits `PSM Ops automation: Store review triage` only for new or
 meaningfully changed reviews, and stores runtime state outside git. Cron/no-arg
 runs persist state so duplicate polls do not repost the same review. If there are
@@ -82,9 +84,9 @@ Apply/persist mode:
 `--apply` is explicit but optional because persistence is the default for
 cron/no-arg runs. Use `--dry-run` whenever previewing candidate Slack output.
 
-When one store source fails and another responds, the poller should keep triaging
-available reviews and emit a partial `PSM Ops automation:` caveat instead of
-blocking all store review polling.
+When one configured AppFollow app ref fails and another responds, the poller
+should keep triaging available reviews and emit a partial `PSM Ops automation:`
+caveat instead of blocking all store review polling.
 
 ## Public Reply Guard
 
@@ -137,5 +139,5 @@ The state key is:
 store + app_ref + review_id
 ```
 
-Do not store raw Slack transcripts, private keys, service-account JSON, API keys,
-or raw phone/email in this state file.
+Do not store raw Slack transcripts, AppFollow API tokens, or raw phone/email in
+this state file.

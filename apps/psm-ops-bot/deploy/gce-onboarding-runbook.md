@@ -26,8 +26,7 @@ Store these in Secret Manager and load them into the profile `.env` on the cloud
 - `hermes-data-bot-anthropic-api-key`
 - Google Calendar OAuth JSON for `team@staffany.com` with `https://www.googleapis.com/auth/calendar.readonly`
 - Google Calendar OAuth client secret JSON for the same StaffAny OAuth client
-- Google Play service-account JSON with Android Publisher review access for `com.staffany.pixie`
-- App Store Connect API key config for StaffAny iOS app `1360658903`
+- AppFollow API token with `Read` permission for the workspace containing the StaffAny apps
 
 `psm-ops-bot-roi-jira-env` is a dotenv-formatted Secret Manager secret in project
 `staffany-warehouse`, labeled `app=psm-ops-bot`, `env=prod`, `format=dotenv`, and
@@ -64,11 +63,8 @@ Thin POC Jira IDs must also be present in the profile `.env`:
 - `GOOGLE_CALENDAR_CLIENT_SECRET_FILE=/home/leekaiyi/.hermes/profiles/psmopsbot/google-calendar-client-secret.json`
 - `GOOGLE_CALENDAR_ACCOUNT_EMAIL=team@staffany.com`
 - `PSM_OPS_GOOGLE_GEOCODE_CREDENTIALS_FILE=/home/leekaiyi/.staffany/google-geocode/credentials.json` or `GOOGLE_GEOCODING_API_KEY`
-- `PSM_OPS_GOOGLE_PLAY_PACKAGE_NAME=com.staffany.pixie`
-- `GOOGLE_PLAY_SERVICE_ACCOUNT_FILE=/home/leekaiyi/.hermes/profiles/psmopsbot/google-play-service-account.json` or `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`
-- `PSM_OPS_APP_STORE_APP_ID=1360658903`
-- `APP_STORE_CONNECT_CONFIG_FILE=/home/leekaiyi/.hermes/profiles/psmopsbot/app-store-connect.json` or `APP_STORE_CONNECT_CONFIG_JSON`
-- alternatively for App Store Connect: `APP_STORE_CONNECT_ISSUER_ID`, `APP_STORE_CONNECT_KEY_ID`, and `APP_STORE_CONNECT_PRIVATE_KEY_FILE` or `APP_STORE_CONNECT_PRIVATE_KEY`
+- `APPFOLLOW_API_TOKEN` or `PSM_OPS_APPFOLLOW_CREDENTIALS_FILE=/home/leekaiyi/.staffany/appfollow/credentials.json`
+- `APPFOLLOW_EXT_IDS` for comma-separated AppFollow app external IDs, or `APPFOLLOW_COLLECTION_NAME` for one AppFollow collection
 - `PSM_OPS_CENTRAL_SLACK_CHANNEL_ID` for bot-owned PS WEE central audit copies
 - `PSM_OPS_CENTRAL_FETCH_SLACK_THREAD=true` if bounded source-thread transcript excerpts should be included
 - `PSM_OPS_ADOPTION_METRICS_ENABLED=true` or `PSM_OPS_ADOPTION_METRICS_PATH` for adoption telemetry
@@ -184,7 +180,7 @@ chmod 755 ~/.hermes/profiles/psmopsbot/scripts/psm_ops_adoption_digest.py \
   ~/.hermes/profiles/psmopsbot/scripts/psm_ops_join_public_channels.py
 ```
 
-Write the approved `team@staffany.com` OAuth files from Secret Manager to the paths configured above. Write the Google Geocoding key either as `GOOGLE_GEOCODING_API_KEY` in the profile `.env` or as runtime-user JSON at `PSM_OPS_GOOGLE_GEOCODE_CREDENTIALS_FILE` with the `google_geocoding_api_key` field. Write Google Play and App Store Connect review API credentials to the direct store review paths above or expose the matching JSON env vars. Do not commit or paste those JSON files into the repo.
+Write the approved `team@staffany.com` OAuth files from Secret Manager to the paths configured above. Write the Google Geocoding key either as `GOOGLE_GEOCODING_API_KEY` in the profile `.env` or as runtime-user JSON at `PSM_OPS_GOOGLE_GEOCODE_CREDENTIALS_FILE` with the `google_geocoding_api_key` field. Write the AppFollow token either as `APPFOLLOW_API_TOKEN` in the profile `.env` or as runtime-user JSON at `PSM_OPS_APPFOLLOW_CREDENTIALS_FILE` with `appfollow_api_token` plus `ext_ids` or `collection_name`. Do not commit or paste those JSON files into the repo.
 
 Configure model:
 
@@ -235,7 +231,7 @@ The script:
 - restarts only `hermes-gateway-psmopsbot.service`
 - runs live profile audit, health check, cloud heartbeat, and service status
 - runs the Rock Productions C360 lookup smoke against the live Customer 360 API
-- syncs `psm_ops_store_review_poll.py`, preserves the hourly store review poll cron, and verifies `psm_store_reviews`
+- syncs `psm_ops_store_review_poll.py`, preserves the hourly AppFollow review poll cron, and verifies `psm_store_reviews`
 - preserves and verifies the PS WEE no-agent adoption digest cron
 - stamps `$profile/VERSION` with the deployed SHA, branch, and UTC timestamp
 
@@ -323,7 +319,7 @@ Cloud smoke:
 2. Draft and approve-create one PCO test task.
 3. Transition it to Scheduled.
 4. Add an internal comment.
-5. Run `psm_ops_due_date_reminders.py --mode morning --dry-run`, `psm_ops_pco_assignment_hygiene.py --dry-run`, `psm_ops_due_date_reminders.py --mode eod --dry-run`, `psm_ops_roi_tracker_sync.py --dry-run`, `psm_ops_churn_reporting_chase.py --as-of 2026-05-25 --dry-run`, and `psm_ops_store_review_poll.py --dry-run`; verify they output Slack-safe mrkdwn, optional reviewed PS lead / PS Team mentions, reviewed customer-channel mentions from source links only, safe Jira issue summaries, BigQuery churn rows for `26Q2`, `26Q3`, and `26Q4`, direct store review triage, and `[SILENT]` when empty.
+5. Run `psm_ops_due_date_reminders.py --mode morning --dry-run`, `psm_ops_pco_assignment_hygiene.py --dry-run`, `psm_ops_due_date_reminders.py --mode eod --dry-run`, `psm_ops_roi_tracker_sync.py --dry-run`, `psm_ops_churn_reporting_chase.py --as-of 2026-05-25 --dry-run`, and `psm_ops_store_review_poll.py --dry-run`; verify they output Slack-safe mrkdwn, optional reviewed PS lead / PS Team mentions, reviewed customer-channel mentions from source links only, safe Jira issue summaries, BigQuery churn rows for `26Q2`, `26Q3`, and `26Q4`, AppFollow review triage, and `[SILENT]` when empty.
 6. Ask for Rock Productions from a channel-style hint such as `proj-cs-rockproductions`; verify the bot finds `Rock Productions Pte Ltd`, shows the searched variants safely, and does not say a generic customer cannot be found.
 7. Ask one calendar follow-up question and verify `psm_google_calendar.read_customer_calendar_context` returns bounded event metadata from `team@staffany.com` without descriptions, attendee emails, raw guest lists, or conference links.
 8. Ask one geocode question with explicit address rows and one with an attached CSV/TSV `address` column, then verify `psm_google_geocode.geocode_slack_addresses` and `psm_google_geocode.geocode_slack_address_file` upload `.tsv` files with address, latitude, longitude, `geocode_status`, and formatted address without printing the API key or pasting raw coordinates in the Slack message.

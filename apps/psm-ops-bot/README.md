@@ -13,7 +13,7 @@ Alias note: `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` refer to this 
 - Jira scope: PCO Jira Service Management for PS/customer work; ROI Jira Service Management for RevOps, BD Ops, NYSS, and ROI-board work
 - Task ownership: Jira `PS Team`, matched from Slack users/profile identity
 - Customer context scope: Customer 360 internal API, all customers in V1
-- Review scope: direct Google Play Developer API and App Store Connect API review metadata, conservative private-follow-up identity candidates, and draft-only public replies; hourly no-agent polling posts bot-owned Slack triage for new or changed reviews
+- Review scope: AppFollow review metadata, conservative private-follow-up identity candidates, and draft-only public replies; hourly no-agent polling posts bot-owned Slack triage for new or changed reviews
 - Source packet: this directory
 - Cloud host: GCE VM `hermes-psm-ops-bot-poc` in `staffany-warehouse` / `asia-southeast1`
 
@@ -29,8 +29,8 @@ Alias note: `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` refer to this 
 | `runtime/mcp/psm_c360_server.py` | Customer 360 MCP adapter. |
 | `runtime/mcp/psm_google_calendar_server.py` | Read-only Google Calendar adapter using `team@staffany.com`. |
 | `runtime/mcp/psm_google_geocode_server.py` | Google Geocoding MCP adapter for explicit address rows from tagged Slack requests. |
-| `runtime/mcp/psm_store_reviews_server.py` | Direct Google Play / App Store Connect review MCP adapter. |
-| `runtime/mcp/store_reviews_core.py` | Shared store API, classifier, identity, and idempotency helpers. |
+| `runtime/mcp/psm_store_reviews_server.py` | AppFollow review MCP adapter. |
+| `runtime/mcp/store_reviews_core.py` | Shared AppFollow, classifier, identity, and idempotency helpers. |
 | `runtime/mcp/psm_slack_notifier.py` | Bot-owned central Slack audit notifier for PS WEE lifecycle and blocked events. |
 | `runtime/hooks/psm-ops-adoption-telemetry/` | Hermes gateway hook for adoption metrics. |
 | `runtime/hooks/psm-ops-mention-guard/` | Post-hoc Hermes hook that pings the central audit channel when a Slack reply mentions a non-tagger (SCHE-19904). |
@@ -41,12 +41,12 @@ Alias note: `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` refer to this 
 | `runtime/scripts/psm_ops_churn_reporting_chase.py` | No-agent BigQuery churn reporting cleanup chase script for account management. |
 | `runtime/sql/psm_ops_churn_projection_dashboard_292.sql` | Repo-owned BigQuery SQL port of Metabase Dashboard 292 churn classification. |
 | `runtime/scripts/psm_ops_join_public_channels.py` | Bot-owned public/open Slack channel membership repair script. |
-| `runtime/scripts/psm_ops_store_review_poll.py` | No-agent direct store review poller for Slack triage. |
+| `runtime/scripts/psm_ops_store_review_poll.py` | No-agent AppFollow review poller for Slack triage. |
 | `runtime/jira.md` | Jira field, workflow, and safety contract. |
 | `runtime/c360.md` | Customer 360 internal API contract. |
 | `runtime/google-calendar.md` | Google Calendar read-only access contract. |
 | `runtime/google-geocode.md` | Google Geocoding credential and Slack output contract. |
-| `runtime/store-reviews.md` | Direct store review API and triage contract. |
+| `runtime/store-reviews.md` | AppFollow review API and triage contract. |
 | `runtime/slack.md` | Slack gateway behavior and output contracts. |
 | `runtime/health-checks.md` | Health, drift, and cron verification. |
 | `runtime/check-health.sh` | No-agent live health check. |
@@ -78,17 +78,18 @@ gcloud secrets versions access latest \
 chmod 600 ~/.hermes/profiles/psmopsbot/.env
 ```
 
-Direct store review access is stored in Secret Manager and exposed to the
-profile only as runtime env/file paths:
+AppFollow review access is stored in Secret Manager and exposed to the profile
+only as a runtime env or file path:
 
-- Google Play service account JSON for `com.staffany.pixie`, exposed through
-  `GOOGLE_PLAY_SERVICE_ACCOUNT_FILE` or `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`, with
-  the Android Publisher scope `https://www.googleapis.com/auth/androidpublisher`.
-- App Store Connect API key config for app `1360658903`, exposed through
-  `APP_STORE_CONNECT_CONFIG_FILE` or `APP_STORE_CONNECT_CONFIG_JSON`, with a
-  `Customer Support` or `Admin` role.
+- `APPFOLLOW_API_TOKEN`, or
+- `PSM_OPS_APPFOLLOW_CREDENTIALS_FILE` / `APPFOLLOW_CREDENTIALS_FILE`, defaulting
+  to `~/.staffany/appfollow/credentials.json`.
 
-V1 is draft-only. Do not expose a direct public reply publishing tool until a
+The AppFollow token needs `Read` permission only. The credentials JSON should
+contain `appfollow_api_token` and either `ext_ids` / `app_ext_ids` or
+`collection_name`.
+
+V1 is draft-only. Do not expose a public reply publishing tool until a
 separate same-thread approved smoke test is planned and reviewed.
 
 Public App Store / Google Play reply drafts should route reviewers to
@@ -107,7 +108,7 @@ do not make a public reference code the main customer action.
 7. Configure Slack, `psm_jira`, `psm_c360`, `psm_google_calendar`, `psm_google_geocode`, and `psm_store_reviews` MCP servers.
 8. Copy `runtime/sql/` into the profile runtime directory for no-agent BigQuery scripts.
 9. Install health, audit, reminder, assignment hygiene, ROI tracker sync, churn reporting, and hourly store review cron jobs on the cloud host.
-10. Install hourly `psm_ops_store_review_poll.py` for direct store review polling and Slack triage.
+10. Install hourly `psm_ops_store_review_poll.py` for AppFollow review polling and Slack triage.
 11. Run health checks and regression cases before widening access.
 
 ## Verification

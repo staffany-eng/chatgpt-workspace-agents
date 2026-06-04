@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Direct store review MCP adapter for PSM Ops Bot."""
+"""AppFollow store review MCP adapter for PSM Ops Bot."""
 
 from __future__ import annotations
 
@@ -23,16 +23,15 @@ load_profile_env()
 mcp = FastMCP(
     "psm_store_reviews",
     instructions=(
-        "Direct Google Play Developer API and App Store Connect review access for PSM Ops Bot. "
-        "Use store APIs as review truth, Slack as the triage surface, and do not publish public "
-        "store replies in V1."
+        "AppFollow Reviews API access for PSM Ops Bot. Use AppFollow as review truth, "
+        "Slack as the triage surface, and do not publish public store replies in V1."
     ),
 )
 
 
 @mcp.tool()
 def list_store_review_apps() -> dict[str, Any]:
-    """List configured direct store review apps and credential expectations."""
+    """List configured AppFollow review apps and credential expectations."""
 
     return _list_store_review_apps()
 
@@ -46,7 +45,7 @@ def list_store_reviews(
     lookback_days: int = 7,
     max_pages: int = 5,
 ) -> dict[str, Any]:
-    """List recent App Store / Google Play reviews using direct store APIs."""
+    """List recent AppFollow reviews."""
 
     return _list_store_reviews(
         store=store,
@@ -60,7 +59,7 @@ def list_store_reviews(
 
 @mcp.tool()
 def get_store_review(store: str, review_id: str, app_ref: str = "") -> dict[str, Any]:
-    """Fetch one canonical store review from Google Play or App Store Connect."""
+    """Fetch one canonical AppFollow store review."""
 
     return _get_store_review(store=store, review_id=review_id, app_ref=app_ref)
 

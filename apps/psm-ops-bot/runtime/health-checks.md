@@ -24,7 +24,7 @@ PSM Ops Bot needs deterministic cloud health checks because prompt correctness d
 - `psm_store_reviews` MCP lists exactly `list_store_review_apps`, `list_store_reviews`, `get_store_review`, `draft_store_review_reply`, `suggest_store_review_identity_candidates`, and `confirm_store_review_identity`.
 - Google Calendar OAuth is configured for `team@staffany.com` with `calendar.readonly`, returns bounded event metadata, and exposes no mutation or attendee-export tools.
 - Google Geocoding credentials are available through `GOOGLE_GEOCODING_API_KEY`, `PSM_OPS_GOOGLE_GEOCODE_CREDENTIALS_FILE`, or `~/.staffany/google-geocode/credentials.json`; the health check never prints the key.
-- Direct store review credentials are available through `GOOGLE_PLAY_SERVICE_ACCOUNT_FILE` or `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`, plus `APP_STORE_CONNECT_CONFIG_FILE`, `APP_STORE_CONNECT_CONFIG_JSON`, or separate `APP_STORE_CONNECT_ISSUER_ID`, `APP_STORE_CONNECT_KEY_ID`, and `APP_STORE_CONNECT_PRIVATE_KEY_FILE` / `APP_STORE_CONNECT_PRIVATE_KEY`; the health check requires `openssl` and never prints credential material.
+- AppFollow review credentials are available through `APPFOLLOW_API_TOKEN`, `PSM_OPS_APPFOLLOW_CREDENTIALS_FILE`, `APPFOLLOW_CREDENTIALS_FILE`, or `~/.staffany/appfollow/credentials.json`; the health check never prints the token.
 - Slack bot token has `files:read` and `files:write` before geocode CSV/TSV file input and TSV upload are used in production; missing scope blocks geocode output instead of asking users to paste file rows or pasting raw coordinates.
 - `validate_jira_configuration` reports thin POC defaults or full configured fields and request types, including `PS Team`.
 - `validate_roi_jira_configuration` reports exactly one ROI project key, service desk ID, request type ID, and mapped required request fields before ROI-direct creation is enabled.
@@ -38,7 +38,7 @@ PSM Ops Bot needs deterministic cloud health checks because prompt correctness d
 - Reminder customer-team tags use reviewed `PSM_OPS_CUSTOMER_CHANNEL_MAP_PATH` source-link matches only and never cross-post to customer channels.
 - ROI tracker sync cron is enabled in cloud as a no-agent script every 30 minutes during Singapore workdays and watches only linked `ps-wee-roi-tracker` PCO issues.
 - Churn reporting chase cron is enabled in cloud as a Monday 09:00 SGT no-agent script, reads BigQuery renewal/churn marts only, and delivers to `slack:#team-rev-account-management`.
-- Store review poll cron is enabled in cloud as an hourly no-agent script, reads direct Google Play / App Store Connect APIs, persists duplicate-suppression state by default, and delivers `PSM Ops automation: Store review triage` to `slack:#ps-weeman-bot-test`.
+- Store review poll cron is enabled in cloud as an hourly no-agent script, reads AppFollow Reviews API, persists duplicate-suppression state by default, and delivers `PSM Ops automation: Store review triage` to `slack:#ps-weeman-bot-test`.
 - VM-local cloud heartbeat cron is enabled every 15 minutes with local delivery disabled.
 - PS WEE adoption digest cron is enabled as a no-agent weekday Slack automation with the `PSM Ops automation:` prefix.
 - PS WEE adoption telemetry hook is installed under the profile hooks directory.

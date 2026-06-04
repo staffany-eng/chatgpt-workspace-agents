@@ -1,21 +1,18 @@
 #!/usr/bin/env python3
-"""Direct App Store / Google Play review helpers for PSM Ops Bot.
+"""AppFollow review helpers for PSM Ops Bot.
 
 This module is shared by the MCP adapter and the no-agent polling script.
-Third-party aggregators are intentionally not used here: store APIs are review
-truth, Slack is the PS Wee action surface, and public reply publishing is not
-exposed in V1.
+AppFollow is the review source for this packet. Slack is the PS Wee action
+surface, and public reply publishing is not exposed in V1.
 """
 
 from __future__ import annotations
 
-import base64
 import hashlib
 import json
 import os
 import re
 import socket
-import subprocess
 import tempfile
 import urllib.error
 import urllib.parse
@@ -25,22 +22,17 @@ from pathlib import Path
 from typing import Any
 
 
-STORE_REVIEWS_SOURCE = "Direct App Store Connect + Google Play APIs"
+STORE_REVIEWS_SOURCE = "AppFollow Reviews API"
 USER_AGENT = "StaffAny-PSMOps/1.0 (+https://staffany.com)"
 TIMEOUT_SECONDS = 20
 DEFAULT_LOOKBACK_DAYS = 7
 DEFAULT_MAX_PAGES = 5
 DEFAULT_STATE_PATH = "~/.hermes/profiles/psmopsbot/state/store_reviews.json"
+DEFAULT_APPFOLLOW_CREDENTIALS_FILE = "~/.staffany/appfollow/credentials.json"
 STATE_KEY_DESCRIPTION = "store + app_ref + review_id"
 STAFFANY_SUPPORT_EMAIL = "support@staffany.com"
 MAX_REPLY_CHARS = 350
-GOOGLE_PLAY_SCOPE = "https://www.googleapis.com/auth/androidpublisher"
-GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
-GOOGLE_ANDROID_PUBLISHER_BASE_URL = "https://androidpublisher.googleapis.com/androidpublisher/v3"
-APP_STORE_CONNECT_BASE_URL = "https://api.appstoreconnect.apple.com/v1"
-APP_STORE_CONNECT_AUDIENCE = "appstoreconnect-v1"
-DEFAULT_GOOGLE_PACKAGE_NAME = "com.staffany.pixie"
-DEFAULT_APP_STORE_APP_ID = "1360658903"
+APPFOLLOW_BASE_URL = "https://api.appfollow.io"
 IDENTITY_LABEL_UNKNOWN = "identity_unknown"
 IDENTITY_LABEL_REQUESTED_PRIVATE = "identity_requested_private"
 IDENTITY_LABEL_CANDIDATE = "identity_candidate"
@@ -60,9 +52,7 @@ def _env(name: str, default: str = "") -> str:
 def _safe_detail(value: Any, limit: int = 400) -> str:
     text = " ".join(str(value or "").split())
     for key in [
-        "GOOGLE_PLAY_SERVICE_ACCOUNT_JSON",
-        "APP_STORE_CONNECT_PRIVATE_KEY",
-        "APP_STORE_CONNECT_CONFIG_JSON",
+        "APPFOLLOW_API_TOKEN",
     ]:
         secret = os.environ.get(key, "")
         if secret:
@@ -72,92 +62,6 @@ def _safe_detail(value: Any, limit: int = 400) -> str:
     return text[:limit]
 
 
-def _b64url(data: bytes) -> str:
-    return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
-
-
-def _json_b64url(payload: dict[str, Any]) -> str:
-    return _b64url(json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8"))
-
-
-def _read_json_source(*, env_json: str, env_file: str, default_file: str, label: str) -> dict[str, Any]:
-    raw = _env(env_json)
-    if raw and not (raw.startswith("${") and raw.endswith("}")):
-        try:
-            payload = json.loads(raw)
-        except json.JSONDecodeError as error:
-            raise StoreReviewError(f"{label} JSON env {env_json} is invalid.") from error
-        if not isinstance(payload, dict):
-            raise StoreReviewError(f"{label} JSON env {env_json} must be an object.")
-        return payload
-    path_value = _env(env_file)
-    path = Path(path_value).expanduser() if path_value and not (path_value.startswith("${") and path_value.endswith("}")) else Path(default_file).expanduser()
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except FileNotFoundError as error:
-        raise StoreReviewError(f"{label} credentials file is missing: {path}") from error
-    except json.JSONDecodeError as error:
-        raise StoreReviewError(f"{label} credentials file is invalid JSON: {path}") from error
-    if not isinstance(payload, dict):
-        raise StoreReviewError(f"{label} credentials file must contain a JSON object: {path}")
-    return payload
-
-
-def _openssl_sign(message: bytes, private_key_pem: str, *, digest: str = "-sha256") -> bytes:
-    if not private_key_pem.strip():
-        raise StoreReviewError("Private key is missing for JWT signing.")
-    with tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=False) as handle:
-        handle.write(private_key_pem)
-        key_path = Path(handle.name)
-    try:
-        key_path.chmod(0o600)
-        process = subprocess.run(
-            ["openssl", "dgst", digest, "-sign", str(key_path)],
-            input=message,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            check=False,
-        )
-    except FileNotFoundError as error:
-        raise StoreReviewError("openssl is required for store API JWT signing but was not found.") from error
-    finally:
-        try:
-            key_path.unlink()
-        except OSError:
-            pass
-    if process.returncode != 0:
-        raise StoreReviewError(f"openssl signing failed: {_safe_detail(process.stderr.decode('utf-8', errors='replace'))}")
-    return process.stdout
-
-
-def _der_ecdsa_to_raw(signature: bytes, size: int = 32) -> bytes:
-    if not signature or signature[0] != 0x30:
-        raise StoreReviewError("ES256 signature was not DER encoded.")
-    index = 2
-    if signature[1] & 0x80:
-        length_octets = signature[1] & 0x7F
-        index = 2 + length_octets
-    values: list[bytes] = []
-    for _ in range(2):
-        if index >= len(signature) or signature[index] != 0x02:
-            raise StoreReviewError("ES256 signature DER integer is invalid.")
-        length = signature[index + 1]
-        start = index + 2
-        raw = signature[start : start + length]
-        raw = raw.lstrip(b"\x00")
-        values.append(raw.rjust(size, b"\x00")[-size:])
-        index = start + length
-    return b"".join(values)
-
-
-def _jwt(header: dict[str, Any], claims: dict[str, Any], private_key_pem: str, alg: str) -> str:
-    signing_input = f"{_json_b64url(header)}.{_json_b64url(claims)}".encode("ascii")
-    signature = _openssl_sign(signing_input, private_key_pem)
-    if alg == "ES256":
-        signature = _der_ecdsa_to_raw(signature)
-    return f"{signing_input.decode('ascii')}.{_b64url(signature)}"
-
-
 def _request_json(
     method: str,
     url: str,
@@ -165,11 +69,13 @@ def _request_json(
     access_token: str = "",
     params: dict[str, Any] | None = None,
     body: dict[str, Any] | None = None,
+    extra_headers: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     query = urllib.parse.urlencode({key: value for key, value in (params or {}).items() if value not in (None, "")})
     full_url = f"{url}?{query}" if query else url
     data = json.dumps(body).encode("utf-8") if body is not None else None
     headers = {"accept": "application/json", "user-agent": USER_AGENT}
+    headers.update(extra_headers or {})
     if data is not None:
         headers["content-type"] = "application/json; charset=utf-8"
     if access_token:
@@ -187,15 +93,6 @@ def _request_json(
         raise StoreReviewError(f"Store review API request timed out or failed: {_safe_detail(reason)}") from error
 
 
-def _trusted_app_store_page_url(value: str) -> str:
-    url = str(value or "").strip()
-    parsed = urllib.parse.urlparse(url)
-    expected = urllib.parse.urlparse(APP_STORE_CONNECT_BASE_URL)
-    if parsed.scheme != "https" or parsed.netloc != expected.netloc or not parsed.path.startswith("/v1/"):
-        raise StoreReviewError("App Store page_token must be an App Store Connect API URL.")
-    return url
-
-
 def blocked(message: str, scope: dict[str, Any] | None = None) -> dict[str, Any]:
     return {
         "answer": {"status": "blocked", "message": message},
@@ -211,7 +108,7 @@ def tool_result(
     scope: dict[str, Any],
     *,
     confidence: str = "needs-check",
-    caveat: str = "Direct store APIs are review truth. Slack remains the PS Wee triage surface.",
+    caveat: str = "AppFollow is the review provider. Slack remains the PS Wee triage surface.",
 ) -> dict[str, Any]:
     return {
         "answer": answer,
@@ -222,217 +119,151 @@ def tool_result(
     }
 
 
-def google_package_name() -> str:
-    return _env("PSM_OPS_GOOGLE_PLAY_PACKAGE_NAME") or _env("GOOGLE_PLAY_PACKAGE_NAME") or DEFAULT_GOOGLE_PACKAGE_NAME
-
-
-def app_store_app_id() -> str:
-    return _env("PSM_OPS_APP_STORE_APP_ID") or _env("APP_STORE_CONNECT_APP_ID") or DEFAULT_APP_STORE_APP_ID
-
-
-def _google_service_account() -> dict[str, Any]:
-    payload = _read_json_source(
-        env_json="GOOGLE_PLAY_SERVICE_ACCOUNT_JSON",
-        env_file="GOOGLE_PLAY_SERVICE_ACCOUNT_FILE",
-        default_file="~/.hermes/profiles/psmopsbot/google-play-service-account.json",
-        label="Google Play service account",
-    )
-    if payload.get("type") != "service_account":
-        raise StoreReviewError("Google Play credentials must be a service_account JSON.")
-    if not payload.get("client_email") or not payload.get("private_key"):
-        raise StoreReviewError("Google Play service account JSON is missing client_email/private_key.")
+def _appfollow_credentials() -> dict[str, Any]:
+    token = _env("APPFOLLOW_API_TOKEN")
+    credentials_file = _env("PSM_OPS_APPFOLLOW_CREDENTIALS_FILE") or _env("APPFOLLOW_CREDENTIALS_FILE")
+    if token:
+        return {
+            "appfollow_api_token": token,
+            "collection_name": _env("APPFOLLOW_COLLECTION_NAME"),
+            "ext_ids": _env("APPFOLLOW_EXT_IDS"),
+        }
+    path = Path(credentials_file or DEFAULT_APPFOLLOW_CREDENTIALS_FILE).expanduser()
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError as error:
+        raise StoreReviewError(f"AppFollow credentials file is missing: {path}") from error
+    except json.JSONDecodeError as error:
+        raise StoreReviewError(f"AppFollow credentials file is invalid JSON: {path}") from error
+    if not isinstance(payload, dict):
+        raise StoreReviewError(f"AppFollow credentials file must contain a JSON object: {path}")
+    if not str(payload.get("appfollow_api_token") or "").strip():
+        raise StoreReviewError("AppFollow credentials need appfollow_api_token.")
     return payload
 
 
-def google_play_access_token() -> str:
-    service_account = _google_service_account()
-    now = int(datetime.now(timezone.utc).timestamp())
-    assertion = _jwt(
-        {"alg": "RS256", "typ": "JWT"},
-        {
-            "iss": service_account["client_email"],
-            "scope": GOOGLE_PLAY_SCOPE,
-            "aud": service_account.get("token_uri") or GOOGLE_TOKEN_URL,
-            "iat": now,
-            "exp": now + 3600,
-        },
-        str(service_account["private_key"]),
-        "RS256",
-    )
-    body = urllib.parse.urlencode(
-        {
-            "grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer",
-            "assertion": assertion,
-        }
-    ).encode("utf-8")
-    request = urllib.request.Request(
-        str(service_account.get("token_uri") or GOOGLE_TOKEN_URL),
-        data=body,
-        headers={"content-type": "application/x-www-form-urlencoded", "user-agent": USER_AGENT},
-        method="POST",
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=TIMEOUT_SECONDS) as response:
-            payload = json.loads(response.read().decode("utf-8"))
-    except urllib.error.HTTPError as error:
-        detail = error.read().decode("utf-8", errors="replace")
-        raise StoreReviewError(f"Google Play OAuth failed: HTTP {error.code} {_safe_detail(detail)}", error.code) from error
-    except (urllib.error.URLError, socket.timeout, TimeoutError) as error:
-        reason = getattr(error, "reason", error)
-        raise StoreReviewError(f"Google Play OAuth timed out or failed: {_safe_detail(reason)}") from error
-    token = str(payload.get("access_token") or "").strip()
-    if not token:
-        raise StoreReviewError("Google Play OAuth did not return an access token.")
-    return token
+def _appfollow_token() -> str:
+    return str(_appfollow_credentials().get("appfollow_api_token") or "").strip()
 
 
-def _app_store_connect_config() -> dict[str, str]:
-    payload: dict[str, Any] = {}
-    raw = _env("APP_STORE_CONNECT_CONFIG_JSON")
-    if raw and not (raw.startswith("${") and raw.endswith("}")):
-        try:
-            decoded = json.loads(raw)
-        except json.JSONDecodeError as error:
-            raise StoreReviewError("APP_STORE_CONNECT_CONFIG_JSON is invalid JSON.") from error
-        if isinstance(decoded, dict):
-            payload.update(decoded)
-    config_file = _env("APP_STORE_CONNECT_CONFIG_FILE")
-    if config_file and not (config_file.startswith("${") and config_file.endswith("}")):
-        try:
-            decoded = json.loads(Path(config_file).expanduser().read_text(encoding="utf-8"))
-        except FileNotFoundError as error:
-            raise StoreReviewError(f"App Store Connect config file is missing: {config_file}") from error
-        except json.JSONDecodeError as error:
-            raise StoreReviewError(f"App Store Connect config file is invalid JSON: {config_file}") from error
-        if isinstance(decoded, dict):
-            payload.update(decoded)
-    issuer_id = str(payload.get("issuer_id") or payload.get("issuerId") or _env("APP_STORE_CONNECT_ISSUER_ID")).strip()
-    key_id = str(payload.get("key_id") or payload.get("keyId") or _env("APP_STORE_CONNECT_KEY_ID")).strip()
-    private_key = str(payload.get("private_key") or payload.get("privateKey") or _env("APP_STORE_CONNECT_PRIVATE_KEY")).strip()
-    private_key_file = str(payload.get("private_key_file") or payload.get("privateKeyFile") or _env("APP_STORE_CONNECT_PRIVATE_KEY_FILE")).strip()
-    if not private_key and private_key_file:
-        try:
-            private_key = Path(private_key_file).expanduser().read_text(encoding="utf-8")
-        except FileNotFoundError as error:
-            raise StoreReviewError(f"App Store Connect private key file is missing: {private_key_file}") from error
-    if "\\n" in private_key and "BEGIN PRIVATE KEY" in private_key:
-        private_key = private_key.replace("\\n", "\n")
-    if not issuer_id or not key_id or not private_key:
-        raise StoreReviewError("App Store Connect credentials need issuer_id, key_id, and .p8 private key.")
-    return {"issuer_id": issuer_id, "key_id": key_id, "private_key": private_key}
+def _appfollow_app_refs() -> list[str]:
+    credentials = _appfollow_credentials()
+    raw_refs = credentials.get("ext_ids") or credentials.get("app_ext_ids") or _env("APPFOLLOW_EXT_IDS")
+    if isinstance(raw_refs, list):
+        refs = [str(item).strip() for item in raw_refs]
+    else:
+        refs = [item.strip() for item in str(raw_refs or "").split(",")]
+    refs = [item for item in refs if item]
+    collection = str(credentials.get("collection_name") or _env("APPFOLLOW_COLLECTION_NAME") or "").strip()
+    if refs:
+        return refs
+    if collection:
+        return [f"collection:{collection}"]
+    raise StoreReviewError("AppFollow credentials need ext_ids/app_ext_ids or collection_name.")
 
 
-def app_store_connect_token() -> str:
-    config = _app_store_connect_config()
-    now = int(datetime.now(timezone.utc).timestamp())
-    return _jwt(
-        {"alg": "ES256", "kid": config["key_id"], "typ": "JWT"},
-        {"iss": config["issuer_id"], "iat": now, "exp": now + 20 * 60, "aud": APP_STORE_CONNECT_AUDIENCE},
-        config["private_key"],
-        "ES256",
+def _appfollow_review_window(lookback_days: int) -> tuple[str, str]:
+    end = datetime.now(timezone.utc).date()
+    start = end - timedelta(days=max(1, int(lookback_days or DEFAULT_LOOKBACK_DAYS)))
+    return start.isoformat(), end.isoformat()
+
+
+def _appfollow_request(params: dict[str, Any]) -> dict[str, Any]:
+    return _request_json(
+        "GET",
+        f"{APPFOLLOW_BASE_URL}/api/v2/reviews",
+        params=params,
+        extra_headers={"X-AppFollow-API-Token": _appfollow_token()},
     )
 
 
-def _google_last_modified(payload: dict[str, Any]) -> str:
-    raw = payload.get("lastModified") or {}
-    seconds = raw.get("seconds") if isinstance(raw, dict) else None
-    if seconds in (None, ""):
-        return ""
+def _extract_appfollow_reviews(payload: Any) -> list[dict[str, Any]]:
+    if isinstance(payload, list):
+        return [item for item in payload if isinstance(item, dict)]
+    if not isinstance(payload, dict):
+        return []
+    for key in ("reviews", "data", "items", "results", "result"):
+        value = payload.get(key)
+        if isinstance(value, list):
+            return [item for item in value if isinstance(item, dict)]
+        if isinstance(value, dict):
+            nested = _extract_appfollow_reviews(value)
+            if nested:
+                return nested
+    if any(key in payload for key in ("review_id", "id", "content", "review")):
+        return [payload]
+    return []
+
+
+def normalize_appfollow_review(review: dict[str, Any], app_ref: str = "") -> dict[str, Any]:
+    store = normalize_store(
+        str(review.get("store") or review.get("platform") or review.get("source") or review.get("store_type") or "")
+    )
+    if store not in {"google_play", "app_store"}:
+        store = "appfollow"
+    review_id = str(review.get("review_id") or review.get("reviewId") or review.get("id") or "").strip()
+    rating = review.get("rating") or review.get("review_rating") or review.get("stars") or review.get("rate")
     try:
-        return datetime.fromtimestamp(int(seconds), timezone.utc).isoformat()
-    except (TypeError, ValueError, OSError):
-        return ""
-
-
-def _latest_google_comments(review: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
-    latest_user: dict[str, Any] = {}
-    latest_developer: dict[str, Any] = {}
-    for wrapper in review.get("comments") or []:
-        if not isinstance(wrapper, dict):
-            continue
-        if isinstance(wrapper.get("userComment"), dict):
-            latest_user = wrapper["userComment"]
-        if isinstance(wrapper.get("developerComment"), dict):
-            latest_developer = wrapper["developerComment"]
-    return latest_user, latest_developer
-
-
-def normalize_google_play_review(review: dict[str, Any], package_name: str | None = None) -> dict[str, Any]:
-    package = package_name or google_package_name()
-    user_comment, developer_comment = _latest_google_comments(review)
-    review_id = str(review.get("reviewId") or review.get("review_id") or review.get("id") or "").strip()
-    updated_at = _google_last_modified(user_comment) or _google_last_modified(review)
-    body = str(user_comment.get("text") or review.get("text") or "").strip()
-    app_version = str(user_comment.get("appVersionName") or user_comment.get("appVersionCode") or "").strip()
-    locale = str(user_comment.get("reviewerLanguage") or "").strip()
-    rating = user_comment.get("starRating")
-    try:
-        rating = int(rating) if rating not in (None, "") else None
+        rating = int(float(rating)) if rating not in (None, "") else None
     except (TypeError, ValueError):
         rating = None
+    created_at = str(
+        review.get("created_at")
+        or review.get("created")
+        or review.get("date")
+        or review.get("review_date")
+        or review.get("published_at")
+        or ""
+    ).strip()
+    updated_at = str(review.get("updated_at") or review.get("last_modified") or review.get("modified_at") or created_at).strip()
+    resolved_app_ref = str(
+        app_ref
+        or review.get("ext_id")
+        or review.get("app_id")
+        or review.get("application_id")
+        or review.get("app")
+        or ""
+    ).strip()
+    answer_text = str(review.get("answer_text") or review.get("reply") or review.get("response") or "").strip()
     return {
-        "store": "google_play",
-        "app_ref": package,
+        "store": store,
+        "app_ref": resolved_app_ref,
         "review_id": review_id,
         "rating": rating,
-        "title": "",
-        "body": body,
-        "author_nickname": str(review.get("authorName") or "").strip(),
-        "country": "",
-        "locale": locale,
-        "app_version": app_version,
-        "created_at": updated_at,
+        "title": str(review.get("title") or review.get("subject") or "").strip(),
+        "body": str(review.get("content") or review.get("review") or review.get("body") or review.get("text") or "").strip(),
+        "author_nickname": str(review.get("author") or review.get("user_name") or review.get("reviewer") or "").strip(),
+        "country": str(review.get("country") or "").strip(),
+        "locale": str(review.get("lang") or review.get("language") or "").strip(),
+        "app_version": str(review.get("version") or review.get("app_version") or "").strip(),
+        "created_at": created_at,
         "updated_at": updated_at,
-        "reply_status": "replied" if developer_comment else "no_reply",
-        "review_url": f"https://play.google.com/store/apps/details?id={urllib.parse.quote(package)}",
-        "raw": review,
-    }
-
-
-def normalize_app_store_review(review: dict[str, Any], app_id: str | None = None) -> dict[str, Any]:
-    app_ref = app_id or app_store_app_id()
-    attributes = review.get("attributes") if isinstance(review.get("attributes"), dict) else review
-    review_id = str(review.get("id") or attributes.get("id") or attributes.get("review_id") or "").strip()
-    rating = attributes.get("rating")
-    try:
-        rating = int(rating) if rating not in (None, "") else None
-    except (TypeError, ValueError):
-        rating = None
-    return {
-        "store": "app_store",
-        "app_ref": app_ref,
-        "review_id": review_id,
-        "rating": rating,
-        "title": str(attributes.get("title") or "").strip(),
-        "body": str(attributes.get("body") or attributes.get("review") or "").strip(),
-        "author_nickname": str(attributes.get("reviewerNickname") or attributes.get("nickname") or "").strip(),
-        "country": str(attributes.get("territory") or attributes.get("country") or "").strip(),
-        "locale": str(attributes.get("locale") or "").strip(),
-        "app_version": str(attributes.get("appVersionString") or attributes.get("appVersion") or "").strip(),
-        "created_at": str(attributes.get("createdDate") or "").strip(),
-        "updated_at": str(attributes.get("createdDate") or "").strip(),
-        "reply_status": "unknown",
-        "review_url": f"https://apps.apple.com/app/id{urllib.parse.quote(app_ref)}",
+        "reply_status": "replied" if answer_text else str(review.get("reply_status") or "no_reply").strip(),
+        "review_url": str(review.get("url") or review.get("review_url") or "").strip(),
         "raw": review,
     }
 
 
 def list_store_review_apps() -> dict[str, Any]:
-    apps = [
-        {
-            "store": "google_play",
-            "app_ref": google_package_name(),
-            "credential_source": "GOOGLE_PLAY_SERVICE_ACCOUNT_JSON or GOOGLE_PLAY_SERVICE_ACCOUNT_FILE",
-            "required_scope": GOOGLE_PLAY_SCOPE,
-        },
-        {
-            "store": "app_store",
-            "app_ref": app_store_app_id(),
-            "credential_source": "APP_STORE_CONNECT_CONFIG_JSON/FILE or issuer/key env vars",
-            "required_role": "Customer Support or Admin",
-        },
-    ]
-    return tool_result({"status": "configured", "apps": apps}, {"endpoint": "local config"}, confidence="verified")
+    scope = {"endpoint": "appfollow", "provider": "appfollow"}
+    try:
+        apps = [
+            {
+                "store": "appfollow",
+                "app_ref": app_ref,
+                "credential_source": "APPFOLLOW_API_TOKEN or APPFOLLOW_CREDENTIALS_FILE",
+                "required_permission": "Read",
+            }
+            for app_ref in _appfollow_app_refs()
+        ]
+    except StoreReviewError as error:
+        return blocked(str(error), scope)
+    return tool_result(
+        {"status": "configured", "provider": "appfollow", "apps": apps},
+        scope,
+        confidence="verified",
+        caveat="AppFollow is the review provider. Use a Read-only token.",
+    )
 
 
 def list_store_reviews(
@@ -444,79 +275,64 @@ def list_store_reviews(
     lookback_days: int = DEFAULT_LOOKBACK_DAYS,
     max_pages: int = DEFAULT_MAX_PAGES,
 ) -> dict[str, Any]:
-    stores = [store] if store else ["google_play", "app_store"]
-    reviews: list[dict[str, Any]] = []
-    next_page_tokens: dict[str, str] = {}
-    store_errors: list[dict[str, Any]] = []
     safe_limit = max(1, min(int(limit or 20), 100))
     safe_max_pages = max(1, min(int(max_pages or DEFAULT_MAX_PAGES), 10))
-    scope = {"stores": stores, "limit": safe_limit, "lookback_days": lookback_days, "max_pages": safe_max_pages}
-    for current_store in stores:
-        current_store = normalize_store(current_store)
-        if current_store not in {"google_play", "app_store"}:
-            return blocked(f"Unsupported store: {current_store}", scope)
+    from_date, to_date = _appfollow_review_window(lookback_days)
+    try:
+        app_refs = [app_ref] if app_ref else _appfollow_app_refs()
+    except StoreReviewError as error:
+        return blocked(str(error), {"provider": "appfollow", "stores": [store] if store else ["appfollow"]})
+    reviews: list[dict[str, Any]] = []
+    store_errors: list[dict[str, Any]] = []
+    next_page_tokens: dict[str, str] = {}
+    scope = {
+        "provider": "appfollow",
+        "stores": [store] if store else ["appfollow"],
+        "app_refs": app_refs,
+        "limit": safe_limit,
+        "lookback_days": lookback_days,
+        "max_pages": safe_max_pages,
+    }
+    try:
+        start_page = int(str(page_token or "1").strip())
+    except ValueError:
+        return blocked("AppFollow page_token must be an integer page number.", scope)
+    for current_ref in app_refs:
+        is_collection = current_ref.startswith("collection:")
+        collection_name = current_ref.split(":", 1)[1] if is_collection else ""
+        page = max(1, start_page)
         try:
-            if current_store == "google_play":
-                package = app_ref or google_package_name()
-                token = google_play_access_token()
-                token_value = page_token
-                for _page in range(safe_max_pages):
-                    payload = _request_json(
-                        "GET",
-                        f"{GOOGLE_ANDROID_PUBLISHER_BASE_URL}/applications/{urllib.parse.quote(package, safe='')}/reviews",
-                        access_token=token,
-                        params={"maxResults": safe_limit, "token": token_value},
-                    )
-                    for item in payload.get("reviews") or []:
-                        if isinstance(item, dict):
-                            reviews.append(normalize_google_play_review(item, package))
-                    token_value = str((payload.get("tokenPagination") or {}).get("nextPageToken") or "").strip()
-                    if not token_value:
-                        break
-                if token_value:
-                    next_page_tokens["google_play"] = token_value
-            elif current_store == "app_store":
-                app_id = app_ref or app_store_app_id()
-                start_page = str(page_token or "").strip()
-                if start_page:
-                    next_url = _trusted_app_store_page_url(start_page)
-                    params = None
+            for _page in range(safe_max_pages):
+                params: dict[str, Any] = {"from": from_date, "to": to_date, "page": page}
+                if is_collection:
+                    params["collection_name"] = collection_name
                 else:
-                    next_url = f"{APP_STORE_CONNECT_BASE_URL}/apps/{urllib.parse.quote(app_id, safe='')}/customerReviews"
-                    params: dict[str, Any] | None = {
-                        "limit": max(1, min(int(limit or 20), 200)),
-                        "sort": "-createdDate",
-                        "fields[customerReviews]": "rating,title,body,reviewerNickname,createdDate,territory,appVersionString",
-                    }
-                token = app_store_connect_token()
-                for _page in range(safe_max_pages):
-                    payload = _request_json("GET", next_url, access_token=token, params=params)
-                    for item in payload.get("data") or []:
-                        if isinstance(item, dict):
-                            reviews.append(normalize_app_store_review(item, app_id))
-                    next_url = str(((payload.get("links") or {}) if isinstance(payload, dict) else {}).get("next") or "").strip()
-                    if next_url:
-                        next_url = _trusted_app_store_page_url(next_url)
-                    params = None
-                    if not next_url:
-                        break
-                if next_url:
-                    next_page_tokens["app_store"] = next_url
+                    params["ext_id"] = current_ref
+                if store:
+                    params["store"] = normalize_store(store)
+                payload = _appfollow_request(params)
+                page_reviews = _extract_appfollow_reviews(payload)
+                for item in page_reviews:
+                    reviews.append(normalize_appfollow_review(item, current_ref))
+                if len(page_reviews) < safe_limit:
+                    break
+                page += 1
+            if page > start_page:
+                next_page_tokens[current_ref] = str(page)
         except StoreReviewError as error:
-            store_errors.append({"store": current_store, "app_ref": app_ref, "message": str(error), "status_code": error.status_code})
-            continue
-    if store_errors and len(store_errors) == len([normalize_store(item) for item in stores]):
-        return blocked("All configured store review sources failed.", {**scope, "store_errors": store_errors})
+            store_errors.append({"store": "appfollow", "app_ref": current_ref, "message": str(error), "status_code": error.status_code})
+    if store_errors and len(store_errors) == len(app_refs):
+        return blocked("All configured AppFollow review sources failed.", {**scope, "store_errors": store_errors})
     cutoff = datetime.now(timezone.utc) - timedelta(days=max(1, int(lookback_days or DEFAULT_LOOKBACK_DAYS)))
-    bounded = [review for review in reviews if _within_lookback(review, cutoff)]
+    bounded = [review for review in reviews if _within_lookback(review, cutoff)][:safe_limit]
     return tool_result(
-        {"status": "ok", "reviews": bounded, "next_page_tokens": next_page_tokens, "store_errors": store_errors},
+        {"status": "ok", "provider": "appfollow", "reviews": bounded, "next_page_tokens": next_page_tokens, "store_errors": store_errors},
         scope,
         confidence="needs-check" if store_errors else "verified",
         caveat=(
-            "One or more store review sources failed; available reviews are from the stores that responded."
+            "One or more AppFollow review sources failed; available reviews are from sources that responded."
             if store_errors
-            else "Direct store APIs are review truth. Slack remains the PS Wee triage surface."
+            else "AppFollow is the review provider. Slack remains the PS Wee triage surface."
         ),
     )
 
@@ -524,32 +340,27 @@ def list_store_reviews(
 def get_store_review(*, store: str, review_id: str, app_ref: str = "") -> dict[str, Any]:
     current_store = normalize_store(store)
     review_id = str(review_id or "").strip()
-    scope = {"store": current_store, "app_ref": app_ref, "review_id": review_id}
+    scope = {"provider": "appfollow", "store": current_store, "app_ref": app_ref, "review_id": review_id}
     if not current_store or not review_id:
         return blocked("store and review_id are required before fetching a store review.", scope)
     try:
-        if current_store == "google_play":
-            package = app_ref or google_package_name()
-            token = google_play_access_token()
-            payload = _request_json(
-                "GET",
-                f"{GOOGLE_ANDROID_PUBLISHER_BASE_URL}/applications/{urllib.parse.quote(package, safe='')}/reviews/{urllib.parse.quote(review_id, safe='')}",
-                access_token=token,
-            )
-            review = normalize_google_play_review(payload, package)
-        elif current_store == "app_store":
-            app_id = app_ref or app_store_app_id()
-            token = app_store_connect_token()
-            payload = _request_json(
-                "GET",
-                f"{APP_STORE_CONNECT_BASE_URL}/customerReviews/{urllib.parse.quote(review_id, safe='')}",
-                access_token=token,
-                params={"fields[customerReviews]": "rating,title,body,reviewerNickname,createdDate,territory,appVersionString"},
-            )
-            data = payload.get("data") if isinstance(payload, dict) else payload
-            review = normalize_app_store_review(data if isinstance(data, dict) else payload, app_id)
-        else:
-            return blocked(f"Unsupported store: {current_store}", scope)
+        from_date, to_date = _appfollow_review_window(DEFAULT_LOOKBACK_DAYS)
+        refs = [app_ref] if app_ref else _appfollow_app_refs()
+        selected_review = None
+        for current_ref in refs:
+            params: dict[str, Any] = {"from": from_date, "to": to_date, "review_id": review_id}
+            if current_ref.startswith("collection:"):
+                params["collection_name"] = current_ref.split(":", 1)[1]
+            else:
+                params["ext_id"] = current_ref
+            payload = _appfollow_request(params)
+            matches = _extract_appfollow_reviews(payload)
+            if matches:
+                selected_review = normalize_appfollow_review(matches[0], current_ref)
+                break
+        if not selected_review:
+            return blocked("AppFollow did not return the requested review.", scope)
+        review = selected_review
     except StoreReviewError as error:
         return blocked(str(error), scope)
     return tool_result({"status": "ok", "review": review}, scope, confidence="verified")
@@ -634,7 +445,7 @@ def draft_store_review_reply(review: dict[str, Any] | None = None, issue_summary
         scope,
         confidence="draft",
         caveat=(
-            "Draft only. Direct public store reply publishing is intentionally not exposed in V1. "
+            "Draft only. Public store reply publishing is intentionally not exposed in V1. "
             "Never ask the reviewer to post email or phone in the public review."
         ),
     )
@@ -1149,7 +960,7 @@ def poll_new_reviews(*, store: str = "", limit: int = 20, lookback_days: int = D
         caveat=(
             "One or more store review sources failed; available reviews are from the stores that responded."
             if store_errors
-            else "Direct store APIs are review truth. Slack remains the PS Wee triage surface."
+            else "AppFollow is the review provider. Slack remains the PS Wee triage surface."
         ),
     )
 

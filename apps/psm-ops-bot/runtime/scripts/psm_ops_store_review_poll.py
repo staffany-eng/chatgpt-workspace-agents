@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""No-agent direct store review poller for PSM Ops Bot.
+"""No-agent AppFollow store review poller for PSM Ops Bot.
 
 Hermes cron delivers stdout to Slack. This script prints one bot-owned
 `PSM Ops automation: Store review triage` block only when a new or changed review is found.
@@ -36,7 +36,7 @@ def _json_line(value: Any) -> str:
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Poll direct App Store / Google Play reviews.")
+    parser = argparse.ArgumentParser(description="Poll AppFollow reviews.")
     parser.add_argument("--store", default="", choices=["", "app_store", "google_play"], help="Store to poll; default polls both.")
     parser.add_argument("--limit", type=int, default=20, help="Max reviews per store to inspect.")
     parser.add_argument("--lookback-days", type=int, default=7, help="Review updated/created lookback window.")

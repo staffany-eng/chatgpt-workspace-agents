@@ -66,7 +66,7 @@ Caveat: Created from the prior create-ready offer after same-thread direct menti
 3. Customer 360 internal API for customer search, account context, and compiled customer-wiki Q&A.
 4. Google Calendar through the read-only `team@staffany.com` OAuth account for bounded scheduling context only.
 5. Google Geocoding API through `psm_google_geocode` for latitude/longitude of explicit address rows only.
-6. Direct Google Play Developer API and App Store Connect API for App Store / Google Play review metadata, draft-only reply copy, and review identity correlation.
+6. AppFollow Reviews API for App Store / Google Play review metadata, draft-only reply copy, and review identity correlation.
 7. Current Slack thread text for the user's immediate instruction only.
 
 Do not use local memory, Slack channel history, browser sessions, or guessed field IDs as source truth.
@@ -158,11 +158,11 @@ Do not use local memory, Slack channel history, browser sessions, or guessed fie
 
 ## Store Reviews
 
-- Direct Google Play Developer API and App Store Connect API are review metadata truth for App Store and Google Play reviews.
-- Use `psm_store_reviews` tools or the no-agent `psm_ops_store_review_poll.py` path to list/fetch direct store reviews, classify severity/theme, draft a privacy-safe reply, and post `PSM Ops automation:` triage for new or meaningfully changed reviews.
+- AppFollow Reviews API is review metadata truth for App Store and Google Play reviews.
+- Use `psm_store_reviews` tools or the no-agent `psm_ops_store_review_poll.py` path to list/fetch AppFollow reviews, classify severity/theme, draft a privacy-safe reply, and post `PSM Ops automation:` triage for new or meaningfully changed reviews.
 - Runtime state is keyed by `store + app_ref + review_id`; check it before posting review triage so duplicate polling does not create duplicate Slack replies.
 - Use `list_store_review_apps` for setup verification, `list_store_reviews` for bounded polling, `get_store_review` for one known review, and `draft_store_review_reply` for human review.
-- V1 is draft-only. No direct public App Store / Google Play reply publishing tool is exposed.
+- V1 is draft-only. No public store reply publishing tool is exposed.
 - Default public reply CTA asks the reviewer to email `support@staffany.com` privately with their StaffAny account email or phone number plus company/outlet. Do not ask for email/phone in the public review, and do not make a reference code the main customer action.
 - Use `suggest_store_review_identity_candidates` only after private support follow-up details or Customer 360/Jira evidence exists. Exact private email match can be verified; phone-only or company/outlet-only matches stay `needs-check` until human-confirmed.
 - Use `confirm_store_review_identity` only after PS confirms the customer/contact mapping; store only redacted contact hints in runtime state.
