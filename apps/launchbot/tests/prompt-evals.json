@@ -362,6 +362,66 @@
       }
     },
     {
+      "id": "launchbot-static-indonesia-payroll-tax-routing",
+      "bot": "Launchbot",
+      "surface": "slack:#launch-bot-testing",
+      "lane": "static",
+      "input": "@Launch Bot does StaffAny have A1 form?",
+      "setup": {
+        "first_slack_mention": true,
+        "live_tools": "disabled"
+      },
+      "expected_tool_trace": {
+        "must_call": []
+      },
+      "expected_answer_contract": {
+        "must_include": [
+          "Answer:",
+          "Regulatory basis:",
+          "StaffAny system behavior:",
+          "Gap / risk / not validated:",
+          "Sources checked:",
+          "Confidence:"
+        ],
+        "must_not_include": [
+          "generic assistant capabilities",
+          "consultant guidance as official regulation",
+          "full NPWP",
+          "full NIK",
+          "bank account"
+        ]
+      },
+      "forbidden_behavior": [
+        "StaffAny capability claim without Pantheon evidence",
+        "current regulation answer without official-source verification",
+        "sensitive payroll identifier exposure"
+      ],
+      "grade_notes": "Indonesia payroll-tax questions route to the bundled grimoire and keep regulator facts separate from StaffAny behavior.",
+      "assertions": {
+        "source_files": [
+          {
+            "path": "profile/SOUL.md",
+            "must_contain": [
+              "Use `skills/staffany-indonesia-payroll-tax-grimoire/SKILL.md` first.",
+              "use `skills/indonesia-tax-knowledge-updater/SKILL.md` inside the grimoire before the final answer.",
+              "run `skills/indonesia-tax-knowledge-updater/scripts/validate_knowledge_bank.rb` before the final answer",
+              "For StaffAny product capability claims, inspect Pantheon code",
+              "BPJS-only questions are outside the core tax skill"
+            ]
+          },
+          {
+            "path": "tests/launch-workflow-regression-cases.md",
+            "must_contain": [
+              "does StaffAny have A1 form?",
+              "latest BPJS JP and JHT rate",
+              "use `skills/indonesia-tax-knowledge-updater/SKILL.md` inside the grimoire before final answer",
+              "Indonesia tax answers must include"
+            ]
+          }
+        ]
+      }
+    },
+    {
       "id": "launchbot-live-smoke-capability-answer",
       "bot": "Launchbot",
       "surface": "slack:#launch-bot-testing",

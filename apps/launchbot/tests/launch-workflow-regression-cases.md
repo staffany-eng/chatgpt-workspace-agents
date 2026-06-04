@@ -128,6 +128,14 @@
 - `#all-product-questions` (`C01RZ7SHC8K`) is an allowed Launchbot channel only for read-only product-commitment / KER lookup.
 - KER lookup in `#all-product-questions` must read bounded Slack context with the Launchbot bot token, call Jira KER read-only, and never create feature intake, post from the MCP, or mutate Jira.
 
+## Indonesia Payroll Tax Answers
+
+- Given `@Launch Bot does StaffAny have A1 form?`, Launchbot should route to `skills/staffany-indonesia-payroll-tax-grimoire/SKILL.md`, separate regulatory basis from StaffAny system behavior, inspect Pantheon before claiming product support, and call out gaps such as `Report 1721-A1 - Coming Soon` versus `Bukti Pemotongan A1 (BPA1)` export if that remains true in code.
+- Given `@Launch Bot what is the latest BPJS JP and JHT rate?`, Launchbot should state that BPJS-only questions are outside the core tax skill unless they affect payroll-tax/reporting, verify current rates/caps against official BPJS/government sources, and avoid answering from stale local tax notes alone.
+- Given a question about current or changed Indonesia payroll-tax law, rates, forms, deadlines, filing channels, or regulator platform behavior, Launchbot should use `skills/indonesia-tax-knowledge-updater/SKILL.md` inside the grimoire before final answer and run the grimoire knowledge-bank validator when reference files are updated.
+- Indonesia tax answers must include `Answer`, `Regulatory basis`, `StaffAny system behavior`, `Gap / risk / not validated`, `Sources checked`, and `Confidence`.
+- Indonesia tax answers must not expose full NPWP, NIK, bank account, credentials, unrelated employee details, raw Slack transcripts, or unverified consultant guidance as official regulation.
+
 ## Slack Approval To Intercom Draft
 
 - A configured approval reaction from an authorized reviewer should create one Intercom draft for the matching article slug.

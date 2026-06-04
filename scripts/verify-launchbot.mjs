@@ -362,6 +362,52 @@ if (!manifest) {
   for (const key of ["ticket_creation", "engineer_tags", "owner_assignment"]) {
     if (supportWatchMonitor[key] !== false) fail(`Manifest support watch monitor must forbid ${key}`);
   }
+  const taxAdvisory = manifest.tax_advisory || {};
+  if (taxAdvisory.mode !== "source_backed_indonesia_payroll_tax_answers") {
+    fail("Manifest tax_advisory mode must be source_backed_indonesia_payroll_tax_answers");
+  }
+  if (taxAdvisory.skill !== "skills/staffany-indonesia-payroll-tax-grimoire/SKILL.md") {
+    fail("Manifest tax_advisory must point to the Indonesia payroll tax grimoire skill");
+  }
+  if (taxAdvisory.regulation_update_skill !== "skills/staffany-indonesia-payroll-tax-grimoire/skills/indonesia-tax-knowledge-updater/SKILL.md") {
+    fail("Manifest tax_advisory must point to the Indonesia tax knowledge updater skill");
+  }
+  if (taxAdvisory.knowledge_bank_validator !== "skills/staffany-indonesia-payroll-tax-grimoire/skills/indonesia-tax-knowledge-updater/scripts/validate_knowledge_bank.rb") {
+    fail("Manifest tax_advisory must point to the Indonesia tax knowledge-bank validator");
+  }
+  for (const topic of ["PPh21", "SPT Masa PPh 21/26", "Formulir 1721-A1 / BPA1", "BPMP", "BP21"]) {
+    if (!taxAdvisory.topics?.includes(topic)) fail(`Manifest tax_advisory missing topic: ${topic}`);
+  }
+  for (const contractField of [
+    "Direct answer",
+    "Regulatory basis",
+    "StaffAny system behavior",
+    "Gap / risk / not validated",
+    "Sources checked",
+    "Confidence",
+  ]) {
+    if (!taxAdvisory.answer_contract?.includes(contractField)) {
+      fail(`Manifest tax_advisory answer contract missing: ${contractField}`);
+    }
+  }
+  if (!taxAdvisory.current_fact_policy?.includes("official online sources")) {
+    fail("Manifest tax_advisory must require official online checks for current facts");
+  }
+  if (!taxAdvisory.current_fact_policy?.includes("regulation update skill workflow")) {
+    fail("Manifest tax_advisory must require the regulation update workflow before current-law answers");
+  }
+  if (!taxAdvisory.pre_final_validation_policy?.includes("knowledge-bank validator")) {
+    fail("Manifest tax_advisory must require knowledge-bank validation before final answers when knowledge changes");
+  }
+  if (!taxAdvisory.staffany_behavior_policy?.includes("Pantheon code")) {
+    fail("Manifest tax_advisory must require Pantheon/code evidence for StaffAny behavior");
+  }
+  if (!taxAdvisory.bpjs_scope?.includes("outside the core tax skill")) {
+    fail("Manifest tax_advisory must label BPJS-only scope");
+  }
+  if (!taxAdvisory.sensitive_data_policy?.includes("NPWP")) {
+    fail("Manifest tax_advisory must include sensitive payroll data policy");
+  }
 }
 
 for (const relPath of [
@@ -402,6 +448,14 @@ for (const relPath of [
   "skills/help-article-generator/references/intercom-article-inventory.json",
   "skills/help-article-generator/references/video-placement-registry.json",
   "skills/weekly-support-watch/SKILL.md",
+  "skills/staffany-indonesia-payroll-tax-grimoire/SKILL.md",
+  "skills/staffany-indonesia-payroll-tax-grimoire/skills/indonesia-payroll-tax-advisor/SKILL.md",
+  "skills/staffany-indonesia-payroll-tax-grimoire/skills/indonesia-payroll-tax-advisor/references/reporting.md",
+  "skills/staffany-indonesia-payroll-tax-grimoire/skills/indonesia-payroll-tax-advisor/references/pph21.md",
+  "skills/staffany-indonesia-payroll-tax-grimoire/skills/indonesia-payroll-tax-advisor/references/source-quality.md",
+  "skills/staffany-indonesia-payroll-tax-grimoire/skills/indonesia-tax-knowledge-updater/SKILL.md",
+  "skills/staffany-indonesia-payroll-tax-grimoire/skills/indonesia-tax-knowledge-updater/scripts/validate_knowledge_bank.rb",
+  "skills/staffany-indonesia-payroll-tax-grimoire/skills/pph21-settings-explainer/SKILL.md",
   "runtime/launch-workflow.md",
   "runtime/launchbot_e2e.py",
   "tests/launch-workflow-regression-cases.md",
@@ -595,6 +649,15 @@ for (const requiredText of [
   "Never print a `Router:` line in normal Slack replies.",
   "do not redirect users to another bot. Execute the workflow directly in Launchbot.",
   "Do not tell users to `Ping @Product Ops Bot`",
+  "Use `skills/staffany-indonesia-payroll-tax-grimoire/SKILL.md` first.",
+  "For StaffAny product capability claims, inspect Pantheon code",
+  "For current laws, rates, forms, deadlines, filing channels, or regulator platform changes, verify against official online sources",
+  "use `skills/indonesia-tax-knowledge-updater/SKILL.md` inside the grimoire before the final answer.",
+  "run `skills/indonesia-tax-knowledge-updater/scripts/validate_knowledge_bank.rb` before the final answer",
+  "BPJS-only questions are outside the core tax skill",
+  "Regulatory basis:",
+  "StaffAny system behavior:",
+  "Gap / risk / not validated:",
 ]) {
   if (!soulText.includes(requiredText)) fail(`SOUL.md missing required text: ${requiredText}`);
 }
@@ -1005,6 +1068,50 @@ for (const requiredText of [
   "No new findings",
 ]) {
   if (!supportWatchSkillText.includes(requiredText)) fail(`Weekly support-watch skill missing required text: ${requiredText}`);
+}
+
+const indonesiaTaxSkillText = textOf("skills/staffany-indonesia-payroll-tax-grimoire/SKILL.md");
+for (const requiredText of [
+  "StaffAny Indonesia Payroll Tax Grimoire",
+  "skills/indonesia-payroll-tax-advisor/SKILL.md",
+  "skills/pph21-settings-explainer/SKILL.md",
+  "Direct answer",
+  "Regulatory basis",
+  "StaffAny system behavior",
+  "Gap / risk / not validated",
+  "Sources checked",
+  "Confidence",
+  "Formulir 1721-A1 / BPA1",
+  "Browse official sources for current law, reporting forms, rates, filing processes, and Coretax/DJP template changes.",
+  "Protect sensitive payroll data",
+]) {
+  if (!indonesiaTaxSkillText.includes(requiredText)) {
+    fail(`Indonesia payroll tax grimoire missing required text: ${requiredText}`);
+  }
+}
+const indonesiaTaxReportingText = textOf("skills/staffany-indonesia-payroll-tax-grimoire/skills/indonesia-payroll-tax-advisor/references/reporting.md");
+for (const requiredText of [
+  "SPT Masa PPh 21/26",
+  "e-Bupot 21/26",
+  "BPA1",
+  "Coretax can generate/download 1721-A1",
+  "StaffAny Behavior Map",
+]) {
+  if (!indonesiaTaxReportingText.includes(requiredText)) {
+    fail(`Indonesia payroll tax reporting reference missing required text: ${requiredText}`);
+  }
+}
+const indonesiaTaxUpdaterText = textOf("skills/staffany-indonesia-payroll-tax-grimoire/skills/indonesia-tax-knowledge-updater/SKILL.md");
+for (const requiredText of [
+  "Indonesia Tax Knowledge Updater",
+  "Verify current regulator facts against official sources before writing them into the knowledge bank.",
+  "Record source title, publisher, URL, effective period, last checked date, topics, status, confidence, and notes.",
+  "validate_knowledge_bank.rb",
+  "Required Source Fields",
+]) {
+  if (!indonesiaTaxUpdaterText.includes(requiredText)) {
+    fail(`Indonesia tax knowledge updater missing required text: ${requiredText}`);
+  }
 }
 
 const launchbotHealthText = textOf("runtime/check-health.sh");

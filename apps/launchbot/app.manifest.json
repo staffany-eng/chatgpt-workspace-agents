@@ -48,6 +48,12 @@
     "intercom_article_inventory": "skills/help-article-generator/references/intercom-article-inventory.json",
     "help_article_video_registry": "skills/help-article-generator/references/video-placement-registry.json",
     "support_watch_skill": "skills/weekly-support-watch/SKILL.md",
+    "indonesia_payroll_tax_skill": "skills/staffany-indonesia-payroll-tax-grimoire/SKILL.md",
+    "indonesia_tax_knowledge_updater_skill": "skills/staffany-indonesia-payroll-tax-grimoire/skills/indonesia-tax-knowledge-updater/SKILL.md",
+    "indonesia_tax_knowledge_validator": "skills/staffany-indonesia-payroll-tax-grimoire/skills/indonesia-tax-knowledge-updater/scripts/validate_knowledge_bank.rb",
+    "indonesia_payroll_tax_reporting_reference": "skills/staffany-indonesia-payroll-tax-grimoire/skills/indonesia-payroll-tax-advisor/references/reporting.md",
+    "indonesia_payroll_tax_pph21_reference": "skills/staffany-indonesia-payroll-tax-grimoire/skills/indonesia-payroll-tax-advisor/references/pph21.md",
+    "indonesia_payroll_tax_source_quality_reference": "skills/staffany-indonesia-payroll-tax-grimoire/skills/indonesia-payroll-tax-advisor/references/source-quality.md",
     "launch_workflow_regression_cases": "tests/launch-workflow-regression-cases.md",
     "prompt_evals": "tests/prompt-evals.json"
   },
@@ -162,6 +168,46 @@
       "local_time": "Thursday 09:00 SGT",
       "mode": "no-agent"
     }
+  },
+  "tax_advisory": {
+    "mode": "source_backed_indonesia_payroll_tax_answers",
+    "skill": "skills/staffany-indonesia-payroll-tax-grimoire/SKILL.md",
+    "regulation_update_skill": "skills/staffany-indonesia-payroll-tax-grimoire/skills/indonesia-tax-knowledge-updater/SKILL.md",
+    "knowledge_bank_validator": "skills/staffany-indonesia-payroll-tax-grimoire/skills/indonesia-tax-knowledge-updater/scripts/validate_knowledge_bank.rb",
+    "topics": [
+      "PPh21",
+      "PPh26",
+      "TER",
+      "PTKP",
+      "DTP",
+      "SPT Masa PPh 21/26",
+      "e-Bupot 21/26",
+      "bukti potong",
+      "Formulir 1721-A1 / BPA1",
+      "BPMP",
+      "BP21",
+      "BP26",
+      "StaffAny Indonesia payroll-tax settings"
+    ],
+    "answer_contract": [
+      "Direct answer",
+      "Regulatory basis",
+      "StaffAny system behavior",
+      "Gap / risk / not validated",
+      "Sources checked",
+      "Confidence"
+    ],
+    "source_priority": [
+      "official_regulator_sources",
+      "official_djp_guidance",
+      "staffany_code_or_data_evidence",
+      "secondary_consultant_guidance"
+    ],
+    "current_fact_policy": "Before final answers about current laws, rates, forms, deadlines, or regulator platform changes, use the regulation update skill workflow to verify official online sources and record source title, publisher, URL, effective period, last checked date, status, and confidence.",
+    "pre_final_validation_policy": "If regulator knowledge is refreshed or added, run the knowledge-bank validator before final answer; if validation cannot run, say so and lower confidence.",
+    "staffany_behavior_policy": "Inspect Pantheon code, models, seeded references, or verified read-only query facts before claiming StaffAny product support.",
+    "bpjs_scope": "BPJS is outside the core tax skill unless it affects payroll-tax/reporting; answer BPJS-only questions from official BPJS/government sources and label the scope.",
+    "sensitive_data_policy": "Do not expose full NPWP, NIK, bank account, credentials, or unrelated employee payroll details."
   },
   "mcp": {
     "launchbot_ker": {

@@ -1,0 +1,7 @@
+interface:
+  display_name: "Employee Payroll Breakdown"
+  short_description: "Explain payroll components and PPh21"
+  default_prompt: "Use $employee-payroll-breakdown to explain an employee's monthly take-home pay, including payroll components and Indonesia PPh21 if applicable."
+
+policy:
+  allow_implicit_invocation: true

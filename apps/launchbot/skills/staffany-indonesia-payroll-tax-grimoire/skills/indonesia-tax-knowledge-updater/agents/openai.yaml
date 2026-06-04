@@ -1,0 +1,7 @@
+interface:
+  display_name: "Indonesia Tax Knowledge Updater"
+  short_description: "Refresh Indonesia tax sources and notes"
+  default_prompt: "Use $indonesia-tax-knowledge-updater to verify, store, and validate Indonesia payroll tax knowledge bank updates."
+
+policy:
+  allow_implicit_invocation: true

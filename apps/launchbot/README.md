@@ -44,6 +44,7 @@ Canonical Hermes app packet for the Launchbot Slack profile.
 | `skills/help-article-generator/` | Launchbot help-article drafting skill upgraded from the 2026-05-11 handoff. |
 | `skills/help-article-generator/references/video-placement-registry.json` | Registry authority for help article video placement. |
 | `skills/weekly-support-watch/SKILL.md` | Weekly support-watch operating contract and live-smoke checklist. |
+| `skills/staffany-indonesia-payroll-tax-grimoire/` | Source-backed StaffAny Indonesia payroll-tax answer bundle. |
 | `runtime/launch-workflow.md` | Help-article, Google Docs review, Slack approval, and Intercom draft workflow contract. |
 | `runtime/launchbot_e2e.py` | Minimal VM-safe handoff runner when the external source checkout is absent. |
 | `runtime/intercom-format-gate.mjs` | Pantheon evidence scan/check, Intercom search, cached article-shape planning, curated format-profile pull, and pre-publish format check CLI. |
@@ -59,12 +60,13 @@ Canonical Hermes app packet for the Launchbot Slack profile.
 5. Set Slack and model secrets from the approved secret store only.
 6. Set Jira env vars (`JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN`) in the live profile `.env` before enabling KER lookup, IFI tracking, product commitment checks, or confirmed feature intake.
 7. Copy `skills/help-article-generator/` into `~/.hermes/profiles/launchbot/skills/` when enabling article drafting and registered video-slot updates.
-8. Copy runtime scripts into `~/.hermes/profiles/launchbot/scripts/`, including `launchbot-monitor-feature-intake.py` and `launchbot-monitor-support-watch.py`.
-9. Copy `runtime/mcp/launchbot_ifi_server.py`, `runtime/mcp/launchbot_support_watch_server.py`, `runtime/mcp/launchbot_support_watch_core.py`, and `runtime/mcp/launchbot_help_article_server.py` into the live profile source tree before enabling the matching MCP servers.
-10. Set `HUBSPOT_ACCESS_TOKEN` and `JIRA_IFI_HUBSPOT_COMPANY_ID_FIELD_ID=customfield_10881` before enabling IFI tracking. `HUBSPOT_PORTAL_ID` defaults to `4137076`.
-11. Seed `~/.hermes/profiles/launchbot/source/pantheon` for code-grounded article verification. Install the daily Pantheon updater cron only after the VM has GitHub SSH access to `staffany-eng/pantheon`.
-12. Start the managed gateway and install the no-agent health check cron.
-13. Install the feature-intake monitor cron only after Slack/Jira env is present and a dry-run against `CF8PK6V4J` succeeds:
+8. Copy `skills/staffany-indonesia-payroll-tax-grimoire/` into `~/.hermes/profiles/launchbot/skills/` when enabling Indonesia payroll-tax answers.
+9. Copy runtime scripts into `~/.hermes/profiles/launchbot/scripts/`, including `launchbot-monitor-feature-intake.py` and `launchbot-monitor-support-watch.py`.
+10. Copy `runtime/mcp/launchbot_ifi_server.py`, `runtime/mcp/launchbot_support_watch_server.py`, `runtime/mcp/launchbot_support_watch_core.py`, and `runtime/mcp/launchbot_help_article_server.py` into the live profile source tree before enabling the matching MCP servers.
+11. Set `HUBSPOT_ACCESS_TOKEN` and `JIRA_IFI_HUBSPOT_COMPANY_ID_FIELD_ID=customfield_10881` before enabling IFI tracking. `HUBSPOT_PORTAL_ID` defaults to `4137076`.
+12. Seed `~/.hermes/profiles/launchbot/source/pantheon` for code-grounded article verification and StaffAny Indonesia payroll-tax capability checks. Install the daily Pantheon updater cron only after the VM has GitHub SSH access to `staffany-eng/pantheon`.
+13. Start the managed gateway and install the no-agent health check cron.
+14. Install the feature-intake monitor cron only after Slack/Jira env is present and a dry-run against `CF8PK6V4J` succeeds:
     ```bash
     cp apps/launchbot/runtime/monitor-feature-intake.py ~/.hermes/profiles/launchbot/scripts/launchbot-monitor-feature-intake.py
     ~/.hermes/profiles/launchbot/scripts/launchbot-monitor-feature-intake.py --dry-run --channel CF8PK6V4J --since-minutes 30
@@ -73,7 +75,7 @@ Canonical Hermes app packet for the Launchbot Slack profile.
       --script launchbot-monitor-feature-intake.py \
       --no-agent
     ```
-14. Install the support-watch cron only after BigQuery/Jira/Slack env is present, `#all-bugs-production` resolves with the Launchbot bot token, Launchbot can join configured public channels with `channels:join`, and a dry-run succeeds. Public support-watch channels resolve by name with `channels:read`; use explicit channel IDs only for private channels:
+15. Install the support-watch cron only after BigQuery/Jira/Slack env is present, `#all-bugs-production` resolves with the Launchbot bot token, Launchbot can join configured public channels with `channels:join`, and a dry-run succeeds. Public support-watch channels resolve by name with `channels:read`; use explicit channel IDs only for private channels:
     ```bash
     cp apps/launchbot/runtime/monitor-support-watch.py ~/.hermes/profiles/launchbot/scripts/launchbot-monitor-support-watch.py
     LAUNCHBOT_SUPPORT_WATCH_OUTPUT_CHANNEL_NAME=all-bugs-production \
@@ -84,8 +86,8 @@ Canonical Hermes app packet for the Launchbot Slack profile.
       --script launchbot-monitor-support-watch.py \
       --no-agent
     ```
-15. Confirm no Mac-local `launchbot` profile or gateway exists before live Slack testing. Only the cloud Launchbot runtime should be connected to Slack, otherwise stale local profile state can answer first.
-16. Treat the restore as verified only after the health check passes and the Slack smoke replies from Launchbot's bot identity in `#launch-bot-testing`.
+16. Confirm no Mac-local `launchbot` profile or gateway exists before live Slack testing. Only the cloud Launchbot runtime should be connected to Slack, otherwise stale local profile state can answer first.
+17. Treat the restore as verified only after the health check passes and the Slack smoke replies from Launchbot's bot identity in `#launch-bot-testing`.
 
 ## Launch Workflow Skill
 
@@ -130,6 +132,8 @@ Feature intake is a guarded Jira Product Discovery lane. Preview with `preview_f
 IFI tracking is a preview-first customer-demand lane. Preview APQ or Slack requests with `preview_ifi_feature_request_tracking`; preview BD-notes feature demand with `preview_ifi_feature_request_from_bd_note`. Both routes require a confirmed HubSpot company URL or numeric HubSpot Company ID before Jira writes. After exact `confirm IFI`, create/update IFI through `create_or_update_ifi_feature_request_tracking` or `create_or_update_ifi_feature_request_from_bd_note`; the MCP never mutates HubSpot or posts Slack.
 
 Product commitment checks are read-only. Use `check_product_commitment_from_slack_thread` for prompts like `check product commitment for this thread` or `can u check if this is committed on roadmap`. The commitment lane is allowed in `#all-product-questions` (`C01RZ7SHC8K`) through `LAUNCHBOT_PRODUCT_COMMITMENT_ALLOWED_CHANNEL_IDS`; keep it separate from feature intake. Only Jira `fixVersions` and reviewed field IDs from `LAUNCHBOT_PRODUCT_COMMITMENT_FIELD_IDS` count as commitment evidence. If no reviewed evidence is present, Launchbot must say no committed Jira roadmap evidence was found and must not infer an ETA or create intake.
+
+Indonesia payroll-tax answers are skill-backed. Route PPh21, PPh26, TER, PTKP, DTP, SPT Masa PPh 21/26, e-Bupot 21/26, bukti potong, Formulir 1721-A1 / BPA1, BPMP, BP21, BP26, and StaffAny Indonesia payroll-tax settings to `skills/staffany-indonesia-payroll-tax-grimoire/SKILL.md`. Current laws, rates, forms, deadlines, and regulator platform changes must use the bundled regulation update workflow at `skills/staffany-indonesia-payroll-tax-grimoire/skills/indonesia-tax-knowledge-updater/SKILL.md` before final answers; if the knowledge bank is updated, run `skills/indonesia-tax-knowledge-updater/scripts/validate_knowledge_bank.rb` from the grimoire root. StaffAny product behavior claims still need Pantheon code, model, seeded-reference, or verified read-only query evidence.
 
 For `#input-features-ux`, the no-agent monitor watches top-level messages and thread replies with the Launchbot bot token. It keeps normal Launchbot replies mention-gated, stores only safe summaries and source pointers, posts one `Launchbot automation:` preview for high-confidence candidates, and creates a KER Idea only after exact `create intake` / `create KER intake` in the same thread.
 
