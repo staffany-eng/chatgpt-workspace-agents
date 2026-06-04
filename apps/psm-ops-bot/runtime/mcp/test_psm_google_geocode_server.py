@@ -23,6 +23,13 @@ class PsmGoogleGeocodeServerTest(unittest.TestCase):
         wrapper.status = 200  # type: ignore[attr-defined]
         return wrapper
 
+    def _bytes_response(self, payload: bytes):
+        wrapper = io.BytesIO(payload)
+        wrapper.__enter__ = lambda self: self  # type: ignore[attr-defined]
+        wrapper.__exit__ = lambda self, *args: None  # type: ignore[attr-defined]
+        wrapper.status = 200  # type: ignore[attr-defined]
+        return wrapper
+
     def test_load_api_key_from_local_credentials_file(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             path = Path(tmpdir) / "credentials.json"
@@ -80,6 +87,18 @@ class PsmGoogleGeocodeServerTest(unittest.TestCase):
             self.module._normalize_address_rows(["+65 9123 4567"])
         with self.assertRaisesRegex(self.module.GoogleGeocodeError, "No explicit postal address"):
             self.module._normalize_address_rows(["near Orchard"])
+
+    def test_parse_address_file_requires_address_column(self):
+        with self.assertRaisesRegex(self.module.GoogleGeocodeError, "address column"):
+            self.module._parse_address_file(b"customer\tpostal\nA\t1 Raffles Place, Singapore\n", filename="sample.tsv")
+
+    def test_parse_address_file_preserves_metadata(self):
+        rows = self.module._parse_address_file(
+            b"customer\taddress\tsource\nOutlet A\t1 Raffles Place, Singapore\trow-a\n",
+            filename="sample.tsv",
+            mimetype="text/tab-separated-values",
+        )
+        self.assertEqual(rows, [{"address": "1 Raffles Place, Singapore", "label": "Outlet A", "source": "row-a"}])
 
     def test_ambiguous_address_inputs_block_before_external_api(self):
         with patch.dict(os.environ, {"GOOGLE_GEOCODING_API_KEY": "secret-key", "SLACK_BOT_TOKEN": "xoxb-secret"}, clear=False):
@@ -294,6 +313,117 @@ class PsmGoogleGeocodeServerTest(unittest.TestCase):
         self.assertEqual(result["confidence"], "blocked")
         self.assertIn("https", result["answer"]["message"])
         self.assertFalse(any("maps.googleapis.com" in url for url in captured_urls))
+
+    def test_geocode_slack_address_file_downloads_tsv_and_uploads_result(self):
+        captured_urls: list[str] = []
+        uploaded_bodies: list[bytes] = []
+
+        def fake_urlopen(request, timeout=None):
+            captured_urls.append(request.full_url)
+            if "conversations.history" in request.full_url:
+                return self._response(
+                    {
+                        "ok": True,
+                        "messages": [
+                            {
+                                "ts": "1234567890.123456",
+                                "files": [
+                                    {
+                                        "id": "F-addresses",
+                                        "name": "addresses.tsv",
+                                        "mimetype": "text/tab-separated-values",
+                                        "filetype": "tsv",
+                                        "url_private_download": "https://files.slack.com/addresses.tsv",
+                                    }
+                                ],
+                            }
+                        ],
+                    }
+                )
+            if "conversations.replies" in request.full_url:
+                return self._response({"ok": True, "messages": []})
+            if "files.slack.com/addresses.tsv" in request.full_url:
+                auth = request.headers.get("Authorization") or request.headers.get("authorization")
+                self.assertEqual(auth, "Bearer xoxb-secret")
+                return self._bytes_response(b"customer\taddress\nOutlet A\t1 Raffles Place, Singapore\n")
+            if "files.getUploadURLExternal" in request.full_url:
+                return self._response({"ok": True, "upload_url": "https://upload.slack.test/file", "file_id": "F123"})
+            if "upload.slack.test" in request.full_url:
+                uploaded_bodies.append(request.data)
+                return self._response({})
+            if "files.completeUploadExternal" in request.full_url:
+                body = urllib.parse.parse_qs(request.data.decode("utf-8"))
+                self.assertEqual(body["channel_id"], ["C123"])
+                self.assertEqual(body["thread_ts"], ["1234567890.123456"])
+                return self._response({"ok": True, "file": {"permalink": "https://slack/file/F123"}})
+            return self._response(
+                {
+                    "status": "OK",
+                    "results": [
+                        {
+                            "formatted_address": "1 Raffles Pl, Singapore",
+                            "place_id": "place-1",
+                            "geometry": {"location": {"lat": 1.2847, "lng": 103.851}},
+                        }
+                    ],
+                }
+            )
+
+        with patch.dict(os.environ, {"GOOGLE_GEOCODING_API_KEY": "secret-key", "SLACK_BOT_TOKEN": "xoxb-secret"}, clear=False):
+            with patch.object(self.module.urllib.request, "urlopen", side_effect=fake_urlopen):
+                result = self.module.geocode_slack_address_file(
+                    slack_thread_url="https://staffany.slack.com/archives/C123/p1234567890123456",
+                )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["answer"]["input_file"]["name"], "addresses.tsv")
+        self.assertIn("Uploaded geocoded TSV file", result["answer"]["slack_reply"])
+        self.assertIn(b"Outlet A", uploaded_bodies[0])
+        self.assertIn(b"1.2847\t103.851\tOK", uploaded_bodies[0])
+        self.assertNotIn("secret-key", json.dumps(result))
+        self.assertEqual(sum(1 for url in captured_urls if "maps.googleapis.com" in url), 1)
+
+    def test_geocode_slack_address_file_blocks_missing_address_column_before_google(self):
+        captured_urls: list[str] = []
+
+        def fake_urlopen(request, timeout=None):
+            captured_urls.append(request.full_url)
+            if "conversations.history" in request.full_url:
+                return self._response(
+                    {
+                        "ok": True,
+                        "messages": [
+                            {
+                                "ts": "1234567890.123456",
+                                "files": [
+                                    {
+                                        "id": "F-addresses",
+                                        "name": "addresses.csv",
+                                        "mimetype": "text/csv",
+                                        "filetype": "csv",
+                                        "url_private": "https://files.slack.com/addresses.csv",
+                                    }
+                                ],
+                            }
+                        ],
+                    }
+                )
+            if "conversations.replies" in request.full_url:
+                return self._response({"ok": True, "messages": []})
+            if "files.slack.com/addresses.csv" in request.full_url:
+                return self._bytes_response(b"customer,postal\nOutlet A,1 Raffles Place Singapore\n")
+            return self._response({"ok": True})
+
+        with patch.dict(os.environ, {"GOOGLE_GEOCODING_API_KEY": "secret-key", "SLACK_BOT_TOKEN": "xoxb-secret"}, clear=False):
+            with patch.object(self.module.urllib.request, "urlopen", side_effect=fake_urlopen):
+                result = self.module.geocode_slack_address_file(
+                    slack_thread_url="https://staffany.slack.com/archives/C123/p1234567890123456",
+                )
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("address column", result["answer"]["message"])
+        self.assertFalse(any("maps.googleapis.com" in url for url in captured_urls))
+        self.assertFalse(any("files.getUploadURLExternal" in url for url in captured_urls))
 
     def test_check_google_geocode_access_does_not_call_api(self):
         with patch.dict(os.environ, {"GOOGLE_GEOCODING_API_KEY": "secret-key"}, clear=False):

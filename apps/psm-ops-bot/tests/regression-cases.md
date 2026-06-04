@@ -216,6 +216,21 @@ Tanjong Pagar - 10 Anson Road, Singapore 079903
 - If Google returns `partial_match=true`, uploads the row but marks the response `needs-check` and excludes that row from the OK count.
 - If only a customer name, outlet name, person name, phone number, or vague location hint is provided, asks for the exact address instead of calling Google Geocoding.
 
+## PS WEE Google Geocode CSV/TSV File Input
+
+Thread:
+
+```text
+@PS WEE geocode these addresses
+```
+
+Attachment: `.csv` or `.tsv` file with an `address` column.
+
+- Calls `geocode_slack_address_file` instead of asking the user to paste the file contents.
+- Parses the `address` column deterministically and preserves optional customer/outlet/label metadata.
+- Uploads a geocoded `.tsv` result in the same Slack thread.
+- If the file is unsupported or missing an `address` column, blocks before calling Google Geocoding.
+
 ## PS WEE PCO Board Search
 
 Thread:

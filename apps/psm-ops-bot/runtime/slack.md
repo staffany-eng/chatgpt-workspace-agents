@@ -41,7 +41,7 @@ The Slack surface is strict @-mention opt-in usage in public/open StaffAny Slack
 - Assignment hygiene digests use deterministic Slack mrkdwn over safe Jira PCO fields only. Josica lead mention comes only from `ps_leads.Josica`; PS Team mentions come only from `ps_teams`. Missing mappings render `Lead mention gap` or `Mention gaps`.
 - Customer-team tagging in reminders is central-channel-only. Render a customer channel mention only when a Jira source link contains a Slack permalink whose channel is reviewed in `PSM_OPS_CUSTOMER_CHANNEL_MAP_PATH`; do not cross-post to customer channels.
 - Explicit customer scheduling or follow-up requests may use `read_customer_calendar_context` through the read-only `team@staffany.com` account. Do not call Calendar for vague names, task-list ownership, or missing attendee slot requests. Return only bounded safe metadata and never expose descriptions, attendee emails, raw guest lists, conference links, or phone numbers.
-- Explicit address geocoding requests may use `geocode_slack_addresses` through `psm_google_geocode`. Extract only postal address rows from the tagged Slack message; do not geocode customer names, person names, phone numbers, outlet names without addresses, or vague location hints. The result must be uploaded as a `.tsv` file in the Slack thread; do not paste latitude/longitude rows as raw Slack text.
+- Explicit address geocoding requests may use `geocode_slack_addresses` or `geocode_slack_address_file` through `psm_google_geocode`. Extract only postal address rows from the tagged Slack message or an attached `.csv`/`.tsv` file with an `address` column; do not geocode customer names, person names, phone numbers, outlet names without addresses, or vague location hints. The result must be uploaded as a `.tsv` file in the Slack thread; do not paste latitude/longitude rows as raw Slack text.
 
 ## Output Contracts
 
@@ -109,6 +109,7 @@ Use the minimum Hermes Slack gateway scopes required for app mentions, public-ch
 - `channels:history`
 - `channels:join`
 - `chat:write`
+- `files:read`
 - `files:write`
 - `users:read`
 - `users:read.email`
@@ -117,7 +118,7 @@ The PSM Jira MCP needs `users:read` and `users:read.email` so it can fetch Slack
 
 Central audit copies need bot-owned `chat:write`. If raw source-thread excerpt fetch is enabled, the bot also needs `channels:history` for public channels it is in and `groups:history` only for private channels where the bot has explicitly been invited. Do not request broad private-channel enumeration for V1.
 
-Google Geocode TSV uploads need bot-owned `files:write`. If that scope is missing, `geocode_slack_addresses` must block rather than pasting raw coordinates into the Slack message.
+Google Geocode CSV/TSV input needs bot-owned `files:read`, and TSV uploads need bot-owned `files:write`. If either required file scope is missing, the geocode tool must block rather than asking the user to paste rows or dumping coordinates into the Slack message.
 
 Open public-channel mode is not proven by `SLACK_ALLOWED_CHANNELS=""` alone. The Slack app must have `channels:join`, then the bot-owned public-channel join script must be run from the cloud profile:
 

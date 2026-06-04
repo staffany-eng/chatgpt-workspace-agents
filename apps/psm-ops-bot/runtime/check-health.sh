@@ -46,7 +46,7 @@ if command -v hermes >/dev/null 2>&1; then
       psm_jira) expected=28 ;;
       psm_c360) expected=3 ;;
       psm_google_calendar) expected=1 ;;
-      psm_google_geocode) expected=2 ;;
+      psm_google_geocode) expected=3 ;;
     esac
     count="$(printf '%s\n' "$out" | sed -nE 's/.*Tools discovered: ([0-9]+).*/\1/p' | tail -1)"
     [ "$count" = "$expected" ] || fail "mcp:$server:tools=${count:-unavailable}:expected=$expected"

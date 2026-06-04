@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+import csv
+import io
 import json
 import math
 import os
@@ -28,9 +30,18 @@ SLACK_API_BASE_URL = "https://slack.com/api"
 DEFAULT_CREDENTIALS_FILE = "~/.staffany/google-geocode/credentials.json"
 MAX_ADDRESSES_PER_CALL = 25
 MAX_ADDRESS_CHARS = 500
+MAX_INPUT_FILE_BYTES = 256 * 1024
 REQUEST_TIMEOUT_SECONDS = 15
 TRANSIENT_STATUSES = {"OVER_QUERY_LIMIT", "UNKNOWN_ERROR"}
 MAX_ATTEMPTS = 3
+SUPPORTED_INPUT_EXTENSIONS = {".csv", ".tsv"}
+SUPPORTED_INPUT_MIME_TYPES = {
+    "application/csv",
+    "application/vnd.ms-excel",
+    "text/csv",
+    "text/plain",
+    "text/tab-separated-values",
+}
 UNRESOLVED_PLACEHOLDER_RE = re.compile(r"^\$\{[A-Za-z_][A-Za-z0-9_]*\}$")
 PHONE_ONLY_RE = re.compile(r"^[+\d\s().-]{7,}$")
 POSTAL_CODE_RE = re.compile(r"\b\d{5,6}\b")
@@ -301,6 +312,249 @@ def _slack_api_post(method: str, token: str, params: dict[str, str]) -> dict[str
     return payload
 
 
+def _slack_thread_messages(slack_thread_url: str) -> tuple[str, str, list[dict[str, Any]]]:
+    channel_id, message_ts = _slack_thread_target(slack_thread_url)
+    token = _slack_token()
+    messages_by_ts: dict[str, dict[str, Any]] = {}
+
+    history = _slack_api_post(
+        "conversations.history",
+        token,
+        {
+            "channel": channel_id,
+            "oldest": message_ts,
+            "inclusive": "true",
+            "limit": "1",
+        },
+    )
+    for entry in history.get("messages") or []:
+        if isinstance(entry, dict) and str(entry.get("ts") or "") == message_ts:
+            messages_by_ts[message_ts] = entry
+
+    replies = _slack_api_post(
+        "conversations.replies",
+        token,
+        {
+            "channel": channel_id,
+            "ts": message_ts,
+            "inclusive": "true",
+            "limit": "200",
+        },
+    )
+    for entry in replies.get("messages") or []:
+        if not isinstance(entry, dict):
+            continue
+        ts = str(entry.get("ts") or "")
+        if ts:
+            messages_by_ts[ts] = entry
+
+    return channel_id, message_ts, list(messages_by_ts.values())
+
+
+def _file_extension(filename: str) -> str:
+    name = filename.lower().strip()
+    if "." not in name:
+        return ""
+    return "." + name.rsplit(".", 1)[-1]
+
+
+def _is_supported_input_file(entry: dict[str, Any]) -> bool:
+    filename = str(entry.get("name") or entry.get("title") or "").strip()
+    extension = _file_extension(filename)
+    if extension in SUPPORTED_INPUT_EXTENSIONS:
+        return True
+    mimetype = str(entry.get("mimetype") or "").lower().strip()
+    filetype = str(entry.get("filetype") or "").lower().strip()
+    return mimetype in SUPPORTED_INPUT_MIME_TYPES and filetype in {"csv", "tsv"}
+
+
+def _extract_address_files(files: list[Any], *, message_ts: str = "") -> list[dict[str, str]]:
+    address_files: list[dict[str, str]] = []
+    for entry in files or []:
+        if not isinstance(entry, dict) or not _is_supported_input_file(entry):
+            continue
+        url_private = str(entry.get("url_private_download") or entry.get("url_private") or "")
+        if not url_private:
+            continue
+        name = str(entry.get("name") or entry.get("title") or "addresses").strip()
+        address_files.append(
+            {
+                "id": str(entry.get("id") or ""),
+                "name": name,
+                "mimetype": str(entry.get("mimetype") or ""),
+                "filetype": str(entry.get("filetype") or ""),
+                "url_private": url_private,
+                "message_ts": message_ts,
+            }
+        )
+    return address_files
+
+
+def _select_slack_address_file(
+    slack_thread_url: str,
+    *,
+    file_id: str = "",
+    filename: str = "",
+) -> dict[str, str]:
+    _channel_id, message_ts, messages = _slack_thread_messages(slack_thread_url)
+    all_files: list[dict[str, str]] = []
+    all_file_count = 0
+    for message in messages:
+        files = message.get("files") or []
+        if isinstance(files, list):
+            all_file_count += len(files)
+        all_files.extend(_extract_address_files(files, message_ts=str(message.get("ts") or "")))
+
+    if not all_files:
+        hint = "Attach a .csv or .tsv file with an address column."
+        if all_file_count:
+            hint = "Attached files were found, but none were supported .csv or .tsv address files."
+        raise GoogleGeocodeError(hint)
+
+    normalized_file_id = _clean_text(file_id, max_chars=80)
+    normalized_filename = _clean_text(filename, max_chars=240).lower()
+    if normalized_file_id or normalized_filename:
+        for entry in all_files:
+            if normalized_file_id and entry["id"] == normalized_file_id:
+                return entry
+            if normalized_filename and entry["name"].lower() == normalized_filename:
+                return entry
+        raise GoogleGeocodeError("The requested CSV/TSV attachment was not found in the current Slack thread.")
+
+    for entry in all_files:
+        if entry["message_ts"] == message_ts:
+            return entry
+
+    return sorted(all_files, key=lambda item: float(item.get("message_ts") or 0.0), reverse=True)[0]
+
+
+def _download_slack_file(url_private: str) -> bytes:
+    if not url_private.startswith("https://"):
+        raise GoogleGeocodeError("Slack file download URL must use https.")
+    token = _slack_token()
+    request = urllib.request.Request(
+        url_private,
+        headers={
+            "authorization": f"Bearer {token}",
+            "user-agent": GOOGLE_GEOCODE_USER_AGENT,
+        },
+        method="GET",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT_SECONDS) as response:
+            content = response.read(MAX_INPUT_FILE_BYTES + 1)
+    except urllib.error.HTTPError as error:
+        if error.code in {401, 403}:
+            raise GoogleGeocodeError("Slack file download is missing access to read the attached file; check files:read.") from error
+        raise GoogleGeocodeError(f"Slack file download failed: HTTP {error.code}") from error
+    except (urllib.error.URLError, socket.timeout, TimeoutError) as error:
+        reason = getattr(error, "reason", error)
+        raise GoogleGeocodeError(f"Slack file download timed out or failed: {reason}") from error
+    if len(content) > MAX_INPUT_FILE_BYTES:
+        raise GoogleGeocodeError("Address CSV/TSV files must be 256KB or smaller.")
+    if not content:
+        raise GoogleGeocodeError("The attached CSV/TSV file is empty.")
+    return content
+
+
+def _decode_input_file(content: bytes) -> str:
+    for encoding in ("utf-8-sig", "utf-8"):
+        try:
+            return content.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    raise GoogleGeocodeError("Address CSV/TSV files must be UTF-8 encoded.")
+
+
+def _input_file_delimiter(filename: str, mimetype: str, sample: str) -> str:
+    extension = _file_extension(filename)
+    if extension == ".tsv" or "tab-separated" in mimetype.lower():
+        return "\t"
+    if extension == ".csv":
+        return ","
+    try:
+        return csv.Sniffer().sniff(sample[:4096], delimiters=",\t").delimiter
+    except csv.Error:
+        return ","
+
+
+def _header_lookup(fieldnames: list[str] | None) -> dict[str, str]:
+    lookup: dict[str, str] = {}
+    for field in fieldnames or []:
+        normalized = _clean_text(field, max_chars=80).lower().replace(" ", "_")
+        if normalized:
+            lookup[normalized] = field
+    return lookup
+
+
+def _first_present(row: dict[str, Any], lookup: dict[str, str], keys: list[str]) -> str:
+    for key in keys:
+        source_key = lookup.get(key)
+        if source_key is not None:
+            value = _clean_text(row.get(source_key), max_chars=240)
+            if value:
+                return value
+    return ""
+
+
+def _parse_address_file(content: bytes, *, filename: str, mimetype: str = "") -> list[dict[str, str]]:
+    text = _decode_input_file(content)
+    delimiter = _input_file_delimiter(filename, mimetype, text)
+    reader = csv.DictReader(io.StringIO(text), delimiter=delimiter)
+    lookup = _header_lookup(reader.fieldnames)
+    address_key = lookup.get("address")
+    if not address_key:
+        raise GoogleGeocodeError("CSV/TSV address files must include an address column.")
+
+    rows: list[dict[str, str]] = []
+    for index, raw_row in enumerate(reader, start=2):
+        address = _clean_text(raw_row.get(address_key))
+        if not address:
+            continue
+        label = _first_present(raw_row, lookup, ["label", "customer", "outlet", "name"])
+        source = _first_present(raw_row, lookup, ["source", "source_line"])
+        if not source:
+            source = f"{filename}: row {index}"
+        rows.append({"address": address, "label": label, "source": source})
+    return _normalize_address_rows(rows)
+
+
+def _geocode_rows_and_upload(
+    rows: list[dict[str, str]],
+    *,
+    region_bias: str,
+    country_restriction: str,
+    language: str,
+    slack_thread_url: str,
+) -> dict[str, Any]:
+    api_key, key_source = _load_api_key()
+    _preflight_slack_upload(slack_thread_url)
+    cleaned_region_bias = _clean_text(region_bias, max_chars=8)
+    cleaned_country_restriction = _clean_text(country_restriction, max_chars=4)
+    cleaned_language = _clean_text(language, max_chars=8)
+    geocoded_rows = [
+        _geocode_one(
+            row,
+            api_key,
+            region_bias=cleaned_region_bias,
+            country_restriction=cleaned_country_restriction,
+            language=cleaned_language,
+        )
+        for row in rows
+    ]
+    ok_count = sum(1 for row in geocoded_rows if _is_reviewable_ok(row))
+    upload = _upload_tsv_to_slack(geocoded_rows, slack_thread_url, ok_count=ok_count)
+    return {
+        "key_source": key_source,
+        "geocoded_rows": geocoded_rows,
+        "ok_count": ok_count,
+        "upload": upload,
+        "region_bias": cleaned_region_bias,
+        "country_restriction": cleaned_country_restriction,
+        "language": cleaned_language,
+    }
+
+
 def _require_https_upload_url(upload_url: str) -> None:
     parsed = urllib.parse.urlparse(upload_url)
     if parsed.scheme != "https" or not parsed.netloc:
@@ -440,23 +694,19 @@ def geocode_slack_addresses(
     """Geocode explicit address rows extracted from the current Slack message."""
     try:
         rows = _normalize_address_rows(addresses)
-        api_key, key_source = _load_api_key()
-        _preflight_slack_upload(slack_thread_url)
-        geocoded_rows = [
-            _geocode_one(
-                row,
-                api_key,
-                region_bias=_clean_text(region_bias, max_chars=8),
-                country_restriction=_clean_text(country_restriction, max_chars=4),
-                language=_clean_text(language, max_chars=8),
-            )
-            for row in rows
-        ]
-        ok_count = sum(1 for row in geocoded_rows if _is_reviewable_ok(row))
-        upload = _upload_tsv_to_slack(geocoded_rows, slack_thread_url, ok_count=ok_count)
+        result = _geocode_rows_and_upload(
+            rows,
+            region_bias=region_bias,
+            country_restriction=country_restriction,
+            language=language,
+            slack_thread_url=slack_thread_url,
+        )
     except GoogleGeocodeError as error:
         return _blocked(str(error), {"slack_thread_url": slack_thread_url})
 
+    geocoded_rows = result["geocoded_rows"]
+    ok_count = result["ok_count"]
+    upload = result["upload"]
     all_rows_ok = ok_count == len(geocoded_rows)
     confidence = "verified" if all_rows_ok else "needs-check"
     return {
@@ -474,11 +724,76 @@ def geocode_slack_addresses(
         "source": "Google Geocoding API",
         "scope": {
             "address_count": len(geocoded_rows),
-            "region_bias": _clean_text(region_bias, max_chars=8),
-            "country_restriction": _clean_text(country_restriction, max_chars=4),
-            "language": _clean_text(language, max_chars=8),
+            "region_bias": result["region_bias"],
+            "country_restriction": result["country_restriction"],
+            "language": result["language"],
             "slack_thread_url": slack_thread_url,
-            "key_source": key_source,
+            "key_source": result["key_source"],
+        },
+        "confidence": confidence,
+        "caveat": "Rows with non-OK geocode_status or partial_match=true need manual address review.",
+    }
+
+
+@mcp.tool()
+def geocode_slack_address_file(
+    slack_thread_url: str,
+    file_id: str = "",
+    filename: str = "",
+    region_bias: str = "sg",
+    country_restriction: str = "",
+    language: str = "en",
+) -> dict[str, Any]:
+    """Geocode address rows from a CSV/TSV attachment in the current Slack thread."""
+    try:
+        selected_file = _select_slack_address_file(slack_thread_url, file_id=file_id, filename=filename)
+        content = _download_slack_file(selected_file["url_private"])
+        rows = _parse_address_file(
+            content,
+            filename=selected_file["name"],
+            mimetype=selected_file.get("mimetype", ""),
+        )
+        result = _geocode_rows_and_upload(
+            rows,
+            region_bias=region_bias,
+            country_restriction=country_restriction,
+            language=language,
+            slack_thread_url=slack_thread_url,
+        )
+    except GoogleGeocodeError as error:
+        return _blocked(str(error), {"slack_thread_url": slack_thread_url, "file_id": file_id, "filename": filename})
+
+    geocoded_rows = result["geocoded_rows"]
+    ok_count = result["ok_count"]
+    upload = result["upload"]
+    all_rows_ok = ok_count == len(geocoded_rows)
+    confidence = "verified" if all_rows_ok else "needs-check"
+    return {
+        "answer": {
+            "status": "ok" if all_rows_ok else "needs-check",
+            "ok_count": ok_count,
+            "total_count": len(geocoded_rows),
+            "status_counts": _status_counts(geocoded_rows),
+            "file": upload,
+            "input_file": {
+                "id": selected_file["id"],
+                "name": selected_file["name"],
+                "message_ts": selected_file["message_ts"],
+            },
+            "slack_reply": (
+                f"Uploaded geocoded TSV file: {upload['filename']} "
+                f"({ok_count}/{len(geocoded_rows)} OK)."
+            ),
+        },
+        "source": "Google Geocoding API",
+        "scope": {
+            "address_count": len(geocoded_rows),
+            "input_file": selected_file["name"],
+            "region_bias": result["region_bias"],
+            "country_restriction": result["country_restriction"],
+            "language": result["language"],
+            "slack_thread_url": slack_thread_url,
+            "key_source": result["key_source"],
         },
         "confidence": confidence,
         "caveat": "Rows with non-OK geocode_status or partial_match=true need manual address review.",
