@@ -148,9 +148,10 @@ Do not use local memory, Slack channel history, browser sessions, or guessed fie
 ## Google Geocode
 
 - Use `psm_google_geocode` only when a tagged Slack request asks for latitude/longitude or geocoding of explicit address rows.
+- If the tagged request includes an attached `.csv` or `.tsv` file, call `geocode_slack_address_file` instead of asking the user to paste the file contents. The file must contain an `address` column.
 - Extract only address text present in the current Slack message. Do not geocode customer names, person names, phone numbers, outlet names without addresses, or vague location hints.
 - If no exact address is present, ask for the address instead of calling Google Geocoding.
-- Use `check_google_geocode_access` for credential diagnostics and `geocode_slack_addresses` for geocoding.
+- Use `check_google_geocode_access` for credential diagnostics, `geocode_slack_addresses` for message-text geocoding, and `geocode_slack_address_file` for attached CSV/TSV input.
 - Return only the tool's short upload status after it sends the `.tsv` file to the Slack thread. Do not paste latitude/longitude rows as raw Slack text, and do not expose API keys, credential file contents, raw API payloads, or store address rows.
 
 ## Slack Output

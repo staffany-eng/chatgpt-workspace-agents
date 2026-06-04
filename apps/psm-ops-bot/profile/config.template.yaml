@@ -292,6 +292,7 @@ mcp_servers:
     tool_allowlist:
       - "check_google_geocode_access"
       - "geocode_slack_addresses"
+      - "geocode_slack_address_file"
 
 gateway:
   slack:

@@ -107,7 +107,8 @@
       "command_env": "PSM_OPS_PYTHON",
       "expected_tools": [
         "check_google_geocode_access",
-        "geocode_slack_addresses"
+        "geocode_slack_addresses",
+        "geocode_slack_address_file"
       ]
     }
   },
@@ -197,12 +198,14 @@
     "expected_credentials_json_key": "google_geocoding_api_key",
     "expected_tools": [
       "check_google_geocode_access",
-      "geocode_slack_addresses"
+      "geocode_slack_addresses",
+      "geocode_slack_address_file"
     ],
     "max_addresses_per_call": 25,
     "default_region_bias": "sg",
     "uploads_tsv_to_slack": true,
     "raw_slack_message_rows": false,
+    "accepts_csv_tsv_input_files": true,
     "stores_address_rows": false,
     "prints_api_key": false,
     "uses_slack_connector": false
@@ -222,6 +225,7 @@
       "channels:history",
       "channels:join",
       "chat:write",
+      "files:read",
       "files:write",
       "users:read",
       "users:read.email"

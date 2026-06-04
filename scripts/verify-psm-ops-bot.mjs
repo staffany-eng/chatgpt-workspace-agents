@@ -158,7 +158,8 @@ if (!existsSync(manifestPath)) {
     }
     const expectedGoogleGeocodeTools = [
       "check_google_geocode_access",
-      "geocode_slack_addresses"
+      "geocode_slack_addresses",
+      "geocode_slack_address_file"
     ];
     const actualGoogleGeocodeTools = manifest.mcp?.psm_google_geocode?.expected_tools || [];
     for (const tool of expectedGoogleGeocodeTools) {
@@ -188,6 +189,9 @@ if (!existsSync(manifestPath)) {
     if (manifest.google_geocode?.raw_slack_message_rows !== false) {
       fail("Manifest Google Geocode raw_slack_message_rows must be false");
     }
+    if (manifest.google_geocode?.accepts_csv_tsv_input_files !== true) {
+      fail("Manifest Google Geocode accepts_csv_tsv_input_files must be true");
+    }
     if (manifest.google_geocode?.prints_api_key !== false) {
       fail("Manifest Google Geocode prints_api_key must be false");
     }
@@ -197,6 +201,7 @@ if (!existsSync(manifestPath)) {
       "channels:history",
       "channels:join",
       "chat:write",
+      "files:read",
       "files:write",
       "users:read",
       "users:read.email"
@@ -409,7 +414,8 @@ for (const requiredText of [
   "PSM_OPS_GOOGLE_GEOCODE_CREDENTIALS_FILE",
   "GOOGLE_GEOCODING_API_KEY",
   "google_geocoding_api_key",
-  "geocode_slack_addresses"
+  "geocode_slack_addresses",
+  "geocode_slack_address_file"
 ]) {
   if (!configText.includes(requiredText)) fail(`config.template.yaml missing required text: ${requiredText}`);
 }
@@ -456,6 +462,7 @@ for (const requiredText of [
   "Google Geocode",
   "psm_google_geocode",
   "geocode_slack_addresses",
+  "geocode_slack_address_file",
   "explicit address rows",
   "Do not use personal `customer360_session` cookies",
   "Customer 360: <url>",
@@ -506,6 +513,7 @@ for (const requiredText of [
   "team@staffany.com",
   "calendar.readonly",
   "geocode_slack_addresses",
+  "geocode_slack_address_file",
   "explicit address rows",
   "Do not geocode customer names",
   "do not paste latitude/longitude rows as raw Slack text"
@@ -643,7 +651,7 @@ if (!psmOpsProfileBlock) {
     "strict_mention: true",
     "psm_jira: 28",
     "psm_c360: 3",
-    "psm_google_geocode: 2",
+    "psm_google_geocode: 3",
     "psmopsbot due-date reminders",
     "psmopsbot assignment hygiene",
     "psmopsbot due-date eod catch-up",
@@ -713,12 +721,14 @@ for (const requiredText of [
   "psm_google_geocode",
   "check_google_geocode_access",
   "geocode_slack_addresses",
+  "geocode_slack_address_file",
   "GOOGLE_GEOCODING_API_KEY",
   "PSM_OPS_GOOGLE_GEOCODE_CREDENTIALS_FILE",
   "google_geocoding_api_key",
   "Max addresses per Slack request: 25",
   "Do not geocode customer names",
   "partial_match=true",
+  "files:read",
   "files:write",
   "Do not paste the geocoded rows into the Slack message body"
 ]) {
@@ -734,11 +744,13 @@ for (const requiredText of [
   "MAX_ADDRESSES_PER_CALL = 25",
   "check_google_geocode_access",
   "geocode_slack_addresses",
+  "geocode_slack_address_file",
   "Google Geocoding API",
   "never expose API keys",
   "files.getUploadURLExternal",
   "files.completeUploadExternal",
   "partial_match",
+  "files:read",
   "files:write"
 ]) {
   if (!googleGeocodeMcpText.includes(requiredText)) fail(`psm_google_geocode_server.py missing required text: ${requiredText}`);
@@ -782,6 +794,7 @@ for (const requiredText of [
   "PSM_OPS_GOOGLE_GEOCODE_CREDENTIALS_FILE",
   "GOOGLE_GEOCODING_API_KEY",
   "psm_google_geocode.geocode_slack_addresses",
+  "psm_google_geocode.geocode_slack_address_file",
   "psm_ops_roi_tracker_sync.py",
   "psm_ops_churn_reporting_chase.py",
   "psm_ops_pco_assignment_hygiene.py",
@@ -842,7 +855,7 @@ for (const requiredText of [
   "psmopsbot churn reporting chase",
   "psm_ops_churn_reporting_chase.py",
   "slack:auth-test-missing-user-id",
-  "psm_google_geocode) expected=2",
+  "psm_google_geocode) expected=3",
   "is_unresolved_placeholder",
   "GEOCODE_CREDENTIALS_FILE",
   "google_geocode:credentials-file-unreadable",
