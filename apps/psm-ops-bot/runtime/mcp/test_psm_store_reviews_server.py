@@ -145,6 +145,7 @@ class PsmStoreReviewsServerTest(unittest.TestCase):
             calls.append({"url": url, "params": kwargs.get("params")})
             return {"data": [APP_STORE_REVIEW]}
 
+        trusted_page = "https://api.appstoreconnect.apple.com/v1/customerReviews?page=2"
         with patch.object(self.core, "app_store_connect_token", return_value="token"), patch.object(
             self.core, "_request_json", side_effect=fake_request
         ):
@@ -152,13 +153,29 @@ class PsmStoreReviewsServerTest(unittest.TestCase):
                 store="app_store",
                 app_ref="1360658903",
                 limit=5,
-                page_token="https://api.appstoreconnect.apple.com/v1/customerReviews?page=2",
+                page_token=trusted_page,
                 lookback_days=30,
             )
 
         self.assertEqual(result["confidence"], "verified")
-        self.assertEqual(calls[0]["url"], "https://api.appstoreconnect.apple.com/v1/customerReviews?page=2")
+        self.assertEqual(calls[0]["url"], trusted_page)
         self.assertIsNone(calls[0]["params"])
+
+    def test_list_reviews_app_store_rejects_untrusted_page_token_host(self):
+        with patch.object(self.core, "app_store_connect_token", return_value="token") as token_mock, patch.object(
+            self.core, "_request_json"
+        ) as request_mock:
+            result = self.server.list_store_reviews(
+                store="app_store",
+                app_ref="1360658903",
+                page_token="https://evil.example/customerReviews?page=2",
+                lookback_days=30,
+            )
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("page_token", result["scope"]["store_errors"][0]["message"])
+        token_mock.assert_not_called()
+        request_mock.assert_not_called()
 
     def test_list_reviews_returns_partial_results_when_one_store_fails(self):
         def fake_request(method, url, **kwargs):

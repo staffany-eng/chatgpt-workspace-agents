@@ -187,6 +187,15 @@ def _request_json(
         raise StoreReviewError(f"Store review API request timed out or failed: {_safe_detail(reason)}") from error
 
 
+def _trusted_app_store_page_url(value: str) -> str:
+    url = str(value or "").strip()
+    parsed = urllib.parse.urlparse(url)
+    expected = urllib.parse.urlparse(APP_STORE_CONNECT_BASE_URL)
+    if parsed.scheme != "https" or parsed.netloc != expected.netloc or not parsed.path.startswith("/v1/"):
+        raise StoreReviewError("App Store page_token must be an App Store Connect API URL.")
+    return url
+
+
 def blocked(message: str, scope: dict[str, Any] | None = None) -> dict[str, Any]:
     return {
         "answer": {"status": "blocked", "message": message},
@@ -468,10 +477,9 @@ def list_store_reviews(
                     next_page_tokens["google_play"] = token_value
             elif current_store == "app_store":
                 app_id = app_ref or app_store_app_id()
-                token = app_store_connect_token()
                 start_page = str(page_token or "").strip()
                 if start_page:
-                    next_url = start_page
+                    next_url = _trusted_app_store_page_url(start_page)
                     params = None
                 else:
                     next_url = f"{APP_STORE_CONNECT_BASE_URL}/apps/{urllib.parse.quote(app_id, safe='')}/customerReviews"
@@ -480,12 +488,15 @@ def list_store_reviews(
                         "sort": "-createdDate",
                         "fields[customerReviews]": "rating,title,body,reviewerNickname,createdDate,territory,appVersionString",
                     }
+                token = app_store_connect_token()
                 for _page in range(safe_max_pages):
                     payload = _request_json("GET", next_url, access_token=token, params=params)
                     for item in payload.get("data") or []:
                         if isinstance(item, dict):
                             reviews.append(normalize_app_store_review(item, app_id))
                     next_url = str(((payload.get("links") or {}) if isinstance(payload, dict) else {}).get("next") or "").strip()
+                    if next_url:
+                        next_url = _trusted_app_store_page_url(next_url)
                     params = None
                     if not next_url:
                         break
