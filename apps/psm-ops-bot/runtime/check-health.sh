@@ -326,6 +326,13 @@ payload = json.loads(open(sys.argv[1], "r", encoding="utf-8").read())
 jobs = payload.get("jobs") if isinstance(payload, dict) else payload
 enabled = [job for job in jobs if isinstance(job, dict) and job.get("enabled") is True]
 names = {str(job.get("name") or "") for job in enabled}
+
+def schedule_expr(job):
+    schedule = job.get("schedule") if isinstance(job, dict) else ""
+    if isinstance(schedule, dict):
+        return str(schedule.get("expression") or schedule.get("cron") or "").strip()
+    return str(schedule or job.get("cron") or "").strip()
+
 missing = [
     name
     for name in ["psmopsbot due-date reminders", "psmopsbot assignment hygiene", "psmopsbot due-date eod catch-up", "psmopsbot roi tracker sync", "psmopsbot churn reporting chase", "psmopsbot store review poll"]
@@ -351,6 +358,9 @@ for name, expected_script in {
         sys.exit(1)
 if scripts.get("psmopsbot churn reporting chase", {}).get("deliver") != "slack:#team-rev-account-management":
     print("cron:psmopsbot churn reporting chase:delivery-unexpected")
+    sys.exit(1)
+if schedule_expr(scripts.get("psmopsbot store review poll", {})) != "0 1 * * *":
+    print("cron:psmopsbot store review poll:schedule-unexpected")
     sys.exit(1)
 if os.environ.get("PSM_OPS_ADOPTION_METRICS_ENABLED", "").strip().lower() in {"1", "true", "yes", "on"}:
     if "psmopsbot adoption digest" not in names:

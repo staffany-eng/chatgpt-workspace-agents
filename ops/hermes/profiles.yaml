@@ -177,7 +177,7 @@ profiles:
         deliver: slack:#team-rev-account-management
         source_sql: runtime/sql/psm_ops_churn_projection_dashboard_292.sql
       - name: psmopsbot store review poll
-        schedule: "0 * * * *"
+        schedule: "0 1 * * *"
         mode: no-agent
         script: psm_ops_store_review_poll.py
         deliver: slack:#ps-weeman-bot-test

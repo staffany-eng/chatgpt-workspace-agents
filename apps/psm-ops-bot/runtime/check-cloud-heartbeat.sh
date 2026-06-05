@@ -193,7 +193,7 @@ store_review = by_name[store_review_name]
 if store_review.get("script") != store_review_script:
     print("cron:store-review-script-unexpected")
     raise SystemExit(1)
-if schedule_expr(store_review) != "0 * * * *":
+if schedule_expr(store_review) != "0 1 * * *":
     print("cron:store-review-schedule-unexpected")
     raise SystemExit(1)
 if store_review.get("deliver") != "slack:#ps-weeman-bot-test":

@@ -38,7 +38,7 @@ PSM Ops Bot needs deterministic cloud health checks because prompt correctness d
 - Reminder customer-team tags use reviewed `PSM_OPS_CUSTOMER_CHANNEL_MAP_PATH` source-link matches only and never cross-post to customer channels.
 - ROI tracker sync cron is enabled in cloud as a no-agent script every 30 minutes during Singapore workdays and watches only linked `ps-wee-roi-tracker` PCO issues.
 - Churn reporting chase cron is enabled in cloud as a Monday 09:00 SGT no-agent script, reads BigQuery renewal/churn marts only, and delivers to `slack:#team-rev-account-management`.
-- Store review poll cron is enabled in cloud as an hourly no-agent script, reads AppFollow Reviews API, persists duplicate-suppression state by default, and delivers `PSM Ops automation: Store review triage` to `slack:#ps-weeman-bot-test`.
+- Store review poll cron is enabled in cloud as a daily 09:00 Asia/Singapore no-agent script, reads AppFollow Reviews API, persists duplicate-suppression state by default, and delivers `PSM Ops automation: Store review triage` to `slack:#ps-weeman-bot-test` only for new or changed reviews without Slack mentions.
 - VM-local cloud heartbeat cron is enabled every 15 minutes with local delivery disabled.
 - PS WEE adoption digest cron is enabled as a no-agent weekday Slack automation with the `PSM Ops automation:` prefix.
 - PS WEE adoption telemetry hook is installed under the profile hooks directory.
@@ -144,7 +144,7 @@ hermes -p psmopsbot cron create "0 1 * * 1" \
   --no-agent \
   --deliver "slack:#team-rev-account-management"
 
-hermes -p psmopsbot cron create "0 * * * *" \
+hermes -p psmopsbot cron create "0 1 * * *" \
   --name "psmopsbot store review poll" \
   --script psm_ops_store_review_poll.py \
   --no-agent \
@@ -164,7 +164,7 @@ hermes -p psmopsbot cron create "0 2 * * 1-5" \
   --deliver "slack:#ps-weeman-bot-test"
 ```
 
-The GCE host runs UTC, so `0 1 * * 1-5` is 09:00 Asia/Singapore on weekdays, `15 1 * * 1-5` is 09:15 Asia/Singapore on weekdays, `0 9 * * 1-5` is 17:00 Asia/Singapore on weekdays, `*/30 1-10 * * 1-5` checks ROI trackers every 30 minutes during Singapore workdays, `0 1 * * 1` sends the Monday 09:00 Asia/Singapore churn reporting chase, and `0 * * * *` polls store reviews hourly. Hermes cron does not pass script arguments, so the EOD cron uses the same source script copied under an `eod` filename; direct dry runs can still use `--mode morning|eod`. Store review no-arg cron runs persist state; manual preview uses `psm_ops_store_review_poll.py --dry-run`.
+The GCE host runs UTC, so `0 1 * * 1-5` is 09:00 Asia/Singapore on weekdays, `15 1 * * 1-5` is 09:15 Asia/Singapore on weekdays, `0 9 * * 1-5` is 17:00 Asia/Singapore on weekdays, `*/30 1-10 * * 1-5` checks ROI trackers every 30 minutes during Singapore workdays, `0 1 * * 1` sends the Monday 09:00 Asia/Singapore churn reporting chase, and `0 1 * * *` polls store reviews daily at 09:00 Asia/Singapore. Hermes cron does not pass script arguments, so the EOD cron uses the same source script copied under an `eod` filename; direct dry runs can still use `--mode morning|eod`. Store review no-arg cron runs persist state; manual preview uses `psm_ops_store_review_poll.py --dry-run`.
 
 Install central audit/adoption telemetry after the profile exists:
 

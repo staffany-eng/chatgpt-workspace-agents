@@ -248,10 +248,11 @@ Hermes prompt input includes the current Slack thread permalink but does not inc
 
 ## PS WEE Store Review Identity Follow-Up
 
-Hourly no-agent cron:
+Daily 09:00 Asia/Singapore no-agent cron:
 
 - Uses AppFollow Reviews API through `psm_store_reviews`.
 - Runs `psm_ops_store_review_poll.py` with no args in production, persists runtime state keyed by `store + app_ref + review_id`, and only posts new or meaningfully changed reviews.
+- Does not include Slack user, user-group, or channel mentions in store-review triage output.
 - Manual preview uses `psm_ops_store_review_poll.py --dry-run`; dry-run does not mutate state.
 - Posts bot-owned Slack triage starting with `PSM Ops automation: Store review triage`.
 - If one store API fails but the other succeeds, reports the partial failure caveat and still triages returned reviews.

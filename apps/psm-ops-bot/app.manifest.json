@@ -239,7 +239,7 @@
     "state_path_env_var": "PSM_OPS_STORE_REVIEWS_STATE_PATH",
     "state_key": "store + app_ref + review_id",
     "event_mode": "scheduled_appfollow_polling",
-    "polling_cron": "0 * * * *",
+    "polling_cron": "0 1 * * *",
     "private_support_email": "support@staffany.com",
     "identity_internal_labels": [
       "identity_unknown",

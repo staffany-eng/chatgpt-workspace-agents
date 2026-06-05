@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import tempfile
 import unittest
 from datetime import datetime, timezone
@@ -260,6 +261,20 @@ class PsmStoreReviewsServerTest(unittest.TestCase):
         self.assertIn("support@staffany.com", text)
         self.assertIn("Public store reply publishing is not enabled in V1", text)
         self.assertIn("Internal correlation: app_store:1360658903:345030591", text)
+
+    def test_slack_triage_text_escapes_mention_syntax(self):
+        review = self.core.normalize_appfollow_review(
+            {
+                **APPFOLLOW_REVIEW,
+                "title": "Ping <@U12345678> and <!subteam^S123|team>",
+                "url": "https://example.com/review/<#C12345678>",
+            },
+            "1360658903",
+        )
+        text = self.core.build_slack_triage_text(review)
+
+        self.assertNotRegex(text, re.compile(r"<(?:@|!subteam\^|#)"))
+        self.assertIn("&lt;@U12345678&gt;", text)
 
 
 if __name__ == "__main__":

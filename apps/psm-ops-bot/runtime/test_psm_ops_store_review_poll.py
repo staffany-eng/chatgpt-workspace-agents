@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import re
 import sys
 import tempfile
 import unittest
@@ -33,7 +34,7 @@ class StoreReviewPollScriptTest(unittest.TestCase):
             "app_ref": "1360658903",
             "review_id": "345030591",
             "rating": 3,
-            "title": "Missing Store Clock-In Section",
+            "title": "Missing Store Clock-In Section <@U12345678>",
             "body": "The store clock-in section is missing.",
             "review_url": "https://apps.apple.com/app/id1360658903",
         }
@@ -49,6 +50,7 @@ class StoreReviewPollScriptTest(unittest.TestCase):
             self.assertIn("store_review_poll:dry_run", output)
             self.assertIn("PSM Ops automation: Store review triage", output)
             self.assertIn("identity_requested_private", output)
+            self.assertNotRegex(output, re.compile(r"<(?:@|!subteam\^|#)"))
             self.assertFalse(Path(state_path).exists())
 
     def test_default_run_persists_candidate_payload_for_cron(self):

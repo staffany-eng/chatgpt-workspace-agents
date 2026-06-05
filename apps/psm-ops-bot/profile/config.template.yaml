@@ -224,7 +224,7 @@ psm_ops:
   store_reviews:
     source_of_truth: "appfollow_reviews_api"
     event_mode: "scheduled_appfollow_polling"
-    polling_cron: "0 * * * *"
+    polling_cron: "0 1 * * *"
     publish_replies_v1: false
     appfollow_api_token_env: "APPFOLLOW_API_TOKEN"
     appfollow_credentials_file_env: "PSM_OPS_APPFOLLOW_CREDENTIALS_FILE"

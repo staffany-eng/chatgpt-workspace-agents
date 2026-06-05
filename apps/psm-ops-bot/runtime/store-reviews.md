@@ -43,14 +43,14 @@ review collection.
 
 ## Polling Flow
 
-Install `psm_ops_store_review_poll.py` as an hourly no-agent cron:
+Install `psm_ops_store_review_poll.py` as a daily 09:00 Asia/Singapore no-agent cron:
 
 ```bash
 cp apps/psm-ops-bot/runtime/scripts/psm_ops_store_review_poll.py \
   ~/.hermes/profiles/psmopsbot/scripts/psm_ops_store_review_poll.py
 chmod 755 ~/.hermes/profiles/psmopsbot/scripts/psm_ops_store_review_poll.py
 
-hermes -p psmopsbot cron create "0 * * * *" \
+hermes -p psmopsbot cron create "0 1 * * *" \
   --name "psmopsbot store review poll" \
   --script psm_ops_store_review_poll.py \
   --no-agent \
@@ -61,7 +61,8 @@ The poller lists recent AppFollow reviews with a 7-day lookback, classifies them
 severity, emits `PSM Ops automation: Store review triage` only for new or
 meaningfully changed reviews, and stores runtime state outside git. Cron/no-arg
 runs persist state so duplicate polls do not repost the same review. If there are
-no new reviews, it prints `[SILENT]`.
+no new reviews, it prints `[SILENT]`. Store-review triage must not include Slack
+user, user-group, or channel mentions.
 
 Manual dry-run:
 

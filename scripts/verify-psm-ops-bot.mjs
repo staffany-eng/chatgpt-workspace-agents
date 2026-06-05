@@ -231,6 +231,9 @@ if (!existsSync(manifestPath)) {
     if (manifest.store_reviews?.state_key !== "store + app_ref + review_id") {
       fail("Manifest Store Reviews state_key must be store + app_ref + review_id");
     }
+    if (manifest.store_reviews?.polling_cron !== "0 1 * * *") {
+      fail("Manifest Store Reviews polling_cron must be 0 1 * * *");
+    }
     if (manifest.store_reviews?.public_reply_publish_v1 !== false) {
       fail("Manifest Store Reviews public_reply_publish_v1 must be false");
     }
@@ -401,6 +404,7 @@ for (const requiredText of [
   "psm_ops_join_public_channels.py --apply",
   "psm_ops_store_review_poll.py",
   "PSM Ops automation: Store review triage",
+  "daily 09:00 Asia/Singapore",
   "support@staffany.com",
   "Do not use Kai Yi's user token or the Slack connector to invite or post as a workaround"
 ]) {
@@ -474,6 +478,7 @@ for (const requiredText of [
   "APPFOLLOW_EXT_IDS",
   "APPFOLLOW_COLLECTION_NAME",
   "appfollow_api_token",
+  "polling_cron: \"0 1 * * *\"",
   "list_store_review_apps",
   "list_store_reviews",
   "draft_store_review_reply",
@@ -748,6 +753,7 @@ if (!psmOpsProfileBlock) {
     "psmopsbot churn reporting chase",
     "psmopsbot store review poll",
     "psmopsbot store review poll",
+    "schedule: \"0 1 * * *\"",
     "psm_ops_roi_tracker_sync.py",
     "psm_ops_churn_reporting_chase.py",
     "psm_ops_store_review_poll.py",
@@ -954,6 +960,7 @@ for (const requiredText of [
   "psm_store_reviews",
   "psm_ops_store_review_poll.py",
   "psmopsbot store review poll",
+  "0 1 * * *",
   "psm_ops_roi_tracker_sync.py",
   "psm_ops_churn_reporting_chase.py",
   "psm_ops_pco_assignment_hygiene.py",
@@ -970,6 +977,7 @@ for (const requiredText of [
     "psmopsbot due-date eod catch-up",
     "psmopsbot roi tracker sync",
     "psmopsbot churn reporting chase",
+    "0 1 * * *",
     "psm_ops_due_date_reminders.py",
     "psm_ops_pco_assignment_hygiene.py",
     "psm_ops_due_date_reminders_eod.py",
@@ -1031,6 +1039,7 @@ for (const requiredText of [
   "store_reviews:appfollow-api-token-missing",
   "store_reviews:appfollow-app-refs-missing",
   "psmopsbot store review poll",
+  "0 1 * * *",
   "psm_ops_store_review_poll.py"
 ]) {
   if (!healthCheckText.includes(requiredText)) fail(`Health check script missing required text: ${requiredText}`);

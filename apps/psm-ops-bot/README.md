@@ -13,7 +13,7 @@ Alias note: `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` refer to this 
 - Jira scope: PCO Jira Service Management for PS/customer work; ROI Jira Service Management for RevOps, BD Ops, NYSS, and ROI-board work
 - Task ownership: Jira `PS Team`, matched from Slack users/profile identity
 - Customer context scope: Customer 360 internal API, all customers in V1
-- Review scope: AppFollow review metadata, conservative private-follow-up identity candidates, and draft-only public replies; hourly no-agent polling posts bot-owned Slack triage for new or changed reviews
+- Review scope: AppFollow review metadata, conservative private-follow-up identity candidates, and draft-only public replies; daily no-agent polling posts bot-owned Slack triage for new or changed reviews
 - Source packet: this directory
 - Cloud host: GCE VM `hermes-psm-ops-bot-poc` in `staffany-warehouse` / `asia-southeast1`
 
@@ -107,8 +107,8 @@ do not make a public reference code the main customer action.
 6. Set profile `.env` from Secret Manager values only, including `psm-ops-bot-roi-jira-env` for ROI-direct routing.
 7. Configure Slack, `psm_jira`, `psm_c360`, `psm_google_calendar`, `psm_google_geocode`, and `psm_store_reviews` MCP servers.
 8. Copy `runtime/sql/` into the profile runtime directory for no-agent BigQuery scripts.
-9. Install health, audit, reminder, assignment hygiene, ROI tracker sync, churn reporting, and hourly store review cron jobs on the cloud host.
-10. Install hourly `psm_ops_store_review_poll.py` for AppFollow review polling and Slack triage.
+9. Install health, audit, reminder, assignment hygiene, ROI tracker sync, churn reporting, and daily store review cron jobs on the cloud host.
+10. Install daily `psm_ops_store_review_poll.py` for AppFollow review polling and Slack triage.
 11. Run health checks and regression cases before widening access.
 
 ## Verification

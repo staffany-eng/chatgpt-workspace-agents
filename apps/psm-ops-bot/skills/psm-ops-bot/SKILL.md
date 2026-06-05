@@ -165,7 +165,7 @@ Match the `/archives/<channel_id>/` segment of the Slack thread permalink **befo
 - AppFollow Reviews API is the source of truth for App Store / Google Play review metadata.
 - Use `list_store_review_apps` for setup verification, `list_store_reviews` for bounded polling, and `get_store_review` for one known review lookup.
 - The review idempotency key is `store + app_ref + review_id`; do not post duplicate Slack triage for the same key unless the review content meaningfully changed.
-- The no-agent `psm_ops_store_review_poll.py` cron runs hourly with a 7-day lookback and emits `PSM Ops automation: Store review triage` only for new or changed reviews. Cron/no-arg polling persists triage state; manual preview must use `--dry-run`.
+- The no-agent `psm_ops_store_review_poll.py` cron runs daily at 09:00 Asia/Singapore with a 7-day lookback and emits `PSM Ops automation: Store review triage` only for new or changed reviews. Store-review triage must not include Slack user, user-group, or channel mentions. Cron/no-arg polling persists triage state; manual preview must use `--dry-run`.
 - Use `draft_store_review_reply` for suggested public response copy. V1 is draft-only; no public store reply publishing tool is exposed.
 - Default public reply copy asks the reviewer to email `support@staffany.com` privately with their StaffAny account email or phone number plus company/outlet. Do not ask for email/phone in the public review, and do not make a reference code the main customer action.
 - Use internal runtime labels `identity_unknown`, `identity_requested_private`, `identity_candidate`, and `identity_confirmed` for the identity workflow.

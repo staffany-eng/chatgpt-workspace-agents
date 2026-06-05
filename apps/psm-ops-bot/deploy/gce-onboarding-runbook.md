@@ -231,7 +231,7 @@ The script:
 - restarts only `hermes-gateway-psmopsbot.service`
 - runs live profile audit, health check, cloud heartbeat, and service status
 - runs the Rock Productions C360 lookup smoke against the live Customer 360 API
-- syncs `psm_ops_store_review_poll.py`, preserves the hourly AppFollow review poll cron, and verifies `psm_store_reviews`
+- syncs `psm_ops_store_review_poll.py`, preserves the daily AppFollow review poll cron, and verifies `psm_store_reviews`
 - preserves and verifies the PS WEE no-agent adoption digest cron
 - stamps `$profile/VERSION` with the deployed SHA, branch, and UTC timestamp
 
@@ -278,7 +278,7 @@ hermes -p psmopsbot cron create "0 1 * * 1" \
   --no-agent \
   --deliver "slack:#team-rev-account-management"
 
-hermes -p psmopsbot cron create "0 * * * *" \
+hermes -p psmopsbot cron create "0 1 * * *" \
   --name "psmopsbot store review poll" \
   --script psm_ops_store_review_poll.py \
   --no-agent \
@@ -291,7 +291,7 @@ hermes -p psmopsbot cron create "0 2 * * 1-5" \
   --deliver "slack:#ps-weeman-bot-test"
 ```
 
-The GCE host runs UTC, so `0 1 * * 1-5` is 09:00 Asia/Singapore on weekdays, `15 1 * * 1-5` is 09:15 Asia/Singapore on weekdays, `0 9 * * 1-5` is 17:00 Asia/Singapore on weekdays, and `*/30 1-10 * * 1-5` checks ROI trackers every 30 minutes during Singapore workdays. The EOD cron uses the same source script copied under an `eod` filename because Hermes cron does not pass script flags to no-agent scripts.
+The GCE host runs UTC, so `0 1 * * 1-5` is 09:00 Asia/Singapore on weekdays, `15 1 * * 1-5` is 09:15 Asia/Singapore on weekdays, `0 9 * * 1-5` is 17:00 Asia/Singapore on weekdays, `*/30 1-10 * * 1-5` checks ROI trackers every 30 minutes during Singapore workdays, and `0 1 * * *` polls store reviews daily at 09:00 Asia/Singapore. The EOD cron uses the same source script copied under an `eod` filename because Hermes cron does not pass script flags to no-agent scripts.
 
 Install the no-agent PS WEE adoption digest:
 

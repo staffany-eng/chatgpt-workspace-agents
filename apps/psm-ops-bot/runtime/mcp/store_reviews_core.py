@@ -416,6 +416,10 @@ def _shorten(text: str, limit: int) -> str:
     return value[: max(0, limit - 1)].rstrip() + "..."
 
 
+def _slack_escape(value: Any) -> str:
+    return str(value or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
 def _public_private_contact_cta() -> str:
     return (
         f"Please email {STAFFANY_SUPPORT_EMAIL} with your StaffAny account email or phone number, "
@@ -975,13 +979,24 @@ def build_slack_triage_text(review: dict[str, Any], *, changed: bool = False) ->
     app_version = review.get("app_version") or "unknown app version"
     country = review.get("country") or review.get("locale") or "unknown country/locale"
     state_note = "Updated review detected" if changed else "New review detected"
+    headline = " ".join(
+        [
+            f"{state_note}:",
+            _slack_escape(stars),
+            _slack_escape(review.get("store") or "unknown store"),
+            _slack_escape(country),
+            _slack_escape(app_version),
+            "-",
+            _slack_escape(_shorten(str(title), 120)),
+        ]
+    )
     lines = [
         "PSM Ops automation: Store review triage",
-        f"{state_note}: {stars} {review.get('store') or 'unknown store'} {country} {app_version} - {_shorten(str(title), 120)}",
-        f"Review ID: {review.get('review_id') or 'missing'}",
-        f"App ref: {review.get('app_ref') or 'missing'}",
-        f"Theme: {classification['theme']} | Severity: {classification['severity']}",
-        f"Review link: {review.get('review_url') or 'n/a'}",
+        headline,
+        f"Review ID: {_slack_escape(review.get('review_id') or 'missing')}",
+        f"App ref: {_slack_escape(review.get('app_ref') or 'missing')}",
+        f"Theme: {_slack_escape(classification['theme'])} | Severity: {_slack_escape(classification['severity'])}",
+        f"Review link: {_slack_escape(review.get('review_url') or 'n/a')}",
         (
             f"Actions: request private contact details via {STAFFANY_SUPPORT_EMAIL}, mark internal label "
             f"`{IDENTITY_LABEL_REQUESTED_PRIVATE}`, and watch for support follow-up. Public store reply publishing is not enabled in V1."
@@ -990,8 +1005,8 @@ def build_slack_triage_text(review: dict[str, Any], *, changed: bool = False) ->
             "Identity: unknown until the reviewer follows up privately with their StaffAny account email or phone "
             "plus company/outlet. Do not ask for email/phone in the public review."
         ),
-        f"Internal correlation: {review_state_key(review)}",
-        f"Draft reply for approval: {_shorten(answer_text, 300)}",
+        f"Internal correlation: {_slack_escape(review_state_key(review))}",
+        f"Draft reply for approval: {_slack_escape(_shorten(answer_text, 300))}",
         "Caveat: reviewer nickname is not enough to map a StaffAny customer/org. Use private support follow-up plus Customer 360/Jira evidence for internal follow-up.",
     ]
     return "\n".join(lines)
