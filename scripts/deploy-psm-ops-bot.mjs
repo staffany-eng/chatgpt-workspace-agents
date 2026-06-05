@@ -463,7 +463,7 @@ ensure_no_agent_cron "psmopsbot assignment hygiene" "15 1 * * 1-5" "psm_ops_pco_
 ensure_no_agent_cron "psmopsbot due-date eod catch-up" "0 9 * * 1-5" "psm_ops_due_date_reminders_eod.py" "slack:#ps-weeman-bot-test"
 ensure_no_agent_cron "psmopsbot roi tracker sync" "*/30 1-10 * * 1-5" "psm_ops_roi_tracker_sync.py" "slack:#ps-weeman-bot-test"
 ensure_no_agent_cron "psmopsbot churn reporting chase" "0 1 * * 1" "psm_ops_churn_reporting_chase.py" "slack:#team-rev-account-management"
-ensure_no_agent_cron "psmopsbot store review poll" "0 * * * *" "psm_ops_store_review_poll.py" "slack:#ps-weeman-bot-test"
+ensure_no_agent_cron "psmopsbot store review poll" "0 1 * * *" "psm_ops_store_review_poll.py" "slack:#ps-weeman-bot-test"
 ensure_no_agent_cron "psmopsbot adoption digest" "0 2 * * 1-5" "psm_ops_adoption_digest.py" "slack:#ps-weeman-bot-test"
 
 if command -v node >/dev/null 2>&1; then

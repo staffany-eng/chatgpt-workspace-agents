@@ -364,6 +364,7 @@ if (!existsSync(deployScriptPath)) {
     "psm_google_geocode",
     "psm_store_reviews",
     "store review poll",
+    '"0 1 * * *"',
     "psm-ops-adoption-telemetry",
     "psm-ops-mention-guard",
     "smoke-rock-productions-c360.sh",
