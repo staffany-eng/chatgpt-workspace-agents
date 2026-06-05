@@ -1,6 +1,6 @@
 ---
 name: psm-ops-bot
-description: Use when answering PSM Jira task, PCO, status transition, comment, reminder, or Customer 360 context questions.
+description: Use when answering PSM Jira task, PCO, status transition, comment, reminder, Customer 360 context, geocode, or AppFollow store review triage questions.
 license: Internal
 metadata:
   version: 1.0.0
@@ -14,7 +14,7 @@ metadata:
 
 ## Overview
 
-Use this skill for StaffAny PSM operations in Slack. The bot manages PCO Jira Service Management tasks and answers Customer 360 context questions.
+Use this skill for StaffAny PSM operations in Slack. The bot manages PCO Jira Service Management tasks, answers Customer 360 context questions, geocodes explicit address rows, and triages AppFollow App Store / Google Play reviews.
 
 Alias rule: `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` refer to this same PSM Ops Bot. Do not create or route to a separate bot/profile.
 
@@ -46,6 +46,7 @@ Match the `/archives/<channel_id>/` segment of the Slack thread permalink **befo
 7. `psm_c360` MCP for live Customer 360 search/context/Q&A.
 8. `psm_google_calendar` MCP for read-only `team@staffany.com` scheduling context only through the gated `read_customer_calendar_context` tool.
 9. `psm_google_geocode` MCP for latitude/longitude of explicit address rows only through `geocode_slack_addresses` or `geocode_slack_address_file`.
+10. `psm_store_reviews` MCP for AppFollow review metadata, draft replies, and reviewer identity correlation.
 
 ## Capabilities
 
@@ -74,6 +75,8 @@ Match the `/archives/<channel_id>/` segment of the Slack thread permalink **befo
 - Ask Customer 360 for any customer context in V1.
 - Read gated Google Calendar context from the read-only `team@staffany.com` account for explicit customer meeting, invite, scheduling, or follow-up requests.
 - Geocode explicit address rows from tagged Slack messages with `geocode_slack_addresses`, or from attached Slack `.csv`/`.tsv` files with `geocode_slack_address_file`, uploading the result as a `.tsv` file in the Slack thread.
+- Triage AppFollow App Store / Google Play reviews from the scheduled store poll, classify severity/theme, and draft a human-approved reply.
+- Suggest and confirm reviewer identity candidates only from private support follow-up details plus Customer 360/HubSpot evidence.
 
 ## Jira Rules
 
@@ -157,6 +160,19 @@ Match the `/archives/<channel_id>/` segment of the Slack thread permalink **befo
 - The uploaded `.tsv` includes `geocode_status` and `partial_match`; rows with `ZERO_RESULTS`, `OVER_QUERY_LIMIT`, `REQUEST_DENIED`, another non-`OK` status, or `partial_match=true` need manual review.
 - Do not expose the API key, credential file content, raw Google API payloads, or store address rows outside the current answer.
 
+## Store Review Rules
+
+- AppFollow Reviews API is the source of truth for App Store / Google Play review metadata.
+- Use `list_store_review_apps` for setup verification, `list_store_reviews` for bounded polling, and `get_store_review` for one known review lookup.
+- The review idempotency key is `store + app_ref + review_id`; do not post duplicate Slack triage for the same key unless the review content meaningfully changed.
+- The no-agent `psm_ops_store_review_poll.py` cron runs daily at 09:00 Asia/Singapore with a 7-day lookback and emits `PSM Ops automation: Store review triage` only for new or changed reviews. Store-review triage must not include Slack user, user-group, or channel mentions. Cron/no-arg polling persists triage state; manual preview must use `--dry-run`.
+- Use `draft_store_review_reply` for suggested public response copy. V1 is draft-only; no public store reply publishing tool is exposed.
+- Default public reply copy asks the reviewer to email `support@staffany.com` privately with their StaffAny account email or phone number plus company/outlet. Do not ask for email/phone in the public review, and do not make a reference code the main customer action.
+- Use internal runtime labels `identity_unknown`, `identity_requested_private`, `identity_candidate`, and `identity_confirmed` for the identity workflow.
+- Use `suggest_store_review_identity_candidates` after private support follow-up details are available. Exact private email match against Customer 360/HubSpot candidate evidence can be verified; phone-only or company/outlet-only matches stay `needs-check`.
+- Use `confirm_store_review_identity` only after PS confirms the customer/contact mapping; it stores redacted runtime state keyed by `store + app_ref + review_id`.
+- Reviewer identity is not a StaffAny customer/org match. Use Customer 360 or Jira only when PS needs an internal follow-up path.
+
 ## Reminder Rules
 
 - Reminder source of truth is Jira `duedate`.
@@ -211,3 +227,4 @@ Caveat: Rows with non-OK geocode_status or partial_match=true need manual addres
 9. Letting Calendar lookup run before Jira ticket creation when one Slack request asks for both scheduling and task-list work.
 10. Treating Google Calendar as customer or task truth instead of bounded scheduling context.
 11. Geocoding customer names or vague place hints instead of explicit address rows.
+12. Publishing public store review replies in V1 or treating reviewer nickname as customer identity.

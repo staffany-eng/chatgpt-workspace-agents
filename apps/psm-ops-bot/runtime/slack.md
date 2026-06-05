@@ -42,6 +42,9 @@ The Slack surface is strict @-mention opt-in usage in public/open StaffAny Slack
 - Customer-team tagging in reminders is central-channel-only. Render a customer channel mention only when a Jira source link contains a Slack permalink whose channel is reviewed in `PSM_OPS_CUSTOMER_CHANNEL_MAP_PATH`; do not cross-post to customer channels.
 - Explicit customer scheduling or follow-up requests may use `read_customer_calendar_context` through the read-only `team@staffany.com` account. Do not call Calendar for vague names, task-list ownership, or missing attendee slot requests. Return only bounded safe metadata and never expose descriptions, attendee emails, raw guest lists, conference links, or phone numbers.
 - Explicit address geocoding requests may use `geocode_slack_addresses` or `geocode_slack_address_file` through `psm_google_geocode`. Extract only postal address rows from the tagged Slack message or an attached `.csv`/`.tsv` file with an `address` column; do not geocode customer names, person names, phone numbers, outlet names without addresses, or vague location hints. If the tagged request has no visible address rows but asks to geocode "these addresses", "these address", "the attached file", or equivalent file/list wording, call `geocode_slack_address_file` with the current Slack thread permalink before asking for pasted addresses because Hermes may omit attachment metadata from the prompt. The result must be uploaded as a `.tsv` file in the Slack thread; do not paste latitude/longitude rows as raw Slack text.
+- Store review polling uses `psm_ops_store_review_poll.py` as a daily 09:00 Asia/Singapore no-agent cron. It calls AppFollow Reviews API through `psm_store_reviews`, classifies severity/theme, and emits `PSM Ops automation: Store review triage` only for new or meaningfully changed reviews. Store-review triage must not include Slack user, user-group, or channel mentions. Runtime state must be keyed by `store + app_ref + review_id` so duplicate polls do not create duplicate triage.
+- Unknown store reviewer identity should trigger the private support CTA, not a public reference-code ask: draft replies ask the reviewer to email `support@staffany.com` with their StaffAny account email or phone number plus company/outlet. Do not ask for email/phone in the public review. If private support details arrive, use `suggest_store_review_identity_candidates`; only `confirm_store_review_identity` after human confirmation.
+- Public store reply publishing is not exposed in V1. Drafts may be generated in Slack, but public reply publish tools must remain absent until a separate approved smoke-test plan is implemented.
 
 ## Output Contracts
 
@@ -119,6 +122,8 @@ The PSM Jira MCP needs `users:read` and `users:read.email` so it can fetch Slack
 Central audit copies need bot-owned `chat:write`. If raw source-thread excerpt fetch is enabled, the bot also needs `channels:history` for public channels it is in and `groups:history` only for private channels where the bot has explicitly been invited. Do not request broad private-channel enumeration for V1.
 
 Google Geocode CSV/TSV input needs bot-owned `files:read`, and TSV uploads need bot-owned `files:write`. If either required file scope is missing, the geocode tool must block rather than asking the user to paste rows or dumping coordinates into the Slack message.
+
+Store review triage is delivered through the PSM Ops bot-owned Slack delivery path. Do not use Kai Yi's user token or the Slack connector to reply on behalf of PS WEE.
 
 Open public-channel mode is not proven by `SLACK_ALLOWED_CHANNELS=""` alone. The Slack app must have `channels:join`, then the bot-owned public-channel join script must be run from the cloud profile:
 

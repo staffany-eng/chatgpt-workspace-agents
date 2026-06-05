@@ -11,6 +11,7 @@ EXPECTED_EOD_REMINDER_CRON_NAME="${EXPECTED_EOD_REMINDER_CRON_NAME:-psmopsbot du
 EXPECTED_ASSIGNMENT_HYGIENE_CRON_NAME="${EXPECTED_ASSIGNMENT_HYGIENE_CRON_NAME:-psmopsbot assignment hygiene}"
 EXPECTED_ROI_TRACKER_SYNC_CRON_NAME="${EXPECTED_ROI_TRACKER_SYNC_CRON_NAME:-psmopsbot roi tracker sync}"
 EXPECTED_CHURN_REPORTING_CHASE_CRON_NAME="${EXPECTED_CHURN_REPORTING_CHASE_CRON_NAME:-psmopsbot churn reporting chase}"
+EXPECTED_STORE_REVIEW_CRON_NAME="${EXPECTED_STORE_REVIEW_CRON_NAME:-psmopsbot store review poll}"
 HERMES_AGENT_DIR="${HERMES_AGENT_DIR:-$HOME/.hermes/hermes-agent}"
 HERMES_PYTHON="${HERMES_PYTHON:-$HERMES_AGENT_DIR/venv/bin/python}"
 HERMES_BIN="${HERMES_BIN:-$HERMES_AGENT_DIR/hermes}"
@@ -36,6 +37,7 @@ cmp -s "$SOURCE_DIR/runtime/scripts/psm_ops_due_date_reminders.py" "$PROFILE_DIR
 cmp -s "$SOURCE_DIR/runtime/scripts/psm_ops_pco_assignment_hygiene.py" "$PROFILE_DIR/scripts/psm_ops_pco_assignment_hygiene.py" || fail "profile:assignment-hygiene-script-drift"
 cmp -s "$SOURCE_DIR/runtime/scripts/psm_ops_roi_tracker_sync.py" "$PROFILE_DIR/scripts/psm_ops_roi_tracker_sync.py" || fail "profile:roi-tracker-sync-script-drift"
 cmp -s "$SOURCE_DIR/runtime/scripts/psm_ops_churn_reporting_chase.py" "$PROFILE_DIR/scripts/psm_ops_churn_reporting_chase.py" || fail "profile:churn-reporting-chase-script-drift"
+cmp -s "$SOURCE_DIR/runtime/scripts/psm_ops_store_review_poll.py" "$PROFILE_DIR/scripts/psm_ops_store_review_poll.py" || fail "profile:store-review-poll-script-drift"
 cmp -s "$SOURCE_DIR/runtime/sql/psm_ops_churn_projection_dashboard_292.sql" "$PROFILE_DIR/runtime/sql/psm_ops_churn_projection_dashboard_292.sql" || fail "profile:churn-projection-dashboard-292-sql-drift"
 cmp -s "$SOURCE_DIR/runtime/scripts/psm_ops_join_public_channels.py" "$PROFILE_DIR/scripts/psm_ops_join_public_channels.py" || fail "profile:public-channel-join-script-drift"
 
@@ -45,6 +47,7 @@ printf '%s\n' "$cron_out" | grep -Fq "$EXPECTED_EOD_REMINDER_CRON_NAME" || fail 
 printf '%s\n' "$cron_out" | grep -Fq "$EXPECTED_ASSIGNMENT_HYGIENE_CRON_NAME" || fail "cron:assignment-hygiene-missing"
 printf '%s\n' "$cron_out" | grep -Fq "$EXPECTED_ROI_TRACKER_SYNC_CRON_NAME" || fail "cron:roi-tracker-sync-missing"
 printf '%s\n' "$cron_out" | grep -Fq "$EXPECTED_CHURN_REPORTING_CHASE_CRON_NAME" || fail "cron:churn-reporting-chase-missing"
+printf '%s\n' "$cron_out" | grep -Fq "$EXPECTED_STORE_REVIEW_CRON_NAME" || fail "cron:store-review-poll-missing"
 printf '%s\n' "$cron_out" | grep -Fq "$EXPECTED_CLOUD_HEARTBEAT_CRON_NAME" || fail "cron:cloud-heartbeat-missing"
 printf '%s\n' "$cron_out" | grep -Fq "$EXPECTED_ADOPTION_DIGEST_CRON_NAME" || fail "cron:adoption-digest-missing"
 

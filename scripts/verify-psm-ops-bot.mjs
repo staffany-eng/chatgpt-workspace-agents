@@ -195,6 +195,48 @@ if (!existsSync(manifestPath)) {
     if (manifest.google_geocode?.prints_api_key !== false) {
       fail("Manifest Google Geocode prints_api_key must be false");
     }
+    const expectedStoreReviewTools = [
+      "list_store_review_apps",
+      "list_store_reviews",
+      "get_store_review",
+      "draft_store_review_reply",
+      "suggest_store_review_identity_candidates",
+      "confirm_store_review_identity"
+    ];
+    const actualStoreReviewTools = manifest.mcp?.psm_store_reviews?.expected_tools || [];
+    for (const tool of expectedStoreReviewTools) {
+      if (!actualStoreReviewTools.includes(tool)) fail(`Manifest missing psm_store_reviews tool: ${tool}`);
+    }
+    for (const tool of actualStoreReviewTools) {
+      if (!expectedStoreReviewTools.includes(tool)) fail(`Manifest has unexpected psm_store_reviews tool: ${tool}`);
+    }
+    if (manifest.store_reviews?.provider !== "appfollow") {
+      fail("Manifest Store Reviews provider must be appfollow");
+    }
+    if (manifest.store_reviews?.appfollow_api_token_env_var !== "APPFOLLOW_API_TOKEN") {
+      fail("Manifest Store Reviews appfollow_api_token_env_var must be APPFOLLOW_API_TOKEN");
+    }
+    if (manifest.store_reviews?.appfollow_credentials_file_env_var !== "PSM_OPS_APPFOLLOW_CREDENTIALS_FILE") {
+      fail("Manifest Store Reviews appfollow_credentials_file_env_var must be PSM_OPS_APPFOLLOW_CREDENTIALS_FILE");
+    }
+    if (manifest.store_reviews?.default_appfollow_credentials_file !== "~/.staffany/appfollow/credentials.json") {
+      fail("Manifest Store Reviews default_appfollow_credentials_file must be ~/.staffany/appfollow/credentials.json");
+    }
+    if (manifest.store_reviews?.expected_credentials_json_key !== "appfollow_api_token") {
+      fail("Manifest Store Reviews expected_credentials_json_key must be appfollow_api_token");
+    }
+    if (manifest.store_reviews?.required_permission !== "Read") {
+      fail("Manifest Store Reviews required_permission must be Read");
+    }
+    if (manifest.store_reviews?.state_key !== "store + app_ref + review_id") {
+      fail("Manifest Store Reviews state_key must be store + app_ref + review_id");
+    }
+    if (manifest.store_reviews?.polling_cron !== "0 1 * * *") {
+      fail("Manifest Store Reviews polling_cron must be 0 1 * * *");
+    }
+    if (manifest.store_reviews?.public_reply_publish_v1 !== false) {
+      fail("Manifest Store Reviews public_reply_publish_v1 must be false");
+    }
     const expectedSlackScopes = [
       "app_mentions:read",
       "channels:read",
@@ -237,6 +279,7 @@ const filesToScan = [
   "runtime/c360.md",
   "runtime/google-calendar.md",
   "runtime/google-geocode.md",
+  "runtime/store-reviews.md",
   "runtime/health-checks.md",
   "runtime/check-health.sh",
   "runtime/check-cloud-heartbeat.sh",
@@ -247,6 +290,7 @@ const filesToScan = [
   "runtime/scripts/psm_ops_pco_assignment_hygiene.py",
   "runtime/scripts/psm_ops_roi_tracker_sync.py",
   "runtime/scripts/psm_ops_churn_reporting_chase.py",
+  "runtime/scripts/psm_ops_store_review_poll.py",
   "runtime/sql/psm_ops_churn_projection_dashboard_292.sql",
   "runtime/scripts/psm_ops_join_public_channels.py",
   "runtime/mcp/psm_slack_notifier.py",
@@ -255,6 +299,8 @@ const filesToScan = [
   "runtime/mcp/google_oauth.py",
   "runtime/mcp/psm_google_calendar_server.py",
   "runtime/mcp/psm_google_geocode_server.py",
+  "runtime/mcp/store_reviews_core.py",
+  "runtime/mcp/psm_store_reviews_server.py",
   "runtime/hooks/psm-ops-adoption-telemetry/HOOK.yaml",
   "runtime/hooks/psm-ops-adoption-telemetry/handler.py",
   "runtime/hooks/psm-ops-mention-guard/HOOK.yaml",
@@ -264,6 +310,7 @@ const filesToScan = [
   "runtime/test_psm_ops_pco_assignment_hygiene.py",
   "runtime/test_psm_ops_roi_tracker_sync.py",
   "runtime/test_psm_ops_churn_reporting_chase.py",
+  "runtime/test_psm_ops_store_review_poll.py",
   "runtime/test_psm_ops_join_public_channels.py",
   "deploy/gce-onboarding-runbook.md",
   "tests/regression-cases.md",
@@ -311,9 +358,12 @@ if (!existsSync(deployScriptPath)) {
     "psm_ops_pco_assignment_hygiene.py",
     "psm_ops_join_public_channels.py",
     "psm_ops_churn_reporting_chase.py",
+    "psm_ops_store_review_poll.py",
     "runtime/sql",
     "psm_ops_churn_projection_dashboard_292.sql",
     "psm_google_geocode",
+    "psm_store_reviews",
+    "store review poll",
     "psm-ops-adoption-telemetry",
     "psm-ops-mention-guard",
     "smoke-rock-productions-c360.sh",
@@ -352,6 +402,10 @@ for (const requiredText of [
   "Customer 360: <url, only for successful C360-backed answers>",
   "psm_ops_join_public_channels.py --dry-run",
   "psm_ops_join_public_channels.py --apply",
+  "psm_ops_store_review_poll.py",
+  "PSM Ops automation: Store review triage",
+  "daily 09:00 Asia/Singapore",
+  "support@staffany.com",
   "Do not use Kai Yi's user token or the Slack connector to invite or post as a workaround"
 ]) {
   if (!slackRuntimeText.includes(requiredText)) fail(`runtime/slack.md missing required text: ${requiredText}`);
@@ -407,6 +461,7 @@ for (const requiredText of [
   "psm_c360",
   "psm_google_calendar",
   "psm_google_geocode",
+  "psm_store_reviews",
   "GOOGLE_CALENDAR_TOKEN_FILE",
   "GOOGLE_CALENDAR_CLIENT_SECRET_FILE",
   "team@staffany.com",
@@ -415,7 +470,20 @@ for (const requiredText of [
   "GOOGLE_GEOCODING_API_KEY",
   "google_geocoding_api_key",
   "geocode_slack_addresses",
-  "geocode_slack_address_file"
+  "geocode_slack_address_file",
+  "appfollow_reviews_api",
+  "APPFOLLOW_API_TOKEN",
+  "PSM_OPS_APPFOLLOW_CREDENTIALS_FILE",
+  "APPFOLLOW_CREDENTIALS_FILE",
+  "APPFOLLOW_EXT_IDS",
+  "APPFOLLOW_COLLECTION_NAME",
+  "appfollow_api_token",
+  "polling_cron: \"0 1 * * *\"",
+  "list_store_review_apps",
+  "list_store_reviews",
+  "draft_store_review_reply",
+  "suggest_store_review_identity_candidates",
+  "confirm_store_review_identity"
 ]) {
   if (!configText.includes(requiredText)) fail(`config.template.yaml missing required text: ${requiredText}`);
 }
@@ -432,6 +500,20 @@ if (existsSync(manifestPath)) {
   }
   for (const tool of allowlistTools) {
     if (!expectedJiraTools.includes(tool)) fail(`config.template.yaml psm_jira tool_allowlist has unexpected tool: ${tool}`);
+  }
+}
+
+if (existsSync(manifestPath)) {
+  const expectedStoreReviewTools = readJson(manifestPath)?.mcp?.psm_store_reviews?.expected_tools || [];
+  const allowlistStart = configText.indexOf("tool_allowlist:", configText.indexOf("  psm_store_reviews:"));
+  const nextServer = configText.slice(allowlistStart).search(/\n {2}[a-z0-9_]+:/);
+  const allowlistBlock = configText.slice(allowlistStart, nextServer === -1 ? undefined : allowlistStart + nextServer);
+  const allowlistTools = [...allowlistBlock.matchAll(/-\s*"([^"]+)"/g)].map((m) => m[1]);
+  for (const tool of expectedStoreReviewTools) {
+    if (!allowlistTools.includes(tool)) fail(`config.template.yaml psm_store_reviews tool_allowlist missing: ${tool}`);
+  }
+  for (const tool of allowlistTools) {
+    if (!expectedStoreReviewTools.includes(tool)) fail(`config.template.yaml psm_store_reviews tool_allowlist has unexpected tool: ${tool}`);
   }
 }
 
@@ -463,6 +545,11 @@ for (const requiredText of [
   "psm_google_geocode",
   "geocode_slack_addresses",
   "geocode_slack_address_file",
+  "Store Reviews",
+  "psm_store_reviews",
+  "list_store_reviews",
+  "draft_store_review_reply",
+  "support@staffany.com",
   "explicit address rows",
   "Do not use personal `customer360_session` cookies",
   "Customer 360: <url>",
@@ -514,6 +601,11 @@ for (const requiredText of [
   "calendar.readonly",
   "geocode_slack_addresses",
   "geocode_slack_address_file",
+  "Store Review Rules",
+  "psm_store_reviews",
+  "list_store_reviews",
+  "draft_store_review_reply",
+  "support@staffany.com",
   "explicit address rows",
   "call `geocode_slack_address_file` with the current Slack thread permalink before asking the user to paste addresses",
   "Do not geocode customer names",
@@ -653,13 +745,19 @@ if (!psmOpsProfileBlock) {
     "psm_jira: 28",
     "psm_c360: 3",
     "psm_google_geocode: 3",
+    "psm_store_reviews: 6",
     "psmopsbot due-date reminders",
     "psmopsbot assignment hygiene",
     "psmopsbot due-date eod catch-up",
     "psmopsbot roi tracker sync",
     "psmopsbot churn reporting chase",
+    "psmopsbot store review poll",
+    "psmopsbot store review poll",
+    "schedule: \"0 1 * * *\"",
     "psm_ops_roi_tracker_sync.py",
     "psm_ops_churn_reporting_chase.py",
+    "psm_ops_store_review_poll.py",
+    "psm_ops_store_review_poll.py",
     "psm_ops_due_date_reminders.py",
     "psm_ops_pco_assignment_hygiene.py",
     "psm_ops_due_date_reminders_eod.py",
@@ -759,6 +857,62 @@ for (const requiredText of [
   if (!googleGeocodeMcpText.includes(requiredText)) fail(`psm_google_geocode_server.py missing required text: ${requiredText}`);
 }
 
+const storeReviewsText = textOf(appRoot, "runtime/store-reviews.md");
+for (const requiredText of [
+  "psm_store_reviews",
+  "list_store_review_apps",
+  "list_store_reviews",
+  "get_store_review",
+  "draft_store_review_reply",
+  "suggest_store_review_identity_candidates",
+  "confirm_store_review_identity",
+  "AppFollow Reviews API",
+  "APPFOLLOW_API_TOKEN",
+  "PSM_OPS_APPFOLLOW_CREDENTIALS_FILE",
+  "APPFOLLOW_CREDENTIALS_FILE",
+  "APPFOLLOW_EXT_IDS",
+  "APPFOLLOW_COLLECTION_NAME",
+  "appfollow_api_token",
+  "Read",
+  "psm_ops_store_review_poll.py",
+  "support@staffany.com",
+  "V1 is draft-only",
+  "store + app_ref + review_id"
+]) {
+  if (!storeReviewsText.includes(requiredText)) fail(`runtime/store-reviews.md missing required text: ${requiredText}`);
+}
+
+const storeReviewsMcpText = textOf(appRoot, "runtime/mcp/psm_store_reviews_server.py");
+for (const requiredText of [
+  "psm_store_reviews",
+  "list_store_review_apps",
+  "list_store_reviews",
+  "get_store_review",
+  "draft_store_review_reply",
+  "suggest_store_review_identity_candidates",
+  "confirm_store_review_identity"
+]) {
+  if (!storeReviewsMcpText.includes(requiredText)) fail(`psm_store_reviews_server.py missing required text: ${requiredText}`);
+}
+
+const storeReviewsCoreText = textOf(appRoot, "runtime/mcp/store_reviews_core.py");
+for (const requiredText of [
+  "AppFollow Reviews API",
+  "APPFOLLOW_API_TOKEN",
+  "PSM_OPS_APPFOLLOW_CREDENTIALS_FILE",
+  "APPFOLLOW_CREDENTIALS_FILE",
+  "APPFOLLOW_EXT_IDS",
+  "APPFOLLOW_COLLECTION_NAME",
+  "appfollow_api_token",
+  "X-AppFollow-API-Token",
+  "support@staffany.com",
+  "identity_requested_private",
+  "confirm_store_review_identity",
+  "store_errors"
+]) {
+  if (!storeReviewsCoreText.includes(requiredText)) fail(`store_reviews_core.py missing required text: ${requiredText}`);
+}
+
 const notifierText = textOf(appRoot, "runtime/mcp/psm_slack_notifier.py");
 for (const requiredText of [
   "SLACK_BOT_TOKEN",
@@ -798,6 +952,15 @@ for (const requiredText of [
   "GOOGLE_GEOCODING_API_KEY",
   "psm_google_geocode.geocode_slack_addresses",
   "psm_google_geocode.geocode_slack_address_file",
+  "APPFOLLOW_API_TOKEN",
+  "PSM_OPS_APPFOLLOW_CREDENTIALS_FILE",
+  "APPFOLLOW_EXT_IDS",
+  "APPFOLLOW_COLLECTION_NAME",
+  "appfollow_api_token",
+  "psm_store_reviews",
+  "psm_ops_store_review_poll.py",
+  "psmopsbot store review poll",
+  "0 1 * * *",
   "psm_ops_roi_tracker_sync.py",
   "psm_ops_churn_reporting_chase.py",
   "psm_ops_pco_assignment_hygiene.py",
@@ -814,6 +977,7 @@ for (const requiredText of [
     "psmopsbot due-date eod catch-up",
     "psmopsbot roi tracker sync",
     "psmopsbot churn reporting chase",
+    "0 1 * * *",
     "psm_ops_due_date_reminders.py",
     "psm_ops_pco_assignment_hygiene.py",
     "psm_ops_due_date_reminders_eod.py",
@@ -836,7 +1000,9 @@ for (const requiredText of [
   "profile:public-channel-join-script-drift",
   "profile:assignment-hygiene-script-drift",
   "profile:churn-reporting-chase-script-drift",
+  "profile:store-review-poll-script-drift",
   "cron:churn-reporting-chase-missing",
+  "cron:store-review-poll-missing",
   "psm_ops_join_public_channels.py"
 ]) {
   if (!auditText.includes(requiredText)) fail(`Audit script missing required text: ${requiredText}`);
@@ -859,10 +1025,22 @@ for (const requiredText of [
   "psm_ops_churn_reporting_chase.py",
   "slack:auth-test-missing-user-id",
   "psm_google_geocode) expected=3",
+  "psm_store_reviews) expected=6",
   "is_unresolved_placeholder",
   "GEOCODE_CREDENTIALS_FILE",
   "google_geocode:credentials-file-unreadable",
-  "google_geocode:api-key-missing"
+  "google_geocode:api-key-missing",
+  "APPFOLLOW_API_TOKEN",
+  "PSM_OPS_APPFOLLOW_CREDENTIALS_FILE",
+  "APPFOLLOW_CREDENTIALS_FILE",
+  "APPFOLLOW_EXT_IDS",
+  "APPFOLLOW_COLLECTION_NAME",
+  "store_reviews:appfollow-credentials-file-unreadable",
+  "store_reviews:appfollow-api-token-missing",
+  "store_reviews:appfollow-app-refs-missing",
+  "psmopsbot store review poll",
+  "0 1 * * *",
+  "psm_ops_store_review_poll.py"
 ]) {
   if (!healthCheckText.includes(requiredText)) fail(`Health check script missing required text: ${requiredText}`);
 }
@@ -1049,6 +1227,8 @@ const pyCompile = spawnSync("python3", [
   join(appRoot, "runtime/mcp/google_oauth.py"),
   join(appRoot, "runtime/mcp/psm_google_calendar_server.py"),
   join(appRoot, "runtime/mcp/psm_google_geocode_server.py"),
+  join(appRoot, "runtime/mcp/store_reviews_core.py"),
+  join(appRoot, "runtime/mcp/psm_store_reviews_server.py"),
   join(appRoot, "runtime/hooks/psm-ops-adoption-telemetry/handler.py"),
   join(appRoot, "runtime/hooks/psm-ops-mention-guard/handler.py"),
   join(appRoot, "runtime/psm_ops_adoption_digest.py"),
@@ -1056,6 +1236,7 @@ const pyCompile = spawnSync("python3", [
   join(appRoot, "runtime/scripts/psm_ops_pco_assignment_hygiene.py"),
   join(appRoot, "runtime/scripts/psm_ops_roi_tracker_sync.py"),
   join(appRoot, "runtime/scripts/psm_ops_churn_reporting_chase.py"),
+  join(appRoot, "runtime/scripts/psm_ops_store_review_poll.py"),
   join(appRoot, "runtime/scripts/psm_ops_join_public_channels.py")
 ], {
   cwd: repoRoot,
@@ -1120,6 +1301,19 @@ const churnReportingChaseScriptUnitCheck = spawnSync("python3", [
 });
 if (churnReportingChaseScriptUnitCheck.status !== 0) {
   fail(`Churn reporting chase unit tests failed: ${churnReportingChaseScriptUnitCheck.stderr || churnReportingChaseScriptUnitCheck.stdout}`);
+}
+
+const storeReviewPollScriptUnitCheck = spawnSync("python3", [
+  "-m",
+  "unittest",
+  join(appRoot, "runtime/test_psm_ops_store_review_poll.py")
+], {
+  cwd: repoRoot,
+  env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1" },
+  encoding: "utf8"
+});
+if (storeReviewPollScriptUnitCheck.status !== 0) {
+  fail(`Store review poll unit tests failed: ${storeReviewPollScriptUnitCheck.stderr || storeReviewPollScriptUnitCheck.stdout}`);
 }
 
 const assignmentHygieneScriptUnitCheck = spawnSync("python3", [

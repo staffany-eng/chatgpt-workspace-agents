@@ -246,6 +246,23 @@ Hermes prompt input includes the current Slack thread permalink but does not inc
 - Does not reply "I don't see any addresses" until `geocode_slack_address_file` has returned a blocked reason that no supported CSV/TSV address file exists.
 - Does not call `geocode_slack_addresses` with an empty or guessed address list.
 
+## PS WEE Store Review Identity Follow-Up
+
+Daily 09:00 Asia/Singapore no-agent cron:
+
+- Uses AppFollow Reviews API through `psm_store_reviews`.
+- Runs `psm_ops_store_review_poll.py` with no args in production, persists runtime state keyed by `store + app_ref + review_id`, and only posts new or meaningfully changed reviews.
+- Does not include Slack user, user-group, or channel mentions in store-review triage output.
+- Manual preview uses `psm_ops_store_review_poll.py --dry-run`; dry-run does not mutate state.
+- Posts bot-owned Slack triage starting with `PSM Ops automation: Store review triage`.
+- If one store API fails but the other succeeds, reports the partial failure caveat and still triages returned reviews.
+- Draft public replies use the support CTA: ask the reviewer to email `support@staffany.com` with their StaffAny account email or phone number plus company/outlet.
+- Does not ask for email, phone, reference code, company, outlet, or REV follow-up details in the public review reply.
+- V1 exposes `draft_store_review_reply` only; there is no public review reply publishing tool.
+- Unknown reviewer identity remains `identity_requested_private` until private support details or Customer 360/Jira evidence is available.
+- Uses `suggest_store_review_identity_candidates` only after private support details are available. Exact private email match can be verified; phone-only or company/outlet-only candidates stay `needs-check`.
+- Uses `confirm_store_review_identity` only after PS confirms the mapping; confirmed state stores redacted contact hints only.
+
 ## PS WEE PCO Board Search
 
 Thread:
