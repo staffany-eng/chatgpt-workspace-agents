@@ -330,7 +330,7 @@ names = {str(job.get("name") or "") for job in enabled}
 def schedule_expr(job):
     schedule = job.get("schedule") if isinstance(job, dict) else ""
     if isinstance(schedule, dict):
-        return str(schedule.get("expression") or schedule.get("cron") or "").strip()
+        return str(schedule.get("expr") or schedule.get("expression") or schedule.get("cron") or "").strip()
     return str(schedule or job.get("cron") or "").strip()
 
 missing = [
