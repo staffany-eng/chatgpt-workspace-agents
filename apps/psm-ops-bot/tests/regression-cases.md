@@ -172,6 +172,17 @@ Expected:
 - The PCO tracker is a Customer Success Work issue, labelled `ps-wee-roi-tracker`, linked so ROI blocks PCO, and moved to `Waiting Internal`.
 - Caveat says ROI is source of truth and PCO is only the customer-loop tracker.
 
+## PS WEE Customer MRR From C360 Account Context
+
+`@PS Wee Manager what is Dreamus MRR?`
+
+- Resolves the customer through `search_c360_customers` when the customer key is ambiguous.
+- Calls `get_c360_account_context` with `format="json"`.
+- Answers from `answer.summary.totalMrr` when present.
+- Does not call `ask_c360_customer_context` first for the MRR amount.
+- Does not say deal value or MRR is not surfaced in the compiled wiki when compact C360 account context exposes `summary.totalMrr`.
+- Includes `Customer 360: <url>`, `Source: Customer 360`, `Scope`, `Confidence`, and a caveat limited to compact-account-context freshness or missing C360 data.
+
 ## PS WEE Casual NYSS Question
 
 `@PS Wee Manager @nyss what is the Stripe password?`
