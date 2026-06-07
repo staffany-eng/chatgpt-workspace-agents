@@ -767,7 +767,7 @@
               "For MRR-style questions only",
               "get_c360_account_context(customer_key, format=\"json\")",
               "answer.summary.totalMrr",
-              "For ARR, deal value, renewal amount, billing amount, or other non-MRR revenue asks",
+              "Customer 360 currently exposes MRR only for this compact revenue lookup",
               "do not reuse `answer.summary.totalMrr`"
             ]
           },

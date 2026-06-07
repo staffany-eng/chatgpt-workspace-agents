@@ -180,7 +180,7 @@ Expected:
 - Calls `get_c360_account_context` with `format="json"`.
 - Answers from `answer.summary.totalMrr` when present.
 - Does not call `ask_c360_customer_context` first for the MRR amount.
-- Uses `answer.summary.totalMrr` only for MRR-style asks; ARR, deal value, renewal amount, and billing amount require explicit matching fields or a `needs-check` / unavailable answer.
+- Uses `answer.summary.totalMrr` only for MRR-style asks; ARR, deal value, renewal amount, and billing amount return `needs-check` / unavailable unless the request is reframed as MRR.
 - Does not say deal value or MRR is not surfaced in the compiled wiki when compact C360 account context exposes `summary.totalMrr`.
 - Includes `Customer 360: <url>`, `Source: Customer 360`, `Scope`, `Confidence`, and a caveat limited to compact-account-context freshness or missing C360 data.
 
