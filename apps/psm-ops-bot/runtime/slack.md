@@ -45,6 +45,7 @@ The Slack surface is strict @-mention opt-in usage in public/open StaffAny Slack
 - Store review polling uses `psm_ops_store_review_poll.py` as a daily 09:00 Asia/Singapore no-agent cron. It calls AppFollow Reviews API through `psm_store_reviews`, classifies severity/theme, and emits `PSM Ops automation: Store review triage` only for new or meaningfully changed reviews. Store-review triage must not include Slack user, user-group, or channel mentions. Runtime state must be keyed by `store + app_ref + review_id` so duplicate polls do not create duplicate triage.
 - Unknown store reviewer identity should trigger the private support CTA, not a public reference-code ask: draft replies ask the reviewer to email `support@staffany.com` with their StaffAny account email or phone number plus company/outlet. Do not ask for email/phone in the public review. If private support details arrive, use `suggest_store_review_identity_candidates`; only `confirm_store_review_identity` after human confirmation.
 - Public store reply publishing is not exposed in V1. Drafts may be generated in Slack, but public reply publish tools must remain absent until a separate approved smoke-test plan is implemented.
+- Normal thread replies should avoid Slack user mentions. If a `<@...>` token is genuinely necessary, it may reference only the current Slack tagger; otherwise use plain display names or omit the greeting. Never greet with a `<@...>` token.
 
 ## Output Contracts
 
