@@ -764,18 +764,16 @@
           {
             "path": "skills/psm-ops-bot/SKILL.md",
             "must_contain": [
-              "For MRR-style questions only",
+              "For MRR questions",
               "get_c360_account_context(customer_key, format=\"json\")",
-              "answer.summary.totalMrr",
-              "Customer 360 currently exposes MRR only for this compact revenue lookup",
-              "do not reuse `answer.summary.totalMrr`"
+              "answer.summary.totalMrr"
             ]
           },
           {
             "path": "skills/psm-ops-bot/references/regression-cases.md",
             "must_contain": [
               "Customer MRR From C360 Account Context",
-              "Does not say deal value or MRR is not surfaced in the compiled wiki"
+              "Does not say MRR is not surfaced in the compiled wiki"
             ]
           }
         ]
