@@ -699,7 +699,7 @@
       "grade_notes": "If the Jira tool returns answer.slack_reply, paste it first exactly, then add labelled source/scope/confidence/caveat.",
       "assertions": {
         "answer_fixture": {
-          "output": "Created first so this won't be missed: <https://staffany.atlassian.net/browse/PCO-123|PCO-123>.\nSource: Jira PCO\nScope: current Slack thread; PS WEE intake ticket\nConfidence: verified\nCaveat: Use the same thread to add any extra context as it arrives."
+          "output": "Ticket created: <https://staffany.atlassian.net/browse/PCO-123|PCO-123>.\nSource: Jira PCO\nScope: current Slack thread; PS WEE intake ticket\nConfidence: verified\nCaveat: Use the same thread to add any extra context as it arrives."
         },
         "source_files": [
           {
