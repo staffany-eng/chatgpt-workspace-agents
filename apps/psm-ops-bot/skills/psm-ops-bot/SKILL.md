@@ -187,7 +187,7 @@ Match the `/archives/<channel_id>/` segment of the Slack thread permalink **befo
 
 ## Slack Output
 
-Thread replies: only the current Slack tagger may be `<@>`-mentioned. Assignee, Creator, PS Team owner, and other thread participants go in plain text. Greet the tagger or skip the greeting. Cron output (`PSM Ops automation:`) is exempt.
+Thread replies: avoid Slack user mentions by default. If a `<@>` mention is genuinely necessary, only the current Slack tagger may be `<@>`-mentioned. Assignee, Creator, PS Team owner, and other thread participants go in plain text. Greet the tagger by plain display name or skip the greeting; do not greet with a `<@...>` token. Cron output (`PSM Ops automation:`) is exempt.
 
 For PS WEE ticket-intake creation, if `create_ps_wee_intake_ticket` returns `answer.slack_reply`, paste that string exactly as the first line. Do not rewrite or reformat the Jira Slack link syntax (`<url|KEY>`). Do not add numbered questionnaires, follow-up questions, or missing-info asks.
 

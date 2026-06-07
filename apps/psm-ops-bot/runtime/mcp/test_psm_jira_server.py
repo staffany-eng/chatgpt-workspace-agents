@@ -3578,6 +3578,45 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertEqual(len(calls), 1)
         self.assertEqual(audit_calls[0][0], "roi_ticket_reused")
 
+    def test_find_roi_ticket_by_slack_thread_uses_permalink_variants(self):
+        calls = []
+
+        def fake_request(method, path, body=None):
+            self.assertEqual(method, "GET")
+            jql = urllib.parse.parse_qs(urllib.parse.urlparse(path).query).get("jql", [""])[0]
+            calls.append(jql)
+            if "1778668227217809" in jql:
+                return {
+                    "issues": [
+                        {
+                            "key": "ROI-777",
+                            "fields": {
+                                "summary": "Yeu Saigon invoice check",
+                                "status": {"name": "Open"},
+                                "priority": {"name": "Medium"},
+                                "reporter": {"displayName": "Kaiyi Lee"},
+                                "created": "2026-06-04T10:00:00.000+0800",
+                                "updated": "2026-06-04T10:00:00.000+0800",
+                                "issuetype": {"name": "ROI Task"},
+                            },
+                        }
+                    ]
+                }
+            return {"issues": []}
+
+        self.module._request_json = fake_request
+
+        result = self.module.find_roi_ticket_by_slack_thread(
+            "https://staffany.slack.com/archives/C07M4UGDWNQ/p1780573823718289?thread_ts=1778668227.217809&cid=C07M4UGDWNQ"
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["answer"]["matches"][0]["issue_key"], "ROI-777")
+        self.assertEqual(len(calls), 1)
+        self.assertIn("1780573823718289", calls[0])
+        self.assertIn("1778668227217809", calls[0])
+        self.assertIn("1778668227.217809", calls[0])
+
     def test_create_or_link_pco_roi_tracker_creates_waiting_internal_tracker(self):
         calls = []
         audit_calls = []
