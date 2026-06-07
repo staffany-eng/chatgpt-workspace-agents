@@ -1519,7 +1519,7 @@ class PsmJiraServerTest(unittest.TestCase):
         # PS WEE intakes never carry the `needs-info` label.
         label_calls = [c for c in calls if c[1] == "/rest/api/3/issue/PCO-789" and c[2].get("update", {}).get("labels")]
         self.assertEqual(label_calls, [])
-        self.assertIn("Created first so this won't be missed", result["answer"]["slack_reply"])
+        self.assertIn("Ticket created", result["answer"]["slack_reply"])
         self.assertIn("<https://staffany.atlassian.net/browse/PCO-789|PCO-789>", result["answer"]["slack_reply"])
         self.assertEqual(audit_calls[0][0], "ticket_created")
         self.assertEqual(audit_calls[0][1]["source_thread_url"], "https://staffany.slack.com/archives/C0B2VT50YT1/p1778205303989579")
@@ -2896,7 +2896,7 @@ class PsmJiraServerTest(unittest.TestCase):
                 msg=f"AA intake must not write due_date to Jira (supplied={supplied_due})",
             )
             slack_reply = result["answer"]["slack_reply"]
-            self.assertIn("Created first", slack_reply)
+            self.assertIn("Ticket created", slack_reply)
             self.assertNotIn(supplied_due, slack_reply, "AA reply must not echo a stripped date")
 
     def test_ps_wee_intake_outside_aa_channel_still_blocks_past_due_date(self):

@@ -453,7 +453,7 @@ Thread (Beatrice Clothing pattern from SCHE-19906):
 
 ```text
 Damba: @PS WEE can you create 1 PCO ticket for the thing i need to follow up?
-PS WEE: Created first so this won't be missed: PCO-477.
+PS WEE: Ticket created: PCO-477.
 Lucky: I found this older ticket; the payroll error was already fixed.
 Damba: Thanks Lucky, did you find May payroll report?
 Lucky: We did multiple follow ups but they're not replying to our chats.

@@ -4241,9 +4241,7 @@ def create_ps_wee_intake_ticket(
         if attached_images:
             attachment_parts.append(f"Attached {len(attached_images)} image(s) from Slack.")
     attachment_suffix = (" " + " ".join(attachment_parts)) if attachment_parts else ""
-    answer["slack_reply"] = (
-        f"Created first so this won't be missed: {ticket_ref}.{attachment_suffix}"
-    )
+    answer["slack_reply"] = f"Ticket created: {ticket_ref}.{attachment_suffix}"
     answer["central_copy"] = post_ps_wee_audit(
         "ticket_created",
         source_thread_url=source,
