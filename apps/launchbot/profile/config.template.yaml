@@ -333,7 +333,6 @@ gateway:
     enabled: true
     app_token_env: "SLACK_APP_TOKEN"
     bot_token_env: "SLACK_BOT_TOKEN"
-    allowed_users_env: "SLACK_ALLOWED_USERS"
     channel: "#launch-bot-testing"
 SLACK_HOME_CHANNEL: "C0B32M34J3W"
 SLACK_HOME_CHANNEL_NAME: "launch-bot-testing"

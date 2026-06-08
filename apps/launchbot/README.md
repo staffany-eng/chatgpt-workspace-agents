@@ -30,6 +30,8 @@ Canonical Hermes app packet for the Launchbot Slack profile.
 | `runtime/health-checks.md` | Expected health checks and cron pattern. |
 | `runtime/check-health.sh` | Silent no-agent health check. |
 | `runtime/audit-live-profile.sh` | Live profile drift audit. |
+| `runtime/update-app-from-repo.sh` | Schedules a detached repo pull + profile sync + gateway restart only when `origin/main` is ahead. |
+| `runtime/apply-app-update.sh` | Worker used by the detached repo update unit. |
 | `runtime/update-pantheon-repo.sh` | Daily Pantheon checkout refresher for code-grounded help article verification. |
 | `runtime/monitor-feature-intake.py` | No-agent Slack channel monitor for guarded feature-intake previews and approvals. |
 | `runtime/monitor-support-watch.py` | No-agent weekly support-watch runner that posts only new reports to `#all-bugs-production`. |
@@ -96,6 +98,17 @@ npm run launchbot:deploy -- --apply --ref origin/main
 ```
 
 The deploy script syncs the app packet into `~/.hermes/profiles/launchbot/source/launchbot`, copies every bundled skill into `~/.hermes/profiles/launchbot/skills/`, restarts `hermes-gateway-launchbot.service`, and runs live audit plus health checks. This prevents repo-only skill merges where Launchbot's live skill index stays stale.
+
+Manual or bot-triggered app update path:
+
+```bash
+/home/leekaiyi/.hermes/profiles/launchbot/scripts/launchbot-update-app-from-repo.sh
+```
+
+It exits quickly with one of:
+- `launchbot-app-update:no-change:<sha>` when the local checkout already matches `origin/main`
+- `launchbot-app-update:scheduled:<from_sha>:<to_sha>:<unit>` when a detached user unit was created to pull, sync, restart, and health-check Launchbot
+- `launchbot-app-update:error:<reason>` when the repo is dirty or the update flow is blocked
 
 ## Launch Workflow Skill
 

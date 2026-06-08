@@ -23,6 +23,10 @@ triggers:
   - "always use latest branch"
   - "make running binary use"
   - "push local changes"
+  - "pull latest repo"
+  - "update yourself"
+  - "sync latest launchbot repo"
+  - "restart if there are updates"
 tags: [launchbot, runtime, devops, health, deployment]
 ---
 
@@ -113,6 +117,23 @@ git fetch origin && git log origin/main --oneline -5
 Remote: `https://github.com/staffany-eng/chatgpt-workspace-agents.git`
 This repo is the canonical source for Launchbot profile changes (SOUL.md, skills, runtime docs).
 The local checkout is often **behind origin/main** — always fetch before reporting the latest commit.
+
+### 3d. Apply the latest Launchbot app commit safely
+
+When the ask is not just "what is the latest commit?" but "pull the latest repo and restart Launchbot if needed", use the profile-local update entrypoint:
+
+```bash
+/home/leekaiyi/.hermes/profiles/launchbot/scripts/launchbot-update-app-from-repo.sh
+```
+
+Expected outputs:
+- `launchbot-app-update:no-change:<sha>` — already current; do not restart
+- `launchbot-app-update:scheduled:<from_sha>:<to_sha>:<unit>` — a detached user unit will pull, sync, restart, and health-check Launchbot
+- `launchbot-app-update:error:<reason>` — blocked; report the exact reason
+
+Why this exists:
+- A direct `systemctl --user restart hermes-gateway-launchbot.service` from inside Launchbot can kill the current Slack request before it replies.
+- The update script schedules a detached user unit first, then returns immediately so Launchbot can answer in Slack before the restart begins.
 
 ### 3c. Has a specific commit's changes actually been applied to the runtime profile?
 

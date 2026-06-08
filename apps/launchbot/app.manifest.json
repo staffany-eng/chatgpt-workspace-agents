@@ -16,6 +16,8 @@
     "health_checks": "runtime/health-checks.md",
     "health_check_script": "runtime/check-health.sh",
     "live_profile_audit_script": "runtime/audit-live-profile.sh",
+    "app_update_script": "runtime/update-app-from-repo.sh",
+    "app_update_worker_script": "runtime/apply-app-update.sh",
     "pantheon_update_script": "runtime/update-pantheon-repo.sh",
     "ker_mcp_server": "runtime/mcp/launchbot_ker_server.py",
     "ker_mcp_tests": "runtime/mcp/test_launchbot_ker_server.py",
