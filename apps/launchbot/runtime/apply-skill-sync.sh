@@ -23,6 +23,18 @@ need_command() {
   }
 }
 
+sync_dir() {
+  src="$1"
+  dst="$2"
+  if command -v rsync >/dev/null 2>&1; then
+    rsync -a --delete "$src/" "$dst/"
+  else
+    rm -rf "$dst"
+    mkdir -p "$dst"
+    cp -R "$src/." "$dst/"
+  fi
+}
+
 json_escape() {
   printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
 }
@@ -69,7 +81,9 @@ resolve_skill_dir() {
 
 need_command git
 need_command diff
-need_command rsync
+need_command cp
+need_command rm
+need_command mkdir
 need_command systemctl
 need_command date
 
@@ -112,7 +126,7 @@ if diff -qr "$profile_skill_dir" "$repo_skill_dir" >/dev/null; then
 fi
 
 write_status "running" "$SKILL_NAME" "$repo_skill_rel" "copying live profile skill into repo source"
-rsync -a --delete "$profile_skill_dir/" "$repo_skill_dir/"
+sync_dir "$profile_skill_dir" "$repo_skill_dir"
 
 commit_sha=""
 if [ "$COMMIT_CHANGES" = "1" ] || [ "$PUSH_CHANGES" = "1" ]; then
