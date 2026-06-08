@@ -18,6 +18,8 @@
     "live_profile_audit_script": "runtime/audit-live-profile.sh",
     "app_update_script": "runtime/update-app-from-repo.sh",
     "app_update_worker_script": "runtime/apply-app-update.sh",
+    "skill_sync_script": "runtime/sync-skill-to-repo.sh",
+    "skill_sync_worker_script": "runtime/apply-skill-sync.sh",
     "pantheon_update_script": "runtime/update-pantheon-repo.sh",
     "ker_mcp_server": "runtime/mcp/launchbot_ker_server.py",
     "ker_mcp_tests": "runtime/mcp/test_launchbot_ker_server.py",
@@ -144,6 +146,13 @@
     "script": "runtime/update-app-from-repo.sh",
     "approver_allowlist_env_var": "LAUNCHBOT_RUNTIME_UPDATE_APPROVER_USER_IDS",
     "requester_user_id_env_var": "LAUNCHBOT_REQUESTER_SLACK_USER_ID"
+  },
+  "skill_sync_controls": {
+    "script": "runtime/sync-skill-to-repo.sh",
+    "worker_script": "runtime/apply-skill-sync.sh",
+    "approver_allowlist_env_var": "LAUNCHBOT_RUNTIME_UPDATE_APPROVER_USER_IDS",
+    "requester_user_id_env_var": "LAUNCHBOT_REQUESTER_SLACK_USER_ID",
+    "source_root": "apps/launchbot/skills"
   },
   "support_watch_monitor": {
     "mode": "no_agent_weekly_report",

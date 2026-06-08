@@ -127,6 +127,16 @@ Launchbot may answer any mention when the Slack gateway is open, but repo update
 - Launchbot must pass the current requester Slack user ID as `LAUNCHBOT_REQUESTER_SLACK_USER_ID`.
 - Unauthorized update requests should return the exact script blocker, for example `launchbot-app-update:error:unauthorized-requester:U123`.
 
+## Skill Sync Back To Repo
+
+Live profile skill edits are not source of truth. If Launchbot patches a skill in `~/.hermes/profiles/launchbot/skills/`, the repo will stay stale until that skill is synced back.
+
+- The repo-sync script is `/home/leekaiyi/.hermes/profiles/launchbot/scripts/launchbot-sync-skill-to-repo.sh`.
+- Use `--skill <skill-name>` and add `--commit` / `--push` only when the requester explicitly wants repo mutation.
+- The script uses the same requester allowlist as app self-update: `LAUNCHBOT_RUNTIME_UPDATE_APPROVER_USER_IDS`.
+- It resolves the profile skill directory and repo skill directory by skill name, copies the live profile skill back into `apps/launchbot/skills`, rebuilds the live profile from source, restarts the gateway, and runs health checks.
+- If the repo already matches, it returns `launchbot-skill-sync:no-change:<skill>:<repo_path>`.
+
 ### 3d. Apply the latest Launchbot app commit safely
 
 When the ask is not just "what is the latest commit?" but "pull the latest repo and restart Launchbot if needed", use the profile-local update entrypoint:

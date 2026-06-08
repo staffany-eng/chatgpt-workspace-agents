@@ -32,6 +32,8 @@ Canonical Hermes app packet for the Launchbot Slack profile.
 | `runtime/audit-live-profile.sh` | Live profile drift audit. |
 | `runtime/update-app-from-repo.sh` | Schedules a detached repo pull + profile sync + gateway restart only when `origin/main` is ahead. |
 | `runtime/apply-app-update.sh` | Worker used by the detached repo update unit. |
+| `runtime/sync-skill-to-repo.sh` | Schedules a detached copy of a live profile skill back into repo source, with optional commit/push, profile rebuild, and gateway restart. |
+| `runtime/apply-skill-sync.sh` | Worker used by the detached skill-to-repo sync unit. |
 | `runtime/update-pantheon-repo.sh` | Daily Pantheon checkout refresher for code-grounded help article verification. |
 | `runtime/monitor-feature-intake.py` | No-agent Slack channel monitor for guarded feature-intake previews and approvals. |
 | `runtime/monitor-support-watch.py` | No-agent weekly support-watch runner that posts only new reports to `#all-bugs-production`. |
@@ -111,6 +113,17 @@ It exits quickly with one of:
 - `launchbot-app-update:error:<reason>` when the repo is dirty or the update flow is blocked
 
 If `LAUNCHBOT_RUNTIME_UPDATE_APPROVER_USER_IDS` is set, the caller must also provide `LAUNCHBOT_REQUESTER_SLACK_USER_ID`, and only those Slack user IDs may trigger the repo update path. This gate is for operational mutations only; normal `@Launch Bot` answers stay open to any Slack user when the gateway allows mentions.
+
+Manual or bot-triggered skill-to-repo sync path:
+
+```bash
+/home/leekaiyi/.hermes/profiles/launchbot/scripts/launchbot-sync-skill-to-repo.sh --skill product-ops-bot-full-workflow --push
+```
+
+It exits quickly with one of:
+- `launchbot-skill-sync:no-change:<skill>:<repo_path>` when repo source already matches the live profile skill
+- `launchbot-skill-sync:scheduled:<skill>:<unit>` when a detached user unit was created to copy the skill into repo source, optionally commit/push it, rebuild the live profile, restart Launchbot, and run health checks
+- `launchbot-skill-sync:error:<reason>` when the skill mapping is missing, the repo is dirty, or the sync flow is blocked
 
 ## Launch Workflow Skill
 

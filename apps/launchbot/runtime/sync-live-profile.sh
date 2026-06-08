@@ -78,6 +78,8 @@ install_file 0755 "$APP_ROOT/runtime/check-health.sh" "$PROFILE_DIR/scripts/laun
 install_file 0755 "$APP_ROOT/runtime/audit-live-profile.sh" "$PROFILE_DIR/scripts/launchbot-audit-live-profile.sh"
 install_file 0755 "$APP_ROOT/runtime/update-app-from-repo.sh" "$PROFILE_DIR/scripts/launchbot-update-app-from-repo.sh"
 install_file 0755 "$APP_ROOT/runtime/apply-app-update.sh" "$PROFILE_DIR/scripts/launchbot-apply-app-update.sh"
+install_file 0755 "$APP_ROOT/runtime/sync-skill-to-repo.sh" "$PROFILE_DIR/scripts/launchbot-sync-skill-to-repo.sh"
+install_file 0755 "$APP_ROOT/runtime/apply-skill-sync.sh" "$PROFILE_DIR/scripts/launchbot-apply-skill-sync.sh"
 install_file 0755 "$APP_ROOT/runtime/update-pantheon-repo.sh" "$PROFILE_DIR/scripts/launchbot-update-pantheon-repo.sh"
 install_file 0755 "$APP_ROOT/runtime/monitor-feature-intake.py" "$PROFILE_DIR/scripts/launchbot-monitor-feature-intake.py"
 install_file 0755 "$APP_ROOT/runtime/monitor-support-watch.py" "$PROFILE_DIR/scripts/launchbot-monitor-support-watch.py"

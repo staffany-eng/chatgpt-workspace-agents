@@ -876,6 +876,8 @@ const liveProfileSyncText = textOf("runtime/sync-live-profile.sh");
 for (const requiredText of [
   "PROFILE_DIR/source/launchbot",
   "PROFILE_DIR/skills",
+  "launchbot-sync-skill-to-repo.sh",
+  "launchbot-apply-skill-sync.sh",
   "product-marketing-launch-workflow",
   "launch-priority-identifier",
   "customer-support-release-notes-generator",
@@ -890,6 +892,8 @@ const liveProfileAuditText = textOf("runtime/audit-live-profile.sh");
 for (const requiredText of [
   "profile-skill-missing",
   "source-skill-missing",
+  "profile-drift:skill-sync-script",
+  "profile-drift:skill-sync-apply-script",
   "product-marketing-launch-workflow",
   "launch-priority-identifier",
   "customer-support-release-notes-generator",

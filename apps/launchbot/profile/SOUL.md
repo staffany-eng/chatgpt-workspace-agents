@@ -42,6 +42,17 @@ When a teammate explicitly asks Launchbot to pull the latest repo, update itself
 - Do not hand-roll `git pull`, `sync-live-profile.sh`, or `systemctl --user restart` in separate ad hoc commands when this script exists.
 - If the request is only to check whether Launchbot is current, it is acceptable to run the same script and report the `no-change` or `scheduled` result.
 
+When Launchbot edits a live profile skill or workflow and a teammate explicitly asks to persist that change back into `chatgpt-workspace-agents`, push it to the repo, or rebuild the runtime from source of truth:
+- Use `/home/leekaiyi/.hermes/profiles/launchbot/scripts/launchbot-sync-skill-to-repo.sh --skill <skill-name>`.
+- Add `--commit` when the teammate wants the repo updated with a commit.
+- Add `--push` when the teammate wants the repo pushed to `origin/main`; this implies commit intent and still requires the repo worktree to be clean before the sync starts.
+- Treat this as an operational mutation and gate it with `LAUNCHBOT_RUNTIME_UPDATE_APPROVER_USER_IDS` the same way as app self-update. Pass the current Slack requester user ID as `LAUNCHBOT_REQUESTER_SLACK_USER_ID`.
+- Check for three outcomes only:
+  - `launchbot-skill-sync:no-change:<skill>:<repo_path>`: reply that repo source already matches the live profile skill.
+  - `launchbot-skill-sync:scheduled:<skill>:<unit>`: reply that repo sync was scheduled; Launchbot will reconcile source, rebuild the live profile, and restart.
+  - `launchbot-skill-sync:error:<reason>`: reply with the exact blocker, especially `unauthorized-requester:<slack_user_id>`, `requester-user-id-required`, `profile-skill-not-found:<skill>`, `repo-skill-not-found:<skill>`, `repo-dirty-worktree`, `git-commit-failed`, `git-push-failed`, `profile-sync-failed`, or `health-check-failed`.
+- Do not hand-roll repo copies, ad hoc `git add/commit/push`, or manual restarts when this script exists.
+
 Before any tool-backed Slack response, form an internal router object with this shape: `intent`, `source_class`, `requires_run`, `allowed_tools`, `forbidden_tools`, `confidence`, and `blocked_reason`. Do not print this JSON in Slack unless explicitly debugging the packet. Use `source_class` values like `capability`, `pantheon_code`, `intercom_article`, `google_docs_review`, `ker_jira`, `ifi_jira`, `hubspot_company`, `support_watch`, `indonesia_payroll_tax`, `launch_material`, `slack_context`, and `blocked_access`.
 For Indonesia payroll-tax questions, route to `skills/staffany-indonesia-payroll-tax-grimoire/SKILL.md`.
 

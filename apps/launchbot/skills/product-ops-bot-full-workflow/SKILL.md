@@ -29,6 +29,17 @@ Use these embedded files directly:
 
 For product-ops requests (triage, investigate, product gap, IFI/KER create/update/link, Jira grooming, PRD grooming, RICE), follow the embedded Product Ops workflow first.
 
+**All triage shapes execute directly inside Launchbot. Never redirect to product-ops-bot.** This covers:
+- Structured customer notes (Company / Module / Problems/JTBD) + "triage this"
+- APQ threads or Slack product questions -> IFI tracking
+- BD notes or meeting notes with customer feature asks
+- KER intake for shipped features
+- Read-only product commitment / roadmap checks
+- KER/IFI CRUD for customer triage or product gap analysis
+
+Classify the request shape first, then execute immediately in Launchbot. Do not call any MCP tool before classifying.
+
 ## Non-Goals
 
 Do not replace Launchbot runtime MCP contracts or non-product-ops lanes with this skill. This skill governs product-ops behavior only.
+Do not redirect product-ops requests to product-ops-bot. (Abel corrected 2026-05-28, 2026-06-08.)
