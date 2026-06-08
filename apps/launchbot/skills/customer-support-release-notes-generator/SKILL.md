@@ -14,6 +14,7 @@ Generate short release notes for Sales, PS, CS, and Product from a shipped Jira 
 - Launch Priority from `launch-priority-identifier`.
 - Verified product behavior from Pantheon evidence, screenshots, approved help article draft, or trusted Jira acceptance criteria.
 - Help article link, Intercom draft link, or `TBD`.
+- Optional screenshot manifest or safe screenshot files from `help-article-screenshot-capture`.
 
 ## Drafting Rules
 
@@ -29,6 +30,8 @@ Generate short release notes for Sales, PS, CS, and Product from a shipped Jira 
 - If no setup is needed, write `None`.
 - If the help article is not ready, write `TBD` and include the Intercom draft link if available.
 - Keep each section to one short line or 1-2 bullets unless the ticket has multiple user-facing changes.
+- Use screenshots sparingly. Approved release-note posts may include only 1-2 screenshots, and each screenshot must directly show the UI/UX change described in `What's new`.
+- If screenshots are missing, blocked, sensitive, or not contextually useful, post the release note without screenshots instead of fabricating or padding with generic UI.
 
 ## Required Format
 
@@ -87,6 +90,23 @@ help_article_link: <URL | Intercom draft URL | TBD>
 
 If the validator returns `revise`, run `release-notes-feedback-updater`, then validate again. If the validator returns `blocked`, stop and name the missing evidence instead of revising from inference.
 
+## Screenshot Step
+
+After the release note passes validation and before Product Lead review:
+
+1. Use `help-article-screenshot-capture` to build a tiny release-note shot list.
+2. Select only screenshots that make the UI/UX delta easier to understand.
+3. Capture or attach at most 2 screenshots; prefer 1 when one screenshot explains the change.
+4. Reject screenshots that show private customer data, salaries, bank details, employee identifiers, production org names, or unredacted sensitive fields.
+5. If capture is blocked, include `Screenshots: none - <blocked reason>` in the review handoff and continue without screenshots.
+
+Screenshot selection rule:
+
+```text
+Screenshot 1: the changed screen or entry point users will notice first.
+Screenshot 2: only if needed, the before/after result, setup surface, permission surface, or confirmation state.
+```
+
 ## Product Lead Review Handoff
 
 After validation returns `pass`, ask the Product Lead for review in Slack:
@@ -95,6 +115,8 @@ After validation returns `pass`, ask the Product Lead for review in Slack:
 Launchbot automation: <@product_lead_slack_user_id> please review these release notes for <KER-key>.
 Reply in this thread with `@Launch Bot <feedback>` for edits, or `@Launch Bot approve release notes <KER-key>` to send it to #all-product-new-updates.
 ```
+
+Include the selected screenshot file links or Slack file attachments in the review thread when available.
 
 Do not post to `#all-product-new-updates` until Product Lead approval is explicit.
 
@@ -137,6 +159,7 @@ Slack Review:
 Product Lead: <@user_id | blocked_missing_mapping>
 Approval instruction: @Launch Bot approve release notes <KER-key>
 Approved destination: #all-product-new-updates
+Screenshots: <none | 1-2 contextually correct screenshots>
 ```
 
 ## Blockers

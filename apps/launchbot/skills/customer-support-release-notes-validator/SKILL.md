@@ -16,6 +16,7 @@ launch_priority: <P1 | P2 | P3 | P4 | blank>
 source_evidence: <Jira/Slack/Pantheon/help article summaries>
 draft: <release notes draft>
 help_article_link: <URL | draft URL | TBD>
+screenshot_refs: <none | 1-2 screenshot file paths/URLs with captions>
 ```
 
 ## Validation Rules
@@ -25,6 +26,7 @@ help_article_link: <URL | draft URL | TBD>
 - The draft must be concise and useful for Sales, PS, CS, and Product, with enough existing StaffAny feature context to place the change.
 - `What's new` must describe user-visible UI/UX delta from old behavior to new behavior.
 - `How this helps users` must explain customer, admin, manager, or employee value only. It must not explain how the change helps CS, support agents, triage, or internal teams.
+- Screenshot references, when present, must be 1-2 contextually correct screenshots that directly show the UI/UX delta. More than 2 screenshots is a revision issue.
 - Evidence must support every product behavior, UI label, setup step, availability statement, and help article link.
 - Enablement usefulness matters more than marketing polish: Sales, PS, CS, and Product teammates should understand what changed, what users will see, and what setup to check.
 - Use `needs-check` for incomplete but non-blocking evidence. Use `blocked` for unsafe, unverified, or non-shipped claims.
@@ -63,6 +65,7 @@ Set decision to `blocked` when the draft:
 - Exposes raw Jira text, private URLs, customer names, PII, internal app names, or implementation-only details.
 - Has no customer-visible behavior for CS to support.
 - Is too verbose for Slack scanning or lacks StaffAny feature context.
+- Includes screenshots that are unrelated, sensitive, unredacted, or more than 2 images.
 
 Set decision to `revise` when `How this helps users` contains CS/support/internal-team value even if the rest of the draft is accurate.
 
@@ -83,6 +86,7 @@ Category Scores:
 - Enablement usefulness: <0-20> - <reason>
 - Setup and help article completeness: <0-15> - <reason>
 - Brevity, safety, and polish: <0-10> - <reason>
+- Screenshot relevance: <pass | revise | not-needed> - <reason>
 
 Required Changes:
 - <change or none>

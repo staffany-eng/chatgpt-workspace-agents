@@ -1,13 +1,13 @@
 # Launchbot Profile Directory Structure
-_Inspected and updated 2026-05-28. Use as the canonical map when answering directory or cleanup questions._
+_Inspected and updated 2026-06-08. Use as the canonical map when answering directory or cleanup questions._
 
 ## Live directories (keep these)
 
 ```
 ~/.hermes/profiles/launchbot/
-├── config.yaml                        # live config — single source of truth (NOT symlinked)
-├── .env                               # live secrets — single source of truth (NOT symlinked)
-├── SOUL.md → chatgpt-workspace-agents/apps/launchbot/profile/SOUL.md   # SYMLINK
+├── config.yaml                        # live config — single source of truth (not copied from template)
+├── .env                               # live secrets — single source of truth
+├── SOUL.md                            # copied from apps/launchbot/profile/SOUL.md
 ├── VERSION                            # manually-pinned git SHA — can be stale
 ├── auth.json / auth.lock              # OAuth tokens
 ├── gateway.lock / gateway.pid / gateway_state.json   # gateway process state
@@ -24,59 +24,50 @@ _Inspected and updated 2026-05-28. Use as the canonical map when answering direc
 ├── plans/                            # implementation plans
 ├── platforms/pairing/                 # Slack pairing state
 ├── runtime/
-│   ├── mcp/ → chatgpt-workspace-agents/apps/launchbot/runtime/mcp/    # SYMLINK
 │   ├── feature-intake-monitor-state.json
 │   ├── pantheon-repo-status.json
 │   └── last-launchbot-deploy-sha
 ├── sandboxes/singularity/             # container sandbox state
-├── scripts/                           # symlinks to repo runtime scripts (see table below)
+├── scripts/                           # copied runtime scripts; must stay inside profile/scripts
 ├── sessions/                          # session transcripts (managed by Hermes)
 ├── skills/
-│   ├── help-article-generator/ → chatgpt-workspace-agents/apps/launchbot/skills/help-article-generator/  # SYMLINK
-│   ├── weekly-support-watch/ → chatgpt-workspace-agents/apps/launchbot/skills/weekly-support-watch/      # SYMLINK
-│   └── [other skills: bundled, not symlinked]
+│   ├── help-article-generator/        # copied from apps/launchbot/skills/
+│   ├── weekly-support-watch/          # copied from apps/launchbot/skills/
+│   └── [other synced skills]
 ├── source/
-│   ├── launchbot/ → chatgpt-workspace-agents/apps/launchbot/          # SYMLINK
+│   ├── launchbot/                     # copied app packet from chatgpt-workspace-agents/apps/launchbot/
 │   └── pantheon/                      # git checkout of staffany-eng/pantheon (product source of truth)
 ├── ssh/pantheon_deploy_key            # deploy key for pantheon repo
 └── .skills_prompt_snapshot.json       # skills prompt cache
 ```
 
-## Symlink Architecture (as of 2026-05-28)
+## Materialized Runtime Architecture (as of 2026-06-08)
 
 Abel's decision: **`chatgpt-workspace-agents/apps/launchbot/` is the single source of truth.**
-`git pull` in that repo is the only step needed to update SOUL.md, skills, scripts, and MCP servers.
+Hermes runs from `~/.hermes/profiles/launchbot`, so repo files are copied into the profile with `apps/launchbot/runtime/sync-live-profile.sh`. Do not symlink Launchbot scripts, skills, or `source/launchbot`; Hermes cron validates resolved script paths and symlinked scripts can be blocked.
 
-| Profile path | → Repo target |
+| Profile path | Repo source |
 |---|---|
 | `SOUL.md` | `apps/launchbot/profile/SOUL.md` |
-| `skills/help-article-generator/` | `apps/launchbot/skills/help-article-generator/` |
-| `skills/weekly-support-watch/` | `apps/launchbot/skills/weekly-support-watch/` |
+| `skills/<required-skill>/` | `apps/launchbot/skills/<required-skill>/` |
 | `scripts/launchbot-check-health.sh` | `apps/launchbot/runtime/check-health.sh` |
 | `scripts/launchbot-audit-live-profile.sh` | `apps/launchbot/runtime/audit-live-profile.sh` |
 | `scripts/launchbot-monitor-feature-intake.py` | `apps/launchbot/runtime/monitor-feature-intake.py` |
 | `scripts/launchbot-monitor-support-watch.py` | `apps/launchbot/runtime/monitor-support-watch.py` |
 | `scripts/launchbot-update-pantheon-repo.sh` | `apps/launchbot/runtime/update-pantheon-repo.sh` |
-| `runtime/mcp/` | `apps/launchbot/runtime/mcp/` |
 | `source/launchbot/` | `apps/launchbot/` |
 
-**NOT symlinked:** `config.yaml` (live secrets), `source/pantheon/` (separate repo), all state/log/session files.
+**Not copied from the repo:** `config.yaml` (live secrets/local config), `.env`, `source/pantheon/` (separate repo), all state/log/session files.
 
-**`launchbot-sync-app.sh` and its cron job are OBSOLETE** — removed as part of this migration.
+**`launchbot-sync-app.sh` and its cron job are obsolete** — if the cron job still references it, disable/remove that old entry rather than recreating the script.
 
-### Verify symlinks are intact
+### Verify path safety
 
 ```bash
-REPO=/home/leekaiyi/chatgpt-workspace-agents/apps/launchbot
 PROFILE=/home/leekaiyi/.hermes/profiles/launchbot
-for target in \
-  "$PROFILE/SOUL.md" \
-  "$PROFILE/skills/help-article-generator" \
-  "$PROFILE/skills/weekly-support-watch" \
-  "$PROFILE/runtime/mcp" \
-  "$PROFILE/source/launchbot"; do
-  [ -L "$target" ] && echo "OK  $(readlink $target)" || echo "NOT SYMLINK: $target"
-done
+find "$PROFILE/scripts" -maxdepth 1 -type l -ls
+find "$PROFILE/source/launchbot" -maxdepth 0 -type l -ls
+find "$PROFILE/skills" -maxdepth 1 -type l -ls
 ```
 
 ### Discrepancy audit (run periodically or before changes)
@@ -85,8 +76,8 @@ done
 REPO=/home/leekaiyi/chatgpt-workspace-agents/apps/launchbot
 PROFILE=/home/leekaiyi/.hermes/profiles/launchbot
 
-# 1. SOUL.md — should be symlink pointing to repo
-ls -la "$PROFILE/SOUL.md"
+# 1. SOUL.md — should match repo copy
+cmp -s "$REPO/profile/SOUL.md" "$PROFILE/SOUL.md" || echo "SOUL drift"
 
 # 2. MCP: files in live but not in repo
 comm -23 <(ls "$PROFILE/runtime/mcp/" | sort) <(ls "$REPO/runtime/mcp/" | sort)
@@ -173,4 +164,4 @@ Also check `~/.hermes/hermes-agent/` for stray `.bak-*` files and `~/.hermes/pro
 
 - Git is the rollback mechanism for source — don't duplicate full directories as backups
 - Only `.env` and `config.yaml` are legitimately worth one backup copy before a change
-- The symlink architecture eliminates the need for agent-driven file copies entirely
+- `runtime/sync-live-profile.sh` is the normal copy mechanism; avoid ad hoc file copies unless debugging a single drift finding

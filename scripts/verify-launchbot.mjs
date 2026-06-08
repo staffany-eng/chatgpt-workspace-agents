@@ -90,7 +90,9 @@ if (!manifest) {
   const step0 = (manifest.launch_workflow?.workflow_steps || []).find((step) => step.step === 0);
   if (step0?.status !== "implemented_in_packet") fail("Manifest launch_workflow Step 0 must be implemented_in_packet");
   const step4 = (manifest.launch_workflow?.workflow_steps || []).find((step) => step.step === 4);
-  if (step4?.status !== "planned_stub") fail("Manifest launch_workflow Step 4 must remain planned_stub");
+  if (step4?.status !== "skill_backed_draft_evaluator") {
+    fail("Manifest launch_workflow Step 4 must remain skill_backed_draft_evaluator");
+  }
   const contract = manifest.launch_workflow?.help_article_contract || {};
   for (const key of [
     "publishable_body_excludes_internal_appendix",
@@ -109,6 +111,27 @@ if (!manifest) {
   if (contract.clubany_product_label !== "StaffAny") fail("Manifest must set ClubAny product label to StaffAny");
   if (contract.clubany_management_article_default !== "combined_brands_and_perks_article") {
     fail("Manifest must prefer the combined ClubAny management article");
+  }
+  if (contract.visible_article_preview_format !== "html") {
+    fail("Manifest must require visible help article previews as HTML");
+  }
+  if (contract.markdown_source_internal_only !== true) {
+    fail("Manifest must keep Markdown source internal-only for help articles");
+  }
+  const defaultLocales = contract.default_article_locales || [];
+  if (!defaultLocales.includes("en") || !defaultLocales.includes("id")) {
+    fail("Manifest help article contract must default normal article work to en and id locales");
+  }
+  for (const key of [
+    "english_source_before_indonesian",
+    "per_locale_evidence_gate",
+    "per_locale_format_gate",
+    "per_locale_google_docs_review",
+    "per_locale_slack_approval",
+    "per_locale_intercom_draft",
+    "indonesian_needs_refresh_when_english_changes",
+  ]) {
+    if (contract[key] !== true) fail(`Manifest launch_workflow.help_article_contract.${key} must be true`);
   }
   const videoLane = contract.video_only_update_lane || {};
   if (videoLane.mode !== "Update -> Video-only update") fail("Manifest must register video-only help article update lane");
@@ -140,8 +163,19 @@ if (!manifest) {
     "cached_intercom_planning_profile",
     "pre_publish_format_gate",
     "live_intercom_wins_on_conflict",
+    "screenshot_capture_optional",
+    "screenshot_capture_failure_keeps_placeholders",
+    "screenshot_capture_requires_demo_data",
+    "screenshot_troubleshooting_uses_playwright",
+    "screenshot_staging_credentials_secret_backed",
   ]) {
     if (contract[key] !== true) fail(`Manifest launch_workflow.help_article_contract.${key} must be true`);
+  }
+  if (contract.screenshot_capture_failure_blocks_article_workflow !== false) {
+    fail("Manifest launch_workflow.help_article_contract.screenshot_capture_failure_blocks_article_workflow must be false");
+  }
+  if (contract.screenshot_storage_state_repo_persistence !== false) {
+    fail("Manifest launch_workflow.help_article_contract.screenshot_storage_state_repo_persistence must be false");
   }
   if (contract.intercom_format_profile !== "skills/help-article-generator/references/intercom-format-profile.json") {
     fail("Manifest must point to the Intercom format profile");
@@ -184,6 +218,42 @@ if (!manifest) {
   if (helpMcp.video?.provider !== "loom") fail("Manifest help article MCP must be Loom-only");
   if (helpMcp.video?.reject_raw_video_files !== true) fail("Manifest help article MCP must reject raw video files");
   if (helpMcp.video?.reject_slack_file_urls !== true) fail("Manifest help article MCP must reject Slack file URLs");
+  const shippedWindmill = manifest.help_article_jira_shipped_windmill || {};
+  if (shippedWindmill.mode !== "jira_transition_to_windmill_webhook") fail("Manifest shipped help article Windmill mode unexpected");
+  if (shippedWindmill.flow_name !== "launchbot_ker_help_article_on_shipped") fail("Manifest shipped help article Windmill flow name unexpected");
+  if (shippedWindmill.state_table !== "launchbot_help_article_runs") fail("Manifest shipped help article state table unexpected");
+  if (shippedWindmill.trigger?.transition_to !== "6 - Shipped & Launching") fail("Manifest shipped help article trigger status unexpected");
+  if (shippedWindmill.jira?.launch_priority_field_id !== "customfield_10561") fail("Manifest shipped help article launch priority field unexpected");
+  if (shippedWindmill.jira?.product_lead_field_id_env_var !== "JIRA_FIELD_PRODUCT_LEAD") fail("Manifest shipped help article Product Lead env unexpected");
+  if (shippedWindmill.slack?.default_review_channel_id !== "C0B32M34J3W") fail("Manifest shipped help article review channel unexpected");
+  if (shippedWindmill.slack?.mention_gated_feedback !== true) fail("Manifest shipped help article feedback must be mention-gated");
+  const releaseNotes = shippedWindmill.release_notes || {};
+  if (releaseNotes.screenshot_skill !== "skills/help-article-screenshot-capture/SKILL.md") {
+    fail("Manifest release notes must use help-article-screenshot-capture for screenshots");
+  }
+  if (releaseNotes.screenshot_max_count !== 2) fail("Manifest release notes screenshot max must be 2");
+  if (releaseNotes.screenshot_prefer_count !== 1) fail("Manifest release notes should prefer 1 screenshot");
+  if (releaseNotes.screenshot_requires_contextual_ui_delta !== true) {
+    fail("Manifest release notes screenshots must require contextual UI delta");
+  }
+  if (releaseNotes.screenshot_sensitive_data_blocks !== true) {
+    fail("Manifest release notes screenshots must block sensitive data");
+  }
+  if (shippedWindmill.intercom?.create_state !== "draft") fail("Manifest shipped help article Intercom create state must be draft");
+  if (shippedWindmill.intercom?.publish_state !== "published") fail("Manifest shipped help article Intercom publish state unexpected");
+  for (const key of [
+    "launch_priority_required",
+    "product_lead_slack_mapping_required",
+    "pantheon_evidence_required",
+    "cached_intercom_planning_first",
+    "live_intercom_stale_check_before_write",
+    "english_source_before_indonesian",
+    "indonesian_needs_refresh_when_english_changes",
+    "product_lead_or_override_publish_only",
+    "auto_publish_after_exact_confirmation",
+  ]) {
+    if (shippedWindmill.guards?.[key] !== true) fail(`Manifest shipped help article guard missing: ${key}`);
+  }
   const kerMcp = manifest.mcp?.launchbot_ker || {};
   const ifiMcp = manifest.mcp?.launchbot_ifi || {};
   if (ifiMcp.mode !== "preview_first_confirmed_jira_mutation") fail("Manifest IFI MCP must be preview-first confirmed Jira mutation");
@@ -423,6 +493,7 @@ for (const relPath of [
   "runtime/health-checks.md",
   "runtime/check-health.sh",
   "runtime/audit-live-profile.sh",
+  "runtime/sync-live-profile.sh",
   "runtime/update-pantheon-repo.sh",
   "runtime/monitor-feature-intake.py",
   "runtime/test_monitor_feature_intake.py",
@@ -431,6 +502,8 @@ for (const relPath of [
   "runtime/support-watch-whatsapp-refresh.sql",
   "runtime/intercom-format-gate.mjs",
   "runtime/intercom-format-gate.test.mjs",
+  "runtime/help-article-staging-auth-state.mjs",
+  "runtime/help-article-staging-auth-state.test.mjs",
   "runtime/mcp/profile_env.py",
   "runtime/mcp/launchbot_ker_server.py",
   "runtime/mcp/launchbot_ifi_server.py",
@@ -440,6 +513,9 @@ for (const relPath of [
   "runtime/mcp/launchbot_support_watch_core.py",
   "runtime/mcp/launchbot_support_watch_server.py",
   "runtime/mcp/launchbot_help_article_server.py",
+  "runtime/windmill/launchbot_ker_help_article_on_shipped.mjs",
+  "runtime/windmill/launchbot_ker_help_article_on_shipped.test.mjs",
+  "runtime/windmill/launchbot_help_article_runs.sql",
   "runtime/mcp/test_helpers.py",
   "runtime/mcp/test_launchbot_ker_server.py",
   "runtime/mcp/test_launchbot_ifi_server.py",
@@ -448,11 +524,26 @@ for (const relPath of [
   "runtime/mcp/test_launchbot_help_article_server.py",
   "runtime/mcp/fixtures/help_article_video_fixtures.json",
   "skills/help-article-generator/SKILL.md",
+  "skills/help-article-validator/SKILL.md",
+  "skills/help-article-validator/agents/openai.yaml",
+  "skills/help-article-validator/references/model-help-articles.md",
+  "skills/help-article-feedback-updater/SKILL.md",
+  "skills/help-article-feedback-updater/agents/openai.yaml",
+  "skills/help-article-screenshot-capture/SKILL.md",
+  "skills/help-article-screenshot-troubleshooter/SKILL.md",
   "skills/help-article-generator/references/help-article-skeleton.md",
   "skills/help-article-generator/references/intercom-format-profile.json",
   "skills/help-article-generator/references/article-planning-profile.json",
   "skills/help-article-generator/references/intercom-article-inventory.json",
   "skills/help-article-generator/references/video-placement-registry.json",
+  "skills/launch-priority-identifier/SKILL.md",
+  "skills/launch-priority-identifier/agents/openai.yaml",
+  "skills/customer-support-release-notes-generator/SKILL.md",
+  "skills/customer-support-release-notes-generator/agents/openai.yaml",
+  "skills/customer-support-release-notes-validator/SKILL.md",
+  "skills/customer-support-release-notes-validator/agents/openai.yaml",
+  "skills/customer-support-release-notes-feedback-updater/SKILL.md",
+  "skills/customer-support-release-notes-feedback-updater/agents/openai.yaml",
   "skills/weekly-support-watch/SKILL.md",
   "skills/staffany-indonesia-payroll-tax-grimoire/SKILL.md",
   "skills/staffany-indonesia-payroll-tax-grimoire/skills/indonesia-payroll-tax-advisor/SKILL.md",
@@ -499,6 +590,23 @@ for (const requiredText of [
   "create_feature_intake_from_slack_thread",
   "preview_help_article_video_update",
   "create_help_article_video_update_draft",
+  "help_article_jira_shipped_windmill",
+  "launchbot_ker_help_article_on_shipped",
+  "launchbot_help_article_runs",
+  "WINDMILL_WEBHOOK_TOKEN",
+  "JIRA_FIELD_LAUNCH_PRIORITY",
+  "customfield_10561",
+  "JIRA_FIELD_PRODUCT_LEAD",
+  "LAUNCHBOT_REVIEW_CHANNEL_ID",
+  "LAUNCHBOT_JIRA_ACCOUNT_TO_SLACK_USER_MAP",
+  "INTERCOM_AUTHOR_ID",
+  "INTERCOM_HELP_ARTICLE_DEFAULT_PARENT_ID",
+  "LAUNCHBOT_INTERCOM_UPDATE_DRAFT_SUPPORTED",
+  "@Launch Bot publish help articles KER-123",
+  "LAUNCHBOT_RELEASE_NOTES_OUTPUT_CHANNEL_ID",
+  "LAUNCHBOT_RELEASE_NOTES_OUTPUT_CHANNEL_NAME",
+  "@Launch Bot approve release notes KER-123",
+  "all-product-new-updates",
   "JIRA_API_TOKEN",
   "HUBSPOT_ACCESS_TOKEN",
   "JIRA_IFI_HUBSPOT_COMPANY_ID_FIELD_ID",
@@ -633,7 +741,12 @@ for (const requiredText of [
   "no ticket creation, owner assignment, or engineer tags",
   "KER-2109",
   "cached Intercom article planning",
-  "Pantheon-grounded help article drafts",
+  "Pantheon-grounded StaffAny help articles in English and Indonesian",
+  "Intercom-ready HTML, not Markdown",
+  "help-article-validator",
+  "help-article-feedback-updater",
+  "Create and Manage Disbursement",
+  "Managing Employee Document Types",
   "registered video-slot update drafts",
   "Intercom format checks",
   "message.channels",
@@ -664,8 +777,172 @@ for (const requiredText of [
   "Regulatory basis:",
   "StaffAny system behavior:",
   "Gap / risk / not validated:",
+  "Jira-Shipped Launch Notes Lane",
+  "launch-priority-identifier",
+  "help-article-validator",
+  "help-article-feedback-updater",
+  "release-notes-generator",
+  "release-notes-validator",
+  "release-notes-feedback-updater",
+  "help-article-screenshot-capture",
+  "only 1-2 screenshots",
+  "directly show the UI/UX delta",
+  "#all-product-new-updates",
+  "@Launch Bot approve release notes KER-123",
+  "mention the Product Lead",
+  "Module, What's new, How this helps users, What's needed to be setup, Help article link",
 ]) {
   if (!soulText.includes(requiredText)) fail(`SOUL.md missing required text: ${requiredText}`);
+}
+
+const launchPrioritySkillText = textOf("skills/launch-priority-identifier/SKILL.md");
+for (const requiredText of [
+  "customfield_10561",
+  "Do not use Jira engineering priority",
+  "Next Skill: release-notes-generator",
+  "Priority Source: <slack_message | jira_customfield_10561 | needs-check>",
+]) {
+  if (!launchPrioritySkillText.includes(requiredText)) fail(`launch-priority-identifier/SKILL.md missing required text: ${requiredText}`);
+}
+
+const csReleaseNotesSkillText = textOf("skills/customer-support-release-notes-generator/SKILL.md");
+for (const requiredText of [
+  "name: release-notes-generator",
+  "Generate short release notes for Sales, PS, CS, and Product",
+  "Focus `What's new` on UI/UX changes from the previous version to the newer one",
+  "Include just enough existing StaffAny feature context",
+  "- Module",
+  "- What's new",
+  "- How this helps users",
+  "- What's needed to be setup",
+  "- Help article link",
+  "Do not explain how the change helps CS, support agents, triage, or internal teams in that section.",
+  "Use `help-article-screenshot-capture`",
+  "at most 2 screenshots",
+  "Screenshot 1: the changed screen or entry point users will notice first.",
+  "release-notes-validator",
+  "release-notes-feedback-updater",
+  "Launchbot automation: <@product_lead_slack_user_id> please review these release notes",
+  "@Launch Bot approve release notes <KER-key>",
+  "#all-product-new-updates",
+]) {
+  if (!csReleaseNotesSkillText.includes(requiredText)) fail(`customer-support-release-notes-generator/SKILL.md missing required text: ${requiredText}`);
+}
+
+const helpArticleValidatorSkillText = textOf("skills/help-article-validator/SKILL.md");
+for (const requiredText of [
+  "Validate StaffAny Help Center article drafts",
+  "HTML display readiness",
+  "draft_html",
+  "visible draft or patch must be HTML, not Markdown",
+  "Read `references/model-help-articles.md` before scoring",
+  "Model article format fit: `0-30`",
+  "Information correctness and source grounding: `0-35`",
+  "Validation Score: <0-100>",
+  "Evidence-Based Reasoning:",
+  "Next Skill: <none | help-article-feedback-updater>",
+]) {
+  if (!helpArticleValidatorSkillText.includes(requiredText)) fail(`help-article-validator/SKILL.md missing required text: ${requiredText}`);
+}
+
+const helpArticleModelReferenceText = textOf("skills/help-article-validator/references/model-help-articles.md");
+for (const requiredText of [
+  "https://help.staffany.com/en/articles/13867569-create-and-manage-disbursement",
+  "https://help.staffany.com/en/articles/14318367-managing-employee-document-types",
+  "Create and Manage Disbursement",
+  "Managing Employee Document Types",
+  "Shared High-Score Patterns",
+  "Failure Modes To Penalize",
+]) {
+  if (!helpArticleModelReferenceText.includes(requiredText)) fail(`help-article-validator model references missing required text: ${requiredText}`);
+}
+
+const helpArticleUpdaterSkillText = textOf("skills/help-article-feedback-updater/SKILL.md");
+for (const requiredText of [
+  "Update StaffAny Help Center article drafts",
+  "original_article_html",
+  "Intercom-ready HTML, not Markdown",
+  "Apply validator `Required Changes` in priority order",
+  "Improve model fit",
+  "Updated Help Article:",
+  "Changes Applied:",
+  "Remaining Needs Check:",
+  "Re-run help-article-validator before marking ready.",
+]) {
+  if (!helpArticleUpdaterSkillText.includes(requiredText)) fail(`help-article-feedback-updater/SKILL.md missing required text: ${requiredText}`);
+}
+
+const liveProfileSyncText = textOf("runtime/sync-live-profile.sh");
+for (const requiredText of [
+  "PROFILE_DIR/source/launchbot",
+  "PROFILE_DIR/skills",
+  "product-marketing-launch-workflow",
+  "launch-priority-identifier",
+  "customer-support-release-notes-generator",
+  "customer-support-release-notes-validator",
+  "customer-support-release-notes-feedback-updater",
+  "staffany-indonesia-payroll-tax-grimoire",
+]) {
+  if (!liveProfileSyncText.includes(requiredText)) fail(`sync-live-profile.sh missing required text: ${requiredText}`);
+}
+
+const liveProfileAuditText = textOf("runtime/audit-live-profile.sh");
+for (const requiredText of [
+  "profile-skill-missing",
+  "source-skill-missing",
+  "product-marketing-launch-workflow",
+  "launch-priority-identifier",
+  "customer-support-release-notes-generator",
+  "customer-support-release-notes-validator",
+  "customer-support-release-notes-feedback-updater",
+]) {
+  if (!liveProfileAuditText.includes(requiredText)) fail(`audit-live-profile.sh missing required text: ${requiredText}`);
+}
+
+const liveHealthText = textOf("runtime/check-health.sh");
+for (const requiredText of [
+  "profile-skill:",
+  "source-skill:",
+  "product-marketing-launch-workflow",
+  "launch-priority-identifier",
+  "customer-support-release-notes-generator",
+  "customer-support-release-notes-validator",
+  "customer-support-release-notes-feedback-updater",
+]) {
+  if (!liveHealthText.includes(requiredText)) fail(`check-health.sh missing required text: ${requiredText}`);
+}
+
+const csReleaseNotesValidatorSkillText = textOf("skills/customer-support-release-notes-validator/SKILL.md");
+for (const requiredText of [
+  "name: release-notes-validator",
+  "Validate StaffAny release notes for Sales, PS, CS, and Product",
+  "Evidence-Based Reasoning",
+  "Confidence Score: <0-100>",
+  "Evidence grounding: `0-30`",
+  "UI/UX delta clarity: `0-25`",
+  "Enablement usefulness: `0-20`",
+  "Screenshot relevance",
+  "More than 2 screenshots is a revision issue",
+  "It must not explain how the change helps CS, support agents, triage, or internal teams.",
+  "Set decision to `revise` when `How this helps users` contains CS/support/internal-team value",
+  "Next Skill: <none | release-notes-feedback-updater>",
+]) {
+  if (!csReleaseNotesValidatorSkillText.includes(requiredText)) fail(`customer-support-release-notes-validator/SKILL.md missing required text: ${requiredText}`);
+}
+
+const csReleaseNotesUpdaterSkillText = textOf("skills/customer-support-release-notes-feedback-updater/SKILL.md");
+for (const requiredText of [
+  "name: release-notes-feedback-updater",
+  "Update StaffAny release notes for Sales, PS, CS, and Product",
+  "Apply validator `Required Changes` in priority order",
+  "Remove CS, support-agent, triage, or internal-team explanations from that section.",
+  "Preserve only 1-2 contextually correct screenshots",
+  "Updated Release Notes:",
+  "Changes Applied:",
+  "Remaining Needs Check:",
+  "Re-run release-notes-validator before marking ready.",
+]) {
+  if (!csReleaseNotesUpdaterSkillText.includes(requiredText)) fail(`customer-support-release-notes-feedback-updater/SKILL.md missing required text: ${requiredText}`);
 }
 
 const mcpText = existsSync(join(appRoot, "runtime", "mcp", "launchbot_ker_server.py"))
@@ -919,7 +1196,8 @@ for (const requiredText of [
   "MCP_TEST_ATTEMPTS",
   "MCP_TEST_TIMEOUT_SECONDS",
   'MCP_TEST_TIMEOUT_SECONDS="${MCP_TEST_TIMEOUT_SECONDS:-60}"',
-  "timeout \"${MCP_TEST_TIMEOUT_SECONDS}s\" hermes",
+  'timeout "${MCP_TEST_TIMEOUT_SECONDS}s" "$hermes_python" "$hermes_bin"',
+  "run_hermes",
   "LAUNCHBOT_PANTHEON_REPO_DIR",
   "mcp:launchbot_ifi",
   "mcp:launchbot_help_article",
@@ -995,10 +1273,6 @@ for (const requiredText of [
   "profile-drift:support-watch-monitor-script",
   "profile-drift:support-watch-whatsapp-refresh-sql",
   "profile-drift:help-article-video-registry",
-  "profile-drift:indonesia-tax-source-skill",
-  "profile-drift:indonesia-tax-profile-skill",
-  "profile-drift:indonesia-tax-updater-skill",
-  "profile-drift:indonesia-tax-validator",
   "sessions:stale-system-prompt",
   "sessions:active-session-json-missing",
 ]) {
@@ -1024,6 +1298,10 @@ for (const requiredText of [
 const skillText = textOf("skills/help-article-generator/SKILL.md");
 for (const requiredText of [
   "Handoff-upgraded rules in this Launchbot skill override the older Grimoire help-article skill",
+  "show it as Intercom-ready HTML, not Markdown",
+  "visible LaunchBot output must show the help article as HTML",
+  "HTML display rules",
+  "Do not show Markdown syntax",
   "one combined management article",
   "Managing Brands",
   "Managing Perks",
@@ -1058,6 +1336,40 @@ for (const requiredText of [
 }
 if (/^<div|^<br|^\s*<[^>]+style=|^\s*<[^>]+align=/m.test(skillText)) {
   fail("Help article skill must not include raw HTML formatting examples");
+}
+
+const screenshotTroubleshooterText = textOf("skills/help-article-screenshot-troubleshooter/SKILL.md");
+for (const requiredText of [
+  "Troubleshoot Launchbot help article screenshot capture",
+  "Playwright",
+  "LAUNCHBOT_STAGING_URL",
+  "LAUNCHBOT_STAGING_EMAIL",
+  "LAUNCHBOT_STAGING_PASSWORD",
+  "help-article-staging-auth-state.mjs",
+  "runtime-only storage state",
+  "Never ask users to paste passwords",
+  "Never save Playwright storage-state in this repo",
+  "keep screenshot placeholders",
+  "Do not insert screenshots unless redaction is verified",
+]) {
+  if (!screenshotTroubleshooterText.includes(requiredText)) fail(`Screenshot troubleshooter skill missing required text: ${requiredText}`);
+}
+
+const stagingAuthText = textOf("runtime/help-article-staging-auth-state.mjs");
+for (const requiredText of [
+  "LAUNCHBOT_STAGING_URL",
+  "STAFFANY_STAGING_URL",
+  "LAUNCHBOT_STAGING_EMAIL",
+  "LAUNCHBOT_STAGING_PASSWORD",
+  "values_printed: false",
+  "Refusing to write staging storage-state",
+  "Playwright is not installed",
+  "Staging target host is not allowlisted",
+]) {
+  if (!stagingAuthText.includes(requiredText)) fail(`Staging auth helper missing required text: ${requiredText}`);
+}
+if (/console\.log\(.*password|stdout\.write\(.*password|console\.log\(.*email|stdout\.write\(.*email/.test(stagingAuthText)) {
+  fail("Staging auth helper must not print staging credential values");
 }
 
 const supportWatchSkillText = textOf("skills/weekly-support-watch/SKILL.md");
@@ -1126,13 +1438,6 @@ for (const requiredText of [
 
 const launchbotHealthText = textOf("runtime/check-health.sh");
 for (const requiredText of [
-  "tax-skill:$label:root-skill-missing",
-  "tax-skill:$label:root-index-missing-indonesia-payroll-tax",
-  "tax-skill:$label:root-index-missing-pph21",
-  "tax-skill:$label:root-index-missing-ebupot",
-  "tax-skill:$label:root-index-missing-hipajak",
-  "tax-skill:profile:knowledge-bank-invalid",
-  "INDONESIA_TAX_PROFILE_SKILL_DIR",
   "slack:scope-missing:",
   "channels:read",
   "channels:history",
@@ -1195,7 +1500,8 @@ const workflowText = textOf("runtime/launch-workflow.md");
 for (const requiredText of [
   "Slack Capability Questions",
   "what can u do",
-  "code-grounded help article drafts",
+  "code-grounded English and Indonesian help article drafts shown as Intercom-ready HTML",
+  "Visible help article previews shown in Slack or chat must be Intercom-ready HTML, not Markdown",
   "Do not list generic assistant categories",
   "source code under `vk-super-productivity/launch-superpower-bot` is not present",
   "runtime/launchbot_e2e.py",
@@ -1218,6 +1524,8 @@ for (const requiredText of [
   "live Intercom wins",
   "pre-stage target-article stale check",
   "Public publishing stays manual in Intercom",
+  "normal create or text-update article work, create both English (`en`) and Indonesian (`id`) article records",
+  "Run Pantheon evidence and Intercom format gates separately for `en` and `id`",
   "bot-owned posting credentials",
   "@Launch Bot",
   "U0ASVD79UT1",
@@ -1229,7 +1537,8 @@ for (const requiredText of [
   "C01RZ7SHC8K",
   "light cowboy voice",
   "Do not commit token values",
-  "Step 4 launch derivatives are not implemented",
+  "PMM workflow launch derivatives are scoped to help article work items and concise release notes with validator checkpoints only",
+  "include only 1-2 contextually correct screenshots",
   "Pantheon checkout",
   "apps/kraken",
   "apps/gryphon",
@@ -1363,8 +1672,14 @@ if (!existsSync(secretWrapperPath)) fail("Missing LaunchBot Secret Manager wrapp
 const secretWrapperText = existsSync(secretWrapperPath) ? readFileSync(secretWrapperPath, "utf8") : "";
 for (const requiredText of [
   "launchbot-step3-intercom-access-token",
+  "launchbot-staging-url",
+  "launchbot-staging-email",
+  "launchbot-staging-password",
   "LAUNCH_STEP3_INTERCOM_ACCESS_TOKEN",
   "INTERCOM_ACCESS_TOKEN",
+  "LAUNCHBOT_STAGING_URL",
+  "LAUNCHBOT_STAGING_EMAIL",
+  "LAUNCHBOT_STAGING_PASSWORD",
   "staffany-warehouse",
   "values_printed",
   "gcloud",
@@ -1386,6 +1701,15 @@ const nodeTest = spawnSync(
 );
 if (nodeTest.status !== 0) {
   fail(`Intercom format gate tests failed: ${(nodeTest.stderr || nodeTest.stdout || "").trim()}`);
+}
+
+const stagingAuthTest = spawnSync(
+  process.execPath,
+  ["--test", join(appRoot, "runtime", "help-article-staging-auth-state.test.mjs")],
+  { encoding: "utf8" }
+);
+if (stagingAuthTest.status !== 0) {
+  fail(`Staging auth helper tests failed: ${(stagingAuthTest.stderr || stagingAuthTest.stdout || "").trim()}`);
 }
 
 const pyCompile = spawnSync(
@@ -1453,9 +1777,6 @@ const packageJson = existsSync(join(repoRoot, "package.json"))
   ? sharedReadJson(join(repoRoot, "package.json"), fail)
   : null;
 if (packageJson) {
-  if (!packageJson.scripts?.["launchbot:deploy"]?.includes("scripts/deploy-launchbot.mjs")) {
-    fail("package.json missing script launchbot:deploy");
-  }
   const intercomRuntimeScripts = [
     "intercom:format:pull",
     "intercom:format:profile",
@@ -1476,30 +1797,6 @@ if (packageJson) {
   }
   if (!packageJson.scripts?.["launchbot:with-secrets"]?.includes("launchbot-with-secrets.mjs")) {
     fail("package.json missing script launchbot:with-secrets");
-  }
-}
-
-const launchbotDeployPath = join(repoRoot, "scripts", "deploy-launchbot.mjs");
-if (!existsSync(launchbotDeployPath)) {
-  fail("Missing scripts/deploy-launchbot.mjs");
-} else {
-  const deployText = readFileSync(launchbotDeployPath, "utf8");
-  for (const requiredText of [
-    "Preparing LaunchBot deploy",
-    "run(process.execPath, [\"scripts/verify-launchbot.mjs\"])",
-    "run(process.execPath, [\"scripts/run-prompt-evals.mjs\", \"--app\", \"launchbot\", \"--mode\", \"all\"])",
-    "const gcloudCommand = args.apply",
-    "copy_dir \"$deploy_dir/apps/launchbot\" \"$profile/source/launchbot\"",
-    "copy_file \"$deploy_dir/apps/launchbot/profile/SOUL.md\" \"$profile/SOUL.md\"",
-    "for skill_dir in \"$deploy_dir/apps/launchbot/skills\"/*",
-    "copy_dir \"$skill_dir\" \"$profile/skills/$(basename \"$skill_dir\")\"",
-    "launchbot-check-health.sh",
-    "launchbot-audit-live-profile.sh",
-    "systemctl --user restart \"$service\"",
-    "run_post_deploy_check audit",
-    "run_post_deploy_check health",
-  ]) {
-    if (!deployText.includes(requiredText)) fail(`deploy-launchbot.mjs missing required text: ${requiredText}`);
   }
 }
 

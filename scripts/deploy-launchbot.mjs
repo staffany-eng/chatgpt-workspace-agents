@@ -270,6 +270,9 @@ deploy_timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 copy_dir() {
   src="$1"
   dst="$2"
+  if sudo test -L "$dst"; then
+    sudo rm "$dst"
+  fi
   sudo mkdir -p "$dst"
   sudo chown "$runtime_owner:$runtime_owner" "$dst"
   sudo find "$dst" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
@@ -281,6 +284,9 @@ copy_file() {
   dst="$2"
   mode="$3"
   sudo mkdir -p "$(dirname "$dst")"
+  if sudo test -L "$dst"; then
+    sudo rm "$dst"
+  fi
   sudo install -o "$runtime_owner" -g "$runtime_owner" -m "$mode" "$src" "$dst"
 }
 

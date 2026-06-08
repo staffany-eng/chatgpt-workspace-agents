@@ -1,0 +1,45 @@
+{
+  "status": "planned",
+  "blocker": null,
+  "generated_at": "2026-06-08T09:46:42.911Z",
+  "plan_path": "/home/leekaiyi/chatgpt-workspace-agents/apps/launchbot/output/help-articles/screenshot-plans/ker442-pay-item-groups.json",
+  "output_dir": "/home/leekaiyi/chatgpt-workspace-agents/apps/launchbot/output/help-articles/assets/ker442-pay-item-groups",
+  "article_slug": "ker442-pay-item-groups",
+  "article_title": "",
+  "article_url": "",
+  "feature": "",
+  "source_policy": {},
+  "screenshots": [],
+  "shots": [
+    {
+      "id": "pay-item-group-list",
+      "label": "Pay Item Group list — Active tab",
+      "placement": "After the introduction, before the Create section",
+      "route": "/payroll/pay-item-group",
+      "waitForText": "Pay Item Group",
+      "cropSelector": "main",
+      "redactionNotes": [],
+      "status": "planned"
+    },
+    {
+      "id": "pay-item-group-create-form",
+      "label": "Create Pay Item Group form",
+      "placement": "Inside the Create section, after step 2",
+      "route": "/payroll/pay-item-group/create",
+      "waitForText": "Create Pay Item Group",
+      "cropSelector": "main",
+      "redactionNotes": [],
+      "status": "planned"
+    },
+    {
+      "id": "pay-item-group-archived-tab",
+      "label": "Archived tab showing Unarchive action",
+      "placement": "Inside the Unarchive section, after step 2",
+      "route": "/payroll/pay-item-group",
+      "waitForText": "Archived",
+      "cropSelector": "main",
+      "redactionNotes": [],
+      "status": "planned"
+    }
+  ]
+}

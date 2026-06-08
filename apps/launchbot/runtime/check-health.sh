@@ -36,12 +36,21 @@ PANTHEON_STATUS_MAX_AGE_SECONDS="${LAUNCHBOT_PANTHEON_STATUS_MAX_AGE_SECONDS:-17
 HELP_ARTICLE_VIDEO_REGISTRY_PATH="${LAUNCHBOT_VIDEO_PLACEMENT_REGISTRY:-$PROFILE_DIR/source/launchbot/skills/help-article-generator/references/video-placement-registry.json}"
 FEATURE_INTAKE_MONITOR_SCRIPT="${LAUNCHBOT_FEATURE_INTAKE_MONITOR_SCRIPT:-$PROFILE_DIR/scripts/launchbot-monitor-feature-intake.py}"
 SUPPORT_WATCH_MONITOR_SCRIPT="${LAUNCHBOT_SUPPORT_WATCH_MONITOR_SCRIPT:-$PROFILE_DIR/scripts/launchbot-monitor-support-watch.py}"
-INDONESIA_TAX_SOURCE_SKILL_DIR="${LAUNCHBOT_INDONESIA_TAX_SOURCE_SKILL_DIR:-$PROFILE_DIR/source/launchbot/skills/staffany-indonesia-payroll-tax-grimoire}"
-INDONESIA_TAX_PROFILE_SKILL_DIR="${LAUNCHBOT_INDONESIA_TAX_PROFILE_SKILL_DIR:-$PROFILE_DIR/skills/staffany-indonesia-payroll-tax-grimoire}"
+SOURCE_SKILLS_DIR="$PROFILE_DIR/source/launchbot/skills"
+PROFILE_SKILLS_DIR="$PROFILE_DIR/skills"
 
 fail() {
   printf '%s\n' "$1" >&2
   exit 1
+}
+
+hermes_python="${HERMES_PYTHON:-$HERMES_AGENT_DIR/venv/bin/python}"
+hermes_bin="${HERMES_BIN:-$HERMES_AGENT_DIR/hermes}"
+[ -x "$hermes_python" ] || fail "hermes:python-not-found"
+[ -f "$hermes_bin" ] || fail "hermes:bin-not-found"
+
+run_hermes() {
+  "$hermes_python" "$hermes_bin" "$@"
 }
 
 check_mcp_server() {
@@ -53,9 +62,9 @@ check_mcp_server() {
   count=""
   while [ "$attempt" -le "$MCP_TEST_ATTEMPTS" ]; do
     if command -v timeout >/dev/null 2>&1; then
-      mcp_command=(timeout "${MCP_TEST_TIMEOUT_SECONDS}s" hermes -p "$PROFILE" mcp test "$server_name")
+      mcp_command=(timeout "${MCP_TEST_TIMEOUT_SECONDS}s" "$hermes_python" "$hermes_bin" -p "$PROFILE" mcp test "$server_name")
     else
-      mcp_command=(hermes -p "$PROFILE" mcp test "$server_name")
+      mcp_command=("$hermes_python" "$hermes_bin" -p "$PROFILE" mcp test "$server_name")
     fi
     if mcp_out="$("${mcp_command[@]}" 2>&1)"; then
       count="$(printf '%s\n' "$mcp_out" | sed -nE 's/.*Tools discovered: ([0-9]+).*/\1/p' | tail -1)"
@@ -75,32 +84,33 @@ need_command() {
   command -v "$1" >/dev/null 2>&1 || fail "dependency:$1:not-found"
 }
 
-need_command hermes
 need_command git
 need_command bq
-need_command ruby
-config_path="$(hermes -p "$PROFILE" config path 2>/dev/null)" || fail "hermes:config-path-failed"
+
+required_skills=(
+  help-article-generator
+  help-article-validator
+  help-article-feedback-updater
+  help-article-screenshot-capture
+  help-article-screenshot-troubleshooter
+  product-marketing-launch-workflow
+  launch-priority-identifier
+  customer-support-release-notes-generator
+  customer-support-release-notes-validator
+  customer-support-release-notes-feedback-updater
+  weekly-support-watch
+  staffany-indonesia-payroll-tax-grimoire
+  product-ops-bot-full-workflow
+)
+
+for skill in "${required_skills[@]}"; do
+  [ -r "$SOURCE_SKILLS_DIR/$skill/SKILL.md" ] || fail "source-skill:$skill:missing"
+  [ -r "$PROFILE_SKILLS_DIR/$skill/SKILL.md" ] || fail "profile-skill:$skill:missing"
+done
+
+config_path="$(run_hermes -p "$PROFILE" config path 2>/dev/null)" || fail "hermes:config-path-failed"
 [ -r "$config_path" ] || fail "hermes:config-unreadable"
-hermes -p "$PROFILE" config check >/dev/null 2>&1 || fail "hermes:config-check-failed"
-hermes_python="$HERMES_AGENT_DIR/venv/bin/python"
-[ -x "$hermes_python" ] || fail "hermes:python-not-found"
-
-check_tax_skill_dir() {
-  label="$1"
-  skill_dir="$2"
-  [ -r "$skill_dir/SKILL.md" ] || fail "tax-skill:$label:root-skill-missing"
-  [ -r "$skill_dir/skills/indonesia-payroll-tax-advisor/SKILL.md" ] || fail "tax-skill:$label:advisor-skill-missing"
-  [ -r "$skill_dir/skills/indonesia-tax-knowledge-updater/SKILL.md" ] || fail "tax-skill:$label:updater-skill-missing"
-  [ -r "$skill_dir/skills/indonesia-tax-knowledge-updater/scripts/validate_knowledge_bank.rb" ] || fail "tax-skill:$label:validator-missing"
-  grep -Fq "Indonesia payroll tax" "$skill_dir/SKILL.md" || fail "tax-skill:$label:root-index-missing-indonesia-payroll-tax"
-  grep -Fq "PPh21" "$skill_dir/SKILL.md" || fail "tax-skill:$label:root-index-missing-pph21"
-  grep -Fq "e-Bupot" "$skill_dir/SKILL.md" || fail "tax-skill:$label:root-index-missing-ebupot"
-  grep -Fq "Hipajak" "$skill_dir/SKILL.md" || fail "tax-skill:$label:root-index-missing-hipajak"
-}
-
-check_tax_skill_dir source "$INDONESIA_TAX_SOURCE_SKILL_DIR"
-check_tax_skill_dir profile "$INDONESIA_TAX_PROFILE_SKILL_DIR"
-(cd "$INDONESIA_TAX_PROFILE_SKILL_DIR" && ruby skills/indonesia-tax-knowledge-updater/scripts/validate_knowledge_bank.rb >/dev/null) || fail "tax-skill:profile:knowledge-bank-invalid"
+run_hermes -p "$PROFILE" config check >/dev/null 2>&1 || fail "hermes:config-check-failed"
 
 case "$(uname -s)" in
   Darwin)
@@ -112,7 +122,7 @@ case "$(uname -s)" in
     systemctl --user is-active --quiet "$GATEWAY_SERVICE_NAME" || fail "gateway:not-running"
     ;;
   *)
-    hermes -p "$PROFILE" gateway status >/dev/null 2>&1 || fail "gateway:status-failed"
+    run_hermes -p "$PROFILE" gateway status >/dev/null 2>&1 || fail "gateway:status-failed"
     ;;
 esac
 

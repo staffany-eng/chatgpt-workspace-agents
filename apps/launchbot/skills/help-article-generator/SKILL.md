@@ -1,11 +1,11 @@
 ---
 name: help-article-generator
-description: Creates or updates StaffAny help articles with Pantheon-grounded feature evidence, StaffAny Help Center structure, Google Docs-ready exports, and Launchbot Intercom staging gates. Use when the user needs a new help article, an update suggestion across existing help center articles, or a review-ready draft with structured headings, lists, and FAQ.
+description: Creates or updates StaffAny help articles with Pantheon-grounded feature evidence, StaffAny Help Center structure, Intercom-ready HTML output, Google Docs-ready exports, and Launchbot Intercom staging gates. Use when the user needs a new help article, an update suggestion across existing help center articles, or a review-ready HTML draft with structured headings, lists, and FAQ.
 ---
 
 # Help Article Generator
 
-Use this skill to produce help articles in a repeatable format that is ready for internal review, Google Docs editing, and Launchbot's existing Intercom staging workflow.
+Use this skill to produce help articles in a repeatable format that is ready for internal review, Google Docs editing, and Launchbot's existing Intercom staging workflow. Whenever you show a created or updated help article to a teammate, show it as Intercom-ready HTML, not Markdown.
 
 ## Inputs
 
@@ -49,8 +49,10 @@ Use this skill to produce help articles in a repeatable format that is ready for
    - Do not rewrite article text, create review docs, publish, delete, tag, move collections, or change unregistered video blocks.
    - If no registry slot matches, block instead of guessing.
 6. Language rollout:
-   - Default to English first.
-   - Iterate Chinese and Bahasa Indonesia in later passes when requested.
+   - Default normal help article creation and text updates to two article records: English (`en`) and Indonesian (`id`).
+   - Generate English first as the source draft, then create the Indonesian version from the validated English structure and the same Pantheon evidence.
+   - Do not create a translated article that introduces product behavior, eligibility, UI labels, limits, or steps not present in the English source draft and Pantheon evidence.
+   - Chinese remains a later pass only when requested.
 
 ## Repo + Evidence Workflow
 
@@ -109,6 +111,7 @@ bash apps/launchbot/skills/help-article-generator/scripts/feature_context.sh \
 
 - Use `scripts/export_help_article.sh` only after internal evidence notes are removed from the publishable body. It can create Google Docs copy formats and optional `.docx` output.
 - Use `scripts/publish_help_article_gdocs.sh` only when the user explicitly wants a Google Doc and valid Google credentials are available. Never commit OAuth credentials or token caches.
+- Internal source files may remain Markdown when an existing evidence or format CLI requires `--draft <draft.md>`, but visible LaunchBot output must show the help article as HTML.
 
 ## Launchbot Planning Rules
 
@@ -130,6 +133,12 @@ bash apps/launchbot/skills/help-article-generator/scripts/feature_context.sh \
 - Use Pantheon evidence as the product-behavior source of truth before drafting or staging.
 - Before sending content to Google Docs or Intercom, run `npm run help-article:evidence-check -- --draft <draft.md> --evidence <pantheon-evidence.json> --title "<article title>"`.
 - Before sending content to Google Docs or Intercom, run `npm run help-article:format-check -- --draft <draft.md> --title "<article title>"`.
+- When showing a draft or update patch in Slack or chat, convert the publishable body to Intercom-ready HTML first and display that HTML. Do not show `.md` source unless a teammate explicitly asks for the Markdown source for debugging.
+- Review messages and approval threads should link any Google Doc or Intercom draft as usual, but the inline article preview must be HTML.
+- For bilingual article creation or text updates, run evidence and format checks separately for both `en` and `id` drafts. One locale passing does not approve the other locale.
+- After each English or Indonesian help article draft or update patch, run `help-article-validator` with the draft, locale, source evidence, target article, and screenshot status.
+- If `help-article-validator` returns `Revise before drafting`, run `help-article-feedback-updater`, then rerun `help-article-validator`.
+- Do not send a help article to Google Docs, Slack review, or Intercom draft/staging unless `help-article-validator` returns `Ready to draft`.
 - If the Pantheon evidence gate fails, fix the source scope or draft before promotion. Do not bypass failures for missing Pantheon evidence, dirty repo state, ambiguous app scope, source conflicts, platform-specific evidence gaps, unsupported product behavior claims, or internal app-name leakage.
 - If the format gate fails, fix the draft before promotion. Do not bypass failures for missing audience metadata, repeated title text, raw HTML or markdown leakage, text divider lines, internal appendix content, bad list numbering, missing FAQ, or missing numbered outline.
 - For topic updates, use `npm run intercom:affected -- --topic "<topic>"` to find affected Intercom articles, then stage proposed diffs/previews for approval instead of overwriting published articles.
@@ -162,6 +171,7 @@ bash apps/launchbot/skills/help-article-generator/scripts/feature_context.sh \
   - A perk sits under a brand and contains redeemable perk details.
 - Include the catalogue visibility rule when relevant: an active brand still does not appear in the mobile catalogue until it has at least one active perk.
 - Add screenshot placeholders at key procedural steps when screenshots are not available yet.
+- Treat screenshot capture as optional. If `help-article-screenshot-capture` or its browser runner is blocked, keep placeholders and blocker notes; do not block article drafting, Google Docs review, Slack approval, or Intercom draft/staging for otherwise valid article text.
 
 ## Article Format Contract
 
@@ -180,7 +190,7 @@ Follow this exact high-level order:
 
 - Do not repeat the title in the article body after the page title.
 - Do not place any visible divider lines in source markdown. Never use standalone `---`, repeated underscores, repeated hyphens, or long text lines as separators.
-- Do not use raw HTML in the markdown body. This includes `<div>`, `<br/>`, inline `style`, and `align` attributes.
+- Do not use raw HTML in the internal markdown body. This includes `<div>`, `<br/>`, inline `style`, and `align` attributes in Markdown source.
 - If an article needs a visual divider in Intercom, use Intercom's divider block during final Intercom editing. Do not simulate a divider with underscores, repeated dashes, or long text lines in the source article.
 - Keep visible spacing before every heading and subheading. Add one blank line before each `##` and `###` section.
 - Keep one blank line after the audience applicability block and before the opening paragraph.
@@ -192,6 +202,15 @@ Follow this exact high-level order:
 - Restart numbered steps from `1` for each subsection.
 - Bold interactive UI terms in steps (buttons, tabs, pages, statuses).
 - For generated Intercom/HTML output, add anchor links for subheaders where possible by using stable heading text. If writing HTML directly, add heading IDs derived from the subheader text.
+
+### HTML display rules
+
+- Show help article drafts and update patches in fenced `html` blocks or an HTML-labelled review artifact.
+- Use Intercom-ready semantic HTML for visible output: `<h1>`, `<h2>`, `<h3>`, `<p>`, `<strong>`, `<ol>`, `<ul>`, `<li>`, `<a>`, `<img>`, `<table>`, `<thead>`, `<tbody>`, `<tr>`, `<th>`, and `<td>` as needed.
+- Do not show Markdown syntax such as `##`, `**bold**`, `1.`, `-`, or `[text](url)` in the visible article body.
+- Do not include `<script>`, event handlers, external CSS, private source paths, evidence notes, or implementation details in visible HTML.
+- Keep screenshot placeholders as HTML comments or clear reviewer-only placeholders outside the public article body unless an approved screenshot URL is available.
+- HTML output must preserve the same article structure, wording, numbering, FAQ, and audience metadata as the validated source.
 
 ### Audience block rules
 
@@ -254,14 +273,15 @@ Follow this exact high-level order:
 - Each section must use numbered user steps. Start with where the user goes in StaffAny, for example `Go to Settings > Payroll > ...`.
 - Keep step text simple present tense, verb + noun where practical. Use feature conditions inside the relevant section steps instead of separating them into unrelated notes.
 - Use the StaffAny help center references for structure: `Create and Manage Disbursement` for the new PayrollAny article pattern, and `Create and Manage Leave Types` for setup, edit, delete, recalculation, and condition examples.
+- Use `Managing Employee Document Types` as an additional model for concise HRAny setup, edit, archive/unarchive, and reuse workflows.
 - Use `references/staffany-help-center-style.md` for current StaffAny Help Center conventions. The style reference must not override code evidence or explicit user requirements.
 - Insert screenshots, videos, or tables immediately after the step they support when assets are available. When screenshots are not available, use screenshot placeholders only where a reviewer can realistically supply the asset.
 
 ## Output Requirements
 
-1. Show draft text in-chat first.
+1. Show draft text in-chat first as Intercom-ready HTML, grouped by locale when bilingual output is in scope.
 2. Include "Evidence Used" notes and "Gaps/Assumptions" notes outside the public article body.
-3. Generate Google Docs copy artifacts or `.docx` output when the user or Launchbot flow asks for review artifacts.
+3. Generate separate Google Docs copy artifacts or `.docx` output per locale when the user or Launchbot flow asks for review artifacts.
 4. Ensure generated review artifacts preserve:
    - title/heading hierarchy
    - bold text
@@ -269,19 +289,31 @@ Follow this exact high-level order:
    - correctly indented nested bullets
    - numbered lists that restart per subsection
 5. Return only the requested article draft or structure. Do not add meta commentary such as "Structure complete" after the article body.
+6. Do not show Markdown as the main article preview. Markdown is allowed only as an internal temporary source or when explicitly requested for debugging.
 
 For normal `Update` mode, output one of these explicit shapes:
 
 1. Patch-style update when the full existing article has not been loaded:
    - target article
-   - sections to add
-   - sections to modify
-   - FAQ additions
+   - HTML sections to add
+   - HTML sections to modify
+   - HTML FAQ additions
    - unchanged sections that should be preserved
 2. Full merged article only after reading the current full article body:
    - preserve unchanged original content verbatim where practical
    - mark only the inserted or changed sections in the review notes, not inside the publishable body
    - do not remove original content unless listing a specific reason in "Gaps/Assumptions" or review notes
+
+For bilingual `Create` or text `Update` mode, output and track both locale records:
+
+- `en`: English source article
+- `id`: Indonesian article
+- Each locale record must include title, subtitle, publishable HTML body, internal notes, evidence-check result, format-check result, Google Doc URL or review artifact path, Slack review message timestamp, Intercom draft/staging status, and final status.
+- Both locales must move through the same gates independently: Pantheon evidence check, format check, Google Docs review, Slack approval, Intercom draft/staging.
+- Do not promote either locale to Intercom draft/staging if its own evidence or format gate fails.
+- If English changes after Indonesian has been drafted, mark Indonesian `needs-refresh` and regenerate it before review.
+- If Indonesian wording needs product-owner or country-market review, mark only `id` as `needs-check`; English can continue only if its own gates pass.
+- Keep screenshots and video-slot references locale-aware. Reuse the same screenshot asset only when the UI is identical and the caption/nearby instructional text is localized.
 
 For `Update -> Video-only update`, replace the normal article drafting output with:
 
@@ -333,6 +365,7 @@ Before finalizing:
 - Steps restart from `1` per subsection
 - FAQ has bold `Q:` questions and normal answers
 - Internal appendix is not in the publishable body
+- Visible article preview is HTML, not Markdown
 - Tone is natural, concise, and user-centered
 - For existing article updates, full-article output was merged from the current article body rather than reconstructed from partial notes
 - For video-only updates, the patch touches exactly one registered Loom iframe and the Intercom payload uses `state: "draft"` only

@@ -84,6 +84,45 @@ support_watch_monitor:
   no_ticket_creation: true
   no_engineer_tags: true
   no_owner_assignment: true
+help_article_jira_shipped_windmill:
+  mode: "jira_transition_to_windmill_webhook"
+  flow_name: "launchbot_ker_help_article_on_shipped"
+  script: "/home/leekaiyi/.hermes/profiles/launchbot/source/launchbot/runtime/windmill/launchbot_ker_help_article_on_shipped.mjs"
+  state_table: "launchbot_help_article_runs"
+  state_schema: "/home/leekaiyi/.hermes/profiles/launchbot/source/launchbot/runtime/windmill/launchbot_help_article_runs.sql"
+  transition_to: "6 - Shipped & Launching"
+  webhook_token_env: "WINDMILL_WEBHOOK_TOKEN"
+  idempotency_key: "issue_key + ':' + transitioned_at"
+  jira_launch_priority_field_env: "JIRA_FIELD_LAUNCH_PRIORITY"
+  jira_launch_priority_field: "customfield_10561"
+  jira_product_lead_field_env: "JIRA_FIELD_PRODUCT_LEAD"
+  review_channel_id_env: "LAUNCHBOT_REVIEW_CHANNEL_ID"
+  review_channel_id: "C0B32M34J3W"
+  product_lead_slack_mapping_env: "LAUNCHBOT_JIRA_ACCOUNT_TO_SLACK_USER_MAP"
+  intercom_access_token_env: "INTERCOM_ACCESS_TOKEN"
+  intercom_access_token_fallback_env: "LAUNCH_STEP3_INTERCOM_ACCESS_TOKEN"
+  intercom_author_id_env: "INTERCOM_AUTHOR_ID"
+  intercom_default_parent_id_env: "INTERCOM_HELP_ARTICLE_DEFAULT_PARENT_ID"
+  intercom_update_draft_supported_env: "LAUNCHBOT_INTERCOM_UPDATE_DRAFT_SUPPORTED"
+  auto_publish_confirmation: "@Launch Bot publish help articles KER-123"
+  locales: "en,id"
+  launch_priority_required: true
+  product_lead_mapping_required: true
+  pantheon_evidence_required: true
+  cached_intercom_planning_first: true
+  live_intercom_stale_check_before_write: true
+  english_source_before_indonesian: true
+  indonesian_needs_refresh_when_english_changes: true
+  product_lead_or_override_publish_only: true
+  post_prefix: "Launchbot automation:"
+release_notes_distribution:
+  output_channel_id_env: "LAUNCHBOT_RELEASE_NOTES_OUTPUT_CHANNEL_ID"
+  output_channel_name_env: "LAUNCHBOT_RELEASE_NOTES_OUTPUT_CHANNEL_NAME"
+  default_output_channel_id: "C03QQ2ERMT7"
+  default_output_channel_name: "all-product-new-updates"
+  exact_approval_confirmation: "@Launch Bot approve release notes KER-123"
+  review_requires_product_lead_mention: true
+  post_prefix: "Launchbot automation:"
 kanban:
   dispatch_in_gateway: false
 model:
@@ -325,5 +364,16 @@ LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_REFRESH_TRANSFER_NAME: "Launchbot support watch
 LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_REFRESH_SCHEDULE_UTC: "every day 00:30"
 LAUNCHBOT_SUPPORT_WATCH_WHATSAPP_MAX_STALENESS_HOURS: "36"
 LAUNCHBOT_SUPPORT_WATCH_MAX_TICKETS: "100"
+LAUNCHBOT_REVIEW_CHANNEL_ID: "C0B32M34J3W"
+LAUNCHBOT_RELEASE_NOTES_OUTPUT_CHANNEL_ID: "C03QQ2ERMT7"
+LAUNCHBOT_RELEASE_NOTES_OUTPUT_CHANNEL_NAME: "all-product-new-updates"
+JIRA_FIELD_LAUNCH_PRIORITY: "customfield_10561"
+JIRA_FIELD_PRODUCT_LEAD: ""
+LAUNCHBOT_JIRA_ACCOUNT_TO_SLACK_USER_MAP: "{}"
+LAUNCHBOT_HELP_ARTICLE_STATE_PATH: "~/.hermes/profiles/launchbot/runtime/launchbot-help-article-runs.json"
+LAUNCHBOT_INTERCOM_UPDATE_DRAFT_SUPPORTED: "false"
+INTERCOM_AUTHOR_ID: ""
+INTERCOM_HELP_ARTICLE_DEFAULT_PARENT_ID: ""
+WINDMILL_WEBHOOK_TOKEN: ""
 JIRA_IFI_HUBSPOT_COMPANY_ID_FIELD_ID: "customfield_10881"
 HUBSPOT_PORTAL_ID: "4137076"

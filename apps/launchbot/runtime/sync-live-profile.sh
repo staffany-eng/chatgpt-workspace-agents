@@ -38,6 +38,9 @@ sync_dir() {
     exit 1
   }
   mkdir -p "$(dirname "$dst")"
+  if [ -L "$dst" ]; then
+    rm "$dst"
+  fi
   if command -v rsync >/dev/null 2>&1; then
     rsync -a --delete "$src/" "$dst/"
   else
@@ -49,6 +52,9 @@ sync_dir() {
 
 mkdir -p "$PROFILE_DIR/scripts" "$PROFILE_DIR/source" "$PROFILE_DIR/skills"
 
+if [ -L "$PROFILE_DIR/source/launchbot" ]; then
+  rm "$PROFILE_DIR/source/launchbot"
+fi
 if command -v rsync >/dev/null 2>&1; then
   rsync -a --delete --exclude output/ "$APP_ROOT/" "$PROFILE_DIR/source/launchbot/"
 else
@@ -56,12 +62,23 @@ else
   rm -rf "$PROFILE_DIR/source/launchbot/output"
 fi
 
-install -m 0644 "$APP_ROOT/profile/SOUL.md" "$PROFILE_DIR/SOUL.md"
-install -m 0755 "$APP_ROOT/runtime/check-health.sh" "$PROFILE_DIR/scripts/launchbot-check-health.sh"
-install -m 0755 "$APP_ROOT/runtime/audit-live-profile.sh" "$PROFILE_DIR/scripts/launchbot-audit-live-profile.sh"
-install -m 0755 "$APP_ROOT/runtime/update-pantheon-repo.sh" "$PROFILE_DIR/scripts/launchbot-update-pantheon-repo.sh"
-install -m 0755 "$APP_ROOT/runtime/monitor-feature-intake.py" "$PROFILE_DIR/scripts/launchbot-monitor-feature-intake.py"
-install -m 0755 "$APP_ROOT/runtime/monitor-support-watch.py" "$PROFILE_DIR/scripts/launchbot-monitor-support-watch.py"
+install_file() {
+  mode="$1"
+  src="$2"
+  dst="$3"
+  mkdir -p "$(dirname "$dst")"
+  if [ -L "$dst" ]; then
+    rm "$dst"
+  fi
+  install -m "$mode" "$src" "$dst"
+}
+
+install_file 0644 "$APP_ROOT/profile/SOUL.md" "$PROFILE_DIR/SOUL.md"
+install_file 0755 "$APP_ROOT/runtime/check-health.sh" "$PROFILE_DIR/scripts/launchbot-check-health.sh"
+install_file 0755 "$APP_ROOT/runtime/audit-live-profile.sh" "$PROFILE_DIR/scripts/launchbot-audit-live-profile.sh"
+install_file 0755 "$APP_ROOT/runtime/update-pantheon-repo.sh" "$PROFILE_DIR/scripts/launchbot-update-pantheon-repo.sh"
+install_file 0755 "$APP_ROOT/runtime/monitor-feature-intake.py" "$PROFILE_DIR/scripts/launchbot-monitor-feature-intake.py"
+install_file 0755 "$APP_ROOT/runtime/monitor-support-watch.py" "$PROFILE_DIR/scripts/launchbot-monitor-support-watch.py"
 
 for skill in "${required_skills[@]}"; do
   sync_dir "$APP_ROOT/skills/$skill" "$PROFILE_DIR/skills/$skill"

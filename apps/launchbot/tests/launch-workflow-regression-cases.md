@@ -2,7 +2,7 @@
 
 ## Slack Identity And Capability
 
-- Given a Slack prompt like `what can u do, partner?`, Launchbot should answer as Launchbot only: shipped Jira feature to code-grounded help article drafts, Google Docs review drafts, Slack approval routing, and Intercom draft articles.
+- Given a Slack prompt like `what can u do, partner?`, Launchbot should answer as Launchbot only: shipped Jira feature to code-grounded help article drafts shown as Intercom-ready HTML, Google Docs review drafts, Slack approval routing, and Intercom draft articles.
 - Capability answers must not list generic assistant categories such as web search, ML experiments, creative writing, smart-home control, social posting, broad email/calendar management, or generic coding-agent orchestration.
 
 ## Help Article Drafting
@@ -28,6 +28,7 @@
 - Audience metadata should be derived from Pantheon evidence where possible, while internal app names such as `gryphon`, `pixie`, `kraken`, and `manticore` must not appear in the publishable article body.
 - The guide outline must be a numbered list, and numbered steps must restart at `1` for each subsection.
 - Internal notes must include source of truth, Pantheon evidence path, repo and branch or sha, key paths or symbols, API/data touchpoints, assumptions, and last verified commit outside the publishable body.
+- Created or updated help article previews shown to teammates must be Intercom-ready HTML, not Markdown.
 
 ## Video-only Help Article Updates
 
@@ -141,11 +142,33 @@
 
 - A configured approval reaction from an authorized reviewer should create one Intercom draft for the matching article slug.
 - Unauthorized reviewer reactions should be ignored.
+- Bilingual article creation should create separate `en` and `id` review records, and each locale should require its own approval before Intercom draft/staging.
 - The pre-publish format gate should pass before any Intercom draft/staging article is created.
 - The Pantheon evidence gate should pass before any Intercom draft/staging article is created.
+- The pre-publish format and Pantheon evidence gates should run separately for English and Indonesian. One locale passing should not promote the other locale.
 - The VM-safe approval path should accept a human ✅ reaction on the correct `@Launch Bot` review message, create one Intercom draft, and post a bot-owned thread reply with the draft link or draft ID.
 - The bot should post a progress reply before draft creation when the external source listener is present and a final reply with the draft link or draft ID after creation.
 - Successful Intercom draft responses without a returned URL should still be accepted when an article ID is present.
+
+## Jira Shipped Windmill Help Article Flow
+
+- A Jira Automation webhook for `KER-*` transitioning to `6 - Shipped & Launching` should create `run_id = issue_key + ':' + transitioned_at` and fetch the latest Jira issue snapshot before any draft work.
+- A duplicate webhook for the same `run_id` should return the existing run state and must not regenerate Intercom drafts.
+- A webhook for a non-`KER-*` issue or any destination status other than `6 - Shipped & Launching` should be ignored.
+- If the fresh Jira issue is no longer in `6 - Shipped & Launching`, the run should block as `stale_transition`.
+- If `customfield_10561` Launch Priority is blank, the run should block before drafting and post one `Launchbot automation:` blocker to `#launch-bot-testing`.
+- If `JIRA_FIELD_PRODUCT_LEAD` is blank, missing, or cannot map by Slack `users.lookupByEmail` or `LAUNCHBOT_JIRA_ACCOUNT_TO_SLACK_USER_MAP`, the run should block before drafting.
+- Help article planning must use cached Intercom planning first, then live affected-article stale check before any Intercom write.
+- Pantheon evidence scan must pass before English or Indonesian drafting; missing, dirty, stale, ambiguous, or conflicting Pantheon evidence blocks the run.
+- English must be drafted before Indonesian; if English changes after Indonesian exists, Indonesian must be marked `needs-refresh` until regenerated.
+- Both English and Indonesian drafts must pass independent evidence and Intercom format gates before review or publishing.
+- The Slack review request must mention the Jira Product Lead, include Jira key, launch priority, create/update decision, English draft URL, Indonesian draft URL, and exact feedback/publish instructions.
+- Slack feedback is processed only from the stored review thread and only when the message mentions `@Launch Bot`.
+- Non-Product Lead publish confirmation should be rejected unless the Slack user is in the configured override reviewer list.
+- Publish confirmation must match exactly `@Launch Bot publish help articles KER-123`.
+- Before publishing, Launchbot must re-check Jira status, both locale gates, draft article IDs, and unresolved `needs-check` / `needs-refresh` gates.
+- Exact Product Lead confirmation publishes both `en` and `id` Intercom articles and posts public URLs plus audit metadata in the Slack thread.
+- Intercom update mode must block unless `LAUNCHBOT_INTERCOM_UPDATE_DRAFT_SUPPORTED=true` has verified that published content remains unchanged while the draft is pending.
 
 ## Intercom HTML Normalization
 
@@ -157,6 +180,10 @@
 
 ## Known Gap Guards
 
-- Do not report Step 4 launch derivatives as implemented.
+- Do not report PMM workflow materials as public-publish automated.
+- Do report PMM workflow materials as scoped to help articles and concise release notes with release-note validator gates.
+- Release-note review requests must mention the Jira Product Lead in Slack.
+- Product Lead approval should post approved release notes to `#all-product-new-updates` (`C03QQ2ERMT7`).
+- Approved release-note posts should include only 1-2 contextually correct screenshots from `help-article-screenshot-capture`; unrelated, sensitive, unredacted, or redundant screenshots must be omitted.
 - Do not claim screenshot capture is automated until source code exists and is tested.
 - Do not claim visual DOCX QA is complete unless a renderer was actually run.

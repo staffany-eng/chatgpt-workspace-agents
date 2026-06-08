@@ -1,6 +1,6 @@
 ---
 name: help-article-validator
-description: Validate StaffAny Help Center article drafts with confidence scoring, evidence-based reasoning, model-article format comparison, and Intercom readiness decisions. Use after help-article-generator creates or updates English or Indonesian help article drafts, before Google Docs review, Intercom draft staging, or Product Lead approval.
+description: Validate StaffAny Help Center article drafts with confidence scoring, evidence-based reasoning, model-article format comparison, HTML display readiness, and Intercom readiness decisions. Use after help-article-generator creates or updates English or Indonesian help article drafts, before Google Docs review, Intercom draft staging, or Product Lead approval.
 ---
 
 # Help Article Validator
@@ -17,7 +17,7 @@ locale: <en | id>
 article_title: <title>
 target_article: <URL | Intercom article ID | none>
 source_evidence: <Pantheon/Jira/PRD/screenshot/help article evidence>
-draft: <publishable article body or update patch>
+draft_html: <publishable HTML article body or HTML update patch>
 existing_article_notes: <optional preservation requirements>
 screenshot_status: <captured | placeholders | not-needed | blocked>
 ```
@@ -30,6 +30,8 @@ screenshot_status: <captured | placeholders | not-needed | blocked>
 - For updates, ensure unrelated valid content, FAQ, screenshots, and caveats are preserved unless the source evidence makes them wrong.
 - Keep internal notes, source paths, Jira/Figma/private URLs, evidence appendices, TODOs, and assumptions out of the public article body.
 - Screenshot placeholders are acceptable only when screenshot capture is explicitly blocked and the article is not being published immediately.
+- The visible draft or patch must be HTML, not Markdown. Markdown syntax in the public article preview is a revision issue unless the teammate explicitly requested Markdown for debugging.
+- HTML must be Intercom-ready semantic HTML and must not include scripts, event handlers, external CSS, source paths, or evidence notes.
 
 ## Scoring
 
@@ -66,6 +68,7 @@ Set decision to `Do not draft` when the article:
 
 - Claims product behavior without Pantheon, approved Jira/PRD, screenshot, or existing-article evidence.
 - Contains raw internal notes, local source paths, private links, PII, customer data, salaries, bank details, IDs, or secrets.
+- Shows the public article body mainly as Markdown instead of HTML.
 - Omits the audience applicability block for a new article.
 - Omits critical setup, permission, eligibility, state transition, irreversible action, or user-impact consequences.
 - Rewrites an existing article in a way that drops unrelated valid sections, FAQs, screenshots, or caveats.
@@ -91,6 +94,7 @@ Category Scores:
 - Information correctness and source grounding: <0-35> - <reason>
 - Information comprehensiveness: <0-25> - <reason>
 - Intercom publishing hygiene: <0-10> - <reason>
+- HTML display readiness: <pass | revise> - <reason>
 - Cap applied: <yes | no> - <reason>
 
 Required Changes:

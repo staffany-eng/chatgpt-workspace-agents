@@ -23,6 +23,7 @@ fail() {
 }
 
 command -v cmp >/dev/null 2>&1 || fail "dependency:cmp:not-found"
+command -v diff >/dev/null 2>&1 || fail "dependency:diff:not-found"
 command -v git >/dev/null 2>&1 || fail "dependency:git:not-found"
 command -v bq >/dev/null 2>&1 || fail "dependency:bq:not-found"
 [ -x "$HERMES_PYTHON" ] || fail "dependency:hermes-python:not-found"
@@ -47,10 +48,29 @@ cmp -s "$APP_ROOT/runtime/mcp/launchbot_support_watch_core.py" "$PROFILE_DIR/sou
 cmp -s "$APP_ROOT/runtime/mcp/launchbot_support_watch_server.py" "$PROFILE_DIR/source/launchbot/runtime/mcp/launchbot_support_watch_server.py" || fail "profile-drift:support-watch-mcp"
 cmp -s "$APP_ROOT/runtime/mcp/launchbot_help_article_server.py" "$PROFILE_DIR/source/launchbot/runtime/mcp/launchbot_help_article_server.py" || fail "profile-drift:help-article-mcp"
 cmp -s "$APP_ROOT/skills/help-article-generator/references/video-placement-registry.json" "$PROFILE_DIR/source/launchbot/skills/help-article-generator/references/video-placement-registry.json" || fail "profile-drift:help-article-video-registry"
-cmp -s "$APP_ROOT/skills/staffany-indonesia-payroll-tax-grimoire/SKILL.md" "$PROFILE_DIR/source/launchbot/skills/staffany-indonesia-payroll-tax-grimoire/SKILL.md" || fail "profile-drift:indonesia-tax-source-skill"
-cmp -s "$APP_ROOT/skills/staffany-indonesia-payroll-tax-grimoire/SKILL.md" "$PROFILE_DIR/skills/staffany-indonesia-payroll-tax-grimoire/SKILL.md" || fail "profile-drift:indonesia-tax-profile-skill"
-cmp -s "$APP_ROOT/skills/staffany-indonesia-payroll-tax-grimoire/skills/indonesia-tax-knowledge-updater/SKILL.md" "$PROFILE_DIR/skills/staffany-indonesia-payroll-tax-grimoire/skills/indonesia-tax-knowledge-updater/SKILL.md" || fail "profile-drift:indonesia-tax-updater-skill"
-cmp -s "$APP_ROOT/skills/staffany-indonesia-payroll-tax-grimoire/skills/indonesia-tax-knowledge-updater/scripts/validate_knowledge_bank.rb" "$PROFILE_DIR/skills/staffany-indonesia-payroll-tax-grimoire/skills/indonesia-tax-knowledge-updater/scripts/validate_knowledge_bank.rb" || fail "profile-drift:indonesia-tax-validator"
+
+required_skills=(
+  help-article-generator
+  help-article-validator
+  help-article-feedback-updater
+  help-article-screenshot-capture
+  help-article-screenshot-troubleshooter
+  product-marketing-launch-workflow
+  launch-priority-identifier
+  customer-support-release-notes-generator
+  customer-support-release-notes-validator
+  customer-support-release-notes-feedback-updater
+  weekly-support-watch
+  staffany-indonesia-payroll-tax-grimoire
+  product-ops-bot-full-workflow
+)
+
+for skill in "${required_skills[@]}"; do
+  [ -f "$PROFILE_DIR/source/launchbot/skills/$skill/SKILL.md" ] || fail "profile-drift:source-skill-missing:$skill"
+  [ -f "$PROFILE_DIR/skills/$skill/SKILL.md" ] || fail "profile-drift:profile-skill-missing:$skill"
+  diff -qr "$APP_ROOT/skills/$skill" "$PROFILE_DIR/source/launchbot/skills/$skill" >/dev/null || fail "profile-drift:source-skill:$skill"
+  diff -qr "$APP_ROOT/skills/$skill" "$PROFILE_DIR/skills/$skill" >/dev/null || fail "profile-drift:profile-skill:$skill"
+done
 
 "$HERMES_PYTHON" - "$PROFILE_DIR" <<'PY' || exit 1
 import json

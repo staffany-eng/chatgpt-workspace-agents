@@ -13,6 +13,7 @@ Use this skill to revise release notes after validation or teammate feedback.
 original_release_notes: <five-section release note>
 validation: <release-notes-validator output>
 source_evidence: <Jira/Slack/Pantheon/help article summaries>
+screenshot_refs: <none | 1-2 screenshot file paths/URLs with captions>
 user_feedback: <optional Slack/thread feedback>
 ```
 
@@ -31,6 +32,7 @@ user_feedback: <optional Slack/thread feedback>
 - Keep `What's new` focused on the UI/UX delta from previous behavior to new behavior.
 - Keep `How this helps users` focused only on customer, admin, manager, or employee value. Remove CS, support-agent, triage, or internal-team explanations from that section.
 - Keep each section concise enough for Slack scanning.
+- Preserve only 1-2 contextually correct screenshots. Remove screenshots that are generic, unrelated to `What's new`, sensitive, unredacted, or redundant.
 - If requested feedback is unsupported by the evidence, put it under `Remaining Needs Check` instead of adding it to the release note body.
 - If the validator decision was `blocked`, do not produce a revised release note unless the missing blocker evidence is supplied.
 
@@ -58,6 +60,9 @@ Changes Applied:
 
 Remaining Needs Check:
 - <none or exact evidence gap>
+
+Screenshots:
+- <none | retained/replaced/removed screenshot refs and reason>
 
 Validator Handoff:
 Re-run release-notes-validator before marking ready.

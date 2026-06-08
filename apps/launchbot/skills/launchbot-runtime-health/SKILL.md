@@ -185,20 +185,15 @@ Never say "I don't have visibility" when the files are on the same VM.
 - **`origin` remote is NousResearch public, NOT StaffAny** — `origin/main` on hermes-agent is the upstream NousResearch repo and is far ahead of what Launchbot uses. Always use `kaiyisg/main` to check the latest StaffAny-relevant hermes-agent commit.
 - **`git fetch` on hermes-agent can time out in execute_code** — Use the `terminal()` tool directly with an explicit `timeout` (e.g. 30s) when running git commands against hermes-agent remotes. The `execute_code` wrapper hits a 300s hard ceiling and stalls the session.
 - **Do NOT check `gcloud run revisions list`** — Launchbot is not on Cloud Run; the command returns empty and wastes time.
-- **`launchbot_product_gap_triage_server.py` was removed from the repo** — As of 2026-05-28, Abel confirmed the product gap triage MCP server should not exist. The files `launchbot_product_gap_triage_server.py` and `test_launchbot_product_gap_triage_server.py` were removed from `apps/launchbot/runtime/mcp/` and from the live `runtime/mcp/` symlink. Do not recreate them. If you find them in the profile, delete them.
+- **`launchbot_product_gap_triage_server.py` was removed from the repo** — As of 2026-05-28, Abel confirmed the product gap triage MCP server should not exist. The files `launchbot_product_gap_triage_server.py` and `test_launchbot_product_gap_triage_server.py` were removed from `apps/launchbot/runtime/mcp/`. Do not recreate them. If you find them in the profile, delete them.
 - **Product-ops-bot takes priority for customer triage KER & IFI work** — Abel confirmed 2026-05-28: for customer request triage requiring CRUD on IFI or KER tickets, product-ops-bot should handle it. Launchbot's KER/IFI lane is for launch-asset workflow only (APQ/BD notes, HubSpot-linked). Defer customer triage ticket work to product-ops-bot when it is available.
-- **Two Launchbot-specific devops skills are still NOT repo-backed (as of 2026-05-28)** — `devops/ker-feature-intake` and `devops/launchbot-runtime-health` exist only as plain dirs in the runtime profile, not as symlinks into `chatgpt-workspace-agents`. They should be moved to `apps/launchbot/skills/` in the repo and symlinked. Until that happens, edits to these skills are runtime-only and will not survive a profile rebuild.
-- **New skills added to `apps/launchbot/skills/` are NOT auto-symlinked** — `git pull` on `chatgpt-workspace-agents` pulls the files but does NOT create symlinks in the live profile. After any `git pull` that adds a new skill directory under `apps/launchbot/skills/`, manually symlink it:
+- **Some Launchbot-specific devops skills may still not be repo-backed** — If a skill exists only in the runtime profile, move it into `apps/launchbot/skills/`, add it to `required_skills` in `runtime/sync-live-profile.sh`, and update the verifier/deploy checks as needed. Until then, edits to that skill are runtime-only and will not survive a profile rebuild.
+- **New skills added to `apps/launchbot/skills/` are not automatically exposed** — `git pull` on `chatgpt-workspace-agents` pulls the files but does not copy them into the live profile. After adding a skill directory under `apps/launchbot/skills/`, add it to the sync/deploy allowlists and run the sync:
   ```bash
-  # Top-level skill (e.g. product-ops-bot-full-workflow)
-  ln -s /home/leekaiyi/chatgpt-workspace-agents/apps/launchbot/skills/<skill-name> \
-        /home/leekaiyi/.hermes/profiles/launchbot/skills/<skill-name>
-
-  # Nested skills inside a bundle (e.g. product-ops-bot-full-workflow/workflow/skills/*)
-  ln -s /home/leekaiyi/chatgpt-workspace-agents/apps/launchbot/skills/<bundle>/workflow/skills/<skill-name> \
-        /home/leekaiyi/.hermes/profiles/launchbot/skills/devops/<skill-name>
+  cd /home/leekaiyi/chatgpt-workspace-agents
+  bash apps/launchbot/runtime/sync-live-profile.sh
   ```
-  Confirm with `ls -la /home/leekaiyi/.hermes/profiles/launchbot/skills/` and `skill_view(name)` after linking. First discovered 2026-05-28 when `product-ops-intake-linking` was missing despite being in the repo.
+  Confirm with `ls -la /home/leekaiyi/.hermes/profiles/launchbot/skills/` and `skill_view(name)` after syncing. First discovered 2026-05-28 when `product-ops-intake-linking` was missing despite being in the repo.
 - **SOUL.md can reference skills that don't exist on disk** — `product-ops-intake-linking` was referenced in SOUL.md as a required routing skill but never created, causing silent routing failures (Launchbot ran the wrong tools before redirecting). When debugging unexpected routing behavior, check: `skills_list()` and cross-reference against every skill name mentioned in SOUL.md. Any mismatch = dangling reference = create the skill or remove the reference. Found and fixed 2026-05-28.
 - **`agent-builder/` has been deleted** — As of 2026-05-28, `/home/leekaiyi/agent-builder/` and `/home/leekaiyi/chatgpt-workspace-agents-launchbot-try/` no longer exist on the VM. The canonical app source packet is `/home/leekaiyi/chatgpt-workspace-agents/` (git repo, remote: `staffany-eng/chatgpt-workspace-agents`). Do not reference `agent-builder/` in any path.
 - **Local `chatgpt-workspace-agents` is frequently behind origin/main** — always `git fetch origin` before reporting the latest commit. In this session it was 293 commits behind. The local repo being stale does NOT mean the runtime profile is stale — changes may have been applied directly to profile files.
@@ -317,22 +312,20 @@ jobs:
 ```
 Secret names: `LAUNCHBOT_VM_HOST`, `LAUNCHBOT_VM_USER`, `LAUNCHBOT_VM_SSH_KEY`.
 
-**What it does NOT do:** The auto-sync cron (`launchbot-sync-app.sh`, `*/5 * * * *`) still handles copying changed files from the repo into the live profile and restarting the gateway. This GitHub Actions step only keeps the local git checkout fresh. Both pieces are needed end-to-end.
+**What it does NOT do:** The GitHub Actions step only keeps the local git checkout fresh. Runtime artifacts are copied into the live Hermes profile by running `apps/launchbot/runtime/sync-live-profile.sh` on the VM, or by the deploy script. Restart the gateway after syncing when prompt, skill, MCP, or script changes should take effect immediately.
 
 **Pitfall:** GitHub Secrets must be added manually by someone with repo admin access on `staffany-eng/chatgpt-workspace-agents`. Launchbot cannot write GitHub Secrets.
 
 ---
 
-## Auto-Deploy: Syncing App Changes from origin/main
+## Syncing App Changes from the Repo
 
-> ⚠️ **As of 2026-05-28, `launchbot-sync-app.sh` is OBSOLETE.** The cron-copy mechanism was replaced by symlinks (see "Symlink Architecture" section above). `git pull` on `chatgpt-workspace-agents` is all that is needed. The section below is retained for historical reference only.
-
-As of 2026-05-25, auto-deploy was configured via a cron job (`*/5 * * * *`, job `91a7bd7c0d5d`).
+> **Current model, as of 2026-06-08:** `chatgpt-workspace-agents/apps/launchbot` is the source of truth, but Hermes runs from `~/.hermes/profiles/launchbot`. Use `runtime/sync-live-profile.sh` to materialize real files/directories into the live profile. Do not symlink Launchbot scripts, skills, or `source/launchbot`; Hermes cron validates resolved script paths and symlinks can make jobs look outside the profile.
 
 **How it works:**
-- Script: `/home/leekaiyi/.hermes/profiles/launchbot/scripts/launchbot-sync-app.sh`
-- Every 5 minutes: `git fetch + pull` on `chatgpt-workspace-agents`, copies changed files (SOUL.md, MCP servers, scripts, skill refs) from `apps/launchbot/` to the live profile, then `systemctl --user restart hermes-gateway-launchbot.service` **only if files changed**.
-- No-op if already up to date — exits cleanly with "already up to date".
+- Script: `/home/leekaiyi/chatgpt-workspace-agents/apps/launchbot/runtime/sync-live-profile.sh`
+- Copies `SOUL.md`, runtime scripts, the full app packet under `source/launchbot`, and required skills into the live profile as regular files/directories.
+- Removes stale symlink destinations before copying so deploys do not follow a profile symlink back into the source repo.
 - Gateway service: `hermes-gateway-launchbot.service` (systemd --user).
 
 **File mapping (repo → live profile):**
@@ -349,19 +342,17 @@ As of 2026-05-25, auto-deploy was configured via a cron job (`*/5 * * * *`, job 
 | `skills/help-article-generator/references/*` | `source/launchbot/skills/help-article-generator/references/` |
 | Full `apps/launchbot/` tree | `source/launchbot/` (via rsync) |
 
-**What is NOT auto-synced:** `config.yaml` — it contains live secrets/env vars that differ from the template. Config changes still need manual apply.
+**What is NOT synced:** `config.yaml`, `.env`, runtime state, sessions, logs, cron state, and the Pantheon checkout. `config.yaml` contains live secrets and local runtime values; apply config-template changes manually.
 
-**Pitfall — live-only MCP servers:** Some MCP server files (e.g. `launchbot_product_gap_triage_server.py`) exist only in the live profile and not in the repo. The sync script uses `skip-not-fail` for missing source files (`[ -f "$src" ] || { log "skipping"; return 0; }`). Do NOT change this to `fail` — it will break the cron on every run.
-
-**If auto-sync breaks:**
+**Manual sync workflow:**
 ```bash
-# Run manually to debug
-bash /home/leekaiyi/.hermes/profiles/launchbot/scripts/launchbot-sync-app.sh
-# Check cron status
-/home/leekaiyi/.hermes/hermes-agent/hermes -p launchbot cron list
+cd /home/leekaiyi/chatgpt-workspace-agents
+bash apps/launchbot/runtime/sync-live-profile.sh
+systemctl --user restart hermes-gateway-launchbot.service
+/home/leekaiyi/.hermes/hermes-agent/venv/bin/hermes -p launchbot cron list
 ```
 
-The canonical sync script is saved at `scripts/launchbot-sync-app.sh` in this skill. If the live script needs to be re-created from scratch, copy from there.
+If cron still references `/home/leekaiyi/.hermes/profiles/launchbot/scripts/launchbot-sync-app.sh`, remove or disable that old cron entry. That script was part of the older copy-on-cron design and should not be recreated.
 
 ## Profile Cleanup Pattern
 
@@ -377,21 +368,16 @@ When Abel says "clean it up" for any profile directory:
 
 The canonical dry-run + execute + verify blocks live in `references/profile-directory-structure.md`.
 
-## Symlink Architecture (as of 2026-05-28)
+## Materialized Runtime Architecture (as of 2026-06-08)
 
-Abel decided: **`chatgpt-workspace-agents/apps/launchbot/` is the single source of truth.** All redundant copies in the profile are replaced with symlinks. `git pull` on the repo is the only step needed to update runtime behavior.
+Abel decided: **`chatgpt-workspace-agents/apps/launchbot/` is the single source of truth.** Hermes still runs from `~/.hermes/profiles/launchbot`, so repo files are materialized into the profile with `apps/launchbot/runtime/sync-live-profile.sh`. `git pull` alone updates the source checkout; run the sync script before expecting runtime behavior to change.
 
-**Active symlinks:**
+**Materialized paths:**
 
 | Profile path | → Repo path |
 |---|---|
 | `SOUL.md` | `apps/launchbot/profile/SOUL.md` |
-| `skills/help-article-generator/` | `apps/launchbot/skills/help-article-generator/` |
-| `skills/weekly-support-watch/` | `apps/launchbot/skills/weekly-support-watch/` |
-| `skills/product-ops-bot-full-workflow/` | `apps/launchbot/skills/product-ops-bot-full-workflow/` |
-| `skills/devops/product-ops-intake-linking/` | `apps/launchbot/skills/product-ops-bot-full-workflow/workflow/skills/product-ops-intake-linking/` | ✅ fixed 2026-05-28 — was runtime-only plain dir |
-| `skills/devops/staffany-product-delivery-workflow/` | `apps/launchbot/skills/product-ops-bot-full-workflow/workflow/skills/staffany-product-delivery-workflow/` |
-| `skills/devops/product-ops-bot/` | `apps/launchbot/skills/product-ops-bot-full-workflow/workflow/skills/product-ops-bot/` |
+| `skills/<required-skill>/` | `apps/launchbot/skills/<required-skill>/` |
 | `scripts/launchbot-check-health.sh` | `apps/launchbot/runtime/check-health.sh` |
 | `scripts/launchbot-audit-live-profile.sh` | `apps/launchbot/runtime/audit-live-profile.sh` |
 | `scripts/launchbot-monitor-feature-intake.py` | `apps/launchbot/runtime/monitor-feature-intake.py` |
@@ -400,35 +386,30 @@ Abel decided: **`chatgpt-workspace-agents/apps/launchbot/` is the single source 
 | `runtime/mcp/` | `apps/launchbot/runtime/mcp/` |
 | `source/launchbot/` | `apps/launchbot/` |
 
-**What is NOT symlinked (intentionally):**
+**What is copied from the repo into the live profile:**
+- `SOUL.md`
+- Launchbot runtime scripts under `scripts/`
+- `source/launchbot/`
+- required Launchbot skills under `skills/`
+
+**What is not copied from the repo (intentionally):**
 - `config.yaml` — live secrets/env vars differ from template
 - `source/pantheon/` — separate git repo
 - `runtime/feature-intake-monitor-state.json`, `pantheon-repo-status.json` — live state
 - All of `sessions/`, `memories/`, `logs/`, `cron/`, `state.db` — runtime data
 
-**`launchbot-sync-app.sh` is now OBSOLETE** — the 5-minute cron copy script was the old sync mechanism. It was deleted as part of the 2026-05-28 symlink migration. Do not recreate it. If the cron job still references it, remove that cron entry.
-
-**To verify symlink health:**
+**To verify profile path safety:**
 ```bash
-for target in \
-  /home/leekaiyi/.hermes/profiles/launchbot/SOUL.md \
-  /home/leekaiyi/.hermes/profiles/launchbot/skills/help-article-generator \
-  /home/leekaiyi/.hermes/profiles/launchbot/skills/weekly-support-watch \
-  /home/leekaiyi/.hermes/profiles/launchbot/skills/product-ops-bot-full-workflow \
-  /home/leekaiyi/.hermes/profiles/launchbot/skills/devops/product-ops-intake-linking \
-  /home/leekaiyi/.hermes/profiles/launchbot/skills/devops/staffany-product-delivery-workflow \
-  /home/leekaiyi/.hermes/profiles/launchbot/skills/devops/product-ops-bot \
-  /home/leekaiyi/.hermes/profiles/launchbot/runtime/mcp \
-  /home/leekaiyi/.hermes/profiles/launchbot/source/launchbot; do
-  [ -L "$target" ] && echo "OK $(readlink $target)" || echo "NOT SYMLINK: $target"
-done
+find /home/leekaiyi/.hermes/profiles/launchbot/scripts -maxdepth 1 -type l -ls
+find /home/leekaiyi/.hermes/profiles/launchbot/source/launchbot -maxdepth 0 -type l -ls
+find /home/leekaiyi/.hermes/profiles/launchbot/skills -maxdepth 1 -type l -ls
 ```
 
 ## Support Files
 
 - `references/product-ops-bot-topology.md` — Product Ops Bot profile location, skill routing, behavioral rules, and health check commands.
 - `references/profile-directory-structure.md` — Full inspected map of the live profile dir, what's safe to delete, backup sprawl diagnosis, and the 3-step dry-run→execute→verify cleanup block. Load before answering profile structure or cleanup questions.
-- `references/product-ops-skill-symlink-setup.md` — One-time symlink setup commands for the product-ops-bot-full-workflow skill bundle (and any future new skill directories). Load when a skill from SOUL.md is missing from `skills_list()` after a `git pull`.
+- `references/product-ops-skill-symlink-setup.md` — Historical note for the old May 2026 symlink setup. Do not follow its `ln -s` commands for current Launchbot profile repair.
 
 ## Answer Shape
 

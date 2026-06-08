@@ -43,25 +43,31 @@ Read `references/launch-priority-materials.md` before classifying launch materia
    - `help_article`: route to `help-article-generator`.
    - `release_notes`: route to `release-notes-generator`.
 5. Evaluation checkpoint:
-   - After every English or Indonesian help article draft or update patch, run `help-article-validator`.
+   - After every English or Indonesian help article HTML draft or update patch, run `help-article-validator`.
    - If the help-article validator returns `Revise before drafting`, run `help-article-feedback-updater`, then rerun `help-article-validator`.
    - Do not mark help articles `ready_for_review` unless both required locales return `Ready to draft`.
    - After every release note draft, run `release-notes-validator`.
    - If the release-note validator returns `revise`, run `release-notes-feedback-updater`, then rerun `release-notes-validator`.
    - Do not mark release notes `ready_for_review` unless the validator decision is `pass`.
-6. Product Lead review and approval:
+6. Release-note screenshot step:
+   - Run `help-article-screenshot-capture` for the release-note post when the change is UI/UX-visible.
+   - Select only 1-2 screenshots that directly show the UI/UX delta in `What's new`.
+   - Prefer 1 screenshot; use 2 only when a second image adds necessary context such as setup, permission, result, or confirmation state.
+   - If screenshots are blocked, sensitive, unavailable, or not contextually useful, continue with `Screenshots: none` and the blocker reason.
+7. Product Lead review and approval:
    - Post the release-note draft in the originating Slack thread or review thread and mention the Product Lead with `<@product_lead_slack_user_id>`.
-   - Include Jira key, launch priority, validator score, evidence summary, help article link, and the exact approval instruction.
+   - Include Jira key, launch priority, validator score, evidence summary, help article link, 1-2 selected screenshots when available, and the exact approval instruction.
    - Accept feedback only when the Slack reply mentions `@Launch Bot`.
    - If feedback changes the release note, run `release-notes-feedback-updater`, then rerun `release-notes-validator`.
    - Only accept final approval from the Jira Product Lead or configured override reviewers.
    - Exact approval marker: `@Launch Bot approve release notes <KER-key>`.
-7. Approved Slack distribution:
+8. Approved Slack distribution:
    - After Product Lead approval, send the final release notes to `#all-product-new-updates`.
+   - Include only the approved 1-2 screenshot refs/files from the review thread.
    - Default channel ID: `C03QQ2ERMT7`.
    - Config env vars: `LAUNCHBOT_RELEASE_NOTES_OUTPUT_CHANNEL_ID` and `LAUNCHBOT_RELEASE_NOTES_OUTPUT_CHANNEL_NAME`.
    - Use bot-owned posting and prefix automation wrapper copy with `Launchbot automation:`.
-8. Output the launch tracker:
+9. Output the launch tracker:
    - `not_needed`
    - `needed`
    - `drafted`
@@ -88,6 +94,7 @@ Evaluator decision: <pass | revise | blocked>
 Evaluator confidence: <0-100>
 Product Lead review: <@user_id | blocked_missing_mapping>
 Distribution: <#all-product-new-updates | not_approved_yet | posted>
+Screenshots: <none | 1-2 contextually correct screenshot refs>
 Next action: <specific owner action>
 ```
 
@@ -97,6 +104,7 @@ For generated help article drafts, include:
 Material: <help_article>
 Locale: <en | id>
 Draft or patch: <copy>
+Display format: <Intercom-ready HTML>
 Evaluator decision: <Ready to draft | Revise before drafting | Do not draft>
 Evaluator confidence: <0-100>
 Evidence-based reasoning: <short bullets>

@@ -14,8 +14,8 @@ When the external source checkout is absent, use `runtime/launchbot_e2e.py` as t
 - Output: a short Launchbot-specific answer only.
 - Required behavior:
   - Say Launchbot turns shipped Jira features into launch assets.
-  - Name the proven lane: code-grounded help article drafts, Google Docs review drafts, Slack approval routing, and Intercom draft articles after approval.
-  - State that Step 4 launch derivatives are planned only when relevant.
+  - Name the proven lane: code-grounded English and Indonesian help article drafts shown as Intercom-ready HTML, Google Docs review drafts, Slack approval routing, Intercom draft articles after approval, and concise release-note drafts with validator confidence scoring.
+  - State that the PMM workflow is scoped to help articles and concise release notes.
   - Do not list generic assistant categories such as web search, ML experiments, creative writing, smart-home control, social posting, broad email/calendar management, or generic coding-agent orchestration.
 
 ### Product Commitment Questions
@@ -55,6 +55,7 @@ When the external source checkout is absent, use `runtime/launchbot_e2e.py` as t
 
 - Input: curated English Intercom help article families, 8-12 curated Intercom format article IDs, a Pantheon topic/app/path scope, or a generated help article draft.
 - Output: a cached article planning profile, article plan, normalized Intercom format profile, Pantheon evidence pack, affected-article search results, a rendered Intercom HTML preview, and pre-publish gate results.
+- Visible help article previews shown in Slack or chat must be Intercom-ready HTML, not Markdown. Markdown source may be used internally only for existing gate commands that require `--draft <draft.md>`.
 - Pantheon source strategy:
   - Use a configured local checkout from `LAUNCH_PANTHEON_REPO`, defaulting locally to `/Users/leekaiyi/workspace/pantheon`.
   - Read only by default. Do not auto-pull or mutate Pantheon during a scan.
@@ -102,7 +103,7 @@ When the external source checkout is absent, use `runtime/launchbot_e2e.py` as t
 
 - Input: shipped Jira feature, reason, and summary.
 - Current proven test: `KER-1742`, Club Blue, ClubAny brands, perks, and redemptions, version `v005`.
-- Output: one or more article records with slug, title, article markdown, internal notes, and manifest metadata.
+- Output: one or more locale-aware article records with slug, locale, title, article markdown, internal notes, gate status, review routing metadata, and manifest metadata.
 - Required drafting behavior:
   - Run article planning before drafting. Do not skip the cached Intercom article planning profile unless explicitly doing a one-off manual draft outside Launchbot.
   - Use the VM-local Pantheon checkout as the StaffAny product behavior source of truth before writing.
@@ -115,6 +116,15 @@ When the external source checkout is absent, use `runtime/launchbot_e2e.py` as t
   - Do not emit visible raw HTML, repeated titles, text divider lines, or internal appendix content in publishable markdown.
   - For ClubAny / Club Blue content, use `Product: StaffAny`.
   - For ClubAny brand/perk management, prefer one combined management article unless the user explicitly requests separate owner/staff articles.
+  - For normal create or text-update article work, create both English (`en`) and Indonesian (`id`) article records.
+  - Generate English first as the source draft, then create Indonesian from the validated English structure and the same Pantheon evidence.
+  - Keep product behavior, UI labels, limits, eligibility, and steps equivalent across both locales; localized wording must not introduce new product claims.
+  - Run Pantheon evidence and Intercom format gates separately for `en` and `id`. A passing English draft does not approve the Indonesian draft.
+  - If English changes after Indonesian has been drafted, mark Indonesian `needs-refresh` and regenerate it before review or staging.
+  - If Indonesian needs local market or language review, mark only the Indonesian locale `needs-check` while leaving English governed by its own gates.
+  - Screenshot capture is optional and runs after article planning/drafting as an asset enhancement. A failed, blocked, or unavailable screenshot runner must keep precise placeholders and a blocker note, but must not block Pantheon evidence checks, Google Docs review creation, Slack approval routing, or Intercom draft/staging for otherwise valid article text.
+  - Real screenshots may be inserted only when captured from approved DEV/staging/local sources with demo-safe data and verified redaction.
+  - When screenshot capture is blocked on staging, use `help-article-screenshot-troubleshooter` to verify Playwright, hydrate staging credentials from Secret Manager or the live profile, create runtime-only storage state, and rerun the plan. Do not store storage-state in this repo.
 
 ### Update Lane: Video-only Help Article Update
 
@@ -136,9 +146,10 @@ When the external source checkout is absent, use `runtime/launchbot_e2e.py` as t
 ### Step 2: Google Docs Approval
 
 - Input: Step 1 issue/version manifest.
-- Output: per-article Google Docs, review routing metadata, and Slack review messages.
+- Output: per-article, per-locale Google Docs, review routing metadata, and Slack review messages.
 - Legacy single-article manifests must be upgraded into structured article records before promotion.
-- Multiple article outputs must remain separately tracked by slug, Google Doc URL, and Slack message timestamp.
+- Multiple article outputs must remain separately tracked by slug, locale, Google Doc URL, and Slack message timestamp.
+- English and Indonesian review artifacts must be reviewed and approved independently. Do not use one locale's approval reaction to approve the other locale.
 - Slack review messages require bot-owned posting credentials. Do not use a human user token for visible automation replies.
 - Launchbot Slack tests must use the `@Launch Bot` app profile (`user_id=U0ASVD79UT1`, `bot_id=B0ATPPEGBCH`). Do not use `@codexlaunchbot` / Kea Reloaded for Launchbot tests.
 - Launchbot tests default to Slack `#launch-bot-testing` (`C0B32M34J3W`). Use a different channel only when the user explicitly asks for it.
@@ -165,7 +176,9 @@ When the external source checkout is absent, use `runtime/launchbot_e2e.py` as t
   - Construct direct Intercom article URLs when IDs are available.
   - Create drafts only; public publishing remains outside this packet.
   - For video-only updates, update existing articles with `state: "draft"` only and do not touch tags or collection placement.
-- Google Docs HTML export should normalize duplicate title headings, internal appendices, center alignment, bold spans, heading anchors, and body-level heading depth before Intercom insertion.
+  - Google Docs HTML export should normalize duplicate title headings, internal appendices, center alignment, bold spans, heading anchors, and body-level heading depth before Intercom insertion.
+  - For bilingual articles, create draft/staging output per locale only after that locale has its own approval, Pantheon evidence pass, and format pass.
+  - Store each locale's Intercom draft/staging ID and URL separately. Do not overwrite or publish a different locale article from a shared approval.
 
 ### Feature Intake Channel Monitor
 
@@ -205,9 +218,22 @@ When the external source checkout is absent, use `runtime/launchbot_e2e.py` as t
 
 ### Step 4: Launch Derivatives
 
-- Current status: planned stub.
-- Target outputs: Released posts, WhatsApp drafts, and newsletter drafts.
-- Do not imply Step 4 is production-ready until source code and regression evidence exist.
+- Current status: skill-backed drafting workflow, still approval-gated and not public-publish automated.
+- Target outputs for Phase 1: help article work items and concise release notes with evidence-based validation.
+- Use `product-marketing-launch-workflow` to map KER Roadmap sprint rows to required materials from Launch Priority.
+- Use `help-article-generator` for create/update help article work, including English and Indonesian locale flows.
+- Every help article draft or update patch must pass through `help-article-validator` with evidence-based reasoning and a 0-100 confidence score.
+- Every help article preview returned to a teammate must be HTML-labelled / fenced `html`, not `.md`.
+- If help article validation returns `Revise before drafting`, use `help-article-feedback-updater`, then rerun the validator before Google Docs review, Slack approval, or Intercom staging.
+- Use Create and Manage Disbursement and Managing Employee Document Types as model references for help article formatting, wording, structure, and high-score completeness.
+- Use `release-notes-generator` for release notes.
+- Every release note draft must pass through `release-notes-validator`.
+- If validation returns `revise`, use `release-notes-feedback-updater`, then rerun the validator before review.
+- For approved release-note posts, run `help-article-screenshot-capture` and include only 1-2 contextually correct screenshots that directly show the UI/UX delta.
+- Mention the Jira Product Lead in the Slack review thread.
+- After exact Product Lead approval, send the final release notes to `#all-product-new-updates` (`C03QQ2ERMT7`) or the configured release-note output channel.
+- Changelog / What's New and WhatsApp Community messages are out of scope for this PMM workflow.
+- Public publishing, newsletter sends, homepage updates, pricing updates, blog posts, PR, social, and sales-deck changes remain manual or separate Marketing/Rev handoffs until implementation and regression evidence exist.
 
 ## Configuration Names
 
@@ -299,6 +325,6 @@ The registry fields are `article_key`, `locale`, `title`, `public_url`, `interco
 
 - Stronger ClubAny-specific planning is still needed in Step 1 source code.
 - DOCX output needs real Word numbering definitions for numbered and nested lists.
-- Screenshot capture or screenshot placeholders are not automated.
+- Screenshot capture is runner-backed through `runtime/help-article-screenshot-runner.mjs`, but actual captures still require approved DEV/staging or local Gryphon access with demo data. Screenshot blockers must keep placeholders and must not fail the core help article draft, Google Docs review, Slack approval, or Intercom draft/staging path.
 - Visual DOCX render QA needs a document renderer such as LibreOffice.
-- Step 4 launch derivatives are not implemented in the handoff source.
+- PMM workflow launch derivatives are scoped to help article work items and concise release notes with validator checkpoints only; changelog and WhatsApp Community are out of scope.

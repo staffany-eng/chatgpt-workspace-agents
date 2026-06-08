@@ -46,13 +46,29 @@ const SECRET_SPECS = [
     group: "google",
     secret: "launchbot-google-workspace-auth-json",
     env: "LAUNCH_GOOGLE_AUTH_JSON"
+  },
+  {
+    group: "staging",
+    secret: "launchbot-staging-url",
+    env: "LAUNCHBOT_STAGING_URL",
+    aliases: ["STAFFANY_STAGING_URL"]
+  },
+  {
+    group: "staging",
+    secret: "launchbot-staging-email",
+    env: "LAUNCHBOT_STAGING_EMAIL"
+  },
+  {
+    group: "staging",
+    secret: "launchbot-staging-password",
+    env: "LAUNCHBOT_STAGING_PASSWORD"
   }
 ];
 
 function usage() {
   return [
     "Usage:",
-    "  node scripts/launchbot-with-secrets.mjs [--project <gcp-project>] [--only intercom,slack,google,jira,hubspot] -- <command> [args...]",
+    "  node scripts/launchbot-with-secrets.mjs [--project <gcp-project>] [--only intercom,slack,google,jira,hubspot,staging] -- <command> [args...]",
     "  node scripts/launchbot-with-secrets.mjs --check [--only intercom]",
     "",
     "Examples:",
@@ -67,7 +83,7 @@ function parseArgs(argv) {
   const command = separator === -1 ? [] : argv.slice(separator + 1);
   const options = {
     project: process.env.LAUNCHBOT_GCP_PROJECT || DEFAULT_PROJECT,
-    only: new Set(["intercom", "slack", "google", "jira", "hubspot"]),
+    only: new Set(["intercom", "slack", "google", "jira", "hubspot", "staging"]),
     check: false
   };
 
