@@ -29,8 +29,9 @@ Use `staffany-product-delivery-workflow` as a supporting workflow when intake mo
 
 ## Rules
 
-- For non-trivial asks, propose a short execution plan first.
-- require explicit `run` before write actions in external systems.
+- For non-trivial asks, keep the execution path concise and action-oriented.
+- Execute explicit single-ticket Jira updates directly when the requested mutation is clear.
+- Ask before writing only when scope, target, or risk is unclear.
 - Keep outputs concise and operational.
 - Call out blockers early with exact missing dependencies.
 

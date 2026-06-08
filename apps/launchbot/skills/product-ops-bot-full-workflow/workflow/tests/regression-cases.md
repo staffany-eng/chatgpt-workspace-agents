@@ -11,8 +11,8 @@
 
 `@Product Ops update Jira tickets for the above plan`
 
-- Previews intended writes first.
-- Waits for explicit same-thread `run`.
+- Executes immediately when the target ticket and intended field changes are explicit.
+- Asks for clarification first only when the scope or target is ambiguous.
 
 ## Blocked Path
 

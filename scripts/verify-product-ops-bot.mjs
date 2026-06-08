@@ -35,6 +35,9 @@ if (!existsSync(manifestPath)) {
     if (manifest.model_provider !== "anthropic") fail("Manifest model_provider must be anthropic");
     if (manifest.model !== "claude-sonnet-4-6") fail("Manifest model must be claude-sonnet-4-6");
     if (manifest.secrets_copied !== false) fail("Manifest secrets_copied must be false");
+    if (manifest.write_policy?.jira_writes !== "direct_for_explicit_single_issue_mutations") {
+      fail("Manifest write_policy.jira_writes must be direct_for_explicit_single_issue_mutations");
+    }
     assertManifestPaths(appRoot, manifest.paths || {}, fail);
   }
 }
@@ -100,8 +103,8 @@ for (const requiredText of [
 
 const skillText = textOf(appRoot, "skills/product-ops-bot/SKILL.md");
 for (const requiredText of [
-  "require explicit `run`",
-  "write actions",
+  "Execute explicit single-ticket Jira updates directly when the requested mutation is clear.",
+  "Ask before writing only when scope, target, or risk is unclear.",
   "product-ops-intake-linking",
   "staffany-product-delivery-workflow",
   "Answer:",

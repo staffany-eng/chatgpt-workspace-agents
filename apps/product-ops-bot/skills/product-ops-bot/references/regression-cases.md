@@ -11,4 +11,4 @@
 `@Product Ops build release readiness checklist for payroll v2`
 
 - Produces checklist with status and dependencies.
-- Requests `run` before external write actions.
+- Does not require `run` unless a later write target is ambiguous or risky.

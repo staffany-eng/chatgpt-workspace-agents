@@ -25,7 +25,7 @@ Canonical Hermes app packet for a Product Operations assistant bot.
 | `skills/product-ops-intake-linking/` | Main Product Ops intake and linking flow. |
 | `skills/staffany-product-delivery-workflow/` | Supporting delivery workflow and agent routing. |
 | `runtime/slack.md` | Slack gateway behavior and output contract. |
-| `runtime/jira.md` | Jira read-first and approval-gated write contract. |
+| `runtime/jira.md` | Jira read-first contract with direct execution for explicit single-ticket writes. |
 | `runtime/health-checks.md` | Operational checks and expected silence. |
 | `runtime/check-health.sh` | No-agent runtime health check scaffold. |
 | `runtime/audit-live-profile.sh` | Live profile drift audit scaffold. |

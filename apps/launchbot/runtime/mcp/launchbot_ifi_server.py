@@ -195,6 +195,10 @@ def _jira_put(path: str, body: dict[str, Any]) -> dict[str, Any]:
     return _request_json("PUT", f"{_jira_base_url()}{path}", _jira_headers(), body)
 
 
+def _jira_get_any(path: str) -> Any:
+    return _request_json("GET", f"{_jira_base_url()}{path}", _jira_headers())
+
+
 def _hubspot_get(path: str) -> dict[str, Any]:
     return _request_json("GET", f"https://api.hubapi.com{path}", _hubspot_headers())
 
@@ -562,12 +566,60 @@ def _slack_reply(issue_key: str, issue_url: str, company: dict[str, str]) -> str
     )
 
 
+def _ker_triage_status_field_id() -> str:
+    configured = os.environ.get("JIRA_KER_TRIAGE_STATUS_FIELD_ID", "").strip()
+    if configured:
+        return configured
+    fields = _jira_get_any("/rest/api/3/field")
+    if not isinstance(fields, list):
+        raise LaunchbotIfiError("Unable to discover Jira fields for KER Triage Status.")
+    for field in fields:
+        if not isinstance(field, dict):
+            continue
+        name = str(field.get("name") or "").strip().lower()
+        if name == "triage status":
+            field_id = str(field.get("id") or "").strip()
+            if field_id:
+                return field_id
+    raise LaunchbotIfiError("Jira field 'Triage Status' was not found.")
+
+
+def _triage_status_label(raw_value: Any) -> str:
+    if raw_value is None:
+        return ""
+    if isinstance(raw_value, str):
+        return raw_value.strip()
+    if isinstance(raw_value, dict):
+        for key in ("value", "name"):
+            value = raw_value.get(key)
+            if isinstance(value, str):
+                return value.strip()
+    return ""
+
+
+def _update_ker_triage_status_if_needed(ker_key: str) -> str:
+    field_id = _ker_triage_status_field_id()
+    issue = _jira_get(f"/rest/api/3/issue/{urllib.parse.quote(ker_key)}?fields={urllib.parse.quote(field_id)}")
+    fields = issue.get("fields") or {}
+    current = _triage_status_label(fields.get(field_id))
+    if current.lower() == "triaged":
+        return ""
+    if current:
+        return ""
+    _jira_put(
+        f"/rest/api/3/issue/{urllib.parse.quote(ker_key)}",
+        {"fields": {field_id: {"value": "To Triage"}}},
+    )
+    return ""
+
+
 def _link_ker_if_needed(issue_key: str, linked_ker_key: str) -> str:
     key = linked_ker_key.strip().upper()
     if not key:
         return ""
     if not KER_RE.fullmatch(key):
         return "linked_ker_key ignored because it does not look like KER-123."
+    triage_warning = _update_ker_triage_status_if_needed(key)
     issue = _jira_get(f"/rest/api/3/issue/{urllib.parse.quote(issue_key)}?fields=issuelinks")
     existing = {
         linked
@@ -579,7 +631,7 @@ def _link_ker_if_needed(issue_key: str, linked_ker_key: str) -> str:
         if linked
     }
     if key in existing:
-        return ""
+        return triage_warning
     _jira_post(
         "/rest/api/3/issueLink",
         {
@@ -588,7 +640,7 @@ def _link_ker_if_needed(issue_key: str, linked_ker_key: str) -> str:
             "outwardIssue": {"key": key},
         },
     )
-    return ""
+    return triage_warning
 
 
 def _mutate_verified_preview(scope: dict[str, Any], preview: dict[str, Any]) -> dict[str, Any]:
