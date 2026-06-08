@@ -11,7 +11,7 @@ Expected checks:
 - `SLACK_HOME_CHANNEL` is `C0B32M34J3W`.
 - Slack `allowed_channels` is empty so normal replies work in any channel where Launchbot is invited and mentioned; lane-specific tools still keep their own channel/env gates.
 - `LAUNCHBOT_KER_ALLOWED_CHANNEL_IDS` includes `C0B32M34J3W`, `C0AJAUNCEL8`, and `C01RZ7SHC8K`; `#all-product-questions` is read-only KER lookup only.
-- Normal Slack gateway replies keep `slack.require_mention=true`; `#input-features-ux` monitoring is handled by the no-agent feature-intake monitor cron.
+- Normal Slack gateway replies keep `slack.require_mention=true`, `slack.strict_mention=true`, and `slack.allow_bots=mentions` so Jira/app automation can trigger Launchbot only with a direct mention; `#input-features-ux` monitoring is handled by the no-agent feature-intake monitor cron.
 - Feature-intake monitor channel IDs default to `CF8PK6V4J`, state path defaults to `~/.hermes/profiles/launchbot/runtime/feature-intake-monitor-state.json`, max messages per run defaults to `100`, and overlap defaults to `600` seconds.
 - Feature-intake monitor script is readable and compiles at `~/.hermes/profiles/launchbot/scripts/launchbot-monitor-feature-intake.py`.
 - Support-watch output channel defaults to `#all-bugs-production`, source defaults to BigQuery Intercom conversations with WhatsApp support logs enabled, BigQuery query timeout defaults to `240` seconds, dry-runs report full window counts plus fetched candidate counts, state path defaults to `~/.hermes/profiles/launchbot/runtime/support-watch-state.json`, lookback defaults to `7` days, max support rows defaults to `100`, and cron is `0 1 * * 4` UTC / Thursday 09:00 SGT.

@@ -62,6 +62,12 @@ if (!manifest) {
   if (manifest.slack?.gateway_restart_notification !== false) {
     fail("Manifest Slack gateway restart notifications must be disabled");
   }
+  if (manifest.slack?.strict_mention !== true) {
+    fail("Manifest Slack strict_mention must be true");
+  }
+  if (manifest.slack?.allow_bots !== "mentions") {
+    fail("Manifest Slack allow_bots must be mentions");
+  }
   if (!manifest.channels?.includes("Slack #all-product-questions")) {
     fail("Manifest channels must include #all-product-questions for read-only KER lookup");
   }

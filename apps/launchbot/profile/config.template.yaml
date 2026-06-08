@@ -16,6 +16,8 @@ platforms:
     gateway_restart_notification: false
 slack:
   require_mention: true
+  strict_mention: true
+  allow_bots: mentions
   allowed_channels: ""
   reactions: false
 cron:

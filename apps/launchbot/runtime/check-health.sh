@@ -156,6 +156,10 @@ if slack_platform.get("gateway_restart_notification") is not False:
 slack = config.get("slack") or {}
 if slack.get("require_mention") is not True:
     fail("slack:require-mention-not-enabled")
+if slack.get("strict_mention") is not True:
+    fail("slack:strict-mention-not-enabled")
+if slack.get("allow_bots") != "mentions":
+    fail("slack:allow-bots-not-mention-only")
 if slack.get("reactions") is not False:
     fail("slack:reactions-not-disabled")
 if str(config.get("SLACK_HOME_CHANNEL") or "").strip('"') != expected_home_channel:

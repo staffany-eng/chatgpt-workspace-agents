@@ -74,6 +74,8 @@
       "CF8PK6V4J"
     ],
     "require_mention": true,
+    "strict_mention": true,
+    "allow_bots": "mentions",
     "reactions": false,
     "gateway_restart_notification": false,
     "socket_mode": true,

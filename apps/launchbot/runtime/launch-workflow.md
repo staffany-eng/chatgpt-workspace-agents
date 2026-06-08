@@ -144,6 +144,7 @@ When the external source checkout is absent, use `runtime/launchbot_e2e.py` as t
 - Launchbot tests default to Slack `#launch-bot-testing` (`C0B32M34J3W`). Use a different channel only when the user explicitly asks for it.
 - When verifying a SOUL-changing deploy in an existing Slack thread, run the live-profile audit and reset any reported `sessions:stale-system-prompt` session before smoke testing. Hermes persists per-thread system prompts, so a healthy restarted gateway can still answer from stale instructions if the thread session is left active.
 - Launchbot Slack Socket Mode event subscriptions must include bot events `app_mention` and `message.channels`. `message.channels` is required for channel thread/mention events to reach the Hermes gateway; without it, the service can be connected but never receive the smoke message.
+- Launchbot must set `slack.allow_bots=mentions` and `slack.strict_mention=true` so Jira/app-authored messages with a direct Launchbot mention are admitted without enabling bot-to-bot thread loops.
 - Launchbot Slack OAuth scopes must include `app_mentions:read`, `channels:history`, `channels:read`, and `chat:write`.
 - Slack automation copy should keep the `Launchbot automation:` prefix and use a light cowboy voice, for example `Howdy, partner`, while keeping approval instructions factual.
 - Read-only product-commitment / KER lookup may run in `#all-product-questions` (`C01RZ7SHC8K`); Google Docs approval routing still defaults to `#launch-bot-testing`.

@@ -6,6 +6,8 @@ Launchbot can run in any Slack channel where it is invited and mentioned. Schedu
 
 - Require a mention.
 - Enforce per-message mention gating: only reply when that exact message includes a direct bot mention.
+- Set `slack.allow_bots=mentions` so Jira and other app-authored automation can trigger Launchbot only with a direct mention.
+- Set `slack.strict_mention=true` so accepting an app-authored mention cannot turn into a bot-to-bot thread loop.
 - In threads, do not treat prior mentions as ongoing permission. Unmentioned follow-ups must be ignored.
 - Do not restrict normal replies by static channel ID allowlists.
 - Disable tool progress, streaming, interim assistant messages, and reactions.

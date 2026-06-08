@@ -121,6 +121,7 @@
 - Slack review messages must use the `@Launch Bot` profile (`user_id=U0ASVD79UT1`, `bot_id=B0ATPPEGBCH`), not `@codexlaunchbot` / Kea Reloaded.
 - Launchbot test runs should post to `#launch-bot-testing` (`C0B32M34J3W`) unless the user explicitly names another channel.
 - Slack Socket Mode subscriptions must include bot events `app_mention` and `message.channels`; if the gateway is connected but receives no inbound smoke event, debug Slack event subscription drift first.
+- Jira/app-authored messages containing `<@U0ASVD79UT1>` must be admitted with `slack.allow_bots=mentions`; app-authored messages without that direct mention must remain ignored, and `slack.strict_mention=true` must prevent follow-up bot loops.
 - Slack automation copy should start with `Launchbot automation:` and use a light cowboy voice without weakening the approval instruction.
 
 ## Read-only KER Lookup
