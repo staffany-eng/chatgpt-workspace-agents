@@ -35,7 +35,7 @@
   },
   "write_policy": {
     "default_mode": "read_first",
-    "jira_writes": "approval_gated_same_thread_run"
+    "jira_writes": "direct_for_explicit_single_issue_mutations"
   },
   "skill_routing": {
     "primary": "product-ops-intake-linking",

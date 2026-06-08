@@ -7,7 +7,7 @@ Current safe default: Slack + Jira only.
 Add Jira adapter implementation and keep this contract updated with:
 
 - Auth env vars
-- Expected tools by class: `read`, `preview`, `write_approval_gated`
+- Expected tools by class: `read`, `preview`, `write`
 - Read/write boundaries
 - Failure/timeout behavior
 
@@ -15,7 +15,8 @@ Add Jira adapter implementation and keep this contract updated with:
 
 - Read tools can run without extra approval.
 - Preview tools can run to show planned writes.
-- Write tools require explicit same-thread `run`.
+- Write tools can execute immediately for explicit single-issue requests with clear scope.
+- Keep preview/confirmation only for ambiguous or bulk writes.
 
 ## Future Expansion
 

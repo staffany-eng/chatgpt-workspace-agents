@@ -5,14 +5,14 @@ Product Ops Bot safe default system is Jira.
 ## Mode
 
 - Read-first operation for issue/query/reporting requests.
-- Write actions are approval-gated.
-- No external writes without explicit same-thread `run`.
+- Execute direct Jira writes when the user explicitly asks for a clear single-issue mutation.
+- Keep confirmation gates for ambiguous intent, risky field changes, and bulk updates.
 
 ## Expected Tool Classes
 
 - Read: search issues, list project tickets, issue detail lookup.
 - Preview: draft update plan, draft transition plan, draft comments.
-- Write (approval-gated): apply issue updates, transitions, and comments.
+- Write: apply issue updates, transitions, and comments when target and scope are explicit.
 
 ## Safety Rules
 

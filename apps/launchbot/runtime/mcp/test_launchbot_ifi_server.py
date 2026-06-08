@@ -280,7 +280,9 @@ class LaunchbotIfiServerTest(unittest.TestCase):
             self.module, "_jira_get"
         ) as jira_get, patch.object(
             self.module, "_jira_put"
-        ) as jira_put:
+        ) as jira_put, patch.object(
+            self.module, "_jira_get_any"
+        ) as jira_get_any:
             resolve_company.return_value = (
                 "verified",
                 {
@@ -305,7 +307,16 @@ class LaunchbotIfiServerTest(unittest.TestCase):
                 raise AssertionError(path)
 
             jira_post.side_effect = fake_jira_post
-            jira_get.return_value = {"fields": {"issuelinks": []}}
+            jira_get_any.return_value = [{"id": "customfield_12345", "name": "Triage Status"}]
+
+            def fake_jira_get(path):
+                if "/issue/KER-746" in path:
+                    return {"fields": {"customfield_12345": {"value": "Triaged"}}}
+                if "/issue/IFI-200" in path:
+                    return {"fields": {"issuelinks": []}}
+                raise AssertionError(path)
+
+            jira_get.side_effect = fake_jira_get
             jira_put.side_effect = lambda path, body: jira_puts.append((path, body)) or {}
 
             result = self.module.create_or_update_ifi_feature_request_tracking(
@@ -328,6 +339,132 @@ class LaunchbotIfiServerTest(unittest.TestCase):
         self.assertEqual(jira_posts[1][1]["outwardIssue"]["key"], "KER-746")
         self.assertEqual(jira_puts, [])
         self.assertIn("Launchbot automation: IFI tracked", result["answer"]["slackReply"])
+
+    def test_linked_ker_with_blank_triage_status_updates_to_to_triage(self):
+        jira_posts = []
+        jira_puts = []
+
+        with patch.object(self.module, "_resolve_hubspot_company") as resolve_company, patch.object(
+            self.module, "_search_existing_ifi"
+        ) as search_existing, patch.object(self.module, "_jira_post") as jira_post, patch.object(
+            self.module, "_jira_get"
+        ) as jira_get, patch.object(
+            self.module, "_jira_put"
+        ) as jira_put, patch.object(
+            self.module, "_jira_get_any"
+        ) as jira_get_any:
+            resolve_company.return_value = (
+                "verified",
+                {
+                    "hubspotCompanyId": "1991281569",
+                    "name": "Acme Foods",
+                    "domain": "",
+                    "lifecycleStage": "customer",
+                    "hubspotUrl": "https://app.hubspot.com/contacts/4137076/company/1991281569",
+                },
+            )
+            search_existing.return_value = (
+                'project = IFI AND "HubSpot Company ID" ~ "1991281569" ORDER BY updated DESC',
+                [],
+            )
+            jira_get_any.return_value = [{"id": "customfield_12345", "name": "Triage Status"}]
+
+            def fake_jira_post(path, body):
+                jira_posts.append((path, body))
+                if path == "/rest/api/3/issue":
+                    return {"key": "IFI-200"}
+                if path == "/rest/api/3/issueLink":
+                    return {}
+                raise AssertionError(path)
+
+            def fake_jira_get(path):
+                if "/issue/KER-746" in path:
+                    return {"fields": {"customfield_12345": None}}
+                if "/issue/IFI-200" in path:
+                    return {"fields": {"issuelinks": []}}
+                raise AssertionError(path)
+
+            jira_post.side_effect = fake_jira_post
+            jira_get.side_effect = fake_jira_get
+            jira_put.side_effect = lambda path, body: jira_puts.append((path, body)) or {}
+
+            result = self.module.create_or_update_ifi_feature_request_tracking(
+                hubspot_company="1991281569",
+                feature_gap="Citibank bank file export",
+                original_question="Can we do Citibank bank file?",
+                linked_ker_key="KER-746",
+                approval_marker="confirm IFI",
+            )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(jira_posts[1][0], "/rest/api/3/issueLink")
+        self.assertEqual(
+            jira_puts[0],
+            (
+                "/rest/api/3/issue/KER-746",
+                {"fields": {"customfield_12345": {"value": "To Triage"}}},
+            ),
+        )
+
+    def test_linked_ker_with_triaged_status_is_not_updated(self):
+        jira_posts = []
+        jira_puts = []
+
+        with patch.object(self.module, "_resolve_hubspot_company") as resolve_company, patch.object(
+            self.module, "_search_existing_ifi"
+        ) as search_existing, patch.object(self.module, "_jira_post") as jira_post, patch.object(
+            self.module, "_jira_get"
+        ) as jira_get, patch.object(
+            self.module, "_jira_put"
+        ) as jira_put, patch.object(
+            self.module, "_jira_get_any"
+        ) as jira_get_any:
+            resolve_company.return_value = (
+                "verified",
+                {
+                    "hubspotCompanyId": "1991281569",
+                    "name": "Acme Foods",
+                    "domain": "",
+                    "lifecycleStage": "customer",
+                    "hubspotUrl": "https://app.hubspot.com/contacts/4137076/company/1991281569",
+                },
+            )
+            search_existing.return_value = (
+                'project = IFI AND "HubSpot Company ID" ~ "1991281569" ORDER BY updated DESC',
+                [],
+            )
+            jira_get_any.return_value = [{"id": "customfield_12345", "name": "Triage Status"}]
+
+            def fake_jira_post(path, body):
+                jira_posts.append((path, body))
+                if path == "/rest/api/3/issue":
+                    return {"key": "IFI-200"}
+                if path == "/rest/api/3/issueLink":
+                    return {}
+                raise AssertionError(path)
+
+            def fake_jira_get(path):
+                if "/issue/KER-746" in path:
+                    return {"fields": {"customfield_12345": {"value": "Triaged"}}}
+                if "/issue/IFI-200" in path:
+                    return {"fields": {"issuelinks": []}}
+                raise AssertionError(path)
+
+            jira_post.side_effect = fake_jira_post
+            jira_get.side_effect = fake_jira_get
+            jira_put.side_effect = lambda path, body: jira_puts.append((path, body)) or {}
+
+            result = self.module.create_or_update_ifi_feature_request_tracking(
+                hubspot_company="1991281569",
+                feature_gap="Citibank bank file export",
+                original_question="Can we do Citibank bank file?",
+                linked_ker_key="KER-746",
+                approval_marker="confirm IFI",
+            )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(jira_posts[1][0], "/rest/api/3/issueLink")
+        self.assertEqual(jira_puts, [])
 
 
 if __name__ == "__main__":
