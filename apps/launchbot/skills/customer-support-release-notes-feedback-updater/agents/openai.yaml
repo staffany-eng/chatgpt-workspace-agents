@@ -1,0 +1,4 @@
+interface:
+  display_name: "Release Notes Updater"
+  short_description: "Revise notes from validation"
+  default_prompt: "Use $release-notes-feedback-updater to revise these release notes from validator feedback and evidence."

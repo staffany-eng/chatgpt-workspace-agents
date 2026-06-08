@@ -1,0 +1,4 @@
+interface:
+  display_name: "Release Notes Validator"
+  short_description: "Score release notes with evidence"
+  default_prompt: "Use $release-notes-validator to validate these release notes, score confidence, and list evidence-backed fixes."

@@ -1,0 +1,89 @@
+{
+  "article_slug": "create-and-manage-disbursement",
+  "article_title": "Create and Manage Disbursement",
+  "article_url": "https://help.staffany.com/en/articles/13867569-create-and-manage-disbursement",
+  "feature": "Scheduled Disbursement",
+  "source_policy": {
+    "preferred": "StaffAny DEV/staging with demo organisation",
+    "fallback": "Local Gryphon with safe seeded disbursement data",
+    "requires_authentication": true,
+    "do_not_store_secrets": true
+  },
+  "shots": [
+    {
+      "id": "01-start-disbursement",
+      "label": "Payment detail with Start Disbursement action",
+      "placement": "After Schedule Disbursement step 3, after clicking Start Disbursement",
+      "route": "/payroll/payments/{paymentId}/disbursements",
+      "waitForText": "Start Disbursement",
+      "cropSelector": "main",
+      "redactionNotes": [
+        "Use demo payment and demo entity only.",
+        "Avoid employee names and bank account details."
+      ]
+    },
+    {
+      "id": "02-general-setting-scheduled-for",
+      "label": "General Setting with Scheduled for selected",
+      "placement": "After Schedule Disbursement step 7, after selecting Scheduled for and a future date/time",
+      "route": "/payroll/payments/{paymentId}/disbursements/editor",
+      "waitForText": "Scheduled for",
+      "cropSelector": "main",
+      "redactionNotes": [
+        "Use a future demo date within 5 days.",
+        "Crop away organisation switcher if it shows a real customer name."
+      ]
+    },
+    {
+      "id": "03-summary-payment-date",
+      "label": "Summary showing Disbursement Payment Date",
+      "placement": "After Schedule Disbursement step 11, after reviewing Summary",
+      "route": "/payroll/payments/{paymentId}/disbursements/editor",
+      "waitForText": "Disbursement Payment Date",
+      "cropSelector": "main",
+      "redactionNotes": [
+        "Redact salary totals, quota usage, wallet balance, top-up amount, and employee-sensitive amounts unless demo values are used."
+      ],
+      "redactSelectors": [
+        "[data-sensitive]",
+        "[data-testid*='amount']",
+        "[class*='amount']"
+      ]
+    },
+    {
+      "id": "04-confirm-disbursement-modal",
+      "label": "Confirm Disbursement modal for scheduled payout",
+      "placement": "After Schedule Disbursement step 13, when Confirm Disbursement modal appears",
+      "route": "/payroll/payments/{paymentId}/disbursements/editor",
+      "waitForText": "Confirm Disbursement",
+      "cropSelector": "[role='dialog'], .ant-modal",
+      "redactionNotes": [
+        "Use demo values only. Redact totals if any real payroll amount is visible."
+      ]
+    },
+    {
+      "id": "05-scheduled-status",
+      "label": "Disbursement list showing Scheduled status",
+      "placement": "After the paragraph that says the disbursement status shows as Scheduled",
+      "route": "/payroll/payments/{paymentId}/disbursements",
+      "waitForText": "Scheduled",
+      "cropSelector": "main",
+      "redactionNotes": [
+        "Use demo entity and demo payment.",
+        "Redact employee names, entity account data, payroll totals, and payment IDs if visible."
+      ]
+    },
+    {
+      "id": "06-reschedule-disbursement",
+      "label": "Disbursement detail with Reschedule Disbursement action",
+      "placement": "After Reschedule Disbursement step 4, after opening the scheduled disbursement detail",
+      "route": "/payroll/payments/{paymentId}/disbursements/{disbursementId}",
+      "waitForText": "Reschedule Disbursement",
+      "cropSelector": "main",
+      "redactionNotes": [
+        "Use demo scheduled disbursement only.",
+        "Redact payment identifiers and amounts if not demo-safe."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Help Article Validator"
+  short_description: "Score help articles with evidence"
+  default_prompt: "Use $help-article-validator to validate this StaffAny help article draft with evidence-based scoring and model-article comparison."

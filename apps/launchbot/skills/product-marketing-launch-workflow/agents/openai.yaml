@@ -1,0 +1,4 @@
+interface:
+  display_name: "PMM Launch Workflow"
+  short_description: "Map Jira releases to launch materials"
+  default_prompt: "Use $product-marketing-launch-workflow to map KER release rows into required launch materials and review checkpoints."

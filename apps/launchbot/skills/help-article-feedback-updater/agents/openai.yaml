@@ -1,0 +1,4 @@
+interface:
+  display_name: "Help Article Updater"
+  short_description: "Revise articles from validation"
+  default_prompt: "Use $help-article-feedback-updater to revise this StaffAny help article from validator feedback and evidence."

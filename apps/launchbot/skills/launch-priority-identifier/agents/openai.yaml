@@ -1,0 +1,4 @@
+interface:
+  display_name: "Launch Priority Identifier"
+  short_description: "Classify KER launch priority from Jira/Slack"
+  default_prompt: "Use $launch-priority-identifier to identify the KER Launch Priority from this Jira-Slack command and route the next launch material skill."

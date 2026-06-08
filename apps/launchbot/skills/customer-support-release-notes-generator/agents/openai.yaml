@@ -1,0 +1,4 @@
+interface:
+  display_name: "Release Notes"
+  short_description: "Draft concise product release notes"
+  default_prompt: "Use $release-notes-generator to draft concise release notes for this shipped KER ticket."

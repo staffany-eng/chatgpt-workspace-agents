@@ -1,0 +1,41 @@
+{
+  "article_slug": "create-and-manage-pay-item-groups",
+  "article_title": "Create and Manage Pay Item Groups",
+  "jira_key": "KER-442",
+  "shots": [
+    {
+      "id": "pay-item-group-list",
+      "label": "Pay Item Group list — Active tab",
+      "article_section": "Overview / intro",
+      "route": "/payroll/pay-item-group",
+      "wait_for_selector": "[class*='ContentHeader'], h1, h2",
+      "wait_for_text": "Pay Item Group",
+      "clip_selector": null,
+      "redact_selectors": [],
+      "notes": "Shows the Active tab table with Pay Item Group Name, Description, Pay Items Included, Applicable Staff, Actions columns and the Create Pay Item Group button."
+    },
+    {
+      "id": "create-pay-item-group-form",
+      "label": "Create Pay Item Group — form",
+      "article_section": "Create a Pay Item Group",
+      "route": "/payroll/pay-item-group/create",
+      "wait_for_selector": "form, [class*='Form'], input",
+      "wait_for_text": "Create Pay Item Group",
+      "clip_selector": null,
+      "redact_selectors": [],
+      "notes": "Shows the Pay Item Group Name, Description, Automatically Tagged fields and the Select Pay Items table."
+    },
+    {
+      "id": "confirm-compensation-updates-modal",
+      "label": "Confirm Compensation Updates modal",
+      "article_section": "Edit a Pay Item Group",
+      "route": null,
+      "wait_for_selector": "[class*='Modal'], [role='dialog']",
+      "wait_for_text": "Confirm Compensation Updates",
+      "trigger_note": "Triggered by saving an edit to a pay item group that is assigned to existing compensations. Capture requires demo org with at least one group assigned to a compensation.",
+      "clip_selector": null,
+      "redact_selectors": [],
+      "notes": "Shows 'Update Compensations' and 'Future Assignment Only' buttons."
+    }
+  ]
+}
