@@ -3,6 +3,13 @@ set -euo pipefail
 
 PROFILE="${HERMES_PROFILE:-launchbot}"
 PROFILE_DIR="${HERMES_PROFILE_DIR:-$HOME/.hermes/profiles/$PROFILE}"
+ENV_PATH="${LAUNCHBOT_PROFILE_ENV_PATH:-$PROFILE_DIR/.env}"
+if [ -f "$ENV_PATH" ]; then
+  set -a
+  # shellcheck disable=SC1090
+  . "$ENV_PATH"
+  set +a
+fi
 REPO_DIR="${LAUNCHBOT_APP_REPO_DIR:-$HOME/chatgpt-workspace-agents}"
 REMOTE="${LAUNCHBOT_APP_REMOTE:-origin}"
 BRANCH="${LAUNCHBOT_APP_BRANCH:-main}"
@@ -10,6 +17,8 @@ APPLY_SCRIPT="${LAUNCHBOT_APPLY_APP_UPDATE_SCRIPT:-$PROFILE_DIR/scripts/launchbo
 STATUS_PATH="${LAUNCHBOT_APP_UPDATE_STATUS_PATH:-$PROFILE_DIR/runtime/app-update-status.json}"
 RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 DBUS_ADDR="${DBUS_SESSION_BUS_ADDRESS:-unix:path=$RUNTIME_DIR/bus}"
+REQUESTER_SLACK_USER_ID="${LAUNCHBOT_REQUESTER_SLACK_USER_ID:-}"
+UPDATE_APPROVER_USER_IDS="${LAUNCHBOT_RUNTIME_UPDATE_APPROVER_USER_IDS:-}"
 
 need_command() {
   command -v "$1" >/dev/null 2>&1 || {
@@ -50,9 +59,30 @@ fail_update() {
   exit 1
 }
 
+csv_contains() {
+  needle="$1"
+  csv="$2"
+  OLD_IFS="$IFS"
+  IFS=','
+  for item in $csv; do
+    trimmed="$(printf '%s' "$item" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+    if [ -n "$trimmed" ] && [ "$trimmed" = "$needle" ]; then
+      IFS="$OLD_IFS"
+      return 0
+    fi
+  done
+  IFS="$OLD_IFS"
+  return 1
+}
+
 need_command git
 need_command systemd-run
 need_command date
+
+if [ -n "$UPDATE_APPROVER_USER_IDS" ]; then
+  [ -n "$REQUESTER_SLACK_USER_ID" ] || fail_update "" "" "requester-user-id-required"
+  csv_contains "$REQUESTER_SLACK_USER_ID" "$UPDATE_APPROVER_USER_IDS" || fail_update "" "" "unauthorized-requester:$REQUESTER_SLACK_USER_ID"
+fi
 
 [ -d "$REPO_DIR/.git" ] || fail_update "" "" "repo-not-found:$REPO_DIR"
 [ -x "$APPLY_SCRIPT" ] || fail_update "" "" "apply-script-missing:$APPLY_SCRIPT"

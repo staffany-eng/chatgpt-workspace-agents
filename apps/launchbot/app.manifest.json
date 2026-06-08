@@ -139,6 +139,12 @@
       "mode": "no-agent"
     }
   },
+  "app_update_controls": {
+    "source_branch": "origin/main",
+    "script": "runtime/update-app-from-repo.sh",
+    "approver_allowlist_env_var": "LAUNCHBOT_RUNTIME_UPDATE_APPROVER_USER_IDS",
+    "requester_user_id_env_var": "LAUNCHBOT_REQUESTER_SLACK_USER_ID"
+  },
   "support_watch_monitor": {
     "mode": "no_agent_weekly_report",
     "default_output_channel_name": "all-bugs-production",
@@ -653,6 +659,7 @@
       "LAUNCHBOT_FEATURE_INTAKE_MONITOR_MAX_MESSAGES_PER_RUN",
       "LAUNCHBOT_FEATURE_INTAKE_MONITOR_OVERLAP_SECONDS",
       "LAUNCHBOT_FEATURE_INTAKE_APPROVER_USER_IDS",
+      "LAUNCHBOT_RUNTIME_UPDATE_APPROVER_USER_IDS",
       "LAUNCHBOT_SUPPORT_WATCH_SOURCE",
       "LAUNCHBOT_SUPPORT_WATCH_INTERCOM_PROJECT",
       "LAUNCHBOT_SUPPORT_WATCH_INTERCOM_DATASET",

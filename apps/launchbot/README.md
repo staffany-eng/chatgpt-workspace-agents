@@ -110,6 +110,8 @@ It exits quickly with one of:
 - `launchbot-app-update:scheduled:<from_sha>:<to_sha>:<unit>` when a detached user unit was created to pull, sync, restart, and health-check Launchbot
 - `launchbot-app-update:error:<reason>` when the repo is dirty or the update flow is blocked
 
+If `LAUNCHBOT_RUNTIME_UPDATE_APPROVER_USER_IDS` is set, the caller must also provide `LAUNCHBOT_REQUESTER_SLACK_USER_ID`, and only those Slack user IDs may trigger the repo update path. This gate is for operational mutations only; normal `@Launch Bot` answers stay open to any Slack user when the gateway allows mentions.
+
 ## Launch Workflow Skill
 
 Launchbot is the app. The Launch Superpower handoff is represented here as a Launchbot skill and workflow capability, not as a separate app identity.

@@ -118,6 +118,15 @@ Remote: `https://github.com/staffany-eng/chatgpt-workspace-agents.git`
 This repo is the canonical source for Launchbot profile changes (SOUL.md, skills, runtime docs).
 The local checkout is often **behind origin/main** — always fetch before reporting the latest commit.
 
+## Repo Update Guard
+
+Launchbot may answer any mention when the Slack gateway is open, but repo updates are a separate operational mutation.
+
+- The self-update script is `/home/leekaiyi/.hermes/profiles/launchbot/scripts/launchbot-update-app-from-repo.sh`.
+- If `LAUNCHBOT_RUNTIME_UPDATE_APPROVER_USER_IDS` is set, only those Slack user IDs may trigger the update path.
+- Launchbot must pass the current requester Slack user ID as `LAUNCHBOT_REQUESTER_SLACK_USER_ID`.
+- Unauthorized update requests should return the exact script blocker, for example `launchbot-app-update:error:unauthorized-requester:U123`.
+
 ### 3d. Apply the latest Launchbot app commit safely
 
 When the ask is not just "what is the latest commit?" but "pull the latest repo and restart Launchbot if needed", use the profile-local update entrypoint:
