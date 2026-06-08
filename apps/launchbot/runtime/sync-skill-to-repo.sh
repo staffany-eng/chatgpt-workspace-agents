@@ -117,6 +117,8 @@ unit_name="launchbot-skill-sync-$(date -u +%Y%m%d%H%M%S)"
 export XDG_RUNTIME_DIR="$RUNTIME_DIR"
 export DBUS_SESSION_BUS_ADDRESS="$DBUS_ADDR"
 
+write_status "scheduled" "$SKILL_NAME" "" "skill sync scheduled; repo and live profile will be reconciled" "$unit_name"
+
 systemd-run --user \
   --unit "$unit_name" \
   --property Type=oneshot \
@@ -129,6 +131,4 @@ systemd-run --user \
   --setenv "LAUNCHBOT_SKILL_SYNC_COMMIT=$COMMIT_CHANGES" \
   --setenv "LAUNCHBOT_SKILL_SYNC_PUSH=$PUSH_CHANGES" \
   /bin/bash "$APPLY_SCRIPT" >/dev/null
-
-write_status "scheduled" "$SKILL_NAME" "" "skill sync scheduled; repo and live profile will be reconciled" "$unit_name"
 printf '%s\n' "launchbot-skill-sync:scheduled:$SKILL_NAME:$unit_name"

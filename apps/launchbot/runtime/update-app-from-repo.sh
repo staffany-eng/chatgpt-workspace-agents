@@ -114,6 +114,8 @@ unit_name="launchbot-app-update-$(date -u +%Y%m%d%H%M%S)"
 export XDG_RUNTIME_DIR="$RUNTIME_DIR"
 export DBUS_SESSION_BUS_ADDRESS="$DBUS_ADDR"
 
+write_status "scheduled" "$from_sha" "$to_sha" "update scheduled; gateway will restart if the pull succeeds" "$unit_name"
+
 systemd-run --user \
   --unit "$unit_name" \
   --property Type=oneshot \
@@ -125,6 +127,4 @@ systemd-run --user \
   --setenv "LAUNCHBOT_APP_BRANCH=$BRANCH" \
   --setenv "LAUNCHBOT_APP_UPDATE_STATUS_PATH=$STATUS_PATH" \
   /bin/bash "$APPLY_SCRIPT" >/dev/null
-
-write_status "scheduled" "$from_sha" "$to_sha" "update scheduled; gateway will restart if the pull succeeds" "$unit_name"
 printf '%s\n' "launchbot-app-update:scheduled:$from_sha:$to_sha:$unit_name"
