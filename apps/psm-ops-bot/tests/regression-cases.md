@@ -172,6 +172,18 @@ Expected:
 - The PCO tracker is a Customer Success Work issue, labelled `ps-wee-roi-tracker`, linked so ROI blocks PCO, and moved to `Waiting Internal`.
 - Caveat says ROI is source of truth and PCO is only the customer-loop tracker.
 
+## PS WEE Customer MRR From C360 Account Context
+
+`@PS Wee Manager what is Dreamus MRR?`
+
+- Resolves the customer through `search_c360_customers` when the customer key is ambiguous.
+- Calls `get_c360_account_context` with `format="json"`.
+- Answers from `answer.summary.totalMrr` when present.
+- Does not call `ask_c360_customer_context` first for the MRR amount.
+- Uses `answer.summary.totalMrr` for the MRR amount.
+- Does not say MRR is not surfaced in the compiled wiki when compact C360 account context exposes `summary.totalMrr`.
+- Includes `Customer 360: <url>`, `Source: Customer 360`, `Scope`, `Confidence`, and a caveat limited to compact-account-context freshness or missing C360 data.
+
 ## PS WEE Casual NYSS Question
 
 `@PS Wee Manager @nyss what is the Stripe password?`
@@ -245,6 +257,23 @@ Hermes prompt input includes the current Slack thread permalink but does not inc
 - Lets the MCP inspect the Slack thread for supported `.csv`/`.tsv` files instead of relying on attachment metadata in the model prompt.
 - Does not reply "I don't see any addresses" until `geocode_slack_address_file` has returned a blocked reason that no supported CSV/TSV address file exists.
 - Does not call `geocode_slack_addresses` with an empty or guessed address list.
+
+## PS WEE Store Review Identity Follow-Up
+
+Daily 09:00 Asia/Singapore no-agent cron:
+
+- Uses AppFollow Reviews API through `psm_store_reviews`.
+- Runs `psm_ops_store_review_poll.py` with no args in production, persists runtime state keyed by `store + app_ref + review_id`, and only posts new or meaningfully changed reviews.
+- Does not include Slack user, user-group, or channel mentions in store-review triage output.
+- Manual preview uses `psm_ops_store_review_poll.py --dry-run`; dry-run does not mutate state.
+- Posts bot-owned Slack triage starting with `PSM Ops automation: Store review triage`.
+- If one store API fails but the other succeeds, reports the partial failure caveat and still triages returned reviews.
+- Draft public replies use the support CTA: ask the reviewer to email `support@staffany.com` with their StaffAny account email or phone number plus company/outlet.
+- Does not ask for email, phone, reference code, company, outlet, or REV follow-up details in the public review reply.
+- V1 exposes `draft_store_review_reply` only; there is no public review reply publishing tool.
+- Unknown reviewer identity remains `identity_requested_private` until private support details or Customer 360/Jira evidence is available.
+- Uses `suggest_store_review_identity_candidates` only after private support details are available. Exact private email match can be verified; phone-only or company/outlet-only candidates stay `needs-check`.
+- Uses `confirm_store_review_identity` only after PS confirms the mapping; confirmed state stores redacted contact hints only.
 
 ## PS WEE PCO Board Search
 
@@ -436,7 +465,7 @@ Thread (Beatrice Clothing pattern from SCHE-19906):
 
 ```text
 Damba: @PS WEE can you create 1 PCO ticket for the thing i need to follow up?
-PS WEE: Created first so this won't be missed: PCO-477.
+PS WEE: Ticket created: PCO-477.
 Lucky: I found this older ticket; the payroll error was already fixed.
 Damba: Thanks Lucky, did you find May payroll report?
 Lucky: We did multiple follow ups but they're not replying to our chats.

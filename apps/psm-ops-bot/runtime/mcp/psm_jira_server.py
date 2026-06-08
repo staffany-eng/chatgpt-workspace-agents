@@ -2691,9 +2691,11 @@ def _ticket_by_slack_thread(
     source = (slack_thread_url or "").strip()
     if not source:
         return []
+    variants = _slack_permalink_variants(source) or [source]
+    permalink_clauses = [f"text ~ {_quote_jql(variant[:180])}" for variant in variants]
     clauses = [
         f"project = {_project_key()}",
-        f"text ~ {_quote_jql(source[:180])}",
+        f"({' OR '.join(permalink_clauses)})",
     ]
     if request_type_name.strip():
         clauses.append(f'"Request Type" = {_quote_jql(request_type_name.strip())}')
@@ -2705,10 +2707,12 @@ def _pco_roi_tracker_by_slack_thread(slack_thread_url: str, max_results: int = 5
     source = (slack_thread_url or "").strip()
     if not source:
         return []
+    variants = _slack_permalink_variants(source) or [source]
+    permalink_clauses = [f"text ~ {_quote_jql(variant[:180])}" for variant in variants]
     jql = (
         f"project = {_project_key()} "
         f"AND labels = {_quote_jql(ROI_TRACKER_LABEL)} "
-        f"AND text ~ {_quote_jql(source[:180])} "
+        f"AND ({' OR '.join(permalink_clauses)}) "
         "ORDER BY updated DESC"
     )
     return [_safe_issue(issue) for issue in _search_issues(jql, _search_fields(), max_results)]
@@ -2784,8 +2788,10 @@ def _roi_ticket_by_slack_thread(slack_thread_url: str, max_results: int = 5) -> 
     source = (slack_thread_url or "").strip()
     if not source:
         return []
+    variants = _slack_permalink_variants(source) or [source]
+    permalink_clauses = [f"text ~ {_quote_jql(variant[:180])}" for variant in variants]
     jql = (
-        f"project = {_roi_project_key()} AND text ~ {_quote_jql(source[:180])} "
+        f"project = {_roi_project_key()} AND ({' OR '.join(permalink_clauses)}) "
         "ORDER BY updated DESC"
     )
     return [_safe_roi_issue(issue) for issue in _search_issues(jql, list(SAFE_FIELDS), max_results)]
@@ -4241,9 +4247,7 @@ def create_ps_wee_intake_ticket(
         if attached_images:
             attachment_parts.append(f"Attached {len(attached_images)} image(s) from Slack.")
     attachment_suffix = (" " + " ".join(attachment_parts)) if attachment_parts else ""
-    answer["slack_reply"] = (
-        f"Created first so this won't be missed: {ticket_ref}.{attachment_suffix}"
-    )
+    answer["slack_reply"] = f"Ticket created: {ticket_ref}.{attachment_suffix}"
     answer["central_copy"] = post_ps_wee_audit(
         "ticket_created",
         source_thread_url=source,

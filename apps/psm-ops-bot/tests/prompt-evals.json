@@ -699,13 +699,81 @@
       "grade_notes": "If the Jira tool returns answer.slack_reply, paste it first exactly, then add labelled source/scope/confidence/caveat.",
       "assertions": {
         "answer_fixture": {
-          "output": "Created first so this won't be missed: <https://staffany.atlassian.net/browse/PCO-123|PCO-123>.\nSource: Jira PCO\nScope: current Slack thread; PS WEE intake ticket\nConfidence: verified\nCaveat: Use the same thread to add any extra context as it arrives."
+          "output": "Ticket created: <https://staffany.atlassian.net/browse/PCO-123|PCO-123>.\nSource: Jira PCO\nScope: current Slack thread; PS WEE intake ticket\nConfidence: verified\nCaveat: Use the same thread to add any extra context as it arrives."
         },
         "source_files": [
           {
             "path": "profile/SOUL.md",
             "must_contain": [
               "if the Jira tool returns `answer.slack_reply`, paste that string exactly as the first line"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "psm-tooltrace-c360-mrr-account-context",
+      "bot": "PSM Ops Hermes Bot",
+      "surface": "slack",
+      "lane": "tool-trace",
+      "input": "@PS Wee Manager what is Dreamus MRR?",
+      "setup": {
+        "after_user_request": true,
+        "stub_tools": true,
+        "stub_result": "search_c360_customers returns one Dreamus customerKey; get_c360_account_context(format=json) returns answer.summary.totalMrr"
+      },
+      "expected_tool_trace": {
+        "must_call": [
+          "search_c360_customers",
+          "get_c360_account_context"
+        ],
+        "must_not_call": [
+          "ask_c360_customer_context",
+          "create_ps_wee_intake_ticket",
+          "create_roi_ticket_from_slack"
+        ],
+        "argument_shape": {
+          "get_c360_account_context.format": "json",
+          "uses_answer_summary_totalMrr": true
+        }
+      },
+      "expected_answer_contract": {
+        "must_include": [
+          "Answer:",
+          "MRR",
+          "Customer 360:",
+          "Source: Customer 360",
+          "Scope:",
+          "Confidence: verified",
+          "Caveat:"
+        ],
+        "must_not_include": [
+          "not surfaced in the C360 compiled wiki",
+          "check the HubSpot CRM deal record for the exact figures",
+          "compiled wiki"
+        ]
+      },
+      "forbidden_behavior": [
+        "use Customer 360 compiled wiki Q&A as the first source for MRR",
+        "say MRR is unavailable when account context exposes summary.totalMrr",
+        "create a Jira ticket for a pure MRR lookup"
+      ],
+      "grade_notes": "MRR is compact C360 account context (`summary.totalMrr`), not compiled wiki knowledge. This catches the Slack failure where PS WEE answered that MRR was not surfaced in the compiled wiki.",
+      "assertions": {
+        "source_files": [
+          {
+            "path": "skills/psm-ops-bot/SKILL.md",
+            "must_contain": [
+              "For MRR questions",
+              "get_c360_account_context(customer_key, format=\"json\")",
+              "answer.summary.totalMrr"
+            ]
+          },
+          {
+            "path": "skills/psm-ops-bot/references/regression-cases.md",
+            "must_contain": [
+              "Customer MRR From C360 Account Context",
+              "Does not say MRR is not surfaced in the compiled wiki"
             ]
           }
         ]

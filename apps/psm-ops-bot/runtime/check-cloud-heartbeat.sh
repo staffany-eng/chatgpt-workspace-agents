@@ -14,11 +14,13 @@ EXPECTED_ROI_TRACKER_SYNC_CRON_NAME="${EXPECTED_ROI_TRACKER_SYNC_CRON_NAME:-psmo
 EXPECTED_ROI_TRACKER_SYNC_SCRIPT="${EXPECTED_ROI_TRACKER_SYNC_SCRIPT:-psm_ops_roi_tracker_sync.py}"
 EXPECTED_CHURN_REPORTING_CHASE_CRON_NAME="${EXPECTED_CHURN_REPORTING_CHASE_CRON_NAME:-psmopsbot churn reporting chase}"
 EXPECTED_CHURN_REPORTING_CHASE_SCRIPT="${EXPECTED_CHURN_REPORTING_CHASE_SCRIPT:-psm_ops_churn_reporting_chase.py}"
+EXPECTED_STORE_REVIEW_CRON_NAME="${EXPECTED_STORE_REVIEW_CRON_NAME:-psmopsbot store review poll}"
+EXPECTED_STORE_REVIEW_SCRIPT="${EXPECTED_STORE_REVIEW_SCRIPT:-psm_ops_store_review_poll.py}"
 EXPECTED_CLOUD_HEARTBEAT_CRON_NAME="${EXPECTED_CLOUD_HEARTBEAT_CRON_NAME:-psmopsbot local cloud heartbeat}"
 EXPECTED_CLOUD_HEARTBEAT_SCRIPT="${EXPECTED_CLOUD_HEARTBEAT_SCRIPT:-psmopsbot-check-cloud-heartbeat.sh}"
 EXPECTED_ADOPTION_DIGEST_CRON_NAME="${EXPECTED_ADOPTION_DIGEST_CRON_NAME:-psmopsbot adoption digest}"
 EXPECTED_ADOPTION_DIGEST_SCRIPT="${EXPECTED_ADOPTION_DIGEST_SCRIPT:-psm_ops_adoption_digest.py}"
-EXPECTED_ENABLED_CRON_COUNT="${EXPECTED_ENABLED_CRON_COUNT:-7}"
+EXPECTED_ENABLED_CRON_COUNT="${EXPECTED_ENABLED_CRON_COUNT:-8}"
 EXPECTED_CRON_TIMEZONE="${EXPECTED_CRON_TIMEZONE:-Asia/Singapore}"
 
 PATH="$HOME/.local/bin:$HOME/.hermes/hermes-agent/venv/bin:$HOME/.hermes/hermes-agent:$PATH"
@@ -57,6 +59,8 @@ python3 - "$cron_json" \
   "$EXPECTED_ROI_TRACKER_SYNC_SCRIPT" \
   "$EXPECTED_CHURN_REPORTING_CHASE_CRON_NAME" \
   "$EXPECTED_CHURN_REPORTING_CHASE_SCRIPT" \
+  "$EXPECTED_STORE_REVIEW_CRON_NAME" \
+  "$EXPECTED_STORE_REVIEW_SCRIPT" \
   "$EXPECTED_CLOUD_HEARTBEAT_CRON_NAME" \
   "$EXPECTED_CLOUD_HEARTBEAT_SCRIPT" \
   "$EXPECTED_ADOPTION_DIGEST_CRON_NAME" \
@@ -78,13 +82,15 @@ import sys
     roi_tracker_sync_script,
     churn_reporting_chase_name,
     churn_reporting_chase_script,
+    store_review_name,
+    store_review_script,
     heartbeat_name,
     heartbeat_script,
     adoption_digest_name,
     adoption_digest_script,
     expected_enabled_count,
     expected_timezone,
-) = sys.argv[1:19]
+) = sys.argv[1:21]
 
 try:
     with open(jobs_path, "r", encoding="utf-8") as handle:
@@ -104,7 +110,7 @@ if len(enabled) != int(expected_enabled_count):
     raise SystemExit(1)
 
 by_name = {job.get("name"): job for job in enabled if isinstance(job, dict)}
-for required_name in [reminder_name, eod_reminder_name, assignment_hygiene_name, roi_tracker_sync_name, churn_reporting_chase_name, heartbeat_name, adoption_digest_name]:
+for required_name in [reminder_name, eod_reminder_name, assignment_hygiene_name, roi_tracker_sync_name, churn_reporting_chase_name, store_review_name, heartbeat_name, adoption_digest_name]:
     if required_name not in by_name:
         print(f"cron:missing:{required_name}")
         raise SystemExit(1)
@@ -181,6 +187,20 @@ if churn_reporting_chase.get("deliver") != "slack:#team-rev-account-management":
     raise SystemExit(1)
 if churn_reporting_chase.get("no_agent") is not True:
     print("cron:churn-reporting-chase-mode-unexpected")
+    raise SystemExit(1)
+
+store_review = by_name[store_review_name]
+if store_review.get("script") != store_review_script:
+    print("cron:store-review-script-unexpected")
+    raise SystemExit(1)
+if schedule_expr(store_review) != "0 1 * * *":
+    print("cron:store-review-schedule-unexpected")
+    raise SystemExit(1)
+if store_review.get("deliver") != "slack:#ps-weeman-bot-test":
+    print("cron:store-review-delivery-unexpected")
+    raise SystemExit(1)
+if store_review.get("no_agent") is not True:
+    print("cron:store-review-mode-unexpected")
     raise SystemExit(1)
 
 heartbeat = by_name[heartbeat_name]

@@ -29,11 +29,14 @@
     "c360_runtime": "runtime/c360.md",
     "google_calendar_runtime": "runtime/google-calendar.md",
     "google_geocode_runtime": "runtime/google-geocode.md",
+    "store_reviews_runtime": "runtime/store-reviews.md",
     "slack_runtime": "runtime/slack.md",
     "psm_jira_mcp": "runtime/mcp/psm_jira_server.py",
     "psm_c360_mcp": "runtime/mcp/psm_c360_server.py",
     "psm_google_calendar_mcp": "runtime/mcp/psm_google_calendar_server.py",
     "psm_google_geocode_mcp": "runtime/mcp/psm_google_geocode_server.py",
+    "psm_store_reviews_mcp": "runtime/mcp/psm_store_reviews_server.py",
+    "store_reviews_core": "runtime/mcp/store_reviews_core.py",
     "health_checks": "runtime/health-checks.md",
     "health_check_script": "runtime/check-health.sh",
     "cloud_heartbeat_script": "runtime/check-cloud-heartbeat.sh",
@@ -46,6 +49,7 @@
     "churn_reporting_chase_script": "runtime/scripts/psm_ops_churn_reporting_chase.py",
     "churn_projection_dashboard_292_sql": "runtime/sql/psm_ops_churn_projection_dashboard_292.sql",
     "public_channel_join_script": "runtime/scripts/psm_ops_join_public_channels.py",
+    "store_review_poll_script": "runtime/scripts/psm_ops_store_review_poll.py",
     "slack_notifier": "runtime/mcp/psm_slack_notifier.py",
     "adoption_hook": "runtime/hooks/psm-ops-adoption-telemetry/HOOK.yaml",
     "adoption_hook_handler": "runtime/hooks/psm-ops-adoption-telemetry/handler.py",
@@ -109,6 +113,17 @@
         "check_google_geocode_access",
         "geocode_slack_addresses",
         "geocode_slack_address_file"
+      ]
+    },
+    "psm_store_reviews": {
+      "command_env": "PSM_OPS_PYTHON",
+      "expected_tools": [
+        "list_store_review_apps",
+        "list_store_reviews",
+        "get_store_review",
+        "draft_store_review_reply",
+        "suggest_store_review_identity_candidates",
+        "confirm_store_review_identity"
       ]
     }
   },
@@ -210,6 +225,32 @@
     "prints_api_key": false,
     "uses_slack_connector": false
   },
+  "store_reviews": {
+    "source_of_truth": true,
+    "source_of_truth_scope": "appfollow_review_metadata_and_identity_correlation",
+    "provider": "appfollow",
+    "appfollow_api_token_env_var": "APPFOLLOW_API_TOKEN",
+    "appfollow_credentials_file_env_var": "PSM_OPS_APPFOLLOW_CREDENTIALS_FILE",
+    "default_appfollow_credentials_file": "~/.staffany/appfollow/credentials.json",
+    "expected_credentials_json_key": "appfollow_api_token",
+    "appfollow_ext_ids_env_var": "APPFOLLOW_EXT_IDS",
+    "appfollow_collection_name_env_var": "APPFOLLOW_COLLECTION_NAME",
+    "required_permission": "Read",
+    "state_path_env_var": "PSM_OPS_STORE_REVIEWS_STATE_PATH",
+    "state_key": "store + app_ref + review_id",
+    "event_mode": "scheduled_appfollow_polling",
+    "polling_cron": "0 1 * * *",
+    "private_support_email": "support@staffany.com",
+    "identity_internal_labels": [
+      "identity_unknown",
+      "identity_requested_private",
+      "identity_candidate",
+      "identity_confirmed"
+    ],
+    "verified_identity_rule": "private exact email match plus Customer 360 or HubSpot evidence",
+    "phone_only_identity_rule": "candidate only until human confirmed",
+    "public_reply_publish_v1": false
+  },
   "channels": [
     "Slack public/open channels with mention-required gateway"
   ],
@@ -249,6 +290,7 @@
       "roi_tracker_linked",
       "roi_tracker_sync",
       "churn_reporting_chase",
+      "store_review_triage",
       "ticket_update_synced",
       "blocked",
       "c360_search",

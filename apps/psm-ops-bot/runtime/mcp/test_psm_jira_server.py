@@ -223,6 +223,14 @@ class PsmJiraServerTest(unittest.TestCase):
             return {"issues": []}
 
         self.module._request_json = fake_request
+        self.module._slack_users = lambda: [
+            {
+                "id": "UADA",
+                "name": "ada",
+                "real_name": "Ada PSM",
+                "profile": {"email": "psm@staffany.com", "display_name": "Ada PSM", "real_name": "Ada PSM"},
+            }
+        ]
 
         result = self.module.draft_pco_task(
             slack_user_email="psm@staffany.com",
@@ -1511,7 +1519,7 @@ class PsmJiraServerTest(unittest.TestCase):
         # PS WEE intakes never carry the `needs-info` label.
         label_calls = [c for c in calls if c[1] == "/rest/api/3/issue/PCO-789" and c[2].get("update", {}).get("labels")]
         self.assertEqual(label_calls, [])
-        self.assertIn("Created first so this won't be missed", result["answer"]["slack_reply"])
+        self.assertIn("Ticket created", result["answer"]["slack_reply"])
         self.assertIn("<https://staffany.atlassian.net/browse/PCO-789|PCO-789>", result["answer"]["slack_reply"])
         self.assertEqual(audit_calls[0][0], "ticket_created")
         self.assertEqual(audit_calls[0][1]["source_thread_url"], "https://staffany.slack.com/archives/C0B2VT50YT1/p1778205303989579")
@@ -2888,7 +2896,7 @@ class PsmJiraServerTest(unittest.TestCase):
                 msg=f"AA intake must not write due_date to Jira (supplied={supplied_due})",
             )
             slack_reply = result["answer"]["slack_reply"]
-            self.assertIn("Created first", slack_reply)
+            self.assertIn("Ticket created", slack_reply)
             self.assertNotIn(supplied_due, slack_reply, "AA reply must not echo a stripped date")
 
     def test_ps_wee_intake_outside_aa_channel_still_blocks_past_due_date(self):
@@ -3569,6 +3577,45 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertEqual(result["answer"]["existing_ticket"]["issue_key"], "ROI-555")
         self.assertEqual(len(calls), 1)
         self.assertEqual(audit_calls[0][0], "roi_ticket_reused")
+
+    def test_find_roi_ticket_by_slack_thread_uses_permalink_variants(self):
+        calls = []
+
+        def fake_request(method, path, body=None):
+            self.assertEqual(method, "GET")
+            jql = urllib.parse.parse_qs(urllib.parse.urlparse(path).query).get("jql", [""])[0]
+            calls.append(jql)
+            if "1778668227217809" in jql:
+                return {
+                    "issues": [
+                        {
+                            "key": "ROI-777",
+                            "fields": {
+                                "summary": "Yeu Saigon invoice check",
+                                "status": {"name": "Open"},
+                                "priority": {"name": "Medium"},
+                                "reporter": {"displayName": "Kaiyi Lee"},
+                                "created": "2026-06-04T10:00:00.000+0800",
+                                "updated": "2026-06-04T10:00:00.000+0800",
+                                "issuetype": {"name": "ROI Task"},
+                            },
+                        }
+                    ]
+                }
+            return {"issues": []}
+
+        self.module._request_json = fake_request
+
+        result = self.module.find_roi_ticket_by_slack_thread(
+            "https://staffany.slack.com/archives/C07M4UGDWNQ/p1780573823718289?thread_ts=1778668227.217809&cid=C07M4UGDWNQ"
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["answer"]["matches"][0]["issue_key"], "ROI-777")
+        self.assertEqual(len(calls), 1)
+        self.assertIn("1780573823718289", calls[0])
+        self.assertIn("1778668227217809", calls[0])
+        self.assertIn("1778668227.217809", calls[0])
 
     def test_create_or_link_pco_roi_tracker_creates_waiting_internal_tracker(self):
         calls = []

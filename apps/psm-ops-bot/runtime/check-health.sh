@@ -34,19 +34,22 @@ env_value() {
   fi
 }
 
+command -v python3 >/dev/null 2>&1 || fail "dependency:python3:not-found"
+
 if command -v systemctl >/dev/null 2>&1; then
   active="$(systemctl --user is-active "$GATEWAY_SERVICE_NAME" 2>/dev/null || true)"
   [ "$active" = "active" ] || fail "gateway_service:not-active:$GATEWAY_SERVICE_NAME"
 fi
 
 if command -v hermes >/dev/null 2>&1; then
-  for server in psm_jira psm_c360 psm_google_calendar psm_google_geocode; do
+  for server in psm_jira psm_c360 psm_google_calendar psm_google_geocode psm_store_reviews; do
     out="$(hermes -p "$PROFILE" mcp test "$server" 2>&1 || true)"
     case "$server" in
       psm_jira) expected=28 ;;
       psm_c360) expected=3 ;;
       psm_google_calendar) expected=1 ;;
       psm_google_geocode) expected=3 ;;
+      psm_store_reviews) expected=6 ;;
     esac
     count="$(printf '%s\n' "$out" | sed -nE 's/.*Tools discovered: ([0-9]+).*/\1/p' | tail -1)"
     [ "$count" = "$expected" ] || fail "mcp:$server:tools=${count:-unavailable}:expected=$expected"
@@ -167,6 +170,47 @@ if not str(payload.get("google_geocoding_api_key") or "").strip():
 PY
 fi
 
+appfollow_api_token="$(env_value APPFOLLOW_API_TOKEN)"
+appfollow_credentials_file="$(env_value PSM_OPS_APPFOLLOW_CREDENTIALS_FILE)"
+if [ -z "$appfollow_credentials_file" ]; then
+  appfollow_credentials_file="$(env_value APPFOLLOW_CREDENTIALS_FILE)"
+fi
+if [ -z "$appfollow_credentials_file" ]; then
+  appfollow_credentials_file="$HOME/.staffany/appfollow/credentials.json"
+fi
+if [ -z "$appfollow_api_token" ]; then
+  [ -r "$appfollow_credentials_file" ] || fail "store_reviews:appfollow-credentials-file-unreadable"
+  python3 - "$appfollow_credentials_file" <<'PY'
+import json
+import os
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+try:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+except Exception:
+    print("store_reviews:appfollow-credentials-json-invalid")
+    raise SystemExit(1)
+if not str(payload.get("appfollow_api_token") or "").strip():
+    print("store_reviews:appfollow-api-token-missing")
+    raise SystemExit(1)
+env_ext_ids = str(os.environ.get("APPFOLLOW_EXT_IDS") or "").strip()
+env_collection = str(os.environ.get("APPFOLLOW_COLLECTION_NAME") or "").strip()
+if not (
+    payload.get("ext_ids")
+    or payload.get("app_ext_ids")
+    or payload.get("collection_name")
+    or env_ext_ids
+    or env_collection
+):
+    print("store_reviews:appfollow-app-refs-missing")
+    raise SystemExit(1)
+PY
+elif [ -z "$(env_value APPFOLLOW_EXT_IDS)" ] && [ -z "$(env_value APPFOLLOW_COLLECTION_NAME)" ]; then
+  fail "store_reviews:appfollow-app-refs-missing"
+fi
+
 if [ -n "${BQ_BIN:-}" ]; then
   [ -x "$BQ_BIN" ] || fail "bigquery:bq-bin-not-executable"
 elif ! command -v bq >/dev/null 2>&1; then
@@ -282,9 +326,16 @@ payload = json.loads(open(sys.argv[1], "r", encoding="utf-8").read())
 jobs = payload.get("jobs") if isinstance(payload, dict) else payload
 enabled = [job for job in jobs if isinstance(job, dict) and job.get("enabled") is True]
 names = {str(job.get("name") or "") for job in enabled}
+
+def schedule_expr(job):
+    schedule = job.get("schedule") if isinstance(job, dict) else ""
+    if isinstance(schedule, dict):
+        return str(schedule.get("expr") or schedule.get("expression") or schedule.get("cron") or "").strip()
+    return str(schedule or job.get("cron") or "").strip()
+
 missing = [
     name
-    for name in ["psmopsbot due-date reminders", "psmopsbot assignment hygiene", "psmopsbot due-date eod catch-up", "psmopsbot roi tracker sync", "psmopsbot churn reporting chase"]
+    for name in ["psmopsbot due-date reminders", "psmopsbot assignment hygiene", "psmopsbot due-date eod catch-up", "psmopsbot roi tracker sync", "psmopsbot churn reporting chase", "psmopsbot store review poll"]
     if name not in names
 ]
 scripts = {str(job.get("name") or ""): job for job in enabled}
@@ -294,6 +345,7 @@ for name, expected_script in {
     "psmopsbot due-date eod catch-up": "psm_ops_due_date_reminders_eod.py",
     "psmopsbot roi tracker sync": "psm_ops_roi_tracker_sync.py",
     "psmopsbot churn reporting chase": "psm_ops_churn_reporting_chase.py",
+    "psmopsbot store review poll": "psm_ops_store_review_poll.py",
 }.items():
     job = scripts.get(name)
     if not job:
@@ -306,6 +358,9 @@ for name, expected_script in {
         sys.exit(1)
 if scripts.get("psmopsbot churn reporting chase", {}).get("deliver") != "slack:#team-rev-account-management":
     print("cron:psmopsbot churn reporting chase:delivery-unexpected")
+    sys.exit(1)
+if schedule_expr(scripts.get("psmopsbot store review poll", {})) != "0 1 * * *":
+    print("cron:psmopsbot store review poll:schedule-unexpected")
     sys.exit(1)
 if os.environ.get("PSM_OPS_ADOPTION_METRICS_ENABLED", "").strip().lower() in {"1", "true", "yes", "on"}:
     if "psmopsbot adoption digest" not in names:

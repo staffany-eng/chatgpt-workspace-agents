@@ -148,6 +148,7 @@ profiles:
       psm_jira: 28
       psm_c360: 3
       psm_google_geocode: 3
+      psm_store_reviews: 6
     expected_crons:
       - name: psmopsbot due-date reminders
         schedule: "0 1 * * 1-5"
@@ -175,6 +176,11 @@ profiles:
         script: psm_ops_churn_reporting_chase.py
         deliver: slack:#team-rev-account-management
         source_sql: runtime/sql/psm_ops_churn_projection_dashboard_292.sql
+      - name: psmopsbot store review poll
+        schedule: "0 1 * * *"
+        mode: no-agent
+        script: psm_ops_store_review_poll.py
+        deliver: slack:#ps-weeman-bot-test
       - name: psmopsbot local cloud heartbeat
         schedule: "*/15 * * * *"
         mode: no-agent

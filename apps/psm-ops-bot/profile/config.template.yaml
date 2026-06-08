@@ -221,6 +221,26 @@ psm_ops:
     max_addresses_per_call: 25
     default_region_bias: "sg"
     stores_address_rows: false
+  store_reviews:
+    source_of_truth: "appfollow_reviews_api"
+    event_mode: "scheduled_appfollow_polling"
+    polling_cron: "0 1 * * *"
+    publish_replies_v1: false
+    appfollow_api_token_env: "APPFOLLOW_API_TOKEN"
+    appfollow_credentials_file_env: "PSM_OPS_APPFOLLOW_CREDENTIALS_FILE"
+    default_appfollow_credentials_file: "~/.staffany/appfollow/credentials.json"
+    expected_credentials_json_key: "appfollow_api_token"
+    appfollow_ext_ids_env: "APPFOLLOW_EXT_IDS"
+    appfollow_collection_name_env: "APPFOLLOW_COLLECTION_NAME"
+    appfollow_required_permission: "Read"
+    state_path_env: "PSM_OPS_STORE_REVIEWS_STATE_PATH"
+    idempotency_key: "store + app_ref + review_id"
+    private_support_email: "support@staffany.com"
+    identity_internal_labels:
+      - "identity_unknown"
+      - "identity_requested_private"
+      - "identity_candidate"
+      - "identity_confirmed"
 
 mcp_servers:
   psm_jira:
@@ -293,6 +313,28 @@ mcp_servers:
       - "check_google_geocode_access"
       - "geocode_slack_addresses"
       - "geocode_slack_address_file"
+  psm_store_reviews:
+    description: "AppFollow Reviews API adapter for PSM Ops Bot."
+    command: "/Users/leekaiyi/.hermes/hermes-agent/venv/bin/python"
+    args:
+      - "/Users/leekaiyi/workspace/agent builder/apps/psm-ops-bot/runtime/mcp/psm_store_reviews_server.py"
+    timeout: 60
+    env:
+      APPFOLLOW_API_TOKEN: "${APPFOLLOW_API_TOKEN}"
+      PSM_OPS_APPFOLLOW_CREDENTIALS_FILE: "${PSM_OPS_APPFOLLOW_CREDENTIALS_FILE}"
+      APPFOLLOW_CREDENTIALS_FILE: "${APPFOLLOW_CREDENTIALS_FILE}"
+      APPFOLLOW_EXT_IDS: "${APPFOLLOW_EXT_IDS}"
+      APPFOLLOW_COLLECTION_NAME: "${APPFOLLOW_COLLECTION_NAME}"
+      PSM_OPS_STORE_REVIEWS_STATE_PATH: "${PSM_OPS_STORE_REVIEWS_STATE_PATH}"
+      CUSTOMER360_BASE_URL: "${CUSTOMER360_BASE_URL}"
+      CUSTOMER360_INTERNAL_API_TOKEN: "${CUSTOMER360_INTERNAL_API_TOKEN}"
+    tool_allowlist:
+      - "list_store_review_apps"
+      - "list_store_reviews"
+      - "get_store_review"
+      - "draft_store_review_reply"
+      - "suggest_store_review_identity_candidates"
+      - "confirm_store_review_identity"
 
 gateway:
   slack:
