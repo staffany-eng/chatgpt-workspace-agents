@@ -140,6 +140,78 @@ When asked for RICE reach, output:
 - **Basis:** which column/filter was used
 - **Caveat:** data is past-1-month snapshot, refreshed daily
 
+## Renewal Risk + IFI/KER Analysis
+
+When asked to cross-reference renewing orgs with IFI tickets and KER backlogs, use this workflow:
+
+### Step 1 — Filter renewing orgs by quarter and health
+```python
+from datetime import datetime, timezone
+q_start = datetime(2026, 7, 1, tzinfo=timezone.utc)
+q_end   = datetime(2026, 9, 30, 23, 59, 59, tzinfo=timezone.utc)
+
+renewing = [
+    r for r in records
+    if r.get('deal_end')
+    and q_start <= datetime.fromisoformat(r['deal_end']).replace(tzinfo=timezone.utc) <= q_end
+]
+red_renewing = [r for r in renewing if r.get('Account_Health') == '1-Red']
+```
+
+### Step 2 — Fetch all IFI issues (paginated)
+Use the Jira `/rest/api/3/search/jql` POST endpoint (see pitfalls — the old `/search` GET returns 410).
+Fetch with `fields: ['summary', 'customfield_10881', 'status', 'issuelinks']` and paginate via `nextPageToken`.
+
+### Step 3 — Match orgs to IFI by summary text
+IFI summaries embed org names directly:
+- Imported insights follow: `[Imported Insight] KER-NNN: ...org name...`
+- Live IFI tickets often end with ` — Org Name` or ` - Org Name`
+- `customfield_10881` (HubSpot Company ID) is **only populated on newer IFI tickets** — do not rely on it for historical lookups
+
+Search IFI summaries for org name substrings. Use multiple variants (short name, legal entity name, slug).
+
+### Step 4 — Extract KER keys from IFI issuelinks
+```python
+ker_keys = []
+for link in issue['fields'].get('issuelinks', []) or []:
+    for side in ['inwardIssue', 'outwardIssue']:
+        linked = link.get(side, {})
+        if linked and linked.get('key', '').startswith('KER-'):
+            ker_keys.append(linked['key'])
+```
+
+### Step 5 — Fetch KER details and estimate reach
+Use `project=KER AND key in (KER-X, KER-Y, ...)` in `/rest/api/3/search/jql`.
+**IFI demand count** = number of IFI issues linked to a given KER → use as cross-org reach proxy.
+Count per KER by iterating all IFI and counting issuelinks back.
+
+### Step 6 — Sum MRR by total org reach (not just renewing)
+For each KER, compute the total MRR of ALL orgs that appear in any IFI linked to that KER — not limited to orgs renewing that quarter. This is the "total MRR at stake" figure for product prioritisation.
+
+```python
+# Build org → MRR lookup from Metabase records
+org_mrr = {r['organisation_name']: r.get('company_mrr', 0) or 0 for r in records}
+
+# For each KER, sum MRR of all IFI-linked orgs (across all IFI, not just renewing)
+ker_total_mrr = {}
+for ker_key, orgs in ker_to_orgs.items():
+    ker_total_mrr[ker_key] = sum(org_mrr.get(org, 0) for org in orgs)
+```
+
+Org name matching between Metabase (`organisation_name`) and IFI summary text is fuzzy — use the same multi-variant search terms from Step 3. Unmatched orgs will produce 0 MRR; flag those as `mrr_unknown`.
+
+### Output format for renewal risk analysis
+Report:
+- Total renewing orgs, total MRR
+- Red health: count + MRR
+- Orgs with no IFI at all (blind spots — flag explicitly with ❌)
+- KER table: `KER key | status | IFI demand (all orgs) | total MRR of IFI-linked orgs | # red renewing orgs | summary`
+  - **IFI demand** = count of IFI issues linked to this KER (cross-org demand signal)
+  - **Total MRR** = sum of MRR of ALL orgs in those IFI issues (not just renewing orgs)
+- Highlight KERs already Shipped as CS talking points; in-flight KERs as ETA communication opportunities
+
+See `references/renewal-risk-ifi-ker-analysis.md` for the full working script.
+
 ## Pitfalls
 
 - `null` values in usage columns mean "no activity" not "feature unavailable" — treat as 0 for adoption counts.
@@ -148,3 +220,4 @@ When asked for RICE reach, output:
 - `organisation_name` ≠ `company_name` — org is StaffAny platform org, company is HubSpot entity.
 - Data reflects **past 1 month** of activity. A feature unused last month may have been used before — this is recency, not lifetime adoption.
 - Session token in the fetch script is tied to Abel's Metabase account. If cron fails with 401/403, the token needs refreshing in `.env`.
+- Quarter boundaries: always use explicit `datetime(year, month, 1)` anchors, not relative `timedelta` math, to avoid off-by-one at quarter edges.
