@@ -25,7 +25,7 @@ It uses the current PCO setup discovered on 2026-05-13:
 
 - `PSM_OPS_JIRA_SERVICE_DESK_ID=70`
 - Customer Next Action: request type `81` / Customer Success Work
-- Onboarding Task: request type `82` / Onboarding
+- Onboarding Task: request type `201` / Onboarding
 - Data Hygiene: request type `83` / Data Setup
 - Handoff Package: disabled until a PCO request type exists
 - StaffAny Org(s): `customfield_10667`
@@ -58,7 +58,7 @@ Reminder Slack formatting is deterministic mrkdwn in the central digest only. `P
 
 Assignment hygiene runs as a weekday 09:15 SGT no-agent cron. It uses safe Jira fields only. Active PCO issues with missing Jira assignee or missing `PS Team` are grouped under `Needs PS lead triage` for Josica. Active PCO issues with missing `duedate` and a known `PS Team` are grouped by `PS Team`, including `CS Duty`.
 
-For portal/request-form visibility, add the field named `Due date` / field ID `duedate` to PCO request types `81` Customer Success Work, `82` Onboarding, and `83` Data Setup. The bot does not require the form field to be visible because it sets `duedate` after creation, but PSMs will see a cleaner form if Jira admins add it.
+For portal/request-form visibility, add the field named `Due date` / field ID `duedate` to PCO request types `81` Customer Success Work, `201` Onboarding, and `83` Data Setup. The bot does not require the form field to be visible because it sets `duedate` after creation, but PSMs will see a cleaner form if Jira admins add it.
 
 ## Engineering Release Watch Pattern
 

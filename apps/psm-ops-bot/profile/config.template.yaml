@@ -113,7 +113,7 @@ psm_ops:
     thin_poc_defaults:
       service_desk_id: "70"
       customer_next_action_request_type: "81"
-      onboarding_task_request_type: "82"
+      onboarding_task_request_type: "201"
       data_hygiene_request_type: "83"
       ps_follow_up_request_type: "123"
       cs_follow_up_request_type: "124"

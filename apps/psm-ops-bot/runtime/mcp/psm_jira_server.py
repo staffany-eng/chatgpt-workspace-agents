@@ -102,7 +102,7 @@ THIN_POC_MODE = "thin_poc"
 THIN_POC_SERVICE_DESK_ID = "70"
 THIN_POC_REQUEST_TYPES = {
     "customer_next_action": "81",
-    "onboarding_task": "82",
+    "onboarding_task": "201",
     "data_hygiene": "83",
     "handoff_package": "",
     "ps_follow_up": "123",
