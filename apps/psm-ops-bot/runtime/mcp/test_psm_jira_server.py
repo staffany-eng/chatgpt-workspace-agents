@@ -438,6 +438,23 @@ class PsmJiraServerTest(unittest.TestCase):
 
         self.assertEqual(values["customfield_10876"], {"id": "12025"})
 
+    def test_request_values_include_staffany_org_asset_and_ps_team_for_onboarding(self):
+        self.module._resolve_assets_object_id = lambda name: "12345" if name == "Bata" else None
+        self.module._assets_workspace_id = lambda: "workspace-1"
+        self.module._ps_team_valid_values = lambda request_type_id="": [{"value": "team-izzat", "label": "Izzat"}]
+
+        values = self.module._request_field_values(
+            {
+                "summary": "Bata Onboarding",
+                "request_type_id": "201",
+                "staffany_orgs": ["Bata"],
+                "ps_team": "Izzat",
+            }
+        )
+
+        self.assertEqual(values["customfield_10102"], [{"id": "workspace-1:12345"}])
+        self.assertEqual(values["customfield_10876"], {"id": "team-izzat"})
+
     def test_ps_team_request_value_matches_full_display_name_to_first_name_option(self):
         """`ps_team="Jason Kanggara"` must still match the `Jason` option (token match)."""
         self.module._ps_team_valid_values = lambda request_type_id="": [
@@ -468,6 +485,28 @@ class PsmJiraServerTest(unittest.TestCase):
             self.module._ps_team_request_value("Kai Yi Lee", "123"),
             {"id": "12017"},
         )
+
+    def test_ps_team_option_for_identity_matches_first_name_option_from_slack_profile(self):
+        self.module._ps_team_options = lambda: [{"id": "team-izzat", "value": "Izzat"}]
+
+        option = self.module._ps_team_option_for_identity(
+            {
+                "slack_email": "izzat@staffany.com",
+                "display_name": "Izzat Zakaria",
+                "slack_user": {
+                    "id": "U123456789",
+                    "name": "izzat",
+                    "real_name": "Izzat Zakaria",
+                    "profile": {
+                        "email": "izzat@staffany.com",
+                        "real_name": "Izzat Zakaria",
+                        "display_name": "Izzat",
+                    },
+                },
+            }
+        )
+
+        self.assertEqual(option, {"id": "team-izzat", "value": "Izzat"})
 
     def test_resolve_assets_object_id_returns_numeric_id_on_exact_match(self):
         captured_queries = []
@@ -957,6 +996,52 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertEqual(result["answer"]["writes_planned"]["create_children"], 1)
         self.assertNotIn("POST", [call[0] for call in calls])
         self.assertIn("apply_pco_onboarding_task_plan", result["answer"]["write_tools_forbidden_until_approval"])
+
+    def test_plan_pco_onboarding_tasks_uses_verified_slack_sender_for_ps_team(self):
+        calls = []
+        caller_lookups = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if method == "GET" and "/rest/api/3/search/jql" in path:
+                return {"issues": []}
+            return {}
+
+        def fake_caller(value, require_jira_account=True, require_ps_team=False):
+            caller_lookups.append((value, require_jira_account, require_ps_team))
+            if value != "U123IZZAT":
+                raise self.module.JiraError("wrong Slack identity used")
+            return {
+                "slack_email": "izzat@staffany.com",
+                "display_name": "Izzat Zakaria",
+                "jira_account_id": "acct-izzat",
+                "ps_team": "Izzat",
+                "ps_team_option_id": "team-izzat",
+            }
+
+        self.module._request_json = fake_request
+        self.module._slack_trigger_message_sender = lambda source: "U123IZZAT"
+        self.module._caller = fake_caller
+
+        result = self.module.plan_pco_onboarding_tasks(
+            slack_user_email="wrong.person@staffany.com",
+            organisation="Bata",
+            task_summaries=["Manager onboarding"],
+            slack_thread_url="https://staffany.slack.com/archives/C1/p1234567890",
+            ps_team="Wrong Team",
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(caller_lookups, [("U123IZZAT", True, True)])
+        self.assertEqual(result["scope"]["caller"], "izzat@staffany.com")
+        self.assertTrue(result["scope"]["slack_sender_verified"])
+        self.assertEqual(result["scope"]["identity_source"], "slack_thread_sender")
+        self.assertEqual(result["scope"]["ps_team"], "Izzat")
+        self.assertEqual(result["scope"]["ps_team_argument_ignored"], "Wrong Team")
+        self.assertEqual(result["answer"]["identity_resolution"]["ps_team"], "Izzat")
+        self.assertEqual(result["answer"]["parent"]["draft"]["ps_team"], "Izzat")
+        self.assertEqual(result["answer"]["children"][0]["draft"]["ps_team"], "Izzat")
+        self.assertNotIn("POST", [call[0] for call in calls])
 
     def test_plan_pco_onboarding_tasks_blocks_apply_when_candidates_are_ambiguous(self):
         def issue(key, summary):

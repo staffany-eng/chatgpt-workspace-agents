@@ -32,8 +32,10 @@
 
 - Uses `psm-ops-onboarding-task-creator`.
 - First response calls only read-only `plan_pco_onboarding_tasks`.
+- Passes the Slack thread permalink and current tagged sender into the planning tool; Jira MCP verifies the permalinked message sender and derives `PS Team` from that Slack user, ignoring model-guessed `ps_team` values.
 - Searches for the parent `Bata Onboarding`.
 - Searches each child task regardless of whether it is already linked.
+- Drafted creates include request type `Onboarding`, matched Jira Assets `StaffAny Organization`, and the resolved single-select `PS Team`.
 - Produces a proposed create/reuse/link plan and says no Jira issues or links were created.
 - Does not call `apply_pco_onboarding_task_plan`, `create_approved_pco_task`, `create_ps_wee_intake_ticket`, or `link_pco_to_pco_issue` before same-thread direct-mention approval.
 - After approved apply, calls `apply_pco_onboarding_task_plan` once.

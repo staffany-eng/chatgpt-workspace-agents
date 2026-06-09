@@ -189,6 +189,8 @@ PS WEE can merge duplicate PCO tickets on demand. Merging is on-demand and human
 The standalone `psm-ops-onboarding-task-creator` skill creates or links one parent onboarding PCO issue plus child onboarding tasks.
 
 - Planning: `plan_pco_onboarding_tasks` is read-only. It searches for the parent, for each child task regardless of whether it is already linked, and returns a proposed create/reuse/link plan.
+- Identity fields: `plan_pco_onboarding_tasks` verifies the Slack tagger from the Slack thread permalink with `_slack_trigger_message_sender` when available, then resolves Jira `PS Team` from that Slack user. Do not trust or invent a model-supplied `ps_team` override for this workflow.
+- Request fields: onboarding creates use request type `Onboarding` (`PSM_OPS_JIRA_REQUEST_TYPE_ONBOARDING_TASK`, thin POC default `201`) and fill the Jira Assets-backed `StaffAny Organization` field with the resolved `workspaceId:objectId` payload when the organisation name has one exact asset match.
 - Approval gate: the bot must not create or link anything from the first request. Same-thread direct-mention approval is required before writes.
 - Execution: `apply_pco_onboarding_task_plan` is the only public write entrypoint. It creates only parent/child rows included in the approved plan and links child rows to the parent.
 - Link direction: child `implements` parent; parent is `implemented by` child.

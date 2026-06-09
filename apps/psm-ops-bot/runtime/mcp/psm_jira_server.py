@@ -5130,23 +5130,30 @@ def plan_pco_onboarding_tasks(
     items = _onboarding_task_items(task_summaries, task_list_text)
     parent_title = re.sub(r"\s+", " ", (parent_summary or "").strip()) or (f"{org} Onboarding" if org else "Onboarding")
     source = (slack_thread_url or "").strip()
+    verified_sender = _slack_trigger_message_sender(source) if source else ""
+    caller_lookup = verified_sender or slack_user_email
+    supplied_ps_team = _normalize_ps_team(ps_team)
     capped_max = max(1, min(int(max_results or 5), 10))
     scope = {
-        "caller": (slack_user_email or "").strip().lower(),
+        "caller": (caller_lookup or "").strip().lower(),
         "organisation": org,
         "task_count": len(items),
         "slack_thread_url": source,
+        "slack_sender_verified": bool(verified_sender),
+        "identity_source": "slack_thread_sender" if verified_sender else "tool_argument",
         "subsystem": "jira_pco_onboarding_task_creator",
         "read_only": True,
     }
+    if supplied_ps_team:
+        scope["ps_team_argument_ignored"] = supplied_ps_team
     if not org:
         return _blocked("organisation is required before planning onboarding tasks.", scope)
     if not items:
         return _blocked("At least one onboarding child task is required.", scope)
 
     try:
-        caller = _caller(slack_user_email, require_jira_account=not _is_thin_poc(), require_ps_team=not bool(ps_team))
-        normalized_ps_team = _normalize_ps_team(ps_team) or str(caller.get("ps_team") or "").strip()
+        caller = _caller(caller_lookup, require_jira_account=not _is_thin_poc(), require_ps_team=True)
+        normalized_ps_team = str(caller.get("ps_team") or "").strip()
         if not normalized_ps_team:
             raise JiraError("Caller must resolve to Jira PS Team before planning onboarding task creation.")
         request_type_id = _request_type_id("onboarding_task")
@@ -5232,6 +5239,11 @@ def plan_pco_onboarding_tasks(
             "link_direction": "child implements parent; parent is implemented by child",
         },
         "write_tools_forbidden_until_approval": ["apply_pco_onboarding_task_plan"],
+        "identity_resolution": {
+            "source": "slack_thread_sender" if verified_sender else "tool_argument",
+            "slack_sender_verified": bool(verified_sender),
+            "ps_team": normalized_ps_team,
+        },
     }
     caveat = (
         "Read-only plan only; no Jira issues or links were created. Resolve choose_candidate rows before approval."

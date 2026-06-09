@@ -29,12 +29,14 @@ On the first direct-mention request:
 1. Parse the organisation name.
 2. Parse the requested child task list from bullets, numbered lines, or concise task phrases.
 3. Choose the parent summary, usually `<Organisation> Onboarding` unless the user supplied an exact parent title.
-4. Call only `plan_pco_onboarding_tasks`.
+4. Call only `plan_pco_onboarding_tasks`, passing the current Slack thread permalink and current Slack sender ID/mention or profile email.
 5. Return the proposed plan: existing parent, missing parent if any, existing child tasks, missing child tasks, and links to create.
 
 Do not call `apply_pco_onboarding_task_plan`, `create_approved_pco_task`, `create_ps_wee_intake_ticket`, or `link_pco_to_pco_issue` before approval.
 
 If the planning tool returns `choose_candidate`, ask the user to choose the PCO key before approval. Do not apply an ambiguous plan.
+
+`plan_pco_onboarding_tasks` owns identity-sensitive field resolution. It verifies the current Slack tagger from the Slack thread permalink when available, resolves `PS Team` from that Slack user, and ignores any model-inferred `ps_team` override. Do not guess the single-select `PS Team` field from message wording or memory.
 
 ## Approval And Apply
 
