@@ -60,8 +60,7 @@ function listAppsWithPromptEvals() {
   return [
     "hermes-data-bot",
     "nurtureany-sales-bot",
-    "launchbot",
-    "psm-ops-bot"
+    "launchbot"
   ].filter((app) => existsSync(join(appsRoot, app, "tests", "prompt-evals.json")));
 }
 

@@ -315,7 +315,6 @@ const profilesText = existsSync(join(repoRoot, "ops", "hermes", "profiles.yaml")
 for (const [profileName, deployHost] of [
   ["staffanydatabot", "hermes-data-bot-poc"],
   ["launchbot", "hermes-data-bot-poc"],
-  ["psmopsbot", "hermes-psm-ops-bot-poc"],
   ["nurtureanysalesbot", "nurtureany-sales-bot-prod"]
 ]) {
   const block = profileBlock(profilesText, profileName);

@@ -28,7 +28,7 @@ It is not a generic StaffAny release-management rule unless the target workflow 
 - Jira issue links should connect the PCO to `KER-*`, the relevant parent/container `SCHE-*`, and confirmed child shipment `SCHE-*` tickets.
 - The default issue-link relationship should make the PCO show as blocked by the engineering issue.
 - PS Wee reminders should keep using Jira `duedate` instead of a separate release-watch reminder store.
-- Karpathy/wiki ingest preserves the rationale, but PS Wee runtime behavior must be promoted into the source packet.
+- Karpathy/wiki ingest preserves the rationale, but PS Wee runtime behavior must be promoted into the Customer 360 source packet.
 - The bot-side link capability should be narrow: source `PCO-*`, target `KER-*` or `SCHE-*`, no raw Jira content exposure.
 
 ## Evidence Trace
@@ -57,7 +57,7 @@ It is not a generic StaffAny release-management rule unless the target workflow 
 - Status: completed
 - Focus source: `docs/product-compass.md`, `research/wiki/weights.md`, `apps/psm-ops-bot/AGENTS.md`, `research/wiki/syntheses/automation-heartbeat-cron-schedules.md`
 - Evidence weight check: weight 4 for current PSM Ops behavior because it combines user intent, live Jira setup, and source-packet implementation; weight 3 outside PCO/JSM workflows.
-- Promotion path: synthesize into a PSM Ops release-watch page, then promote distilled behavior into `apps/psm-ops-bot/` rather than making the runtime read the research wiki.
+- Promotion path: synthesize into a PSM Ops release-watch page, then promote distilled behavior into Customer 360 `apps/psm-ops-bot/` rather than making the runtime read the research wiki.
 
 ## Possible Agent Builder Relevance
 

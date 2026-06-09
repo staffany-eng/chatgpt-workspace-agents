@@ -28,6 +28,10 @@ Supported bot names are:
 - `launchbot`
 - `all`
 
+`psm-ops-bot` remains here only for VM/IAM access planning. PS WEE source,
+prompt evals, deploy scripts, and runtime checks moved to Customer 360 under
+`staffany-eng/customer-360` `apps/psm-ops-bot/`.
+
 Use `--json` for machine-readable output and `--verbose` to print every read-only check and applied `gcloud` command.
 
 ## Grants
