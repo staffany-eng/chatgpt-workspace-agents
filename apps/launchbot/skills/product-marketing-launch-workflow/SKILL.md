@@ -22,6 +22,34 @@ Use this skill to turn Jira KER release rows into a launch tracker and material 
 - Product Lead Slack user ID or Jira Product Lead field that can map to Slack.
 
 Read `references/launch-priority-materials.md` before classifying launch materials.
+Read `references/pantheon-evidence-patterns.md` for proven Pantheon search paths, Jira field patterns, and access-level feature evidence.
+
+## First Response Shape
+
+When a teammate triggers the workflow for a single KER ticket (e.g. `Start product marketing workflow for KER-xxx`), Launchbot must do all the work upfront and respond with this structure **before asking for approval or proceeding to gates**:
+
+```
+• [Create / Update] help article: <article title>
+  ↳ If update: <link to existing Intercom article>
+
+[Help article screenshot preview — rendered HTML image(s) posted via MEDIA:]
+
+• Release notes draft
+
+[Release notes screenshot preview — rendered HTML image(s) posted via MEDIA:]
+
+Any feedback before I proceed?
+```
+
+Rules for this first response:
+- **Do all drafting work first.** Run Pantheon evidence, draft both `en` and `id` help article, draft release notes, run validators — all before posting the summary.
+- **State Create or Update** for the help article based on whether a matching Intercom article already exists. If updating, include the direct Intercom article link.
+- **Show help article draft as browser-rendered screenshot(s)**, not pasted HTML. Follow the HTML preview delivery procedure in `help-article-generator`.
+- **Show release notes draft as browser-rendered screenshot(s)** — save to `/tmp/release-notes-preview-<slug>.html`, open in browser tool, post screenshot via `MEDIA:`.
+- **End with "Any feedback before I proceed?"** — do not advance to review/approval/staging until the teammate responds.
+- If validators return `Revise before drafting`, apply feedback-updater and rerun before showing the preview. Show the passing version in the first response.
+- If Pantheon evidence is missing or `needs-check`, show the draft with a `⚠️ needs-check` flag on the affected section; do not block the entire first response.
+- If screenshots from the product UI are available, embed them in the HTML file so they appear in the rendered preview.
 
 ## Workflow
 
@@ -42,6 +70,7 @@ Read `references/launch-priority-materials.md` before classifying launch materia
 4. Create material work items:
    - `help_article`: route to `help-article-generator`.
    - `release_notes`: route to `release-notes-generator`.
+   - **Skill loading note:** `release-notes-generator` lives in the profile under the directory `customer-support-release-notes-generator/`. If `skill_view('release-notes-generator')` fails, read the file directly at `~/.hermes/profiles/launchbot/skills/customer-support-release-notes-generator/SKILL.md`. Same applies to `release-notes-validator` → `customer-support-release-notes-validator/` and `release-notes-feedback-updater` → `customer-support-release-notes-feedback-updater/`.
 5. Evaluation checkpoint:
    - After every English or Indonesian help article HTML draft or update patch, run `help-article-validator`.
    - If the help-article validator returns `Revise before drafting`, run `help-article-feedback-updater`, then rerun `help-article-validator`.
@@ -123,5 +152,6 @@ Next action: <specific owner action>
 - Release notes are for Sales, PS, CS, and Product teammates. Do not title or label them as CS or Customer Service release notes in visible output.
 - Keep each release-note section concise and grounded in existing StaffAny feature context.
 - Do not expose raw Jira descriptions, comments, customer PII, internal app names, or private implementation details.
-- If Launch Priority is blank, do not invent it. Use SOP heuristics only as a `suggested_priority` and mark confidence `needs-check`.
+- If Launch Priority is blank, do not invent it. Use SOP heuristics only as a `suggested_priority` and mark confidence `needs-check`. Heuristic guide: new Settings page or admin-action feature that changes user behavior → P3; pure label/copy tweak with no new admin action → P4; always confirm with Product Lead before distributing.
+- When the Product Lead's Slack user ID is not resolvable from `.env` or the Slack message, output `blocked_missing_mapping` in the review field and ask Davin for the Slack user ID explicitly. Do not block the entire draft — produce the release note and flag the missing ID as the only remaining blocker.
 - Changelog / What's New and WhatsApp Community messages are out of scope for this workflow. Do not draft, evaluate, or track them here.
