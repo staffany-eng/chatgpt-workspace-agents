@@ -201,6 +201,80 @@
       }
     },
     {
+      "id": "psm-tooltrace-onboarding-task-creator-read-only-first",
+      "bot": "PSM Ops Hermes Bot",
+      "surface": "slack:#ps-weeman-bot-test",
+      "lane": "tool-trace",
+      "input": "@PS WEE onboarding tasks for Bata:\n- Payroll setup\n- Manager training\n- Go-live check",
+      "setup": {
+        "after_user_request": true,
+        "stub_tools": true,
+        "same_thread_approval_present": false
+      },
+      "expected_tool_trace": {
+        "must_call": [
+          "plan_pco_onboarding_tasks"
+        ],
+        "must_not_call": [
+          "apply_pco_onboarding_task_plan",
+          "create_approved_pco_task",
+          "create_ps_wee_intake_ticket",
+          "link_pco_to_pco_issue"
+        ],
+        "argument_shape": {
+          "organisation": "Bata",
+          "task_list_required": true,
+          "read_only": true
+        }
+      },
+      "expected_answer_contract": {
+        "must_include": [
+          "Bata",
+          "Source: Jira PCO",
+          "Scope:",
+          "Confidence:",
+          "Caveat:"
+        ],
+        "must_not_include": [
+          "Created",
+          "linked to",
+          "Applied onboarding task plan"
+        ]
+      },
+      "forbidden_behavior": [
+        "create onboarding tickets before same-thread direct-mention approval",
+        "link child tasks before approval",
+        "use link_pco_to_pco_issue for onboarding child-parent links"
+      ],
+      "grade_notes": "Onboarding task creator first response is read-only: plan existing/missing parent and children only, then ask for direct-mention approval before apply.",
+      "assertions": {
+        "source_files": [
+          {
+            "path": "skills/psm-ops-bot/SKILL.md",
+            "must_contain": [
+              "must use `psm-ops-onboarding-task-creator`"
+            ]
+          },
+          {
+            "path": "skills/psm-ops-onboarding-task-creator/SKILL.md",
+            "must_contain": [
+              "First Response Is Read-Only",
+              "Do not call `apply_pco_onboarding_task_plan`",
+              "Child `implements` parent"
+            ]
+          },
+          {
+            "path": "runtime/jira.md",
+            "must_contain": [
+              "`plan_pco_onboarding_tasks` is read-only",
+              "`apply_pco_onboarding_task_plan` is the only public write entrypoint",
+              "child `implements` parent"
+            ]
+          }
+        ]
+      }
+    },
+    {
       "id": "psm-tooltrace-event-aa-always-ticket-first",
       "bot": "PSM Ops Hermes Bot",
       "surface": "slack:#event-aa",
@@ -1499,7 +1573,7 @@
           {
             "path": "profile/SOUL.md",
             "must_contain": [
-              "the only allowed `<@U...>` is the current Slack tagger",
+              "the only allowed one is the current Slack tagger",
               "Cron output (`PSM Ops automation:` prefix) is exempt"
             ]
           },

@@ -261,6 +261,8 @@ ISSUE_LINK_TYPE_ALIASES = {
     "blocks": "Blocks",
     "is blocked by": "Blocks",
     "blocked by": "Blocks",
+    "implements": "Implements",
+    "implemented by": "Implements",
     "relates": "Relates",
     "relates to": "Relates",
     "duplicate": "Duplicate",
@@ -2718,6 +2720,25 @@ def _pco_roi_tracker_by_slack_thread(slack_thread_url: str, max_results: int = 5
     return [_safe_issue(issue) for issue in _search_issues(jql, _search_fields(), max_results)]
 
 
+def _pco_onboarding_candidates(summary: str, organisation: str, max_results: int = 5) -> list[dict[str, Any]]:
+    desired = re.sub(r"\s+", " ", (summary or "").strip())
+    customer = re.sub(r"\s+", " ", (organisation or "").strip())
+    terms = _pco_search_terms(desired, customer)
+    if not terms and desired:
+        terms = [desired[:80]]
+    if not terms:
+        return []
+    clauses = [f"text ~ {_quote_jql(term[:80])}" for term in terms[:4]]
+    jql = (
+        f"project = {_project_key()} "
+        "AND statusCategory != Done "
+        f'AND "Request Type" = {_quote_jql("Onboarding")} '
+        f"AND {' AND '.join(clauses)} "
+        "ORDER BY updated DESC"
+    )
+    return [_safe_pco_search_issue(issue) for issue in _search_issues(jql, _search_fields(), max_results)]
+
+
 def _safe_roi_issue(issue: dict[str, Any]) -> dict[str, Any]:
     fields = issue.get("fields") or {}
     return {
@@ -5017,6 +5038,379 @@ def link_pco_to_engineering_issue(
         },
         scope,
         "Issue link created only between PCO and KER/SCHE; no raw Jira issue content was read or exposed.",
+    )
+
+
+def _onboarding_task_items(task_summaries: list[str] | None, task_list_text: str) -> list[str]:
+    items: list[str] = []
+    for raw in task_summaries or []:
+        item = re.sub(r"\s+", " ", str(raw or "").strip())
+        if item and item not in items:
+            items.append(item)
+    for line in (task_list_text or "").splitlines():
+        item = re.sub(r"^\s*(?:[-*]|\d+[.)])\s*", "", line).strip()
+        item = re.sub(r"\s+", " ", item)
+        if item and item not in items:
+            items.append(item)
+    return items[:50]
+
+
+def _onboarding_summary(organisation: str, task: str) -> str:
+    org = re.sub(r"\s+", " ", (organisation or "").strip())
+    item = re.sub(r"\s+", " ", (task or "").strip())
+    if not org:
+        return item[:160]
+    if _normalize_match_key(org) and _normalize_match_key(org) in _normalize_match_key(item):
+        return item[:160]
+    return f"{org} - {item}"[:160]
+
+
+def _onboarding_plan_draft(
+    *,
+    caller: dict[str, Any],
+    organisation: str,
+    summary: str,
+    slack_thread_url: str,
+    staffany_orgs: list[str],
+    ps_team: str,
+    known_details: str = "",
+) -> dict[str, Any]:
+    return {
+        "customer": organisation,
+        "summary": summary,
+        "due_date": "",
+        "action_type": "Onboarding",
+        "priority": "Medium",
+        "risk_reason": "",
+        "source_links": [slack_thread_url] if slack_thread_url else [],
+        "staffany_orgs": staffany_orgs or ([organisation] if organisation else []),
+        "owner_psm": caller.get("display_name") or caller.get("slack_email") or "",
+        "owner_jira_account_id": caller.get("jira_account_id", ""),
+        "contributor_cse": "",
+        "ps_team": ps_team,
+        "request_type_key": "onboarding_task",
+        "request_type_id": _request_type_id("onboarding_task"),
+        "approval_required": False,
+        "mode": _jira_mode(),
+        "slack_thread_url": slack_thread_url,
+        "known_details": known_details,
+        "impact": "",
+        "affected_scope": "",
+        "expected_outcome": "Track the onboarding work under the parent onboarding ticket.",
+        "tracker_type": "PCO onboarding task creator",
+    }
+
+
+def _select_onboarding_candidate(candidates: list[dict[str, Any]], desired_summary: str) -> dict[str, Any] | None:
+    if not candidates:
+        return None
+    desired_key = _normalize_match_key(desired_summary)
+    exact = [candidate for candidate in candidates if _normalize_match_key(str(candidate.get("summary") or "")) == desired_key]
+    if len(exact) == 1:
+        return exact[0]
+    return candidates[0] if len(candidates) == 1 else None
+
+
+@mcp.tool()
+def plan_pco_onboarding_tasks(
+    slack_user_email: str,
+    organisation: str,
+    task_summaries: list[str] | None = None,
+    task_list_text: str = "",
+    parent_summary: str = "",
+    slack_thread_url: str = "",
+    staffany_orgs: list[str] | None = None,
+    ps_team: str = "",
+    create_missing_parent: bool = True,
+    max_results: int = 5,
+) -> dict[str, Any]:
+    """Read-only plan for creating/linking a PCO onboarding parent and child tasks."""
+
+    org = re.sub(r"\s+", " ", (organisation or "").strip())
+    items = _onboarding_task_items(task_summaries, task_list_text)
+    parent_title = re.sub(r"\s+", " ", (parent_summary or "").strip()) or (f"{org} Onboarding" if org else "Onboarding")
+    source = (slack_thread_url or "").strip()
+    capped_max = max(1, min(int(max_results or 5), 10))
+    scope = {
+        "caller": (slack_user_email or "").strip().lower(),
+        "organisation": org,
+        "task_count": len(items),
+        "slack_thread_url": source,
+        "subsystem": "jira_pco_onboarding_task_creator",
+        "read_only": True,
+    }
+    if not org:
+        return _blocked("organisation is required before planning onboarding tasks.", scope)
+    if not items:
+        return _blocked("At least one onboarding child task is required.", scope)
+
+    try:
+        caller = _caller(slack_user_email, require_jira_account=not _is_thin_poc(), require_ps_team=not bool(ps_team))
+        normalized_ps_team = _normalize_ps_team(ps_team) or str(caller.get("ps_team") or "").strip()
+        if not normalized_ps_team:
+            raise JiraError("Caller must resolve to Jira PS Team before planning onboarding task creation.")
+        request_type_id = _request_type_id("onboarding_task")
+        orgs = [str(org_name).strip() for org_name in (staffany_orgs or [org]) if str(org_name).strip()]
+
+        parent_candidates = _pco_onboarding_candidates(parent_title, org, capped_max)
+        selected_parent = _select_onboarding_candidate(parent_candidates, parent_title)
+        if selected_parent:
+            parent_action = "reuse"
+        elif parent_candidates:
+            parent_action = "choose_candidate"
+        elif create_missing_parent:
+            parent_action = "create"
+        else:
+            parent_action = "missing"
+
+        parent: dict[str, Any] = {
+            "desired_summary": parent_title,
+            "action": parent_action,
+            "existing_issue": selected_parent,
+            "candidates": parent_candidates,
+        }
+        if parent_action == "create":
+            parent["draft"] = _onboarding_plan_draft(
+                caller=caller,
+                organisation=org,
+                summary=parent_title,
+                slack_thread_url=source,
+                staffany_orgs=orgs,
+                ps_team=normalized_ps_team,
+                known_details="Parent onboarding tracker for approved child onboarding tasks.",
+            )
+
+        children: list[dict[str, Any]] = []
+        for item in items:
+            desired_child_summary = _onboarding_summary(org, item)
+            child_candidates = _pco_onboarding_candidates(desired_child_summary, org, capped_max)
+            selected_child = _select_onboarding_candidate(child_candidates, desired_child_summary)
+            if selected_child:
+                action = "reuse"
+            elif child_candidates:
+                action = "choose_candidate"
+            else:
+                action = "create"
+            child: dict[str, Any] = {
+                "task": item,
+                "desired_summary": desired_child_summary,
+                "action": action,
+                "existing_issue": selected_child,
+                "candidates": child_candidates,
+                "link_to_parent": True,
+            }
+            if action == "create":
+                child["draft"] = _onboarding_plan_draft(
+                    caller=caller,
+                    organisation=org,
+                    summary=desired_child_summary,
+                    slack_thread_url=source,
+                    staffany_orgs=orgs,
+                    ps_team=normalized_ps_team,
+                    known_details=item,
+                )
+            children.append(child)
+    except JiraError as error:
+        return _blocked(str(error), scope)
+
+    blocked_for_apply = parent_action in {"choose_candidate", "missing"} or any(
+        child["action"] == "choose_candidate" for child in children
+    )
+    answer = {
+        "organisation": org,
+        "request_type_key": "onboarding_task",
+        "request_type_id": request_type_id,
+        "parent": parent,
+        "children": children,
+        "approval_required": True,
+        "approval_instruction": 'Reply with a same-thread direct mention such as `@PS WEE approve create/link onboarding tasks` before any Jira writes.',
+        "apply_blocked_until_choices_resolved": blocked_for_apply,
+        "writes_planned": {
+            "create_parent": parent_action == "create",
+            "create_children": sum(1 for child in children if child["action"] == "create"),
+            "link_children_to_parent": sum(1 for child in children if child["action"] in {"create", "reuse"}),
+            "link_direction": "child implements parent; parent is implemented by child",
+        },
+        "write_tools_forbidden_until_approval": ["apply_pco_onboarding_task_plan"],
+    }
+    caveat = (
+        "Read-only plan only; no Jira issues or links were created. Resolve choose_candidate rows before approval."
+        if blocked_for_apply
+        else "Read-only plan only; no Jira issues or links were created."
+    )
+    return _verified(
+        answer,
+        {**scope, "caller": caller.get("slack_email", scope["caller"]), "ps_team": normalized_ps_team},
+        caveat,
+    )
+
+
+def _issue_link_exists_directed(outward_key: str, inward_key: str, link_type: str) -> bool:
+    payload = _request_json(
+        "GET",
+        f"/rest/api/3/issue/{urllib.parse.quote(outward_key)}?fields=issuelinks",
+    )
+    for issue_link in ((payload.get("fields") or {}).get("issuelinks") or []):
+        if ((issue_link.get("type") or {}).get("name") or "") != link_type:
+            continue
+        if ((issue_link.get("inwardIssue") or {}).get("key") or "").upper() == inward_key:
+            return True
+        if (
+            ((issue_link.get("outwardIssue") or {}).get("key") or "").upper() == outward_key
+            and ((issue_link.get("inwardIssue") or {}).get("key") or "").upper() == inward_key
+        ):
+            return True
+    return False
+
+
+def _link_pco_child_implements_parent(child_issue_key: str, parent_issue_key: str) -> dict[str, Any]:
+    child_key = _normalize_issue_key(child_issue_key)
+    parent_key = _normalize_issue_key(parent_issue_key)
+    link_type = "Implements"
+    if not PCO_ISSUE_RE.fullmatch(child_key):
+        raise JiraError("child issue key must look like PCO-123.")
+    if not PCO_ISSUE_RE.fullmatch(parent_key):
+        raise JiraError("parent issue key must look like PCO-123.")
+    if child_key == parent_key:
+        raise JiraError("child and parent issue keys must differ.")
+    if _issue_link_exists_directed(child_key, parent_key, link_type):
+        return {
+            "child_issue_key": child_key,
+            "parent_issue_key": parent_key,
+            "link_type": link_type,
+            "relationship": f"{child_key} implements {parent_key}",
+            "already_exists": True,
+        }
+    try:
+        _request_json(
+            "POST",
+            "/rest/api/3/issueLink",
+            {
+                "type": {"name": link_type},
+                "outwardIssue": {"key": child_key},
+                "inwardIssue": {"key": parent_key},
+            },
+        )
+    except JiraError as error:
+        if _looks_like_existing_issue_link_error(error):
+            return {
+                "child_issue_key": child_key,
+                "parent_issue_key": parent_key,
+                "link_type": link_type,
+                "relationship": f"{child_key} implements {parent_key}",
+                "already_exists": True,
+            }
+        raise
+    return {
+        "child_issue_key": child_key,
+        "parent_issue_key": parent_key,
+        "link_type": link_type,
+        "relationship": f"{child_key} implements {parent_key}",
+        "already_exists": False,
+    }
+
+
+@mcp.tool()
+def apply_pco_onboarding_task_plan(plan: dict[str, Any], approval_marker: str) -> dict[str, Any]:
+    """Apply an approved onboarding task creator plan by creating/linking PCO issues."""
+
+    marker = (approval_marker or "").strip().lower()
+    scope = {
+        "organisation": (plan or {}).get("organisation"),
+        "subsystem": "jira_pco_onboarding_task_creator",
+    }
+    if marker not in {
+        "create",
+        "approve create",
+        "create this",
+        "approved",
+        "approve plan",
+        "apply",
+        "approve create/link onboarding tasks",
+        "create/link onboarding tasks",
+    }:
+        return _blocked("Explicit same-thread create/link approval is required.", scope)
+    if not isinstance(plan, dict):
+        return _blocked("A plan from plan_pco_onboarding_tasks is required.", scope)
+    if plan.get("apply_blocked_until_choices_resolved"):
+        return _blocked("Resolve choose_candidate rows in the onboarding plan before applying it.", scope)
+
+    parent = plan.get("parent") if isinstance(plan.get("parent"), dict) else {}
+    children = plan.get("children") if isinstance(plan.get("children"), list) else []
+    if not parent or not children:
+        return _blocked("Plan must include parent and child rows.", scope)
+    if parent.get("action") in {"choose_candidate", "missing"}:
+        return _blocked("Parent onboarding row must be create or reuse before applying.", scope)
+    if any(isinstance(child, dict) and child.get("action") == "choose_candidate" for child in children):
+        return _blocked("Child onboarding rows must be create or reuse before applying.", scope)
+
+    created: list[dict[str, Any]] = []
+    reused: list[dict[str, Any]] = []
+    links: list[dict[str, Any]] = []
+    warnings: list[str] = []
+    try:
+        parent_key = ""
+        parent_url = ""
+        if parent.get("action") == "reuse" and isinstance(parent.get("existing_issue"), dict):
+            parent_key = str(parent["existing_issue"].get("issue_key") or "").strip().upper()
+            parent_url = str(parent["existing_issue"].get("url") or _issue_url(parent_key))
+            reused.append({"role": "parent", "issue_key": parent_key, "url": parent_url})
+        elif parent.get("action") == "create" and isinstance(parent.get("draft"), dict):
+            parent_result = _create_pco_task_from_draft(parent["draft"], {**scope, "role": "parent"})
+            if parent_result.get("confidence") != "verified":
+                return parent_result
+            parent_answer = parent_result.get("answer") or {}
+            parent_key = str(parent_answer.get("issue_key") or "").strip().upper()
+            parent_url = str(parent_answer.get("url") or _issue_url(parent_key))
+            created.append({"role": "parent", "issue_key": parent_key, "url": parent_url})
+            warnings.extend(parent_answer.get("warnings") or [])
+        else:
+            return _blocked("Parent onboarding row must include an existing issue or create draft.", scope)
+        if not parent_key:
+            return _blocked("Parent onboarding issue key could not be resolved.", scope)
+
+        for child in children:
+            if not isinstance(child, dict):
+                continue
+            child_key = ""
+            child_url = ""
+            if child.get("action") == "reuse" and isinstance(child.get("existing_issue"), dict):
+                child_key = str(child["existing_issue"].get("issue_key") or "").strip().upper()
+                child_url = str(child["existing_issue"].get("url") or _issue_url(child_key))
+                reused.append({"role": "child", "issue_key": child_key, "url": child_url, "summary": child.get("desired_summary", "")})
+            elif child.get("action") == "create" and isinstance(child.get("draft"), dict):
+                child_result = _create_pco_task_from_draft(child["draft"], {**scope, "role": "child"})
+                if child_result.get("confidence") != "verified":
+                    return child_result
+                child_answer = child_result.get("answer") or {}
+                child_key = str(child_answer.get("issue_key") or "").strip().upper()
+                child_url = str(child_answer.get("url") or _issue_url(child_key))
+                created.append({"role": "child", "issue_key": child_key, "url": child_url, "summary": child.get("desired_summary", "")})
+                warnings.extend(child_answer.get("warnings") or [])
+            else:
+                return _blocked("Each child onboarding row must include an existing issue or create draft.", scope)
+            if child_key and child.get("link_to_parent", True):
+                links.append(_link_pco_child_implements_parent(child_key, parent_key))
+    except JiraError as error:
+        return _blocked(str(error), scope)
+
+    answer = {
+        "parent_issue_key": parent_key,
+        "parent_url": parent_url,
+        "created": created,
+        "reused": reused,
+        "links": links,
+        "warnings": warnings,
+        "link_direction": "child implements parent; parent is implemented by child",
+        "slack_reply": (
+            f"Applied onboarding task plan for {plan.get('organisation')}: "
+            f"parent <{parent_url}|{parent_key}> with {len(links)} child Implements link(s)."
+        ),
+    }
+    return _verified(
+        answer,
+        {**scope, "parent_issue_key": parent_key, "link_count": len(links)},
+        "Created or linked only rows included in the approved onboarding plan.",
     )
 
 

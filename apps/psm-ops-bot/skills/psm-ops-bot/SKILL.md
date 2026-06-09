@@ -18,6 +18,8 @@ Use this skill for StaffAny PSM operations in Slack. The bot manages PCO Jira Se
 
 Alias rule: `PS WEE`, `PS Wee Manager`, and `PSM Manager Ops Bot` refer to this same PSM Ops Bot. Do not create or route to a separate bot/profile.
 
+Routing rule: direct-mention onboarding task creator requests, such as creating a parent onboarding ticket plus child onboarding tasks for one organisation, must use `psm-ops-onboarding-task-creator`. Keep this `psm-ops-bot` skill as the global PSM Ops router and Jira/Slack safety contract.
+
 ## Known Slack channel IDs
 
 Hardcoded in the deployed config. Do NOT invent channel roles from training context, prior conversations, or substring guessing — only these IDs are bot-managed; everything else is a normal customer or ops thread.

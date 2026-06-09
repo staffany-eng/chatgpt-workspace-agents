@@ -907,6 +907,229 @@ class PsmJiraServerTest(unittest.TestCase):
         self.assertEqual(result["confidence"], "blocked")
         self.assertIn("must differ", result["caveat"])
 
+    def test_plan_pco_onboarding_tasks_is_read_only_and_discovers_parent_and_children(self):
+        calls = []
+
+        def issue(key, summary):
+            return {
+                "key": key,
+                "fields": {
+                    "summary": summary,
+                    "status": {"name": "Open"},
+                    "issuetype": {"name": "Onboarding"},
+                    "updated": "2026-05-13T01:00:00.000+0000",
+                    "customfield_10876": {"value": "Ada PSM"},
+                },
+            }
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            decoded = urllib.parse.unquote(path)
+            if method == "GET" and "/rest/api/3/search/jql" in path:
+                if "payroll" in decoded.lower() and "setup" in decoded.lower():
+                    return {"issues": [issue("PCO-101", "Bata - Payroll setup")]}
+                if "manager" in decoded.lower() or "training" in decoded.lower():
+                    return {"issues": []}
+                if "onboarding" in decoded.lower():
+                    return {"issues": [issue("PCO-100", "Bata Onboarding")]}
+                return {"issues": []}
+            return {}
+
+        self.module._request_json = fake_request
+        self.module._caller = lambda *args, **kwargs: {
+            "slack_email": "psm@staffany.com",
+            "display_name": "Ada PSM",
+            "jira_account_id": "acct-123",
+            "ps_team": "Ada PSM",
+        }
+
+        result = self.module.plan_pco_onboarding_tasks(
+            slack_user_email="psm@staffany.com",
+            organisation="Bata",
+            task_summaries=["Payroll setup", "Manager training"],
+            slack_thread_url="https://staffany.slack.com/archives/C1/p1234567890",
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["answer"]["parent"]["action"], "reuse")
+        self.assertEqual(result["answer"]["children"][0]["action"], "reuse")
+        self.assertEqual(result["answer"]["children"][1]["action"], "create")
+        self.assertEqual(result["answer"]["writes_planned"]["create_children"], 1)
+        self.assertNotIn("POST", [call[0] for call in calls])
+        self.assertIn("apply_pco_onboarding_task_plan", result["answer"]["write_tools_forbidden_until_approval"])
+
+    def test_plan_pco_onboarding_tasks_blocks_apply_when_candidates_are_ambiguous(self):
+        def issue(key, summary):
+            return {
+                "key": key,
+                "fields": {
+                    "summary": summary,
+                    "status": {"name": "Open"},
+                    "issuetype": {"name": "Onboarding"},
+                    "updated": "2026-05-13T01:00:00.000+0000",
+                    "customfield_10876": {"value": "Ada PSM"},
+                },
+            }
+
+        def fake_request(method, path, body=None):
+            decoded = urllib.parse.unquote(path)
+            if method == "GET" and "/rest/api/3/search/jql" in path and "onboarding" in decoded.lower():
+                return {"issues": [issue("PCO-100", "Bata Onboarding 2026"), issue("PCO-101", "Bata Onboarding V2")]}
+            if method == "GET" and "/rest/api/3/search/jql" in path:
+                return {"issues": []}
+            return {}
+
+        self.module._request_json = fake_request
+        self.module._caller = lambda *args, **kwargs: {
+            "slack_email": "psm@staffany.com",
+            "display_name": "Ada PSM",
+            "jira_account_id": "acct-123",
+            "ps_team": "Ada PSM",
+        }
+
+        result = self.module.plan_pco_onboarding_tasks(
+            slack_user_email="psm@staffany.com",
+            organisation="Bata",
+            task_summaries=["Payroll setup"],
+        )
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertEqual(result["answer"]["parent"]["action"], "choose_candidate")
+        self.assertTrue(result["answer"]["apply_blocked_until_choices_resolved"])
+
+        apply_result = self.module.apply_pco_onboarding_task_plan(result["answer"], "approved")
+        self.assertEqual(apply_result["confidence"], "blocked")
+        self.assertIn("Resolve choose_candidate", apply_result["caveat"])
+
+    def test_apply_pco_onboarding_task_plan_requires_approval(self):
+        result = self.module.apply_pco_onboarding_task_plan({"organisation": "Bata"}, "")
+
+        self.assertEqual(result["confidence"], "blocked")
+        self.assertIn("approval", result["caveat"].lower())
+
+    def test_apply_pco_onboarding_task_plan_creates_missing_rows_and_links_child_implements_parent(self):
+        calls = []
+        created_keys = iter(["PCO-200", "PCO-201", "PCO-202"])
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if method == "POST" and path == "/rest/servicedeskapi/request":
+                key = next(created_keys)
+                return {"issueKey": key, "requestTypeId": "102"}
+            if method == "POST" and path.endswith("/comment"):
+                return {"id": "comment-1"}
+            if method == "POST" and path.endswith("/remotelink"):
+                return {"id": "remote-1"}
+            if method == "GET" and path.endswith("?fields=issuelinks"):
+                return {"fields": {"issuelinks": []}}
+            if method == "POST" and path == "/rest/api/3/issueLink":
+                return {}
+            return {}
+
+        self.module._request_json = fake_request
+        self.module._resolve_assets_object_id = lambda name: None
+        self.module._ps_team_valid_values = lambda request_type_id="": [{"value": "team-ada", "label": "Ada PSM"}]
+        caller = {
+            "slack_email": "psm@staffany.com",
+            "display_name": "Ada PSM",
+            "jira_account_id": "acct-123",
+            "ps_team": "Ada PSM",
+        }
+        plan = {
+            "organisation": "Bata",
+            "apply_blocked_until_choices_resolved": False,
+            "parent": {
+                "action": "create",
+                "draft": self.module._onboarding_plan_draft(
+                    caller=caller,
+                    organisation="Bata",
+                    summary="Bata Onboarding",
+                    slack_thread_url="https://staffany.slack.com/archives/C1/p1234567890",
+                    staffany_orgs=["Bata"],
+                    ps_team="Ada PSM",
+                ),
+            },
+            "children": [
+                {
+                    "action": "create",
+                    "desired_summary": "Bata - Payroll setup",
+                    "draft": self.module._onboarding_plan_draft(
+                        caller=caller,
+                        organisation="Bata",
+                        summary="Bata - Payroll setup",
+                        slack_thread_url="https://staffany.slack.com/archives/C1/p1234567890",
+                        staffany_orgs=["Bata"],
+                        ps_team="Ada PSM",
+                    ),
+                    "link_to_parent": True,
+                },
+                {
+                    "action": "create",
+                    "desired_summary": "Bata - Manager training",
+                    "draft": self.module._onboarding_plan_draft(
+                        caller=caller,
+                        organisation="Bata",
+                        summary="Bata - Manager training",
+                        slack_thread_url="https://staffany.slack.com/archives/C1/p1234567890",
+                        staffany_orgs=["Bata"],
+                        ps_team="Ada PSM",
+                    ),
+                    "link_to_parent": True,
+                },
+            ],
+        }
+
+        result = self.module.apply_pco_onboarding_task_plan(plan, "approve create/link onboarding tasks")
+
+        self.assertEqual(result["confidence"], "verified")
+        issue_link_calls = [call for call in calls if call[0] == "POST" and call[1] == "/rest/api/3/issueLink"]
+        self.assertEqual(len(issue_link_calls), 2)
+        self.assertEqual(issue_link_calls[0][2]["type"], {"name": "Implements"})
+        self.assertEqual(issue_link_calls[0][2]["outwardIssue"], {"key": "PCO-201"})
+        self.assertEqual(issue_link_calls[0][2]["inwardIssue"], {"key": "PCO-200"})
+        self.assertEqual(result["answer"]["links"][0]["relationship"], "PCO-201 implements PCO-200")
+
+    def test_apply_pco_onboarding_task_plan_reuses_existing_link_idempotently(self):
+        calls = []
+
+        def fake_request(method, path, body=None):
+            calls.append((method, path, deepcopy(body)))
+            if method == "GET" and path == "/rest/api/3/issue/PCO-201?fields=issuelinks":
+                return {
+                    "fields": {
+                        "issuelinks": [
+                            {
+                                "type": {"name": "Implements"},
+                                "inwardIssue": {"key": "PCO-200"},
+                            }
+                        ]
+                    }
+                }
+            return {}
+
+        self.module._request_json = fake_request
+        plan = {
+            "organisation": "Bata",
+            "apply_blocked_until_choices_resolved": False,
+            "parent": {
+                "action": "reuse",
+                "existing_issue": {"issue_key": "PCO-200", "url": "https://staffany.atlassian.net/browse/PCO-200"},
+            },
+            "children": [
+                {
+                    "action": "reuse",
+                    "existing_issue": {"issue_key": "PCO-201", "url": "https://staffany.atlassian.net/browse/PCO-201"},
+                    "link_to_parent": True,
+                }
+            ],
+        }
+
+        result = self.module.apply_pco_onboarding_task_plan(plan, "approved")
+
+        self.assertEqual(result["confidence"], "verified")
+        self.assertTrue(result["answer"]["links"][0]["already_exists"])
+        self.assertFalse(any(call[0] == "POST" and call[1] == "/rest/api/3/issueLink" for call in calls))
+
     def test_merge_pco_tickets_links_copies_comments_and_cancels_source(self):
         calls = []
         self.module.post_ps_wee_audit = lambda event_type, **kwargs: {"ok": True}

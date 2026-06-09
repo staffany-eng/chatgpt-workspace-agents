@@ -22,10 +22,12 @@ fail() {
 }
 
 [ -r "$PROFILE_DIR/SOUL.md" ] || fail "profile:soul-missing"
-[ -d "$PROFILE_DIR/skills/psm-ops-bot" ] || fail "profile:skill-missing"
+[ -d "$PROFILE_DIR/skills/psm-ops-bot" ] || fail "profile:skill-missing:psm-ops-bot"
+[ -d "$PROFILE_DIR/skills/psm-ops-onboarding-task-creator" ] || fail "profile:skill-missing:psm-ops-onboarding-task-creator"
 
 cmp -s "$SOURCE_DIR/profile/SOUL.md" "$PROFILE_DIR/SOUL.md" || fail "profile:soul-drift"
-diff -qr "$SOURCE_DIR/skills/psm-ops-bot" "$PROFILE_DIR/skills/psm-ops-bot" >/dev/null || fail "profile:skill-drift"
+diff -qr "$SOURCE_DIR/skills/psm-ops-bot" "$PROFILE_DIR/skills/psm-ops-bot" >/dev/null || fail "profile:skill-drift:psm-ops-bot"
+diff -qr "$SOURCE_DIR/skills/psm-ops-onboarding-task-creator" "$PROFILE_DIR/skills/psm-ops-onboarding-task-creator" >/dev/null || fail "profile:skill-drift:psm-ops-onboarding-task-creator"
 diff -qr -x __pycache__ "$SOURCE_DIR/runtime/mcp" "$PROFILE_DIR/runtime/mcp" >/dev/null || fail "profile:mcp-drift"
 cmp -s "$SOURCE_DIR/runtime/check-health.sh" "$PROFILE_DIR/scripts/psmopsbot-check-health.sh" || fail "profile:health-script-drift"
 cmp -s "$SOURCE_DIR/runtime/check-cloud-heartbeat.sh" "$PROFILE_DIR/scripts/psmopsbot-check-cloud-heartbeat.sh" || fail "profile:cloud-heartbeat-script-drift"

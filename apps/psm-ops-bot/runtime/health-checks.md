@@ -17,7 +17,7 @@ PSM Ops Bot needs deterministic cloud health checks because prompt correctness d
 - Slack bot token can call `conversations.join` on the public join-smoke channel, proving the app has `channels:join` for public/open-channel membership repair.
 - If `PSM_OPS_CENTRAL_SLACK_CHANNEL_ID` is configured, the Slack bot token can inspect that channel and the bot is a member.
 - Reviewed customer-channel map path is configured when customer-specific Slack channel auto-tagging is enabled.
-- `psm_jira` MCP lists exactly the expected tools.
+- `psm_jira` MCP lists exactly the expected tools, including `plan_pco_onboarding_tasks` and approval-gated `apply_pco_onboarding_task_plan`.
 - `psm_c360` MCP lists exactly the expected tools.
 - `psm_google_calendar` MCP lists exactly `read_customer_calendar_context` when Google Calendar is enabled.
 - `psm_google_geocode` MCP lists exactly `check_google_geocode_access`, `geocode_slack_addresses`, and `geocode_slack_address_file`.

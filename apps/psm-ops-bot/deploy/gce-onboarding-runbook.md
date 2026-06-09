@@ -154,10 +154,15 @@ hermes -p psmopsbot config set terminal.cwd "$HOME/agent-builder/apps/psm-ops-bo
 
 Copy packet files:
 
+The skills loop copies both `psm-ops-bot` and `psm-ops-onboarding-task-creator` into the live profile.
+
 ```bash
 mkdir -p ~/.hermes/profiles/psmopsbot/skills ~/.hermes/profiles/psmopsbot/hooks ~/.hermes/profiles/psmopsbot/scripts ~/.hermes/profiles/psmopsbot/runtime/sql
 cp apps/psm-ops-bot/profile/SOUL.md ~/.hermes/profiles/psmopsbot/SOUL.md
-rsync -a --delete apps/psm-ops-bot/skills/psm-ops-bot/ ~/.hermes/profiles/psmopsbot/skills/psm-ops-bot/
+for skill_dir in apps/psm-ops-bot/skills/*; do
+  [ -d "$skill_dir" ] || continue
+  rsync -a --delete "$skill_dir/" ~/.hermes/profiles/psmopsbot/skills/"$(basename "$skill_dir")"/
+done
 rsync -a apps/psm-ops-bot/runtime/mcp/ ~/.hermes/profiles/psmopsbot/runtime/mcp/
 rsync -a --delete apps/psm-ops-bot/runtime/sql/ ~/.hermes/profiles/psmopsbot/runtime/sql/
 rsync -a apps/psm-ops-bot/runtime/hooks/psm-ops-adoption-telemetry/ ~/.hermes/profiles/psmopsbot/hooks/psm-ops-adoption-telemetry/

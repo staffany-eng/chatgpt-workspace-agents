@@ -21,6 +21,24 @@
 - Calls `create_approved_pco_task` only after approval.
 - Blocks creation if the resolved due date is before today's date.
 
+## PSM Ops Onboarding Task Creator
+
+```text
+@PS WEE onboarding tasks for Bata:
+- Payroll setup
+- Manager training
+- Go-live check
+```
+
+- Uses `psm-ops-onboarding-task-creator`.
+- First response calls only read-only `plan_pco_onboarding_tasks`.
+- Searches for the parent `Bata Onboarding`.
+- Searches each child task regardless of whether it is already linked.
+- Produces a proposed create/reuse/link plan and says no Jira issues or links were created.
+- Does not call `apply_pco_onboarding_task_plan`, `create_approved_pco_task`, `create_ps_wee_intake_ticket`, or `link_pco_to_pco_issue` before same-thread direct-mention approval.
+- After approved apply, calls `apply_pco_onboarding_task_plan` once.
+- Child links use `Implements`: child implements parent; parent is implemented by child.
+
 ## PS WEE Ticket First
 
 `@PSM Ops create ticket for Fei Siong payroll readiness, info not complete yet`

@@ -145,7 +145,7 @@ profiles:
       allowed_channel_ids: []
       report_prefix: "PSM Ops automation:"
     required_mcp:
-      psm_jira: 28
+      psm_jira: 30
       psm_c360: 3
       psm_google_geocode: 3
       psm_store_reviews: 6

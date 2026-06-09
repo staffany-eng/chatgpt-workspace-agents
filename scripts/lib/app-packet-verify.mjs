@@ -33,7 +33,7 @@ export function scanForSecretPatterns(appRoot, relPath, fail) {
   const patterns = [
     [/xox[baprs]-[A-Za-z0-9-]+/, "Slack token"],
     [/xapp-[A-Za-z0-9-]+/, "Slack app token"],
-    [/sk-[A-Za-z0-9_-]{20,}/, "OpenAI-style API key"],
+    [/sk-(?:proj-[A-Za-z0-9_-]{20,}|[A-Za-z0-9_]{32,})/, "OpenAI-style API key"],
     [/pat-[a-z0-9]+-[A-Za-z0-9-]{20,}/, "HubSpot private app token"],
     [/-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/, "private key"],
     [/AIza[0-9A-Za-z_-]{20,}/, "Google API key"]

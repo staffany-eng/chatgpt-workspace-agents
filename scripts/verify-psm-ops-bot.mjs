@@ -83,11 +83,13 @@ if (!existsSync(manifestPath)) {
       "resolve_customer_channel_org",
       "list_my_pco_tasks",
       "search_pco_tickets",
+      "plan_pco_onboarding_tasks",
       "find_duplicate_pco_candidates",
       "find_ticket_by_slack_thread",
       "find_roi_ticket_by_slack_thread",
       "create_roi_ticket_from_slack",
       "create_or_link_pco_roi_tracker",
+      "apply_pco_onboarding_task_plan",
       "create_ps_wee_intake_ticket",
       "attach_aa_selfie_to_thread",
       "verify_drive_oauth",
@@ -271,6 +273,7 @@ const filesToScan = [
   "profile/SOUL.md",
   "profile/config.template.yaml",
   "skills/psm-ops-bot/SKILL.md",
+  "skills/psm-ops-onboarding-task-creator/SKILL.md",
   "skills/psm-ops-bot/references/jira-field-contract.md",
   "skills/psm-ops-bot/references/customer-channel-candidates.md",
   "skills/psm-ops-bot/references/regression-cases.md",
@@ -347,7 +350,9 @@ if (!existsSync(deployScriptPath)) {
     "scripts/verify-psm-ops-bot.mjs",
     "apps/psm-ops-bot",
     "source/psm-ops-bot",
-    "skills/psm-ops-bot",
+    "$deploy_dir/apps/psm-ops-bot/skills",
+    "psm-ops-onboarding-task-creator",
+    'for skill_dir in "$deploy_dir/apps/psm-ops-bot/skills"/*',
     "psmopsbot-check-health.sh",
     "psmopsbot-check-cloud-heartbeat.sh",
     "psmopsbot-audit-live-profile.sh",
@@ -405,6 +410,8 @@ for (const requiredText of [
   "psm_ops_join_public_channels.py --apply",
   "psm_ops_store_review_poll.py",
   "PSM Ops automation: Store review triage",
+  "plan_pco_onboarding_tasks",
+  "apply_pco_onboarding_task_plan",
   "daily 09:00 Asia/Singapore",
   "support@staffany.com",
   "Do not use Kai Yi's user token or the Slack connector to invite or post as a workaround"
@@ -444,6 +451,8 @@ for (const requiredText of [
     "classify_roi_ticket_request",
   "find_engineering_issue",
   "search_pco_tickets",
+  "plan_pco_onboarding_tasks",
+  "apply_pco_onboarding_task_plan",
   "find_duplicate_pco_candidates",
   "validate_roi_jira_configuration",
   "create_roi_ticket_from_slack",
@@ -583,6 +592,7 @@ for (const requiredText of [
   "customer-channel-candidates.md",
   "customer reached out",
   "task list",
+  "psm-ops-onboarding-task-creator",
   "Slack thread permalink is the V1 idempotency key",
   "Slack poster",
   "Task creation must be preview first",
@@ -622,6 +632,21 @@ for (const requiredText of [
   if (!skillText.includes(requiredText)) fail(`Skill missing strict opt-in text: ${requiredText}`);
 }
 
+const onboardingSkillText = textOf(appRoot, "skills/psm-ops-onboarding-task-creator/SKILL.md");
+for (const requiredText of [
+  "plan_pco_onboarding_tasks",
+  "apply_pco_onboarding_task_plan",
+  "First Response Is Read-Only",
+  "Do not call `apply_pco_onboarding_task_plan`",
+  "same-thread direct-mention approval",
+  "Child `implements` parent",
+  "link_pco_to_pco_issue",
+  "always creates `Relates`",
+  "no Jira issues or links were created"
+]) {
+  if (!onboardingSkillText.includes(requiredText)) fail(`Onboarding task creator skill missing required text: ${requiredText}`);
+}
+
 const jiraMcpText = textOf(appRoot, "runtime/mcp/psm_jira_server.py");
 for (const requiredText of [
   "@mcp.tool()",
@@ -633,6 +658,10 @@ for (const requiredText of [
   "PSM_OPS_CUSTOMER_CHANNEL_MAP_PATH",
   "list_my_pco_tasks",
   "search_pco_tickets",
+  "plan_pco_onboarding_tasks",
+  "apply_pco_onboarding_task_plan",
+  "_link_pco_child_implements_parent",
+  "child implements parent",
   "find_ticket_by_slack_thread",
   "find_roi_ticket_by_slack_thread",
   "create_roi_ticket_from_slack",
@@ -743,7 +772,7 @@ if (!psmOpsProfileBlock) {
     "open_channel_mode: true",
     "require_mention: true",
     "strict_mention: true",
-    "psm_jira: 28",
+    "psm_jira: 30",
     "psm_c360: 3",
     "psm_google_geocode: 3",
     "psm_store_reviews: 6",
@@ -944,6 +973,8 @@ for (const requiredText of [
   "public/open channels",
   "channels:join",
   "psm_ops_join_public_channels.py --apply",
+  'for skill_dir in apps/psm-ops-bot/skills/*',
+  "psm-ops-onboarding-task-creator",
   "pnpm psm-ops-bot:deploy",
   "psm-ops-origin-main-<sha>.tar.gz",
   "preserves runtime secrets/state",
@@ -998,6 +1029,8 @@ const auditText = textOf(appRoot, "runtime/audit-live-profile.sh");
 for (const requiredText of [
   "profile:health-script-drift",
   "profile:mcp-drift",
+  "profile:skill-drift:psm-ops-bot",
+  "profile:skill-drift:psm-ops-onboarding-task-creator",
   "profile:public-channel-join-script-drift",
   "profile:assignment-hygiene-script-drift",
   "profile:churn-reporting-chase-script-drift",

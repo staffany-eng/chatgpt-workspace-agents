@@ -184,6 +184,16 @@ PS WEE can merge duplicate PCO tickets on demand. Merging is on-demand and human
 - Approval gate: never call `merge_pco_tickets` from a suggestion alone. Proceed only on an explicit `merge PCO-X into PCO-Y` command or a same-thread confirmation of a prior suggestion. The explicit command itself is approval.
 - Execution: `merge_pco_tickets` records the source as a duplicate of the target via a `Duplicate` issue link (Relates fallback when the site lacks the type), copies the source's validated Slack permalink web links onto the target, adds an internal merge comment to the target, and transitions the source to `Cancelled`. It never deletes the source and is idempotent — re-running detects the existing link and a cancelled source.
 
+## Onboarding Task Creator Pattern
+
+The standalone `psm-ops-onboarding-task-creator` skill creates or links one parent onboarding PCO issue plus child onboarding tasks.
+
+- Planning: `plan_pco_onboarding_tasks` is read-only. It searches for the parent, for each child task regardless of whether it is already linked, and returns a proposed create/reuse/link plan.
+- Approval gate: the bot must not create or link anything from the first request. Same-thread direct-mention approval is required before writes.
+- Execution: `apply_pco_onboarding_task_plan` is the only public write entrypoint. It creates only parent/child rows included in the approved plan and links child rows to the parent.
+- Link direction: child `implements` parent; parent is `implemented by` child.
+- Existing AA PCO-to-PCO linking remains unchanged: `link_pco_to_pco_issue` always creates `Relates`.
+
 ## Tool Rules
 
 - `validate_jira_configuration`: run in health checks and before broad enablement.
@@ -193,6 +203,8 @@ PS WEE can merge duplicate PCO tickets on demand. Merging is on-demand and human
 - `classify_roi_ticket_request`: safe read; route actionable ROI/RevOps/BD Ops/NYSS requests to ROI when create/add/log/handle/task wording is present, and treat PS Team billing/invoice operational asks as ROI + PCO tracker candidates by default.
 - `list_my_pco_tasks`: safe read, caller-scoped by Jira `PS Team`.
 - `search_pco_tickets`: safe read; use before saying a current Slack thread is not tracked in PCO or not ticketed yet, or before creating a likely duplicate when same-thread lookup misses. It returns only safe issue fields and uses deterministic scoring: exact key/source matches auto-match, one strong active keyword match auto-matches, ambiguous candidates return `needs-check`, and no match returns a bounded not-found result suitable for a create-ready offer.
+- `plan_pco_onboarding_tasks`: safe read; plans parent onboarding ticket reuse/create, child task reuse/create, and child-to-parent Implements links without writing to Jira.
+- `apply_pco_onboarding_task_plan`: mutation; the only public write entrypoint for approved onboarding parent/child task creator plans. Requires explicit same-thread approval and creates or links only rows included in the plan.
 - `find_duplicate_pco_candidates`: safe read; given a seed PCO issue key, query, customer, or Slack thread, it runs the bounded board search, excludes the seed, flags mergeable candidates by score (>=75 strong, >=60 likely-confirm, below weak), and returns a `suggested_merge` plus a `merge PCO-X into PCO-Y` command. It does not mutate anything; the bot must surface the suggestion and get approval before merging.
 - `merge_pco_tickets`: mutation; merges a confirmed duplicate `PCO-X` into `PCO-Y`. It records the source as a duplicate of the target via a Jira `Duplicate` issue link (falling back to `Relates` on sites without the type), copies the source's validated Slack permalink web links onto the target, adds an internal merge comment to the target, and transitions the source to `Cancelled`. It never deletes the source and is idempotent on re-run. Requires explicit approval: a `merge PCO-X into PCO-Y` command or same-thread confirmation after a `find_duplicate_pco_candidates` suggestion.
 - `find_ticket_by_slack_thread`: safe read; use the Slack thread permalink as the PS WEE idempotency key.

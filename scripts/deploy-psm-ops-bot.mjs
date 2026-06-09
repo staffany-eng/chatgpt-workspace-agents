@@ -302,6 +302,7 @@ tar -xzf "$archive" -C "$deploy_dir"
 test -f "$deploy_dir/package.json" || { echo "deploy:error:package-json-missing"; exit 1; }
 test -f "$deploy_dir/scripts/verify-psm-ops-bot.mjs" || { echo "deploy:error:verify-script-missing"; exit 1; }
 test -d "$deploy_dir/apps/psm-ops-bot" || { echo "deploy:error:app-packet-missing"; exit 1; }
+test -f "$deploy_dir/apps/psm-ops-bot/skills/psm-ops-onboarding-task-creator/SKILL.md" || { echo "deploy:error:psm-ops-onboarding-task-creator-missing"; exit 1; }
 test -f "$deploy_dir/apps/psm-ops-bot/runtime/mcp/psm_google_geocode_server.py" || { echo "deploy:error:psm_google_geocode-missing"; exit 1; }
 test -f "$deploy_dir/apps/psm-ops-bot/runtime/mcp/psm_store_reviews_server.py" || { echo "deploy:error:psm_store_reviews-missing"; exit 1; }
 test -f "$deploy_dir/apps/psm-ops-bot/runtime/scripts/psm_ops_store_review_poll.py" || { echo "deploy:error:store-review-poll-script-missing"; exit 1; }
@@ -356,7 +357,11 @@ PY
 sudo chown "$runtime_owner:$runtime_owner" "$profile/config.yaml"
 sudo chmod 0644 "$profile/config.yaml"
 copy_file "$deploy_dir/apps/psm-ops-bot/profile/SOUL.md" "$profile/SOUL.md" 0644
-copy_dir "$deploy_dir/apps/psm-ops-bot/skills/psm-ops-bot" "$profile/skills/psm-ops-bot"
+for skill_dir in "$deploy_dir/apps/psm-ops-bot/skills"/*; do
+  [ -d "$skill_dir" ] || continue
+  skill_name=$(basename "$skill_dir")
+  copy_dir "$skill_dir" "$profile/skills/$skill_name"
+done
 copy_dir "$deploy_dir/apps/psm-ops-bot/runtime/mcp" "$profile/runtime/mcp"
 copy_dir "$deploy_dir/apps/psm-ops-bot/runtime/sql" "$profile/runtime/sql"
 copy_dir "$deploy_dir/apps/psm-ops-bot/runtime/hooks/psm-ops-adoption-telemetry" "$profile/hooks/psm-ops-adoption-telemetry"
