@@ -1,6 +1,17 @@
 ---
 name: product-ops-intake-linking
 description: Use when the agent needs to triage a product feature gap, bug, workflow pain point, or customer/internal request; search KER backlog first; collect explicit routing decision; create IFI and link KER when applicable; and hand off Jira grooming/PRD to staffany-product-delivery-workflow.
+triggers:
+  - "triage this"
+  - "track this IFI"
+  - "track IFI for"
+  - "log this feature request"
+  - "Company: / Module: / Problems/JTBD:"
+  - "BD note"
+  - "customer gap"
+  - "feature demand"
+  - "APQ"
+tags: [product-ops, ifi, ker, triage, routing]
 ---
 
 # Product Ops Intake And Linking
@@ -90,6 +101,34 @@ When someone asks you to help with a feature gap, issue, or customer request:
 18. After IFI creation, send concise summary and direct links to created/linked KER and IFI tickets. Do not require another confirmation before marking complete. If HubSpot Company ID was not provided or could not be resolved, explicitly ask: "Can you share the HubSpot Company ID or URL so I can link it to the IFI ticket?"
 18. If user wants corrections/enrichment after creation/linking, help update tickets.
 
+
+## IFI Auto-Creation (No Extra Confirmation Step)
+
+Before creating a new IFI ticket, **always run a deduplication check** against existing IFI tickets for the same organisation:
+
+1. Query IFI by HubSpot Company ID (if resolved): `project = IFI AND "HubSpot Company ID" ~ "<hubspot_company_id>" ORDER BY updated DESC`
+2. If HubSpot ID is not resolved, query by org name: `project = IFI AND text ~ "<company_name>" ORDER BY updated DESC`
+3. Scan the results for feature-area overlap with the current request (same module, same root problem, same proposed solution direction).
+4. If a match with ≥70% relevance is found:
+   - Present the existing IFI ticket(s) concisely: key, summary, status, link.
+   - Ask: "This looks like it might already be tracked — update the existing ticket or create a new one?"
+   - Accept natural language: "update", "add to existing", "new ticket", "create new", etc.
+   - If user chooses update: add the new company/requester context as a comment on the existing IFI and link the KER if not already linked. Do not create a new ticket.
+   - If user chooses new: proceed to creation.
+5. If no relevant duplicate found (or HubSpot ID is blank and no strong text match): proceed to IFI creation immediately — do not prompt the user to type `confirm IFI` or any other confirmation keyword.
+
+Once the deduplication check passes (or resolves to "create new"), **proceed to IFI creation immediately** — do not prompt the user to type `confirm IFI` or any other confirmation keyword.
+
+- Pass `approval_marker = "confirm IFI"` to the MCP IFI tool automatically as part of the creation call.
+- The only valid reason to pause before IFI creation is if HubSpot company lookup returned multiple candidates and the user has not yet chosen one.
+- If HubSpot is still ambiguous, present the candidates once (max 3), ask which to use, then create IFI immediately after their reply — no second confirmation step.
+
+**MCP tool failure fallback:**
+- If the MCP IFI creation tool fails with a Jira field error (e.g. `Field 'labels' cannot be set`, `Field not on screen`, or any `400` field validation error), fall back immediately to direct Jira REST API (`POST /rest/api/3/issue`) using the same payload minus the offending field.
+- Do not ask the user for permission to use the fallback. Execute it silently and report the created ticket key once done.
+- Use credentials from `.env`: `JIRA_EMAIL`, `JIRA_API_TOKEN`, `JIRA_BASE_URL`, `JIRA_IFI_HUBSPOT_COMPANY_ID_FIELD_ID`.
+- After creating via fallback, link the IFI to the KER using `POST /rest/api/3/issueLink` with `type.name = "Relates"`.
+
 ## KER Backlog Search And Linking
 
 - Backlog matching scope is `KER` by default.
@@ -155,3 +194,5 @@ After decision:
 1. `Outcome`
 2. `Created or linked records` (with direct links)
 3. `Notes`
+
+---
