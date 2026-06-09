@@ -62,7 +62,11 @@ Read `references/launch-priority-materials.md` before classifying launch materia
    - Only accept final approval from the Jira Product Lead or configured override reviewers.
    - Exact approval marker: `@Launch Bot approve release notes <KER-key>`.
 8. Approved Slack distribution:
-   - After Product Lead approval, send the final release notes to `#all-product-new-updates`.
+   - **Do not send release notes until the help article is published.** After Product Lead approval of the release notes, pause before distribution and confirm that the associated help article is live/published in Intercom.
+   - Post a prompt to the Product Lead: confirm the help article is published before proceeding with release note distribution to `#all-product-new-updates`.
+   - Only after the Product Lead explicitly confirms the help article is published, send the final release notes to `#all-product-new-updates`.
+   - If the help article is not yet published, mark release notes status as `approved_pending_article_publish` and do not post.
+   - After confirmed publication, proceed with distribution:
    - Include only the approved 1-2 screenshot refs/files from the review thread.
    - Default channel ID: `C03QQ2ERMT7`.
    - Config env vars: `LAUNCHBOT_RELEASE_NOTES_OUTPUT_CHANNEL_ID` and `LAUNCHBOT_RELEASE_NOTES_OUTPUT_CHANNEL_NAME`.
@@ -74,6 +78,7 @@ Read `references/launch-priority-materials.md` before classifying launch materia
    - `needs_revision`
    - `ready_for_review`
    - `approved`
+   - `approved_pending_article_publish`
    - `posted_to_product_updates`
    - `blocked`
 

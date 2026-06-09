@@ -129,6 +129,7 @@ bash apps/launchbot/skills/help-article-generator/scripts/feature_context.sh \
 - Use the article planning profile at `references/article-planning-profile.json` as the repeatable source for article families, audience/platform split rules, workflow tags, and create-vs-update recommendations.
 - Use the all-article inventory at `references/intercom-article-inventory.json` as the Help Center map. It must stay metadata plus derived content signals only; do not commit raw article bodies.
 - Use the hybrid Intercom format profile as the format source of truth: live Intercom pull first, then the normalized profile at `references/intercom-format-profile.json` for repeatable checks.
+- For locale draft API details, token extraction, and known article IDs, see `references/intercom-locale-draft-api.md`.
 - For local live Intercom tests, use `node scripts/launchbot-with-secrets.mjs --only intercom -- <command>` instead of copying tokens into a worktree. It reads `launchbot-step3-intercom-access-token` from GCP Secret Manager and maps it to `LAUNCH_STEP3_INTERCOM_ACCESS_TOKEN` / `INTERCOM_ACCESS_TOKEN` only for the child process.
 - Use Pantheon evidence as the product-behavior source of truth before drafting or staging.
 - Before sending content to Google Docs or Intercom, run `npm run help-article:evidence-check -- --draft <draft.md> --evidence <pantheon-evidence.json> --title "<article title>"`.
@@ -145,6 +146,40 @@ bash apps/launchbot/skills/help-article-generator/scripts/feature_context.sh \
 - For an existing article update, use `npm run intercom:stage-update -- --article-id <article_id> --draft <draft.md> --evidence <pantheon-evidence.json> --title "<article title>"` to create the local staged-update record.
 - `intercom:stage-update` must use the cached article planning profile plus a live target-article pull to run the pre-stage stale check. If the cached target article fingerprint or `updated_at` disagrees with live Intercom, mark the staged update `needs-check` / `needs-refresh`.
 - Public publishing stays manual in Intercom; Launchbot writes only draft/staging output after approval.
+
+## Intercom Locale Draft API — Creating an `id` Article
+
+When creating an Indonesian (`id`) locale version of an existing English article, **PUT to the existing EN article ID** with `locale=id`. Both the English and Indonesian versions share the **same article ID**. Do NOT POST a new article — that creates a separate unlinked record.
+
+```python
+payload = {
+    "title": "<Indonesian title>",
+    "description": "<Indonesian subtitle>",
+    "body": id_body_html,
+    "author_id": 3374597,          # Launchbot author — required, API rejects without it
+    "state": "draft",
+    "locale": "id"
+}
+# PUT to https://api.intercom.io/articles/<EN_ARTICLE_ID>?locale=id
+# e.g. PUT https://api.intercom.io/articles/15419519?locale=id
+```
+
+- The EN article ID is shared between locales. Record the same article ID for both `en` and `id`.
+- Fetch the EN article first to confirm article ID and current state: `GET /articles/<en_article_id>`
+- Translate all user-facing prose; preserve all HTML structure, element IDs (`id="h_..."`), image URLs, anchor `href` values, and product/UI labels verbatim.
+
+**Pitfall:** Do NOT POST a new article for the `id` locale — this creates a separate unlinked Intercom article with a different ID, which is wrong. Always PUT to the EN article ID with `?locale=id`.
+
+### Token extraction on VM (pitfall)
+
+Do **not** use `source ~/.hermes/profiles/launchbot/.env` in a subshell — the path may fail due to sandbox `$HOME` remapping. Instead extract the token explicitly:
+
+```bash
+TOKEN=$(grep '^INTERCOM_ACCESS_TOKEN=' /home/leekaiyi/.hermes/profiles/launchbot/.env \
+  | sed 's/^INTERCOM_ACCESS_TOKEN=//' | tr -d '"' | tr -d "'")
+```
+
+Then call Intercom with `--data @/tmp/payload.json` (write JSON to a temp file first; do not use heredoc in curl).
 
 ## Article Planning Rules
 
@@ -212,11 +247,18 @@ Follow this exact high-level order:
 - Keep screenshot placeholders as HTML comments or clear reviewer-only placeholders outside the public article body unless an approved screenshot URL is available.
 - HTML output must preserve the same article structure, wording, numbering, FAQ, and audience metadata as the validated source.
 
+### Section divider rules
+
+- Add a visual divider (`<hr>` or Intercom divider block) **after each major section** in the published Intercom article. This means after every `<h2>` section body, before the next `<h2>` or the FAQ, insert a divider.
+- In HTML output, represent dividers as `<hr>` tags between sections.
+- Do not place a divider before the first section or after the FAQ.
+
 ### Audience block rules
 
 - Keep this section center-aligned in `.docx`, Google Docs, and Intercom.
-- The label `Contents of this article are applicable to the following users` must be bold and centered.
-- The metadata lines below it must be centered, not bold by default.
+- The label `Contents of this article are applicable to the following users up to access level` must be **bold and center-aligned**. Use `<p style="text-align: center;"><strong>Contents of this article are applicable to the following users up to access level</strong></p>` in HTML output.
+- The metadata lines below it (Product, Platform, Access Level) must also be centered.
+- In Intercom, set the paragraph alignment to center for this entire block.
 - Include:
   - Product, using one or more of: `EngageAny`, `StaffAny`, `HRAny`, `HireAny`, `PayrollAny`
   - Platform
