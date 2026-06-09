@@ -66,6 +66,7 @@ Use this skill to produce help articles in a repeatable format that is ready for
 2. Before drafting product behavior, verify the Pantheon checkout is fresh and clean:
    - `~/.hermes/profiles/launchbot/scripts/launchbot-update-pantheon-repo.sh`
    - `npm run help-article:pantheon-scan -- --topic "<topic>" [--app <app,app>] [--paths <paths>]`
+   - **Pitfall (VM):** `help-article:pantheon-scan` resolves Pantheon to the Mac-local path `/Users/leekaiyi/workspace/pantheon` on the VM and returns `missing_pantheon_repo` errors. Run `launchbot-update-pantheon-repo.sh` first, then grep directly from `/home/leekaiyi/.hermes/profiles/launchbot/source/pantheon/` as the primary evidence method on the VM.
    - `git -C ~/.hermes/profiles/launchbot/source/pantheon status --short`
    - `git -C ~/.hermes/profiles/launchbot/source/pantheon rev-parse --abbrev-ref HEAD`
    - `git -C ~/.hermes/profiles/launchbot/source/pantheon rev-parse HEAD`
@@ -134,7 +135,7 @@ bash apps/launchbot/skills/help-article-generator/scripts/feature_context.sh \
 - Use Pantheon evidence as the product-behavior source of truth before drafting or staging.
 - Before sending content to Google Docs or Intercom, run `npm run help-article:evidence-check -- --draft <draft.md> --evidence <pantheon-evidence.json> --title "<article title>"`.
 - Before sending content to Google Docs or Intercom, run `npm run help-article:format-check -- --draft <draft.md> --title "<article title>"`.
-- When showing a draft or update patch in Slack or chat, convert the publishable body to Intercom-ready HTML first and display that HTML. Do not show `.md` source unless a teammate explicitly asks for the Markdown source for debugging.
+- When showing a draft or update patch in Slack or chat, use the HTML preview delivery procedure: save to a temp HTML file, render via browser tool, post the screenshot. Do not paste raw HTML or `.md` source in the thread unless a teammate explicitly asks for source for debugging.
 - Review messages and approval threads should link any Google Doc or Intercom draft as usual, but the inline article preview must be HTML.
 - For bilingual article creation or text updates, run evidence and format checks separately for both `en` and `id` drafts. One locale passing does not approve the other locale.
 - After each English or Indonesian help article draft or update patch, run `help-article-validator` with the draft, locale, source evidence, target article, and screenshot status.
@@ -240,11 +241,17 @@ Follow this exact high-level order:
 
 ### HTML display rules
 
-- Show help article drafts and update patches in fenced `html` blocks or an HTML-labelled review artifact.
-- Use Intercom-ready semantic HTML for visible output: `<h1>`, `<h2>`, `<h3>`, `<p>`, `<strong>`, `<ol>`, `<ul>`, `<li>`, `<a>`, `<img>`, `<table>`, `<thead>`, `<tbody>`, `<tr>`, `<th>`, and `<td>` as needed.
+- **Do not paste the full HTML inline in the Slack thread.** Always save the article HTML to a file and deliver a rendered visual preview instead.
+- HTML preview delivery procedure:
+  1. Write the full article HTML to a temp file: `/tmp/help-article-preview-<slug>-<locale>.html`. Wrap the body in a minimal `<html><head><meta charset="utf-8"><style>body{font-family:sans-serif;max-width:800px;margin:2rem auto;padding:0 1rem}hr{border:none;border-top:1px solid #ddd;margin:2rem 0}img{max-width:100%}</style></head><body>...</body></html>` shell so it renders correctly.
+  2. Open the file with the browser tool (`browser_navigate` to `file:///tmp/help-article-preview-<slug>-<locale>.html`) and take a full-page screenshot.
+  3. Post the screenshot image(s) to Slack using `MEDIA:/path/to/screenshot.png`. For long articles, take 2–3 paginated screenshots covering the full content.
+  4. Include real screenshot assets (`<img src="...">`) in the HTML file when they are available, so they appear in the rendered preview.
+  5. Do not post the raw HTML source in the thread unless a teammate explicitly asks for the source for debugging.
+- Use Intercom-ready semantic HTML for the article body: `<h1>`, `<h2>`, `<h3>`, `<p>`, `<strong>`, `<ol>`, `<ul>`, `<li>`, `<a>`, `<img>`, `<table>`, `<thead>`, `<tbody>`, `<tr>`, `<th>`, and `<td>` as needed.
 - Do not show Markdown syntax such as `##`, `**bold**`, `1.`, `-`, or `[text](url)` in the visible article body.
-- Do not include `<script>`, event handlers, external CSS, private source paths, evidence notes, or implementation details in visible HTML.
-- Keep screenshot placeholders as HTML comments or clear reviewer-only placeholders outside the public article body unless an approved screenshot URL is available.
+- Do not include `<script>`, event handlers, external CSS, private source paths, evidence notes, or implementation details in the HTML file.
+- Keep screenshot placeholders as visible `[Screenshot: <description>]` text blocks in the HTML when real screenshots are unavailable. Replace placeholders with real `<img>` tags once screenshots are captured.
 - HTML output must preserve the same article structure, wording, numbering, FAQ, and audience metadata as the validated source.
 
 ### Section divider rules
@@ -321,7 +328,7 @@ Follow this exact high-level order:
 
 ## Output Requirements
 
-1. Show draft text in-chat first as Intercom-ready HTML, grouped by locale when bilingual output is in scope.
+1. Deliver the article draft as a rendered visual preview (browser screenshot of the HTML file), not as pasted HTML in the thread. Group locales as separate screenshots (`en` then `id`). Follow the HTML preview delivery procedure in the HTML display rules section above.
 2. Include "Evidence Used" notes and "Gaps/Assumptions" notes outside the public article body.
 3. Generate separate Google Docs copy artifacts or `.docx` output per locale when the user or Launchbot flow asks for review artifacts.
 4. Ensure generated review artifacts preserve:
@@ -407,7 +414,7 @@ Before finalizing:
 - Steps restart from `1` per subsection
 - FAQ has bold `Q:` questions and normal answers
 - Internal appendix is not in the publishable body
-- Visible article preview is HTML, not Markdown
+- Article preview is delivered as a browser-rendered screenshot (not pasted HTML or Markdown in the thread)
 - Tone is natural, concise, and user-centered
 - For existing article updates, full-article output was merged from the current article body rather than reconstructed from partial notes
 - For video-only updates, the patch touches exactly one registered Loom iframe and the Intercom payload uses `state: "draft"` only
