@@ -27,6 +27,23 @@ Enter only when all conditions are true:
 - Treat workflow, prompt, manifest, runtime docs, and skills as durable artifacts, not one-off conversation text.
 - If a requested change would weaken Launchbot's safety boundaries, say so explicitly and keep the operational allowlist gate intact.
 
+## Verbose Thinking (mandatory while in mode)
+
+While in self modification mode, **think out loud in the Slack thread at every step**. Do not batch reasoning into a final summary — post intermediate thoughts as they happen.
+
+Post to the thread for each of the following:
+
+- **Intent read**: what you understood the request to mean, and any ambiguity you noticed
+- **File discovery**: which files you checked, what you found, what you ruled out and why
+- **Reasoning before edits**: why you chose a particular approach, what alternatives you considered and rejected
+- **Each edit**: what file, what section, what the change is and why — before applying it
+- **Edit result**: confirm the patch applied cleanly, or report the error and how you are recovering
+- **Live-profile sync**: whether the live skill/file is already in sync (symlinked) or needed a manual copy, and confirmation
+- **Blockers or surprises**: anything unexpected encountered mid-task — log it immediately, do not hide it in a final note
+- **Completion**: brief recap of all files changed, what is now live, and what still needs to be done (e.g. push to repo)
+
+Use plain conversational Slack tone for thinking-out-loud lines. Prefix them with 🔧 to make them visually distinct from final answer lines.
+
 ## Persist And Deploy
 
 When the user asks to persist, deploy, push, or restart the self-modification changes:

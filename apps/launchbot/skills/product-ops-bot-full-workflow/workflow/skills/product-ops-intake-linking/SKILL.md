@@ -88,13 +88,17 @@ When someone asks you to help with a feature gap, issue, or customer request:
 13. If user replies `No Ticket`, do not link IFI tickets.
 14. If user replies `Stop`, stop the process; do not create or link tickets.
 15. Any option except `Stop` proceeds to create IFI ticket immediately using best grounded context.
-16. If request is related to an organization, set IFI `StaffAny Organization` field to best matching organization object/asset:
+16. HubSpot Company ID is **not required** to create the IFI ticket:
+   - Do **not** block or delay IFI creation because HubSpot lookup failed, returned no match, or is ambiguous.
+   - Create the IFI ticket with whatever context is available. Leave the HubSpot Company field blank if unresolved.
+   - After creation, ask the user to provide the HubSpot Company ID or URL so it can be added to the ticket.
+17. If request is related to an organization, set IFI `StaffAny Organization` field to best matching organization object/asset:
    - Prefer predefined organization objects/assets over free text.
    - Do not require exact name match; use containment/close-name matching.
    - Estimate match confidence for strongest candidates.
    - If best match is at least 85%, set organization field.
    - If no candidate reaches 85%, leave field unset and say no confident match.
-17. After IFI creation, send concise summary and direct links to created/linked KER and IFI tickets. Do not require another confirmation before marking complete.
+18. After IFI creation, send concise summary and direct links to created/linked KER and IFI tickets. Do not require another confirmation before marking complete. If HubSpot Company ID was not provided or could not be resolved, explicitly ask: "Can you share the HubSpot Company ID or URL so I can link it to the IFI ticket?"
 18. If user wants corrections/enrichment after creation/linking, help update tickets.
 
 ## KER Backlog Search And Linking
