@@ -154,6 +154,23 @@
     "requester_user_id_env_var": "LAUNCHBOT_REQUESTER_SLACK_USER_ID",
     "source_root": "apps/launchbot/skills"
   },
+  "self_modification_controls": {
+    "entry_phrase": "enter self modification mode",
+    "skill": "launchbot-self-modification-mode",
+    "scope": [
+      "profile/SOUL.md",
+      "profile/config.template.yaml",
+      "runtime/**",
+      "skills/**",
+      "README.md",
+      "AGENTS.md",
+      "app.manifest.json"
+    ],
+    "deploy_script": "runtime/sync-app-to-repo.sh",
+    "deploy_worker_script": "runtime/apply-app-sync.sh",
+    "approver_allowlist_env_var": "LAUNCHBOT_RUNTIME_UPDATE_APPROVER_USER_IDS",
+    "requester_user_id_env_var": "LAUNCHBOT_REQUESTER_SLACK_USER_ID"
+  },
   "support_watch_monitor": {
     "mode": "no_agent_weekly_report",
     "default_output_channel_name": "all-bugs-production",

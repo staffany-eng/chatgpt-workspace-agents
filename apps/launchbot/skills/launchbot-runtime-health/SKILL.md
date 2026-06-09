@@ -137,6 +137,17 @@ Live profile skill edits are not source of truth. If Launchbot patches a skill i
 - It resolves the profile skill directory and repo skill directory by skill name, copies the live profile skill back into `apps/launchbot/skills`, rebuilds the live profile from source, restarts the gateway, and runs health checks.
 - If the repo already matches, it returns `launchbot-skill-sync:no-change:<skill>:<repo_path>`.
 
+## Self Modification Mode Deploy Path
+
+When Launchbot edits its own prompt, workflow, runtime docs, manifest, or multiple bundled skills as one change set:
+
+- The repo-sync script is `/home/leekaiyi/.hermes/profiles/launchbot/scripts/launchbot-sync-app-to-repo.sh`.
+- Add `--commit` when the requester wants a repo commit.
+- Add `--push` when the requester wants the repo pushed to `origin/main`.
+- The script uses the same requester allowlist as app self-update: `LAUNCHBOT_RUNTIME_UPDATE_APPROVER_USER_IDS`.
+- It copies the live app packet from `~/.hermes/profiles/launchbot/source/launchbot/` back into `apps/launchbot`, rebuilds the live profile from repo source, restarts the gateway, and runs health checks.
+- If repo source already matches the live profile source, it returns `launchbot-app-sync:no-change:<sha>`.
+
 ### 3d. Apply the latest Launchbot app commit safely
 
 When the ask is not just "what is the latest commit?" but "pull the latest repo and restart Launchbot if needed", use the profile-local update entrypoint:

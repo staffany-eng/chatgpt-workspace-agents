@@ -20,6 +20,7 @@ required_skills=(
   help-article-feedback-updater
   help-article-screenshot-capture
   help-article-screenshot-troubleshooter
+  launchbot-self-modification-mode
   product-marketing-launch-workflow
   launch-priority-identifier
   customer-support-release-notes-generator
@@ -78,6 +79,8 @@ install_file 0755 "$APP_ROOT/runtime/check-health.sh" "$PROFILE_DIR/scripts/laun
 install_file 0755 "$APP_ROOT/runtime/audit-live-profile.sh" "$PROFILE_DIR/scripts/launchbot-audit-live-profile.sh"
 install_file 0755 "$APP_ROOT/runtime/update-app-from-repo.sh" "$PROFILE_DIR/scripts/launchbot-update-app-from-repo.sh"
 install_file 0755 "$APP_ROOT/runtime/apply-app-update.sh" "$PROFILE_DIR/scripts/launchbot-apply-app-update.sh"
+install_file 0755 "$APP_ROOT/runtime/sync-app-to-repo.sh" "$PROFILE_DIR/scripts/launchbot-sync-app-to-repo.sh"
+install_file 0755 "$APP_ROOT/runtime/apply-app-sync.sh" "$PROFILE_DIR/scripts/launchbot-apply-app-sync.sh"
 install_file 0755 "$APP_ROOT/runtime/sync-skill-to-repo.sh" "$PROFILE_DIR/scripts/launchbot-sync-skill-to-repo.sh"
 install_file 0755 "$APP_ROOT/runtime/apply-skill-sync.sh" "$PROFILE_DIR/scripts/launchbot-apply-skill-sync.sh"
 install_file 0755 "$APP_ROOT/runtime/update-pantheon-repo.sh" "$PROFILE_DIR/scripts/launchbot-update-pantheon-repo.sh"

@@ -125,6 +125,17 @@ It exits quickly with one of:
 - `launchbot-skill-sync:scheduled:<skill>:<unit>` when a detached user unit was created to copy the skill into repo source, optionally commit/push it, rebuild the live profile, restart Launchbot, and run health checks
 - `launchbot-skill-sync:error:<reason>` when the skill mapping is missing, the repo is dirty, or the sync flow is blocked
 
+Manual or bot-triggered whole-app sync path for self-modification mode:
+
+```bash
+/home/leekaiyi/.hermes/profiles/launchbot/scripts/launchbot-sync-app-to-repo.sh --push
+```
+
+It exits quickly with one of:
+- `launchbot-app-sync:no-change:<sha>` when repo source already matches the live Launchbot profile source
+- `launchbot-app-sync:scheduled:<sha>:<unit>` when a detached user unit was created to copy the live Launchbot app packet back into repo source, optionally commit/push it, rebuild the live profile, restart Launchbot, and run health checks
+- `launchbot-app-sync:error:<reason>` when the repo is dirty or the sync flow is blocked
+
 ## Launch Workflow Skill
 
 Launchbot is the app. The Launch Superpower handoff is represented here as a Launchbot skill and workflow capability, not as a separate app identity.
