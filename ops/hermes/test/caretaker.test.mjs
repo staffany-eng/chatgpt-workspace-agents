@@ -26,20 +26,14 @@ profiles:
     assert.equal(profiles[0].expected_crons[0].schedule, "*/5 * * * *");
   });
 
-  it("routes PS WEE aliases to psmopsbot instead of NurtureAny", () => {
+  it("does not claim PS WEE aliases after Customer 360 migration", () => {
     const profiles = parseProfilesYaml(readFileSync(new URL("../profiles.yaml", import.meta.url), "utf8"));
     const nurtureAny = profiles.find((profile) => profile.name === "nurtureanysalesbot");
     const psmOps = profiles.find((profile) => profile.name === "psmopsbot");
 
     assert.ok(nurtureAny);
-    assert.ok(psmOps);
+    assert.equal(psmOps, undefined);
     assert.equal((nurtureAny.workflow_aliases || []).some((alias) => /ps\s+wee/i.test(alias)), false);
-    assert.ok(psmOps.workflow_aliases.includes("PS WEE"));
-    assert.ok(psmOps.workflow_aliases.includes("PS Wee Manager"));
-    assert.equal(psmOps.app_packet, "apps/psm-ops-bot");
-    assert.equal(psmOps.deploy_host, "hermes-psm-ops-bot-poc");
-    assert.equal(psmOps.service.systemd_unit, "hermes-gateway-psmopsbot.service");
-    assert.equal(psmOps.slack.open_channel_mode, true);
   });
 
   it("keeps StaffAny Slack app profiles cloud-only from Mac operator hosts", () => {
@@ -47,7 +41,6 @@ profiles:
     const cloudOnlyProfiles = new Map([
       ["staffanydatabot", "hermes-data-bot-poc"],
       ["launchbot", "hermes-data-bot-poc"],
-      ["psmopsbot", "hermes-psm-ops-bot-poc"],
       ["nurtureanysalesbot", "nurtureany-sales-bot-prod"],
     ]);
 

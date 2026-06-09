@@ -1,4 +1,0 @@
-name: psm-ops-mention-guard
-description: Detect Slack @-mentions in PSM Ops Bot replies that point to anyone other than the current Slack tagger and record/alert on violations.
-events:
-  - agent:end

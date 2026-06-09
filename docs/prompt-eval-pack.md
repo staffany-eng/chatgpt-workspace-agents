@@ -5,7 +5,9 @@ This repo keeps prompt evals beside each Hermes app packet:
 - `apps/hermes-data-bot/tests/prompt-evals.json`
 - `apps/nurtureany-sales-bot/tests/prompt-evals.json`
 - `apps/launchbot/tests/prompt-evals.json`
-- `apps/psm-ops-bot/tests/prompt-evals.json`
+
+PS WEE / PS Wee Manager prompt evals moved with the canonical PSM Ops Bot packet
+to `staffany-eng/customer-360` under `apps/psm-ops-bot/tests/`.
 
 The readable regression cases stay in Markdown. The JSON files are the machine-checkable layer for targeted prompt routing, tool trace, answer-contract, and live-smoke specs.
 
