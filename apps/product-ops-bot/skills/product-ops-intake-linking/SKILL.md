@@ -123,6 +123,12 @@ Once the deduplication check passes (or resolves to "create new"), **proceed to 
 - The only valid reason to pause before IFI creation is if HubSpot company lookup returned multiple candidates and the user has not yet chosen one.
 - If HubSpot is still ambiguous, present the candidates once (max 3), ask which to use, then create IFI immediately after their reply — no second confirmation step.
 
+**Triage Status — always set on creation:**
+- Whenever an IFI ticket is created (via MCP tool or REST API fallback), always set `Triage Status` to `Pending Triage`.
+- REST API: include `"customfield_10989": {"value": "Pending Triage"}` in the `fields` object of `POST /rest/api/3/issue`.
+- If `customfield_10989` causes a 400 field-not-on-screen error, create the ticket without it, then immediately call `PUT /rest/api/3/issue/<key>` with `{"fields": {"customfield_10989": {"value": "Pending Triage"}}}` to set it.
+- MCP tool path: after MCP creation returns the new ticket key, call `PUT /rest/api/3/issue/<key>` via REST to set `customfield_10989` — the MCP tool does not expose this field.
+
 **MCP tool failure fallback:**
 - If the MCP IFI creation tool fails with a Jira field error (e.g. `Field 'labels' cannot be set`, `Field not on screen`, or any `400` field validation error), fall back immediately to direct Jira REST API (`POST /rest/api/3/issue`) using the same payload minus the offending field.
 - Do not ask the user for permission to use the fallback. Execute it silently and report the created ticket key once done.
