@@ -123,6 +123,21 @@ Once the deduplication check passes (or resolves to "create new"), **proceed to 
 - The only valid reason to pause before IFI creation is if HubSpot company lookup returned multiple candidates and the user has not yet chosen one.
 - If HubSpot is still ambiguous, present the candidates once (max 3), ask which to use, then create IFI immediately after their reply — no second confirmation step.
 
+**IFI ticket title format:**
+- Always format IFI ticket summaries as: `[Org Name] Module: brief request/problem`
+- Example: `[House of Kashkha] Special Dates: State-specific PH dates not persisted year-over-year`
+- `Org Name` = the requesting organisation's name (from context or HubSpot). If no org name is available, omit the bracket prefix.
+- `Module` = the StaffAny product module most relevant to the request (e.g. Payroll, Scheduling, Leave, Timesheet, Special Dates, Disbursement, etc.).
+- `brief request/problem` = concise description of the feature gap or problem, max ~10 words.
+
+**Organizations field — always set on creation:**
+- Whenever an IFI ticket is created, link it to the requesting org via the Jira SD `Organizations` field (`customfield_10004`).
+- Look up the org ID: `GET /rest/servicedeskapi/organization?searchQuery=<org_name>&limit=10` — find the entry whose `name` best matches the requesting org.
+- REST API: include `"customfield_10004": [{"id": "<org_id>"}]` in the `fields` object of `POST /rest/api/3/issue`.
+- MCP tool path: after MCP creation returns the new ticket key, call `PUT /rest/api/3/issue/<key>` with `{"fields": {"customfield_10004": [{"id": "<org_id>"}]}}`.
+- If no org match is found (org not yet in Jira SD), skip this field — do not block ticket creation. The daily org import cron will add it; retry linking manually.
+- If `customfield_10004` causes a 400, set it via PUT after creation.
+
 **Triage Status — always set on creation:**
 - Whenever an IFI ticket is created (via MCP tool or REST API fallback), always set `Triage Status` to `Pending Triage`.
 - REST API: include `"customfield_10989": {"value": "Pending Triage"}` in the `fields` object of `POST /rest/api/3/issue`.
