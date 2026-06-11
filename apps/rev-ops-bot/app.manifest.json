@@ -1,0 +1,82 @@
+{
+  "app_name": "RevOps Bot",
+  "app_slug": "rev-ops-bot",
+  "kind": "hermes-runtime-app",
+  "canonical": true,
+  "runtime": "Hermes Agent",
+  "profile_name": "revopsbot",
+  "rollout_stage": "POC: Slack approval-gated execution through Windmill",
+  "model_provider": "anthropic",
+  "model": "claude-sonnet-4-6",
+  "paths": {
+    "soul": "profile/SOUL.md",
+    "config_template": "profile/config.template.yaml",
+    "env_template": "profile/.env.template",
+    "skill": "skills/rev-ops-bot/SKILL.md",
+    "references": [
+      "skills/rev-ops-bot/references/windmill-preview-contract.md",
+      "skills/rev-ops-bot/references/regression-cases.md"
+    ],
+    "slack_runtime": "runtime/slack.md",
+    "windmill_runtime": "runtime/windmill.md",
+    "health_checks": "runtime/health-checks.md",
+    "health_check_script": "runtime/check-health.sh",
+    "live_profile_audit_script": "runtime/audit-live-profile.sh",
+    "mcp_runtime": "runtime/mcp/README.md",
+    "regression_cases": "tests/regression-cases.md"
+  },
+  "systems": {
+    "slack": "enabled",
+    "slack_modal": "native_hermes_gateway",
+    "windmill": "enabled",
+    "billing_engine": "windmill_only",
+    "hubspot": "disabled_direct",
+    "signnow": "disabled_direct",
+    "stripe": "disabled_direct",
+    "xendit": "disabled_direct"
+  },
+  "write_policy": {
+    "default_mode": "approval_required",
+    "hermes_business_writes": false,
+    "windmill_live_execution": "approval_gated"
+  },
+  "mcp": {
+    "revops_windmill": {
+      "mode": "read_preview_and_approved_execution",
+      "tools": [
+        "check_windmill_revops_config",
+        "search_billing_main_deals",
+        "preflight_create_sub_deal_request",
+        "preview_create_sub_deal_and_service_agreement",
+        "preview_preflight_updates",
+        "apply_approved_preflight_updates",
+        "execute_approved_create_sub_deal_and_service_agreement",
+        "preview_send_service_agreement",
+        "execute_approved_send_service_agreement"
+      ],
+      "windmill": {
+        "base_url_env_var": "REVOPS_WINDMILL_BASE_URL",
+        "workspace_id_env_var": "REVOPS_WINDMILL_WORKSPACE_ID",
+        "token_env_var": "REVOPS_WINDMILL_TOKEN",
+        "search_script_path": "f/rev_ops/search_billing_main_deals",
+        "preflight_script_path": "f/rev_ops/preflight_create_sub_deal_request",
+        "apply_preflight_updates_script_path": "f/rev_ops/apply_preflight_updates",
+        "preview_script_path": "f/rev_ops/create_sub_deal_and_service_agreement",
+        "send_service_agreement_script_path": "f/rev_ops/send_service_agreement",
+        "preview_forces_dry_run": true,
+        "execution_requires_approval": true
+      }
+    }
+  },
+  "channels": ["Slack RevOps bot pilot channel"],
+  "slack_modal": {
+    "enabled_env_var": "REVOPS_CREATE_SUB_DEAL_MODAL_ENABLED",
+    "command_env_var": "REVOPS_CREATE_SUB_DEAL_COMMAND",
+    "default_command": "/revops-create-sub-deal",
+    "allowed_channel_ids_env_var": "REVOPS_CREATE_SUB_DEAL_ALLOWED_CHANNEL_IDS",
+    "bot_user_id_env_var": "REVOPS_BOT_USER_ID",
+    "callback_id": "rev_ops_create_sub_deal_form",
+    "mode": "native_hermes_gateway"
+  },
+  "secrets_copied": false
+}
