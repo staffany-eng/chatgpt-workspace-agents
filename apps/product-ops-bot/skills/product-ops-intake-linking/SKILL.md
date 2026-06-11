@@ -137,9 +137,9 @@ Once the deduplication check passes (or resolves to "create new"), **proceed to 
 **Organizations field — always set on creation:**
 - Whenever an IFI ticket is created, **always** attempt to set the Jira SD `Organizations` field (`customfield_10004`) by looking up the requesting org.
 - Look up the org ID: paginate `GET /rest/servicedeskapi/organization?limit=50&start=<offset>` until all orgs are scanned — the `searchQuery` param is unreliable. Find the entry whose `name` best matches the requesting org (case-insensitive containment match).
-- Attempt to set via `POST /rest/api/3/issue` `fields` first: `"customfield_10004": [{"id": "<org_id>"}]`.
-- If that causes a 400, create the ticket without it, then immediately `PUT /rest/api/3/issue/<key>` with `{"fields": {"customfield_10004": [{"id": "<org_id>"}]}}`.
-- MCP tool path: after MCP creation returns the new ticket key, call `PUT /rest/api/3/issue/<key>` via REST to set `customfield_10004`.
+- **Correct update format (verified):** Use `PUT /rest/api/3/issue/<key>` with `{"update": {"customfield_10004": [{"add": <org_id_as_integer>}]}}` — pass the org id as a raw integer, NOT wrapped in `{"id": ...}`. Setting via `fields` key consistently returns 400.
+- Always use the `update` + `add` operation path — never `fields.customfield_10004`.
+- MCP tool path: after MCP creation returns the new ticket key, call `PUT /rest/api/3/issue/<key>` via REST using the `update` format above.
 - If no org match is found (org not yet in Jira SD), skip this field — do not block ticket creation. The daily org import cron will add it.
 
 **Triage Status — always set on creation:**
