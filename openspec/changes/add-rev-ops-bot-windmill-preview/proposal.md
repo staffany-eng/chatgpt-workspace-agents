@@ -20,4 +20,4 @@ BDOps wants a Slack bot that can reduce manual Retool work for billing flows. Th
 ## Non-Goals
 
 - No direct HubSpot, SignNow, Stripe, or Xendit access.
-- No deployment script or production Slack smoke test in this change.
+- No production Slack smoke test in this change.

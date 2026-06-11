@@ -39,6 +39,7 @@
     "intercom:stage-update": "node apps/launchbot/runtime/intercom-format-gate.mjs intercom:stage-update",
     "rev-ops-bot:verify": "node scripts/verify-rev-ops-bot.mjs",
     "rev-ops-bot:prompt-evals": "node scripts/run-prompt-evals.mjs --app rev-ops-bot --mode all",
+    "rev-ops-bot:deploy": "node scripts/deploy-rev-ops-bot.mjs",
     "slack-automation-identity:verify": "node scripts/verify-slack-automation-identity.mjs",
     "prompt-evals": "node scripts/run-prompt-evals.mjs --app all --mode all",
     "research:audit": "bash -lc 'set -euo pipefail; for f in research/wiki/sources/*.md; do bun research/tools/audit-agent-ingest.ts --wiki \"$f\" --fail-under 10; done'",

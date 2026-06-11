@@ -47,3 +47,28 @@ Do not commit live values.
 ```bash
 npm run rev-ops-bot:verify
 ```
+
+## Deploy Flow
+
+Routine deploys use the exact-ref wrapper from the repo root:
+
+```bash
+npm run rev-ops-bot:deploy
+npm run rev-ops-bot:deploy -- --apply --ref origin/main
+```
+
+Without `--apply`, the wrapper verifies locally and prints the target SHA. With
+`--apply`, it uploads an exact git archive to `hermes-psm-ops-bot-poc`, syncs
+RevOps source into `/home/leekaiyi/chatgpt-workspace-agents`, syncs the
+`revopsbot` profile-owned source/runtime files, restarts only
+`hermes-gateway-revopsbot.service`, then runs audit and health checks.
+
+The deploy script must not use `/home/leekaiyi/agent-builder`; that path remains
+reserved for Customer 360 / PSM Ops on the shared VM.
+
+If `gcloud compute ssh` cannot update VM metadata from the operator machine,
+use the raw SSH-over-IAP transport with an already-authorized key:
+
+```bash
+npm run rev-ops-bot:deploy -- --apply --ref origin/main --transport iap-ssh --ssh-user eric --ssh-key-file ~/.ssh/id_rsa
+```
