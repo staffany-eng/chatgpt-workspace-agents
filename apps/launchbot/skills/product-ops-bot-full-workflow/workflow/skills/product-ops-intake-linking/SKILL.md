@@ -272,6 +272,85 @@ If available Jira or GitHub information is insufficient, say so clearly and cont
 
 - `references/ifi-jira-field-map.md` — IFI custom field IDs, service desk IDs, key API endpoints, and auth notes for Jira SD operations
 
+## Backdating Channel Triage
+
+Use this workflow when a teammate says "find the last N untriaged requests" or "triage the untriaged requests in this channel".
+
+### Definition of Untriaged
+
+A Slack thread is untriaged if **both** conditions are true:
+- No `IFI-\d+` reference appears anywhere in the thread (parent + all replies)
+- No `KER-\d+` reference appears anywhere in the thread (parent + all replies)
+
+A thread with a bot analysis reply but no IFI/KER keys is still untriaged.
+
+### Step 1 — Scan Channel History
+
+Use `conversations.history` (limit 50–100) on the channel to get recent messages. Then for each candidate:
+- Call `conversations.replies` to fetch the full thread.
+- Check every message (parent + replies) for `IFI-\d+` or `KER-\d+` patterns using regex.
+- Filter out non-request threads: pure `@mention` bot commands, "triage this" dead-ends with no context, Slack join/leave subtypes, threads from the bot itself.
+- A request thread has a structured customer note (Company / Module / Problems/JTBD or similar shape).
+
+Take the **N most recent** threads that pass the untriaged check.
+
+### Step 2 — KER Search Per Request
+
+For each untriaged thread, run KER backlog search per the standard `## KER Backlog Search` rules. Apply confidence-based routing:
+- ≥90%: auto-link existing KER, no new KER needed
+- 60–89%: create IFI immediately, note candidate KER, list as pending decision in summary reply (do not block IFI creation or thread reply)
+- <60%: auto-create new KER
+
+### Step 3 — HubSpot + Jira SD Org Lookup
+
+- Search HubSpot by company name. Apply `[BE]` de-prioritization rule.
+- If only `[BE]` records exist, skip HubSpot ID silently — do not block IFI creation.
+- Look up Jira SD org by company name (paginate `GET /rest/servicedeskapi/organization`). Set org field via `PUT update.customfield_10004.add` if match ≥85%.
+
+### Step 4 — Create IFI + Link KER
+
+- Create IFI with `Pending Triage` status, HubSpot ID (if resolved), summary format `[Org Name] Module: brief problem`.
+- Link IFI → KER via `POST /rest/api/3/issueLink` type `Relates`.
+- Set Jira SD org field after creation.
+
+### Step 5 — Post Thread Reply
+
+After creating IFI + KER for each request, **post a reply to that Slack thread** via `chat.postMessage` with `thread_ts` of the original parent message:
+
+```
+Logged ✅
+• *IFI-XXXX* — https://staffany.atlassian.net/browse/IFI-XXXX
+• *KER-XXXX* — <KER summary> (<status>)
+https://staffany.atlassian.net/browse/KER-XXXX
+```
+
+If a new KER was created, label it `(new)`. If an existing KER was linked, show its status (e.g. `Backlog`).
+
+### Step 6 — Summary Reply to Requester
+
+After all threads are processed, reply in the requesting thread with:
+
+```
+*N untriaged requests — triaged ✅*
+
+1. *[Company] — [Module]: [brief problem]*
+   <slack_permalink>
+   → IFI-XXXX + KER-XXXX (new / Backlog)
+   https://... | https://...
+```
+
+**Always include the Slack permalink** to the original message for each item. For any 60–89% confidence KER matches where confirmation is needed, list them at the bottom as pending decisions.
+
+### Pitfalls
+
+- Do not re-triage threads that already have IFI or KER keys anywhere in the thread — even if the link was added by Launchbot in a prior session and is not visible as a human reply.
+- Do not triage the meta-thread containing the "find untriaged" command itself.
+- Do not include `[BE]`-prefixed HubSpot companies as the primary match when a clean record exists.
+- Thread replies must use `thread_ts` of the **parent message**, not a reply `ts`.
+- `conversations.history` returns most-recent-first; iterate in that order to get the N most recent untriaged.
+
+---
+
 ## Output Contract
 
 Unless user asks otherwise, produce:
