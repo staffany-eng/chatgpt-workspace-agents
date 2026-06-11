@@ -64,8 +64,11 @@ When someone asks you to help with a feature gap, issue, or customer request:
    - If CSV and Jira disagree, prefer live Jira and mention snapshot staleness.
 5. Present the best one to three KER candidates with concise reasoning.
 6. For each candidate, provide confidence percentage and short rationale.
-7. **High-confidence auto-link (≥90%):** If the top KER candidate confidence is ≥90%, skip the confirmation step — proceed directly to IFI creation and link to that KER ticket without asking. Announce the auto-link decision in the thread (e.g. "97% match → auto-linking to KER-443 and creating IFI").
-8. Ask user confirmation in-thread only when top confidence is <90% (natural language is allowed):
+7. **Confidence-based auto-routing (no confirmation needed at extremes):**
+   - **≥90% match:** Auto-link to that KER and create IFI immediately. Announce in thread (e.g. "97% match → auto-linking to KER-443").
+   - **<60% match (or no match found):** Auto-create a new KER without asking. Announce in thread (e.g. "No strong match (<60%) → creating new KER").
+   - **60–89% match:** Ask user confirmation (see step 8).
+8. Ask user confirmation in-thread only when top confidence is 60–89% (natural language is allowed):
    - In Slack, require in-thread reply with `@mention` to the bot.
    - Do not rely on emoji reactions for routing/confirmation.
    - Offer short option tokens as a convenience, but do not require exact token text.
@@ -98,7 +101,7 @@ When someone asks you to help with a feature gap, issue, or customer request:
    - Estimate match confidence for strongest candidates.
    - If best match is at least 85%, set organization field.
    - If no candidate reaches 85%, leave field unset and say no confident match.
-18. After IFI creation, send concise summary and direct links to created/linked KER and IFI tickets. Do not require another confirmation before marking complete. If HubSpot Company ID was not provided or could not be resolved, explicitly ask: "Can you share the HubSpot Company ID or URL so I can link it to the IFI ticket?"
+18. After IFI creation, send concise summary and direct links to created/linked KER and IFI tickets. Do not require another confirmation before marking complete. Do not ask for HubSpot Company ID if it could not be resolved — leave the field blank silently.
 19. If user wants corrections/enrichment after creation/linking, help update tickets.
 
 
@@ -132,12 +135,12 @@ Once the deduplication check passes (or resolves to "create new"), **proceed to 
 - `brief request/problem` = concise description of the feature gap or problem, max ~10 words.
 
 **Organizations field — always set on creation:**
-- Whenever an IFI ticket is created, link it to the requesting org via the Jira SD `Organizations` field (`customfield_10004`).
-- Look up the org ID: `GET /rest/servicedeskapi/organization?searchQuery=<org_name>&limit=10` — find the entry whose `name` best matches the requesting org.
-- REST API: include `"customfield_10004": [{"id": "<org_id>"}]` in the `fields` object of `POST /rest/api/3/issue`.
-- MCP tool path: after MCP creation returns the new ticket key, call `PUT /rest/api/3/issue/<key>` with `{"fields": {"customfield_10004": [{"id": "<org_id>"}]}}`.
-- If no org match is found (org not yet in Jira SD), skip this field — do not block ticket creation. The daily org import cron will add it; retry linking manually.
-- If `customfield_10004` causes a 400, set it via PUT after creation.
+- Whenever an IFI ticket is created, **always** attempt to set the Jira SD `Organizations` field (`customfield_10004`) by looking up the requesting org.
+- Look up the org ID: paginate `GET /rest/servicedeskapi/organization?limit=50&start=<offset>` until all orgs are scanned — the `searchQuery` param is unreliable. Find the entry whose `name` best matches the requesting org (case-insensitive containment match).
+- Attempt to set via `POST /rest/api/3/issue` `fields` first: `"customfield_10004": [{"id": "<org_id>"}]`.
+- If that causes a 400, create the ticket without it, then immediately `PUT /rest/api/3/issue/<key>` with `{"fields": {"customfield_10004": [{"id": "<org_id>"}]}}`.
+- MCP tool path: after MCP creation returns the new ticket key, call `PUT /rest/api/3/issue/<key>` via REST to set `customfield_10004`.
+- If no org match is found (org not yet in Jira SD), skip this field — do not block ticket creation. The daily org import cron will add it.
 
 **Triage Status — always set on creation:**
 - Whenever an IFI ticket is created (via MCP tool or REST API fallback), always set `Triage Status` to `Pending Triage`.
