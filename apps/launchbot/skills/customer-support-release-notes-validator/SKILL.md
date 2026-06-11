@@ -21,13 +21,16 @@ screenshot_refs: <none | 1-2 screenshot file paths/URLs with captions>
 
 ## Validation Rules
 
-- The draft must keep exactly these sections: Module, What's new, How this helps users, What's needed to be setup, Help article link.
+- The draft must be delivered as Slack Block Kit JSON (not plain text). Required blocks: `header`, metadata `section` (Priority + Product Lead + Jira), `divider`, `What's new` section, `How this helps users` section, `Setup needed` section, `Help article` section. `Key capabilities` section is optional — include only when 2+ discrete sub-capabilities exist.
+- The `header` block text must follow: `🚀 New Release — <KER-key>: <Ticket Name>`. Missing the KER key or ticket name is a revision issue.
+- The metadata `section` must include `*Priority:*`, `*Product Lead:*`, and `*Jira:*` (with a link to `staffany.atlassian.net`).
 - The draft must not call itself `CS release notes`, `Customer Support release notes`, or `Customer Service release notes`.
 - The draft must be concise and useful for Sales, PS, CS, and Product, with enough existing StaffAny feature context to place the change.
 - `What's new` must describe user-visible UI/UX delta from old behavior to new behavior.
 - `How this helps users` must explain customer, admin, manager, or employee value only. It must not explain how the change helps CS, support agents, triage, or internal teams.
 - Screenshot references, when present, must be 1-2 contextually correct screenshots that directly show the UI/UX delta. More than 2 screenshots is a revision issue.
 - Evidence must support every product behavior, UI label, setup step, availability statement, and help article link.
+- `Help article` links must use `https://help.staffany.com/...` for published articles. Intercom draft URLs (`app.intercom.com`) are acceptable only when the article is not yet published — must be labeled `(draft — pending publish)`.
 - Enablement usefulness matters more than marketing polish: Sales, PS, CS, and Product teammates should understand what changed, what users will see, and what setup to check.
 - Use `needs-check` for incomplete but non-blocking evidence. Use `blocked` for unsafe, unverified, or non-shipped claims.
 
@@ -58,10 +61,14 @@ Confidence bands:
 
 Set decision to `blocked` when the draft:
 
+- Is not in Block Kit JSON format (plain text is not acceptable for distribution).
 - Lacks shipped/done status or a clearly labeled preview request.
 - Claims product behavior that is not backed by Jira, Pantheon, approved article evidence, or trusted screenshots.
-- Omits any required release-note section.
-- Invents a help article link, setup requirement, UI label, module, availability, or customer impact.
+- Is missing the `header` block with KER key + ticket name.
+- Is missing the metadata section (`*Priority:*`, `*Product Lead:*`, `*Jira:*`).
+- Omits any required release-note section (What's new, How this helps users, Setup needed, Help article).
+- Invents a help article link, setup requirement, UI label, availability, or customer impact.
+- Uses `app.intercom.com` help article links for a published article (must use `help.staffany.com`).
 - Exposes raw Jira text, private URLs, customer names, PII, internal app names, or implementation-only details.
 - Has no customer-visible behavior for CS to support.
 - Is too verbose for Slack scanning or lacks StaffAny feature context.
