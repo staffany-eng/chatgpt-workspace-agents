@@ -14,6 +14,9 @@ triggers:
 tags: [product-ops, ifi, ker, triage, routing]
 ---
 
+## References
+- `references/ifi-custom-fields.md` — IFI custom field IDs, Triage Status values, and Jira field discovery technique
+
 # Product Ops Intake And Linking
 
 ## Role
@@ -121,7 +124,8 @@ Once the deduplication check passes (or resolves to "create new"), **proceed to 
 
 - Pass `approval_marker = "confirm IFI"` to the MCP IFI tool automatically as part of the creation call.
 - The only valid reason to pause before IFI creation is if HubSpot company lookup returned multiple candidates and the user has not yet chosen one.
-- If HubSpot is still ambiguous, present the candidates once (max 3), ask which to use, then create IFI immediately after their reply — no second confirmation step.
+- **`[BE]` candidate de-prioritization:** When the HubSpot lookup returns multiple candidates and exactly one candidate has a name **not** prefixed with `[BE]` while the other(s) are prefixed `[BE]`, automatically select the non-`[BE]` candidate — do not ask the user to disambiguate. `[BE]`-prefixed companies are backend/system duplicates and should never be the default choice when a clean company record exists.
+- If HubSpot is still ambiguous after applying `[BE]` de-prioritization (e.g. two non-`[BE]` candidates, or only `[BE]` candidates), present the candidates once (max 3), ask which to use, then create IFI immediately after their reply — no second confirmation step.
 
 **IFI ticket title format:**
 - Always format IFI ticket summaries as: `[Org Name] Module: brief request/problem`
@@ -150,10 +154,73 @@ Once the deduplication check passes (or resolves to "create new"), **proceed to 
 - Use credentials from `.env`: `JIRA_EMAIL`, `JIRA_API_TOKEN`, `JIRA_BASE_URL`, `JIRA_IFI_HUBSPOT_COMPANY_ID_FIELD_ID`.
 - After creating via fallback, link the IFI to the KER using `POST /rest/api/3/issueLink` with `type.name = "Relates"`.
 
+**Jira REST scripting pitfalls (Python + curl on VM):**
+- `JIRA_BASE_URL` in `.env` is stored with wrapping single quotes: `'https://staffany.atlassian.net'`. Reading with `cut -d= -f2-` or a naive regex preserves those quotes, causing `urllib.request` to fail with `unknown url type: 'https`. Always strip them: `val.strip("'").strip('"')`.
+- Never embed Python f-strings inside a bash heredoc (`<<'PYEOF'`). Shell variable expansion conflicts with Python brace syntax and produces `command not found` errors. Instead, write the script to `/tmp/script.py` with `write_file`, then run `python3 /tmp/script.py` via `terminal()`.
+- Use `curl` (subprocess) for Jira REST calls from Python scripts on the VM — not `urllib.request`. Load creds by stripping `.env` values with Python's `str.strip()`, then pass as `-u email:token`.
+- `/rest/api/3/search/jql` (POST) is the correct search endpoint. The old GET `/rest/api/2/search` returns 410.
+
+## KER Backlog Search — Jira REST Scripting
+
+**Always use `write_file` + `python3 /tmp/script.py` for Jira API calls. Never use terminal heredoc or inline `python3 -c "..."` — bash path expansion double-prefixes the HOME dir and breaks grep on `.env`.**
+
+Correct pattern:
+```python
+import subprocess, json, urllib.request, base64
+
+def get_env(key):
+    result = subprocess.run(
+        f"grep '^{key}=' /home/leekaiyi/.hermes/profiles/launchbot/.env | sed 's/^{key}=//' | tr -d \"'\\\"\"",
+        shell=True, capture_output=True, text=True
+    )
+    return result.stdout.strip()
+
+email = get_env("JIRA_EMAIL")
+token = get_env("JIRA_API_TOKEN")
+base_url = get_env("JIRA_BASE_URL")
+
+auth = base64.b64encode(f"{email}:{token}".encode()).decode()
+headers = {"Authorization": f"Basic {auth}", "Content-Type": "application/json"}
+
+payload = json.dumps({"jql": "project = KER AND text ~ \"THR\" ORDER BY updated DESC",
+                      "fields": ["summary", "status"], "maxResults": 10}).encode()
+req = urllib.request.Request(f"{base_url}/rest/api/3/search/jql",
+                              data=payload, headers=headers, method="POST")
+with urllib.request.urlopen(req, timeout=30) as resp:
+    data = json.loads(resp.read())
+for i in data.get("issues", []):
+    print(f"{i['key']}: {i['fields']['summary']} [{i['fields']['status']['name']}]")
+```
+
+**Multi-pass KER search strategy for ambiguous topics:**
+1. Primary keyword query: `text ~ "<main_term>"` (e.g. "THR")
+2. Secondary angle query: `text ~ "<related_term>" AND text ~ "<module>"` (e.g. "pay item formula")
+3. Tertiary cross-cut: `text ~ "<mechanism>" AND text ~ "<main_term>"` (e.g. "proration" AND "THR")
+4. Fetch description text for top 2-3 candidates via detail query to verify actual scope
+5. ADF description extraction pattern (Jira returns ADF JSON, not plain text):
+```python
+text_parts = []
+def extract_text(node):
+    if isinstance(node, dict):
+        if node.get('type') == 'text':
+            text_parts.append(node.get('text', ''))
+        for v in node.values():
+            if isinstance(v, (dict, list)):
+                extract_text(v)
+    elif isinstance(node, list):
+        for item in node:
+            extract_text(item)
+extract_text(desc)
+full_text = ' '.join(text_parts)[:600]
+```
+
+**CSV snapshot (`Jira-updated.csv`) may not exist on the VM.** If `cat .../Jira-updated.csv` returns "No such file", skip CSV pass and go directly to live Jira queries. Do not block on missing CSV.
+
 ## KER Backlog Search And Linking
 
 - Backlog matching scope is `KER` by default.
 - Search and recommend `KER-*` items first.
+- **Public holiday / Special Dates searches:** Use both `"public holiday"` AND `"special dates"` as separate query terms. Searching only `"public holiday"` returns noisy unrelated results (payroll proration, bulk import, shift scheduling). The relevant PH setup/grouping KERs (e.g. KER-311) are tagged under `special dates` module context and only surface with the broader term.
 - Do not recommend `EDT-*` items unless requester explicitly asks to include EDT scope.
 - Do not recommend `EDT-*` items unless the requester explicitly asks to include EDT scope.
 - If non-KER items appear in raw search results, filter them out before presenting candidates.
@@ -190,12 +257,20 @@ Maintain when useful:
 Do not store requester-specific personal preferences as shared memory.
 Do not store sensitive customer details unless already appropriate for durable team working context.
 
+## References
+
+- `references/jira-servicedesk-org-api.md` — verified Jira Service Desk Organization API endpoints (Basic auth, service desk ID resolution, custom field IDs, dedup pattern)
+
 ## Safety
 
 Do not invent customer impact, backlog relationships, implementation details, or code verification.
 Do not claim KER match correctness when evidence is weak.
 Do not create ticket links without user confirmation.
 If available Jira or GitHub information is insufficient, say so clearly and continue with safest next step.
+
+## References
+
+- `references/ifi-jira-field-map.md` — IFI custom field IDs, service desk IDs, key API endpoints, and auth notes for Jira SD operations
 
 ## Output Contract
 
