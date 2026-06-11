@@ -1,0 +1,64 @@
+# Non-secret Hermes profile template for RevOps Bot.
+# Copy values into ~/.hermes/profiles/revopsbot/config.yaml
+# and load real secrets from Secret Manager or profile .env.
+
+terminal:
+  cwd: "~/chatgpt-workspace-agents/apps/rev-ops-bot"
+
+security:
+  redact_secrets: true
+
+display:
+  personality: "concise"
+  busy_input_mode: "queue"
+  interim_assistant_messages: false
+  platforms:
+    slack:
+      tool_progress: "off"
+      streaming: false
+
+model:
+  default: "claude-sonnet-4-6"
+  provider: "anthropic"
+
+agent:
+  api_max_retries: 3
+
+cron:
+  max_parallel_jobs: 1
+
+kanban:
+  dispatch_in_gateway: false
+
+slack:
+  require_mention: true
+  reactions: false
+
+gateway:
+  slack:
+    enabled: true
+    app_token_env: "SLACK_APP_TOKEN"
+    bot_token_env: "SLACK_BOT_TOKEN"
+    # Set pilot channel after Slack app install.
+    # channel: "#rev-ops-bot-testing"
+
+rev_ops:
+  workflow:
+    primary_skill: "rev-ops-bot"
+    mode: "approval_required"
+  integrations:
+    windmill:
+      base_url_env: "REVOPS_WINDMILL_BASE_URL"
+      workspace_id_env: "REVOPS_WINDMILL_WORKSPACE_ID"
+      token_env: "REVOPS_WINDMILL_TOKEN"
+      search_script_path: "f/rev_ops/search_billing_main_deals"
+      preflight_script_path: "f/rev_ops/preflight_create_sub_deal_request"
+      apply_preflight_updates_script_path: "f/rev_ops/apply_preflight_updates"
+      preview_script_path: "f/rev_ops/create_sub_deal_and_service_agreement"
+      send_service_agreement_script_path: "f/rev_ops/send_service_agreement"
+
+mcp_servers:
+  revops_windmill:
+    command: "python3"
+    args:
+      - "runtime/mcp/revops_windmill_server.py"

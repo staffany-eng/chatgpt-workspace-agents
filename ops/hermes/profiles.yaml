@@ -122,6 +122,44 @@ profiles:
       pause_unsafe_crons: true
       post_slack_report: true
 
+  - name: revopsbot
+    display_name: RevOps Bot
+    canonical_profile: revopsbot
+    live_profile: revopsbot
+    status: experimental
+    owner: revops
+    app_packet: apps/rev-ops-bot
+    deploy_host: hermes-psm-ops-bot-poc
+    profile_dir: ${HOME}/.hermes/profiles/revopsbot
+    local_profile_policy: cloud_only
+    service:
+      systemd_unit: hermes-gateway-revopsbot.service
+    slack:
+      bot_name: revopsbot
+      home_channel_id: C0B9AVB5003
+      home_channel_name: rev-ops-bot-testing
+      require_mention: true
+      strict_mention: true
+      allowed_channel_ids: [C0B9AVB5003]
+      report_prefix: "RevOps automation:"
+    required_mcp:
+      revops_windmill:
+        tools: 9
+    expected_crons:
+      - name: revopsbot health check
+        schedule: "*/15 * * * *"
+        mode: no-agent
+    checks:
+      health_command: apps/rev-ops-bot/runtime/check-health.sh
+      audit_command: apps/rev-ops-bot/runtime/audit-live-profile.sh
+    recovery:
+      restart_gateway: managed_only
+      stale_socket_seconds: 300
+      stale_session_minutes: 30
+      profile_sync: canonical_rsync
+      pause_unsafe_crons: true
+      post_slack_report: true
+
   - name: launchbot
     display_name: Launchbot
     canonical_profile: launchbot

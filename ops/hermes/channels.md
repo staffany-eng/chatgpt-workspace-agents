@@ -7,6 +7,7 @@ Use these channels for live Slack smoke tests and runtime checks.
 | Da Ta Hermz | `staffanydatabot` | `#da-ta-hermz-testing` | `C0AU19E6T0C` | StaffAny data, BigQuery, registry, release-feature, and metric smoke tests. |
 | NurtureAny | `nurtureanysalesbot` on `nurtureany-sales-bot-prod` | `#nurtureany-testing` | `C0B2UGK4DB6` | Sales nurture, HubSpot, manager, Eazybe-preview, event, and CRO smoke tests. |
 | PS WEE / PSM Ops Bot | `psmopsbot` | `#ps-weeman-bot-test` | `C0B2VT50YT1` | Migrated to `staffany-eng/customer-360` `apps/psm-ops-bot/`; keep only channel reference here. |
+| RevOps Bot | `revopsbot` | `#rev-ops-bot-testing` | `C0B9AVB5003` | RevOps billing preview and approval-gated execution through Windmill. |
 | Launchbot | `launchbot` | `#launch-bot-testing` | `C0B32M34J3W` | Launch/deploy ops smoke tests. Experimental until health cron is green. |
 | Launchbot | `launchbot` | `#all-product-questions` | `C01RZ7SHC8K` | Read-only product-commitment / KER lookup. No feature-intake creation. |
 

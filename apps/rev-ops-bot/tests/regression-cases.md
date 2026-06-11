@@ -1,0 +1,23 @@
+# RevOps Bot Regression Cases
+
+- Preview requests must force `dry_run=true`.
+- Live execution must be exposed only as approval-gated Windmill MCP tools.
+- Windmill token must never appear in tool output.
+- The bot must ask for missing Billing Engine fields before previewing.
+- Create-sub-deal/service-agreement discovery must search eligible new main deals with stage ID `20205223` and deal motion `new`.
+- If an exact main deal HubSpot ID or URL is provided, a zero Billing Engine search result must not be the final answer. The bot must run Windmill preflight and report the exact HubSpot property failures or update proposals.
+- The bot must verify company, billing entity, billing contact, payment rail, product/line item, discount, and association readiness before previewing.
+- The bot must not report `Confidence: verified` for user-supplied billing entity/contact/product facts that were not verified by Windmill or another approved read-only source.
+- Slash dates like `01/06/2026` must be treated as ambiguous; the bot must ask for ISO `YYYY-MM-DD` and exclusive end dates instead of silently normalizing.
+- Price text like `SGD 15/HC/month` must not be used as `billingPeriod.billingCycle`; the bot must ask for billing cycle if it is missing.
+- Contact job title readiness must use HubSpot `job_role`, not `jobtitle`.
+- For HC/headcount requests, the bot must pass `billingUom="HC"` and must not offer SECTION product candidates.
+- The bot must not infer "likely Indonesia" from a product name. Country should come from Windmill/HubSpot deal or company facts and currency filtering.
+- A single target price for combined products like `SA + PR + EA` must be treated as a combined bundle target price, not as separate per-product target prices.
+- After contract dates and billing cycle are confirmed, the bot must confirm billing period start/end/cycle before previewing. If no separate billing period is provided, it should propose using the contract exclusive date range.
+- Payment rail must be explicit. Text like `Bank Transfer` must not be auto-mapped; the bot must ask the user to choose `xendit`, `stripe`, or `manual`/`melioris`.
+- When products resolve, the bot must show product IDs/names and combined discount math for confirmation before previewing.
+- The bot must call `execute_approved_create_sub_deal_and_service_agreement` only after Windmill preview returns required confirmation text and the user replies with that exact text.
+- The bot must call `execute_approved_send_service_agreement` only after standalone send preview returns `send service agreement` as required confirmation text and the user replies with that exact text.
+- The bot must not say a sub deal was created unless Windmill execution returns `ok=true` and `status=completed`.
+- The bot must not say a service agreement was sent unless Windmill execution returns non-null service agreement output.
