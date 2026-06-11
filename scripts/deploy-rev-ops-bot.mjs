@@ -335,14 +335,17 @@ if [ "$skip_restart" = "0" ] && [ -n "$active_owners" ] && [ "$active_owners" !=
 fi
 
 deploy_dir=$(mktemp -d /tmp/rev-ops-bot-main.XXXXXX)
-cleanup() { rm -rf "$deploy_dir"; }
+cleanup() { sudo rm -rf "$deploy_dir"; }
 trap cleanup EXIT
 
 tar -xzf "$archive" -C "$deploy_dir"
-cd "$deploy_dir"
-command -v node >/dev/null 2>&1 || { echo "deploy:error:node-not-found"; exit 1; }
-npm run rev-ops-bot:verify
-npm run rev-ops-bot:prompt-evals
+sudo chown -R "$runtime_owner:$runtime_owner" "$deploy_dir"
+sudo chmod -R a+rX "$deploy_dir"
+runtime_path="/home/$runtime_owner/.local/bin:$PATH"
+sudo -H -u "$runtime_owner" env PATH="$runtime_path" bash -c 'command -v node >/dev/null 2>&1' || { echo "deploy:error:node-not-found"; exit 1; }
+sudo -H -u "$runtime_owner" env PATH="$runtime_path" bash -c 'command -v npm >/dev/null 2>&1' || { echo "deploy:error:npm-not-found"; exit 1; }
+sudo -H -u "$runtime_owner" env PATH="$runtime_path" npm --prefix "$deploy_dir" run rev-ops-bot:verify
+sudo -H -u "$runtime_owner" env PATH="$runtime_path" npm --prefix "$deploy_dir" run rev-ops-bot:prompt-evals
 remote_verify="passed"
 
 deploy_sha=$(cat "$sha_file")
@@ -371,6 +374,7 @@ sudo chown -R "$runtime_owner:$runtime_owner" "$source_root"
 copy_dir "$deploy_dir/apps/rev-ops-bot" "$source_root/apps/rev-ops-bot"
 copy_dir "$deploy_dir/scripts/lib" "$source_root/scripts/lib"
 copy_file "$deploy_dir/package.json" "$source_root/package.json" 0644
+copy_file "$deploy_dir/scripts/deploy-rev-ops-bot.mjs" "$source_root/scripts/deploy-rev-ops-bot.mjs" 0755
 copy_file "$deploy_dir/scripts/verify-rev-ops-bot.mjs" "$source_root/scripts/verify-rev-ops-bot.mjs" 0644
 copy_file "$deploy_dir/scripts/run-prompt-evals.mjs" "$source_root/scripts/run-prompt-evals.mjs" 0644
 copy_file "$deploy_dir/ops/hermes/channels.md" "$source_root/ops/hermes/channels.md" 0644
