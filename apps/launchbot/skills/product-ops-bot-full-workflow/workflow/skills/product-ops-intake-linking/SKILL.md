@@ -64,7 +64,8 @@ When someone asks you to help with a feature gap, issue, or customer request:
    - If CSV and Jira disagree, prefer live Jira and mention snapshot staleness.
 5. Present the best one to three KER candidates with concise reasoning.
 6. For each candidate, provide confidence percentage and short rationale.
-7. Ask user confirmation in-thread (natural language is allowed):
+7. **High-confidence auto-link (≥90%):** If the top KER candidate confidence is ≥90%, skip the confirmation step — proceed directly to IFI creation and link to that KER ticket without asking. Announce the auto-link decision in the thread (e.g. "97% match → auto-linking to KER-443 and creating IFI").
+8. Ask user confirmation in-thread only when top confidence is <90% (natural language is allowed):
    - In Slack, require in-thread reply with `@mention` to the bot.
    - Do not rely on emoji reactions for routing/confirmation.
    - Offer short option tokens as a convenience, but do not require exact token text.
@@ -77,24 +78,20 @@ When someone asks you to help with a feature gap, issue, or customer request:
      - `New` no, it does not match; create a new KER ticket instead
      - `No Ticket` no need KER ticket
      - `Stop` stop the process
-8. Accept both explicit decision tokens and natural-language intent:
+9. Accept both explicit decision tokens and natural-language intent:
    - Examples:
      - "use the first one" => `1`
      - "create new KER" => `New`
      - "no KER needed" => `No Ticket`
      - "stop here" => `Stop`
    - If intent is ambiguous, ask one short clarification question before acting.
-9. If the latest in-thread bot-mentioned reply clearly maps to a decision, treat it as continuation state, not fresh intake, and execute the mapped action.
-10. Do not present the same KER recommendations again in the same thread unless materially new evidence changes recommendation.
-11. If user replies `1`/`2`/`3`, use selected KER ticket as backlog record and create linkage, but do not replace KER core description with full intake context.
-12. If user replies `New`, create a new KER ticket and use it as backlog record.
-13. If user replies `No Ticket`, do not link IFI tickets.
-14. If user replies `Stop`, stop the process; do not create or link tickets.
-15. Any option except `Stop` proceeds to create IFI ticket immediately using best grounded context.
-16. HubSpot Company ID is **not required** to create the IFI ticket:
-   - Do **not** block or delay IFI creation because HubSpot lookup failed, returned no match, or is ambiguous.
-   - Create the IFI ticket with whatever context is available. Leave the HubSpot Company field blank if unresolved.
-   - After creation, ask the user to provide the HubSpot Company ID or URL so it can be added to the ticket.
+10. If the latest in-thread bot-mentioned reply clearly maps to a decision, treat it as continuation state, not fresh intake, and execute the mapped action.
+11. Do not present the same KER recommendations again in the same thread unless materially new evidence changes recommendation.
+12. If user replies `1`/`2`/`3`, use selected KER ticket as backlog record and create linkage, but do not replace KER core description with full intake context.
+13. If user replies `New`, create a new KER ticket and use it as backlog record.
+14. If user replies `No Ticket`, do not link IFI tickets.
+15. If user replies `Stop`, stop the process; do not create or link tickets.
+16. Any option except `Stop` proceeds to create IFI ticket immediately using best grounded context.
 17. If request is related to an organization, set IFI `StaffAny Organization` field to best matching organization object/asset:
    - Prefer predefined organization objects/assets over free text.
    - Do not require exact name match; use containment/close-name matching.
@@ -102,7 +99,7 @@ When someone asks you to help with a feature gap, issue, or customer request:
    - If best match is at least 85%, set organization field.
    - If no candidate reaches 85%, leave field unset and say no confident match.
 18. After IFI creation, send concise summary and direct links to created/linked KER and IFI tickets. Do not require another confirmation before marking complete. If HubSpot Company ID was not provided or could not be resolved, explicitly ask: "Can you share the HubSpot Company ID or URL so I can link it to the IFI ticket?"
-18. If user wants corrections/enrichment after creation/linking, help update tickets.
+19. If user wants corrections/enrichment after creation/linking, help update tickets.
 
 
 ## IFI Auto-Creation (No Extra Confirmation Step)
