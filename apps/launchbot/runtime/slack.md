@@ -33,6 +33,20 @@ Launchbot can run in any Slack channel where it is invited and mentioned. Schedu
 - Support-watch Slack reports must start with `Launchbot automation:` and state that no tickets, owners, or engineer tags were created.
 - Support-watch state path is `~/.hermes/profiles/launchbot/runtime/support-watch-state.json`. It stores support-source IDs, safe summaries, source URLs, state, available team/admin assignee IDs, timestamps, signatures, and safe counters only; it must not persist raw support transcripts.
 
+## Slack File / Screenshot Access
+
+When a user shares a Slack-internal file URL (`staffany.slack.com/files/...` or `files.slack.com/files-pri/...`), Launchbot cannot open it directly in a browser or via vision tools — these URLs require authentication.
+
+**Pattern to access:**
+1. Extract the file ID from the URL (e.g. `F0BA7JW1WG4`).
+2. Call `files.info` with the bot token (strip surrounding quotes from `.env` with `tr -d '"'`).
+3. Download `url_private` to `/tmp/` using `curl -L` with `Authorization: Bearer <token>`.
+4. Pass the local path to `vision_analyze`.
+
+See skill `slack-file-download` for the full pattern, pitfalls, and copy-paste code.
+
+**Scope required:** Bot token must have `files:read` and the bot must be a member of the channel where the file was shared.
+
 ## Output Contract
 
 ```text
