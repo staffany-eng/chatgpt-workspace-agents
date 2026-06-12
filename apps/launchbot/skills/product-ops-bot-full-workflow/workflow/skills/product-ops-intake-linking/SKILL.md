@@ -101,7 +101,7 @@ When someone asks you to help with a feature gap, issue, or customer request:
    - Estimate match confidence for strongest candidates.
    - If best match is at least 85%, set organization field.
    - If no candidate reaches 85%, leave field unset and say no confident match.
-18. After IFI creation, send concise summary and direct links to created/linked KER and IFI tickets. Do not require another confirmation before marking complete. Do not ask for HubSpot Company ID if it could not be resolved — leave the field blank silently.
+18. After IFI creation, send concise summary and direct links to created/linked KER and IFI tickets. Always show the KER as `*KER-XXXX* — <KER summary title>` with a full URL link — never just the ticket code alone. Do not require another confirmation before marking complete. Do not ask for HubSpot Company ID if it could not be resolved — leave the field blank silently.
 19. If user wants corrections/enrichment after creation/linking, help update tickets.
 
 
@@ -335,8 +335,9 @@ After all threads are processed, reply in the requesting thread with:
 
 1. *[Company] — [Module]: [brief problem]*
    <slack_permalink>
-   → IFI-XXXX + KER-XXXX (new / Backlog)
-   https://... | https://...
+   → *IFI-XXXX* — https://staffany.atlassian.net/browse/IFI-XXXX
+   → *KER-XXXX* — <KER summary title> (<new / Backlog>)
+   https://staffany.atlassian.net/browse/KER-XXXX
 ```
 
 **Always include the Slack permalink** to the original message for each item. For any 60–89% confidence KER matches where confirmation is needed, list them at the bottom as pending decisions.
@@ -367,7 +368,7 @@ Unless user asks otherwise, produce:
 After decision:
 
 1. `Outcome`
-2. `Created or linked records` (with direct links)
+2. `Created or linked records` — always show each record as `*TICKET-KEY* — <summary title>` with a full URL on the next line. Never post just the ticket key alone.
 3. `Notes`
 
 ---
